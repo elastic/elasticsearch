@@ -30,6 +30,21 @@ dependencies {
   // GCS fixture infrastructure for mocking GCS operations
   javaRestTestImplementation project(':test:fixtures:gcs-fixture')
 
+  // Field types and ingest features used by the shared esql csv-spec datasets
+  clusterModules project(xpackModule('enrich'))
+  clusterModules project(xpackModule('analytics'))
+  clusterModules project(xpackModule('spatial'))
+  clusterModules project(xpackModule('mapper-aggregate-metric'))
+  clusterModules project(xpackModule('mapper-unsigned-long'))
+  clusterModules project(xpackModule('mapper-version'))
+  clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(xpackModule('wildcard'))
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:aggregations')
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:data-streams')
+  clusterModules project(':modules:reindex')
+
   // Repository S3 module for cluster
   clusterModules project(':modules:repository-s3')
   // Repository GCS module for cluster
@@ -37,18 +52,25 @@ dependencies {
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+  // inference-service-test declares x-pack-inference as an extended plugin
+  clusterModules project(xpackModule('inference'))
+
+  clusterModules project(xpackModule('esql'))
+  // Not referenced by the cluster spec directly: x-pack-esql pulls in x-pack-ml, which extends
+  // x-pack-autoscaling, and the node installs that chain recursively from the plugin descriptors.
+  clusterModules project(xpackModule('autoscaling'))
 
   // The datasource plugin under test
-  clusterPlugins project(xpackModule('esql-datasource-ndjson'))
-  clusterPlugins project(xpackModule('esql-datasource-gzip'))
-  clusterPlugins project(xpackModule('esql-datasource-zstd'))
-  clusterPlugins project(xpackModule('esql-datasource-bzip2'))
-  clusterPlugins project(xpackModule('esql-datasource-http'))
-  clusterPlugins project(xpackModule('esql-datasource-s3'))
+  clusterModules project(xpackModule('esql-datasource-ndjson'))
+  clusterModules project(xpackModule('esql-datasource-gzip'))
+  clusterModules project(xpackModule('esql-datasource-zstd'))
+  clusterModules project(xpackModule('esql-datasource-bzip2'))
+  clusterModules project(xpackModule('esql-datasource-http'))
+  clusterModules project(xpackModule('esql-datasource-s3'))
   // GCS datasource plugin for gs:// storage backend
-  clusterPlugins project(xpackModule('esql-datasource-gcs'))
+  clusterModules project(xpackModule('esql-datasource-gcs'))
   // Azure Blob datasource plugin for wasbs:///wasb:// storage backend
-  clusterPlugins project(xpackModule('esql-datasource-azure'))
+  clusterModules project(xpackModule('esql-datasource-azure'))
 }
 
 // Standalone NDJSON under iceberg-fixtures/standalone/ is generated from esql:qa:testFixtures CSV basenames.
@@ -107,7 +129,6 @@ tasks.named('processJavaRestTestResources').configure {
 
 tasks.named('javaRestTest') {
   dependsOn 'generateStandaloneNdjsonFixtures'
-  usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild
 
@@ -148,7 +169,6 @@ tasks.named('processCsvSpecTestResources').configure {
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   dependsOn 'generateStandaloneNdjsonFixtures'
   dependsOn generateEsqlSpecTests
-  usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild
   testClassesDirs = sourceSets.csvSpecTest.output.classesDirs

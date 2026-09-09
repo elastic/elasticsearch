@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.qa.ndjson;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 
@@ -38,9 +37,34 @@ public class Clusters {
 
     public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier, LocalClusterConfigProvider configProvider) {
         return ElasticsearchCluster.local()
-            .distribution(DistributionType.DEFAULT)
             .shared(true)
             .plugin("inference-service-test")
+            .module("x-pack-inference")
+            .module("x-pack-esql")
+            // The datasource modules under test. Each extends x-pack-esql, and the format modules
+            // are resolved by scheme/extension at query time rather than being referenced directly.
+            .module("esql-datasource-ndjson")
+            .module("esql-datasource-gzip")
+            .module("esql-datasource-zstd")
+            .module("esql-datasource-bzip2")
+            .module("esql-datasource-http")
+            .module("esql-datasource-s3")
+            .module("esql-datasource-gcs")
+            .module("esql-datasource-azure")
+            // Field types and ingest features used by the shared esql csv-spec datasets
+            .module("x-pack-enrich")
+            .module("x-pack-analytics")
+            .module("spatial")
+            .module("x-pack-aggregate-metric")
+            .module("unsigned-long")
+            .module("mapper-version")
+            .module("constant-keyword")
+            .module("wildcard")
+            .module("mapper-extras")
+            .module("aggregations")
+            .module("ingest-common")
+            .module("data-streams")
+            .module("reindex")
             // Enable S3 repository plugin for S3 access
             .module("repository-s3")
             // Enable GCS repository module for GCS access

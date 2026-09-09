@@ -98,15 +98,33 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
     public void testRecordParse() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        acc.recordParse(1000L, 50L);
+        acc.recordParse(1000L, 50L, "csv");
         assertThat(acc.parseRows(), equalTo(1000L));
+        assertThat(acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_CSV), equalTo(1000L));
+        assertThat(acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_PARQUET), equalTo(0L));
         assertThat(acc.parseDuration(1), equalTo(1L)); // 50ms → lt_100ms bucket (index 1)
     }
 
     public void testRecordParseZeroRowsSkipsCounter() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        acc.recordParse(0L, 10L);
+        acc.recordParse(0L, 10L, "csv");
         assertThat(acc.parseRows(), equalTo(0L));
+        assertThat(acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_CSV), equalTo(0L));
+    }
+
+    public void testRecordParseByFormatAddsRowsNotScans() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordParse(6L, 10L, "csv");
+        acc.recordParse(4L, 10L, "csv");
+        acc.recordParse(3L, 10L, "parquet");
+        assertThat(acc.parseRows(), equalTo(13L));
+        assertThat(acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_CSV), equalTo(10L));
+        assertThat(acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_PARQUET), equalTo(3L));
+        long byFormat = 0;
+        for (int i = 0; i < DataSourceUsageAccumulator.FORMAT_COUNT; i++) {
+            byFormat += acc.parseRowsByFormat(i);
+        }
+        assertThat(byFormat, equalTo(acc.parseRows()));
     }
 
     public void testRecordSplitsScanned() {
@@ -140,10 +158,30 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> acc.recordQuery("weird_outcome", 10L, false));
     }
 
+    public void testUnexpectedFormatThrows() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        expectThrows(IllegalArgumentException.class, () -> acc.recordParse(10L, 5L, "gz"));
+        assertThat(acc.parseRows(), equalTo(0L));
+        long byFormat = 0;
+        for (int i = 0; i < DataSourceUsageAccumulator.FORMAT_COUNT; i++) {
+            byFormat += acc.parseRowsByFormat(i);
+        }
+        assertThat(byFormat, equalTo(0L));
+        for (int b = 0; b < DataSourceUsageAccumulator.BUCKET_COUNT; b++) {
+            assertThat(acc.parseDuration(b), equalTo(0L));
+        }
+    }
+
     public void testOutcomeIndexOutOfRangeThrowsOnAccessor() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
         expectThrows(IllegalArgumentException.class, () -> acc.queries(DataSourceUsageAccumulator.OUTCOME_COUNT));
         expectThrows(IllegalArgumentException.class, () -> acc.queries(-1));
+    }
+
+    public void testFormatIndexOutOfRangeThrowsOnAccessor() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        expectThrows(IllegalArgumentException.class, () -> acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_COUNT));
+        expectThrows(IllegalArgumentException.class, () -> acc.parseRowsByFormat(-1));
     }
 
     public void testUnrecognizedOutcomeIsSwallowedByRecordQuery() {
@@ -164,7 +202,7 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         acc.recordRequest(Type.LOCAL, 5L, 0L);
         acc.recordQuery("success", 100L, false);
         acc.recordDiscovery(30L, 5L, 512L);
-        acc.recordParse(500L, 50L);
+        acc.recordParse(500L, 50L, "csv");
         acc.recordSplitsScanned(3L);
         acc.recordDiscoveryFailure();
         acc.recordBreakerTripped();
@@ -180,12 +218,37 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(counters.get("datasources.discovery.failures.total"), equalTo(1L));
         assertThat(counters.get("datasources.breaker.tripped.total"), equalTo(1L));
         assertThat(counters.get("datasources.parse.rows.total"), equalTo(500L));
+        for (String format : DataSourceUsageAccumulator.FORMAT_NAMES) {
+            String key = "datasources.parse.rows.by_format." + format;
+            assertThat(key, counters.get(key), equalTo("csv".equals(format) ? 500L : 0L));
+        }
 
         // verify one populated bucket per histogram family (exact bucket derived from input values above)
         assertThat(counters.get("datasources.storage.requests.duration.lt_10ms"), equalTo(2L)); // two 5ms requests
         assertThat(counters.get("datasources.discovery.files_scanned.lt_10"), equalTo(1L));     // 5 files → index 1
         assertThat(counters.get("datasources.discovery.bytes_scanned.lt_1k"), equalTo(1L));     // 512 bytes → index 3
         assertThat(counters.get("datasources.parse.splits_scanned.lt_10"), equalTo(1L));        // 3 splits → index 1
+        assertThat(counters.get("datasources.config.datasources.changes.by_op.created"), equalTo(0L));
+        assertThat(counters.get("datasources.config.datasets.changes.by_op.rejected"), equalTo(0L));
+    }
+
+    public void testRecordConfigChangeByKindAndOp() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordConfigChange("datasource", "created");
+        acc.recordConfigChange("datasources", "updated");
+        acc.recordConfigChange("dataset", "deleted");
+        acc.recordConfigChange("datasets", "rejected");
+        assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CREATED), equalTo(1L));
+        assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_UPDATED), equalTo(1L));
+        assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_DELETED), equalTo(1L));
+        assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED), equalTo(1L));
+
+        Counters counters = new Counters();
+        DataSourceCounters.populate(acc, counters);
+        assertThat(counters.get("datasources.config.datasources.changes.by_op.created"), equalTo(1L));
+        assertThat(counters.get("datasources.config.datasources.changes.by_op.updated"), equalTo(1L));
+        assertThat(counters.get("datasources.config.datasets.changes.by_op.deleted"), equalTo(1L));
+        assertThat(counters.get("datasources.config.datasets.changes.by_op.rejected"), equalTo(1L));
     }
 
     public void testExternalSourceMetricsDualSink() {
@@ -203,13 +266,15 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 200L, false);
         metrics.recordQuery(ExternalSourceMetrics.OUTCOME_CANCELLED, 10L, false);
         metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 50L, true);
-        metrics.recordTimeToFirstRow(30L, "s3");
+        metrics.recordTimeToFirstRow(30L, "s3", "parquet");
         metrics.recordDiscovery(20L, 3L, 4096L, "s3");
         metrics.recordDiscoveryFailure();
-        metrics.recordParse(100L, 40L, "gcs");
-        metrics.recordSplitsScanned(2L, "s3");
+        metrics.recordParse(100L, 40L, "gcs", "csv");
+        metrics.recordSplitsScanned(2L, "s3", "parquet");
         metrics.recordPoolRejected();
         metrics.recordBreakerTripped();
+        metrics.recordConfigChange("datasource", "created", "s3", null);
+        metrics.recordConfigChange("dataset", "rejected", "local", "validation");
 
         assertThat(acc.storageRequests(Type.S3), equalTo(1L));
         assertThat(acc.storageBytesRead(Type.S3), equalTo(2048L));
@@ -224,8 +289,11 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(acc.queriesPartial(), equalTo(1L));
         assertThat(acc.discoveryFailures(), equalTo(1L));
         assertThat(acc.parseRows(), equalTo(100L));
+        assertThat(acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_CSV), equalTo(100L));
         assertThat(acc.readerPoolRejected(), equalTo(1L));
         assertThat(acc.breakerTripped(), equalTo(1L));
+        assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CREATED), equalTo(1L));
+        assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED), equalTo(1L));
     }
 
     public void testNoopHasNullAccumulator() {

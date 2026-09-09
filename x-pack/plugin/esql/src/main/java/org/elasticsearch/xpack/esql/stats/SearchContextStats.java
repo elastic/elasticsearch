@@ -373,20 +373,24 @@ public class SearchContextStats implements SearchStats {
         }
 
         if (fieldType instanceof KeywordFieldType keywordFieldType) {
-            // NOTE: Terms cannot prove value cardinality for these keyword storage shapes.
-            if (canUseKeywordTermsForDocValueCountEquality(keywordFieldType) == false) {
+            if (keywordFieldType.usesMultivaluedBinaryDocValues()) {
+                // NOTE: The binary multivalued format can store duplicate values per doc (e.g. ["A", "A", "B"]).
+                // The terms index deduplicates per doc, so sumDocFreq would undercount and cannot prove SV.
                 return false;
             }
-            final Terms terms = reader.terms(name);
-            return terms == null || terms.getSumDocFreq() == terms.getDocCount();
+            if (keywordFieldType.indexType().hasDocValuesSkipper()) {
+                final DocValuesSkipper skipper = reader.getDocValuesSkipper(name);
+                return skipper == null || skipper.maxValueCount() == 1;
+            }
+            if (keywordFieldType.indexType().hasTerms()) {
+                final Terms terms = reader.terms(name);
+                return terms == null || terms.getSumDocFreq() == terms.getDocCount();
+            }
+            return false;
         }
 
         // unsupported type - default to MV
         return false;
-    }
-
-    private static boolean canUseKeywordTermsForDocValueCountEquality(KeywordFieldType fieldType) {
-        return fieldType.usesMultivaluedBinaryDocValues() == false && fieldType.indexType().hasTerms();
     }
 
     @Override

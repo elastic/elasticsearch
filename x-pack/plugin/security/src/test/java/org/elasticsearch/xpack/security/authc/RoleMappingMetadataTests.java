@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -19,6 +20,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.security.authc.support.mapper.ExpressionRoleMappingTests.randomRoleMapping;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class RoleMappingMetadataTests extends AbstractWireSerializingTestCase<RoleMappingMetadata> {
@@ -50,6 +52,13 @@ public class RoleMappingMetadataTests extends AbstractWireSerializingTestCase<Ro
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+    }
+
+    public void testRoleMappingsAreNotRestorableFromSnapshot() {
+        RoleMappingMetadata roleMappingMetadata = new RoleMappingMetadata(randomSet(0, 3, () -> randomRoleMapping(true)));
+        assertThat(roleMappingMetadata.context(), equalTo(Metadata.API_AND_GATEWAY));
+        assertThat(roleMappingMetadata.context().contains(Metadata.XContentContext.SNAPSHOT), is(false));
+        assertThat(roleMappingMetadata.isRestorable(), is(false));
     }
 
     public void testEquals() {

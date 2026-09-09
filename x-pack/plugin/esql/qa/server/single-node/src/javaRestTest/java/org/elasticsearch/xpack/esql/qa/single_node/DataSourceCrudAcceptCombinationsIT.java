@@ -54,11 +54,13 @@ import static org.hamcrest.Matchers.notNullValue;
  * combination of dimension values per format, so cross-dimension interactions are caught
  * automatically — not just individual settings in isolation.
  *
- * <p>Dimensions include boundary and garbage values alongside valid ones. Some garbage values
- * (e.g. {@code ss_neg}, {@code em_garbage}) are already rejected at PUT by coordinator-level
- * validation and serve as canaries for that path. Others (e.g. {@code del_empty}, {@code del_multi})
- * slip through PUT — the reader treats them as the format default — and are exercised optimistically:
- * if PUT accepts them and the query then fails, CI catches the regression. Dimension values that are
+ * <p>Dimensions include boundary and garbage values alongside valid ones. Garbage values are rejected
+ * at PUT — by coordinator-level validation ({@code ss_neg}, {@code em_garbage}) or by the format's own
+ * value validator ({@code del_multi}, {@code enc_garbage}, {@code seg_tiny}, {@code seg_garbage}) —
+ * and serve as canaries for those paths: {@link #isKnownCanary} marks them, and a 200 on one is an
+ * assertion failure. Values that PUT legitimately accepts but the reader reinterprets (e.g.
+ * {@code del_empty}, which the reader treats as the format default) are exercised optimistically: if
+ * PUT accepts them and the query then fails, CI catches the regression. Dimension values that are
  * entirely unreachable at query time are commented out with a reference to esql-planning#1550.
  *
  * <p>If a case fails (PUT returns 200 but the query fails due to a mis-wired or mis-validated
@@ -168,8 +170,12 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
      */
     private static boolean isKnownCanary(String dimensionName) {
         return switch (dimensionName) {
-            case "ss_neg",    // schema_sample_size=-1: coordinator rejects negative values
-                "em_garbage"  // error_mode=garbage_mode: coordinator rejects unknown error modes
+            case "ss_neg",      // schema_sample_size=-1: coordinator rejects negative values
+                "em_garbage",   // error_mode=garbage_mode: coordinator rejects unknown error modes
+                "del_multi",    // delimiter=||: rejected as a multi-character value
+                "enc_garbage",  // encoding=UTF-99: rejected as an unknown charset
+                "seg_tiny",     // segment_size=1b: rejected as below the 64kb minimum
+                "seg_garbage"   // segment_size=foobar: rejected as an unparseable size
                 -> true;
             default -> false;
         };
@@ -178,9 +184,9 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
     /**
      * Full Cartesian product over all dimension values — valid and garbage alike.
      *
-     * <p>CSV:    format_det × encoding × delimiter × header_row × schema_sample_size → 2×3×6×3×4 = 432
-     * <p>TSV:    format_det × encoding × delimiter × header_row × schema_sample_size → 2×3×6×3×4 = 432
-     * <p>NDJSON: format_det × segment_size × schema_sample_size                      → 2×2×4     =  16
+     * <p>CSV:    format_det × encoding × delimiter × header_row × schema_sample_size → 2×4×6×3×4 = 576
+     * <p>TSV:    format_det × encoding × delimiter × header_row × schema_sample_size → 2×4×6×3×4 = 576
+     * <p>NDJSON: format_det × segment_size × schema_sample_size                      → 2×4×4     =  32
      * <p>Parquet: format_det × error_mode                                            → 2×5        =  10
      * <p>ORC:    format_det × error_mode                                             → 2×5        =  10
      */
@@ -210,9 +216,8 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
             for (String[] segmentSize : new String[][] {
                 { "seg_default", null }, // omit → reader default
                 { "seg_1mb", "1mb" },
-                // TODO(esql-planning#1550): uncomment once segment_size values are validated at PUT
-                // { "seg_tiny", "1b" }, // below 64 KiB minimum — not yet rejected at PUT (esql-planning#1550)
-                // { "seg_garbage", "foobar" }, // unparseable size — not yet rejected at PUT (esql-planning#1550)
+                { "seg_tiny", "1b" }, // below the 64kb minimum — rejected at PUT (canary)
+                { "seg_garbage", "foobar" }, // unparseable size — rejected at PUT (canary)
             }) {
                 for (String[] sampleSize : new String[][] {
                     { "ss_default", null }, // omit → reader default
@@ -225,7 +230,7 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
                     if (explicitFormat != null) settings.put("format", explicitFormat);
                     if (segmentSize[1] != null) settings.put("segment_size", segmentSize[1]);
                     if (sampleSize[1] != null) settings.put("schema_sample_size", Integer.parseInt(sampleSize[1]));
-                    boolean expectAccepted = isKnownCanary(sampleSize[0]) == false;
+                    boolean expectAccepted = isKnownCanary(segmentSize[0]) == false && isKnownCanary(sampleSize[0]) == false;
                     cases.add(new Object[] { name, new ComboCase(resourceFile, Map.copyOf(settings), expectAccepted) });
                 }
             }
@@ -294,8 +299,7 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
                 { "enc_default", null },        // omit → reader default (UTF-8)
                 { "enc_utf8", "UTF-8" },
                 { "enc_latin1", "ISO-8859-1" },
-                // TODO(esql-planning#1550): uncomment once charset values are validated at PUT
-                // { "enc_garbage", "UTF-99" }, // invalid charset — not yet rejected at PUT (esql-planning#1550)
+                { "enc_garbage", "UTF-99" },    // invalid charset — rejected at PUT (canary)
             }) {
                 for (String[] delimiter : new String[][] {
                     { "del_default", null },  // omit → format default (comma for CSV, tab for TSV)
@@ -303,7 +307,7 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
                     { "del_semi", ";" },
                     { "del_tab", "\t" },
                     { "del_empty", "" },      // empty string — accepted at PUT; reader treats as format default
-                    { "del_multi", "||" },    // multi-char: silently truncated to '|' today (esql-planning#1550)
+                    { "del_multi", "||" },    // multi-char — rejected at PUT (canary); the reader still truncates to '|'
                 }) {
                     for (String[] headerRow : new String[][] {
                         { "hdr_default", null },    // omit → true
@@ -332,7 +336,9 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
                             if (delimiter[1] != null) settings.put("delimiter", delimiter[1]);
                             if (headerRow[1] != null) settings.put("header_row", Booleans.parseBoolean(headerRow[1]));
                             if (sampleSize[1] != null) settings.put("schema_sample_size", Integer.parseInt(sampleSize[1]));
-                            boolean expectAccepted = isKnownCanary(sampleSize[0]) == false;
+                            boolean expectAccepted = isKnownCanary(encoding[0]) == false
+                                && isKnownCanary(delimiter[0]) == false
+                                && isKnownCanary(sampleSize[0]) == false;
                             cases.add(new Object[] { name, new ComboCase(resourceFile, Map.copyOf(settings), expectAccepted) });
                         }
                     }

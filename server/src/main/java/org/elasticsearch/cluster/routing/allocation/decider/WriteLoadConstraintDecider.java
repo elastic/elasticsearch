@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -62,13 +61,6 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         var nodeWriteThreadPoolStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
         return nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis() >= hotspotQueueLatencyThreshold.millis()
             && nodeWriteThreadPoolStats.averageThreadPoolUtilization() >= hotspotUtilizationThreshold;
-    }
-
-    public static boolean maxShardWriteLoadProportionIsHigh(double maxShardWriteLoadProportion, double maxShardWriteLoadThreshold) {
-        if (maxShardWriteLoadThreshold == 0.0) {
-            return false;
-        }
-        return maxShardWriteLoadProportion >= maxShardWriteLoadThreshold;
     }
 
     /**
@@ -185,70 +177,40 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         var nodeWriteThreadPoolQueueLatencyThreshold = writeLoadConstraintSettings.getQueueLatencyThreshold();
         var nodeWriteThreadPoolUtilizationThreshold = writeLoadConstraintSettings.getHotspotUtilizationThreshold();
 
+        // First, check if the node is hot-spotting. If not, then this decider will not consider the shard for movement.
         final boolean nodeIsHotspotting = nodeIsHotspotting(
             nodeUsageStatsForThreadPools,
             nodeWriteThreadPoolQueueLatencyThreshold,
             nodeWriteThreadPoolUtilizationThreshold
         );
+        if (nodeIsHotspotting == false) {
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                """
+                    Node [%s]'s queue latency of [%d] does not exceed the latency threshold of [%s], or the thread pool utilization of \
+                    [%f] does not exceed the utilization threshold of [%s]""",
+                node.getShortNodeDescription(),
+                nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
+                nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
+                nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
+                writeLoadConstraintSettings.getHotspotUtilizationThresholdString()
+            );
+        }
 
-        if (nodeIsHotspotting) {
-            final double minShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotMinShardWriteLoadThreshold();
-            final double shardWriteLoad = getShardWriteLoad(allocation, shardRouting, 0.0);
-            if (isShardWriteLoadContributionNegligible(minShardWriteLoadThreshold, shardWriteLoad)) {
-                return allocation.decision(
-                    Decision.YES,
-                    NAME,
-                    "Node [%s] is hot-spotting, but shard [%s] has write load [%.5f] at or below the minimum threshold [%.5f] to "
-                        + "consider for movement",
-                    node.getShortNodeDescription(),
-                    shardRouting.shardId(),
-                    shardWriteLoad,
-                    minShardWriteLoadThreshold
-                );
-            }
+        // When a node is hot-spotting, but its write-load is too focused on a single shard, then trying to correct
+        // it with a shard move is useless: the node that receives the shard will hotspot instead, and an important
+        // shard will be unavailable briefly when it moves.
+        //
+        // The maxShardWriteLoadProportion is computed only for hot-spotting nodes, and cached within the routing allocation so it
+        // is only computed once per balancing round.
+        final double maxShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThreshold();
 
-            // When a node is hot-spotting, but its write-load is too focused on a single shard, then trying to correct
-            // it with a shard move is useless: the node that receives the shard will hotspot instead, and an important
-            // shard will be unavailable briefly when it moves.
-            //
-            // The maxShardWriteLoadProportion is computed only for hot-spotting nodes, and cached within the routing allocation so it
-            // is only computed once per balancing round.
-            final double maxShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThreshold();
-
-            // check that the threshold comparison is enabled (not 0.0) before computing the maxShardWriteLoadProportion
-            final double maxShardWriteLoadProportionCalculated = maxShardWriteLoadThreshold == 0.0
-                ? Double.NaN
-                : allocation.maxShardWriteLoadProportionForNode(node);
-            if (maxShardWriteLoadThreshold == 0.0
-                || maxShardWriteLoadProportionIsHigh(maxShardWriteLoadProportionCalculated, maxShardWriteLoadThreshold) == false) {
-                if (logger.isDebugEnabled() || allocation.debugDecision()) {
-                    final String explain = Strings.format(
-                        """
-                            Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s] and a thread \
-                            pool utilization of [%f] that exceeds the utilization threshold of [%s]. This node is hot-spotting. Shard \
-                            write load [%.5f]. %s. Should move shard(s) away""",
-                        node.getShortNodeDescription(),
-                        nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
-                        nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
-                        nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
-                        writeLoadConstraintSettings.getHotspotUtilizationThresholdString(),
-                        shardWriteLoad,
-                        maxShardWriteLoadThreshold == 0.0
-                            ? "Max shard write-load proportion is disabled"
-                            : Strings.format(
-                                "The max shard write-load proportion on this node is %.1f%%, below the single-hot-shard threshold of %s",
-                                maxShardWriteLoadProportionCalculated * 100,
-                                writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThresholdString()
-                            )
-                    );
-                    if (logger.isDebugEnabled()) {
-                        logCanRemainMessage.maybeExecute(() -> logger.debug(explain));
-                    }
-                    return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
-                } else {
-                    return Decision.NOT_PREFERRED;
-                }
-            } else {
+        // check that the threshold comparison is enabled (not 0.0) before computing the maxShardWriteLoadProportion
+        double maxShardWriteLoadProportionCalculated = Double.NaN;
+        if (maxShardWriteLoadThreshold != 0.0) {
+            maxShardWriteLoadProportionCalculated = allocation.maxShardWriteLoadProportionForNode(node);
+            if (maxShardWriteLoadProportionCalculated >= maxShardWriteLoadThreshold) {
                 return allocation.decision(
                     Decision.YES,
                     NAME,
@@ -263,23 +225,53 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             }
         }
 
-        return allocation.decision(
-            Decision.YES,
-            NAME,
-            """
-                Node [%s]'s queue latency of [%d] does not exceed the latency threshold of [%s], or the thread pool utilization of [%f] \
-                does not exceed the utilization threshold of [%s]""",
-            node.getShortNodeDescription(),
-            nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
-            nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
-            nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
-            writeLoadConstraintSettings.getHotspotUtilizationThresholdString()
-        );
-    }
+        // We know the node is hot-spotting, we know the load is not concentrated on a single shard, but there is no
+        // point moving a shard with almost no write-load to try and remedy a hot-spot. Cluster nodes often host many shards
+        // with little-to-no write-load, for example; shards of system indices, or shards of data stream indices other than
+        // the current write-index. It makes no sense to shuffle these around when a node is hot-spotting.
+        final double minShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotMinShardWriteLoadThreshold();
+        final double shardWriteLoad = getShardWriteLoad(allocation, shardRouting, 0.0);
+        if (isShardWriteLoadContributionNegligible(minShardWriteLoadThreshold, shardWriteLoad)) {
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                "Node [%s] is hot-spotting, but shard [%s] has write load [%.5f] at or below the minimum threshold [%.5f] to "
+                    + "consider for movement",
+                node.getShortNodeDescription(),
+                shardRouting.shardId(),
+                shardWriteLoad,
+                minShardWriteLoadThreshold
+            );
+        }
 
-    @Nullable
-    private Double getShardWriteLoad(RoutingAllocation allocation, ShardRouting shardRouting) {
-        return allocation.clusterInfo().getShardWriteLoads().get(shardRouting.shardId());
+        // If we got this far, we are hot-spotting and this shard is a reasonable candidate for movement. Return NOT_PREFERRED
+        if (logger.isDebugEnabled() || allocation.debugDecision()) {
+            final String explain = Strings.format(
+                """
+                    Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s] and a thread \
+                    pool utilization of [%f] that exceeds the utilization threshold of [%s]. This node is hot-spotting. Shard \
+                    write load [%.5f]. %s. Should move shard(s) away""",
+                node.getShortNodeDescription(),
+                nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
+                nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
+                nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
+                writeLoadConstraintSettings.getHotspotUtilizationThresholdString(),
+                shardWriteLoad,
+                Double.isNaN(maxShardWriteLoadProportionCalculated)
+                    ? "Max shard write-load proportion is disabled"
+                    : Strings.format(
+                        "The max shard write-load proportion on this node is %.1f%%, below the single-hot-shard threshold of %s",
+                        maxShardWriteLoadProportionCalculated * 100,
+                        writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThresholdString()
+                    )
+            );
+            if (logger.isDebugEnabled()) {
+                logCanRemainMessage.maybeExecute(() -> logger.debug(explain));
+            }
+            return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
+        } else {
+            return Decision.NOT_PREFERRED;
+        }
     }
 
     private double getShardWriteLoad(RoutingAllocation allocation, ShardRouting shardRouting, double defaultValue) {

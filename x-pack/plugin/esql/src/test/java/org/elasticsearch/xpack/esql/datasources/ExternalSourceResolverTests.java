@@ -370,23 +370,25 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * FIRST_FILE_WINS folds every file's stats under the anchor's schema without enforcing that the other files
-     * actually share it. A column whose physical type diverges across files (here {@code ts}: DATETIME/millis in
-     * the anchor, DATE_NANOS/nanos in file 2) is read from the divergent file under the anchor schema — its data
-     * is misread — so a warm extremum cannot match a scan. The fold must POISON such a column's extrema
-     * (safe-miss), while a uniformly-typed column ({@code id}) folds normally.
+     * Footer FIRST_FILE_WINS: a DATETIME anchor cannot represent DATE_NANOS, so that file's {@code ts} is
+     * all-null in the scan. The fold rewrites that harvest and keeps the DATETIME file's extrema. {@code id}
+     * is uniformly LONG and folds normally.
      */
-    public void testFfwAggregatePoisonsExtremaOfDivergentlyTypedColumn() {
+    public void testFfwFooterAggregateRewritesUnrepresentableDatetimeColumn() {
         Map<String, Object> f1 = new HashMap<>();
         f1.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
         f1.put(SourceStatisticsSerializer.columnMinKey("ts"), 1000L);
         f1.put(SourceStatisticsSerializer.columnMaxKey("ts"), 5000L);
+        f1.put(SourceStatisticsSerializer.columnValueCountKey("ts"), 2L);
+        f1.put(SourceStatisticsSerializer.columnNullCountKey("ts"), 0L);
         f1.put(SourceStatisticsSerializer.columnMinKey("id"), 1L);
         f1.put(SourceStatisticsSerializer.columnMaxKey("id"), 9L);
         Map<String, Object> f2 = new HashMap<>();
         f2.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
         f2.put(SourceStatisticsSerializer.columnMinKey("ts"), 2_000_000L);
         f2.put(SourceStatisticsSerializer.columnMaxKey("ts"), 9_000_000L);
+        f2.put(SourceStatisticsSerializer.columnValueCountKey("ts"), 2L);
+        f2.put(SourceStatisticsSerializer.columnNullCountKey("ts"), 0L);
         f2.put(SourceStatisticsSerializer.columnMinKey("id"), 3L);
         f2.put(SourceStatisticsSerializer.columnMaxKey("id"), 7L);
         SourceMetadata m1 = new SimpleSourceMetadata(
@@ -408,39 +410,38 @@ public class ExternalSourceResolverTests extends ESTestCase {
             null
         );
 
-        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(List.of(m1, m2), false);
+        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(List.of(m1, m2), true);
         assertNotNull(agg);
-        // ts diverged -> extrema poisoned (value dropped, unservable marker set) -> MIN/MAX(ts) safe-miss to a scan.
-        assertNull(agg.get(SourceStatisticsSerializer.columnMinKey("ts")));
-        assertNull(agg.get(SourceStatisticsSerializer.columnMaxKey("ts")));
-        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMinUnservableKey("ts")));
-        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("ts")));
-        // id is uniformly LONG -> folds normally.
+        assertEquals(1000L, agg.get(SourceStatisticsSerializer.columnMinKey("ts")));
+        assertEquals(5000L, agg.get(SourceStatisticsSerializer.columnMaxKey("ts")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnMinUnservableKey("ts")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("ts")));
+        assertEquals(2L, ((Number) agg.get(SourceStatisticsSerializer.columnValueCountKey("ts"))).longValue());
+        assertEquals(2L, ((Number) agg.get(SourceStatisticsSerializer.columnNullCountKey("ts"))).longValue());
         assertEquals(1L, agg.get(SourceStatisticsSerializer.columnMinKey("id")));
         assertEquals(9L, agg.get(SourceStatisticsSerializer.columnMaxKey("id")));
     }
 
     /**
-     * FIRST_FILE_WINS reads every file with the anchor schema. A file whose column type the anchor cannot
-     * represent has that column returned as null, so the fold must mark the whole column stat family
-     * unservable (extrema and counts). A file whose type widens into the anchor is kept by the read, so
-     * its statistics must stay foldable.
+     * Footer FIRST_FILE_WINS: an INTEGER anchor cannot represent LONG, so that file is all-null and the
+     * fold serves the remaining file. A LONG anchor can represent INTEGER, so a widening file stays in
+     * the fold.
      */
-    public void testFfwAggregateMarksUnrepresentableColumnUnservableAndKeepsWidening() {
+    public void testFfwFooterAggregateRewritesUnrepresentableColumnAndKeepsWidening() {
         Map<String, Object> drift = ExternalSourceResolver.aggregateFileStatistics(
             List.of(
                 fileWithColumn("file:///part-a.parquet", DataType.INTEGER, 1L, 2L),
                 fileWithColumn("file:///part-b.parquet", DataType.LONG, -10L, 20L)
             ),
-            false
+            true
         );
         assertNotNull(drift);
-        assertNull(drift.get(SourceStatisticsSerializer.columnMinKey("x")));
-        assertNull(drift.get(SourceStatisticsSerializer.columnMaxKey("x")));
-        assertEquals(Boolean.TRUE, drift.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
-        assertEquals(Boolean.TRUE, drift.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
-        assertNull(drift.get(SourceStatisticsSerializer.columnValueCountKey("x")));
-        assertNull(drift.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertEquals(1L, drift.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertEquals(2L, drift.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertNull(drift.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertNull(drift.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertEquals(2L, ((Number) drift.get(SourceStatisticsSerializer.columnValueCountKey("x"))).longValue());
+        assertEquals(2L, ((Number) drift.get(SourceStatisticsSerializer.columnNullCountKey("x"))).longValue());
         assertEquals(4L, ((Number) drift.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
 
         Map<String, Object> widen = ExternalSourceResolver.aggregateFileStatistics(
@@ -448,7 +449,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 fileWithColumn("file:///widen/part-a.parquet", DataType.LONG, -10L, 20L),
                 fileWithColumn("file:///widen/part-b.parquet", DataType.INTEGER, 1L, 2L)
             ),
-            false
+            true
         );
         assertNotNull(widen);
         assertEquals(-10L, widen.get(SourceStatisticsSerializer.columnMinKey("x")));
@@ -458,6 +459,28 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertNull(widen.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
         assertNull(widen.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
         assertEquals(4L, ((Number) widen.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+    }
+
+    /**
+     * Text FIRST_FILE_WINS does not whole-column null-fill, so an unrepresentable column's extrema are
+     * poisoned and its counts stay the harvest.
+     */
+    public void testFfwTextAggregatePoisonsExtremaOfUnrepresentableColumn() {
+        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
+            List.of(
+                fileWithColumn("file:///part-a.csv", DataType.INTEGER, 1L, 2L),
+                fileWithColumn("file:///part-b.csv", DataType.LONG, -10L, 20L)
+            ),
+            false
+        );
+        assertNotNull(agg);
+        assertNull(agg.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.columnValueCountKey("x"))).longValue());
+        assertEquals(0L, ((Number) agg.get(SourceStatisticsSerializer.columnNullCountKey("x"))).longValue());
+        assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
     /**

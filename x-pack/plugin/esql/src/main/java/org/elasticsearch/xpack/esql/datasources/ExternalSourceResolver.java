@@ -53,11 +53,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1865,44 +1865,59 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * FFW path. FIRST_FILE_WINS reads every file with the anchor's schema and assumes the others match, but does
-     * NOT enforce it. A column whose physical type DIVERGES across files (e.g. DATETIME/epoch-millis in the anchor
-     * and DATE_NANOS/epoch-nanos in another) would fold its extrema unit-blind here; worse, the divergent file's
-     * data is itself misread under the anchor schema, so no warm extremum can match a scan. We cannot normalize to
-     * a common unit (the cold path is already wrong), so we POISON such columns' extrema — safe-miss to a scan.
+     * FFW path. FIRST_FILE_WINS reads every file with the anchor's schema and does not adapt a file that
+     * disagrees. A column the anchor cannot represent is whole-column null-filled by footer readers
+     * (Parquet, ORC), so that file's harvest is rewritten to the all-null contract before the merge:
+     * {@code value_count = 0}, {@code null_count = row_count}, no extrema. The remaining files' harvests
+     * fold normally and the aggregate stays warm. Text readers decide per value under the error policy,
+     * so an unrepresentable column's extrema are poisoned after the merge and its counts stay the harvest.
+     * {@code allMetadata.get(0)} is the anchor ({@link #gatherPerFile} emits listing order).
      */
     @Nullable
-    static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
+    static Map<String, Object> aggregateFileStatistics(List<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
         Map<String, DataType> anchorTypes = null;
-        Set<String> divergentColumns = new HashSet<>();
+        Set<String> unrepresentableColumns = new HashSet<>();
         for (SourceMetadata meta : allMetadata) {
             Map<String, Object> flat = flatStatsOf(meta);
             if (flat == null) {
                 LOGGER.debug("multi-file stats aggregate incomplete: [{}] has no statistics", meta.location());
                 return null;
             }
-            perFileFlatStats.add(flat);
             Map<String, DataType> fileTypes = attributesToTypeMap(meta.schema());
             if (anchorTypes == null) {
                 anchorTypes = fileTypes;
             } else {
                 for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
                     DataType anchorType = anchorTypes.get(entry.getKey());
-                    if (anchorType != null && anchorType != entry.getValue()) {
-                        divergentColumns.add(entry.getKey());
+                    if (unrepresentableUnderAnchor(anchorType, entry.getValue())) {
+                        if (implicitNullsForAbsentColumn) {
+                            flat = SourceStatisticsSerializer.rewriteColumnAsAllNull(flat, entry.getKey());
+                        } else {
+                            unrepresentableColumns.add(entry.getKey());
+                        }
                     }
                 }
             }
+            perFileFlatStats.add(flat);
         }
         Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
-        if (merged != null && divergentColumns.isEmpty() == false) {
-            merged = new HashMap<>(merged); // mergeStatistics may hand back an unmodifiable/shared map
-            for (String column : divergentColumns) {
+        if (merged != null && unrepresentableColumns.isEmpty() == false) {
+            merged = new HashMap<>(merged);
+            for (String column : unrepresentableColumns) {
                 SourceStatisticsSerializer.poisonColumnExtrema(merged, column);
             }
         }
         return merged;
+    }
+
+    /**
+     * Whether a footer or text read of {@code fileType} under planner type {@code anchorType} discards
+     * the column. A column absent from the anchor is ignored, not discarded. {@code commonType} returning
+     * null (DATETIME vs DATE_NANOS) is unrepresentable.
+     */
+    private static boolean unrepresentableUnderAnchor(DataType anchorType, DataType fileType) {
+        return anchorType != null && anchorType.equals(EsqlDataTypeConverter.commonType(anchorType, fileType)) == false;
     }
 
     /** A file's flat stat map — cached in sourceMetadata(), or embedded from typed statistics() — or null if absent. */
@@ -2031,10 +2046,11 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Cache-aware variant of {@link #readAndAggregateAllFileStats}. Peeks the schema cache (keyed by path + mtime) for
-     * each file so repeated multi-file resolves do not re-read footers. Responds with {@code null} if any file cannot
-     * be resolved or lacks statistics; a bare cancellation is surfaced as a failure so it is never masked as partial
-     * stats.
+     * Cache-aware gather for {@link #readAndAggregateAllFileStats}. Peeks the schema cache (keyed by path + mtime)
+     * for each file so repeated multi-file resolves do not re-read footers, then folds through the same
+     * {@link #aggregateFileStatistics(List, boolean)} as the direct route. Responds with {@code null} if any file
+     * cannot be resolved or lacks statistics; a bare cancellation is surfaced as a failure so it is never masked
+     * as partial stats.
      */
     private void readAndAggregateAllFileStatsWithCache(
         FileList listing,
@@ -2045,19 +2061,7 @@ public class ExternalSourceResolver {
     ) {
         gatherPerFile(listing, config, true, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
-            List<Map<String, Object>> perFileStats = new ArrayList<>(allMeta.size());
-            for (SourceMetadata meta : allMeta) {
-                Map<String, Object> fileMeta = meta.sourceMetadata();
-                if (fileMeta == null || fileMeta.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false) {
-                    // This file has no statistics — cannot produce accurate global stats. Name the first
-                    // offender; the all-or-nothing miss is otherwise undiagnosable at glob scale.
-                    LOGGER.debug("multi-file stats aggregate incomplete: [{}] has no row count", meta.location());
-                    listener.onResponse(null);
-                    return;
-                }
-                perFileStats.add(fileMeta);
-            }
-            listener.onResponse(SourceStatisticsSerializer.mergeStatistics(perFileStats, implicitNulls));
+            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls));
         }, e -> {
             // A bare cancellation, or a read that failed because the query was cancelled mid-flight (the cache wraps
             // loader failures, so consult the state directly), must abort rather than degrade to partial stats.

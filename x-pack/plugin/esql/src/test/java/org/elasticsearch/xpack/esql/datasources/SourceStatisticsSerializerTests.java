@@ -716,6 +716,32 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertSame(stats, SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, Map.of(), Set.of()));
     }
 
+    public void testRewriteColumnAsAllNullCopiesAndStripsLeftoverUnservableMarkers() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        stats.put(SourceStatisticsSerializer.columnMinKey("x"), -10L);
+        stats.put(SourceStatisticsSerializer.columnMaxKey("x"), 20L);
+        stats.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        stats.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+        stats.put(SourceStatisticsSerializer.columnMinUnservableKey("x"), Boolean.TRUE);
+        stats.put(SourceStatisticsSerializer.columnMaxUnservableKey("x"), Boolean.TRUE);
+        stats.put(SourceStatisticsSerializer.columnMinKey("id"), 1L);
+        Map<String, Object> frozen = Map.copyOf(stats);
+
+        Map<String, Object> out = SourceStatisticsSerializer.rewriteColumnAsAllNull(frozen, "x");
+
+        assertNotSame(frozen, out);
+        assertEquals(2L, out.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertEquals(0L, out.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertEquals(2L, out.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertEquals(1L, out.get(SourceStatisticsSerializer.columnMinKey("id")));
+        assertEquals(-10L, frozen.get(SourceStatisticsSerializer.columnMinKey("x")));
+    }
+
     public void testOverlayPinnedColumnsPoisonsExtremaAndDropsCountsKeepingRowCount() {
         Map<String, Object> stats = new HashMap<>();
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 3L);

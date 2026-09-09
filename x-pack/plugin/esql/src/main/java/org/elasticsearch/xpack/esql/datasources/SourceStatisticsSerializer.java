@@ -283,9 +283,8 @@ public final class SourceStatisticsSerializer {
     /**
      * Poisons a column's {@code min}/{@code max} in-place: drops the extremum values and writes the unservable
      * markers so the column safe-misses to a scan. Count stats (row/null/value counts) are left intact. Used when
-     * the extremum cannot be trusted — e.g. the FIRST_FILE_WINS fold detects a column whose physical type diverges
-     * across files, so both the unit-blind fold AND the anchor-schema misread of the divergent file make a warm
-     * extremum unable to match a scan.
+     * the extremum cannot be trusted: a declared retype, a text pin, or a text FIRST_FILE_WINS column whose
+     * file type the anchor cannot represent (the reader decides per value, so the harvest is not all-null).
      */
     public static void poisonColumnExtrema(Map<String, Object> statsMap, String columnName) {
         statsMap.remove(columnMinKey(columnName));
@@ -294,8 +293,29 @@ public final class SourceStatisticsSerializer {
         statsMap.put(columnMaxUnservableKey(columnName), Boolean.TRUE);
     }
 
+    /**
+     * Rewrites one column to the all-null contract {@link SplitStats} already skips without poisoning
+     * siblings: {@code value_count = 0}, {@code null_count = row_count}, no min/max, no unservable
+     * markers. Used when a footer read discards the column (the planner type cannot represent the file
+     * type). Returns a new map; {@code statsMap} is not mutated. {@code row_count} is unchanged.
+     */
+    public static Map<String, Object> rewriteColumnAsAllNull(Map<String, Object> statsMap, String columnName) {
+        if (statsMap == null || statsMap.isEmpty()) {
+            return statsMap;
+        }
+        Map<String, Object> out = new HashMap<>(statsMap);
+        Object rowCount = out.get(STATS_ROW_COUNT);
+        out.put(columnValueCountKey(columnName), 0L);
+        out.put(columnNullCountKey(columnName), rowCount instanceof Number n ? n.longValue() : 0L);
+        out.remove(columnMinKey(columnName));
+        out.remove(columnMaxKey(columnName));
+        out.remove(columnMinUnservableKey(columnName));
+        out.remove(columnMaxUnservableKey(columnName));
+        return out;
+    }
+
     // All seven per-column stat suffixes, for the declared-overlay rekey: a column's whole stat family moves together,
-    // including the unservable markers (an upstream FFW-divergence poison must survive a `path` rename).
+    // including the unservable markers (an upstream extrema poison must survive a path rename).
     private static final String[] COLUMN_STAT_SUFFIXES = {
         NULL_COUNT_SUFFIX,
         VALUE_COUNT_SUFFIX,
@@ -306,8 +326,8 @@ public final class SourceStatisticsSerializer {
         MAX_UNSERVABLE_SUFFIX };
 
     /**
-     * The declared-schema overlay's stats boundary — the fourth, after reconciliation-normalize, FFW-divergence poison,
-     * and commit-time coercion. Stats are produced keyed by <b>physical</b> (file) column names holding <b>inferred</b>-type
+     * The declared-schema overlay's stats boundary, after reconciliation-normalize and commit-time coercion.
+     * Stats are produced keyed by <b>physical</b> (file) column names holding <b>inferred</b>-type
      * values; the declared overlay renames/retypes the plan afterwards, so without this the warm path serves physical-keyed
      * stats under logical names (a renamed {@code COUNT(col)} serves 0) and inferred-type extrema/counts a coerced scan
      * never produces. This (1) REKEYS every per-column stat family physical&rarr;logical for each {@code path} rename — a

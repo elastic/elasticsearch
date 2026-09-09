@@ -45,19 +45,18 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.singleValuedCursor;
  */
 public class NumericPipelineSelectorTests extends ESTestCase {
 
-    private static final byte[] DEFAULT_TRANSFORM_IDS = {
+    private static final byte[] DEFAULT_TRANSFORM_IDS = { DeltaTransform.ID, OffsetTransform.ID, GcdTransform.ID };
+    private static final byte[] ORDINAL_TRANSFORM_IDS = {
         RunTransform.ID,
         DeltaTransform.ID,
         OffsetTransform.ID,
         GcdTransform.ID,
         PatchedTransform.ID };
     private static final byte[] SPLIT_DELTA_TRANSFORM_IDS = {
-        RunTransform.ID,
         SplitDeltaTransform.ID,
         DeltaTransform.ID,
         OffsetTransform.ID,
-        GcdTransform.ID,
-        PatchedTransform.ID };
+        GcdTransform.ID };
     private static final byte[] ALP_GAUGE_TRANSFORM_IDS = { AlpDoubleTransform.ID, DeltaTransform.ID, OffsetTransform.ID, GcdTransform.ID };
     private static final byte[] ALP_COUNTER_TRANSFORM_IDS = {
         AlpDoubleTransform.ID,
@@ -76,6 +75,10 @@ public class NumericPipelineSelectorTests extends ESTestCase {
 
     public void testDefaultPipelineTransformIds() throws IOException {
         assertTransformIds((f, t) -> NumericPipeline::defaultPipeline, longValues(), DEFAULT_TRANSFORM_IDS);
+    }
+
+    public void testOrdinalPipelineTransformIds() throws IOException {
+        assertTransformIds((f, t) -> NumericPipeline::ordinalPipeline, longValues(), ORDINAL_TRANSFORM_IDS);
     }
 
     public void testSplitDeltaPipelineTransformIds() throws IOException {

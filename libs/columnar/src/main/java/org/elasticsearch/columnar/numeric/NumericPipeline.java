@@ -35,13 +35,31 @@ public final class NumericPipeline {
         return blockSize;
     }
 
-    /** The default chain: runs described, then delta, offset, GCD, outliers set aside, then FOR bit-packing. */
+    /** The default chain: delta, offset, GCD, then FOR bit-packing. */
     public static NumericPipeline defaultPipeline(int blockSize) {
         return new NumericPipeline(
-            // Stateless transforms are shared singletons; the terminal, Run and Patched own scratch
-            // buffers and must stay per-pipeline. Run comes first, since a run is a property of the values
-            // as they arrive and delta would leave nothing of it; Patched comes last, so it narrows what
-            // the terminal is about to pack.
+            new BlockTransform[] { DeltaTransform.INSTANCE, OffsetTransform.INSTANCE, GcdTransform.INSTANCE },
+            new ForTerminal(blockSize),
+            blockSize
+        );
+    }
+
+    /**
+     * Pipeline for a dictionary column's ordinals: the standard chain with {@link RunTransform} and
+     * {@link PatchedTransform} around it. Both earn their keep on ordinals and not on a field's own
+     * values. An ordinal stream repeats itself, because a column that gets a dictionary is one whose
+     * values recur, so runs are the common case rather than an accident; and its width is set by rare
+     * escapes, so one outlier in a block otherwise full of ordinal 1 widens every value in it unless
+     * the outliers are set aside. A numeric field carries neither property and pays for the stages on
+     * every block it decodes.
+     *
+     * <p>Run comes first, since a run is a property of the values as they arrive and delta would leave
+     * nothing of it; Patched comes last, so it narrows what the terminal is about to pack. Stateless
+     * transforms are shared singletons; the terminal, Run and Patched own scratch buffers and must stay
+     * per-pipeline.
+     */
+    public static NumericPipeline ordinalPipeline(int blockSize) {
+        return new NumericPipeline(
             new BlockTransform[] {
                 new RunTransform(blockSize),
                 DeltaTransform.INSTANCE,
@@ -59,13 +77,7 @@ public final class NumericPipeline {
      */
     public static NumericPipeline monotonicLongPipeline(int blockSize) {
         return new NumericPipeline(
-            new BlockTransform[] {
-                new RunTransform(blockSize),
-                new SplitDeltaTransform(),
-                DeltaTransform.INSTANCE,
-                OffsetTransform.INSTANCE,
-                GcdTransform.INSTANCE,
-                new PatchedTransform() },
+            new BlockTransform[] { new SplitDeltaTransform(), DeltaTransform.INSTANCE, OffsetTransform.INSTANCE, GcdTransform.INSTANCE },
             new ForTerminal(blockSize),
             blockSize
         );

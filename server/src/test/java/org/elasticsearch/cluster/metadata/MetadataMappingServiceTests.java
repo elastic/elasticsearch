@@ -88,9 +88,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
     public void testMappingUpdateInProjectUnderDeletion() throws Exception {
         final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
         final ProjectId projectId = randomUniqueProjectId();
-        final Metadata metadata = Metadata.builder()
-            .put(ProjectMetadata.builder(projectId).put(indexService.getMetadata(), false))
-            .build();
+        final Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexService.getMetadata(), false)).build();
         final ClusterState initialState = ClusterState.builder(getInstanceFromNode(ClusterService.class).state())
             .metadata(metadata)
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))

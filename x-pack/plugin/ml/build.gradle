@@ -134,9 +134,9 @@ tasks.register("verifyControllerProtocolVersion") {
     // exactly the path that depends on this compatibility check, not one that's independent of it.
     // This Elasticsearch build must not be assembled/shipped until the paired ml-cpp artifact
     // (publishing 'controller-protocol.version' at >= REQUIRED_CONTROLLER_PROTOCOL_VERSION) is
-    // bundled - see docs/projects/mlcpp-sandbox2-pr2873/sandbox2_clean_rebuild_3df1182e.plan.md:115
-    // ("do not publish an Elasticsearch build that emits --disableSandbox to an older native
-    // controller that would forward it to the child").
+    // bundled - see https://github.com/elastic/ml-cpp/pull/3188 (do not publish an Elasticsearch
+    // build that emits --disableSandbox to an older native controller that would forward it to
+    // the child).
     //
     // The design doc describes the token as living in "the deps bundle" (singular), so this check is
     // deliberately deps-artifact-first - but it tolerates the marker appearing in EITHER resolved

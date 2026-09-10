@@ -217,6 +217,58 @@ public class PromqlBuiltinFunctionDefinitions {
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .name("sort_desc");
 
+    public static final PromqlFunctionDefinition SORT_BY_LABEL = PromqlFunctionDefinition.def()
+        .resultOrderingByLabel()
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description(
+            "Sorts instant-vector series by the values of the given labels in natural ascending order. "
+                + "Missing labels compare as the empty string."
+        )
+        .example("sort_by_label(http_requests_total, \"job\", \"instance\")")
+        .extendedDescription(
+            "Ordering is observable only on instant queries. After a range query the Prometheus engine re-sorts "
+                + "the matrix by label set, so the sort has no effect on the returned series order. Label comparison "
+                + "uses natural order (digit runs compared numerically)."
+        )
+        .differenceFromPrometheus(
+            "These functions are preview. Prometheus hides them behind `--enable-feature=promql-experimental-functions`; "
+                + "Elasticsearch has no PromQL feature flag, so they are enabled. Ties fall back to `_timeseries` "
+                + "(or remaining identity columns on a closed header), not Prometheus `labels.Compare`. Requested "
+                + "sort labels appear as extra ES|QL columns; the Prometheus REST `metric` object is unchanged. "
+                + "Range queries emit an HTTP warning `sort_by_label: ordering is discarded for range queries`. "
+                + "Numerically equal digit runs that differ only in leading zeros, and empty label values, get a "
+                + "stable order rather than Prometheus's unstable natsort. Digit runs longer than about 20 digits "
+                + "stay numeric here; Prometheus falls back to text comparison."
+        )
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_6)
+        .name("sort_by_label");
+
+    public static final PromqlFunctionDefinition SORT_BY_LABEL_DESC = PromqlFunctionDefinition.def()
+        .resultOrderingByLabel()
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description(
+            "Sorts instant-vector series by the values of the given labels in natural descending order. "
+                + "Missing labels compare as the empty string."
+        )
+        .example("sort_by_label_desc(http_requests_total, \"job\", \"instance\")")
+        .extendedDescription(
+            "Ordering is observable only on instant queries. After a range query the Prometheus engine re-sorts "
+                + "the matrix by label set, so the sort has no effect on the returned series order. Label comparison "
+                + "uses natural order (digit runs compared numerically)."
+        )
+        .differenceFromPrometheus(
+            "These functions are preview. Prometheus hides them behind `--enable-feature=promql-experimental-functions`; "
+                + "Elasticsearch has no PromQL feature flag, so they are enabled. Ties fall back to `_timeseries` "
+                + "(or remaining identity columns on a closed header), not Prometheus `labels.Compare`. Requested "
+                + "sort labels appear as extra ES|QL columns; the Prometheus REST `metric` object is unchanged. "
+                + "Range queries emit an HTTP warning `sort_by_label_desc: ordering is discarded for range queries`. "
+                + "Numerically equal digit runs that differ only in leading zeros, and empty label values, get a "
+                + "stable order rather than Prometheus's unstable natsort. Digit runs longer than about 20 digits "
+                + "stay numeric here; Prometheus falls back to text comparison."
+        )
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_6)
+        .name("sort_by_label_desc");
+
     public static final PromqlFunctionDefinition VECTOR = PromqlFunctionDefinition.def()
         .vectorConversion()
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)

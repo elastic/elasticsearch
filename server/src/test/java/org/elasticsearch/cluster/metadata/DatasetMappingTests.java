@@ -97,7 +97,11 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
     }
 
     /**
-     * Cluster state persisted by a 9.5 node carries an {@code _id} block, in any of the shapes that node accepted.
+     * Cluster state persisted by a 9.5 node carries an {@code _id} block. That node wrote only
+     * {@code {"path": "<column>"}} — it rejected any other key and emitted nothing when no path was set — so that
+     * shape is the one an upgraded node actually meets; the empty and {@code type} shapes are here because the
+     * persisted-state entry point skips the whole block by structure rather than by key, and a reader that only
+     * tolerated the written shape would be relying on 9.5 never having been laxer than it was.
      * The entry point used for persisted state reads past it and returns the rest of the block intact, so an
      * upgraded node can still load its own gateway metadata.
      */

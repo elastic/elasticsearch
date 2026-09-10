@@ -5708,7 +5708,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // strip in Analyzer.planWithoutSyntheticAttributes fires only on the legacy EXTERNAL command's nameless leaf
         // (an ExternalRelation whose datasetName() == null — the gate added in #149796); a FROM <dataset> leaf always
         // carries a dataset name and the index leaf is a regular relation, so neither half matches the gate. This
-        // asserts the dataset's _index survives the union (resolving to the dataset name) alongside the index's own.
+        // asserts the dataset's _index survives the union (resolving to the dataset name) alongside the index's own, and
+        // that _id binds on both halves — the index's own value on one, SQL NULL on the other.
         assertAcked(
             client().admin().indices().prepareCreate("metadata_idx").setMapping("emp_no", "type=integer", "first_name", "type=keyword")
         );
@@ -5719,14 +5720,22 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         // 3 dataset rows (emp_no 1,2,3) + 1 index row (emp_no 100); SORT makes the per-row _index assertion deterministic.
-        // No explicit KEEP _index: METADATA surfaces unconditionally on the FROM path, so a regression that broadened the
-        // strip gate to fire when a FROM <dataset> leaf is present would drop _index from the union output entirely and
-        // fail hasItem("_index"). An explicit KEEP _index would mask exactly that regression — it lands in Analyzer's
+        // No explicit KEEP: METADATA surfaces unconditionally on the FROM path, so a regression that broadened the
+        // strip gate to fire when a FROM <dataset> leaf is present would drop the metadata columns from the union output
+        // entirely and fail hasItem. An explicit KEEP would mask exactly that regression — it lands in Analyzer's
         // explicitlyKept set and is never stripped.
-        try (var response = run(syncEsqlQueryRequest("FROM metadata_idx, employees METADATA _index | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+        //
+        // _id rides along because it is the name that carries a value on one half and SQL NULL on the other. It is why a
+        // dataset binds _id instead of refusing it: a query mixing an index and a dataset in one FROM stays one query,
+        // and a refusal would make it depend on which sources it names.
+        try (
+            var response = run(syncEsqlQueryRequest("FROM metadata_idx, employees METADATA _index, _id | SORT emp_no | LIMIT 10"), TIMEOUT)
+        ) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
             assertThat("_index must bind on the heterogeneous union; got " + names, names, hasItem("_index"));
+            assertThat("_id must bind on the heterogeneous union; got " + names, names, hasItem("_id"));
             int indexCol = names.indexOf("_index");
+            int idCol = names.indexOf("_id");
             int empNoCol = names.indexOf("emp_no");
 
             List<List<Object>> rows = getValuesList(response);
@@ -5736,12 +5745,16 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             // ordering this relies on stays self-evident if the fixtures ever change.
             assertThat(((Number) rows.get(0).get(empNoCol)).intValue(), equalTo(1));
             assertThat(rows.get(0).get(indexCol).toString(), equalTo("employees"));
+            assertThat("dataset row carries no document identity", rows.get(0).get(idCol), nullValue());
             assertThat(((Number) rows.get(1).get(empNoCol)).intValue(), equalTo(2));
             assertThat(rows.get(1).get(indexCol).toString(), equalTo("employees"));
+            assertThat("dataset row carries no document identity", rows.get(1).get(idCol), nullValue());
             assertThat(((Number) rows.get(2).get(empNoCol)).intValue(), equalTo(3));
             assertThat(rows.get(2).get(indexCol).toString(), equalTo("employees"));
+            assertThat("dataset row carries no document identity", rows.get(2).get(idCol), nullValue());
             assertThat(((Number) rows.get(3).get(empNoCol)).intValue(), equalTo(100));
             assertThat(rows.get(3).get(indexCol).toString(), equalTo("metadata_idx"));
+            assertThat("index row keeps its document identity", rows.get(3).get(idCol), notNullValue());
         }
     }
 

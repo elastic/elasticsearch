@@ -86,10 +86,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     /**
      * METADATA-clause expressions threaded through from the parser for the verifier to discover
      * if any remain unresolvable after analysis. Mirrors the indexed {@code EsRelation} pattern:
-     * resolved standard / {@code _file.*} names are bound into {@link #output}; any name a dataset
-     * cannot answer — absent from {@code ExternalMetadataColumns.STANDARD_NAMES} and
-     * {@code FileMetadataColumns}, which excludes {@code _id}, {@code _version} and {@code _source}
-     * even though the analyzer registry knows them — stays here
+     * resolved standard / {@code _file.*} names are bound into {@link #output}; any name absent from
+     * both {@code ExternalMetadataColumns.STANDARD_NAMES} and {@code FileMetadataColumns} stays here
      * as an {@code UnresolvedMetadataAttributeExpression} so the verifier's
      * {@code checkUnresolvedAttributes} walk fires its native {@code "Unresolved metadata pattern
      * [...]"} error — same diagnostic users see on indexed {@code FROM x METADATA _typo}.

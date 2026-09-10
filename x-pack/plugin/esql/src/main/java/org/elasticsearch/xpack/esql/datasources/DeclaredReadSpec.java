@@ -142,8 +142,9 @@ public record DeclaredReadSpec(
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(renames, StreamOutput::writeString, StreamOutput::writeString);
-        // Was the declared _id.path. A dataset no longer answers METADATA _id, so nothing produces or reads a value
-        // here, but dataset_declared_schema is present on 9.5 and the slot has to stay for a mixed-version peer.
+        // Was the declared _id.path. A dataset answers METADATA _id as SQL NULL, so no declared column feeds it and
+        // nothing reads a value here, but dataset_declared_schema is present on 9.5 and the slot has to stay for a
+        // mixed-version peer.
         out.writeOptionalString(null);
         out.writeMap(dateFormats, StreamOutput::writeString, StreamOutput::writeString);
         out.writeCollection(declaredTypeColumns, StreamOutput::writeString);

@@ -685,8 +685,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * ({@code _index}, {@code _score}, {@code _ignored}, ...) and every name in
      * {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS}
      * ({@code _file.path}, {@code _file.name}, ...) becomes an {@link ExternalMetadataAttribute} of
-     * the registered type. Every other name — an unknown one, and equally {@code _id},
-     * {@code _version} and {@code _source}, which a file cannot answer — is left unresolved for the
+     * the registered type. {@code _id}, {@code _version} and {@code _source} are among the standard
+     * names and bind to a column that is SQL NULL on every row, because a file holds no document
+     * identity, no document version and no stored source. Any other name is left unresolved for the
      * verifier to flag. Names already present in the source's natural schema are skipped
      * — the source's own column wins.
      */
@@ -743,10 +744,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * registered in neither are returned as {@code UnresolvedMetadataAttributeExpression} in the
          * {@code unresolvedMetadata} list — the verifier picks them up via the relation's expression
          * walk and fires its native {@code "Unresolved metadata pattern [...]"} error, matching the
-         * diagnostic indexed {@code FROM x METADATA _typo} produces. That covers both an unknown name
-         * and a registered one a dataset cannot answer ({@code _id}, {@code _version}, {@code _source}). Names already
-         * present in the source's natural schema are skipped (the source's own column takes
-         * precedence).
+         * diagnostic indexed {@code FROM x METADATA _typo} produces. Names already present in the
+         * source's natural schema are skipped (the source's own column takes precedence).
          */
         private static MetadataBindResult bindMetadataFields(UnresolvedExternalRelation plan, List<Attribute> baseSchema) {
             if (plan.metadataFields().isEmpty()) {

@@ -121,7 +121,10 @@ def mlCppVersion(){
 def REQUIRED_CONTROLLER_PROTOCOL_VERSION = 1
 
 tasks.register("verifyControllerProtocolVersion") {
-  dependsOn configurations.nativeBundle
+  def nativeBundleFiles = objects.fileCollection().from(configurations.nativeBundle)
+  def archiveOps = project.services.get(org.gradle.api.file.ArchiveOperations)
+  dependsOn nativeBundleFiles
+  inputs.files(nativeBundleFiles).withPropertyName("nativeBundle")
   doLast {
     // This is a hard build-time failure, not an advisory-only check. PyTorchBuilder emits
     // '--disableSandbox' unconditionally on Linux whenever xpack.ml.trained_models.sandbox_enabled
@@ -134,8 +137,8 @@ tasks.register("verifyControllerProtocolVersion") {
     // bundled - see docs/projects/mlcpp-sandbox2-pr2873/sandbox2_clean_rebuild_3df1182e.plan.md:115
     // ("do not publish an Elasticsearch build that emits --disableSandbox to an older native
     // controller that would forward it to the child").
-    configurations.nativeBundle.files.each { zipFile ->
-      def matches = zipTree(zipFile).matching { include 'controller-protocol.version' }.files
+    nativeBundleFiles.files.each { zipFile ->
+      def matches = archiveOps.zipTree(zipFile).matching { include 'controller-protocol.version' }.files
       if (matches.isEmpty()) {
         throw new GradleException(
           "Native controller bundle '${zipFile.name}' is missing the top-level 'controller-protocol.version' " +

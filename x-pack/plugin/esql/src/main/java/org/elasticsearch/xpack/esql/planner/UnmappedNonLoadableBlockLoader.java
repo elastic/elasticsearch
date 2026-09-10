@@ -26,7 +26,6 @@ import java.util.Set;
  * document without the field reads as null; one that carries a value fails the query rather than dropping the value silently.
  */
 final class UnmappedNonLoadableBlockLoader implements BlockLoader {
-
     private final String fieldName;
     private final DataType dataType;
     private final Set<String> sourcePaths;

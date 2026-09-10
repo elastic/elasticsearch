@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
@@ -201,14 +200,10 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      */
     private static LogicalPlan annotate(LogicalPlan plan, UnmappedFieldsPattern pattern) {
         if (plan instanceof MergePlan merge) {
-            List<LogicalPlan> newChildren = new ArrayList<>(merge.children().size());
-            for (LogicalPlan child : merge.children()) {
+            var newChildren = merge.children().stream().map(child -> {
                 LogicalPlan annotated = annotate(child, computeUnmappedFieldsToKeep(child).intersect(pattern));
-                if (annotated instanceof Project project) {
-                    annotated = passThroughUnmappedFields(project);
-                }
-                newChildren.add(annotated);
-            }
+                return annotated instanceof Project project ? passThroughUnmappedFields(project) : annotated;
+            }).toList();
             return merge.replaceChildren(newChildren);
         }
         if (pattern.isNone()) {
@@ -217,7 +212,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (plan instanceof EsRelation esr) {
             return stamp(esr, pattern);
         }
-        if (plan.anyMatch(p -> p instanceof MergePlan) == false) {
+        if (plan.noneMatch(p -> p instanceof MergePlan)) {
             return plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern));
         }
         return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());
@@ -238,33 +233,24 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (project instanceof ResolvingProject rp && rp.unmappedFieldsPattern().isNone()) {
             return project;
         }
-        project = dropStaleNoFields(project);
-        List<UnmappedFieldsAttribute> unmapped = CollectionUtils.collect(project.child().output(), UnmappedFieldsAttribute.class);
+        var noStaleFields = dropStaleNoFields(project);
+        List<UnmappedFieldsAttribute> unmapped = CollectionUtils.collect(noStaleFields.child().output(), UnmappedFieldsAttribute.class);
         if (unmapped.isEmpty()) {
-            return project;
+            return noStaleFields;
         }
-        Set<String> names = new HashSet<>(Expressions.names(project.projections()));
+        Set<String> names = new HashSet<>(Expressions.names(noStaleFields.projections()));
         List<UnmappedFieldsAttribute> missing = unmapped.stream()
             .filter(attr -> names.contains(attr.name()) == false)
             .collect(Collectors.toList());
-        return missing.isEmpty() ? project : project.withProjections(CollectionUtils.combine(project.projections(), missing));
+        return missing.isEmpty()
+            ? noStaleFields
+            : noStaleFields.withProjections(CollectionUtils.combine(noStaleFields.projections(), missing));
     }
 
     /** Drop {@code <no-fields>} from a KEEP * once the relation has real columns. */
     private static Project dropStaleNoFields(Project project) {
-        if (Expressions.names(project.child().output()).contains(Analyzer.NO_FIELDS_NAME)) {
-            return project;
-        }
-        List<NamedExpression> kept = new ArrayList<>(project.projections().size());
-        boolean dropped = false;
-        for (NamedExpression projection : project.projections()) {
-            if (Analyzer.NO_FIELDS_NAME.equals(projection.name())) {
-                dropped = true;
-            } else {
-                kept.add(projection);
-            }
-        }
-        return dropped ? project.withProjections(kept) : project;
+        var kept = project.projections().stream().filter(projection -> Analyzer.NO_FIELDS_NAME.equals(projection.name()) == false).toList();
+        return kept.size() < project.projections().size() ? project.withProjections(kept) : project;
     }
 
     /**
@@ -306,27 +292,21 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
         boolean childrenChanged = false;
         for (LogicalPlan child : unionAll.children()) {
-            if (unmapped != null && child.outputSet().names().contains(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false) {
-                newChildren.add(padNullUnmappedFields(child));
-                childrenChanged = true;
-            } else {
-                newChildren.add(child);
-            }
+            var pad = unmapped != null && child.outputSet().names().contains(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false;
+            newChildren.add(pad ? padNullUnmappedFields(child) : child);
+            childrenChanged |= pad;
         }
         UnionAll withChildren = childrenChanged ? unionAll.replaceSubPlans(newChildren) : unionAll;
-        List<Attribute> withoutUnmapped = new ArrayList<>();
-        for (Attribute attr : MergePlan.outputUnion(withChildren.children())) {
-            if (attr.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false) {
-                withoutUnmapped.add(attr);
-            }
-        }
+        List<Attribute> withoutUnmapped = MergePlan.outputUnion(withChildren.children())
+            .stream()
+            .filter(attr -> attr.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false)
+            .toList();
         List<Attribute> newOutput = toReferenceAttributesPreservingIds(withoutUnmapped, unionAll.output());
         if (unmapped != null) {
             newOutput = CollectionUtils.combine(newOutput, unmapped);
         }
-        if (childrenChanged == false && newOutput.equals(unionAll.output())) {
-            return unionAll;
-        }
-        return withChildren.replaceSubPlansAndOutput(withChildren.children(), newOutput);
+        return childrenChanged == false && newOutput.equals(unionAll.output())
+            ? unionAll
+            : withChildren.replaceSubPlansAndOutput(withChildren.children(), newOutput);
     }
 }

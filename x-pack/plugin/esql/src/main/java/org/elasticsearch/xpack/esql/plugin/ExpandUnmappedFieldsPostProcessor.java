@@ -253,12 +253,12 @@ public final class ExpandUnmappedFieldsPostProcessor {
             // Either nothing was captured, or the replay disagrees with the executed schema because something rewrote the shape
             // after analysis. Fall back to the natural real-then-discovered order rather than dropping or duplicating a column.
             assert ordering == null
-                : "unmapped fields ordering replay diverged from the executed schema: replay="
-                    + (orderedExpandedAttributes == null ? "null" : orderedExpandedAttributes.stream().map(Attribute::name).toList())
-                    + " executedWithoutUfa="
-                    + nameToSchemaIdx.keySet()
-                    + " discovered="
-                    + expandedFieldsNames;
+                : Strings.format(
+                    "unmapped fields ordering replay diverged from the executed schema: replay=%s executedWithoutUfa=%s discovered=%s",
+                    orderedExpandedAttributes == null ? "null" : orderedExpandedAttributes.stream().map(Attribute::name).toList(),
+                    nameToSchemaIdx.keySet(),
+                    expandedFieldsNames
+                );
             orderedExpandedAttributes = new ArrayList<>(dataColumnCount + expandedFieldsAttributes.size());
             for (int i = 0; i < originalColumnCount; i++) {
                 if (i != unmappedIdx && isApproximationColumn(schema.get(i).name()) == false) {

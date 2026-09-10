@@ -138,8 +138,9 @@ public class ResolvingProject extends Project {
     public boolean admitsLateUnmappedField(String name) {
         return switch (command.kind()) {
             case KEEP -> unmappedFieldsPattern().matches(name);
-            case RENAME -> renamingTouches(name) == false;
-            case DROP -> unmappedFieldsPattern().matches(name) && removedByName(name) == false;
+            case RENAME -> isUntouchedByRename(name);
+            case DROP -> unmappedFieldsPattern().matches(name)
+                && command.projections().stream().noneMatch(r -> r instanceof UnresolvedAttribute ua && name.equals(ua.name()));
         };
     }
 
@@ -147,21 +148,17 @@ public class ResolvingProject extends Project {
      * Whether a renaming leaves no column called {@code name}: it is either the source, renamed away, or the target, which
      * {@code ResolveRefs#projectionsForRename} drops any existing column of that name for.
      */
-    private boolean renamingTouches(String name) {
+    private boolean isUntouchedByRename(String name) {
         for (NamedExpression renaming : command.projections()) {
             if (renaming instanceof Alias alias) {
                 String from = Expressions.name(alias.child());
                 // `RENAME a AS a` is skipped as a NOP, so it touches nothing.
                 if (from.equals(alias.name()) == false && (name.equals(from) || name.equals(alias.name()))) {
-                    return true;
+                    return false;
                 }
             }
         }
-        return false;
-    }
-
-    private boolean removedByName(String name) {
-        return command.projections().stream().anyMatch(r -> r instanceof UnresolvedAttribute ua && name.equals(ua.name()));
+        return true;
     }
 
     @Override
@@ -177,19 +174,18 @@ public class ResolvingProject extends Project {
     @Override
     public ResolvingProject replaceChild(LogicalPlan newChild) {
         ResolvingProject recomputed = new ResolvingProject(source(), newChild, command);
-        List<NamedExpression> missingSynthetics = new ArrayList<>();
         Set<String> names = new HashSet<>(Expressions.names(recomputed.projections()));
-        for (NamedExpression p : projections()) {
-            // Convert-function synthetics carried through KEEP/DROP must survive re-resolution. The empty-mapping
-            // placeholder does not: ResolveUnmapped replaces it on the relation, and re-appending it leaves a
-            // projection referencing an attribute the child no longer outputs.
-            if (p.synthetic()
-                && p instanceof UnmappedFieldsAttribute == false
-                && Analyzer.NO_FIELDS_NAME.equals(p.name()) == false
-                && names.contains(p.name()) == false) {
-                missingSynthetics.add(p);
-            }
-        }
+        // Convert-function synthetics carried through KEEP/DROP must survive re-resolution. The empty-mapping
+        // placeholder does not: ResolveUnmapped replaces it on the relation, and re-appending it leaves a
+        // projection referencing an attribute the child no longer outputs.
+        var missingSynthetics = projections().stream()
+            .filter(
+                p -> p.synthetic()
+                    && p instanceof UnmappedFieldsAttribute == false
+                    && Analyzer.NO_FIELDS_NAME.equals(p.name()) == false
+                    && names.contains(p.name()) == false
+            )
+            .toList();
         return missingSynthetics.isEmpty()
             ? recomputed
             : new ResolvingProject(

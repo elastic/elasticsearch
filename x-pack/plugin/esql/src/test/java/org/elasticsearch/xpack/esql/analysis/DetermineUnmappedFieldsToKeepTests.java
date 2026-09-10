@@ -470,9 +470,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         int keptExtra = 0;
         int droppedExtra = 0;
         for (EsRelation relation : plan.collect(EsRelation.class)) {
-            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
-                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
-            ).pattern();
+            UnmappedFieldsPattern pattern = patternOf(relation);
             assertKept(pattern, "first_name_suffix");
             if (pattern.matches("unmapped_extra")) {
                 keptExtra++;

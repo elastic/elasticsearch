@@ -1806,7 +1806,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // FORK always copies a mention to siblings. LOAD_ALL subqueries do too; LOAD stays Decision A (sibling Eval-null).
             boolean alignMentionedUnmapped = alignUnmappedAcrossBranches
                 || (mergePlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields());
-            Set<String> mergeMaterializedUnmappedFieldNames = alignMentionedUnmapped ? materializedUnmappedFieldNames(mergePlan) : Set.of();
+            Set<String> materializedUnmappedFieldNames = alignMentionedUnmapped ? materializedUnmappedFieldNames(mergePlan) : Set.of();
 
             for (LogicalPlan logicalPlan : mergePlan.children()) {
                 Source source = logicalPlan.source();
@@ -1823,13 +1823,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Alias> aliases = new ArrayList<>(missing.size());
                 List<FieldAttribute> toLoad = new ArrayList<>();
                 for (Attribute attr : missing) {
-                    // LOAD_ALL subqueries: a field mapped on a sibling branch is a named union column, not a $$UM extra, so read it
-                    // from _source here rather than Eval-null it. The branches read independent indices, a shape FORK never has.
-                    // _source only yields keyword, so a type without an implicit keyword cast is marked non-loadable instead: it
-                    // reads as null where the document lacks the field and fails at runtime where the document carries a value.
+                    // LOAD_ALL subqueries: a field mapped on a sibling branch is a *named* union column, not an unmapped_fields extra;
+                    // Even if it unmapped, because it mentioned, we should load it from _source "before" the extra fields; Note that
+                    // branches read independent indices, a shape FORK never has.
                     //
-                    // This runs before the mention alignment below, whose guards it complements: that one hands out a bare keyword,
-                    // which for a mapped attribute would discard the sibling's real type and leave the column with no common type.
+                    // Conflict resolution:
+                    // PUNKs (potentially Unmapped Non-Keywords) resolution is somewhat similar to the multi-index case, except we fail at
+                    // runtime rather than during planning (since we don't know if an unmentioned field will exist in a branch until we read
+                    // its _source). If a field is mapped to a type with an implicit cast from KEYWORD in one branch, we apply the cast to
+                    // the unmapped field in the other branch. However, if there's no available implicit cast, we use a special
+                    // "PotentiallyUnmappedNonLoadableEsField" type, which will fail if it reads non-null values; this is analogue to
+                    // failing during planning in the multi-index case.
                     if (mergePlan instanceof UnionAll
                         && unmappedResolution.loadsAllUnmappedFields()
                         && branchCanSurfaceLoadedField(logicalPlan, attr.name())
@@ -1840,21 +1844,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         && fa.field() instanceof MissingEsField == false) {
                         FieldAttribute loaded = unmappedKeyword(attr);
                         AbstractConvertFunction cast = implicitCastFromKeyword(fa.dataType(), loaded, context.configuration());
-                        if (cast != null) {
-                            toLoad.add(loaded);
-                            if (cast.isNoop() == false) {
-                                aliases.add(new Alias(source, attr.name(), cast));
-                            }
-                        } else {
-                            toLoad.add(
-                                new FieldAttribute(
+                        toLoad.add(
+                            cast != null
+                                ? loaded
+                                : new FieldAttribute(
                                     source,
                                     fa.parentName(),
                                     fa.qualifier(),
                                     fa.name(),
                                     new PotentiallyUnmappedNonLoadableEsField(fa.field())
                                 )
-                            );
+                        );
+                        if (cast != null && cast.isNoop() == false) {
+                            aliases.add(new Alias(source, attr.name(), cast));
                         }
                         continue;
                     }
@@ -1863,7 +1865,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // source relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...) doesn't hide it.
                     // FORK: always. UnionAll: LOAD_ALL only (LOAD is Decision A).
                     if (alignMentionedUnmapped
-                        && mergeMaterializedUnmappedFieldNames.contains(attr.name())
+                        && materializedUnmappedFieldNames.contains(attr.name())
                         && branchCanSurfaceLoadedField(logicalPlan, attr.name())) {
                         toLoad.add(unmappedResolution.loadsUnmappedFields() ? unmappedKeyword(attr) : nullifyField(attr));
                         continue;
@@ -1879,41 +1881,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     aliases.add(new Alias(source, attr.name(), new Literal(source, null, attrType)));
                 }
 
-                List<FieldAttribute> nonLoadableReplacements = List.of();
-                if (mergePlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields()) {
-                    nonLoadableReplacements = markExplicitlyLoadedUnmappedNonLoadable(logicalPlan, outputUnion, context.configuration());
-                }
+                List<FieldAttribute> replacements = mergePlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields()
+                    ? markExplicitlyLoadedUnmappedNonLoadable(logicalPlan, outputUnion, context.configuration())
+                    : List.of();
 
+                Map<String, FieldAttribute> replacementsByName = replacements.stream()
+                    .collect(Collectors.toMap(FieldAttribute::name, fa -> fa));
                 // materialize the unmapped fields in this branch's own source relation so they surface in its output
-                if (toLoad.isEmpty() == false || nonLoadableReplacements.isEmpty() == false) {
-                    List<FieldAttribute> replacements = nonLoadableReplacements;
+                if (toLoad.isEmpty() == false || replacementsByName.isEmpty() == false) {
                     LogicalPlan withLoaded = logicalPlan.transformUp(EsRelation.class, esr -> {
                         if (esr.indexMode() == IndexMode.LOOKUP) {
                             return esr;
                         }
-                        List<Attribute> attrs = replacements.isEmpty() ? esr.output() : replaceFieldsByName(esr.output(), replacements);
+                        List<Attribute> attrs = replaceFieldsByName(esr.output(), replacementsByName);
                         Set<String> existingNames = new HashSet<>(Expressions.names(attrs));
-                        List<Attribute> newFields = new ArrayList<>(attrs);
-                        boolean added = false;
-                        for (FieldAttribute field : toLoad) {
-                            if (existingNames.add(field.name())) {
-                                newFields.add(field);
-                                added = true;
-                            }
+                        List<FieldAttribute> newFields = toLoad.stream().filter(field -> existingNames.add(field.name())).toList();
+                        if (attrs == esr.output()) {
+                            return esr.withAdditionalAttributes(newFields);
                         }
-                        if (attrs != esr.output() || added) {
-                            return esr.withAttributes(newFields);
-                        }
-                        return esr;
+                        attrs.addAll(newFields);
+                        return esr.withAttributes(attrs);
                     });
                     // KEEP/Project still holds the PUNK; swap it everywhere so the union type is the sibling's, not keyword.
-                    if (replacements.isEmpty() == false) {
-                        Map<String, FieldAttribute> byName = new HashMap<>(replacements.size());
-                        for (FieldAttribute replacement : replacements) {
-                            byName.put(replacement.name(), replacement);
-                        }
+                    if (replacementsByName.isEmpty() == false) {
                         withLoaded = withLoaded.transformUp(p -> p.transformExpressionsOnly(FieldAttribute.class, fa -> {
-                            FieldAttribute replacement = byName.get(fa.name());
+                            FieldAttribute replacement = replacementsByName.get(fa.name());
                             return replacement != null && fa.field() instanceof PotentiallyUnmappedKeywordEsField ? replacement : fa;
                         }));
                     }
@@ -2005,7 +1997,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
                     && fa.field() instanceof PotentiallyUnmappedNonLoadableEsField == false
                     && fa.field() instanceof MissingEsField == false) {
-                    FieldAttribute punk = punkFieldNamed(logicalPlan, fa.name());
+                    FieldAttribute punk = findPunkFieldWithName(logicalPlan, fa.name());
                     if (punk != null && implicitCastFromKeyword(fa.dataType(), punk, configuration) == null) {
                         nonLoadableReplacements.add(punk.withField(new PotentiallyUnmappedNonLoadableEsField(fa.field())));
                     }
@@ -2019,7 +2011,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * {@code targetType}. Returns {@code null} when no such cast exists (e.g., {@code text}, {@code aggregate_metric_double}); a
          * keyword target needs no cast, so the returned function is a {@link ConvertFunction#isNoop() no-op} there.
          */
-        private static AbstractConvertFunction implicitCastFromKeyword(
+        private static @Nullable AbstractConvertFunction implicitCastFromKeyword(
             DataType targetType,
             FieldAttribute loaded,
             Configuration configuration
@@ -2037,7 +2029,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return convert.supportedTypes().contains(KEYWORD) ? convert : null;
         }
 
-        private static FieldAttribute punkFieldNamed(LogicalPlan plan, String name) {
+        private static @Nullable FieldAttribute findPunkFieldWithName(LogicalPlan plan, String name) {
             for (Attribute attr : plan.output()) {
                 if (attr instanceof FieldAttribute fa
                     && fa.name().equals(name)
@@ -2048,21 +2040,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return null;
         }
 
-        private static List<Attribute> replaceFieldsByName(List<Attribute> attrs, List<FieldAttribute> replacements) {
-            Map<String, FieldAttribute> byName = new HashMap<>(replacements.size());
-            for (FieldAttribute replacement : replacements) {
-                byName.put(replacement.name(), replacement);
+        private static List<Attribute> replaceFieldsByName(List<Attribute> attrs, Map<String, FieldAttribute> replacements) {
+            if (replacements.isEmpty()) {
+                return attrs;
             }
             List<Attribute> replaced = new ArrayList<>(attrs.size());
             boolean changed = false;
             for (Attribute attr : attrs) {
-                FieldAttribute replacement = byName.get(attr.name());
-                if (replacement != null) {
-                    replaced.add(replacement);
-                    changed = true;
-                } else {
-                    replaced.add(attr);
-                }
+                FieldAttribute replacement = replacements.get(attr.name());
+                var hasReplacement = replacement != null;
+                replaced.add(hasReplacement ? replacement : attr);
+                changed |= hasReplacement;
             }
             return changed ? replaced : attrs;
         }
@@ -2156,22 +2144,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * collapses the rows, so neither can surface it.
          */
         private static boolean branchCanSurfaceLoadedField(LogicalPlan plan, String name) {
-            if (plan instanceof EsRelation esRelation) {
-                return esRelation.indexMode() != IndexMode.LOOKUP;
-            }
-            if (plan instanceof ResolvingProject resolvingProject) {
-                return resolvingProject.admitsLateUnmappedField(name) && branchCanSurfaceLoadedField(resolvingProject.child(), name);
-            }
-            if (plan instanceof Project || plan instanceof Aggregate) {
-                return false;
-            }
-            if (plan instanceof Join join && join.config().type() == JoinTypes.LEFT) {
-                return branchCanSurfaceLoadedField(join.left(), name);
-            } else if (plan instanceof UnaryPlan unaryPlan) {
-                return branchCanSurfaceLoadedField(unaryPlan.child(), name);
-            } else {
-                return false;
-            }
+            return switch (plan) {
+                case EsRelation esRelation -> esRelation.indexMode() != IndexMode.LOOKUP;
+                case ResolvingProject resolvingProject -> resolvingProject.admitsLateUnmappedField(name)
+                    && branchCanSurfaceLoadedField(resolvingProject.child(), name);
+                case Project project -> false;
+                case Aggregate aggregate -> false;
+                case Join join when join.config().type() == JoinTypes.LEFT -> branchCanSurfaceLoadedField(join.left(), name);
+                case UnaryPlan unaryPlan -> branchCanSurfaceLoadedField(unaryPlan.child(), name);
+                case null, default -> false;
+            };
         }
 
         /**
@@ -2181,19 +2163,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * keep {@code x} out of the FORK output when every branch drops it.
          */
         private static boolean branchHasUnprojectedRelation(LogicalPlan plan) {
-            if (plan instanceof EsRelation esRelation) {
-                return esRelation.indexMode() != IndexMode.LOOKUP;
-            }
-            if (plan instanceof Project || plan instanceof Aggregate) {
-                return false;
-            }
-            if (plan instanceof Join join && join.config().type() == JoinTypes.LEFT) {
-                return branchHasUnprojectedRelation(join.left());
-            } else if (plan instanceof UnaryPlan unaryPlan) {
-                return branchHasUnprojectedRelation(unaryPlan.child());
-            } else {
-                return false;
-            }
+            return switch (plan) {
+                case EsRelation esRelation -> esRelation.indexMode() != IndexMode.LOOKUP;
+                case Project unused -> false;
+                case Aggregate unused -> false;
+                case Join join when join.config().type() == JoinTypes.LEFT -> branchHasUnprojectedRelation(join.left());
+                case UnaryPlan unaryPlan -> branchHasUnprojectedRelation(unaryPlan.child());
+                default -> false;
+            };
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput, AnalyzerContext context) {
@@ -2637,13 +2614,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     final List<Attribute> resolved;
                     final int priority;
                     if (proj instanceof UnresolvedStar) {
-                        List<Attribute> star = excludeExternalMetadata(childOutput);
-                        // KEEP x, * on an empty mapping: * would otherwise keep the <no-fields> placeholder
-                        // after ResolveUnmapped has already replaced it on the relation with x.
-                        if (projections.size() > 1) {
-                            star = star.stream().filter(a -> NO_FIELDS_NAME.equals(a.name()) == false).toList();
-                        }
-                        resolved = star;
+                        resolved = projections.size() <= 1
+                            ? excludeExternalMetadata(childOutput)
+                            // KEEP x, * on an empty mapping: * would otherwise keep the <no-fields> placeholder
+                            // after ResolveUnmapped has already replaced it on the relation with x.
+                            : excludeExternalMetadata(childOutput).stream().filter(a -> NO_FIELDS_NAME.equals(a.name()) == false).toList();
                         priority = 4;
                     } else if (proj instanceof UnresolvedNamePattern up) {
                         List<Attribute> matched = resolveAgainstList(up, childOutput);
@@ -4891,7 +4866,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * ordinary type conflict having nothing to do with unmapped fields, or when the type they agree on has no cast from keyword.
          * Only {@code LOAD_ALL} loads unmapped fields unconditionally, so under {@code load} a conflict still fails the query.
          */
-        private static DataType typeMappedBranchesAgreeOn(List<List<Attribute>> outputs, int i, Configuration configuration) {
+        private static @Nullable DataType typeMappedBranchesAgreeOn(List<List<Attribute>> outputs, int i, Configuration configuration) {
             DataType mapped = null;
             FieldAttribute fabricated = null;
             for (List<Attribute> out : outputs) {
@@ -4905,10 +4880,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return null;
                 }
             }
-            if (fabricated == null || mapped == null) {
-                return null;
-            }
-            return ResolveRefs.implicitCastFromKeyword(mapped, fabricated, configuration) == null ? null : mapped;
+            return fabricated == null || mapped == null || ResolveRefs.implicitCastFromKeyword(mapped, fabricated, configuration) == null
+                ? null
+                : mapped;
         }
 
         private static DataType commonType(DataType t1, DataType t2) {

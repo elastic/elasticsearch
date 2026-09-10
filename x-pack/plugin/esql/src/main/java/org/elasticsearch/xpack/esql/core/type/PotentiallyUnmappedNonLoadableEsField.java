@@ -20,7 +20,6 @@ import java.util.Map;
  * {@link EsField} as missing and rewrite it to null.
  */
 public class PotentiallyUnmappedNonLoadableEsField extends EsField {
-
     public PotentiallyUnmappedNonLoadableEsField(EsField mapped) {
         this(
             mapped.getName(),

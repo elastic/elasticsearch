@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -229,21 +229,18 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
         assertThat("replay dropped discovered fields: " + replayed, replayed, hasItems(discovered));
         assertThat(replayed, not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
         for (LogicalPlan plan : List.of(analyzed, optimized)) {
-            List<String> executed = new ArrayList<>();
-            for (String name : Expressions.names(plan.output())) {
-                if (name.equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false) {
-                    executed.add(name);
-                }
-            }
+            List<String> executed = Expressions.names(plan.output())
+                .stream()
+                .filter(name -> name.equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false)
+                .toList();
             assertThat(
-                "stage="
-                    + (plan == analyzed ? "analyzed" : "optimized")
-                    + " replay="
-                    + replayed
-                    + " executedWithoutUfa="
-                    + executed
-                    + " plan="
-                    + plan,
+                Strings.format(
+                    "stage=%s replay=%s executedWithoutUfa=%s plan=%s",
+                    plan == analyzed ? "analyzed" : "optimized",
+                    replayed,
+                    executed,
+                    plan
+                ),
                 replayed.size(),
                 equalTo(executed.size() + discovered.length)
             );

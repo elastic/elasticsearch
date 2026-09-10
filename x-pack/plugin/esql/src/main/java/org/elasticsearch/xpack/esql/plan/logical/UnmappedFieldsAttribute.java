@@ -91,8 +91,8 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
      * The {@code $$unmapped_fields} column a union should expose: the union of each branch's pattern, so the
      * coordinator expands extras any sibling shipped rather than inheriting the first branch's restriction.
      */
-    @Nullable
-    public static UnmappedFieldsAttribute unionFrom(List<LogicalPlan> branches) {
+
+    public static @Nullable UnmappedFieldsAttribute unionFrom(List<LogicalPlan> branches) {
         UnmappedFieldsAttribute first = null;
         UnmappedFieldsPattern union = UnmappedFieldsPattern.NONE;
         for (LogicalPlan child : branches) {
@@ -105,13 +105,9 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
                 }
             }
         }
-        if (first == null) {
-            return null;
-        }
-        if (union.equals(first.pattern())) {
-            return first;
-        }
-        return new UnmappedFieldsAttribute(first.source(), first.dataType(), first.nullable(), first.id(), first.synthetic(), union);
+        return first == null || union.equals(first.pattern())
+            ? first
+            : new UnmappedFieldsAttribute(first.source(), first.dataType(), first.nullable(), first.id(), first.synthetic(), union);
     }
 
     @Override

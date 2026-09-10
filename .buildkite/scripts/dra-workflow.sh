@@ -16,18 +16,17 @@ echo --- Preparing
 sudo NEEDRESTART_MODE=l apt-get update -y
 sudo NEEDRESTART_MODE=l apt-get install -y libxml2-utils python3.10-venv
 
-# Branch used to resolve dependency manifests (beats, ml-cpp) and reported to
-# release-manager. Defaults to the current Buildkite branch, but is overridable
-# so feature branches can point at a real release branch's manifests when
-# testing DRA changes (the ml-cpp / beats DRA pipelines only build the actual
-# release branches, so a feature branch would otherwise fail manifest lookup).
+# Branch used to resolve dependency manifests (beats, ml-cpp). Defaults to the
+# current Buildkite branch, but is overridable so feature branches can point at
+# a real release branch's manifests when testing DRA changes (the ml-cpp / beats
+# DRA pipelines only build the actual release branches, so a feature branch would
+# otherwise fail manifest lookup).
 RM_BRANCH="${RM_BRANCH:-$BRANCH}"
 if [[ "$RM_BRANCH" == "main" ]]; then
   RM_BRANCH=master
 fi
 
 ES_VERSION=$(grep elasticsearch build-tools-internal/version.properties | sed "s/elasticsearch *= *//g")
-BASE_VERSION="$ES_VERSION"
 echo "ES_VERSION=$ES_VERSION"
 
 VERSION_SUFFIX=""
@@ -95,7 +94,8 @@ else
 x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="-$VERSION_QUALIFIER"
 fi
 
-# we regenerate this file as part of the release manager invocation
+# dractl generates its own checksums; remove the Gradle-produced .sha512 to
+# avoid a duplicate checksum file for the TACO connector in artifacts/.
 rm "build/distributions/elasticsearch-jdbc-${ES_VERSION}${VERSION_SUFFIX}.taco.sha512"
 
 # Allow other users access to read the artifacts so they are readable in the
@@ -105,30 +105,55 @@ find "$WORKSPACE" -type f -path "*/build/distributions/*" -exec chmod a+r {} \;
 # Allow other users write access to create checksum files
 find "$WORKSPACE" -type d -path "*/build/distributions" -exec chmod a+w {} \;
 
-# Publish the exploded maven aggregation tree to snapshots.elastic.co /
-# artifacts.elastic.co ourselves, ahead of the release-manager cutover tracked
-# in https://github.com/elastic/elasticsearch-team/issues/4297.
 echo --- Publishing maven aggregation to S3
 DRA_WORKFLOW="$WORKFLOW" \
   .buildkite/scripts/dra-maven-snapshots-publish.sh
 
-echo --- Running release-manager
+echo --- Staging artifacts for dra-prep plugin
 
-# Artifacts should be generated
-docker run --rm \
-  --name release-manager \
-  -e VAULT_ADDR="$DRA_VAULT_ADDR" \
-  -e VAULT_ROLE_ID="$DRA_VAULT_ROLE_ID_SECRET" \
-  -e VAULT_SECRET_ID="$DRA_VAULT_SECRET_ID_SECRET" \
-  --mount type=bind,readonly=false,src="$PWD",target=/artifacts \
-  docker.elastic.co/infra/release-manager:latest \
-  cli collect \
-  --project elasticsearch \
-  --branch "$RM_BRANCH" \
-  --commit "$BUILDKITE_COMMIT" \
-  --workflow "$WORKFLOW" \
-  --qualifier "${VERSION_QUALIFIER:-}" \
-  --version "$BASE_VERSION" \
-  --artifact-set main \
-  --dependency "beats:https://artifacts-${WORKFLOW}.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json" \
-  --dependency "ml-cpp:https://artifacts-${WORKFLOW}.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json"
+# Expose the runtime-computed stack version and dependency manifest URLs to the
+# dra-prep post-command hook. The plugin reads BUILDKITE_PLUGIN_DRA_PREP_* env
+# vars; writing them to BUILDKITE_ENV_FILE makes them available to hooks that
+# run after this command (Buildkite processes the env file between command and
+# post-command hooks, allowing overrides of values set from the pipeline YAML).
+if [[ -n "${BUILDKITE_ENV_FILE:-}" ]]; then
+  {
+    echo "BUILDKITE_PLUGIN_DRA_PREP_STACK_VERSION=${ES_VERSION}${VERSION_SUFFIX}"
+    echo "BUILDKITE_PLUGIN_DRA_PREP_DEPENDENCIES_0=beats:https://artifacts-${WORKFLOW}.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json"
+    echo "BUILDKITE_PLUGIN_DRA_PREP_DEPENDENCIES_1=ml-cpp:https://artifacts-${WORKFLOW}.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json"
+  } >> "$BUILDKITE_ENV_FILE"
+fi
+
+# Collect all distribution artifacts into a flat artifacts/ directory for dractl.
+# Excludes .sha512 and .asc files since dractl generates its own checksums.
+mkdir -p artifacts
+find "$WORKSPACE" -type f -path "*/build/distributions/*" \
+  ! -name "*.sha512" \
+  ! -name "*.asc" \
+  -exec cp {} artifacts/ \;
+
+if ! ls artifacts/* 1>/dev/null 2>&1; then
+  echo "ERROR: no artifacts staged; expected files under build/distributions/" >&2
+  exit 1
+fi
+
+echo "Staged artifacts:"
+ls -1 artifacts/
+
+# Emit the unified-release DRA processing trigger as a dynamic step so that
+# the runtime-computed version is substituted correctly. depends_on: dra-prep
+# ensures the trigger fires only after this step (including the dra-prep
+# post-command hook that uploads to GCS) has fully completed.
+echo --- Emitting unified-release DRA processing trigger
+buildkite-agent pipeline upload << PIPELINE
+steps:
+  - label: ":pipeline: DRA processing for elasticsearch / ${ES_VERSION}${VERSION_SUFFIX} / ${WORKFLOW}"
+    trigger: unified-release-dra-processing
+    async: true
+    depends_on: dra-prep
+    build:
+      env:
+        DRA_PRODUCT_ID: elasticsearch
+        DRA_STACK_VERSION: "${ES_VERSION}${VERSION_SUFFIX}"
+        DRA_WORKFLOW: "${WORKFLOW}"
+PIPELINE

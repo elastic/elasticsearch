@@ -1,7 +1,8 @@
 steps:
-  - command: .buildkite/scripts/dra-workflow.sh
+  - label: ":package: Build and stage elasticsearch"
+    key: dra-prep
+    command: .buildkite/scripts/dra-workflow.sh
     env:
-      USE_DRA_CREDENTIALS: "true"
       USE_MAVEN_GPG: "true"
       USE_MAVEN_S3_CREDENTIALS: "true"
       USE_PROD_DOCKER_CREDENTIALS: "true"
@@ -12,11 +13,16 @@ steps:
       localSsds: 1
       localSsdInterface: nvme
       diskSizeGb: 350
-  - wait
+    plugins:
+      - elastic/dra-prep#v0.1.6:
+          product_id: elasticsearch
+          stack_version: set-at-runtime
+          workflow: "${DRA_WORKFLOW:-snapshot}"
   # The hadoop build depends on the ES artifact
   # So let's trigger the hadoop build any time we build a new staging artifact
   - trigger: elasticsearch-hadoop-dra-workflow
     async: true
+    depends_on: dra-prep
     build:
       branch: "${BUILDKITE_BRANCH}"
       env:

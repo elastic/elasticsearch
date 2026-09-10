@@ -39,6 +39,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
@@ -84,6 +85,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private volatile Long cachedLength;
     private volatile Instant cachedLastModified;
     private volatile Boolean cachedExists;
+    /** First strong ETag returned by a GET; sent as If-Match on later GETs and reported as {@link #contentGeneration()}. */
+    private final AtomicReference<String> pinnedEtag = new AtomicReference<>();
+    /** Some S3-compatible stores do not implement If-Match on GET; validate each response ETag instead. */
+    private volatile boolean ifMatchUnsupported;
 
     // Retries: the sync S3Client path relies on the SDK RetryStrategy (pinned to Standard in
     // S3StorageProvider#configureCommon). The async client is pinned to doNotRetry and readBytesAsync drives
@@ -169,16 +174,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         long startNanos = System.nanoTime();
         long bytes = 0L;
         try {
-            GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).build();
-            ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
+            GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key);
+            ResponseInputStream<GetObjectResponse> response = getObject(request);
             GetObjectResponse metadata = response.response();
-
-            if (cachedLength == null) {
-                cachedLength = metadata.contentLength();
-            }
-            if (cachedLastModified == null) {
-                cachedLastModified = metadata.lastModified();
-            }
+            observeResponse(metadata, 0L, false);
             bytes = metadata.contentLength() != null ? metadata.contentLength() : 0L;
             // Wrap so a transient fault DURING the read surfaces as a typed ExternalUnavailableException the
             // resume loop can act on; the SDK throws a raw (unchecked) S3Exception/SdkException mid-body.
@@ -212,6 +211,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * Returns the exception (never throws) so both the synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, Throwable cause) {
+        if (cause instanceof ExternalObjectChangedException changed) {
+            return changed;
+        }
         CircuitBreakingException breakerTrip = unwrapBreakerTrip(cause, context, path);
         if (breakerTrip != null) {
             return breakerTrip;
@@ -236,6 +238,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 path,
                 s3.statusCode()
             );
+        }
+        if (cause instanceof S3Exception precondition && precondition.statusCode() == 412) {
+            return new ExternalObjectChangedException(cause, "Object changed during read of [{}]", path);
         }
         if (cause instanceof S3Exception denied && denied.statusCode() == 403) {
             // Follows the listing-403 wording in S3StorageProvider: name what was refused, then what to change.
@@ -351,6 +356,117 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     }
 
     @Override
+    public long knownLength() {
+        return cachedLength != null ? cachedLength : READ_TO_END;
+    }
+
+    @Override
+    public String contentGeneration() {
+        return pinnedEtag.get();
+    }
+
+    /**
+     * Issues GET, sending If-Match of the first strong ETag on later opens. A store that answers
+     * {@code NotImplemented} does not support If-Match on GET: one unconditioned retry is allowed,
+     * but its response and every later response must carry the pinned ETag.
+     */
+    private ResponseInputStream<GetObjectResponse> getObject(GetObjectRequest.Builder builder) {
+        boolean sentIfMatch = applyIfMatch(builder);
+        GetObjectRequest request = builder.build();
+        try {
+            return validateGeneration(s3Client.getObject(request));
+        } catch (S3Exception e) {
+            if (sentIfMatch && isIfMatchUnsupported(e)) {
+                ifMatchUnsupported = true;
+                logger.debug("S3 If-Match not implemented for [{}]; validating response ETags instead", path);
+                return validateGeneration(s3Client.getObject(unpinned(request)));
+            }
+            throw e;
+        }
+    }
+
+    private boolean applyIfMatch(GetObjectRequest.Builder builder) {
+        String etag = pinnedEtag.get();
+        if (ifMatchUnsupported || etag == null) {
+            return false;
+        }
+        builder.ifMatch(etag);
+        return true;
+    }
+
+    private static GetObjectRequest unpinned(GetObjectRequest pinned) {
+        GetObjectRequest.Builder builder = GetObjectRequest.builder().bucket(pinned.bucket()).key(pinned.key());
+        if (pinned.range() != null) {
+            builder.range(pinned.range());
+        }
+        return builder.build();
+    }
+
+    /**
+     * True only for the store-does-not-implement-If-Match answer. Deliberately not "any 400": a
+     * malformed range, a bad request signature, or an invalid argument are also 400s, and unpinning
+     * on those would silently drop the generation pin for the rest of the query and retry the same
+     * request unpinned. {@code NotImplemented} is the S3 API's own "this server lacks the feature"
+     * code; AWS itself answers a genuine If-Match mismatch with 412, handled in {@link #mapReadFailure}.
+     */
+    private static boolean isIfMatchUnsupported(Throwable cause) {
+        if (cause instanceof S3Exception s3 && s3.awsErrorDetails() != null) {
+            return "NotImplemented".equals(s3.awsErrorDetails().errorCode());
+        }
+        return false;
+    }
+
+    private void observeResponse(GetObjectResponse metadata, long position, boolean closedRange) {
+        Long total = ContentRangeParser.parseTotalLength(metadata.contentRange());
+        if (total != null) {
+            cachedLength = total;
+        } else if (closedRange == false && position == 0 && metadata.contentLength() != null) {
+            cachedLength = metadata.contentLength();
+        }
+        if (cachedLastModified == null && metadata.lastModified() != null) {
+            cachedLastModified = metadata.lastModified();
+        }
+    }
+
+    private void observeEtag(String etag) {
+        String current = pinnedEtag.get();
+        if (etag == null || etag.isBlank() || isStrongEtag(etag) == false) {
+            if (current != null) {
+                throw new ExternalObjectChangedException("Object generation could not be verified during read of [{}]", path);
+            }
+            return;
+        }
+        if (current == null) {
+            if (pinnedEtag.compareAndSet(null, etag)) {
+                return;
+            }
+            current = pinnedEtag.get();
+        }
+        if (current.equals(etag) == false) {
+            throw new ExternalObjectChangedException("Object changed during read of [{}]", path);
+        }
+    }
+
+    /**
+     * Validates the response generation before exposing its body. This also closes the race between
+     * concurrent first reads: exactly one ETag wins the pin and a response from another generation is aborted.
+     */
+    private ResponseInputStream<GetObjectResponse> validateGeneration(ResponseInputStream<GetObjectResponse> response) {
+        try {
+            observeEtag(response.response().eTag());
+            return response;
+        } catch (RuntimeException e) {
+            response.abort();
+            throw e;
+        }
+    }
+
+    /** Weak ETags ({@code W/"..."}) are not byte-for-byte identifiers, so they are never used as a pin. */
+    private static boolean isStrongEtag(String etag) {
+        return etag.regionMatches(true, 0, "W/", 0, 2) == false;
+    }
+
+    @Override
     public InputStream newStream(long position, long length) throws IOException {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
@@ -366,19 +482,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         long startNanos = System.nanoTime();
         long requestedBytes = toEnd ? 0L : length;
         try {
-            GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
-            ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
+            GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader);
+            ResponseInputStream<GetObjectResponse> response = getObject(request);
             GetObjectResponse metadata = response.response();
-
-            if (cachedLength == null) {
-                Long total = ContentRangeParser.parseTotalLength(metadata.contentRange());
-                if (total != null) {
-                    cachedLength = total;
-                }
-            }
-            if (cachedLastModified == null) {
-                cachedLastModified = metadata.lastModified();
-            }
+            observeResponse(metadata, position, toEnd == false);
             if (toEnd) {
                 requestedBytes = metadata.contentLength() != null ? metadata.contentLength() : 0L;
             }
@@ -447,17 +554,15 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         try {
             // Suffix range: bytes=-1 returns the last byte + Content-Range with total size.
             // Avoids a separate HEAD request for file size discovery.
-            GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=-1").build();
-            try (var response = s3Client.getObject(request)) {
+            GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=-1");
+            try (var response = getObject(request)) {
                 // Drain the 1-byte body so the HTTP connection returns to the pool
                 // instead of being aborted on close.
                 response.readAllBytes();
                 GetObjectResponse metadata = response.response();
                 cachedExists = true;
-                cachedLastModified = metadata.lastModified();
-                Long total = ContentRangeParser.parseTotalLength(metadata.contentRange());
-                if (total != null) {
-                    cachedLength = total;
+                observeResponse(metadata, 0L, true);
+                if (cachedLength != null) {
                     return;
                 }
             }
@@ -489,7 +594,13 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             HeadObjectResponse response = s3Client.headObject(request);
 
             cachedExists = true;
-            cachedLength = response.contentLength();
+            // HEAD is not a GET: it reports whatever generation is current, which is not necessarily the
+            // one reads are pinned to. It must neither establish the pin nor overwrite the pinned
+            // generation's size (already set by the GET that pinned it).
+            String etag = pinnedEtag.get();
+            if (etag == null || etag.equals(response.eTag())) {
+                cachedLength = response.contentLength();
+            }
             cachedLastModified = response.lastModified();
         } catch (NoSuchKeyException e) {
             setNotFound();
@@ -504,18 +615,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
     private void fetchMetadataViaRangeGet() throws IOException {
         try {
-            GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=0-0").build();
-            try (var response = s3Client.getObject(request)) {
+            GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=0-0");
+            try (var response = getObject(request)) {
                 GetObjectResponse metadata = response.response();
                 cachedExists = true;
-                cachedLastModified = metadata.lastModified();
-                Long total = ContentRangeParser.parseTotalLength(metadata.contentRange());
-                if (total == null) {
+                observeResponse(metadata, 0L, true);
+                if (cachedLength == null) {
                     throw new IOException(
                         "Failed to determine object size for " + path + ": Content-Range header missing from range GET response"
                     );
                 }
-                cachedLength = total;
             }
         } catch (IOException e) {
             throw e;
@@ -589,7 +698,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         long endPosition = position + length - 1;
         String rangeHeader = Strings.format("bytes=%d-%d", position, endPosition);
 
-        GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
+        GetObjectRequest.Builder requestBuilder = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader);
+        boolean sentIfMatch = applyIfMatch(requestBuilder);
+        GetObjectRequest request = requestBuilder.build();
 
         long startNanos = System.nanoTime();
         final RetryToken initialToken;
@@ -755,14 +866,14 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
             GetObjectResponse response = transformer.response();
             if (response != null) {
-                if (cachedLastModified == null) {
-                    cachedLastModified = response.lastModified();
-                }
-                if (cachedLength == null) {
-                    Long total = ContentRangeParser.parseTotalLength(response.contentRange());
-                    if (total != null) {
-                        cachedLength = total;
-                    }
+                try {
+                    observeEtag(response.eTag());
+                    observeResponse(response, position, true);
+                } catch (ExternalObjectChangedException e) {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    buffer.close();
+                    listener.onFailure(e);
+                    return;
                 }
             }
 

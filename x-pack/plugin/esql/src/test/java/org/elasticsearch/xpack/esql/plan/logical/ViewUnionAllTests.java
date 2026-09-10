@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -122,6 +123,26 @@ public class ViewUnionAllTests extends ESTestCase {
         // ViewUnionAll and UnionAll with same children should NOT be equal (different getClass())
         assertNotEquals(viewUnion, plainUnion);
         assertNotEquals(plainUnion, viewUnion);
+    }
+
+    /**
+     * {@link MergePlan#refreshOutput()} must keep this a {@link ViewUnionAll}, carrying both the named-subqueries map and
+     * the view-branch keys. It used to be implemented per subclass, and {@link UnionAll}'s version named its own
+     * constructor — so a {@code ViewUnionAll} came back as a plain {@code UnionAll} with its view boundaries erased,
+     * which silently sent the request filter down the Lucene push-in path instead of onto the view's output. Reachable
+     * from {@code ResolveUnmapped} and {@code DetermineUnmappedFieldsToKeep}, i.e. {@code unmapped_fields} over a view.
+     */
+    public void testRefreshOutputPreservesTypeAndViewBranchKeys() {
+        LogicalPlan child = relation("index1");
+        ViewUnionAll original = viewUnionAll(child);
+
+        MergePlan refreshed = original.refreshOutput();
+
+        assertThat(refreshed, instanceOf(ViewUnionAll.class));
+        ViewUnionAll refreshedView = (ViewUnionAll) refreshed;
+        assertThat(refreshedView.namedSubqueries(), equalTo(Map.of("view_0", child)));
+        assertThat(refreshedView.viewBranchKeys(), equalTo(Set.of("view_0")));
+        assertTrue("the sole branch must still be recognised as a view branch", refreshedView.isViewBranch("view_0"));
     }
 
     /** Builds a {@link ViewUnionAll} where every branch is a view branch (keys {@code "view_0"}, {@code "view_1"}, …). */

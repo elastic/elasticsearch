@@ -67,6 +67,7 @@ esplugin.bundleSpec.exclude 'platform/licenses/**'
 ["bundlePlugin", "explodedBundlePlugin"].each { bundleTaskName ->
     tasks.named(bundleTaskName).configure {
         dependsOn configurations.nativeBundle
+        dependsOn "verifyControllerProtocolVersion"
     }
 }
 
@@ -110,6 +111,47 @@ dependencies {
 def mlCppVersion(){
   return (project.gradle.parent != null && buildParams.snapshotBuild == false) ?
       (project.version + "-SNAPSHOT") : project.version;
+}
+
+// Minimum controller-protocol.version that ml-cpp's native controller must publish (see ml-cpp's own
+// build.gradle, next to its controller-protocol.version publication). Bumping this constant is how a
+// future breaking change to the controller protocol gets enforced at Elasticsearch build time -
+// instead of relying on convention - so we can never ship an ES build that assumes new controller
+// capabilities against an old, incompatible native controller.
+def REQUIRED_CONTROLLER_PROTOCOL_VERSION = 1
+
+tasks.register("verifyControllerProtocolVersion") {
+  dependsOn configurations.nativeBundle
+  doLast {
+    configurations.nativeBundle.files.each { zipFile ->
+      def matches = zipTree(zipFile).matching { include 'controller-protocol.version' }.files
+      if (matches.isEmpty()) {
+        throw new GradleException(
+          "Native controller bundle '${zipFile.name}' is missing the top-level 'controller-protocol.version' " +
+          "file (required: controller-protocol-version >= ${REQUIRED_CONTROLLER_PROTOCOL_VERSION}). The resolved " +
+          "ml-cpp artifact predates the controller-protocol.version publication and is incompatible with this " +
+          "Elasticsearch build."
+        )
+      }
+      def versionFile = matches.iterator().next()
+      def line = versionFile.text.trim()
+      def matcher = line =~ /^controller-protocol-version=(\d+)$/
+      if (!matcher.matches()) {
+        throw new GradleException(
+          "Native controller bundle '${zipFile.name}' has a malformed 'controller-protocol.version' file " +
+          "(got '${line}', expected 'controller-protocol-version=<int>')."
+        )
+      }
+      def foundVersion = matcher.group(1).toInteger()
+      if (foundVersion < REQUIRED_CONTROLLER_PROTOCOL_VERSION) {
+        throw new GradleException(
+          "Native controller bundle '${zipFile.name}' publishes controller-protocol version ${foundVersion}, " +
+          "but this Elasticsearch build requires controller-protocol version >= " +
+          "${REQUIRED_CONTROLLER_PROTOCOL_VERSION}. Upgrade the resolved ml-cpp artifact."
+        )
+      }
+    }
+  }
 }
 
 tasks.named('assemble').configure {

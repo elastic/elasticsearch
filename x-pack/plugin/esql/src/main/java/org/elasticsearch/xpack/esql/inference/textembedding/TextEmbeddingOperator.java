@@ -24,11 +24,14 @@ import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOutputBuilder;
  */
 public class TextEmbeddingOperator extends InferenceOperator {
 
+    private final int batchSize;
+
     TextEmbeddingOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
         String inferenceId,
         ExpressionEvaluator inputEvaluator,
+        int batchSize,
         TimeValue timeout,
         Source source,
         boolean tolerateFailures
@@ -36,21 +39,23 @@ public class TextEmbeddingOperator extends InferenceOperator {
         super(
             driverContext,
             inferenceService,
-            new TextEmbeddingRequestIterator.Factory(inferenceId, TaskType.TEXT_EMBEDDING, inputEvaluator, timeout),
+            new TextEmbeddingRequestIterator.Factory(inferenceId, TaskType.TEXT_EMBEDDING, inputEvaluator, batchSize, timeout),
             new EmbeddingOutputBuilder(driverContext.blockFactory(), tolerateFailures),
             source,
             tolerateFailures
         );
+        this.batchSize = batchSize;
     }
 
     @Override
     public String toString() {
-        return "TextEmbeddingOperator[inference_id=[" + inferenceId() + "]]";
+        return "TextEmbeddingOperator[inference_id=[" + inferenceId() + "], batch_size=[" + batchSize + "]]";
     }
 
     /**
      * Factory for creating {@link TextEmbeddingOperator} instances.
      *
+     * @param batchSize The maximum number of input texts coalesced into a single embedding inference request.
      * @param source The source location used for per-row failure warnings (only relevant when {@code tolerateFailures} is true).
      * @param tolerateFailures When true, a failed inference request warns, nulls that row and continues, instead of failing the query.
      *                         Set by the DENSE_VECTOR command; the fold-based TEXT_EMBEDDING function leaves it false (fail-fast).
@@ -59,6 +64,7 @@ public class TextEmbeddingOperator extends InferenceOperator {
         InferenceService inferenceService,
         String inferenceId,
         ExpressionEvaluator.Factory textEvaluatorFactory,
+        int batchSize,
         TimeValue timeout,
         Source source,
         boolean tolerateFailures
@@ -66,7 +72,7 @@ public class TextEmbeddingOperator extends InferenceOperator {
 
         @Override
         public String describe() {
-            return "TextEmbeddingOperator[inference_id=[" + inferenceId + "]]";
+            return "TextEmbeddingOperator[inference_id=[" + inferenceId + "], batch_size=[" + batchSize + "]]";
         }
 
         @Override
@@ -76,6 +82,7 @@ public class TextEmbeddingOperator extends InferenceOperator {
                 inferenceService,
                 inferenceId,
                 textEvaluatorFactory.get(driverContext),
+                batchSize,
                 timeout,
                 source,
                 tolerateFailures

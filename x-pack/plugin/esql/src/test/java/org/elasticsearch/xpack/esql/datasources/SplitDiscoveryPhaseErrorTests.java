@@ -17,7 +17,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
@@ -39,15 +41,16 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
 
     private static final Source SRC = Source.EMPTY;
 
-    public void testUncheckedIOExceptionWrappedWithContext() {
+    public void testUncheckedIOExceptionIsClientErrorWithContext() {
         ExternalSourceExec exec = createExternalSourceExec("s3://bucket/data/*.parquet", "parquet");
         SplitProvider failingProvider = ctx -> { throw new UncheckedIOException(new IOException("connection reset by peer")); };
 
-        ElasticsearchException e = expectThrows(
-            ElasticsearchException.class,
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
             () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(failingProvider)))
         );
 
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
         assertThat(e.getMessage(), containsString("s3://bucket/data/*.parquet"));
         assertThat(e.getMessage(), containsString("parquet"));
         assertThat(e.getCause(), instanceOf(UncheckedIOException.class));
@@ -183,6 +186,20 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
         );
 
         assertSame(original, e);
+    }
+
+    public void testUnavailableExceptionKeepsServiceUnavailableStatus() {
+        ExternalSourceExec exec = createExternalSourceExec("s3://bucket/data/*.parquet", "parquet");
+        ExternalUnavailableException original = new ExternalUnavailableException(true, "S3 store unavailable");
+        SplitProvider failingProvider = ctx -> { throw original; };
+
+        ExternalUnavailableException e = expectThrows(
+            ExternalUnavailableException.class,
+            () -> SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(failingProvider)))
+        );
+
+        assertSame(original, e);
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, e.status());
     }
 
     public void testPermissionErrorIncludesSourcePath() {

@@ -44,9 +44,8 @@ class DocsTestPluginFuncTest extends AbstractGradleFuncTest {
         docDir.mkdirs()
         addSampleDoc(docDir)
         buildApiRestrictionsDisabled = true
-        configurationCacheCompatible = false
-
-        internalBuild()
+        disableConfigurationCache("DocsTestPlugin uses project references that are not configuration-cache safe")
+        configureBwcVersions()
 
         buildFile << """
 import org.elasticsearch.gradle.internal.doc.DocsTestPlugin

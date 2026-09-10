@@ -23,6 +23,7 @@ import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams
 
 public class MutedTestPlugin implements Plugin<Project> {
     private static final String ADDITIONAL_FILES_PROPERTY = "org.elasticsearch.additional.muted.tests";
+    static final String MUTED_TESTS_ENABLED_PROPERTY = "tests.mutes.enabled";
 
     @Override
     public void apply(Project project) {
@@ -36,6 +37,10 @@ public class MutedTestPlugin implements Plugin<Project> {
 
         project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
         var buildParams = loadBuildParams(project).get();
+        String mutedTestsEnabledValue = project.hasProperty(MUTED_TESTS_ENABLED_PROPERTY)
+            ? project.property(MUTED_TESTS_ENABLED_PROPERTY).toString()
+            : System.getProperty(MUTED_TESTS_ENABLED_PROPERTY);
+        boolean mutedTestsEnabled = mutedTestsEnabledValue == null || mutedTestsEnabledValue.equalsIgnoreCase("true");
 
         Provider<MutedTestsBuildService> mutedTestsProvider = project.getGradle()
             .getSharedServices()
@@ -44,15 +49,19 @@ public class MutedTestPlugin implements Plugin<Project> {
                 spec.getParameters().getAdditionalFiles().set(additionalFiles);
             });
 
-        project.getTasks().withType(Test.class).configureEach(test -> {
-            test.filter(filter -> {
-                for (String exclude : mutedTestsProvider.get().getExcludePatterns()) {
-                    filter.excludeTestsMatching(exclude);
-                }
-
-                // Don't fail when all tests are ignored when running in CI
-                filter.setFailOnNoMatchingTests(buildParams.getCi() == false);
+        if (mutedTestsEnabled) {
+            project.getTasks().withType(Test.class).configureEach(test -> {
+                test.filter(filter -> {
+                    for (String exclude : mutedTestsProvider.get().getExcludePatterns()) {
+                        filter.excludeTestsMatching(exclude);
+                    }
+                });
             });
+        }
+
+        // Don't fail when all tests are ignored when running in CI
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            test.filter(filter -> filter.setFailOnNoMatchingTests(buildParams.getCi() == false));
         });
     }
 }

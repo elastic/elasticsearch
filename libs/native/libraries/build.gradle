@@ -39,7 +39,7 @@ configurations.consumable('nativeLibs') {
 }
 
 var zstdVersion = "1.5.7-1"
-var vecVersion = "1.0.140"
+var vecVersion = "1.0.146"
 var libSimdjsonVersion = "0.2.0"
 
 // vec and libsimdjson come either from published artifacts or from source builds in their

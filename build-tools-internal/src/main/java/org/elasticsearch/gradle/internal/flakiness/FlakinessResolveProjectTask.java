@@ -189,14 +189,13 @@ public abstract class FlakinessResolveProjectTask extends DefaultTask {
      *
      * <p>Emitted for every project because the scan step needs it for classes it did not resolve a ref to -
      * a concrete subclass of a foreign abstract base is run by <em>this</em> project's tasks, not by those of
-     * whichever project the ref happened to name. Source sets whose name maps to no Java kind
-     * ({@code yamlRestTest} resolves to yaml kinds, which carry no expandable fqcn) are left out.
+     * whichever project the ref happened to name.
      */
-    private static List<SourceSetDisposition> dispositionsOf(FlakinessJson.ProjectModel model, int taskCap) {
+    static List<SourceSetDisposition> dispositionsOf(FlakinessJson.ProjectModel model, int taskCap) {
         List<SourceSetDisposition> dispositions = new ArrayList<>();
         for (SourceSetInfo ss : model.sourceSets()) {
             String kind = RefResolver.javaKindOf(ss.name());
-            if (kind == null || Kinds.BYTECODE_ENRICHED.contains(kind) == false) {
+            if (kind == null) {
                 continue;
             }
             TestTaskSelector.Selection selection = TestTaskSelector.select(ss.name(), ss.outputDir(), model.testTasks(), taskCap);

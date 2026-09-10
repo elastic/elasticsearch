@@ -39,7 +39,7 @@ public class CommandBuilderTests {
         assertThat(cmds, hasSize(2));
         PlanCommand first = cmds.get(0);
         assertThat(first.kind(), equalTo("test"));
-        assertThat(first.label(), equalTo("unit tests"));
+        assertThat(first.label(), equalTo(Kinds.KIND_LABEL.get(Kinds.TEST)));
         assertThat(first.key(), equalTo("flakiness-detection:unit"));
         assertThat(
             first.command(),
@@ -112,6 +112,34 @@ public class CommandBuilderTests {
         assertThat(cmds, hasSize(2));
         assertThat(cmds.get(0).command(), containsString(":x:yamlRestTest --rerun"));
         assertThat(cmds.get(1).command(), containsString(":y:yamlRestTest --rerun"));
+    }
+
+    /**
+     * The case the identical-runner test above cannot reach. Runners with no {@code fqcn} share an identity
+     * of {@code ""}, so the generic {@link CommandBuilder} dedupe collapses them before the runner-specific
+     * pass ever sees them - remove that pass and the test above still passes.
+     *
+     * <p>Expanded and re-homed runners each carry their own {@code fqcn}, so the generic dedupe keeps all
+     * three. Since the runner command ignores {@code fqcn} and re-runs the whole source set, emitting one per
+     * subclass would mean three byte-identical commands and three test-cluster startups for the same work.
+     */
+    @Test
+    public void testDistinctYamlRunnerSubclassesInOneProjectStillCollapseToOneCommand() {
+        List<PlanCommand> cmds = CommandBuilder.build(
+            List.of(
+                yamlRunnerOf(":x", "com.example.OneIT"),
+                yamlRunnerOf(":x", "com.example.TwoIT"),
+                yamlRunnerOf(":x", "com.example.ThreeIT"),
+                yamlRunnerOf(":y", "com.example.FourIT")
+            ),
+            CommandBuilder.Config.defaults()
+        );
+
+        assertThat(cmds, hasSize(2));
+        assertThat(cmds.get(0).command(), containsString(":x:yamlRestTest --rerun"));
+        assertThat(cmds.get(1).command(), containsString(":y:yamlRestTest --rerun"));
+        // The whole source set runs, so no --tests filter narrows it to one of the subclasses.
+        assertThat(cmds.get(0).command(), not(containsString("--tests")));
     }
 
     @Test
@@ -237,6 +265,11 @@ public class CommandBuilderTests {
 
     private static PlanEntry yamlRunner(String project) {
         return run(project, "yamlRestTest", Kinds.YAML_REST_TEST_RUNNER, null, null, null);
+    }
+
+    /** A runner that names a class: the shape an expanded or re-homed yaml subclass arrives in. */
+    private static PlanEntry yamlRunnerOf(String project, String fqcn) {
+        return run(project, "yamlRestTest", Kinds.YAML_REST_TEST_RUNNER, fqcn, null, null);
     }
 
     private static PlanEntry yamlSuite(String project, String suitePath) {

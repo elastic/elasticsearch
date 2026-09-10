@@ -6,7 +6,14 @@ import { join, resolve } from "path";
 import { analyzeReports } from "../analyzer/analyze.ts";
 import { deriveOutcome } from "../analyzer/outcome.ts";
 import { renderMarkdown, severity } from "../analyzer/render.ts";
-import { DEFAULT_AGENT_CONFIG, KIND_KEYS, type SkippedTest, type TestKind } from "../domain.ts";
+import {
+  DEFAULT_AGENT_CONFIG,
+  KIND_KEYS,
+  type SkippedTest,
+  STATUS_DIR_NAME,
+  TASK_STATUS_FILE_PREFIX,
+  type TestKind,
+} from "../domain.ts";
 import { NEVER_FAIL_GRACE_MINUTES } from "../runners/buildkite.ts";
 
 const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
@@ -19,7 +26,7 @@ const INNER_TIMEOUT_SEC = (DEFAULT_AGENT_CONFIG.timeoutInMinutes - NEVER_FAIL_GR
 
 // Per-job status files (rc + duration) the batch wrappers uploaded; downloaded
 // flat into this dir by the analyze step command before this script runs.
-const STATUS_DIR = join(PROJECT_ROOT, "flakiness-status");
+const STATUS_DIR = join(PROJECT_ROOT, STATUS_DIR_NAME);
 
 // Per-job JUnit XML is downloaded under here, one subdir per job id, so the
 // analyzer can attribute results to a single job (a flat download would mix
@@ -59,10 +66,6 @@ interface JobStatus {
 
 // `taskPaths` also travels in the status file, but it is a classification input (scoping the skipped-task
 // check), not a payload field - so it is destructured off alongside the other signals, never spread.
-
-// Per-job copy of gradle-runner's task-status.json, written next to the status file by the wrapper.
-// Keep the prefix in sync with TASK_STATUS_COPY_PREFIX in runners/buildkite.ts.
-const TASK_STATUS_COPY_PREFIX = "tasks-";
 
 interface TaskStatusEntry {
   path: string;
@@ -129,6 +132,10 @@ async function readJobStatuses(): Promise<JobStatusWithSignals[]> {
     if (!e.isFile() || !e.name.endsWith(".json")) continue;
     try {
       const parsed = JSON.parse(await readFile(join(STATUS_DIR, e.name), "utf8"));
+      // Discriminated on shape, not filename, so the `tasks-<jobId>.json` copies that share this directory
+      // are skipped: they are gradle-runner task reports and carry no jobId. That is why the wrapper's
+      // `status-` prefix is not a contract - only TASK_STATUS_FILE_PREFIX is, since that one is rebuilt
+      // from a jobId below.
       if (parsed && typeof parsed.jobId === "string") {
         statuses.push({
           jobId: parsed.jobId,
@@ -158,7 +165,7 @@ async function readJobStatuses(): Promise<JobStatusWithSignals[]> {
 // allTargetTasksSkipped treats as "no verdict" rather than as "not skipped by onlyIf".
 async function readTaskStatusEntries(jobId: string): Promise<TaskStatusEntry[]> {
   try {
-    const raw = await readFile(join(STATUS_DIR, `${TASK_STATUS_COPY_PREFIX}${jobId}.json`), "utf8");
+    const raw = await readFile(join(STATUS_DIR, `${TASK_STATUS_FILE_PREFIX}${jobId}.json`), "utf8");
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed?.tasks) ? parsed.tasks : [];
   } catch {
@@ -240,7 +247,7 @@ async function buildPayload(statusWithSignals: JobStatusWithSignals): Promise<Fl
   return payload;
 }
 
-// Read the skip list the generate step wrote. Absent = nothing skipped.
+// Read the skip list the generate step wrote. Empty or absent = nothing skipped.
 async function readSkippedTests(): Promise<SkippedTest[]> {
   try {
     const parsed = JSON.parse(await readFile(join(PROJECT_ROOT, SKIPPED_FILE), "utf8"));

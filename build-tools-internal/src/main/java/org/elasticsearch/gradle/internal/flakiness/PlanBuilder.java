@@ -31,9 +31,14 @@ import java.util.function.Function;
  *       {@code skip} entry carrying that reason (downstream {@code not_applicable}).</li>
  *   <li>yaml kinds (no fqcn, or a specific parameterised case) -&gt; pass through as {@code run}; bytecode
  *       enrichment is a no-op for them.</li>
- *   <li>Java kind with an fqcn -&gt; {@link ClassHierarchyScanner#expand} it. Concrete: one {@code run}.
- *       Abstract: one {@code run} per chosen concrete subclass with {@code expandedFrom}, plus an
- *       {@link Expansion} record. Abstract with zero concrete subclasses: surfaced as {@code unresolved}.</li>
+ *   <li>Java kind with an fqcn -&gt; {@link ClassHierarchyScanner#expand} it. Concrete (or never scanned):
+ *       a single {@code run} for the class itself. Abstract: a {@code run} for <b>each</b> concrete subclass
+ *       the cap selected (sorted by FQCN, at most {@code subclassCap}, default
+ *       {@value #DEFAULT_SUBCLASS_CAP}), every one stamped with {@code expandedFrom}, plus exactly one
+ *       {@link Expansion} report record for the base. A chosen subclass that is not a runnable test class -
+ *       an inner or anonymous subclass, a helper - becomes a {@code skip} with {@code not-a-test-class}
+ *       instead. Abstract with zero concrete subclasses anywhere in the scan set: surfaced as
+ *       {@code unresolved}, never emitted as itself.</li>
  *   <li>An expanded subclass compiled <em>outside</em> the abstract base's own source-set output -&gt; re-homed
  *       onto the source set that really owns it. See below.</li>
  * </ul>
@@ -59,11 +64,19 @@ import java.util.function.Function;
  *
  * <p>If the owning source set has nothing runnable (bwc-only, packaging host), its own {@code skipReason} is
  * carried through rather than a new one invented. A directory no project claimed falls back to
- * {@value #REASON_SUBCLASS_OUTSIDE_TARGET_OUTPUT}. That is reachable in principle - {@code main} outputs are in
- * the scan set (abstract bases live there) but get no {@link SourceSetDisposition}, since refs never resolve
- * into {@code main} - yet not in practice: a {@code main} source set cannot depend on a test source set, so a
- * concrete subclass of a test-source-set base cannot be compiled into one. Audited over the whole repo: zero
- * of 532 abstract bases have a descendant in a {@code main} output.
+ * {@value #REASON_SUBCLASS_OUTSIDE_TARGET_OUTPUT}.
+ *
+ * <p>Since <em>every</em> candidate source set now reports a {@link SourceSetDisposition} (see
+ * {@code FlakinessResolveProjectTask#dispositionsOf}), {@code main} is the only scanned directory left that
+ * has none - it is in the scan set because abstract bases live there, but refs never resolve into it. So the
+ * fallback survives only for a concrete subclass compiled into a {@code main} output, which cannot happen: a
+ * {@code main} source set cannot depend on a test source set. Audited over the whole repo: zero of 532
+ * abstract bases have a descendant in a {@code main} output.
+ *
+ * <p>That argument is about {@code main} and nothing else, so it is only sound while the disposition set and
+ * the scan set agree. It did not hold before: {@code yamlRestTest} outputs were scanned but disposition-less,
+ * and a ref on {@code AbstractXPackRestTest} - whose subclasses are all yaml runners - produced five of these
+ * skips and no runnable work at all.
  *
  * <p>The comparison is on the compiled-output directory rather than the Gradle project path on purpose: a base
  * in {@code :p}'s {@code test} source set and a subclass in {@code :p}'s {@code internalClusterTest} source set
@@ -76,8 +89,8 @@ public final class PlanBuilder {
     /**
      * A compiled-output directory that no project claimed a source set for, so the subclass found in it cannot
      * be attributed to any {@code Test} task. Kept as a genuine fallback rather than an assertion: {@code main}
-     * outputs are scanned but carry no disposition. Unreachable in practice because {@code main} cannot depend
-     * on a test source set (see the class javadoc).
+     * outputs are scanned but carry no disposition, and it is the only such directory (see the class javadoc
+     * for why that makes it unreachable in practice, and for the yamlRestTest case where it was not).
      */
     public static final String REASON_SUBCLASS_OUTSIDE_TARGET_OUTPUT = "subclass-outside-target-output";
 
@@ -90,17 +103,6 @@ public final class PlanBuilder {
     public static final String REASON_NOT_A_TEST_CLASS = "not-a-test-class";
 
     private PlanBuilder() {}
-
-    /** Overload for callers with no cross-source-set information; every foreign subclass becomes a skip. */
-    public static FlakinessPlan build(
-        List<BaseTarget> targets,
-        List<Unresolved> unresolvedIn,
-        ClassHierarchyScanner scanner,
-        int subclassCap,
-        int taskCap
-    ) {
-        return build(targets, unresolvedIn, scanner, subclassCap, taskCap, dir -> null);
-    }
 
     /**
      * @param dispositionOfClassDir maps a compiled-output directory to the project + source set that owns it
@@ -129,9 +131,11 @@ public final class PlanBuilder {
                 entries.add(skip(t, t.skipReason()));
                 continue;
             }
+            // add to report if something was capped, and we haven't yet reported this source set
             if (t.candidateTasks() > t.runnableTasks().size() && reportedSelections.add(t.gradleProject() + "|" + t.sourceSet())) {
                 taskSelections.add(new TaskSelection(t.gradleProject(), t.sourceSet(), t.runnableTasks(), t.candidateTasks(), taskCap));
             }
+
             if (Kinds.BYTECODE_ENRICHED.contains(t.kind()) == false || t.fqcn() == null) {
                 // yaml suite/runner/case: nothing to enrich, run as-is.
                 entries.add(run(t, t.fqcn(), null));
@@ -139,7 +143,7 @@ public final class PlanBuilder {
             }
             ClassHierarchyScanner.Expansion ex = scanner.expand(t.fqcn(), subclassCap);
             if (ex.wasAbstract()) {
-                if (ex.toRun().isEmpty()) {
+                if (ex.classesToRun().isEmpty()) {
                     // An abstract base with no concrete subclass on the classpath is nothing to run; do not
                     // silently drop it.
                     unresolved.add(
@@ -150,7 +154,7 @@ public final class PlanBuilder {
                     );
                     continue;
                 }
-                expansions.add(new Expansion(t.fqcn(), ex.toRun().size(), ex.totalConcrete(), subclassCap));
+                expansions.add(new Expansion(t.fqcn(), ex.classesToRun().size(), ex.totalConcrete(), subclassCap));
                 // Concrete in bytecode is not the same as runnable by a Test task: expanding an abstract
                 // HELPER yields its inner/anonymous subclasses, and `--tests Foo$1` matches nothing.
                 // Report the rejects rather than dropping them, so a mis-named real test stays visible.
@@ -158,9 +162,9 @@ public final class PlanBuilder {
                 // the base's OWN source-set output, so they only run classes compiled into that same directory.
                 // A subclass from anywhere else is re-homed onto its own source set's tasks.
                 Path baseDir = scanner.originDir(t.fqcn());
-                for (String concrete : ex.toRun()) {
+                for (String concrete : ex.classesToRun()) {
                     if (TestClassNames.isRunnableTestClass(concrete) == false) {
-                        entries.add(skip(t, concrete, REASON_NOT_A_TEST_CLASS));
+                        entries.add(skip(t, concrete, REASON_NOT_A_TEST_CLASS, t.fqcn()));
                         continue;
                     }
                     Path dir = scanner.originDir(concrete);
@@ -175,7 +179,7 @@ public final class PlanBuilder {
                 // produce `--tests SomeHelper`, which matches nothing and reads downstream as a hang.
                 entries.add(skip(t, REASON_NOT_A_TEST_CLASS));
             } else {
-                entries.add(run(t, ex.toRun().get(0), null));
+                entries.add(run(t, ex.classesToRun().getFirst(), null));
             }
         }
         // Batch commands are attached by the caller (FlakinessScanTask) via withCommands, once it has the
@@ -194,7 +198,7 @@ public final class PlanBuilder {
      */
     private static PlanEntry foreign(BaseTarget t, String fqcn, FlakinessTargets.OwnedSourceSet owner) {
         if (owner == null) {
-            return skip(t, fqcn, REASON_SUBCLASS_OUTSIDE_TARGET_OUTPUT);
+            return skip(t, fqcn, REASON_SUBCLASS_OUTSIDE_TARGET_OUTPUT, t.fqcn());
         }
         SourceSetDisposition d = owner.disposition();
         if (d.runnable() == false) {
@@ -242,15 +246,22 @@ public final class PlanBuilder {
         );
     }
 
+    /** A skip for the target itself, so there is no abstract base to attribute it to. */
     private static PlanEntry skip(BaseTarget t, String reason) {
-        return skip(t, t.fqcn(), reason);
+        return skip(t, t.fqcn(), reason, null);
     }
 
     /**
      * A skip for a specific class rather than the target's own fqcn - used for an expanded subclass, so the
      * plan names the subclass that could not be run instead of the abstract base it came from.
+     *
+     * @param expandedFrom the abstract base this class was expanded from, or {@code null} if the entry is the
+     *                     target itself. Without it a reader cannot tell why a class nobody touched appears
+     *                     in the plan at all, which is exactly the case that needs explaining: the class is
+     *                     named, but the project and source set are the <em>base's</em>, since there was no
+     *                     owning source set to attribute it to.
      */
-    private static PlanEntry skip(BaseTarget t, String fqcn, String reason) {
+    private static PlanEntry skip(BaseTarget t, String fqcn, String reason, String expandedFrom) {
         return new PlanEntry(
             t.gradleProject(),
             t.sourceSet(),
@@ -260,7 +271,7 @@ public final class PlanBuilder {
             t.yamlTest(),
             Kinds.DISPOSITION_SKIP,
             reason,
-            null,
+            expandedFrom,
             List.of()
         );
     }

@@ -6,7 +6,7 @@ export const AGENTS = {
   buildDirectory: "/dev/shm/bk",
 };
 
-// The test kinds. In the B2 architecture these are assigned authoritatively by the Java resolver
+// The test kinds. These are assigned authoritatively by the Java resolver
 // (build-tools-internal `FlakinessResolveProjectTask`) from the real Gradle project model + compiled bytecode,
 // not by path regexes. Keep this union in sync with `Kinds.java` on the Java side - the strings are a
 // hard wire contract shared by `flakiness-plan.json`.
@@ -37,7 +37,7 @@ export interface ClassifiedTest {
 //
 // Heterogeneous input references. A changed-file ref carries a repo-relative path; an unmute ref carries
 // a class name (+ optional method descriptor); an explicit ref carries a developer-supplied spec. The Java
-// resolver (build-tools-internal) turns these into a plan; TS no longer resolves them itself.
+// resolver (build-tools-internal) turns these into a plan.
 // ---------------------------------------------------------------------------
 export interface FlakinessRef {
   source: "changed-file" | "unmute" | "explicit";
@@ -116,8 +116,9 @@ export interface PlanUnresolved {
  *
  * `command` contains the literal token `__GRADLE__` wherever the gradle binary belongs (both plain
  * invocations and inside the `repeat-rest-test.sh <iters> __GRADLE__ <tasks>` form). Java stays target
- * neutral; the TS runner layer substitutes the target-appropriate binary. `key`/`label`/`kind` match the
- * existing {@link KIND_KEYS} / {@link KIND_LABELS} / {@link TestKind} tables.
+ * neutral; the TS runner layer substitutes the target-appropriate binary. `kind`, `key` and `label` are all
+ * stamped in by the Java side from its own {@code Kinds} tables, so TS never derives them here; see
+ * {@link KIND_KEYS} for the one table it still keeps a copy of, and {@link TestKind} for the kind vocabulary.
  */
 export interface PlanCommand {
   kind: TestKind;
@@ -150,9 +151,6 @@ export interface FlakinessPlan {
 // that question always answerable and removes the need to derive, carry and concatenate a per-project compile
 // task list.
 //
-// Cost measured on a real CI agent (n4-custom-32-98304): ~65s with the remote build cache warm (1227 of 1676
-// tasks served from cache), ~2m30s with `--no-build-cache`. The ASM scan that consumes the output is ~9s.
-//
 // Keep in sync with FlakinessProjectModel.CANDIDATE_SOURCE_SETS on the Java side: one compile task per source
 // set flakiness detection can resolve a ref into.
 export const COMPILE_TASKS = [
@@ -162,24 +160,24 @@ export const COMPILE_TASKS = [
   "compileYamlRestTestJava",
 ] as const;
 
-export const KIND_ORDER: TestKind[] = [
-  "test",
-  "internalClusterTest",
-  "javaRestTest",
-  "yamlRestTestRunner",
-  "yamlRestTestSuite",
-  "yamlRestTestCase",
-];
+// Layout of the per-job observability artifacts, shared because both sides address the same files: the
+// never-fail wrapper in runners/buildkite.ts writes them as workspace-relative shell paths, and
+// entrypoints/analyze.ts reads them back by joining against PROJECT_ROOT. Only the primitives are shared -
+// each side composes the shape it needs, so neither carries the other's directory prefix.
+export const STATUS_DIR_NAME = "flakiness-status";
 
-export const KIND_LABELS: Record<TestKind, string> = {
-  test: "unit tests",
-  internalClusterTest: "integ tests",
-  javaRestTest: "java rest tests",
-  yamlRestTestRunner: "yaml rest test runner",
-  yamlRestTestSuite: "yaml rest tests",
-  yamlRestTestCase: "yaml rest test cases",
-};
+// Per-job copy of gradle-runner's build/task-status.json. analyze.ts rebuilds this exact filename from a
+// jobId, so the prefix is a real contract between the writer and the reader.
+export const TASK_STATUS_FILE_PREFIX = "tasks-";
 
+// Per-job rc + wall-clock report from the wrapper. NOT a contract: analyze reads every *.json in the status
+// dir and discriminates on the parsed shape, so it never matches this prefix (see readJobStatuses).
+export const JOB_STATUS_FILE_PREFIX = "status-";
+
+// Emit order, labels and per-kind caps live only on the Java side now
+// (Kinds.KIND_ORDER / KIND_LABEL / KIND_CAP), because Java assembles the batch commands and stamps each
+// one's key and label into the plan. Analyze step has to name a step key for
+// a SKIPPED test, which never ran as a job and so has no command to read one from.
 export const KIND_KEYS: Record<TestKind, string> = {
   test: "flakiness-detection:unit",
   internalClusterTest: "flakiness-detection:integ",

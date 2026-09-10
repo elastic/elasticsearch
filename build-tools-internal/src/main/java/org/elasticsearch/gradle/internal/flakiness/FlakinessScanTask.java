@@ -38,10 +38,9 @@ import java.util.Map;
  * separate Gradle invocation <em>after</em> the compile step, so the compiled output directories named in the
  * resolved targets already exist on disk.
  *
- * <p>It reads the per-project outputs of {@link FlakinessResolveProjectTask} <b>directly</b> - there is no
- * merge task - folds them into one ordered target list ({@link FlakinessTargets#merge}), ASM-scans the
- * compiled classes of the bytecode-enriched kinds (flattening abstract bases into concrete subclasses), and
- * writes {@code flakiness-plan.json} (contract 2).
+ * <p>It reads the per-project outputs of {@link FlakinessResolveProjectTask} - folds them into one ordered
+ * target list ({@link FlakinessTargets#merge}), ASM-scans the compiled classes of the bytecode-enriched
+ * kinds (flattening abstract bases into concrete subclasses), and writes {@code flakiness-plan.json} (contract 2).
  *
  * <p>The task needs no project model - the per-project files already carry each project's authoritative
  * {@code classDirs} - so it is configuration-cache-clean: no {@code getProject()}, no live model, only managed
@@ -56,12 +55,6 @@ import java.util.Map;
  * <p>Declaring the class directories instead would cost more than it saves: Gradle would content-hash every
  * class file in the repo (~7s for ~59k files) purely so ASM could immediately read them all again (~9s). So
  * the task opts out of state tracking rather than pretending its declared inputs are complete.
- *
- * <p>{@link org.gradle.api.Task#doNotTrackState} is used rather than
- * {@code getOutputs().upToDateWhen(t -> false)}: {@code DefaultTask.getOutputs()} is declared to return the
- * <em>internal</em> {@code TaskOutputsInternal}, which the build's own ArchUnit rule forbids production build
- * logic from touching. {@code doNotTrackState} is plain {@code Task} API, states the reason in Gradle's own
- * reporting, and additionally skips the pointless output snapshotting.
  */
 public abstract class FlakinessScanTask extends DefaultTask {
 
@@ -73,8 +66,7 @@ public abstract class FlakinessScanTask extends DefaultTask {
 
     /**
      * The per-project {@code <project>.json} files written by {@code flakinessResolveProject}, collected from
-     * {@link FlakinessProjectResolvePlugin#TARGETS_DIR}. A project that owns no ref writes an empty one, so an
-     * absent file simply means that project's resolve task never ran.
+     * {@link FlakinessProjectResolvePlugin#TARGETS_DIR}.
      */
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
@@ -140,7 +132,7 @@ public abstract class FlakinessScanTask extends DefaultTask {
                     + " but there are "
                     + refs.size()
                     + " refs to resolve. Run `flakinessResolveProject` (unqualified, with -Pflakiness.resolve) "
-                    + "before flakinessScan; see JAVA_RESOLVER_NOTES.md."
+                    + "before flakinessScan."
             );
         }
         List<FlakinessJson.ProjectTargetsFile> perProject = new ArrayList<>(files.size());
@@ -150,8 +142,6 @@ public abstract class FlakinessScanTask extends DefaultTask {
         FlakinessJson.BaseTargetsFile merged = FlakinessTargets.merge(refs, perProject);
         List<BaseTarget> targets = merged.targets();
 
-        // Every project's compiled output, not just the owners' - see FlakinessTargets#classDirs for why an
-        // abstract base and its subclasses are only connected when the scan set spans the whole repo.
         List<Path> classDirs = FlakinessTargets.classDirs(perProject);
         ClassHierarchyScanner scanner = ClassHierarchyScanner.scan(classDirs);
         getLogger().lifecycle("flakiness scan: ASM-scanned {} class directories across {} project files", classDirs.size(), files.size());

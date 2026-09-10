@@ -28,9 +28,8 @@ import java.util.TreeSet;
 import java.util.stream.Stream;
 
 /**
- * Reads the compiled test bytecode to answer two questions the TypeScript side cannot: is a class
- * {@code abstract}, and what are its concrete subclasses? This is the intended-ClassGraph enrichment,
- * implemented with ASM (already on the {@code build-tools-internal} classpath - see JAVA_RESOLVER_NOTES.md).
+ * Reads the compiled test bytecode to answer two questions: is a class
+ * {@code abstract}, and what are its concrete subclasses?
  *
  * <p>Scanning is header-only: {@link ClassReader} with {@code SKIP_CODE | SKIP_DEBUG | SKIP_FRAMES} reads
  * just the access flags and super-class from each {@code .class}, so it is cheap even over a whole source
@@ -110,7 +109,7 @@ public final class ClassHierarchyScanner {
     }
 
     /** The result of expanding a class: which concrete FQCNs to run, and how many concrete descendants exist. */
-    public record Expansion(List<String> toRun, int totalConcrete, boolean wasAbstract) {}
+    public record Expansion(List<String> classesToRun, int totalConcrete, boolean wasAbstract) {}
 
     /**
      * Expand a base target's FQCN into the concrete classes to run:
@@ -130,7 +129,7 @@ public final class ClassHierarchyScanner {
         Set<String> visited = new HashSet<>();
         List<String> stack = new ArrayList<>(children.getOrDefault(fqcn, Set.of()));
         while (stack.isEmpty() == false) {
-            String c = stack.remove(stack.size() - 1);
+            String c = stack.removeLast();
             if (visited.add(c) == false) {
                 continue;
             }

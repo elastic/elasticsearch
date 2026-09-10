@@ -49,9 +49,11 @@ public final class Kinds {
     public static final Set<String> BYTECODE_ENRICHED = Set.of(TEST, INTERNAL_CLUSTER_TEST, JAVA_REST_TEST);
 
     // ---------------------------------------------------------------------------
-    // Batching wire contract, shared verbatim with domain.ts (KIND_ORDER / KIND_LABELS / KIND_KEYS /
-    // BATCH_CAPS). The Java resolver now owns batch-command generation (see CommandBuilder), so these must
-    // stay in sync with the TypeScript tables that still key the analyze step and the pipeline grouping.
+    // Batching wire contract. Java owns batch-command generation (see CommandBuilder) and stamps each
+    // command's key and label into the plan, so the emit order, the labels and the per-kind caps below have
+    // no TypeScript counterpart to drift from. Only KIND_KEY is duplicated - as KIND_KEYS in domain.ts -
+    // because the analyze step has to name a step key for a skipped test, which never ran as a job and so
+    // has no command to read one from. Keep those two in sync.
     // ---------------------------------------------------------------------------
 
     /** Deterministic emit order of batch steps by kind. */

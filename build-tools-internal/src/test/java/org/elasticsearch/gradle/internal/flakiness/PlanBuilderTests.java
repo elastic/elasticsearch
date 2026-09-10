@@ -49,7 +49,7 @@ public class PlanBuilderTests {
     public void testFlattensAnAbstractTargetIntoOneRunEntryPerConcreteSubclass() throws IOException {
         List<BaseTarget> targets = List.of(javaTarget(":a", "com.example.AbstractFooTests"));
 
-        FlakinessPlan plan = PlanBuilder.build(targets, List.of(), scanAbstractBaseWithTwoSubclasses(), 5, 1);
+        FlakinessPlan plan = buildWithoutReHoming(targets, scanAbstractBaseWithTwoSubclasses());
 
         List<String> fqcns = plan.entries().stream().map(PlanEntry::fqcn).toList();
         assertThat(fqcns, containsInAnyOrder("com.example.BarTests", "com.example.BazTests"));
@@ -66,7 +66,7 @@ public class PlanBuilderTests {
     public void testRecordsAnExpansionForEachFlattenedAbstractTarget() throws IOException {
         List<BaseTarget> targets = List.of(javaTarget(":a", "com.example.AbstractFooTests"));
 
-        FlakinessPlan plan = PlanBuilder.build(targets, List.of(), scanAbstractBaseWithTwoSubclasses(), 5, 1);
+        FlakinessPlan plan = buildWithoutReHoming(targets, scanAbstractBaseWithTwoSubclasses());
 
         assertThat(plan.expansions(), hasSize(1));
         assertThat(plan.expansions().get(0).abstractFqcn(), equalTo("com.example.AbstractFooTests"));
@@ -85,7 +85,7 @@ public class PlanBuilderTests {
         ClassHierarchyScanner scanner = ClassHierarchyScanner.scan(List.of(classes));
         List<BaseTarget> targets = List.of(javaTarget(":d", "com.example.LoneAbstractTests"));
 
-        FlakinessPlan plan = PlanBuilder.build(targets, List.of(), scanner, 5, 1);
+        FlakinessPlan plan = buildWithoutReHoming(targets, scanner);
 
         assertThat(plan.unresolved(), hasSize(1));
         assertThat(plan.unresolved().get(0).reason(), equalTo(FlakinessPlan.REASON_ABSTRACT_NO_CONCRETE_SUBCLASS));
@@ -96,7 +96,7 @@ public class PlanBuilderTests {
     public void testATargetWithNothingRunnableBecomesASkipCarryingItsReason() {
         BaseTarget packaging = unrunnable(":b", "org.foo.SomeTests", TestTaskSelector.REASON_REQUIRES_PACKAGING_HOST);
 
-        FlakinessPlan plan = PlanBuilder.build(List.of(packaging), List.of(), noBytecode(), 5, 1);
+        FlakinessPlan plan = buildWithoutReHoming(List.of(packaging), noBytecode());
 
         PlanEntry entry = onlyEntry(plan);
         assertThat(entry.disposition(), equalTo("skip"));
@@ -107,7 +107,7 @@ public class PlanBuilderTests {
     /** A yaml suite is addressed by suite path, so there is no class to expand and nothing to enrich. */
     @Test
     public void testYamlSuiteTargetsPassThroughUnenrichedWithTheirTaskPaths() {
-        FlakinessPlan plan = PlanBuilder.build(List.of(yamlSuiteTarget(":c", "esql/10_foo")), List.of(), noBytecode(), 5, 1);
+        FlakinessPlan plan = buildWithoutReHoming(List.of(yamlSuiteTarget(":c", "esql/10_foo")), noBytecode());
 
         PlanEntry entry = onlyEntry(plan);
         assertThat(entry.disposition(), equalTo("run"));
@@ -128,7 +128,7 @@ public class PlanBuilderTests {
             cappedFanOut(":e", "org.foo.SomeIT", List.of(":e:v9.6.0#bwcTest"), 67)
         );
 
-        FlakinessPlan plan = PlanBuilder.build(targets, List.of(), noBytecode(), 5, 1);
+        FlakinessPlan plan = PlanBuilder.build(targets, List.of(), noBytecode(), 5, 1, dir -> null);
 
         assertThat(plan.taskSelections(), hasSize(1));
         assertThat(plan.taskSelections().get(0).gradleProject(), equalTo(":e"));
@@ -137,7 +137,132 @@ public class PlanBuilderTests {
         assertThat(plan.taskSelections().get(0).selected(), contains(":e:v9.6.0#bwcTest"));
     }
 
+    // ---- re-homing: a subclass compiled outside the base target's own output ----
+
+    /**
+     * The cross-project case the repo-wide scan exists for. The base target's {@code runnableTasks} were
+     * chosen by intersecting each {@code Test} task with the base's <em>own</em> source-set output, so they
+     * cannot run a subclass compiled elsewhere. The entry must be attributed to the project that really owns
+     * that output instead of to the project the ref named.
+     */
+    @Test
+    public void testReHomesASubclassCompiledOutsideTheBaseOutputOntoItsOwningSourceSet() throws IOException {
+        SplitRoots f = baseAndSubclassInSeparateRoots();
+        FlakinessTargets.OwnedSourceSet downstream = runnableOwner(":downstream", f.otherDir(), List.of(":downstream:test"));
+
+        FlakinessPlan plan = PlanBuilder.build(
+            List.of(javaTarget(":app", "com.example.AbstractFooTests")),
+            List.of(),
+            f.scanner(),
+            5,
+            1,
+            dir -> f.otherDir().equals(dir) ? downstream : null
+        );
+
+        PlanEntry entry = onlyEntry(plan);
+        assertThat(entry.gradleProject(), equalTo(":downstream"));
+        assertThat(entry.fqcn(), equalTo("com.downstream.DownstreamTests"));
+        assertThat(entry.disposition(), equalTo("run"));
+        assertThat(entry.runnableTasks(), contains(":downstream:test"));
+        // Provenance survives the re-homing, so the report can explain why a class nobody touched is run.
+        assertThat(entry.expandedFrom(), equalTo("com.example.AbstractFooTests"));
+    }
+
+    /**
+     * Re-homing does not mean "runnable": the owning source set may itself have nothing that can run the
+     * class here. The entry then carries <em>that project's</em> reason rather than one invented by the
+     * expansion.
+     */
+    @Test
+    public void testAReHomedSubclassCarriesItsOwningSourceSetsSkipReason() throws IOException {
+        SplitRoots f = baseAndSubclassInSeparateRoots();
+        FlakinessTargets.OwnedSourceSet packagingOnly = unrunnableOwner(
+            ":downstream",
+            f.otherDir(),
+            TestTaskSelector.REASON_REQUIRES_PACKAGING_HOST
+        );
+
+        FlakinessPlan plan = PlanBuilder.build(
+            List.of(javaTarget(":app", "com.example.AbstractFooTests")),
+            List.of(),
+            f.scanner(),
+            5,
+            1,
+            dir -> f.otherDir().equals(dir) ? packagingOnly : null
+        );
+
+        PlanEntry entry = onlyEntry(plan);
+        assertThat(entry.gradleProject(), equalTo(":downstream"));
+        assertThat(entry.disposition(), equalTo("skip"));
+        assertThat(entry.reason(), equalTo("requires-packaging-host"));
+        assertThat(entry.runnableTasks(), is(empty()));
+        assertThat(entry.expandedFrom(), equalTo("com.example.AbstractFooTests"));
+    }
+
+    /**
+     * No project reported a disposition for that output directory, so nothing is known to run the class. It
+     * is surfaced as a skip rather than guessed at or dropped. There is no owner to attribute it to, so the
+     * project and source set fall back to the <em>base</em> target's - which is exactly why the entry has to
+     * keep {@code expandedFrom}: without it, a reader sees a class nobody touched attributed to a project
+     * that cannot run it, and nothing explains how it got into the plan.
+     */
+    @Test
+    public void testASubclassInAnOutputDirectoryNoProjectClaimedBecomesASkip() throws IOException {
+        SplitRoots f = baseAndSubclassInSeparateRoots();
+
+        FlakinessPlan plan = PlanBuilder.build(
+            List.of(javaTarget(":app", "com.example.AbstractFooTests")),
+            List.of(),
+            f.scanner(),
+            5,
+            1,
+            dir -> null
+        );
+
+        PlanEntry entry = onlyEntry(plan);
+        assertThat(entry.fqcn(), equalTo("com.downstream.DownstreamTests"));
+        assertThat(entry.disposition(), equalTo("skip"));
+        assertThat(entry.reason(), equalTo(PlanBuilder.REASON_SUBCLASS_OUTSIDE_TARGET_OUTPUT));
+        assertThat(entry.gradleProject(), equalTo(":app"));
+        assertThat(entry.expandedFrom(), equalTo("com.example.AbstractFooTests"));
+    }
+
     // ---- fixtures ----
+    /**
+     * Build a plan with no cross-source-set information. Every fixture used by the tests above compiles its
+     * classes into a single scan root, so the re-homing lookup is never consulted; the re-homing tests call
+     * the six-argument form directly with a real lookup.
+     */
+    private static FlakinessPlan buildWithoutReHoming(List<BaseTarget> targets, ClassHierarchyScanner scanner) {
+        return PlanBuilder.build(targets, List.of(), scanner, 5, 1, dir -> null);
+    }
+
+    /** An abstract base and its one concrete subclass, compiled into two different output directories. */
+    private record SplitRoots(Path baseDir, Path otherDir, ClassHierarchyScanner scanner) {}
+
+    private SplitRoots baseAndSubclassInSeparateRoots() throws IOException {
+        Path baseDir = tmp.newFolder("app-classes").toPath();
+        Path otherDir = tmp.newFolder("downstream-classes").toPath();
+        writeClass(baseDir, "com/example/AbstractFooTests", "java/lang/Object", true);
+        writeClass(otherDir, "com/downstream/DownstreamTests", "com/example/AbstractFooTests", false);
+        return new SplitRoots(baseDir, otherDir, ClassHierarchyScanner.scan(List.of(baseDir, otherDir)));
+    }
+
+    private static FlakinessTargets.OwnedSourceSet runnableOwner(String project, Path outputDir, List<String> tasks) {
+        return new FlakinessTargets.OwnedSourceSet(
+            project,
+            new SourceSetDisposition("test", outputDir, Kinds.TEST, tasks, tasks.size(), null)
+        );
+    }
+
+    private static FlakinessTargets.OwnedSourceSet unrunnableOwner(String project, Path outputDir, String skipReason) {
+        // Candidates existed but none can run here - the shape a bwc-only or packaging-only source set has.
+        return new FlakinessTargets.OwnedSourceSet(
+            project,
+            new SourceSetDisposition("test", outputDir, Kinds.TEST, List.of(), 3, skipReason)
+        );
+    }
+
 
     /**
      * A scanner that visited no bytecode: every class is unknown, so {@code expand} passes the fqcn straight

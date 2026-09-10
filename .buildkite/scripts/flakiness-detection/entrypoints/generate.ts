@@ -8,7 +8,7 @@ import { DEFAULT_AGENT_CONFIG, type FlakinessPlan, type RunnableCommand } from "
 
 const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
 
-// The plan the Java scan task wrote. generate now runs on its OWN Buildkite step/agent (separate from the
+// The plan the Java scan task wrote. Generate runs on its OWN Buildkite step/agent (separate from the
 // orchestration step that produced the plan), so in CI it downloads the plan from the orchestration step's
 // artifacts. The LOCAL path is still live for the `local.ts` flow, which reads the file straight off disk.
 const PLAN_FILE = "flakiness-plan.json";
@@ -58,7 +58,7 @@ function readPlanFromDisk(root: string): FlakinessPlan | undefined {
       console.error(`Could not download ${PLAN_FILE}:`, err);
     }
   }
-  if (existsSync(planPath) === false) return undefined;
+  if (!existsSync(planPath)) return undefined;
   return JSON.parse(readFileSync(planPath, "utf8")) as FlakinessPlan;
 }
 
@@ -144,7 +144,11 @@ export function run(io: GenerateIO = defaultIO()): void {
 
   reportEnrichment(plan, io);
 
-  if (skipEntries.length > 0 && io.isCI) {
+  // Written even when empty. A conditional write leaves whatever was there before, so on any workspace that
+  // is not pristine a previous run's skip list would be re-uploaded by `artifact_paths` and folded into
+  // analyze as bogus `not_applicable` records. Always writing removes that hazard by construction rather
+  // than by cleaning up beforehand; analyze treats an empty list and an absent file the same way.
+  if (io.isCI) {
     io.writeFile(SKIPPED_FILE, JSON.stringify(skipEntries.map(planEntryToSkippedTest)));
   }
 

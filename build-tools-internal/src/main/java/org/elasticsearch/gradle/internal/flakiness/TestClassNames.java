@@ -25,9 +25,6 @@ import java.util.List;
  *   <li>expanding an abstract <em>helper</em> yields its inner/anonymous subclasses - concrete in bytecode,
  *       never tests - which emit {@code --tests Foo$1}.</li>
  * </ul>
- * The TypeScript this resolver replaced had the filter baked into its path regexes
- * ({@code /^(.+)\/src\/test\/java\/(.+Tests)\.java$/} and friends), so restoring it is closing a regression
- * rather than adding a new rule.
  *
  * <h2>Where the suffixes come from</h2>
  * {@code TestingConventionsPrecommitPlugin} is the authoritative convention and enforces per source set:
@@ -42,9 +39,6 @@ import java.util.List;
  *       Abstract classes never reach this check (they are expanded, not run), so accepting the suffix costs
  *       nothing and rejecting it would silently drop a real test.</li>
  * </ul>
- * Audited over the whole repo's compiled output: of the concrete descendants of the 450 top-level abstract
- * bases, this rejects 7 classes and every one is a helper ({@code WebProxyServer}, {@code Otlp*Parser},
- * {@code *PauseFieldPlugin}, {@code LocalStateSecurity}), with no test among them.
  *
  * <p>A rejection is always <em>reported</em>, never silently dropped - see
  * {@link PlanBuilder#REASON_NOT_A_TEST_CLASS}. That keeps a mis-named real test visible instead of turning it

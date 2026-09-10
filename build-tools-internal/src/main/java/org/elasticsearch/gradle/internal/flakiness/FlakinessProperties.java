@@ -17,11 +17,7 @@ import org.gradle.api.Project;
  *
  * <p>It exists because the two plugins that make up the flow - {@link FlakinessResolvePlugin} on the root
  * project and {@link FlakinessProjectResolvePlugin} on every test project - need overlapping subsets of the
- * same options. Neither owns them, so keeping the names here means neither plugin has to reach into the other
- * for a constant, and the property-reading helpers exist once.
- *
- * <p>Readers are exposed per option ({@link #refsPath}, {@link #taskCap}, ...) rather than as a generic
- * {@code get(name, default)}, so a caller cannot accidentally pair a property with the wrong default.
+ * same options.
  */
 final class FlakinessProperties {
 
@@ -37,7 +33,7 @@ final class FlakinessProperties {
     private static final String TASK_CAP = "flakiness.taskCap";
     private static final String ITERS = "flakiness.iters";
 
-    /** Environment variable operators set to override iteration counts (mirrors the old TS behaviour). */
+    /** Environment variable operators set to override iteration counts. */
     private static final String ITERS_ENV = "FLAKINESS_ITERS";
 
     private static final String DEFAULT_REFS = "flakiness-refs.json";

@@ -350,8 +350,6 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
     // side project guessing, and no --no-configuration-cache (the model travels through task inputs).
     expect(cmd).toContain(".ci/scripts/run-gradle.sh -Pflakiness.resolve flakinessResolveProject");
     expect(cmd).not.toContain("--no-configuration-cache");
-    // A reused workspace must not leak a previous run's per-project answers into this one.
-    expect(cmd).toContain("rm -rf build/flakiness/project-targets");
     expect(cmd).toContain("timeout --foreground --signal=TERM --kill-after=30s 28m .ci/scripts/run-gradle.sh");
   });
 
@@ -365,17 +363,6 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
     // scan still runs either way - it is what reports refs no project could claim at all.
     const afterCompile = cmd.slice(cmd.indexOf("# --- scan"));
     expect(afterCompile).toContain(".ci/scripts/run-gradle.sh -Pflakiness.resolve flakinessScan");
-  });
-
-  test("a reused agent workspace cannot leak a previous run's plan or markers", () => {
-    expect(cmd).toContain("rm -rf build/flakiness/project-targets");
-    expect(cmd).toContain(
-      "rm -f flakiness-plan.json flakiness-precompile.json flakiness-project-targets.tgz",
-    );
-    // Same hazard on the generate agent, which re-uploads the marker without ever reading it.
-    expect(generate.command).toContain(
-      "rm -f flakiness-plan.json flakiness-precompile.json flakiness-skipped.json",
-    );
   });
 
   test("compile phase compiles every test source set, unqualified, reading nothing from resolve", () => {

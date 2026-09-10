@@ -23,11 +23,6 @@ import java.util.TreeSet;
  * Gradle-free helpers over the per-project resolve outputs: folding them back into one ordered target list,
  * and unioning their compiled-output directories. Both are pure, so they are unit-testable without Gradle, and
  * both are consumed by {@link FlakinessScanTask}, which is the one step that needs the global view.
- *
- * <p>This is what used to be a separate root {@code flakinessMergeTargets} task. It needs no task of its own:
- * nothing between resolve and scan requires the merged view any more. The compile phase used to - it ran the
- * exact task list the resolve step derived - but it now invokes the {@code compile&lt;Ss&gt;Java} lifecycle
- * tasks unqualified, so it needs no input from resolve at all.
  */
 public final class FlakinessTargets {
 
@@ -39,12 +34,14 @@ public final class FlakinessTargets {
      * <ul>
      *   <li><b>ref ordering</b> - each per-project file carries the index of the ref that produced each
      *       target, so the merged list reproduces the order of the refs file;</li>
-     *   <li><b>the unresolved verdict</b> - a class ref is only unresolved if <em>no</em> project resolved it.
-     *       Only {@code unmute}/{@code explicit} refs are surfaced as {@code no-source-file}; an unmatched
-     *       {@code changed-file} ref is silently ignored (it is simply not a test). A ref carrying a
-     *       {@code source} this resolver does not know is surfaced as {@code unknown-source}, mirroring
-     *       {@link RefResolver#resolve}: the per-project verdicts are discarded, so without this the ref
-     *       would vanish and a TS/Java contract drift would read as "nothing to run".</li>
+     *   <li><b>the unresolved verdict</b> - every project answers each ref independently, and one project saying
+     *       "not mine" means nothing, so only here can a ref be declared unresolved by <em>all</em> of them.
+     *       What that is worth reporting depends on the ref: an unmatched {@code changed-file} is the normal
+     *       case (most changed files are not tests) and is silently ignored, while an {@code unmute} or
+     *       {@code explicit} ref named a class someone expects to be re-run, so it is surfaced as
+     *       {@code no-source-file}. A ref whose {@code source} this resolver does not recognise is surfaced as
+     *       {@code unknown-source}: that is TS/Java contract drift rather than user input, and dropping it would
+     *       make the drift read as "nothing to run" on a green build.</li>
      * </ul>
      *
      * @param perProject the parsed per-project files, in a deterministic order (the caller sorts by path), so
@@ -81,8 +78,7 @@ public final class FlakinessTargets {
     }
 
     /**
-     * Collapse targets that address the same (project, kind, identity). Package-private rather than private
-     * so the fold of the per-project answers ({@link FlakinessTargets#merge}) applies exactly the same rule.
+     * Collapse targets that address the same (project, kind, identity).
      */
     private static List<BaseTarget> dedupe(List<BaseTarget> targets) {
         Map<String, BaseTarget> seen = new LinkedHashMap<>();
@@ -103,7 +99,7 @@ public final class FlakinessTargets {
      * <p>The union is taken over <em>all</em> per-project files rather than only the ones that resolved a ref.
      * That is the point: an abstract base in one project and its concrete subclasses in another are only
      * connected if both projects' output is in the scan set. Restricting the scan to the owning projects is
-     * what used to make a cross-project hierarchy unresolvable.
+     * what would make a cross-project hierarchy unresolvable.
      */
     public static List<Path> classDirs(List<FlakinessJson.ProjectTargetsFile> perProject) {
         TreeSet<Path> dirs = new TreeSet<>();

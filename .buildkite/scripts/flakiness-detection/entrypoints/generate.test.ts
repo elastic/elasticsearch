@@ -88,8 +88,11 @@ describe("generate run() - happy path", () => {
     expect(uploaded[0].key).toBe("flakiness-detection:unit");
     // No skip entries -> analyze not forced via hasNotApplicable; the batch step's presence is enough.
     expect(rec.uploads[0].hasNotApplicable).toBe(false);
-    // No skipped file when there are no skip entries.
-    expect(rec.files).toEqual([]);
+    // The skipped file is written even with nothing to skip, so a stale one from a previous run can never
+    // survive to be re-uploaded. Analyze reads an empty list the same as an absent file.
+    expect(rec.files).toHaveLength(1);
+    expect(rec.files[0].name).toBe("flakiness-skipped.json");
+    expect(JSON.parse(rec.files[0].body)).toEqual([]);
   });
 
   test("writes flakiness-skipped.json for skip entries and forces hasNotApplicable", () => {
@@ -162,7 +165,8 @@ describe("generate run() - happy path", () => {
     run(io);
 
     expect(rec.uploads).toEqual([]);
-    expect(rec.files).toEqual([]);
+    // Still writes an empty skip list: that is what stops a previous run's list surviving to be re-uploaded.
+    expect(JSON.parse(rec.files[0].body)).toEqual([]);
   });
 
   test("missing commands field is treated as empty (no throw, no upload)", () => {

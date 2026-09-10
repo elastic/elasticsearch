@@ -11,6 +11,9 @@ package org.elasticsearch.gradle.internal.flakiness;
 
 import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.PlanEntry;
 
+import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -22,21 +25,18 @@ import java.util.stream.Collectors;
 
 /**
  * Turns the concrete, runnable {@link PlanEntry}s of a {@link FlakinessPlan} into the ready batch commands
- * ({@link PlanCommand}) carried in {@code flakiness-plan.json}. This is the authoritative port of the old
- * TypeScript {@code commands.ts} (dedupe / collapse-yaml-suites / dedup-runners / cap-batching /
- * per-kind command generation), so the TS {@code generate} step no longer batches - it only maps these to
- * Buildkite steps.
+ * ({@link PlanCommand}) carried in {@code flakiness-plan.json}.
  *
  * <p>Every emitted command uses the {@link PlanCommand#GRADLE_PLACEHOLDER} token where the gradle binary
  * belongs, keeping the plan target-neutral (the runner layer substitutes {@code .ci/scripts/run-gradle.sh}
- * or {@code ./gradlew}). Pure and Gradle-free, so it is unit-testable without TestKit.
+ * or {@code ./gradlew}).
  *
  * <h2>Task paths come from the plan, not from a convention</h2>
  * The invocation is built from each entry's {@code runnableTasks} (authoritative task paths from the project's
- * real {@code Test} tasks), never from an assumed {@code :project:&lt;kind&gt;}. The batching unit is therefore
+ * real {@code Test} tasks), never from an assumed {@code :project:<kind>}. The batching unit is therefore
  * an (entry, task path) pair: an entry with several runnable tasks - the capped
- * {@code v&lt;version&gt;#bwcTest} set of a bwc project - contributes one unit per task. Units are then batched
- * per kind exactly as before, so the per-kind cap bounds real gradle task invocations and the
+ * {@code v<version>#bwcTest} set of a bwc project - contributes one unit per task. Units are then batched
+ * per kind, so the per-kind cap bounds real gradle task invocations and the
  * one-task-per-step kinds (javaRestTest, cap 1) keep one bwc version per Buildkite job - clean per-task
  * attribution for the analyzer.
  */
@@ -118,6 +118,9 @@ public final class CommandBuilder {
     private static List<PlanEntry> dedupe(List<PlanEntry> tests) {
         Map<String, PlanEntry> seen = new LinkedHashMap<>();
         for (PlanEntry t : tests) {
+            // Note what this does NOT collapse: two yaml runners in one project differ here as soon as they
+            // carry an fqcn, which expanded/re-homed runners do. Collapsing those is
+            // deduplicateYamlRunners' job, and it has to stay a separate pass for that reason.
             String identity = t.yamlTest() != null ? t.yamlTest()
                 : t.fqcn() != null ? t.fqcn()
                 : t.suitePath() != null ? t.suitePath()
@@ -134,6 +137,7 @@ public final class CommandBuilder {
     private static List<PlanEntry> collapseYamlSuites(List<PlanEntry> tests) {
         Map<String, List<PlanEntry>> suitesByProject = new LinkedHashMap<>();
         List<PlanEntry> result = new ArrayList<>();
+        // first group by project
         for (PlanEntry t : tests) {
             if (t.kind().equals(Kinds.YAML_REST_TEST_SUITE)) {
                 suitesByProject.computeIfAbsent(t.gradleProject(), k -> new ArrayList<>()).add(t);
@@ -143,14 +147,16 @@ public final class CommandBuilder {
         }
         for (List<PlanEntry> suites : suitesByProject.values()) {
             Map<String, List<PlanEntry>> byDir = new LinkedHashMap<>();
+            // then group by directory within each project
             for (PlanEntry suite : suites) {
                 byDir.computeIfAbsent(dirname(suite.suitePath()), k -> new ArrayList<>()).add(suite);
             }
+            // then collapse each directory's suites into a single directory-level target
             for (Map.Entry<String, List<PlanEntry>> e : byDir.entrySet()) {
                 String dir = e.getKey();
                 List<PlanEntry> dirSuites = e.getValue();
                 if (dirSuites.size() > 1 && dir.equals(".") == false) {
-                    PlanEntry first = dirSuites.get(0);
+                    PlanEntry first = dirSuites.getFirst();
                     result.add(
                         new PlanEntry(
                             first.gradleProject(),
@@ -173,7 +179,17 @@ public final class CommandBuilder {
         return result;
     }
 
-    /** Keep only the first yaml runner per project (running the whole source set once is enough). */
+    /**
+     * Keep only the first yaml runner per project: the runner command ignores {@code fqcn} and re-runs the
+     * whole source set, so a second entry for the same project would emit a byte-identical command.
+     *
+     * <p>This is <em>not</em> covered by {@link #dedupe} above, even though that collapses same-project
+     * runners whose identity is empty. An expanded or re-homed runner carries an {@code fqcn} - a concrete
+     * subclass found in some project's {@code yamlRestTest} output, re-homed onto that project's runner task
+     * - so {@code dedupe} sees distinct identities and keeps every one. Without this pass, an abstract base
+     * with three yaml-runner subclasses in one project emits three identical commands, each starting its own
+     * test cluster and running the same suite.
+     */
     private static List<PlanEntry> deduplicateYamlRunners(List<PlanEntry> tests) {
         Set<String> seen = new LinkedHashSet<>();
         List<PlanEntry> result = new ArrayList<>();
@@ -267,9 +283,11 @@ public final class CommandBuilder {
         }).collect(Collectors.joining(" "));
     }
 
-    /** Mirrors Node's {@code path.dirname}: the parent dir, or {@code "."} when there is no slash. */
+    /**
+     * The parent dir, or {@code "."} when there is no slash.
+     */
     private static String dirname(String path) {
-        int idx = path.lastIndexOf('/');
-        return idx < 0 ? "." : path.substring(0, idx);
+        Path parent = Paths.get(path).getParent();
+        return parent == null ? "." : parent.toString();
     }
 }

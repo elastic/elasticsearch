@@ -32,13 +32,16 @@ import groovy.json.JsonSlurper
  *       and wrongly emits the disabled bare task, so this fixture fails any capture that is not late.</li>
  * </ol>
  *
- * <p>The fixture is a five-project build:
+ * <p>The fixture is a six-project build:
  * <ul>
  *   <li>{@code :app} - a {@code test} source set with an abstract base and two concrete subclasses, to
  *       exercise ASM abstract-flattening on really-compiled bytecode;</li>
  *   <li>{@code :downstream} - a THIRD concrete subclass of {@code :app}'s abstract base, in its own project.
  *       Only a repo-wide compile plus a repo-wide scan finds it, and it must then be reported rather than run
  *       under {@code :app}'s tasks (which do not contain it);</li>
+ *   <li>{@code :yamlish} - a concrete subclass of the same base in a {@code yamlRestTest} source set, whose
+ *       output is scanned but which reported no disposition until that gap was fixed, so the subclass came
+ *       out as an unattributable skip instead of running under its own yaml runner task;</li>
  *   <li>{@code :other} - a second project, to prove cross-project boundary resolution;</li>
  *   <li>{@code :bwcish} - the disabled-bare-task shape described above;</li>
  *   <li>{@code :untouched} - owns none of the refs.</li>
@@ -48,7 +51,7 @@ import groovy.json.JsonSlurper
  * {@link org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin} applies to every test project, so the
  * registration path under test is the real one. Applying the full {@code ElasticsearchTestBasePlugin} in the
  * lightweight TestKit harness is impractical (it drags in entitlements, test-rerun, etc.); that outer wiring is
- * instead verified by a full-build run (see JAVA_RESOLVER_NOTES.md Verification).
+ * instead verified by a full-build run.
  *
  * <p>The three invocations mirror the three Gradle phases of the Buildkite orchestration step: the
  * unqualified resolve, an unqualified compile of every test source set, then scan.
@@ -85,6 +88,22 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
             dependencies { testImplementation appTestOutput }
         """
 
+        // :yamlish holds a concrete subclass in a YAML_REST_TEST source set. Its output is in the scan set,
+        // but it used to report no SourceSetDisposition, so the subclass could not be attributed to any task
+        // and came out as a `subclass-outside-target-output` skip. The source set plus its conventional task
+        // are created by hand here because the real yaml-rest-test plugin is too heavy for this harness; the
+        // resolver reads the Gradle model, so this is the same shape it sees in the repo.
+        subProject(":yamlish") << register << """
+            evaluationDependsOn(':app')
+            sourceSets { yamlRestTest }
+            def appTestOutputForYaml = project(':app').sourceSets.test.output
+            dependencies { yamlRestTestImplementation appTestOutputForYaml }
+            tasks.register('yamlRestTest', Test) {
+                testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
+                classpath = sourceSets.yamlRestTest.runtimeClasspath
+            }
+        """
+
         // :bwcish flips the bare task off through `matching {}.configureEach {}` and registers the
         // alternatives AFTER the resolve task has been registered, exactly as bwc-test.gradle does.
         subProject(":bwcish") << register << """
@@ -119,6 +138,12 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
             }
         """)
 
+        // A sixth descendant, in a yamlRestTest source set of yet another project.
+        javaSourceClass("yamlish", "yamlRestTest", "com/yamlish/YamlishIT", """
+            import com.example.AbstractFooTests;
+            public class YamlishIT extends AbstractFooTests {}
+        """)
+
         // :other has an unrelated concrete test, referenced via a changed-file ref.
         javaTestClass("other", "com/other/OtherTests", "class OtherTests {}")
 
@@ -142,7 +167,7 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         def resolveResult = gradleRunner("-Pflakiness.resolve", "flakinessResolveProject").build()
 
         then: "every project ran it, including the one that owns nothing"
-        [":app", ":other", ":bwcish", ":untouched"].every {
+        [":app", ":other", ":yamlish", ":bwcish", ":untouched"].every {
             resolveResult.task("${it}:flakinessResolveProject").outcome == TaskOutcome.SUCCESS
         }
 
@@ -209,8 +234,11 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         resolveResult.output.contains("Configuration cache entry stored")
 
         when: "every test source set is compiled UNQUALIFIED (nothing read back from resolve), then scan runs"
-        gradleRunner("compileTestJava").build()
-        def scanResult = gradleRunner("-Pflakiness.resolve", "flakinessScan").build()
+        // compileYamlRestTestJava as well, or :yamlish's bytecode is absent and the scan cannot see the
+        // sixth descendant at all. The cap is lifted to 6 so every descendant is expanded and the
+        // classification below stays deterministic rather than depending on the FQCN sort order.
+        gradleRunner("compileTestJava", "compileYamlRestTestJava").build()
+        def scanResult = gradleRunner("-Pflakiness.resolve", "-Pflakiness.subclassCap=6", "flakinessScan").build()
 
         then: "the repo-wide scan FINDS all three concrete subclasses, including the one in another project"
         scanResult.task(":flakinessScan").outcome == TaskOutcome.SUCCESS
@@ -221,12 +249,16 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         plan.expansions[0].abstractFqcn == "com.example.AbstractFooTests"
         // 3, not 2: com.downstream.DownstreamTests lives in :downstream and was invisible to a subset scan.
         // This count is the regression test for the repo-wide compile + scan.
-        // 5 concrete descendants exist in bytecode (2 in :app, DownstreamTests, DownstreamHelper and the
-        // anonymous DownstreamHelper$1); the cap is 5, so all are expanded and then classified below.
-        plan.expansions[0].total == 5
+        // 6 concrete descendants exist in bytecode: 2 in :app, DownstreamTests, DownstreamHelper and the
+        // anonymous DownstreamHelper$1 in :downstream, and YamlishIT in :yamlish's yamlRestTest source set.
+        plan.expansions[0].total == 6
 
         and: "the two subclasses in the base's own output run under the base target's real tasks"
-        def sameProject = plan.entries.findAll { it.expandedFrom == "com.example.AbstractFooTests" && it.gradleProject == ":app" }
+        // Filtered on disposition too: every expansion product now carries expandedFrom, skips included, so
+        // that field alone no longer distinguishes a run entry from a reported one.
+        def sameProject = plan.entries.findAll {
+            it.expandedFrom == "com.example.AbstractFooTests" && it.gradleProject == ":app" && it.disposition == "run"
+        }
         sameProject.collect { it.fqcn } as Set == ["com.example.BarTests", "com.example.BazTests"] as Set
         sameProject.every { it.disposition == "run" && it.runnableTasks == [":app:test"] }
 
@@ -235,6 +267,9 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         def notTests = plan.entries.findAll { it.reason == "not-a-test-class" }
         notTests.collect { it.fqcn } as Set == ["com.downstream.DownstreamHelper", "com.downstream.DownstreamHelper\$1"] as Set
         notTests.every { it.disposition == "skip" }
+        // A skip produced by an expansion still records the base it came from. Without it, a class nobody
+        // touched appears in the plan attributed to a project that cannot run it, and nothing explains why.
+        notTests.every { it.expandedFrom == "com.example.AbstractFooTests" }
         plan.commands.every { !it.command.contains("DownstreamHelper") }
 
         and: "the cross-project subclass is RE-HOMED onto its own project's task, not the base's"
@@ -255,6 +290,25 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         downstreamCmds.size() >= 1
         downstreamCmds.collect { it.command }.join(" ").contains(":downstream:test --tests com.downstream.DownstreamTests")
         !plan.commands.any { it.command =~ /:app:test[^:]*--tests com\.downstream/ }
+
+        and: "a subclass in a yamlRestTest source set is re-homed onto that project's yaml runner task"
+        // Its output is scanned, so expansion always found it; what used to be missing was a
+        // SourceSetDisposition for yamlRestTest, leaving it unattributable and skipped.
+        def yamlish = plan.entries.findAll { it.fqcn == "com.yamlish.YamlishIT" }
+        yamlish.size() == 1
+        yamlish[0].disposition == "run"
+        yamlish[0].reason == null
+        yamlish[0].gradleProject == ":yamlish"
+        yamlish[0].sourceSet == "yamlRestTest"
+        yamlish[0].kind == "yamlRestTestRunner"
+        yamlish[0].runnableTasks == [":yamlish:yamlRestTest"]
+        yamlish[0].expandedFrom == "com.example.AbstractFooTests"
+
+        and: "nothing in the plan is left unattributable"
+        plan.entries.every { it.reason != "subclass-outside-target-output" }
+
+        and: "and it is invoked under :yamlish:yamlRestTest, which is the task that really contains it"
+        plan.commands.any { it.command.contains(":yamlish:yamlRestTest") }
 
         def other = plan.entries.find { it.gradleProject == ":other" }
         other.fqcn == "com.other.OtherTests"
@@ -332,7 +386,11 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
     }
 
     private void javaTestClass(String project, String internalName, String body) {
-        file("${project}/src/test/java/${internalName}.java").text = """
+        javaSourceClass(project, "test", internalName, body)
+    }
+
+    private void javaSourceClass(String project, String sourceSet, String internalName, String body) {
+        file("${project}/src/${sourceSet}/java/${internalName}.java").text = """
             package ${internalName.substring(0, internalName.lastIndexOf('/')).replace('/', '.')};
             ${body}
         """

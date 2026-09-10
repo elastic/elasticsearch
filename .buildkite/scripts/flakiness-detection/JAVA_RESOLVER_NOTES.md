@@ -87,7 +87,12 @@ Audited over the whole repo's compiled output (897 class dirs): of the concrete 
 Two deliberate widenings worth knowing when triaging, neither of which the cost tables above capture:
 
 - **resolve**: `Test`-task realization now happens in every project with a candidate test source set, so a single project whose realization throws breaks every flakiness run, not just runs whose refs touch it. Previously only ref-owning projects realized anything.
-- **compile**: a PR that breaks compilation of *any* test source set anywhere is reported `build_failed` by this pipeline even when the refs do not touch that project. Regular CI would fail on it too, so this is desirable, but it is a wider trigger than before. The no-targets guard narrows it: a PR that resolves nothing never compiles at all.
+- **compile**: a PR that breaks compilation of *any* test source set anywhere is reported `build_failed` by this pipeline even when the refs do not touch that project. Regular CI would fail on it too, so this is desirable, but it is a wider trigger than before.
+
+Two gates keep both widenings off PRs that cannot benefit from them, and they sit at different stages:
+
+- **`pr.ts`** only makes a ref of a changed file under a `src/` path segment (`mayBeTestSource`), and does not upload the orchestration step at all when nothing qualifies. A docs-only or build-script-only PR therefore starts no Gradle invocation whatsoever. It is deliberately coarse - a cost gate, never a classifier - so `src/main/java` still passes: a false positive costs what we paid before, a false negative silently skips a real test.
+- **the compile phase** is skipped when resolve produced no target at all (`grep -qs '"refIndex"' build/flakiness/project-targets/*.json`), which catches what the first gate lets through. The scan still runs, because it is the only thing that reports refs no project could claim.
 
 ### Why the cheap exit was removed, and what it cost
 
@@ -136,18 +141,19 @@ Two properties make it work, and they are independent:
 
 Nothing outside Gradle computes which project owns a ref.
 Each project asks the question itself: **does a ref's file lie under one of *my* source sets' `srcDirs`?**
-That is precisely what `RefResolver` already answers, so the ownership probe *is* the real resolver, run against this project's source-set model with an **empty `Test`-task lookup**:
+That is precisely what `RefResolver` answers, so there is no separate ownership check: the resolver *is* the self-selection. It is constructed single-project, with that project's own `Test` tasks, and asked one ref at a time:
 
 ```java
-new RefResolver(repoRoot, List.of(thisProject), path -> List.of(), 0).resolve(refs).targets().isEmpty() == false
+RefResolver resolver = new RefResolver(repoRoot, project, model.testTasks(), getTaskCap().get());
+resolver.resolve(ref);   // Optional<BaseTarget> - empty means "not mine"
 ```
 
 Two consequences:
 
 - **It is authoritative, and it disambiguates nested projects.** `:x-pack:plugin:logsdb` and `:x-pack:plugin:logsdb:qa:rolling-upgrade` have *nested project directories* but *disjoint `srcDirs`*, so exactly one of them claims a given test file. A directory-prefix or nearest-ancestor-build-script heuristic cannot get this right in general; `srcDirs` can, and needs no settings parsing, no `git ls-files`, and no cross-project access.
-- **It used to double as a cheap exit.** `RefResolver` consults the `Test` tasks only *after* it has decided a ref belongs to one of the project's source sets, so a project owning nothing could skip realizing `tasks.withType(Test)` entirely. That shortcut has been **removed** - re-homing a cross-project subclass needs the owning project's `Test` tasks, and the owning project is by definition one no ref pointed at. Measurement showed the shortcut was not buying anything anyway (see "Why the cheap exit was removed").
+- **It used to double as a cheap exit.** `RefResolver` consults the `Test` tasks only *after* it has decided a ref belongs to one of the project's source sets, so a project owning nothing could answer with an empty task list and skip realizing `tasks.withType(Test)` entirely. That shortcut has been **removed** - re-homing a cross-project subclass needs the owning project's `Test` tasks, and the owning project is by definition one no ref pointed at. Measurement showed the shortcut was not buying anything anyway (see "Why the cheap exit was removed"). The separation it exploited survives in the constructor: pass `List.of()` for the tasks and you get membership without a disposition, which is how the unit tests assert ownership without fabricating `Test`-task fixtures.
 
-The probe itself costs a handful of path comparisons per ref, plus (for class refs) one `Files.isRegularFile` probe per java source dir - roughly 2-3k `stat` calls across the whole build, which is noise.
+Resolution itself costs a handful of path comparisons per ref, plus (for class refs) one `Files.isRegularFile` probe per java source dir - roughly 2-3k `stat` calls across the whole build, which is noise.
 
 This is what made a caller-side ref->project mapping unnecessary. The alternative considered first was a bootstrap-time node script (`owning-projects.mjs`) that would map refs to projects with a nearest-ancestor-build-script heuristic and then name `:proj:flakinessResolveProject` on the command line. It was prototyped and abandoned before ever being committed: it was wrong in the corners (a directory with a non-`include`d build script, or a project without one), it duplicated resolution logic in a second language, and it would have had to be kept in sync with the Java resolver by hand.
 
@@ -156,17 +162,19 @@ This is what made a caller-side ref->project mapping unnecessary. The alternativ
 The project's whole model is captured into a single `Provider<String>` set on the task's `@Input`:
 
 ```java
-Provider<String> modelJson = project.provider(() -> FlakinessJson.writeProjectModel(snapshot(project, refsJson.getOrNull())));
+Provider<String> modelJson = project.provider(() -> FlakinessJson.writeProjectModel(snapshot(project)));
 ...
 t.getProjectModelJson().set(modelJson);   // @Input Property<String>
 ```
+
+It takes no refs: the model describes the *project*, not the request. It used to, because the ownership probe decided how much to capture, but the refs are a separate `@Input` on the task in their own right, so a changed refs file still invalidates the entry.
 
 Gradle asks a task-input provider for its execution-time value while **storing** the configuration cache entry, and stores the **computed value** in place of the provider. Two things fall out:
 
 1. **Timing.** The lambda runs *after the entire configuration phase*. Iterating `tasks.withType(Test)` there **realizes** the tasks, which runs every pending `configureEach`/`named` action on them - so `elasticsearch.bwc-test`'s `tasks.named("javaRestTest") { enabled = false }` and its `testClassesDirs = sourceSets.javaRestTest.output.classesDirs` reassignment are both applied, and the whole `v<version>#bwcTest` family exists. There is no "later" left in which the values could change.
 2. **Serializability.** The lambda closes over the live `Project`, but by store time it has been replaced by a `String`. The task action touches no Gradle model at all.
 
-`snapshot(project, ...)` reuses the *existing* readers verbatim - `FlakinessProjectModel.sourceSetInfo` and `FlakinessProjectModel.testTaskSnapshot` - and `RefResolver` / `TestTaskSelector` / `PlanBuilder` / `FlakinessJson` are untouched by the topology.
+`snapshot(project)` reuses the *existing* readers verbatim - `FlakinessProjectModel.sourceSetInfo` and `FlakinessProjectModel.testTaskSnapshot` - and `RefResolver` / `TestTaskSelector` / `PlanBuilder` / `FlakinessJson` are untouched by the topology.
 
 Two `Provider` kinds behave differently here, and both behaviours are what this feature wants:
 
@@ -419,13 +427,13 @@ The resulting `flakiness-plan.json` is **byte-identical** to the one the old roo
 
 ```json
   "commands" : [ {
-    "kind" : "test", "label" : "unit tests", "key" : "flakiness-detection:unit",
+    "kind" : "test", "label" : "Flakiness / unit tests", "key" : "flakiness-detection:unit",
     "command" : "__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :libs:dissect:test --tests org.elasticsearch.dissect.DissectParserTests"
   }, {
-    "kind" : "javaRestTest", "label" : "java rest tests", "key" : "flakiness-detection:java-rest",
+    "kind" : "javaRestTest", "label" : "Flakiness / java rest tests", "key" : "flakiness-detection:java-rest",
     "command" : ".buildkite/.../repeat-rest-test.sh 10 __GRADLE__ :x-pack:plugin:logsdb:qa:rolling-upgrade:v9.6.0#bwcTest --tests org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT --rerun"
   }, {
-    "kind" : "javaRestTest", "label" : "java rest tests", "key" : "flakiness-detection:java-rest",
+    "kind" : "javaRestTest", "label" : "Flakiness / java rest tests", "key" : "flakiness-detection:java-rest",
     "command" : ".buildkite/.../repeat-rest-test.sh 10 __GRADLE__ :x-pack:plugin:logsdb:qa:rolling-upgrade:v9.5.1#bwcTest --tests org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT --rerun"
   } ]
 ```
@@ -500,13 +508,13 @@ Exactly the three owning projects realize anything; `:qa:packaging` realizes its
 
 ## Verification (what was actually run)
 
-- **Java unit tests - PASS.** `:build-tools-internal:test --tests "*ArchUnitSpec*" --tests "*flakiness*"` -> 68 tests, 0 failures:
-  `ConfigurationCacheArchUnitSpec` 3, `GradleApiUsageArchUnitSpec` 2, `GradlePluginConventionsArchUnitSpec` 4, `IsolatedProjectsArchUnitSpec` 14, `LoggingArchUnitSpec` 2, `TaskModellingArchUnitSpec` 6, `CommandBuilderTests` 11, `FlakinessPerProjectJsonTests` 2, `FlakinessResolverTests` 7, `FlakinessScanTaskTests` 1, `FlakinessTargetsTests` 5, `TestTaskSelectorTests` 11.
-  `FlakinessTargetsTests` replaces `FlakinessResolveTaskTests` and additionally pins the fold: ref-order restoration across projects, the global `unresolved` verdict (class refs only), and dedupe of the same identity claimed twice.
+- **Java unit tests - PASS.** `:build-tools-internal:test --tests "*ArchUnitSpec*" --tests "*flakiness*"` -> 101 tests, 0 failures:
+  ArchUnit specs 31 (`ConfigurationCacheArchUnitSpec` 3, `GradleApiUsageArchUnitSpec` 2, `GradlePluginConventionsArchUnitSpec` 4, `IsolatedProjectsArchUnitSpec` 14, `LoggingArchUnitSpec` 2, `TaskModellingArchUnitSpec` 6); flakiness 70 (`RefResolverTests` 16, `CommandBuilderTests` 12, `TestTaskSelectorTests` 11, `FlakinessTargetsTests` 8, `PlanBuilderTests` 6, `TestClassNamesTests` 6, `ClassHierarchyScannerTests` 5, `FlakinessJsonTests` 4, `FlakinessProjectResolvePluginTests` 2).
+  `FlakinessTargetsTests` replaces `FlakinessResolveTaskTests` and additionally pins the fold: ref-order restoration across projects, the global `unresolved` verdict (class refs only), and dedupe of the same identity claimed twice. `PlanBuilderTests` pins the enrichment rules directly - re-homing an expanded subclass onto the source set that owns its output, and the `not-a-test-class` rejection - which were previously only reachable through the func test.
 - **`IntegTestCoverageArchUnitSpec` - PASS (5 tests).** Including "no new AbstractGradleInternalPluginFuncTest subclass disables configuration cache" and "the cc-incompatible baseline contains no stale entries" - the latter is what forced the `FlakinessResolvePluginFuncTest` entry (and its now-wrong explanatory comment) out of `KNOWN_CC_INCOMPATIBLE`.
 - **Func test - PASS (4 tests), with the configuration cache ENABLED** (`disableConfigurationCache` is gone). `FlakinessResolvePluginFuncTest` builds a **five**-project fixture and runs the unqualified resolve -> repo-wide compile -> scan. It asserts: every project ran the task; the owning projects each wrote their own share; `:untouched` resolved **nothing** yet still reported a full model (non-empty `sourceSets`, a captured `test` task), its `classDirs` and its `dispositions` - the cheap exit is gone; the class-dir union spans all five projects and includes `main`; the adversarial `:bwcish` fixture - which disables the bare task through `matching {}.configureEach {}` and registers three alternatives **after** the resolve task is registered - captures the post-mutation state (`test.enabled == false`, 3 `#altTest` tasks) and resolves to `[v9.6.0#altTest, v9.5.1#altTest]`, never `:bwcish:test`; `Configuration cache entry stored`; and the target-neutral (`__GRADLE__`) batch commands. **The cross-project regression test:** `:downstream` holds a third concrete subclass of `:app`'s abstract base, so `expansions[0].total == 3` (a subset scan would have found 2), and that subclass is **re-homed**: `gradleProject: :downstream`, `disposition: run`, `runnableTasks: [:downstream:test]`, and the emitted command is `:downstream:test --tests com.downstream.DownstreamTests` - never under `:app:test`. A fourth test pins that a class ref no project owns is reported `unresolved` exactly once by the scan step.
 - **Real-build end-to-end - PASS.** See PROOF above; `flakiness-plan.json` byte-identical to the old flow's.
-- **TS suite - PASS.** `cd .buildkite && npx vitest run scripts/flakiness-detection` -> 11 files / 130 tests. The compile-phase test now asserts the fixed unqualified task list and that **none** of the old glue survives (no `.compile-tasks.txt`, no `$$TASKS`, no empty-list branch), plus: unqualified `flakinessResolveProject`, no `--no-configuration-cache`, and the `rm -rf build/flakiness/project-targets` hygiene step.
+- **TS suite - PASS.** `cd .buildkite && npx vitest run scripts/flakiness-detection` -> 11 files / 136 tests. The compile-phase test now asserts the fixed unqualified task list and that **none** of the old glue survives (no `.compile-tasks.txt`, no `$$TASKS`, no empty-list branch), plus: unqualified `flakinessResolveProject`, no `--no-configuration-cache`, and the `rm -rf build/flakiness/project-targets` hygiene step.
 - **`:build-tools-internal` compiles (main + test + integTest) - PASS.**
 
 ### NOT run (per brief / environmental)
@@ -516,7 +524,7 @@ Exactly the three owning projects realize anything; `:qa:packaging` realizes its
 
 ## Honest assessment
 
-- The design is now **smaller and less subtle** than what it replaced. Deleted: `FlakinessModelService` (a `BuildService` holding live `Project` references from configuration into execution), `FlakinessResolveTask` (the root fan-in), `FlakinessProjectModel.contribute` (the `configureEach` push + late-read `Supplier` registration), the `flakiness-base-targets.json` intermediate, and every `--no-configuration-cache` flag. Never committed, and abandoned during the design: a separate root merge task (its job is now the pure `FlakinessTargets` fold) and `owning-projects.mjs` (a second, heuristic implementation of ref->project mapping in another language). Added: the ownership probe (one reuse of `RefResolver`), `FlakinessTargets` (a pure fold), and a second output file per project.
+- The design is now **smaller and less subtle** than what it replaced. Deleted: `FlakinessModelService` (a `BuildService` holding live `Project` references from configuration into execution), `FlakinessResolveTask` (the root fan-in), `FlakinessProjectModel.contribute` (the `configureEach` push + late-read `Supplier` registration), the `flakiness-base-targets.json` intermediate, and every `--no-configuration-cache` flag. Never committed, and abandoned during the design: a separate root merge task (its job is now the pure `FlakinessTargets` fold) and `owning-projects.mjs` (a second, heuristic implementation of ref->project mapping in another language). Added: `FlakinessTargets` (a pure fold) and `TestClassNames` (the runnable-test-name check the deleted path regexes used to imply). The ownership probe that self-selection first introduced, and the second per-project output file it needed, have both since been removed again.
 - The **riskiest** remaining part is P8: `onlyIf` is invisible, so a task that is `enabled` but skipped at execution still yields a 0-test `hang`. The feature shrinks that hole a lot without closing it, and the right fix is runner-side, not resolver-side.
 - **Staleness surface.** On CC reuse the model is served from the entry, not recomputed. That is sound because everything that could change it - build scripts, `gradle.properties`, project properties, version files read at configuration time, and now `flakiness-refs.json` itself - is a CC input and invalidates the entry. The refs case is verified above; it is the only one specific to this feature.
 - **CC reuse across PRs is near-zero**, because the refs differ. Reuse is near-total for the local/dev loop and for re-runs of the same PR. On a cold CI agent this topology costs the same as the old one (the timing table's "storing" row); it is just no longer broken, and no longer needs a flag to stay unbroken.

@@ -3,9 +3,9 @@ import type { PlanCommand, PlanEntry, RunnableCommand, SkippedTest } from "./dom
 /**
  * Map a skipped `flakiness-plan.json` entry to the {@link SkippedTest} record generate writes to
  * `flakiness-skipped.json`. The Java resolver has already done all the resolution/enrichment work (project,
- * source set, kind, abstract-flattening) and decided the disposition, so this is a pure field copy - the
- * interesting logic that used to live in the TS detectors is gone. The `reason` is carried through so the
- * analyze step's `not_applicable` record says why the target was not re-runnable.
+ * source set, kind, abstract-flattening) and decided the disposition, so this is a pure field copy.
+ * The `reason` is carried through so the analyze step's `not_applicable` record says why the target was not
+ * re-runnable.
  */
 export function planEntryToSkippedTest(e: PlanEntry): SkippedTest {
   const t: SkippedTest = { gradleProject: e.gradleProject, kind: e.kind, sourceSet: e.sourceSet };
@@ -41,9 +41,7 @@ export function withGradleBinary(command: string, target: "buildkite" | "local")
 
 /**
  * Map the ready {@link PlanCommand}s the Java scan task emitted to {@link RunnableCommand}s, substituting
- * the target-appropriate gradle binary into each command string. This is now the whole of the TS
- * command layer - all batching (dedupe, yaml-suite collapse, per-cap slicing, gradle-string assembly) moved
- * to Java.
+ * the target-appropriate gradle binary into each command string.
  */
 export function planCommandsToRunnable(commands: PlanCommand[], target: "buildkite" | "local"): RunnableCommand[] {
   return commands.map((c) => ({

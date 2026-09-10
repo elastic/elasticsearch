@@ -54,18 +54,6 @@ public class FlakinessJsonTests {
         assertThat(refs.refs().get(2).spec(), equalTo("org.foo.BazTests.testX"));
     }
 
-    /**
-     * A build failure still has to produce a well-formed plan: the runner reads {@code buildFailed} to decide
-     * whether to report an infra failure rather than a test failure.
-     */
-    @Test
-    public void testWritesAFailedPlanWithItsReason() {
-        String json = FlakinessJson.writePlan(FlakinessPlan.buildFailed("precompile"));
-
-        assertThat(json.contains("\"buildFailed\" : true"), is(true));
-        assertThat(json.contains("\"reason\" : \"precompile\""), is(true));
-    }
-
     @Test
     public void testProjectModelRoundTripsIncludingPaths() {
         FlakinessJson.ProjectModel model = new FlakinessJson.ProjectModel(

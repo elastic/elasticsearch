@@ -50,7 +50,7 @@ public class ClassHierarchyScannerTests {
         assertThat(all.wasAbstract(), is(true));
         assertThat(all.totalConcrete(), equalTo(3));
         // Deterministic sorted FQCN order; MidTests excluded (abstract), LeafTests included (transitive).
-        assertThat(all.toRun(), contains("com.example.BarTests", "com.example.BazTests", "com.example.LeafTests"));
+        assertThat(all.classesToRun(), contains("com.example.BarTests", "com.example.BazTests", "com.example.LeafTests"));
     }
 
     /**
@@ -62,7 +62,7 @@ public class ClassHierarchyScannerTests {
         ClassHierarchyScanner.Expansion capped = scanFooHierarchy().expand("com.example.AbstractFooTests", 2);
 
         assertThat(capped.totalConcrete(), equalTo(3));
-        assertThat(capped.toRun(), contains("com.example.BarTests", "com.example.BazTests"));
+        assertThat(capped.classesToRun(), contains("com.example.BarTests", "com.example.BazTests"));
     }
 
     @Test
@@ -70,7 +70,7 @@ public class ClassHierarchyScannerTests {
         ClassHierarchyScanner.Expansion concrete = scanSingleConcreteClass().expand("com.example.BarTests", 5);
 
         assertThat(concrete.wasAbstract(), is(false));
-        assertThat(concrete.toRun(), contains("com.example.BarTests"));
+        assertThat(concrete.classesToRun(), contains("com.example.BarTests"));
     }
 
     /**
@@ -82,7 +82,7 @@ public class ClassHierarchyScannerTests {
         ClassHierarchyScanner.Expansion unknown = scanSingleConcreteClass().expand("com.example.NotCompiled", 5);
 
         assertThat(unknown.wasAbstract(), is(false));
-        assertThat(unknown.toRun(), contains("com.example.NotCompiled"));
+        assertThat(unknown.classesToRun(), contains("com.example.NotCompiled"));
     }
 
     // ---- fixtures ----

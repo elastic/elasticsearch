@@ -19,9 +19,8 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * Jackson (de)serialization of the flakiness contracts. Jackson is already on the {@code build-tools-internal}
- * classpath and natively supports records, so the contract records map 1:1 to their JSON with no custom
- * codecs.
+ * Jackson (de)serialization of the flakiness contracts: {@code flakiness-refs.json}, {@code <project>.json},
+ * and {@code flakiness-plan.json}.
  */
 public final class FlakinessJson {
 
@@ -43,17 +42,11 @@ public final class FlakinessJson {
 
     /**
      * One project's whole flakiness model, carried as a task {@code @Input} string (see
-     * {@link FlakinessProjectResolvePlugin}). Task inputs are the channel that survives the configuration-cache
-     * boundary, which is why the model travels this way rather than through shared mutable state.
+     * {@link FlakinessProjectResolvePlugin}).
      *
      * <p>{@code Path} components round-trip through Jackson's built-in {@code java.nio.file.Path} handlers
      * (written as {@code file:} URIs), so the same records the pure resolver already consumes are reused
      * verbatim - no parallel string-only DTOs.
-     *
-     * <p>The model is captured in full for <b>every</b> project, not just the ones that own a ref. Expanding an
-     * abstract base is a repo-wide bytecode question whose answers land in arbitrary projects, and running one
-     * of those answers needs its owning source set's {@code Test} tasks - so there is no useful "this project
-     * is irrelevant" shortcut to take at configuration time.
      *
      * @param classDirs     this project's compiled-output directories the scan step must read (test source
      *                      sets plus {@code main}; see {@link FlakinessProjectModel#scannedClassDirs})
@@ -70,23 +63,32 @@ public final class FlakinessJson {
         boolean bwcTestPlugin
     ) {}
 
-    /** A resolved target together with the index of the ref that produced it (see {@link ProjectModel}). */
+    /**
+     * A resolved target together with the index of the ref that produced it. The index is what
+     * {@link FlakinessTargets#merge} needs and cannot derive later: it restores the refs file's ordering
+     * across projects and decides the global {@code unresolved} verdict.
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record RefTarget(int refIndex, BaseTarget target) {}
 
     /**
-     * One project's share of the resolve answer, folded together by {@link FlakinessTargets#merge}.
+     * One project's share of the resolve answer: one file per project, all of them read together by the scan
+     * step. Deliberately multiplexed - the four fields serve three independent consumers, so the scan does one
+     * glob rather than three.
      *
-     * <p>Only {@code resolved} is about the refs. The other two are what every project contributes regardless:
      * <ul>
+     *   <li>{@code resolved} - the only part about the refs. Folded back into refs order, and used to decide
+     *       the global {@code unresolved} verdict, by {@link FlakinessTargets#merge}.</li>
      *   <li>{@code classDirs} - the bytecode the scan must read, so the class hierarchy spans the whole repo
-     *       (see {@link FlakinessTargets#classDirs});</li>
-     *   <li>{@code dispositions} - how each of this project's test source sets can be re-run, so the scan can
-     *       run a subclass it finds here even though the ref pointed somewhere else entirely (see
-     *       {@link SourceSetDisposition} and {@link FlakinessTargets#dispositionsByClassDir}).</li>
+     *       (see {@link FlakinessTargets#classDirs}). Written whether or not this project resolved anything.</li>
+     *   <li>{@code dispositions} + {@code projectPath} - how each of this project's test source sets can be
+     *       re-run, so the scan can run a subclass it finds here even though the ref pointed somewhere else
+     *       entirely (see {@link SourceSetDisposition} and
+     *       {@link FlakinessTargets#dispositionsByClassDir}).</li>
      * </ul>
-     * Together they are what makes cross-project abstract-base expansion work without any cross-project model
-     * access at configuration time: each project reports only its own facts, and the scan joins them.
+     *
+     * The last two are what make cross-project abstract-base expansion work with no cross-project model access
+     * at configuration time: each project reports only its own facts, and the scan joins them.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ProjectTargetsFile(

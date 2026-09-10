@@ -770,8 +770,6 @@ public class BooleanFieldMapper extends FieldMapper {
         // but are not rejected here — they fall back per document at parse time.
         return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && docValuesParameters.enabled()
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
             && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }

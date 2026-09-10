@@ -1269,8 +1269,6 @@ public final class DateFieldMapper extends FieldMapper {
         // time instead.
         return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && docValuesParameters.enabled()
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 

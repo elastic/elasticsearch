@@ -1634,8 +1634,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         // not accept yet — so TSDB keywords still fall back to the row path until SORTED_SET emission lands.
         return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && supportsColumnarDocValues()
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
             && normalizerName == null
             && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
     }

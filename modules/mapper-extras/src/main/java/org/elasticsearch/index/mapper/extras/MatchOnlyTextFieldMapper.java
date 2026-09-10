@@ -1207,9 +1207,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     public boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // usesBinaryDocValues() requires doc_values to be enabled which means synthetic-source stored-fallback is unreachable.
         // Additionally, this excludes the low-cardinality SORTED_SET encoding.
-        // copy_to has no equivalent in mapColumnBatch (no per-value dispatch to other fields), so fields using it fall back.
+        // copy_to and script are handled by the base class.
         // match_only_text has no ignore_above/null_value/normalizer; multi-fields are handled by the base class.
-        return fieldType().usesBinaryDocValues() && copyTo().copyToFields().isEmpty();
+        return fieldType().usesBinaryDocValues();
     }
 
     // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.

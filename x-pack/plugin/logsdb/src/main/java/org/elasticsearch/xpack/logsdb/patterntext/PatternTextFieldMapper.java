@@ -372,7 +372,6 @@ public class PatternTextFieldMapper extends FieldMapper {
         return settings.getMode().isStrictColumnar()
             && useBinaryDocValueArgs            // only the binary-doc-values args encoding is handled
             && useBinaryDocValuesForRawText     // always true in columnar mode; required for correctness
-            && copyTo().copyToFields().isEmpty()
             && fieldType().isWithinMultiField() == false;
     }
 

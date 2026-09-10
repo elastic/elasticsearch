@@ -240,6 +240,11 @@ public abstract class FieldMapper extends Mapper {
      *                       support depends on index-level configuration
      */
     public final boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // Cross-cutting pre-conditions that apply to every mapper, mirroring how parse() handles script
+        // enforcement and copyTo before delegating to parseCreateField().
+        if (hasScript() || copyTo().copyToFields().isEmpty() == false) {
+            return false;
+        }
         if (doSupportsColumnarParse(indexSettings) == false) {
             return false;
         }

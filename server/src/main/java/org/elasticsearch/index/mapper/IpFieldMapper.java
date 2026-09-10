@@ -832,8 +832,6 @@ public class IpFieldMapper extends FieldMapper {
             && supportsColumnarDocValues()
             && fieldType().indexType.hasPoints() == false
             && stored == false
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
             && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }

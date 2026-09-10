@@ -2883,8 +2883,6 @@ public class NumberFieldMapper extends FieldMapper {
         return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && docValuesParameters.enabled()
             && indexTerms == false
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
             && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }

@@ -1841,9 +1841,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             && fieldType().indexType().hasTerms() == false
             && fieldType().hasRootDocValues == false
             && mappedSubFields.isEmpty()
-            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty();
+            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
     }
 
     @Override

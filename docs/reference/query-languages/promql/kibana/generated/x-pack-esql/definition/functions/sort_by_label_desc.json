@@ -1,0 +1,30 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "result_ordering",
+  "name" : "sort_by_label_desc",
+  "description" : "Sorts instant-vector series by the values of the given labels in natural descending order. Missing labels compare as the empty string. Ordering is observable only on instant queries. After a range query the Prometheus engine re-sorts the matrix by label set, so the sort has no effect on the returned series order. Label comparison uses natural order (digit runs compared numerically).",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        },
+        {
+          "name" : "label",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Name of a label to sort by (repeatable)."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "sort_by_label_desc(http_requests_total, \"job\", \"instance\")"
+  ],
+  "snapshot_only" : false
+}

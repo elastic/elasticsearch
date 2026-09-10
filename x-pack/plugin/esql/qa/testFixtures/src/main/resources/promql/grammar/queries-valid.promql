@@ -251,3 +251,5 @@ foo offset -(1^2);
 (sum by (bar) (foo));
 sort(some_metric);
 sort_desc(some_metric);
+sort_by_label(some_metric, "job");
+sort_by_label_desc(some_metric, "job", "instance");

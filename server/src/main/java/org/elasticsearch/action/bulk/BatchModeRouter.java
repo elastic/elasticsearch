@@ -249,8 +249,11 @@ final class BatchModeRouter implements Releasable {
     }
 
     /**
-     * Returns the per-shard batches. In provided-batch mode returns empty on any call after the
-     * first — the failure-store redirect pass must not re-scatter batches already in flight.
+     * Completes routing for provided-batch mode: computes the shard assignment for each deferred
+     * item and adds it to {@code requestsByShard}, then returns that map. In x-content mode the
+     * items were already routed in {@link #route}, so this is a no-op that returns the map as-is.
+     * Must be called exactly once per bulk; {@link #shardBatches()} scatters the source data to
+     * match the grouping produced here.
      */
     Map<ShardId, List<BulkItemRequest>> buildGrouping(
         Map<ShardId, List<BulkItemRequest>> requestsByShard,

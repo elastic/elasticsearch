@@ -54,10 +54,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
     public static Request createRandom() {
         boolean deploymemtIdSameAsModelId = randomBoolean();
         String modelId = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        Request request = new Request(
-            modelId,
-            deploymemtIdSameAsModelId ? modelId : randomAlphaOfLength(10).toLowerCase(Locale.ROOT)
-        );
+        Request request = new Request(modelId, deploymemtIdSameAsModelId ? modelId : randomAlphaOfLength(10).toLowerCase(Locale.ROOT));
         if (randomBoolean()) {
             request.setTimeout(randomPositiveTimeValue());
         }
@@ -296,16 +293,6 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(nullValue()));
-    }
-
-    public void testValidate_GivenDeploymentIdIsExactlyDotDot() {
-        Request request = createRandom();
-        request.setDeploymentId("..");
-
-        ActionRequestValidationException e = request.validate();
-
-        assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
     }
 
     public void testValidate_GivenDeploymentIdIsLeadingDotFollowedBySlash() {

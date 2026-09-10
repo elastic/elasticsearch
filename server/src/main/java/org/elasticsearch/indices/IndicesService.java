@@ -2085,8 +2085,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Cumulative bytes read from the store directory on the current thread, as tracked by store metrics
-     * when the {@code directory_metrics} feature flag is enabled.
+     * Cumulative bytes read from the store directory on the current thread, as tracked by store metrics.
      */
     public long currentStoreBytesRead() {
         return storeMetricHolder.instance().getBytesRead();

@@ -1,0 +1,142 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "columnar index modes required to reproduce sorting gaps"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: test-collapse-columnar
+        ignore_unavailable: true
+  - do:
+      indices.delete:
+        index: test-composite-columnar
+        ignore_unavailable: true
+
+---
+"field collapse on columnar keyword field":
+  - do:
+      indices.create:
+        index: test-collapse-columnar
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+
+  - do:
+      index:
+        index: test-collapse-columnar
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          host.name: "host-a"
+
+  - do:
+      index:
+        index: test-collapse-columnar
+        body:
+          "@timestamp": "2024-01-02T00:00:00Z"
+          host.name: "host-b"
+
+  - do:
+      index:
+        index: test-collapse-columnar
+        refresh: true
+        body:
+          "@timestamp": "2024-01-03T00:00:00Z"
+          host.name: "host-c"
+
+  - do:
+      search:
+        index: test-collapse-columnar
+        body:
+          collapse:
+            field: host.name
+          sort:
+            - "@timestamp": desc
+          size: 10
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+
+---
+"composite aggregation after on keyword index sorted columnar field":
+  - do:
+      indices.create:
+        index: test-composite-columnar
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+            index.sort.field: kw
+            index.sort.order: asc
+          mappings:
+            properties:
+              kw:
+                type: keyword
+
+  - do:
+      index:
+        index: test-composite-columnar
+        body:
+          kw: "kw-a"
+
+  - do:
+      index:
+        index: test-composite-columnar
+        body:
+          kw: "kw-b"
+
+  - do:
+      index:
+        index: test-composite-columnar
+        refresh: true
+        body:
+          kw: "kw-c"
+
+  - do:
+      search:
+        index: test-composite-columnar
+        body:
+          size: 0
+          aggregations:
+            kw_terms:
+              composite:
+                size: 1
+                sources:
+                  - kw:
+                      terms:
+                        field: kw
+
+  - match: { aggregations.kw_terms.buckets.0.key.kw: "kw-a" }
+
+  - do:
+      search:
+        index: test-composite-columnar
+        body:
+          size: 0
+          aggregations:
+            kw_terms:
+              composite:
+                size: 1
+                after:
+                  kw: "kw-a"
+                sources:
+                  - kw:
+                      terms:
+                        field: kw
+
+  - match: { aggregations.kw_terms.buckets.0.key.kw: "kw-b" }

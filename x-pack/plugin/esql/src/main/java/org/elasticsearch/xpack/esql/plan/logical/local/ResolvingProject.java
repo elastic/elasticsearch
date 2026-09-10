@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -179,8 +180,13 @@ public class ResolvingProject extends Project {
         List<NamedExpression> missingSynthetics = new ArrayList<>();
         Set<String> names = new HashSet<>(Expressions.names(recomputed.projections()));
         for (NamedExpression p : projections()) {
-            // Convert-function synthetics carried through KEEP/DROP must survive re-resolution.
-            if (p.synthetic() && p instanceof UnmappedFieldsAttribute == false && names.contains(p.name()) == false) {
+            // Convert-function synthetics carried through KEEP/DROP must survive re-resolution. The empty-mapping
+            // placeholder does not: ResolveUnmapped replaces it on the relation, and re-appending it leaves a
+            // projection referencing an attribute the child no longer outputs.
+            if (p.synthetic()
+                && p instanceof UnmappedFieldsAttribute == false
+                && Analyzer.NO_FIELDS_NAME.equals(p.name()) == false
+                && names.contains(p.name()) == false) {
                 missingSynthetics.add(p);
             }
         }

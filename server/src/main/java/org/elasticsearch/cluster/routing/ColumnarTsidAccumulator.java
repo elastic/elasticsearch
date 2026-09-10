@@ -77,7 +77,7 @@ abstract class ColumnarTsidAccumulator {
      * skipped. The returned array from {@link #build()} has length {@code rows.length}, with
      * {@code result[k]} being the tsid for {@code rows[k]}.
      *
-     * <p>When {@code rows} is null the behaviour is identical to
+     * <p>When {@code rows} is null the behavior is identical to
      * {@link #create(int, boolean)}: every row contributes and the result has length {@code docCount}.
      *
      * @param docCount            total number of rows in the source batch (used to size the rowToSlot map)

@@ -180,9 +180,6 @@ public class BatchModeRouterTests extends ESTestCase {
      * post-process, and batch bookkeeping — to {@link BatchModeRouter#route}. Calls
      * {@link BatchModeRouter#buildGrouping} after the scan, matching the production path.
      *
-     * <p>Calls {@link BatchModeRouter#preResolveTimestamps} before the per-item loop, matching the
-     * production path in {@link BulkOperation#groupRequestsByShards}.
-     *
      * @param skipRows rows to drop before routing, standing in for items that fail validation in the
      *                 real loop
      */

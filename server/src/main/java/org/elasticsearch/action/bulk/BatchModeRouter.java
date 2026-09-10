@@ -12,6 +12,7 @@ package org.elasticsearch.action.bulk;
 import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -45,16 +46,6 @@ import java.util.function.BiConsumer;
  * Provided-batch mode maps pre-built {@link EscfBatch} rows to shards and scatters; x-content mode
  * delegates encoding and routing to {@link BulkBatchEncoders} (TODO: temporary — goes away once all
  * producers build ESCF at the index-abstraction level).
- *
- * <p>A single batch keyed by one index abstraction may fan out to multiple concrete backing indices
- * (e.g. a TSDB data stream whose rows straddle a rollover boundary). The router tracks up to N targets
- * with a linear scan — typical TSDB batches span at most 2 generations — and uses globally numbered
- * partitions for the scatter step:
- *
- * <pre>
- *   index1: shards 0,1 → partitions 0,1
- *   index2: shards 0,1,2 → partitions 2,3,4   (totalPartitions = 5)
- * </pre>
  */
 final class BatchModeRouter implements Releasable {
 
@@ -68,19 +59,10 @@ final class BatchModeRouter implements Releasable {
     private final String indexAbstractionName;
     @Nullable
     private final EscfBatch source;
-    /**
-     * Global partition id per row. Sized to {@code source.docCount()} in provided-batch mode.
-     * After routing: {@code partitionBase + localShardId} for the row's target.
-     */
     @Nullable
     private final int[] partitionIds;
     @Nullable
     private final BulkItemRequest[] items;
-
-    /**
-     * Resolved concrete targets, grown with {@link Arrays#copyOf} as new ones are encountered.
-     * Valid range is {@code [0, targetCount)}.
-     */
     @Nullable
     private IndexTarget[] targets;
     private int targetCount;
@@ -320,10 +302,10 @@ final class BatchModeRouter implements Releasable {
     private void resolveTimestampsFromString(EscfColumn col, IndexRequest[] byRow) {
         int docCount = source.docCount();
         boolean[] seen = new boolean[docCount];
-        ObjectTupleCursor<org.apache.lucene.util.BytesRef> cursor = col.bytesRefCursor(false);
+        ObjectTupleCursor<BytesRef> cursor = col.bytesRefCursor(false);
         int r;
         while ((r = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-            org.apache.lucene.util.BytesRef bytes = cursor.value();
+            BytesRef bytes = cursor.value();
             String text = bytes.utf8ToString();
             Instant ts = DataStream.getTimestampFromRawValue(text);
             setTimestampOnRequest(byRow, r, ts);
@@ -351,7 +333,7 @@ final class BatchModeRouter implements Releasable {
     private void resolveTimestampsFromUnion(EscfColumn col, IndexRequest[] byRow) {
         int docCount = source.docCount();
         boolean[] seen = new boolean[docCount];
-        ObjectTupleCursor<org.apache.lucene.util.BytesRef> cursor = col.bytesRefCursor(false);
+        ObjectTupleCursor<BytesRef> cursor = col.bytesRefCursor(false);
         int r;
         while ((r = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
             byte typeByte = col.getTypeByte(r);
@@ -359,7 +341,7 @@ final class BatchModeRouter implements Releasable {
             if (typeByte == SourceValueType.LONG || typeByte == SourceValueType.INT) {
                 ts = DataStream.getTimestampFromRawValue(col.getLongValue(r));
             } else if (typeByte == SourceValueType.STRING) {
-                org.apache.lucene.util.BytesRef bytes = cursor.value();
+                BytesRef bytes = cursor.value();
                 ts = DataStream.getTimestampFromRawValue(bytes.utf8ToString());
             } else {
                 throw new UnsupportedOperationException(

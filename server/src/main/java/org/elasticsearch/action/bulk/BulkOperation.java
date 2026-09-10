@@ -316,7 +316,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
         // For provided-batch TSDB data streams: resolve @timestamp from the ESCF columns and cache it
         // on each IndexRequest before the per-item loop, so DataStream#getWriteIndex can select the
-        // correct backing index per row without parsing inline source bytes.
+        // correct backing index.
         if (batchRouter != null) {
             batchRouter.preResolveTimestamps(project, bulkRequest.requests());
         }

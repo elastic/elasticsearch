@@ -43,6 +43,9 @@ import static org.hamcrest.Matchers.nullValue;
  * support. Only test methods that explicitly flip {@code sandbox_enabled} to {@code true} exercise
  * the new isolated IPC layout and are therefore blocked on the paired ml-cpp artifact - see the
  * per-method javadoc below for which ones those are.
+ *
+ * <p>Surfacing/countering the structured enforced-mode signal per the epic design doc {@code
+ * §113} is tracked as a separate follow-up and is not implemented in this test class.
  */
 public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
 

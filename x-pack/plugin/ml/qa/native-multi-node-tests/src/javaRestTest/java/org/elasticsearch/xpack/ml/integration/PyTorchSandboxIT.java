@@ -54,8 +54,9 @@ import static org.hamcrest.Matchers.nullValue;
  * The per-method javadoc below documents each method's specific blocking reason for when the paired
  * artifact lands, not a claim of partial compatibility today.
  *
- * <p>Surfacing/countering the structured enforced-mode signal per the epic design doc {@code
- * §113} is tracked as a separate follow-up and is not implemented in this test class.
+ * <p>Surfacing/countering the structured enforced-mode signal - i.e. giving operators visibility into
+ * (and a way to react to) ml-cpp's own signal that it is running in an enforced sandbox mode - is
+ * tracked as a separate follow-up and is not implemented in this test class.
  */
 public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
 
@@ -105,7 +106,7 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
      * Sandbox2 kill-switch existed at all. Because omitting a flag the current bundled ml-cpp
      * controller never knew about is a no-op from the controller's point of view, a deployment started
      * with the setting {@code true} is expected to behave exactly like a deployment started before this
-     * feature existed: it should start the sandbox-disabled-command-line-wise, but flipping the setting
+     * feature existed: no {@code --disableSandbox} is passed, but flipping the setting
      * to {@code true} also makes {@code NativePyTorchProcessFactory} request the isolated child IPC
      * directory (see the class javadoc), which today's bundled ml-cpp controller does not create - so
      * this test is expected to fail end-to-end until the paired ml-cpp artifact lands.
@@ -128,11 +129,6 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
             putModelDefinition(modelId, PyTorchModelIT.BASE_64_ENCODED_MODEL, PyTorchModelIT.RAW_MODEL_SIZE);
             putVocabulary(List.of("these", "are", "my", "words"), modelId);
 
-            // Matches current bundled ml-cpp behaviour: omitting --disableSandbox is indistinguishable,
-            // from the controller's perspective, from never having added the flag at all, so this call is
-            // expected to succeed exactly as it did before Sandbox2 existed (again, modulo the isolated
-            // child-IPC-directory caveat documented at the class level, which applies regardless of this
-            // setting).
             startDeployment(modelId, AllocationStatus.State.STARTED);
             Response inference = infer("my words", modelId);
             assertThat(

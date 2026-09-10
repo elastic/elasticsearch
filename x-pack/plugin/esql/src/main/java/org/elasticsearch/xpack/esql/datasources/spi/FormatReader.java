@@ -342,6 +342,24 @@ public interface FormatReader extends Closeable {
     }
 
     /**
+     * Returns a reader identical to {@code this} in configuration (pushed filter, declared formats, caches) but
+     * with reset instrumentation counters. Must be called:
+     * <ol>
+     *   <li>At the end of the {@code with*} chain in {@code FileSourceFactory} so that each query starts with
+     *       counters exclusive to it (no cross-query accumulation on the registry singleton).</li>
+     *   <li>In {@code readerForFile} / {@code readerForMapping} so that each split/driver gets its own counter
+     *       instance (no cross-driver accumulation within one query).</li>
+     * </ol>
+     * The default returns {@code this} for readers whose counters are already per-call-scoped or that do not
+     * implement timing instrumentation. Format readers that hold a mutable counter object (e.g.
+     * {@code ParquetFormatReader}) must override this to return a new instance sharing all caches but starting
+     * with zero counters.
+     */
+    default FormatReader freshCounters() {
+        return this;
+    }
+
+    /**
      * Whether this reader can only bind its declared columns when it sees the start of the file, which makes the file
      * unsplittable: every split past the first would have no way to resolve the binding.
      *

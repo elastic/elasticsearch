@@ -24,7 +24,11 @@ import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.junit.After;
 import org.junit.Before;
 
@@ -278,6 +282,53 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     }
 
     /**
+     * Verifies that successive queries against the same CSV dataset do not accumulate
+     * {@code read_cpu_nanos} across query boundaries, and that the registry singleton's counters
+     * remain zero. CSV uses the parallel-parse path; {@code freshCounters()} gives each split an
+     * isolated counter instance.
+     */
+    public void testCsvReadNanosIsolatedBetweenQueries() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("data.csv"), createCsv(1000));
+        String dataset = registerDataset("csv_counter_isolation_ds", dir.resolve("data.csv").toUri().toString(), Map.of("format", "csv"));
+        assertCounterIsolatedBetweenQueries("FROM " + dataset + " | LIMIT 1000", "csv");
+    }
+
+    /**
+     * Verifies that successive queries against the same NdJson dataset do not accumulate
+     * {@code read_cpu_nanos} across query boundaries, and that the registry singleton's counters
+     * remain zero.
+     */
+    public void testNdJsonReadNanosIsolatedBetweenQueries() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("data.ndjson"), createNdjson(1000));
+        String dataset = registerDataset("ndjson_counter_isolation_ds", dir.resolve("data.ndjson").toUri().toString(), Map.of());
+        assertCounterIsolatedBetweenQueries("FROM " + dataset + " | LIMIT 1000", "ndjson");
+    }
+
+    /**
+     * Verifies that successive queries against the same Parquet dataset do not accumulate
+     * {@code read_nanos} or {@code read_cpu_nanos} across query boundaries. Before the fix, the
+     * {@code FormatReaderRegistry} singleton's counters accumulated across queries, so
+     * Q_N.read_nanos ≈ N * Q_1.read_nanos. After the fix, each query calls {@code freshCounters()}
+     * and gets an isolated counter instance.
+     *
+     * <p>The assertion {@code Q_5 < 3 * Q_1} catches the geometric growth from accumulation
+     * (Q_5 ≈ 5 * Q_1) while tolerating normal timing variance (up to 3×).
+     */
+    public void testParquetReadNanosIsolatedBetweenQueries() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path dir = createTempDir();
+        // Small row-group size creates multiple splits so the slice-queue path records read_nanos
+        // synchronously before query completion, making it reliably non-zero.
+        writeParquet(dir.resolve("data.parquet"), 2000, 512);
+        String dataset = registerDataset("counter_isolation_ds", dir.resolve("data.parquet").toUri().toString(), Map.of());
+        assertCounterIsolatedBetweenQueries("FROM " + dataset + " | LIMIT 2000", "parquet");
+    }
+
+    /**
      * Multi-file dataset — exercises the BoundedParallelGather path
      * where each file's split discovery runs on an executor thread (Change 2 CPU accounting).
      * Uses a glob URI so {@code FileSplitProvider} receives multiple file tasks and spawns BPG workers.
@@ -331,6 +382,64 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         lastMetrics = null;
         try (var ignored = run(syncEsqlQueryRequest("FROM " + ds + " | STATS COUNT(*)"), TIMEOUT)) {}
         assertThat("warm COUNT(*) over external source must be metered", lastMetrics, notNullValue());
+    }
+
+    /**
+     * Runs {@code query} five times and asserts that {@code read_cpu_nanos} is positive on each run
+     * and does not grow by more than 3× from the first to the fifth query (which would indicate
+     * counter accumulation across queries). Also verifies that the registry singleton for
+     * {@code readerName} has zero counters after the runs.
+     */
+    private void assertCounterIsolatedBetweenQueries(String query, String readerName) throws Exception {
+        int numQueries = 5;
+        long[] readNanos = new long[numQueries];
+        long[] readCpuNanos = new long[numQueries];
+        for (int i = 0; i < numQueries; i++) {
+            lastMetrics = null;
+            try (var ignored = run(syncEsqlQueryRequest(query), TIMEOUT)) {}
+            assertThat("query " + i + ": metrics must be collected", lastMetrics, notNullValue());
+            Long rn = lastMetrics.get(QueryMetricsListener.READ_NANOS);
+            Long rcn = lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS);
+            assertThat("query " + i + ": read_nanos must be positive", rn, greaterThan(0L));
+            assertThat("query " + i + ": read_cpu_nanos must be positive", rcn, greaterThan(0L));
+            readNanos[i] = rn;
+            readCpuNanos[i] = rcn;
+        }
+        assertIsolated("read_nanos", readNanos, numQueries);
+        assertIsolated("read_cpu_nanos", readCpuNanos, numQueries);
+        for (String node : internalCluster().getNodeNames()) {
+            PlanExecutor planExecutor = internalCluster().getInstance(PlanExecutor.class, node);
+            if (planExecutor.dataSourceModule() == null) {
+                continue;
+            }
+            FormatReaderRegistry registry = planExecutor.dataSourceModule().formatReaderRegistry();
+            FormatReader singletonReader = registry.findByName(readerName);
+            if (singletonReader == null) {
+                continue;
+            }
+            FormatReaderStatus snap = singletonReader.statusSnapshot();
+            if (snap == null) {
+                continue;
+            }
+            assertEquals("registry singleton read_nanos must be zero on node " + node, 0L, snap.readNanos());
+            assertEquals("registry singleton read_cpu_nanos must be zero on node " + node, 0L, snap.readCpuNanos());
+        }
+    }
+
+    private static void assertIsolated(String metric, long[] values, int numQueries) {
+        long maxAllowed = values[0] * 3;
+        assertTrue(
+            "Q_5."
+                + metric
+                + "="
+                + values[numQueries - 1]
+                + " must be < 3 * Q_1."
+                + metric
+                + "="
+                + values[0]
+                + "; a value >= 3x indicates counter accumulation across queries",
+            values[numQueries - 1] < maxAllowed
+        );
     }
 
     /** Asserts that {@code split_discovery_cpu_nanos} is populated and does not exceed {@code split_discovery_nanos}. */

@@ -141,6 +141,12 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public FormatReader freshCounters() {
+        FormatReader fresh = inner.freshCounters();
+        return fresh == inner ? this : new CompressionDelegatingFormatReader(fresh, codec);
+    }
+
+    @Override
     public RowPositionStrategy rowPositionStrategy() {
         return inner.rowPositionStrategy();
     }

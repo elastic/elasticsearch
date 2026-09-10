@@ -153,7 +153,7 @@ public class ClusterInfoSimulator {
 
     // Visible for testing
     public Map<String, NodeHeapMetrics> computeNodeHeapMetrics() {
-        return nodeHeapMemoryShardMovementSimulator.getSimulatedHeapMetrics(allocation.nodes());
+        return nodeHeapMemoryShardMovementSimulator.getSimulatedHeapMetrics();
     }
 
     /**
@@ -229,7 +229,7 @@ public class ClusterInfoSimulator {
                 mostAvailableSpaceUsage,
                 shardSizes.toImmutableMap(),
                 Map.of(),
-                nodeHeapMemoryShardMovementSimulator.getSimulatedHeapMetrics(allocation.nodes()),
+                nodeHeapMemoryShardMovementSimulator.getSimulatedHeapMetrics(),
                 estimatedShardHeapUsages,
                 shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools(),
                 shardMoveNodeCacheCommitmentSimulator.getShardCacheRequirements(),

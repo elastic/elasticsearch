@@ -120,15 +120,18 @@ class NodeHeapMemoryShardMovementSimulator {
 
     /**
      * Apply the deltas to the initial estimates, clamping the results to 0 to avoid producing negative estimates.
+     * <p>
+     * Deltas are applied to total and hosted-shards heap estimates for indexing nodes, while only the hosted-shards estimate
+     * is adjusted for non-indexing nodes. For non-indexing nodes, the total heap estimate will always return 0.
      */
-    Map<String, NodeHeapMetrics> getSimulatedHeapMetrics(DiscoveryNodes nodes) {
+    Map<String, NodeHeapMetrics> getSimulatedHeapMetrics() {
         // If there was no shard movement, just return the unchanged metrics
         if (usageDeltaByNode.isEmpty()) {
             return initialNodeHeapMetrics;
         }
         return initialNodeHeapMetrics.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> {
-            boolean nodeIsIndexingNode = nodeIsIndexingNode(entry.getKey(), nodes);
             if (usageDeltaByNode.containsKey(entry.getKey())) {
+                final boolean nodeIsIndexingNode = nodeIsIndexingNode(entry.getKey());
                 NodeHeapMetrics initialMetrics = entry.getValue();
                 final var adjustedTotalUsage = nodeIsIndexingNode
                     ? Math.max(0, Math.addExact(initialMetrics.nodeHeapEstimates().totalHeapUsage(), usageDeltaByNode.get(entry.getKey())))
@@ -147,8 +150,18 @@ class NodeHeapMemoryShardMovementSimulator {
         }));
     }
 
-    private boolean nodeIsIndexingNode(String nodeId, DiscoveryNodes discoveryNodes) {
-        DiscoveryNode discoveryNode = discoveryNodes.get(nodeId);
-        return discoveryNode != null && discoveryNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE);
+    /**
+     * Is the specified node an indexing node?
+     *
+     * @param nodeId The node ID to query
+     * @return True if the node is an indexing node, false if it is not, or is absent from the {@link DiscoveryNodes}
+     */
+    private boolean nodeIsIndexingNode(String nodeId) {
+        RoutingNode routingNode = routingNodes.node(nodeId);
+        if (routingNode != null) {
+            DiscoveryNode discoveryNode = routingNode.node();
+            return discoveryNode != null && discoveryNode.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName());
+        }
+        return false;
     }
 }

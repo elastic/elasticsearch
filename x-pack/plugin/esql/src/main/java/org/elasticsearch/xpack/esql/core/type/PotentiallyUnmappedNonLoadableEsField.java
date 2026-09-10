@@ -16,10 +16,9 @@ import java.util.Map;
 /**
  * Marks a field mapped on a sibling subquery index but unmapped here, whose type has no implicit conversion from {@code KEYWORD} (e.g.,
  * {@code text}, {@code aggregate_metric_double}). {@code _source} only yields keyword, so the value cannot be surfaced as that type:
- * reading it fails at runtime rather than silently returning null. Without this marker the local optimizer would treat the copied
- * {@link EsField} as missing and rewrite it to null.
+ * reading it fails at runtime rather than silently returning null.
  */
-public class PotentiallyUnmappedNonLoadableEsField extends EsField {
+public class PotentiallyUnmappedNonLoadableEsField extends EsField implements UnmappedEsField {
     public PotentiallyUnmappedNonLoadableEsField(EsField mapped) {
         this(
             mapped.getName(),
@@ -58,12 +57,7 @@ public class PotentiallyUnmappedNonLoadableEsField extends EsField {
         );
     }
 
-    /**
-     * Always the real name, like {@link PotentiallyUnmappedKeywordEsField}: substituting a plain {@link EsField} for a node too old to
-     * know this type would strip the very instruction it carries, so that node would return null where it must fail. It rejects the
-     * unknown name in {@link EsField#getReader} instead, which is where the rest of {@code LOAD_ALL} leaves it too - none of it is
-     * transport-version gated yet.
-     */
+    // TODO: handle old nodes (LOAD_ALL is not transport-version gated yet)
     @Override
     public String getWriteableName(TransportVersion transportVersion) {
         return "PotentiallyUnmappedNonLoadableEsField";

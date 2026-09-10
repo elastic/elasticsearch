@@ -48,7 +48,6 @@ abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
             .nestedPath(ArrayUtils.prepend("load_all", variants));
     }
 
-    /** Runs the same query in the nullify, load, and LOAD_ALL modes. */
     protected void runInNullifyLoadAndLoadAllModes(String query, String... variants) {
         runInNullifyAndLoadModes(query, variants);
         loadAll(query, variants).run();

@@ -128,13 +128,7 @@ public class ResolvingProject extends Project {
         return command.unmappedFieldsPattern();
     }
 
-    /**
-     * Whether a source field named {@code name}, materialized in the child only after this node was resolved, would survive this
-     * projection — {@link #replaceChild} re-resolves the projections, so a matching pattern picks the field up. The pattern alone
-     * cannot answer this for the other two kinds, which have to consult the terms they were written with: {@link
-     * UnmappedFieldsPattern#forDrop} records solely wildcard removals, and a {@code RENAME} reports {@link UnmappedFieldsPattern#ALL}
-     * because it removes no column.
-     */
+    /** Whether KEEP/DROP/RENAME would keep a field named {@code name} that is materialized only after this node was resolved. */
     public boolean admitsLateUnmappedField(String name) {
         return switch (command.kind()) {
             case KEEP -> unmappedFieldsPattern().matches(name);
@@ -144,10 +138,6 @@ public class ResolvingProject extends Project {
         };
     }
 
-    /**
-     * Whether a renaming leaves no column called {@code name}: it is either the source, renamed away, or the target, which
-     * {@code ResolveRefs#projectionsForRename} drops any existing column of that name for.
-     */
     private boolean isUntouchedByRename(String name) {
         for (NamedExpression renaming : command.projections()) {
             if (renaming instanceof Alias alias) {
@@ -175,9 +165,9 @@ public class ResolvingProject extends Project {
     public ResolvingProject replaceChild(LogicalPlan newChild) {
         ResolvingProject recomputed = new ResolvingProject(source(), newChild, command);
         Set<String> names = new HashSet<>(Expressions.names(recomputed.projections()));
-        // Convert-function synthetics carried through KEEP/DROP must survive re-resolution. The empty-mapping
-        // placeholder does not: ResolveUnmapped replaces it on the relation, and re-appending it leaves a
-        // projection referencing an attribute the child no longer outputs.
+        // Convert-function synthetics (e.g. $$field$converted_to$long) must survive re-resolution.
+        // Skip the empty-mapping <no-fields> placeholder: ResolveUnmapped has already replaced it on the
+        // relation, and re-appending it would project an attribute the child no longer outputs.
         var missingSynthetics = projections().stream()
             .filter(
                 p -> p.synthetic()

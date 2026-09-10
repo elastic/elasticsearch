@@ -1533,27 +1533,22 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoadAllModeAllowsSingleSubqueryInFrom() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         test().statement(setUnmappedLoadAll("FROM (FROM test)"));
     }
 
     public void testLoadAllModeAllowsMainIndexPlusSubquery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         test().addLanguages().statement(setUnmappedLoadAll("FROM test, (FROM languages | WHERE language_code > 1)"));
     }
 
     public void testLoadAllModeAllowsTwoSubqueriesWithoutMainIndex() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         test().statement(setUnmappedLoadAll("FROM (FROM test),(FROM test)"));
     }
 
     public void testLoadAllModeAllowsThreeSubqueries() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         test().statement(setUnmappedLoadAll("FROM (FROM test),(FROM test),(FROM test)"));
     }
 
     public void testLoadAllSubqueryEvalThenKeepExactNamesDoesNotExpand() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         LogicalPlan plan = partialMappingTest().statement(setUnmappedLoadAll("""
             FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
                  (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
@@ -1565,7 +1560,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoadAllModeAllowsSubqueryWithLookupJoin() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         test().addLanguagesLookup().statement(setUnmappedLoadAll("""
             FROM test,
                 (FROM test

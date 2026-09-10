@@ -312,7 +312,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             shardContext = wrapWithUnmappedFieldContext(shardContext, getFieldName(fa));
         }
         if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedNonLoadableEsField) {
-            return ValuesSourceReaderOperator.load(unmappedNonLoadableBlockLoader(shardContext, getFieldName(fa), fa.dataType()));
+            String name = getFieldName(fa);
+            Set<String> sourcePaths = shardContext.ctx.isSourceEnabled() ? shardContext.ctx.sourcePath(name) : Set.of();
+            return ValuesSourceReaderOperator.load(
+                new UnmappedNonLoadableBlockLoader(
+                    name,
+                    fa.dataType(),
+                    sourcePaths,
+                    shardContext.ctx.getIndexSettings().getIgnoredSourceFormat()
+                )
+            );
         }
         if (attr instanceof UnmappedFieldsAttribute ufa) {
             // The pattern's excludes cover what field caps reported to the coordinator, not this shard's mapping, so a field mapped
@@ -456,11 +465,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     static DefaultShardContext wrapWithUnmappedFieldContext(DefaultShardContext ctx, String fullFieldName) {
         return new DefaultShardContextForUnmappedField(ctx, fullFieldName);
-    }
-
-    private static BlockLoader unmappedNonLoadableBlockLoader(DefaultShardContext context, String name, DataType dataType) {
-        Set<String> sourcePaths = context.ctx.isSourceEnabled() ? context.ctx.sourcePath(name) : Set.of();
-        return new UnmappedNonLoadableBlockLoader(name, dataType, sourcePaths, context.ctx.getIndexSettings().getIgnoredSourceFormat());
     }
 
     /** A hack to pretend an unmapped field still exists. */

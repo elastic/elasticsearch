@@ -24,23 +24,17 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- * A type with no implicit conversion from {@code KEYWORD} cannot be rebuilt out of {@code _source}, so a document that carries a value
- * must fail rather than lose it. Both non-loadable types travel this one path, hence the type parameter on every case.
- */
 public class UnmappedNonLoadableBlockLoaderTests extends ESTestCase {
-
-    private static DataType randomNonLoadableType() {
-        return randomFrom(DataType.AGGREGATE_METRIC_DOUBLE, DataType.TEXT);
-    }
-
     public void testMissingFieldReadsAsNull() throws IOException {
         assertThat(load("f", randomNonLoadableType(), Map.of("other", "value")), nullValue());
     }
 
-    public void testScalarValueFails() {
+    public void testPresentValueFails() {
         DataType dataType = randomNonLoadableType();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> load("f", dataType, Map.of("f", 81)));
+        Object value = randomFrom(
+            List.of(81, "William Faulkner", Map.of("min", 1.0, "max", 3.0, "sum", 10.1, "value_count", 5), List.of("a", "b"))
+        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> load("f", dataType, Map.of("f", value)));
         assertThat(
             e.getMessage(),
             containsString(
@@ -51,24 +45,8 @@ public class UnmappedNonLoadableBlockLoaderTests extends ESTestCase {
         );
     }
 
-    public void testStringValueFails() {
-        DataType dataType = randomNonLoadableType();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> load("f", dataType, Map.of("f", "William Faulkner")));
-        assertThat(e.getMessage(), containsString("Field [f] of type [" + dataType.typeName() + "]"));
-    }
-
-    /** A well-formed object is still refused: the point is that no value of a non-loadable type can be trusted from _source. */
-    public void testObjectValueFails() {
-        DataType dataType = randomNonLoadableType();
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> load("f", dataType, Map.of("f", Map.of("min", 1.0, "max", 3.0, "sum", 10.1, "value_count", 5)))
-        );
-    }
-
-    public void testArrayValueFails() {
-        DataType dataType = randomNonLoadableType();
-        expectThrows(IllegalArgumentException.class, () -> load("f", dataType, Map.of("f", List.of("a", "b"))));
+    private static DataType randomNonLoadableType() {
+        return randomFrom(DataType.AGGREGATE_METRIC_DOUBLE, DataType.TEXT);
     }
 
     private static Object load(String fieldName, DataType dataType, Map<String, Object> source) throws IOException {

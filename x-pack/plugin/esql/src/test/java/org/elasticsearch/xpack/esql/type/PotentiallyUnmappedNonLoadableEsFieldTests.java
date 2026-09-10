@@ -28,7 +28,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class PotentiallyUnmappedNonLoadableEsFieldTests extends AbstractEsFieldTypeTests<PotentiallyUnmappedNonLoadableEsField> {
-    /** Types reached by this marker: mapped on a sibling branch, with no implicit conversion from KEYWORD. */
     private static DataType randomNonLoadableType() {
         return randomFrom(DataType.AGGREGATE_METRIC_DOUBLE, DataType.TEXT);
     }
@@ -63,10 +62,6 @@ public class PotentiallyUnmappedNonLoadableEsFieldTests extends AbstractEsFieldT
         );
     }
 
-    /**
-     * The type must never write itself as a plain {@link EsField}: that would strip the instruction to fail on a {@code _source} value,
-     * leaving the reader to null the column instead. It also carries the sibling's mapped type rather than assuming one.
-     */
     public void testAlwaysWritesItsOwnNameAndKeepsTheMappedType() throws IOException {
         DataType dataType = randomNonLoadableType();
         PotentiallyUnmappedNonLoadableEsField field = new PotentiallyUnmappedNonLoadableEsField(

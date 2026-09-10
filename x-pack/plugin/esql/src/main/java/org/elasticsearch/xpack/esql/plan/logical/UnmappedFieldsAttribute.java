@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -85,29 +83,6 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
 
     public UnmappedFieldsPattern pattern() {
         return pattern;
-    }
-
-    /**
-     * The {@code $$unmapped_fields} column a union should expose: the union of each branch's pattern, so the
-     * coordinator expands extras any sibling shipped rather than inheriting the first branch's restriction.
-     */
-
-    public static @Nullable UnmappedFieldsAttribute unionFrom(List<LogicalPlan> branches) {
-        UnmappedFieldsAttribute first = null;
-        UnmappedFieldsPattern union = UnmappedFieldsPattern.NONE;
-        for (LogicalPlan child : branches) {
-            for (Attribute attr : child.output()) {
-                if (attr instanceof UnmappedFieldsAttribute childUfa) {
-                    if (first == null) {
-                        first = childUfa;
-                    }
-                    union = union.union(childUfa.pattern());
-                }
-            }
-        }
-        return first == null || union.equals(first.pattern())
-            ? first
-            : new UnmappedFieldsAttribute(first.source(), first.dataType(), first.nullable(), first.id(), first.synthetic(), union);
     }
 
     @Override

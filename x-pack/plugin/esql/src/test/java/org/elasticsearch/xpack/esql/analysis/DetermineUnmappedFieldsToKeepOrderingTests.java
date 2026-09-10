@@ -20,12 +20,13 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -173,14 +174,14 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
     }
 
     public void testSubqueryStatsInOneBranchOrderingMatchesAnalyzedOutput() {
-        assertReplayMatchesAnalyzedOutput(test(), """
+        assertOrderingMatchesPlanOutput(test(), """
             FROM (FROM test), (FROM test | STATS c = COUNT(*))
             | SORT c NULLS LAST
             """, "unmapped_extra");
     }
 
     public void testSubqueryKeepWildcardAfterSortOrderingMatchesAnalyzedOutput() {
-        assertReplayMatchesAnalyzedOutput(test(), """
+        assertOrderingMatchesPlanOutput(test(), """
             FROM (FROM test | WHERE emp_no == 10001), (FROM test | WHERE emp_no == 10002)
             | SORT emp_no DESC
             | KEEP emp*, unmapped*
@@ -188,7 +189,7 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
     }
 
     public void testPartialMappingSubqueryStatsOrderingMatchesOptimizedOutput() {
-        assertReplayMatchesAnalyzedOutput(partialMappingTest(), """
+        assertOrderingMatchesPlanOutput(partialMappingTest(), """
             FROM (FROM partial_mapping_sample_data | STATS c = COUNT(*)),
                  (FROM partial_mapping_sample_data | WHERE message == "42")
             | SORT c NULLS LAST
@@ -196,7 +197,7 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
     }
 
     public void testPartialMappingSubqueryKeepWildcardInOneBranchOrderingMatchesOptimizedOutput() {
-        assertReplayMatchesAnalyzedOutput(partialMappingTest(), """
+        assertOrderingMatchesPlanOutput(partialMappingTest(), """
             FROM (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!" | KEEP messag*),
                  (FROM partial_mapping_sample_data | WHERE message == "42")
             | SORT message
@@ -204,7 +205,7 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
     }
 
     public void testPartialMappingSubqueryKeepWildcardAfterSortOrderingMatchesOptimizedOutput() {
-        assertReplayMatchesAnalyzedOutput(partialMappingTest(), """
+        assertOrderingMatchesPlanOutput(partialMappingTest(), """
             FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
                  (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!"),
                  (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.2!")
@@ -213,11 +214,7 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
             """, "unmapped_message_extra");
     }
 
-    /**
-     * Same size check {@code ExpandUnmappedFieldsPostProcessor} uses: replayed output must be the executed
-     * columns (minus {@code $$unmapped_fields}) plus the discovered leaves.
-     */
-    private static void assertReplayMatchesAnalyzedOutput(TestAnalyzer analyzer, String query, String... discovered) {
+    private static void assertOrderingMatchesPlanOutput(TestAnalyzer analyzer, String query, String... discovered) {
         LogicalPlan analyzed = analyzer.statement(setUnmappedLoadAll(query));
         LogicalPlan optimized = new LogicalPlanOptimizer(unboundLogicalOptimizerContext()).optimize(analyzed);
         UnmappedFieldsOrdering ordering = analyzer.lastAnalyzer().unmappedFieldsOrdering();
@@ -225,24 +222,25 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
         List<Attribute> leaves = Arrays.stream(discovered)
             .map(name -> (Attribute) new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD))
             .toList();
-        List<String> replayed = Expressions.names(ordering.order(leaves));
-        assertThat("replay dropped discovered fields: " + replayed, replayed, hasItems(discovered));
-        assertThat(replayed, not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+        List<String> ordered = Expressions.names(ordering.order(leaves));
         for (LogicalPlan plan : List.of(analyzed, optimized)) {
-            List<String> executed = Expressions.names(plan.output())
-                .stream()
-                .filter(name -> name.equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false)
-                .toList();
+            Set<String> expected = new HashSet<>();
+            for (String name : Expressions.names(plan.output())) {
+                if (name.equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false) {
+                    expected.add(name);
+                }
+            }
+            expected.addAll(List.of(discovered));
             assertThat(
                 Strings.format(
-                    "stage=%s replay=%s executedWithoutUfa=%s plan=%s",
+                    "stage=%s ordered=%s expected=%s plan=%s",
                     plan == analyzed ? "analyzed" : "optimized",
-                    replayed,
-                    executed,
+                    ordered,
+                    expected,
                     plan
                 ),
-                replayed.size(),
-                equalTo(executed.size() + discovered.length)
+                new HashSet<>(ordered),
+                equalTo(expected)
             );
         }
     }

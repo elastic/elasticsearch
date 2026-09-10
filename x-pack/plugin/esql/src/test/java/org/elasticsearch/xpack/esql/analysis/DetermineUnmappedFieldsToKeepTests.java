@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
@@ -406,9 +407,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         List<EsRelation> relations = plan.collect(EsRelation.class);
         assertThat(relations, hasSize(2));
         for (EsRelation relation : relations) {
-            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
-                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
-            ).pattern();
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
             assertKept(pattern, "unmapped_extra");
             assertNotKept(pattern, excl());
         }
@@ -420,9 +419,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         List<EsRelation> relations = plan.collect(EsRelation.class);
         assertThat(relations, hasSize(2));
         for (EsRelation relation : relations) {
-            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
-                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
-            ).pattern();
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
             assertKept(pattern, "unmapped_extra");
             assertNotKept(pattern, excl());
         }
@@ -449,17 +446,9 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
             FROM (FROM test), (FROM test | STATS c = COUNT(*))
             """));
         assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
-        int withAttribute = 0;
-        int withoutAttribute = 0;
-        for (EsRelation relation : plan.collect(EsRelation.class)) {
-            if (CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class).isEmpty()) {
-                withoutAttribute++;
-            } else {
-                withAttribute++;
-            }
-        }
-        assertThat(withAttribute, equalTo(1));
-        assertThat(withoutAttribute, equalTo(1));
+        UnionAll union = EsqlTestUtils.singleValue(plan.collect(UnionAll.class));
+        assertThat(unmappedFieldsAttributes(EsqlTestUtils.singleValue(union.children().get(0).collect(EsRelation.class))), hasSize(1));
+        assertThat(unmappedFieldsAttributes(EsqlTestUtils.singleValue(union.children().get(1).collect(EsRelation.class))), empty());
     }
 
     public void testSubqueryKeepWildcardInOneBranchStampsBothBranchesWithDifferentPatterns() {
@@ -467,19 +456,16 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
             FROM (FROM test | KEEP first_name*), (FROM test | WHERE emp_no > 0)
             """));
         assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
-        int keptExtra = 0;
-        int droppedExtra = 0;
-        for (EsRelation relation : plan.collect(EsRelation.class)) {
-            UnmappedFieldsPattern pattern = patternOf(relation);
-            assertKept(pattern, "first_name_suffix");
-            if (pattern.matches("unmapped_extra")) {
-                keptExtra++;
-            } else {
-                droppedExtra++;
-            }
-        }
-        assertThat(keptExtra, equalTo(1));
-        assertThat(droppedExtra, equalTo(1));
+        UnionAll union = EsqlTestUtils.singleValue(plan.collect(UnionAll.class));
+        UnmappedFieldsPattern keepBranch = unmappedFieldsPattern(
+            EsqlTestUtils.singleValue(union.children().get(0).collect(EsRelation.class))
+        );
+        UnmappedFieldsPattern whereBranch = unmappedFieldsPattern(
+            EsqlTestUtils.singleValue(union.children().get(1).collect(EsRelation.class))
+        );
+        assertKept(keepBranch, "first_name_suffix");
+        assertNotKept(keepBranch, "unmapped_extra");
+        assertKept(whereBranch, "first_name_suffix", "unmapped_extra");
         assertKept(unmappedFieldsPattern(plan), "unmapped_extra");
     }
 

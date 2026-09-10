@@ -1339,8 +1339,6 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
 
     // Mapped LONG on one subquery index is loaded from _source on the other and implicitly cast; KEEP shrinks the snapshot to that.
     public void testLoadAllSubqueryMappedLongLoadsOnUnmappedSibling() throws Exception {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());
         loadAll("""
             FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data)
             | KEEP event_duration
@@ -1349,8 +1347,6 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
 
     // KEEP of an unmapped name is a mention: LOAD_ALL loads it from _source on the unrestricted sibling too.
     public void testLoadAllSubqueryKeepUnmappedLoadsOnSibling() throws Exception {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());
         loadAll("""
             FROM (FROM no_mapping_sample_data | KEEP unmapped_message), (FROM partial_mapping_sample_data)
             | KEEP unmapped_message
@@ -1358,8 +1354,6 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     public void testLoadAllSubqueryKeepUnmappedLoadsOnSiblingReversed() throws Exception {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());
         loadAll("""
             FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP unmapped_message)
             | KEEP unmapped_message
@@ -1368,8 +1362,6 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
 
     // Mapped LONG first so the union type is LONG; KEEP on the unmapped index is a PUNK that gets ToLong.
     public void testLoadAllSubqueryKeepLongLoadsOnUnmappedSibling() throws Exception {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());
         loadAll("""
             FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP event_duration)
             | KEEP event_duration
@@ -1379,8 +1371,6 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // Unmapped branch listed first and mentioning the field: its fabricated keyword must yield to the sibling's LONG rather than
     // leave the column without a common type. ResolveUnionTypesInUnionAll inserts the cast, so branch order does not matter.
     public void testLoadAllSubqueryUnmappedBranchFirstKeepCastsToSiblingType() throws Exception {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());
         loadAll("""
             FROM (FROM no_mapping_sample_data | KEEP event_duration), (FROM partial_mapping_sample_data)
             | KEEP event_duration
@@ -1389,8 +1379,6 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
 
     // Same, materialized by a WHERE reference instead of a KEEP.
     public void testLoadAllSubqueryUnmappedBranchFirstWhereCastsToSiblingType() throws Exception {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());
         loadAll("""
             FROM (FROM no_mapping_sample_data | WHERE event_duration IS NOT NULL), (FROM partial_mapping_sample_data)
             | KEEP event_duration
@@ -1400,8 +1388,6 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     // Mapped index first so the union type is aggregate_metric_double; the KEEP on the unmapped index is swapped to
     // PotentiallyUnmappedNonLoadableEsField.
     public void testLoadAllSubqueryKeepAmdLoadsOnUnmappedSibling() throws Exception {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());
         assumeTrue("Requires AGGREGATE_METRIC_DOUBLE_V0", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());
         loadAll("""
             FROM (FROM k8s-downsampled), (FROM k8s_nonexistent | KEEP network.eth0.tx)
@@ -1411,24 +1397,18 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
 
     // KEEP x, * still mentions x (sibling loads it) but extras stay enabled.
     public void testLoadAllSubqueryKeepStarUnmappedLoadsOnSibling() throws Exception {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());
         loadAll("""
             FROM (FROM no_mapping_sample_data | KEEP unmapped_message, *), (FROM partial_mapping_sample_data)
             """).run();
     }
 
     public void testLoadAllSubqueryKeepStarUnmappedLoadsOnSiblingReversed() throws Exception {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());
         loadAll("""
             FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP unmapped_message, *)
             """).run();
     }
 
     public void testLoadAllSubqueryKeepStarLongLoadsOnUnmappedSibling() throws Exception {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());
         loadAll("""
             FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP event_duration, *)
             """).run();

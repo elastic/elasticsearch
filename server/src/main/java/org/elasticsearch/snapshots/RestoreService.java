@@ -616,7 +616,13 @@ public final class RestoreService implements ClusterStateApplier {
      *                              {@link RestoreService#restoreSnapshotOverOpenIndices} applies it internally, the same as
      *                              {@link RestoreService#restoreSnapshot} does for every other index restored from a snapshot
      */
-    public record OpenIndexRestoreTarget(Index destinationIndex, IndexId snapshotIndexId, IndexMetadata snapshotIndexMetadata) {}
+    public record OpenIndexRestoreTarget(Index destinationIndex, IndexId snapshotIndexId, IndexMetadata snapshotIndexMetadata) {
+        public OpenIndexRestoreTarget {
+            Objects.requireNonNull(destinationIndex, "destinationIndex");
+            Objects.requireNonNull(snapshotIndexId, "snapshotIndexId");
+            Objects.requireNonNull(snapshotIndexMetadata, "snapshotIndexMetadata");
+        }
+    }
 
     /**
      * Restores over already-open destination indices from pre-resolved targets, in one cluster-state update that atomically applies the
@@ -654,6 +660,7 @@ public final class RestoreService implements ClusterStateApplier {
         List<OpenIndexRestoreTarget> targets,
         ActionListener<RestoreCompletionResponse> listener
     ) {
+        Objects.requireNonNull(targets, "targets");
         final Map<String, IndexId> indicesToRestore = new HashMap<>();
         final Map<String, Index> openIndexTargets = new HashMap<>();
         final ProjectMetadata.Builder snapshotProjectBuilder = ProjectMetadata.builder(projectId);

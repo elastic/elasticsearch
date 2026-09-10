@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.action.settings;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -36,6 +37,8 @@ public class UpdateSecuritySettingsActionTests extends ESTestCase {
         () -> randomAlphaOfLength(5), // no additional validation
         IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS,
         () -> randomAlphaOfLength(5), // no additional validation
+        IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
+        () -> randomFrom("300s", "-1", "1s"),
         DataTier.TIER_PREFERENCE,
         () -> randomFrom(DataTier.DATA_CONTENT, DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD)
     );

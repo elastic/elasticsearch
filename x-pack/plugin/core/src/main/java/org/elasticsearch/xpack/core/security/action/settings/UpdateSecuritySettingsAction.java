@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -53,6 +54,8 @@ public class UpdateSecuritySettingsAction {
             (it, ex) -> ex, // no additional validation
             IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS,
             (it, ex) -> ex, // no additional validation
+            IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
+            (it, ex) -> ex, // local-only: allow stretching .security refresh for API key grant tests
             DataTier.TIER_PREFERENCE,
             (it, ex) -> {
                 Set<String> allowedTiers = Set.of(DataTier.DATA_CONTENT, DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD);

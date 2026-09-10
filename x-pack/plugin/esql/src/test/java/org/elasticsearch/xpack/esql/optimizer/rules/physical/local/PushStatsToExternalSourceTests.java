@@ -562,7 +562,7 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         SplitStats split1 = buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
         SplitStats split2 = buildSplitStatsWithMinMax("age", 60L, 80L, 500L, 0L);
         ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
-        Expression filterCondition = new Or(Source.EMPTY, greaterThanOf(AGE, of(20L)), lessThanOrEqualOf(AGE, of(90L)));
+        Expression filterCondition = new Or(Source.EMPTY, greaterThanOf(AGE, of(20)), lessThanOrEqualOf(AGE, of(90)));
         var agg = aggregateExec(new FilterExec(Source.EMPTY, ext, filterCondition), countStarAlias());
 
         LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
@@ -573,7 +573,7 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         SplitStats split1 = buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
         SplitStats split2 = buildSplitStatsWithMinMax("age", 60L, 80L, 500L, 0L);
         ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
-        Expression filterCondition = new Not(Source.EMPTY, greaterThanOf(AGE, of(20L)));
+        Expression filterCondition = new Not(Source.EMPTY, greaterThanOf(AGE, of(20)));
         var agg = aggregateExec(new FilterExec(Source.EMPTY, ext, filterCondition), countStarAlias());
 
         LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
@@ -585,17 +585,27 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         // child collapsed splitStats() to null), a FILTERED count falls back to the whole-file cache stats. If
         // those are STATS_PARTIAL, it must safe-miss exactly as the unfiltered path (resolveEffectiveStats) does
         // — serving the partial row_count would emit a wrong COUNT. Pushes the partial 1000 without the guard.
-        Map<String, Object> partial = new HashMap<>();
-        partial.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
-        partial.put(SourceStatisticsSerializer.columnMinKey("age"), 30L);
-        partial.put(SourceStatisticsSerializer.columnMaxKey("age"), 50L);
-        partial.put(SourceStatisticsSerializer.columnNullCountKey("age"), 0L); // no nulls -> the filter can classify MATCH
-        partial.put(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE);
-        Expression filterCondition = greaterThanOf(AGE, of(20L)); // MATCH against min=30/nc=0, so it would push absent the guard
-        var agg = aggregateExec(new FilterExec(Source.EMPTY, externalSource(partial), filterCondition), countStarAlias());
+        Map<String, Object> complete = new HashMap<>();
+        complete.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
+        complete.put(SourceStatisticsSerializer.columnMinKey("age"), 30L);
+        complete.put(SourceStatisticsSerializer.columnMaxKey("age"), 50L);
+        complete.put(SourceStatisticsSerializer.columnNullCountKey("age"), 0L);
+        // value_count == rowCount is required for MATCH (SplitFilterClassifier.matchableColumn)
+        complete.put(SourceStatisticsSerializer.columnValueCountKey("age"), 1000L);
+        Expression filterCondition = greaterThanOf(AGE, of(20));
 
-        // Must NOT push — a partial whole-file row_count cannot answer a filtered count. AggregateExec stays.
-        as(applyRule(agg), AggregateExec.class);
+        LocalSourceExec local = as(
+            applyRule(aggregateExec(new FilterExec(Source.EMPTY, externalSource(complete), filterCondition), countStarAlias())),
+            LocalSourceExec.class
+        );
+        assertEquals(1000L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+
+        Map<String, Object> partial = new HashMap<>(complete);
+        partial.put(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE);
+        as(
+            applyRule(aggregateExec(new FilterExec(Source.EMPTY, externalSource(partial), filterCondition), countStarAlias())),
+            AggregateExec.class
+        );
     }
 
     // --- helpers ---

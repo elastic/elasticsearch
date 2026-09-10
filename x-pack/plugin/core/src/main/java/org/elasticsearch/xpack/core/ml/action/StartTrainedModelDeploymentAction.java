@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
 import java.io.IOException;
@@ -312,6 +313,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
+            if (MlStrings.isValidId(deploymentId) == false) {
+                validationException.addValidationError(Messages.getMessage(Messages.INVALID_ID, DEPLOYMENT_ID, deploymentId));
+            }
             if (waitForState.isAnyOf(VALID_WAIT_STATES) == false) {
                 validationException.addValidationError(
                     "invalid [wait_for] state ["

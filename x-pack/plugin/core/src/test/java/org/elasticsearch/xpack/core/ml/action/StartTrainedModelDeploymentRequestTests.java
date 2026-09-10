@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -52,8 +53,11 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
 
     public static Request createRandom() {
         boolean deploymemtIdSameAsModelId = randomBoolean();
-        String modelId = randomAlphaOfLength(10);
-        Request request = new Request(modelId, deploymemtIdSameAsModelId ? modelId : randomAlphaOfLength(10));
+        String modelId = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        Request request = new Request(
+            modelId,
+            deploymemtIdSameAsModelId ? modelId : randomAlphaOfLength(10).toLowerCase(Locale.ROOT)
+        );
         if (randomBoolean()) {
             request.setTimeout(randomPositiveTimeValue());
         }
@@ -225,6 +229,55 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
 
         assertThat(e, is(not(nullValue())));
         assertThat(e.getMessage(), containsString("[number_of_allocations] must be 1 when [priority] is low"));
+    }
+
+    public void testValidate_GivenDeploymentIdContainsParentDirectoryTraversal() {
+        Request request = createRandom();
+        request.setDeploymentId("..");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
+    public void testValidate_GivenDeploymentIdContainsSlash() {
+        Request request = createRandom();
+        request.setDeploymentId("foo/bar");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
+    public void testValidate_GivenDeploymentIdContainsUppercase() {
+        Request request = createRandom();
+        request.setDeploymentId("Deployment-1");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
+    public void testValidate_GivenDeploymentIdContainsInvalidChars() {
+        Request request = createRandom();
+        request.setDeploymentId("deployment!1");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
+    public void testValidate_GivenDeploymentIdIsValid() {
+        Request request = createRandom();
+        request.setDeploymentId("deployment-1_valid.id");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
     }
 
     public void testDefaults() {

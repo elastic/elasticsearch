@@ -366,7 +366,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     static final String S3_MULTIPART_THRESHOLD_SETTING_KEY = "buffer_size";
     static final String GCS_MULTIPART_THRESHOLD_SETTING_KEY = "multipart_upload_chunk_size";
     static final String AZURE_MULTIPART_THRESHOLD_SETTING_KEY = "max_single_part_upload_size";
-    static final String AZURE_MULTIPART_PART_SIZE_SETTING_KEY = "multipart_upload_block_size";
+    static final String AZURE_MULTIPART_PART_SIZE_SETTING_KEY = "multipart_upload_part_size";
 
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 

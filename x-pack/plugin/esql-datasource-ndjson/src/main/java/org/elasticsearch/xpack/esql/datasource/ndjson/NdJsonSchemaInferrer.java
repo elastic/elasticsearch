@@ -85,7 +85,8 @@ public class NdJsonSchemaInferrer {
 
     private List<Attribute> doInferSchema(InputStream inputStream, int maxLines) throws IOException {
         FieldInfo root = new FieldInfo(null);
-        JsonParser parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
+        NdJsonUtils.LineTerminatorTrackingStream tracking = new NdJsonUtils.LineTerminatorTrackingStream(inputStream);
+        JsonParser parser = NdJsonUtils.JSON_FACTORY.createParser(tracking);
         try {
             while (lineCount < maxLines) {
                 try {
@@ -106,8 +107,9 @@ public class NdJsonSchemaInferrer {
                     // it contributes no columns to the sample, and the slice read is where it either
                     // fails the query or drops with a warning.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
-                    inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
-                    parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
+                    inputStream = NdJsonUtils.moveToNextLine(parser, tracking);
+                    tracking = new NdJsonUtils.LineTerminatorTrackingStream(inputStream);
+                    parser = NdJsonUtils.JSON_FACTORY.createParser(tracking);
                     continue;
                 }
 
@@ -117,8 +119,9 @@ public class NdJsonSchemaInferrer {
                 } catch (JsonParseException | StreamConstraintsException e) {
                     // See comment above: deferred to the slice read for policy-driven handling.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
-                    inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
-                    parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
+                    inputStream = NdJsonUtils.moveToNextLine(parser, tracking);
+                    tracking = new NdJsonUtils.LineTerminatorTrackingStream(inputStream);
+                    parser = NdJsonUtils.JSON_FACTORY.createParser(tracking);
                 }
 
                 // Mark fields we haven't seen in this round as nullable

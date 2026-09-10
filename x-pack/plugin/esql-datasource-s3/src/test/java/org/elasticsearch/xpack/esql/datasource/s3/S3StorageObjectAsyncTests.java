@@ -224,7 +224,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             return completeTransformer(invocation.getArgument(1), response, PAYLOAD);
         });
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
 
         CountDownLatch first = new CountDownLatch(1);
         obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
@@ -265,7 +265,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
                 .build();
             return completeTransformer(invocation.getArgument(1), response, PAYLOAD);
         });
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
 
         CountDownLatch first = new CountDownLatch(1);
         obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
@@ -314,7 +314,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             return completeTransformer(invocation.getArgument(1), response, PAYLOAD);
         });
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
 
         CountDownLatch first = new CountDownLatch(1);
         obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, ActionListener.wrap(buf -> {

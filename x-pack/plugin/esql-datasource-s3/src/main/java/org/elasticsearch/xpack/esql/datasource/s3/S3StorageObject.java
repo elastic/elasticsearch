@@ -868,12 +868,20 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (response != null) {
                 try {
                     observeEtag(response.eTag());
-                    observeResponse(response, position, true);
                 } catch (ExternalObjectChangedException e) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     buffer.close();
                     listener.onFailure(e);
                     return;
+                }
+                if (cachedLastModified == null) {
+                    cachedLastModified = response.lastModified();
+                }
+                if (cachedLength == null) {
+                    Long total = ContentRangeParser.parseTotalLength(response.contentRange());
+                    if (total != null) {
+                        cachedLength = total;
+                    }
                 }
             }
 
@@ -905,6 +913,14 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
                 listener.onFailure(mapReadFailure("Failed to read object from", unwrapCompletionWrappers(throwable)));
             }
+            return;
+        }
+        // If the request sent If-Match and the store does not support it, retry once without the
+        // header. This matches the sync path's fallback and does not consume retry budget.
+        if (request.ifMatch() != null && isIfMatchUnsupported(unwrapCompletionWrappers(throwable))) {
+            ifMatchUnsupported = true;
+            logger.debug("S3 If-Match not implemented for [{}]; retrying without it", path);
+            scheduleReadAttempt(Duration.ZERO, unpinned(request), length, factory, executor, listener, retryToken, startNanos, handle);
             return;
         }
         RefreshRetryTokenResponse refresh;

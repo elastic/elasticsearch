@@ -1565,7 +1565,7 @@ public class Augmentation {
                 + "wrapped: ["
                 + stringOutput
                 + "]"
-                + ", this limit can be changed by changed by the ["
+                + ", this limit can be changed by the ["
                 + CompilerSettings.REGEX_LIMIT_FACTOR.getKey()
                 + "] setting",
             CircuitBreaker.Durability.TRANSIENT

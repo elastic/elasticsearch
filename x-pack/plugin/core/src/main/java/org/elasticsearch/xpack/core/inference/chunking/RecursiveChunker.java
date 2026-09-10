@@ -30,9 +30,15 @@ import java.util.regex.Pattern;
  */
 public class RecursiveChunker implements Chunker {
     private final BreakIterator wordIterator;
+    private final int readLimitFactor;
 
     public RecursiveChunker() {
+        this(RecursiveChunkingSettings.DEFAULT_REGEX_READ_LIMIT_FACTOR);
+    }
+
+    public RecursiveChunker(int readLimitFactor) {
         wordIterator = BreakIterator.getWordInstance();
+        this.readLimitFactor = readLimitFactor;
     }
 
     @Override
@@ -89,8 +95,7 @@ public class RecursiveChunker implements Chunker {
     private List<ChunkOffsetAndCount> splitTextBySeparatorRegex(String input, ChunkOffset offset, String separatorRegex) {
         try {
             var pattern = Pattern.compile(separatorRegex, Pattern.MULTILINE);
-            var matcher = pattern.matcher(new ReadLimitedCharSequence(input, RecursiveChunkingSettings.MAX_REGEX_READOVER_COUNT))
-                .region(offset.start(), offset.end());
+            var matcher = pattern.matcher(new ReadLimitedCharSequence(input, readLimitFactor)).region(offset.start(), offset.end());
 
             var chunkOffsets = new ArrayList<ChunkOffsetAndCount>();
             int chunkStart = offset.start();
@@ -109,7 +114,9 @@ public class RecursiveChunker implements Chunker {
 
             return chunkOffsets;
         } catch (ReadLimitedCharSequence.LimitExceededException e) {
-            throw new IllegalArgumentException("Chunk separator regex has exceeded the read limit " + e.readLimit());
+            throw new IllegalArgumentException(
+                "Chunk separator regex " + separatorRegex + " has exceeded the character read limit " + e.readLimit()
+            );
         }
     }
 

@@ -40,6 +40,11 @@ const TASK_STATUS_FILE = "build/task-status.json";
 // rebuilds this path from the jobId.
 const TASK_STATUS_COPY_PREFIX = `${STATUS_DIR_NAME}/${TASK_STATUS_FILE_PREFIX}`;
 
+// The wrapped command and its task paths travel in env vars rather than being baked into the wrapper, so
+// one copy of the wrapper serves every batch of a step. Indexed by BUILDKITE_PARALLEL_JOB at run time.
+const CMD_VAR_PREFIX = "FLAKINESS_CMD_";
+const TASK_PATHS_VAR_PREFIX = "FLAKINESS_TASK_PATHS_";
+
 // Wraps a shell command so it always exits 0, appending a Buildkite warning annotation when the wrapped
 // command fails. The step state stays "passed", so Buildkite's per-step and group-aggregate GitHub commit
 // statuses report success.
@@ -53,21 +58,20 @@ const TASK_STATUS_COPY_PREFIX = `${STATUS_DIR_NAME}/${TASK_STATUS_FILE_PREFIX}`;
 // With `emitOutcome` (batch steps; not analyze) the wrapper also records rc + wall-clock duration to
 // `<status dir>/status-<jobId>.json` - the two facts JUnit XML cannot supply. It classifies nothing;
 // see entrypoints/analyze.ts and README "Observability".
-function wrapNeverFail(
-  command: string,
-  contextKey: string,
-  outerTimeoutMin: number,
-  emitOutcome?: { kind: TestKind; taskPaths?: string[] }
-): string {
+function wrapNeverFail(contextKey: string, outerTimeoutMin: number, emitOutcome?: { kind: TestKind }): string {
   const innerTimeoutMin = Math.max(1, outerTimeoutMin - NEVER_FAIL_GRACE_MINUTES);
   return [
     "set +e",
+    // The command is not baked in: it comes from an env var picked at run time, so this wrapper appears
+    // once per step instead of once per batch. BUILDKITE_PARALLEL_JOB is unset on a non-parallel step, so
+    // `:-0` selects the single batch and both step shapes share one code path.
+    '_fd_i="$${BUILDKITE_PARALLEL_JOB:-0}"',
+    `_fd_cmd_var="${CMD_VAR_PREFIX}$$_fd_i"`,
     "WRAPPED_CMD_FILE=$(mktemp)",
-    // Quoted heredoc avoids any shell-expansion of the inner command at
-    // write time; variables in it are evaluated when bash runs the file.
-    "cat > \"$$WRAPPED_CMD_FILE\" <<'__NEVER_FAIL_EOF__'",
-    command,
-    "__NEVER_FAIL_EOF__",
+    // `$${!var}` is indirect expansion deferred past Buildkite's upload pass, which cannot parse `!` as the
+    // start of an identifier. printf keeps the command unexpanded until bash runs the file, which is what
+    // the quoted heredoc used to do.
+    'printf \'%s\\n\' "$${!_fd_cmd_var}" > "$$WRAPPED_CMD_FILE"',
     // Lets the self-report tell a timeout SIGKILL from a kernel OOM-kill by duration. `$(...)` survives
     // Buildkite's upload-time interpolation, which only substitutes `$VAR`/`${VAR}`.
     ...(emitOutcome ? ["_fd_start=$(date +%s)"] : []),
@@ -110,7 +114,12 @@ function wrapNeverFail(
           //
           // Only COPIED here; analyze.ts parses the JSON, so this shell stays uncoupled from its spacing.
           `cp ${TASK_STATUS_FILE} "${TASK_STATUS_COPY_PREFIX}$$BUILDKITE_JOB_ID.json" 2>/dev/null || true`,
-          `printf '{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s,"infraSubtype":"%s","taskPaths":%s}' "$$BUILDKITE_JOB_ID" "${contextKey}" "${emitOutcome.kind}" "$$rc" "$(( _fd_end - _fd_start ))" "$$_fd_oom" '${JSON.stringify(emitOutcome.taskPaths ?? [])}' > "${STATUS_DIR_NAME}/${JOB_STATUS_FILE_PREFIX}$$BUILDKITE_JOB_ID.json" || true`,
+          `_fd_tp_var="${TASK_PATHS_VAR_PREFIX}$$_fd_i"`,
+          // Resolved into a plain variable here so the printf below needs no braces: `$${...}` inside a TS
+          // template literal would be read as an interpolation. `:-[]` keeps the JSON well formed if the
+          // var is somehow unset.
+          '_fd_tp="$${!_fd_tp_var:-[]}"',
+          `printf '{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s,"infraSubtype":"%s","taskPaths":%s}' "$$BUILDKITE_JOB_ID" "${contextKey}" "${emitOutcome.kind}" "$$rc" "$(( _fd_end - _fd_start ))" "$$_fd_oom" "$$_fd_tp" > "${STATUS_DIR_NAME}/${JOB_STATUS_FILE_PREFIX}$$BUILDKITE_JOB_ID.json" || true`,
         ]
       : []),
     "exit 0",
@@ -347,30 +356,27 @@ export function toBuildkitePipeline(
   const steps: PipelineStep[] = [];
   for (const [key, batches] of byKey) {
     const head = batches[0];
+    // Every batch contributes its raw command and its own task paths; the wrapper is emitted once and
+    // indexes into these at run time. All batches of a step share a kind (they are grouped by key), so
+    // kind stays a build-time literal.
+    const env: Record<string, string> = {};
+    batches.forEach((b, i) => {
+      env[`${CMD_VAR_PREFIX}${i}`] = b.command;
+      env[`${TASK_PATHS_VAR_PREFIX}${i}`] = JSON.stringify(b.taskPaths ?? []);
+    });
+
     const step: PipelineStep = {
       label: head.label,
       key,
-      command: wrapNeverFail(head.command, key, cfg.timeoutInMinutes, { kind: head.kind, taskPaths: head.taskPaths }),
+      command: wrapNeverFail(key, cfg.timeoutInMinutes, { kind: head.kind }),
       timeout_in_minutes: cfg.timeoutInMinutes,
       agents: { ...cfg.agents },
       artifact_paths: [TEST_RESULTS_ARTIFACTS, FLAKINESS_STATUS_ARTIFACTS],
+      env,
       retry: NO_AUTO_RETRY,
     };
-
     if (batches.length > 1) {
-      const env: Record<string, string> = {};
-      for (let i = 0; i < batches.length; i++) {
-        env[`BATCH_COMMAND_${i}`] = wrapNeverFail(batches[i].command, key, cfg.timeoutInMinutes, {
-          kind: batches[i].kind,
-          taskPaths: batches[i].taskPaths,
-        });
-      }
-      // Both `$$` escapes defer interpolation past Buildkite's upload pass: `BUILDKITE_PARALLEL_JOB` is
-      // set per job at run time (BK would substitute empty), and BK cannot parse `!` as the start of a
-      // variable identifier.
-      step.command = 'VARNAME="BATCH_COMMAND_$${BUILDKITE_PARALLEL_JOB}"; eval "$${!VARNAME}"';
       step.parallelism = batches.length;
-      step.env = env;
     }
 
     steps.push(step);
@@ -384,16 +390,16 @@ export function toBuildkitePipeline(
       key: "flakiness-detection:analyze",
       // The analyzer downloads each job's JUnit XML itself (`--step <jobId>`) so results stay attributed
       // to a job before classification. `|| true` tolerates a build with no status/skipped artifacts.
-      command: wrapNeverFail(
-        [
+      command: wrapNeverFail("flakiness-detection:analyze", 10),
+      // Never-fail like a batch step, but with no `kind`, so it writes no batch outcome of its own.
+      env: {
+        [`${CMD_VAR_PREFIX}0`]: [
           `buildkite-agent artifact download "${FLAKINESS_STATUS_ARTIFACTS}" . || true`,
           `buildkite-agent artifact download "${FLAKINESS_SKIPPED_ARTIFACT}" . || true`,
           `buildkite-agent artifact download "${FLAKINESS_PRECOMPILE_ARTIFACT}" . || true`,
           "node .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts",
         ].join("\n"),
-        "flakiness-detection:analyze",
-        10
-      ),
+      },
       timeout_in_minutes: 10,
       // No `agents:` on purpose: this is lightweight markdown rendering, and the gradle-tuned image has no
       // npm. The parent pipeline's default agent has the standard Node toolchain.

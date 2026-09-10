@@ -40,12 +40,12 @@ describe("toBuildkitePipeline end-to-end", () => {
     expect(step.label).toBe("unit tests");
     expect(step.key).toBe("flakiness-detection:unit");
     expect(step.parallelism).toBeUndefined();
-    expect(step.env).toBeUndefined();
-    // The __GRADLE__ token was substituted with the run-gradle.sh wrapper for the buildkite target.
-    expect(step.command).toContain(
+    // The __GRADLE__ token was substituted with the run-gradle.sh wrapper for the buildkite target. The
+    // command now lives in the env var; the step's `command` is the shared wrapper.
+    expect(step.env!["FLAKINESS_CMD_0"]).toBe(
       ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.IndexTests"
     );
-    expect(step.command).not.toContain("__GRADLE__");
+    expect(step.env!["FLAKINESS_CMD_0"]).not.toContain("__GRADLE__");
     expect(step.command).toContain("exit 0");
     // Inner timeout fires 2m before outer timeout_in_minutes so the wrapper
     // still gets to annotate + exit 0 even on a stuck command.
@@ -76,23 +76,27 @@ describe("toBuildkitePipeline end-to-end", () => {
     expect(step.key).toBe("flakiness-detection:java-rest");
     expect(step.parallelism).toBe(5);
     expect(step.env).toBeDefined();
-    expect(step.env!["BATCH_COMMAND_0"]).toContain("repeat-rest-test.sh");
-    expect(step.env!["BATCH_COMMAND_4"]).toContain("repeat-rest-test.sh");
-    expect(step.env!["BATCH_COMMAND_0"]).toContain("exit 0");
-    expect(step.env!["BATCH_COMMAND_4"]).toContain("exit 0");
+    expect(step.env!["FLAKINESS_CMD_0"]).toContain("repeat-rest-test.sh");
+    expect(step.env!["FLAKINESS_CMD_4"]).toContain("repeat-rest-test.sh");
+    // Raw commands only: the wrapper is emitted once, in the step's `command`, not copied per batch.
+    expect(step.env!["FLAKINESS_CMD_0"]).not.toContain("timeout --foreground");
+    expect(step.env!["FLAKINESS_CMD_0"]).not.toContain("buildkite-agent annotate");
+    expect(step.command).toContain('_fd_i="$${BUILDKITE_PARALLEL_JOB:-0}"');
+    // The never-fail properties are asserted on the single wrapper, not per batch.
+    expect(step.command).toContain("exit 0");
     // Each parallel batch is independently wrapped under the inner timeout.
-    expect(step.env!["BATCH_COMMAND_0"]).toContain("timeout --foreground --signal=TERM --kill-after=30s 58m bash");
-    expect(step.env!["BATCH_COMMAND_4"]).toContain("timeout --foreground --signal=TERM --kill-after=30s 58m bash");
+    expect(step.command).toContain("timeout --foreground --signal=TERM --kill-after=30s 58m bash");
     // Both `$$` escapes defer interpolation past BK's pipeline-upload pass:
     //   * BUILDKITE_PARALLEL_JOB is a per-job runtime var; if not escaped, BK
     //     substitutes empty at upload time and the indirect lookup becomes a
-    //     no-op (the bug observed on build 150689).
-    //   * `${!VARNAME}` (bash indirect expansion) can't be parsed by BK as a
+    //     no-op (the bug observed on build 150689). `:-0` is inside the escape,
+    //     so BK never parses it either.
+    //   * `${!var}` (bash indirect expansion) can't be parsed by BK as a
     //     variable identifier because of the leading `!`.
-    expect(step.command).toContain('$${BUILDKITE_PARALLEL_JOB}');
-    expect(step.command).not.toMatch(/[^$]\$\{BUILDKITE_PARALLEL_JOB\}/);
-    expect(step.command).toContain('$${!VARNAME}');
-    expect(step.command).not.toMatch(/[^$]\$\{!VARNAME\}/);
+    expect(step.command).toContain('$${BUILDKITE_PARALLEL_JOB:-0}');
+    expect(step.command).not.toMatch(/[^$]\$\{BUILDKITE_PARALLEL_JOB/);
+    expect(step.command).toContain('$${!_fd_cmd_var}');
+    expect(step.command).not.toMatch(/[^$]\$\{!_fd_cmd_var\}/);
 
     const analyze = group.steps[1];
     expect(analyze.key).toBe("flakiness-detection:analyze");
@@ -111,8 +115,11 @@ describe("toBuildkitePipeline end-to-end", () => {
     // + OOM subtype (from the heap-dump probe below).
     expect(batch.command).toContain("_fd_start=$(date +%s)");
     expect(batch.command).toContain(
-      'printf \'{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s,"infraSubtype":"%s","taskPaths":%s}\' "$$BUILDKITE_JOB_ID" "flakiness-detection:unit" "test" "$$rc" "$(( _fd_end - _fd_start ))" "$$_fd_oom" \'[]\' > "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true'
+      'printf \'{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s,"infraSubtype":"%s","taskPaths":%s}\' "$$BUILDKITE_JOB_ID" "flakiness-detection:unit" "test" "$$rc" "$(( _fd_end - _fd_start ))" "$$_fd_oom" "$$_fd_tp" > "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true'
     );
+    // Task paths are resolved from the per-batch env var rather than baked in.
+    expect(batch.command).toContain('_fd_tp="$${!_fd_tp_var:-[]}"');
+    expect(batch.env!["FLAKINESS_TASK_PATHS_0"]).toBe("[]");
     // gradle-runner's task report is COPIED, not parsed here: analyze.ts does the matching with real JSON
     // parsing, so this shell stays uncoupled from the report's exact spacing.
     expect(batch.command).toContain('cp build/task-status.json "flakiness-status/tasks-$$BUILDKITE_JOB_ID.json"');
@@ -135,9 +142,14 @@ describe("toBuildkitePipeline end-to-end", () => {
     }
 
     const step = pipelineFromPlanCommands(commands).steps[0].steps[0];
-    expect(step.env!["BATCH_COMMAND_0"]).toContain('"flakiness-detection:java-rest" "javaRestTest"');
-    expect(step.env!["BATCH_COMMAND_0"]).toContain('> "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true');
-    expect(step.env!["BATCH_COMMAND_4"]).toContain('"flakiness-detection:java-rest" "javaRestTest"');
+    // All batches of a step share a kind (they are grouped by key), so the kind and the status write are
+    // in the single wrapper rather than repeated per batch. Only the task paths differ per batch.
+    expect(step.command).toContain('"flakiness-detection:java-rest" "javaRestTest"');
+    expect(step.command).toContain('> "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true');
+    // One task-paths var per batch. This fixture carries no taskPaths, so both are the empty array; the
+    // per-batch differentiation is covered by the `collapses multiple batches` test above.
+    expect(step.env!["FLAKINESS_TASK_PATHS_0"]).toBe("[]");
+    expect(step.env!["FLAKINESS_TASK_PATHS_4"]).toBe("[]");
   });
 
   test("all test kinds appear in single group with unique keys", () => {
@@ -208,8 +220,14 @@ describe("toBuildkitePipeline", () => {
     const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG);
     const step = pipeline.steps[0].steps[0];
     expect(step.parallelism).toBe(3);
-    expect(step.env?.BATCH_COMMAND_0).toContain("cmd1");
-    expect(step.env?.BATCH_COMMAND_2).toContain("cmd3");
+    // The env vars hold the RAW command, not a copy of the wrapper. That is the whole point of hoisting
+    // it: one wrapper per step instead of one per batch.
+    expect(step.env?.FLAKINESS_CMD_0).toBe("cmd1");
+    expect(step.env?.FLAKINESS_CMD_2).toBe("cmd3");
+    expect(step.env?.FLAKINESS_CMD_0).not.toContain("timeout --foreground");
+    expect(step.env?.FLAKINESS_CMD_0).not.toContain("buildkite-agent annotate");
+    // Per-batch task paths travel alongside, so the wrapper needs nothing baked in.
+    expect(step.env?.FLAKINESS_TASK_PATHS_0).toBe("[]");
   });
 
   test("does not set parallelism for a single batch", () => {
@@ -219,7 +237,11 @@ describe("toBuildkitePipeline", () => {
     const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG);
     const step = pipeline.steps[0].steps[0];
     expect(step.parallelism).toBeUndefined();
-    expect(step.command).toContain("only");
+    // Non-parallel steps use the same wrapper and the same env var; BUILDKITE_PARALLEL_JOB is unset there,
+    // so `:-0` picks index 0. One code path for both shapes.
+    expect(step.env?.FLAKINESS_CMD_0).toBe("only");
+    expect(step.command).toContain('_fd_i="$${BUILDKITE_PARALLEL_JOB:-0}"');
+    expect(step.command).toContain("FLAKINESS_CMD_$$_fd_i");
   });
 
   test("batch steps upload JUnit XML + status artifacts; analyze step downloads statuses", () => {
@@ -241,12 +263,16 @@ describe("toBuildkitePipeline", () => {
     // annotation) for the observability pipeline to read.
     expect(analyze.artifact_paths).toBe("flakiness-outcomes.json");
     expect(analyze.agents).toBeUndefined();
-    expect(analyze.command).toContain('buildkite-agent artifact download "flakiness-status/*.json" . || true');
-    expect(analyze.command).toContain('buildkite-agent artifact download "flakiness-skipped.json" . || true');
-    expect(analyze.command).toContain("node .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts");
+    const analyzeCmd = analyze.env?.FLAKINESS_CMD_0 ?? "";
+    expect(analyzeCmd).toContain('buildkite-agent artifact download "flakiness-status/*.json" . || true');
+    expect(analyzeCmd).toContain('buildkite-agent artifact download "flakiness-skipped.json" . || true');
+    expect(analyzeCmd).toContain("node .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts");
+    // Never-fail like a batch step, but it writes no batch outcome of its own.
+    expect(analyze.command).not.toContain('"kind"');
+    expect(analyze.env?.FLAKINESS_TASK_PATHS_0).toBeUndefined();
     // Order: download statuses → analyzer.
-    const downloadIdx = analyze.command.indexOf("artifact download");
-    const analyzerIdx = analyze.command.indexOf("entrypoints/analyze.ts");
+    const downloadIdx = analyzeCmd.indexOf("artifact download");
+    const analyzerIdx = analyzeCmd.indexOf("entrypoints/analyze.ts");
     expect(downloadIdx).toBeLessThan(analyzerIdx);
     // Analyze step uses timeout_in_minutes: 10, so inner timeout is 8m.
     expect(analyze.command).toContain("timeout --foreground --signal=TERM --kill-after=30s 8m bash");
@@ -260,7 +286,9 @@ describe("toBuildkitePipeline", () => {
     expect(steps).toHaveLength(1);
     expect(steps[0].key).toBe("flakiness-detection:analyze");
     expect(steps[0].depends_on).toEqual([]);
-    expect(steps[0].command).toContain('buildkite-agent artifact download "flakiness-skipped.json" . || true');
+    expect(steps[0].env?.FLAKINESS_CMD_0).toContain(
+      'buildkite-agent artifact download "flakiness-skipped.json" . || true'
+    );
   });
 
   test("no analyze step when there are neither batches nor not_applicable tests", () => {

@@ -2984,6 +2984,16 @@ public class EsqlCapabilities {
         DATA_SOURCES_SERVERLESS_SCOPE,
 
         /**
+         * A dataset registered on another cluster is invisible to this node's queries instead of failing them: a
+         * wildcard that matches one returns that cluster's indices beside it, and the exact qualified name resolves to
+         * nothing rather than surfacing a {@code RemoteDatasetNotSupportedException}. Gates a mixed-cluster test, where
+         * a coordinator that predates the change still asks its remotes for datasets and a remote that predates it
+         * still answers, so either end being old brings the old behaviour back.
+         * See <a href="https://github.com/elastic/esql-planning/issues/1942">esql-planning#1942</a>.
+         */
+        REMOTE_DATASETS_ARE_INVISIBLE,
+
+        /**
          * Signals that this node reads the {@code esql.federation.enabled} setting (see {@code Federation}), so a
          * deployment can turn federation on or off per node.
          */

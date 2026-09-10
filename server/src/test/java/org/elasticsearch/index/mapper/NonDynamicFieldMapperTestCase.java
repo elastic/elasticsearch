@@ -24,6 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class NonDynamicFieldMapperTestCase extends ESSingleNodeTestCase {
+    // Touched by the flakiness-detection CI drive. No behaviour change; see the PR description.
 
     protected abstract String getTypeName();
 

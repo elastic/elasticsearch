@@ -19,8 +19,10 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Thrown when ES|QL detects datasets during cross-cluster search field resolution.
- * Datasets are not supported in CCS and the query must fail.
+ * Reported datasets found during cross-cluster field resolution, back when a dataset on another cluster failed the
+ * query naming it. Nothing throws it now: a dataset is invisible across a cluster boundary, so a name matching one
+ * resolves to nothing instead of producing an error. The class stays registered because removing an exception
+ * identifier changes what a node can read off the wire, and nothing here needs that.
  */
 public class RemoteDatasetNotSupportedException extends ElasticsearchException {
 

@@ -17,7 +17,9 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.store.DirectoryType;
+import org.elasticsearch.benchmark.vector.store.DirectoryFactory;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer.QuantEncoding;
@@ -279,7 +281,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     void setup(VectorData data) throws IOException {
-        this.directory = directoryType.newDirectory(createTempDirectory("VectorScorerOSQBenchmark"));
+        this.directory = DirectoryFactory.newDirectory(directoryType, createTempDirectory("VectorScorerOSQBenchmark"));
 
         try (IndexOutput output = directory.createOutput("vectors", IOContext.DEFAULT)) {
             for (int i = 0; i < NUM_VECTORS; i += BULK_SIZE) {
@@ -322,6 +324,7 @@ public class VectorScorerOSQBenchmark {
         this.sparseOffsetsCount = data.sparseOffsetsCount();
     }
 
+    @SuppressForbidden(reason = "scratch directory for the Lucene Directory")
     Path createTempDirectory(String name) throws IOException {
         tempDir = Files.createTempDirectory(name);
         return tempDir;

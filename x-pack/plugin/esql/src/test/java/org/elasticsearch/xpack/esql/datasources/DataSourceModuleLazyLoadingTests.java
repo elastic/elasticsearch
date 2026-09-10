@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
@@ -30,14 +31,19 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
+import org.elasticsearch.xpack.esql.datasources.spi.TableCatalogFactory;
 import org.junit.Before;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -273,6 +279,69 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         assertTrue("Should have .ext2 extension", module.formatReaderRegistry().hasExtension(".ext2"));
     }
 
+    /**
+     * The resolver validates through the three-argument {@code validateConfig} so warnings are buffered
+     * and flushed under the request context. The lazy wrappers must forward that form rather than
+     * inherit the interface default, which drops the sink and falls back to the two-argument form.
+     */
+    public void testLazyConnectorFactoryForwardsWarningSink() {
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedConnectorSchemes() {
+                return Set.of("warn");
+            }
+
+            @Override
+            public Map<String, ConnectorFactory> connectors(Settings settings) {
+                return Map.of("warn", new WarningSinkConnectorFactory());
+            }
+        };
+        DataSourceModule module = new DataSourceModule(
+            List.of(plugin),
+            DataSourceCapabilities.build(List.of(plugin)),
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+        ExternalSourceFactory wrapper = module.sourceFactories().get("warn");
+        assertThat(wrapper, instanceOf(DataSourceModule.LazyConnectorFactory.class));
+
+        List<String> warnings = new ArrayList<>();
+        wrapper.validateConfig("warn://table", Map.of(), warnings::add);
+        assertEquals(List.of("warning for [warn://table]"), warnings);
+    }
+
+    public void testLazyTableCatalogWrapperForwardsWarningSink() {
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedCatalogs() {
+                return Set.of("warncat");
+            }
+
+            @Override
+            public Map<String, TableCatalogFactory> tableCatalogs(Settings settings) {
+                return Map.of("warncat", settings1 -> new WarningSinkTableCatalog());
+            }
+        };
+        DataSourceModule module = new DataSourceModule(
+            List.of(plugin),
+            DataSourceCapabilities.build(List.of(plugin)),
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+        ExternalSourceFactory wrapper = module.sourceFactories().get("warncat");
+        assertThat(wrapper, instanceOf(DataSourceModule.LazyTableCatalogWrapper.class));
+
+        List<String> warnings = new ArrayList<>();
+        wrapper.validateConfig("s3://bucket/db/table", Map.of(), warnings::add);
+        assertEquals(List.of("warning for [s3://bucket/db/table]"), warnings);
+    }
+
     // ===== Spy plugin implementations =====
 
     private static class SpyStoragePlugin implements DataSourcePlugin {
@@ -315,6 +384,79 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
     }
 
     // ===== Stub implementations =====
+
+    /**
+     * Delegate that emits its warning only through the sink it is handed. The two-argument form fails
+     * outright, so a wrapper that drops the sink and falls back to it is caught rather than passing
+     * because the warning went to {@code HeaderWarning} instead.
+     */
+    private static class WarningSinkConnectorFactory implements ConnectorFactory {
+        @Override
+        public String type() {
+            return "warn";
+        }
+
+        @Override
+        public boolean canHandle(String location) {
+            return true;
+        }
+
+        @Override
+        public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
+            throw new UnsupportedOperationException("Stub");
+        }
+
+        @Override
+        public Connector open(Map<String, Object> config) {
+            throw new UnsupportedOperationException("Stub");
+        }
+
+        @Override
+        public void validateConfig(String location, Map<String, Object> config) {
+            fail("wrapper must forward the warning sink, not fall back to the two-argument form");
+        }
+
+        @Override
+        public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
+            warningSink.accept("warning for [" + location + "]");
+        }
+    }
+
+    /** Catalog twin of {@link WarningSinkConnectorFactory}. */
+    private static class WarningSinkTableCatalog implements TableCatalog {
+        @Override
+        public String catalogType() {
+            return "warncat";
+        }
+
+        @Override
+        public boolean canHandle(String path) {
+            return true;
+        }
+
+        @Override
+        public SourceMetadata metadata(String tablePath, Map<String, Object> config) {
+            throw new UnsupportedOperationException("Stub");
+        }
+
+        @Override
+        public List<DataFile> planScan(String tablePath, Map<String, Object> config, List<Object> predicates) {
+            throw new UnsupportedOperationException("Stub");
+        }
+
+        @Override
+        public void validateConfig(String location, Map<String, Object> config) {
+            fail("wrapper must forward the warning sink, not fall back to the two-argument form");
+        }
+
+        @Override
+        public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
+            warningSink.accept("warning for [" + location + "]");
+        }
+
+        @Override
+        public void close() {}
+    }
 
     private static class StubStorageProvider implements StorageProvider {
         @Override

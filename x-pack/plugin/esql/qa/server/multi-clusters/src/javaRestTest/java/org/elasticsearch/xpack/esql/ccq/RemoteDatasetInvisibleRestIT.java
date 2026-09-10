@@ -20,6 +20,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
 import org.junit.Before;
@@ -48,6 +49,11 @@ import static org.hamcrest.Matchers.not;
  * <p>The exact qualified name must fail as a plain missing index, exactly like a name that was never registered, and
  * the wildcard must come back with the index's row and no partial flag. Both go red if the coordinator starts asking
  * remotes to resolve datasets again, or if the remote starts answering: the query then fails naming the dataset.
+ *
+ * <p>This module's backwards compatibility tasks run the whole source set with an older distribution on one side, so
+ * each assertion picks its expectation from {@link EsqlCapabilities.Cap#REMOTE_DATASETS_ARE_INVISIBLE} rather than
+ * assuming the new behaviour. That branch is the only place the mixed pair is exercised, and it is what a claim about
+ * behaviour during an upgrade rests on.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class RemoteDatasetInvisibleRestIT extends ESRestTestCase {
@@ -108,15 +114,52 @@ public class RemoteDatasetInvisibleRestIT extends ESRestTestCase {
         ResponseException error = expectThrows(ResponseException.class, () -> query("FROM " + QUALIFIED_DATASET));
         String body = EntityUtils.toString(error.getResponse().getEntity());
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(body, containsString("Unknown index [" + QUALIFIED_DATASET + "]"));
-        assertThat(body, not(containsString("remote datasets are not supported")));
+        if (datasetsAreInvisible()) {
+            assertThat(body, containsString("Unknown index [" + QUALIFIED_DATASET + "]"));
+            assertThat(body, not(containsString("remote datasets are not supported")));
+        } else {
+            assertThat(body, containsString("remote datasets are not supported"));
+        }
     }
 
     public void testWildcardOverRemoteDatasetReturnsOnlyIndexRows() throws Exception {
+        if (datasetsAreInvisible() == false) {
+            // Both ends predate the change, so the wildcard still fails naming the dataset it matched.
+            ResponseException error = expectThrows(ResponseException.class, () -> query("FROM " + QUALIFIED_WILDCARD));
+            assertThat(EntityUtils.toString(error.getResponse().getEntity()), containsString("remote datasets are not supported"));
+            return;
+        }
         // KEEP pins the row to the index's own field, and LIMIT keeps the default-limit warning out of the response.
         Map<String, Object> response = entityAsMap(query("FROM " + QUALIFIED_WILDCARD + " | KEEP message | LIMIT 100"));
         assertThat(response.get("is_partial"), equalTo(false));
         assertThat(response.get("values"), equalTo(List.of(List.of("hello"))));
+    }
+
+    /**
+     * Whether this pair of clusters hides the remote dataset, which decides which of the two behaviours above is the
+     * correct one. Either end being new is enough: a coordinator on the new version never asks its remotes to resolve
+     * datasets, and a remote on the new version clears the option whatever the caller asked. Only a pair that predates
+     * the change on both sides still fails the query naming the dataset. Under the BWC tasks in this module one side is
+     * an older distribution, so this is the branch that keeps the suite honest in both directions rather than asserting
+     * the new behaviour at a cluster that cannot produce it.
+     */
+    private boolean datasetsAreInvisible() throws IOException {
+        if (hasInvisibilityCapability(client())) {
+            return true;
+        }
+        try (RestClient remoteClient = remoteClusterClient()) {
+            return hasInvisibilityCapability(remoteClient);
+        }
+    }
+
+    private static boolean hasInvisibilityCapability(RestClient client) throws IOException {
+        return clusterHasCapability(
+            client,
+            "POST",
+            "/_query",
+            List.of(),
+            List.of(EsqlCapabilities.Cap.REMOTE_DATASETS_ARE_INVISIBLE.capabilityName())
+        ).orElse(false);
     }
 
     private static Response query(String esql) throws IOException {

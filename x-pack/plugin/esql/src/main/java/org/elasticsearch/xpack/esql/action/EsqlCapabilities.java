@@ -2986,10 +2986,11 @@ public class EsqlCapabilities {
         /**
          * A dataset registered on another cluster is invisible to this node's queries instead of failing them: a
          * wildcard that matches one returns that cluster's indices beside it, and the exact qualified name resolves to
-         * nothing rather than surfacing a {@code RemoteDatasetNotSupportedException}. Advertised so that a test whose
-         * subject is this behaviour can gate on it: either end of a mixed cluster being older brings the old behaviour
-         * back, because a coordinator that predates the change still asks its remotes for datasets and a remote that
-         * predates it still answers.
+         * nothing rather than surfacing a {@code RemoteDatasetNotSupportedException}. Gates the branch in
+         * {@code RemoteDatasetInvisibleRestIT}, which runs against a mixed pair under this module's backwards
+         * compatibility tasks. Either end reporting this is enough for the dataset to be hidden, since a coordinator
+         * that has it never asks its remotes to resolve datasets and a remote that has it clears the option whatever
+         * the caller asked; only a pair older on both sides still fails the query naming the dataset.
          */
         REMOTE_DATASETS_ARE_INVISIBLE,
 

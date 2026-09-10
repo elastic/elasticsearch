@@ -41,6 +41,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -55,6 +56,7 @@ import java.nio.channels.Channels;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.zip.CRC32;
@@ -93,6 +95,11 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_ACCOUNT),
         MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE
     );
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(AzureRepositoryPlugin.class);
+    }
 
     @Override
     protected Settings nodeSettings() {

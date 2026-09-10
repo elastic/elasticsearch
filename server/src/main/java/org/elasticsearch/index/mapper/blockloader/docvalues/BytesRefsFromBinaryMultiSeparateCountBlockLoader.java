@@ -12,6 +12,8 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.StringBlockSink;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.core.Releasables;
@@ -19,6 +21,7 @@ import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BreakerPageBudget;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 
@@ -116,9 +119,55 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
     static class ColumnarPayload extends AbstractBytesRefsFromBinaryReader {
 
         private final MultiValueColumnarPayloadBinaryDocValuesReader reader = new MultiValueColumnarPayloadBinaryDocValuesReader();
+        /** The ranks a page is asked for, held per reader rather than allocated per page. */
+        private int[] wanted = new int[0];
+        private final PageSink sink = new PageSink();
+        /**
+         * Charged before the column grows its page storage, so there is no room for a page the breaker would
+         * refuse, and released with this reader because the storage lives as long as the reader does. The
+         * storage is reused, so it settles after the first page and charges nothing again.
+         */
+        private final BreakerPageBudget budget;
 
         ColumnarPayload(TrackingBinaryDocValues docValues) {
             super(docValues);
+            this.budget = new BreakerPageBudget(docValues.breaker());
+        }
+
+        /**
+         * A page read from the column rather than a payload decoded for every document.
+         *
+         * <p>Where the column keeps a dictionary this is the shape it already stores: the page comes back as ordinals
+         * into its own distinct values, each resolved once however many documents name it, and is handed over without
+         * a lookup per value or a remapping. Where it does not, the page still comes back a page at a time, and a run
+         * of equal values is copied once.
+         *
+         * <p>The column declines a page covering a document it has no value for, since a page has no way to say which
+         * one; the payload path below then reads them, as it does for a segment that arrives as an overlay rather than
+         * as a column.
+         *
+         * <p>A document may repeat within a page, which a lookup or a top-n asks for. The iterator a page resolves its
+         * ranks through is only required not to be moved backwards, so asking it twice for the same document is a
+         * position it already holds.
+         */
+        @Override
+        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+            throws IOException {
+            if (docValues.docValues() instanceof StringColumnSource columnar) {
+                final int count = docs.count() - offset;
+                if (count > 0) {
+                    if (wanted.length < count) {
+                        wanted = new int[ArrayUtil.oversize(count, Integer.BYTES)];
+                    }
+                    for (int i = 0; i < count; i++) {
+                        wanted[i] = docs.get(offset + i);
+                    }
+                    if (columnar.reader().readBlock(wanted, 0, count, sink.forPage(factory), budget)) {
+                        return sink.block;
+                    }
+                }
+            }
+            return super.read(factory, docs, offset, nullsFiltered);
         }
 
         @Override
@@ -131,8 +180,73 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
         }
 
         @Override
+        public void close() {
+            Releasables.close(budget, super::close);
+        }
+
+        @Override
         public String toString() {
             return "BytesRefsFromColumnarPayload";
+        }
+    }
+
+    /** Turns a page of a string column into a block, in whichever of the shapes the page arrived. */
+    private static final class PageSink implements StringBlockSink {
+
+        private BlockLoader.BlockFactory factory;
+        private BlockLoader.Block block;
+
+        /** Points the sink at the factory the next page builds with; held per reader, not per page. */
+        private PageSink forPage(BlockLoader.BlockFactory factory) {
+            this.factory = factory;
+            this.block = null;
+            return this;
+        }
+
+        @Override
+        public void appendOrdinals(int[] ordinals, int valueCount, int[] valueCounts, int docCount, BytesRef[] dictionary, int size) {
+            if (valueCount == 0) {
+                // Every document in the page holds nothing, which a filter selecting documents whose only slot is
+                // null gives systematically. A block of nulls says it without an ordinal or a dictionary entry.
+                block = factory.constantNulls(docCount);
+                return;
+            }
+            if (size == 1 && valueCounts == null) {
+                // Every document in the page holds the same value, which is what a column in term order is made of
+                // and what an index sort on the field produces. Saying so is a block that costs nothing to build
+                // and nothing to read: no ordinal is written and no consumer walks one.
+                block = factory.constantBytes(BytesRef.deepCopyOf(dictionary[0]), docCount);
+                return;
+            }
+            block = factory.buildOrdinalBytesRefDirect(ordinals, valueCount, valueCounts, docCount, dictionary, size);
+        }
+
+        @Override
+        public void appendValues(BytesRef[] values, int valueCount, int[] valueCounts, int docCount) {
+            if (valueCount == 0) {
+                block = factory.constantNulls(docCount);
+                return;
+            }
+            // Sized in positions, which is what the block holds - a multi-valued page has more values than those.
+            try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docCount)) {
+                int at = 0;
+                for (int doc = 0; doc < docCount; doc++) {
+                    final int held = valueCounts == null ? 1 : valueCounts[doc];
+                    if (held == 0) {
+                        builder.appendNull();
+                    } else if (held == 1) {
+                        builder.appendBytesRef(values[at++]);
+                    } else {
+                        builder.beginPositionEntry();
+                        for (int i = 0; i < held; i++) {
+                            builder.appendBytesRef(values[at++]);
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                assert at == valueCount : "read " + at + " values, was given " + valueCount;
+                block = builder.build();
+            }
         }
     }
 

@@ -821,7 +821,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * Tests that restoring over an open index fails if the index is being deleted.
+     * Tests that restoring over an open index fails if the source snapshot is being deleted.
      */
     public void testRestoreOverOpenIndexRejectedWhileSourceSnapshotIsBeingDeleted() throws Exception {
         internalCluster().startMasterOnlyNode();

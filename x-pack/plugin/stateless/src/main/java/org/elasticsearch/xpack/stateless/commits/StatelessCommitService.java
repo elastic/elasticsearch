@@ -375,30 +375,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return routingTable.hasIndex(shardId.getIndex()) ? Optional.of(routingTable.shardRoutingTable(shardId)) : Optional.empty();
     }
 
-    private static void maybeSleepAfterCommitRoutingSnapshot(
-        ShardId shardId,
-        long generation,
-        Optional<IndexShardRoutingTable> shardRoutingTable
-    ) {
-        final long sleepMillis = Long.getLong("es.stateless.debug.sleep_after_commit_routing_snapshot_millis", 0L);
-        if (sleepMillis == 0L) {
-            return;
-        }
-
-        logger.info(
-            "{} captured routing for commit generation [{}]. Snapshot recipients: {}. Sleeping for [{}]ms",
-            shardId,
-            generation,
-            shardRoutingTable.map(IndexShardRoutingTable::assignedUnpromotableShards).orElse(List.of()),
-            sleepMillis
-        );
-        try {
-            Thread.sleep(sleepMillis);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
     /**
      * A releasable backed by inc-ref and dec-ref the recovered commits with
      */
@@ -719,7 +695,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             final VirtualBatchedCompoundCommit virtualBcc;
             final boolean commitAfterRelocationStarted;
             final Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(shardId);
-            maybeSleepAfterCommitRoutingSnapshot(shardId, generation, shardRoutingTable);
             // reads the timestamp field value range outside the commit state synchronized block (because this does blocking IO)
             var timestampFieldValueRange = readTimestampFieldValueRange(commitState, reference);
             synchronized (commitState) {
@@ -2433,14 +2408,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     + state;
 
             lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
-            final var currentRoutingSnapshot = shardRoutingFinder.apply(shardId);
-            logger.info(
-                "{} sending CC commit notification for generation [{}]. Snapshot recipients: {}. Current recipients: {}",
-                shardId,
-                lastCompoundCommit.generation(),
-                shardRoutingTable.assignedUnpromotableShards(),
-                currentRoutingSnapshot.map(IndexShardRoutingTable::assignedUnpromotableShards).orElse(List.of())
-            );
             statelessCommitNotificationPublisher.sendNewCommitNotification(
                 shardRoutingTable,
                 lastCompoundCommit,
@@ -3748,19 +3715,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 compoundCommitGeneration,
                 nodeId,
                 l.map(registrationResponse -> {
-                    if (Boolean.getBoolean("es.stateless.debug.log_recovery_commit_registration")) {
-                        logger.info(
-                            "{} registering search node [{}] requested BCC [{}], commit [{}], returning BCC [{}], commit [{}]",
-                            shardId,
-                            nodeId,
-                            batchedCompoundGeneration,
-                            compoundCommitGeneration,
-                            registrationResponse.getLatestUploadedBatchedCompoundCommitTermAndGen(),
-                            registrationResponse.getCompoundCommit() == null
-                                ? PrimaryTermAndGeneration.ZERO
-                                : registrationResponse.getCompoundCommit().primaryTermAndGeneration()
-                        );
-                    }
                     if (Assertions.ENABLED) {
                         assert registrationResponse.getCompoundCommit() != null;
                         var cc = registrationResponse.getCompoundCommit().primaryTermAndGeneration();

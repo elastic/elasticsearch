@@ -26,12 +26,15 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -86,11 +89,69 @@ public class AzureRepository extends MeteredBlobStoreRepository {
             Property.NodeScope
         );
         public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting(READONLY_SETTING_KEY, false, Property.NodeScope);
+
+        /**
+         * The maximum size of a PutBlock blob.
+         * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
+         */
+        public static final ByteSizeValue MAX_BLOCK_SIZE = ByteSizeValue.of(100, ByteSizeUnit.MB);
+
+        /**
+         * Default block size for multi-block uploads.
+         */
+        private static final ByteSizeValue DEFAULT_BLOCK_SIZE = ByteSizeValue.ofBytes(
+            Math.max(
+                ByteSizeUnit.MB.toBytes(5),
+                Math.min(MAX_BLOCK_SIZE.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)
+            )
+        );
+
+        /**
+         * Block size for multi-block uploads. The Azure repository will use the Put block and Put block list APIs to split the
+         * stream into several part, each of block_size length, and will upload each part in its own request.
+         */
+        public static final Setting<ByteSizeValue> MULTIPART_UPLOAD_PART_SIZE_SETTING = Setting.byteSizeSetting(
+            "multipart_upload_part_size",
+            DEFAULT_BLOCK_SIZE,
+            // Azure doesn't have a hard limit and recommends at least 256 KiB.
+            // See https://learn.microsoft.com/en-us/azure/storage/blobs/scalability-targets#scale-targets-for-blob-storage.
+            ByteSizeValue.of(256, ByteSizeUnit.KB),
+            MAX_BLOCK_SIZE,
+            Property.NodeScope
+        );
+
         // see ModelHelper.BLOB_DEFAULT_MAX_SINGLE_UPLOAD_SIZE
         private static final ByteSizeValue DEFAULT_MAX_SINGLE_UPLOAD_SIZE = ByteSizeValue.of(256, ByteSizeUnit.MB);
         public static final Setting<ByteSizeValue> MAX_SINGLE_PART_UPLOAD_SIZE_SETTING = Setting.byteSizeSetting(
             "max_single_part_upload_size",
-            DEFAULT_MAX_SINGLE_UPLOAD_SIZE,
+            // It doesn't make sense for the multipart upload threshold to be less than the part size,
+            // since in that case the threshold setting essentially does nothing.
+            // We align them here so that it works if you only set MULTIPART_UPLOAD_PART_SIZE_SETTING.
+            settings -> {
+                ByteSizeValue partSize = MULTIPART_UPLOAD_PART_SIZE_SETTING.get(settings);
+                if (partSize.compareTo(DEFAULT_MAX_SINGLE_UPLOAD_SIZE) > 0) {
+                    return partSize.getStringRep();
+                }
+
+                return DEFAULT_MAX_SINGLE_UPLOAD_SIZE.getStringRep();
+            },
+            new Setting.Validator<>() {
+                @Override
+                public void validate(ByteSizeValue value) {}
+
+                @Override
+                public void validate(ByteSizeValue value, Map<Setting<?>, Object> settings) {
+                    ByteSizeValue partSize = (ByteSizeValue) settings.get(MULTIPART_UPLOAD_PART_SIZE_SETTING);
+                    if (value.compareTo(partSize) < 0) {
+                        throw new IllegalArgumentException("max_single_part_upload_size can not be less than multipart_upload_part_size");
+                    }
+                }
+
+                @Override
+                public Iterator<Setting<?>> settings() {
+                    return List.<Setting<?>>of(MULTIPART_UPLOAD_PART_SIZE_SETTING).iterator();
+                }
+            },
             Property.NodeScope
         );
 

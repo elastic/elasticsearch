@@ -166,11 +166,6 @@ public class AzureStorageService {
         };
     }
 
-    // non-static, package private for testing
-    long getUploadBlockSize() {
-        return DEFAULT_UPLOAD_BLOCK_SIZE;
-    }
-
     int getMaxReadRetries(@Nullable ProjectId projectId, String clientName) {
         AzureStorageSettings azureStorageSettings = clientsManager.getClientSettings(projectId, clientName);
         return azureStorageSettings.getMaxRetries();

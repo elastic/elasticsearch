@@ -767,10 +767,7 @@ public class BooleanFieldMapper extends FieldMapper {
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // ignore_malformed is not enforced by mapColumnBatch — it falls back per document at parse time.
-        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
-            && docValuesParameters.enabled()
-            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
-            && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
+        return docValuesParameters.enabled() && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
     }
 
     @Override

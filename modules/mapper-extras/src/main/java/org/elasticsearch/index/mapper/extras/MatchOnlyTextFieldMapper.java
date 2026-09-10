@@ -1207,7 +1207,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     public boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // usesBinaryDocValues() requires doc_values to be enabled which means synthetic-source stored-fallback is unreachable.
         // Additionally, this excludes the low-cardinality SORTED_SET encoding.
-        // copy_to and script are handled by the base class.
+        // copy_to, script, mode gate, and legacy-version gate are handled by the base class.
         // match_only_text has no ignore_above/null_value/normalizer; multi-fields are handled by the base class.
         return fieldType().usesBinaryDocValues();
     }

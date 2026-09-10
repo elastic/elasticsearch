@@ -245,6 +245,12 @@ public abstract class FieldMapper extends Mapper {
         if (hasScript() || copyTo().copyToFields().isEmpty() == false) {
             return false;
         }
+        if (indexSettings.getMode().isStrictColumnar() == false && indexSettings.getMode().isTsdb() == false) {
+            return false;
+        }
+        if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
+            return false;
+        }
         if (doSupportsColumnarParse(indexSettings) == false) {
             return false;
         }

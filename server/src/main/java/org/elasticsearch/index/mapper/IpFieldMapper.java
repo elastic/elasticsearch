@@ -828,12 +828,10 @@ public class IpFieldMapper extends FieldMapper {
         // by the mode gate, but every ip field in a TSDB index resolves to IndexType.skippers() — SORTED_SET
         // doc values with a RANGE skip index (see Builder#indexType) — which supportsColumnarDocValues() does
         // not accept yet, so TSDB ip fields still fall back to the row path until SORTED_SET emission lands.
-        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
-            && supportsColumnarDocValues()
+        return supportsColumnarDocValues()
             && fieldType().indexType.hasPoints() == false
             && stored == false
-            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
-            && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
+            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
     }
 
     /**

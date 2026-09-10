@@ -366,11 +366,7 @@ public class PatternTextFieldMapper extends FieldMapper {
 
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings settings) {
-        // Only activate on strict-columnar index modes (COLUMNAR / LOGSDB_COLUMNAR), which
-        // guarantee useBinaryDocValuesForRawText == true (via USE_TIME_SERIES_DOC_VALUES_FORMAT).
-        // We require it explicitly here rather than implicitly to make the invariant visible.
-        return settings.getMode().isStrictColumnar()
-            && useBinaryDocValueArgs            // only the binary-doc-values args encoding is handled
+        return useBinaryDocValueArgs            // only the binary-doc-values args encoding is handled
             && useBinaryDocValuesForRawText     // always true in columnar mode; required for correctness
             && fieldType().isWithinMultiField() == false;
     }

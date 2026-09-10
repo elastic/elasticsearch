@@ -83,7 +83,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
 
     @Override
     protected void doExecute(Task task, EsqlResolveFieldsRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
-        var failure = validateNoRemoteViewsOrDatasets(request);
+        var failure = validateNoRemoteUnavailableIndexAbstractions(request);
         if (failure != null) {
             listener.onFailure(failure);
             return;
@@ -104,7 +104,6 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
                     IndicesOptions.builder(remoteRequest.indicesOptions())
                         .indexAbstractionOptions(
                             IndicesOptions.IndexAbstractionOptions.builder(remoteRequest.indicesOptions().indexAbstractionOptions())
-                                .resolveViews(true)
                                 .resolveDatasets(federationAvailable)
                         )
                         .build()
@@ -135,7 +134,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         }, listener);
     }
 
-    private ElasticsearchException validateNoRemoteViewsOrDatasets(EsqlResolveFieldsRequest request) {
+    private ElasticsearchException validateNoRemoteUnavailableIndexAbstractions(EsqlResolveFieldsRequest request) {
         // resolveViews / resolveDatasets are only set on a request from the originating cluster, so this detection runs
         // only on a remote cluster. Views and datasets are both non-remotable abstractions; detect both here and report
         // them together, so a single remote that hosts both fails with one exception naming both rather than just the
@@ -163,6 +162,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
             if (hasRemoteViews && hasRemoteDatasets) {
                 return new RemoteResourceNotSupportedException(remoteViews, remoteDatasets);
             } else if (hasRemoteViews) {
+                // This branch might still happen if older (9.5) cluster executes a CCS query against this newer cluster
                 return new RemoteViewNotSupportedException(remoteViews);
             } else {
                 return new RemoteDatasetNotSupportedException(remoteDatasets);

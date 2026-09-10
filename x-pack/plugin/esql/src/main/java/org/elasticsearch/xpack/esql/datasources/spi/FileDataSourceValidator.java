@@ -109,7 +109,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * readers, not the coordinator). Format-specific fields are unioned on per-resource against the
      * resolved format in {@link #validateDataset}.
      */
-    private static final Set<String> DATASET_FIELDS;
+    static final Set<String> DATASET_FIELDS;
     static {
         Set<String> fields = new HashSet<>(COORDINATOR_DATASET_KEYS);
         fields.add(SCHEMA_SAMPLE_SIZE);

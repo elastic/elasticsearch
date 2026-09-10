@@ -13,9 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.empty;
@@ -23,29 +21,23 @@ import static org.hamcrest.Matchers.empty;
 /**
  * Guards the "Common settings" table in {@code esql-data-federation-datasets.md} against silent omissions.
  *
- * <p>Every key in {@link FileDataSourceValidator#COORDINATOR_DATASET_KEYS} and the format-agnostic
- * {@code schema_sample_size} must either have a table row (a line starting with {@code | `<key>`}) or an
- * explicit {@code %} comment recording the reason for its absence (a line starting with
- * {@code % <key> }). The existing {@code schema_sample_size} and {@code hive_partitioning} comments are
- * the template; this test enforces the convention so a new setting cannot silently repeat the
- * {@code partition_path} gap — where a fully-supported setting had no row and no comment, and a team member
- * concluded from the table alone that the setting did not exist.
+ * <p>Every key in {@link FileDataSourceValidator#DATASET_FIELDS} must either have a table row
+ * (a line starting with {@code | `<key>`}) or an explicit {@code %} comment recording the reason for its
+ * absence (a line starting with {@code % <key> }). The existing {@code schema_sample_size} and
+ * {@code hive_partitioning} comments are the template; this test enforces the convention so a new setting
+ * cannot silently repeat the {@code partition_path} gap — where a fully-supported setting had no row and no
+ * comment, and a team member concluded from the table alone that the setting did not exist.
  */
 public class FileDataSourceValidatorDocCoverageTests extends ESTestCase {
 
     private static final String DOC_PATH = "docs/reference/query-languages/esql/esql-data-federation-datasets.md";
 
     public void testEveryBaseSettingIsDocumentedOrExplicitlyExcluded() throws IOException {
-        // schema_sample_size is in DATASET_FIELDS but not COORDINATOR_DATASET_KEYS — it is consumed by
-        // format readers rather than the coordinator. Include it explicitly so the full base set is covered.
-        Set<String> allBaseKeys = new HashSet<>(FileDataSourceValidator.COORDINATOR_DATASET_KEYS);
-        allBaseKeys.add("schema_sample_size");
-
         Path docFile = findDocFile();
         List<String> lines = Files.readAllLines(docFile);
 
-        Set<String> undocumented = new TreeSet<>();
-        for (String key : allBaseKeys) {
+        var undocumented = new TreeSet<String>();
+        for (String key : FileDataSourceValidator.DATASET_FIELDS) {
             boolean hasRow = lines.stream().anyMatch(l -> l.startsWith("| `" + key + "`"));
             boolean hasComment = lines.stream().anyMatch(l -> l.startsWith("% " + key + " "));
             if (hasRow == false && hasComment == false) {

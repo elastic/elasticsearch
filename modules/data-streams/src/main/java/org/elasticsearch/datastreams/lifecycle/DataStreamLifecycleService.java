@@ -50,7 +50,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
@@ -396,6 +395,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
             lastRunStartedAt = startTime;
             try {
+                errorStore.clearRecordedErrorsForRemovedProjectId(state);
                 for (var projectId : state.metadata().projects().keySet()) {
                     // We catch inside the loop to avoid one broken project preventing DLM to run on other projects.
                     try {
@@ -1148,20 +1148,21 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     private void clearErrorStoreForUnmanagedIndices(ProjectMetadata project) {
         for (Index index : errorStore.getAllIndices(project.id())) {
-            IndexAbstraction indexAbstraction = project.getIndicesLookup().get(index.getName());
-            DataStream parentDataStream = indexAbstraction != null ? indexAbstraction.getParentDataStream() : null;
-            if (indexAbstraction == null || parentDataStream == null) {
-                logger.trace(
-                    "Clearing recorded error for index [{}] because the index doesn't exist or is not a data stream backing index anymore",
-                    index.getName()
-                );
+            IndexMetadata indexMetadata = project.index(index);
+            if (indexMetadata == null) {
+                logger.trace("Clearing recorded error for index [{}] because the index doesn't exist", index);
                 errorStore.clearRecordedError(project.id(), index);
-            } else {
-                IndexMetadata indexMeta = project.index(index.getName());
-                if (parentDataStream.isIndexManagedByDataStreamLifecycle(indexMeta.getIndex(), project::index) == false) {
-                    logger.trace("Clearing recorded error for index [{}] because the index is not managed by DSL anymore", index.getName());
-                    errorStore.clearRecordedError(project.id(), index);
-                }
+                continue;
+            }
+            DataStream parentDataStream = project.getIndicesLookup().get(index.getName()).getParentDataStream();
+            if (parentDataStream == null) {
+                logger.trace("Clearing recorded error for index [{}] because the index is not a data stream backing index anymore", index);
+                errorStore.clearRecordedError(project.id(), index);
+                continue;
+            }
+            if (parentDataStream.isIndexManagedByDataStreamLifecycle(indexMetadata.getIndex(), project::index) == false) {
+                logger.trace("Clearing recorded error for index [{}] because the index is not managed by DSL anymore", index);
+                errorStore.clearRecordedError(project.id(), index);
             }
         }
     }

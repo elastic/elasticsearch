@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -56,7 +57,6 @@ import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.transport.TransportRequest;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -466,7 +466,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         assertThat(clientSeenRequests.isEmpty(), is(true));
     }
 
-    public void testDeletedIndicesAreRemovedFromTheErrorStore() throws IOException {
+    public void testDeletedIndicesAreRemovedFromTheErrorStore() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
         ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
@@ -490,8 +490,16 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
             dataStreamLifecycleService.getErrorStore().recordError(builder.getId(), index, new NullPointerException("bad"));
         }
         Index writeIndex = dataStream.getWriteIndex();
+        // Even one that has been deleted but has the same name as the write index
+        Index alreadyDeletedIndex = new Index(writeIndex.getName(), randomUUID());
+        dataStreamLifecycleService.getErrorStore().recordError(builder.getId(), alreadyDeletedIndex, new NullPointerException());
         // all indices but the write index are deleted
         List<Index> deletedIndices = dataStream.getIndices().stream().filter(index -> index.equals(writeIndex) == false).toList();
+
+        // Even the ones that belong to a project that does not exist.
+        ProjectId deletedProjectId = ProjectId.fromId("deleted-project-id");
+        Index deletedProjectIndex = new Index("deleted-project-index", randomUUID());
+        dataStreamLifecycleService.getErrorStore().recordError(deletedProjectId, deletedProjectIndex, new NullPointerException());
 
         ClusterState.Builder newStateBuilder = ClusterState.builder(previousState);
         newStateBuilder.stateUUID(UUIDs.randomBase64UUID());
@@ -511,6 +519,8 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         for (Index deletedIndex : deletedIndices) {
             assertThat(dataStreamLifecycleService.getErrorStore().getError(builder.getId(), deletedIndex), nullValue());
         }
+        assertThat(dataStreamLifecycleService.getErrorStore().getError(deletedProjectId, deletedProjectIndex), nullValue());
+        assertThat(dataStreamLifecycleService.getErrorStore().getError(builder.getId(), alreadyDeletedIndex), nullValue());
         // the value for the write index should still be in the error store
         assertThat(dataStreamLifecycleService.getErrorStore().getError(builder.getId(), dataStream.getWriteIndex()), notNullValue());
     }

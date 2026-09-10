@@ -107,6 +107,18 @@ public class DataStreamLifecycleErrorStore {
     }
 
     /**
+     * Clears all the recorded errors for project ids that are no longer present in the cluster state.
+     */
+    public void clearRecordedErrorsForRemovedProjectId(ClusterState clusterState) {
+        Map<ProjectId, ProjectMetadata> projects = clusterState.metadata().projects();
+        for (ProjectId projectId : projectMap.keySet()) {
+            if (projects.containsKey(projectId) == false) {
+                projectMap.remove(projectId);
+            }
+        }
+    }
+
+    /**
      * Clears all the errors recorded in the store.
      */
     public void clearStore() {

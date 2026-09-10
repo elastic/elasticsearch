@@ -104,17 +104,15 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
     }
 
     public void testGetFilteredEntries() {
-        String indexName20 = "test20";
-        String indexName5 = "test5";
-        ClusterState clusterState = getClusterStateWithIndices(Map.of(projectId, List.of(indexName5, indexName20)));
-        Index index5 = clusterState.projectState(projectId).metadata().index(indexName5).getIndex();
-        Index index20 = clusterState.projectState(projectId).metadata().index(indexName20).getIndex();
+        Index index20 = new Index("test20", randomUUID());
+        Index index5 = new Index("test5", randomUUID());
+        ClusterState clusterState = getClusterStateWithIndices(Map.of(projectId, List.of(index5, index20)));
         IntStream.range(0, 20).forEach(i -> errorStore.recordError(projectId, index20, new NullPointerException("testing")));
         IntStream.range(0, 5).forEach(i -> errorStore.recordError(projectId, index5, new NullPointerException("testing")));
         {
             List<DslErrorInfo> entries = errorStore.getErrorsInfo(clusterState, entry -> entry.retryCount() > 7, 100);
             assertThat(entries.size(), is(1));
-            assertThat(entries.getFirst().indexName(), is(indexName20));
+            assertThat(entries.getFirst().indexName(), is(index20.getName()));
             assertThat(entries.getFirst().projectId(), is(projectId));
         }
 
@@ -131,9 +129,9 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
         {
             List<DslErrorInfo> entries = errorStore.getErrorsInfo(clusterState, entry -> entry.retryCount() > 2, 100);
             assertThat(entries.size(), is(2));
-            assertThat(entries.get(0).indexName(), is(indexName20));
+            assertThat(entries.get(0).indexName(), is(index20.getName()));
             assertThat(entries.get(0).projectId(), is(projectId));
-            assertThat(entries.get(1).indexName(), is(indexName5));
+            assertThat(entries.get(1).indexName(), is(index5.getName()));
             assertThat(entries.get(1).projectId(), is(projectId));
         }
     }
@@ -141,18 +139,16 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
     public void testGetFilteredEntriesForMultipleProjects() {
         ProjectId projectId1 = randomProjectIdOrDefault();
         ProjectId projectId2 = randomUniqueProjectId();
-        String indexName20 = "test20";
-        String indexName5 = "test5";
-        ClusterState clusterState = getClusterStateWithIndices(Map.of(projectId1, List.of(indexName20), projectId2, List.of(indexName5)));
-        Index index20 = clusterState.projectState(projectId1).metadata().index(indexName20).getIndex();
-        Index index5 = clusterState.projectState(projectId2).metadata().index(indexName5).getIndex();
+        Index index20 = new Index("test20", randomUUID());
+        Index index5 = new Index("test5", randomUUID());
+        ClusterState clusterState = getClusterStateWithIndices(Map.of(projectId1, List.of(index20), projectId2, List.of(index5)));
         IntStream.range(0, 20).forEach(i -> errorStore.recordError(projectId1, index20, new NullPointerException("testing")));
         IntStream.range(0, 5).forEach(i -> errorStore.recordError(projectId2, index5, new NullPointerException("testing")));
 
         {
             List<DslErrorInfo> entries = errorStore.getErrorsInfo(clusterState, entry -> entry.retryCount() > 7, 100);
             assertThat(entries.size(), is(1));
-            assertThat(entries.getFirst().indexName(), is(indexName20));
+            assertThat(entries.getFirst().indexName(), is(index20.getName()));
             assertThat(entries.getFirst().projectId(), is(projectId1));
         }
 
@@ -169,9 +165,9 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
         {
             List<DslErrorInfo> entries = errorStore.getErrorsInfo(clusterState, entry -> entry.retryCount() > 2, 100);
             assertThat(entries.size(), is(2));
-            assertThat(entries.get(0).indexName(), is(indexName20));
+            assertThat(entries.get(0).indexName(), is(index20.getName()));
             assertThat(entries.get(0).projectId(), is(projectId1));
-            assertThat(entries.get(1).indexName(), is(indexName5));
+            assertThat(entries.get(1).indexName(), is(index5.getName()));
             assertThat(entries.get(1).projectId(), is(projectId2));
         }
     }
@@ -199,48 +195,73 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
         Index index1 = new Index("index1", randomUUID());
         Index index2 = new Index("index2", randomUUID());
 
+        errorStore.recordError(projectId1, index1, new NullPointerException("testing"));
+        errorStore.recordError(projectId2, index2, new NullPointerException("testing"));
+
+        ClusterState clusterState = getClusterStateWithIndices(Map.of(projectId1, List.of(index1)));
+
+        // clearing a project that has errors returns true and removes only that project's errors
+        errorStore.clearRecordedErrorsForRemovedProjectId(clusterState);
+        assertThat(errorStore.getError(projectId1, index1), is(notNullValue()));
+        assertThat(errorStore.getAllIndices(projectId2).isEmpty(), is(true));
+        assertThat(errorStore.getError(projectId2, index2), is(nullValue()));
+    }
+
+    public void testTotalErrorCount() {
+        ProjectId projectId1 = randomProjectIdOrDefault();
+        ProjectId projectId2 = randomUniqueProjectId();
+        Index index1P1 = new Index("index1", randomUUID());
+        Index index2P1 = new Index("index2", randomUUID());
+        Index index2P2 = new Index("index2", randomUUID());
+
+        ClusterState clusterState = getClusterStateWithIndices(
+            Map.of(projectId1, List.of(index1P1, index2P1), projectId2, List.of(index2P2))
+        );
+
         {
             // empty store
-            assertThat(errorStore.getTotalErrorEntries(), is(0));
+            assertThat(errorStore.getTotalErrorEntries(clusterState), is(0));
         }
 
         {
             // single project multiple indices
-            IntStream.range(1, 20).forEach(i -> errorStore.recordError(projectId1, index1, new NullPointerException("testing")));
-            IntStream.range(1, 5).forEach(i -> errorStore.recordError(projectId1, index2, new NullPointerException("testing")));
-            IntStream.range(1, 5).forEach(i -> errorStore.recordError(projectId1, index2, new IOException("testing")));
-            assertThat(errorStore.getTotalErrorEntries(), is(2));
+            IntStream.range(1, 20).forEach(i -> errorStore.recordError(projectId1, index1P1, new NullPointerException("testing")));
+            IntStream.range(1, 5).forEach(i -> errorStore.recordError(projectId1, index2P1, new NullPointerException("testing")));
+            IntStream.range(1, 5).forEach(i -> errorStore.recordError(projectId1, index2P1, new IOException("testing")));
+            assertThat(errorStore.getTotalErrorEntries(clusterState), is(2));
         }
 
         {
             // clear store
             errorStore.clearStore();
-            assertThat(errorStore.getTotalErrorEntries(), is(0));
+            assertThat(errorStore.getTotalErrorEntries(clusterState), is(0));
         }
 
         {
             // multiple projects
-            IntStream.range(1, 20).forEach(i -> errorStore.recordError(projectId1, index1, new NullPointerException("testing")));
-            IntStream.range(1, 5).forEach(i -> errorStore.recordError(projectId1, index2, new IOException("testing")));
-            IntStream.range(1, 5).forEach(i -> errorStore.recordError(projectId2, index1, new NullPointerException("testing")));
-            assertThat(errorStore.getTotalErrorEntries(), is(3));
+            IntStream.range(1, 20).forEach(i -> errorStore.recordError(projectId1, index1P1, new NullPointerException("testing")));
+            IntStream.range(1, 5).forEach(i -> errorStore.recordError(projectId1, index2P1, new IOException("testing")));
+            IntStream.range(1, 5).forEach(i -> errorStore.recordError(projectId2, index2P2, new NullPointerException("testing")));
+            assertThat(errorStore.getTotalErrorEntries(clusterState), is(3));
+            // Empty cluster state should filter to 0
+            assertThat(errorStore.getTotalErrorEntries(ClusterState.EMPTY_STATE), is(0));
         }
     }
 
-    private ClusterState getClusterStateWithIndices(Map<ProjectId, List<String>> indicesPerProject) {
+    private ClusterState getClusterStateWithIndices(Map<ProjectId, List<Index>> indicesPerProject) {
         ClusterState.Builder builder = ClusterState.builder(ClusterName.DEFAULT);
-        for (Map.Entry<ProjectId, List<String>> entry : indicesPerProject.entrySet()) {
+        for (Map.Entry<ProjectId, List<Index>> entry : indicesPerProject.entrySet()) {
             ProjectId projectId = entry.getKey();
-            List<String> indexNames = entry.getValue();
-            Map<String, IndexMetadata> indices = new HashMap<>(indexNames.size());
-            for (String indexName : indexNames) {
-                IndexMetadata metadata = IndexMetadata.builder(indexName)
-                    .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
+            List<Index> indices = entry.getValue();
+            Map<String, IndexMetadata> indexMetadataMap = new HashMap<>(indices.size());
+            for (Index index : indices) {
+                IndexMetadata metadata = IndexMetadata.builder(index.getName())
+                    .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 0))
                     .build();
-                indices.put(indexName, metadata);
+                indexMetadataMap.put(index.getName(), metadata);
             }
 
-            ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).indices(indices).build();
+            ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).indices(indexMetadataMap).build();
             builder.putProjectMetadata(projectMetadata);
         }
         return builder.build();

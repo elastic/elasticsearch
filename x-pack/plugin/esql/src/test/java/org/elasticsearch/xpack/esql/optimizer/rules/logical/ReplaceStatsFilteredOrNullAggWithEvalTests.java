@@ -47,6 +47,10 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalPlanOptimizerTests {
 
+    public ReplaceStatsFilteredOrNullAggWithEvalTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     /**
      * {@snippet lang="text":
      * Limit[1000[INTEGER]]

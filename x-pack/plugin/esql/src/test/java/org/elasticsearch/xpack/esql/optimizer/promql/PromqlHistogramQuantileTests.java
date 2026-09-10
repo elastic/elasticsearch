@@ -43,6 +43,10 @@ import static org.hamcrest.Matchers.not;
 
 public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTests {
 
+    public PromqlHistogramQuantileTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     public void testHistogramQuantileWithoutLeAfterAggregationResolves() {
         LogicalPlan plan = planHistogramPromql(
             "PROMQL index=prom_hist step=1m result=(histogram_quantile(0.9, sum by (job) (request_duration_seconds_bucket)))"

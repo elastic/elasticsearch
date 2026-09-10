@@ -38,6 +38,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -47,6 +48,10 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
+
+    public PromqlEsqlCommandTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     public void testPromqlTrailingSpaces() {
         planPromql("PROMQL index=k8s step=1h (max(network.bytes_in)) ");
@@ -136,14 +141,18 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         var aggregate = as(outerEval.child(), Aggregate.class);
         assertThat(aggregate.groupings(), hasSize(2));
 
-        var pack = as(aggregate.child(), PackDims.class);
-        assertThat(pack.dims(), hasSize(1));
-        assertThat(Expressions.name(pack.dims().getFirst()), equalTo("pod"));
-
-        var innerProject = as(pack.child(), Project.class);
-        var evalMiddle = as(innerProject.child(), Eval.class);
+        Eval evalMiddle;
+        if (packsDimsInAggregate()) {
+            evalMiddle = as(aggregate.child(), Eval.class); // no PackDims, so no Project feeding it either
+        } else {
+            var pack = as(aggregate.child(), PackDims.class);
+            assertThat(Expressions.names(pack.dims()), contains("pod"));
+            var innerProject = as(pack.child(), Project.class);
+            evalMiddle = as(innerProject.child(), Eval.class);
+        }
 
         var tsAggregate = as(evalMiddle.child(), TimeSeriesAggregate.class);
+        assertThat(Expressions.names(packedDims(tsAggregate.aggregates())), contains("pod"));
         assertThat(tsAggregate.groupings(), hasSize(2));
 
         // verify bucket duration plus reuse

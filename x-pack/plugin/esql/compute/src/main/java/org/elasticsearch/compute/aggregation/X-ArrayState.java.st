@@ -119,11 +119,11 @@ $else$
     }
 $endif$
 
+$if(double)$
     $type$ getOrDefault(int groupId) {
         return groupId < capacity ? get(groupId) : init;
     }
 
-$if(long||double)$
     void increment(int groupId, $type$ value) {
         if (groupId >= capacity) {
             grow(groupId + 1);
@@ -131,7 +131,51 @@ $if(long||double)$
         pages[groupId >>> PAGE_SHIFT][groupId & PAGE_MASK] += value;
         trackGroupId(groupId);
     }
+
 $endif$
+$if(long)$
+    void addExact(int groupId, $type$ value) {
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        final $type$[] page = pages[groupId >>> PAGE_SHIFT];
+        final int index = groupId & PAGE_MASK;
+        page[index] = Math.addExact(page[index], value);
+        trackGroupId(groupId);
+    }
+$endif$
+
+    void min(int groupId, $type$ value) {
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+$if(boolean)$
+        if (value == false) {
+            pages[groupId >>> PAGE_SHIFT][(groupId & PAGE_MASK) >>> 6] &= ~(1L << groupId);
+        }
+$else$
+        final $type$[] page = pages[groupId >>> PAGE_SHIFT];
+        final int index = groupId & PAGE_MASK;
+        page[index] = Math.min(page[index], value);
+$endif$
+        trackGroupId(groupId);
+    }
+
+    void max(int groupId, $type$ value) {
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+$if(boolean)$
+        if (value) {
+            pages[groupId >>> PAGE_SHIFT][(groupId & PAGE_MASK) >>> 6] |= 1L << groupId;
+        }
+$else$
+        final $type$[] page = pages[groupId >>> PAGE_SHIFT];
+        final int index = groupId & PAGE_MASK;
+        page[index] = Math.max(page[index], value);
+$endif$
+        trackGroupId(groupId);
+    }
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {

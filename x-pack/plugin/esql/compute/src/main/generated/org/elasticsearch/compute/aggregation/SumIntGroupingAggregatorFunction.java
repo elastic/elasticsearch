@@ -128,7 +128,7 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           int vValue = vBlock.getInt(vOffset);
-          state.set(groupId, SumIntAggregator.combine(state.getOrDefault(groupId), vValue));
+          SumIntAggregator.combine(state, groupId, vValue);
         }
       }
     }
@@ -145,7 +145,7 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int vValue = vVector.getInt(valuesPosition);
-        state.set(groupId, SumIntAggregator.combine(state.getOrDefault(groupId), vValue));
+        SumIntAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -192,7 +192,7 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, SumIntAggregator.combine(state.getOrDefault(groupId), sum.getLong(valuesPosition)));
+          SumIntAggregator.combine(state, groupId, sum.getLong(valuesPosition));
         }
       }
     }
@@ -215,7 +215,7 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           int vValue = vBlock.getInt(vOffset);
-          state.set(groupId, SumIntAggregator.combine(state.getOrDefault(groupId), vValue));
+          SumIntAggregator.combine(state, groupId, vValue);
         }
       }
     }
@@ -232,7 +232,7 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int vValue = vVector.getInt(valuesPosition);
-        state.set(groupId, SumIntAggregator.combine(state.getOrDefault(groupId), vValue));
+        SumIntAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -279,7 +279,7 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, SumIntAggregator.combine(state.getOrDefault(groupId), sum.getLong(valuesPosition)));
+          SumIntAggregator.combine(state, groupId, sum.getLong(valuesPosition));
         }
       }
     }
@@ -296,7 +296,7 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
       int vEnd = vStart + vBlock.getValueCount(valuesPosition);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
-        state.set(groupId, SumIntAggregator.combine(state.getOrDefault(groupId), vValue));
+        SumIntAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -306,7 +306,7 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
       int vValue = vVector.getInt(valuesPosition);
-      state.set(groupId, SumIntAggregator.combine(state.getOrDefault(groupId), vValue));
+      SumIntAggregator.combine(state, groupId, vValue);
     }
   }
 
@@ -346,7 +346,7 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       if (seen.getBoolean(valuesPosition)) {
-        state.set(groupId, SumIntAggregator.combine(state.getOrDefault(groupId), sum.getLong(valuesPosition)));
+        SumIntAggregator.combine(state, groupId, sum.getLong(valuesPosition));
       }
     }
   }

@@ -71,8 +71,24 @@ final class IntArrayState extends AbstractArrayState implements GroupingAggregat
         trackGroupId(groupId);
     }
 
-    int getOrDefault(int groupId) {
-        return groupId < capacity ? get(groupId) : init;
+    void min(int groupId, int value) {
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        final int[] page = pages[groupId >>> PAGE_SHIFT];
+        final int index = groupId & PAGE_MASK;
+        page[index] = Math.min(page[index], value);
+        trackGroupId(groupId);
+    }
+
+    void max(int groupId, int value) {
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        final int[] page = pages[groupId >>> PAGE_SHIFT];
+        final int index = groupId & PAGE_MASK;
+        page[index] = Math.max(page[index], value);
+        trackGroupId(groupId);
     }
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {

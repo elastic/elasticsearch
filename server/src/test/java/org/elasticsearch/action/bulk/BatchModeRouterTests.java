@@ -497,17 +497,19 @@ public class BatchModeRouterTests extends ESTestCase {
         IndexMetadata gen2 = tsdbBackingIndex(2, 3, GEN_1_END, gen2End);      // 3 shards
         ProjectMetadata project = projectWithDataStream(gen1, gen2);
 
-        // 5 rows: rows 0–2 in gen 1's time range, rows 3–4 in gen 2's time range.
-        int numRows = 5;
+        // 6 rows: rows 0–2 in gen 1's time range, rows 3–4 in gen 2's time range, row 5 back in gen 1.
+        // The final gen-1 row exercises non-contiguous target assignments in rowTargets[].
+        int numRows = 6;
         EscfBatch batch = buildBatch(numRows);
         Instant inGen2 = Instant.parse("2024-09-01T00:00:00Z");
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < 3; i++) {
             bulkRequest.add(tsdbRowRequest(DATA_STREAM, batch, i, IN_GEN_1));
         }
-        for (int i = 3; i < numRows; i++) {
+        for (int i = 3; i < 5; i++) {
             bulkRequest.add(tsdbRowRequest(DATA_STREAM, batch, i, inGen2));
         }
+        bulkRequest.add(tsdbRowRequest(DATA_STREAM, batch, 5, IN_GEN_1));
         bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
 
         BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
@@ -824,6 +826,180 @@ public class BatchModeRouterTests extends ESTestCase {
         assertThat("all rows must land on exactly one shard in a 1-shard index", requestsByShard.size(), equalTo(1));
         assertThat(requestsByShard.values().iterator().next().size(), equalTo(docs.sources().size()));
         assertShardsAligned(requestsByShard, router.shardBatches());
+        router.close();
+    }
+
+    /**
+     * {@link BatchModeRouter#preResolveTimestamps} reads epoch-millisecond LONG values from the
+     * batch's {@code @timestamp} column and caches the canonical (second-truncated) bound on each
+     * request. A sub-second input verifies that the truncation applies.
+     */
+    public void testPreResolveTimestampsFromLongColumn() throws IOException {
+        IndexMetadata md = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        ProjectMetadata project = projectWithDataStream(md);
+
+        Instant ts0 = Instant.parse("2024-02-01T12:34:56.789Z"); // sub-second precision
+        Instant ts1 = IN_GEN_1;
+
+        EscfBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (Instant ts : List.of(ts0, ts1)) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("dim", "d");
+                doc.field("@timestamp", ts.toEpochMilli());
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON, LeafSink.NO_OP);
+                encoder.commitScratchTo(0);
+            }
+            batch = encoder.buildPartition(0);
+        }
+
+        IndexRequest req0 = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);
+        req0.indexSource().setSourceRow(batch, 0, XContentType.JSON);
+        IndexRequest req1 = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);
+        req1.indexSource().setSourceRow(batch, 1, XContentType.JSON);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(req0);
+        bulkRequest.add(req1);
+        bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
+
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        router.preResolveTimestamps(project, bulkRequest.requests());
+
+        assertThat(req0.getTimeSeriesTimestamp(), equalTo(DataStream.getCanonicalTimestampBound(ts0)));
+        assertThat(req1.getTimeSeriesTimestamp(), equalTo(DataStream.getCanonicalTimestampBound(ts1)));
+        router.close();
+    }
+
+    /**
+     * {@link BatchModeRouter#preResolveTimestamps} reads an ISO-8601 STRING value from the batch's
+     * {@code @timestamp} column, parses it, and caches the canonical bound on the request.
+     */
+    public void testPreResolveTimestampsFromStringColumn() throws IOException {
+        IndexMetadata md = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        ProjectMetadata project = projectWithDataStream(md);
+
+        EscfBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            XContentBuilder doc = JsonXContent.contentBuilder();
+            doc.startObject();
+            doc.field("dim", "d0");
+            doc.field("@timestamp", IN_GEN_1.toString());
+            doc.endObject();
+            encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON, LeafSink.NO_OP);
+            encoder.commitScratchTo(0);
+            batch = encoder.buildPartition(0);
+        }
+
+        IndexRequest req = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);
+        req.indexSource().setSourceRow(batch, 0, XContentType.JSON);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(req);
+        bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
+
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        router.preResolveTimestamps(project, bulkRequest.requests());
+
+        assertThat(req.getTimeSeriesTimestamp(), equalTo(DataStream.getCanonicalTimestampBound(IN_GEN_1)));
+        router.close();
+    }
+
+    /**
+     * {@link BatchModeRouter#preResolveTimestamps} handles a UNION {@code @timestamp} column.
+     * Storing a LONG in one row and a STRING in another causes the ESCF encoder to promote the
+     * column to UNION. Both rows must resolve to the correct canonical bound regardless of type.
+     */
+    public void testPreResolveTimestampsFromUnionColumn() throws IOException {
+        IndexMetadata md = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        ProjectMetadata project = projectWithDataStream(md);
+
+        Instant ts0 = IN_GEN_1;
+        Instant ts1 = Instant.parse("2024-04-01T00:00:00Z");
+
+        EscfBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            // Row 0: LONG timestamp — seeds the column as LONG.
+            XContentBuilder doc0 = JsonXContent.contentBuilder();
+            doc0.startObject();
+            doc0.field("dim", "d");
+            doc0.field("@timestamp", ts0.toEpochMilli());
+            doc0.endObject();
+            encoder.parseToScratch(BytesReference.bytes(doc0), XContentType.JSON, LeafSink.NO_OP);
+            encoder.commitScratchTo(0);
+
+            // Row 1: STRING timestamp — promotes the column to UNION.
+            XContentBuilder doc1 = JsonXContent.contentBuilder();
+            doc1.startObject();
+            doc1.field("dim", "d");
+            doc1.field("@timestamp", ts1.toString());
+            doc1.endObject();
+            encoder.parseToScratch(BytesReference.bytes(doc1), XContentType.JSON, LeafSink.NO_OP);
+            encoder.commitScratchTo(0);
+
+            batch = encoder.buildPartition(0);
+        }
+
+        IndexRequest req0 = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);
+        req0.indexSource().setSourceRow(batch, 0, XContentType.JSON);
+        IndexRequest req1 = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);
+        req1.indexSource().setSourceRow(batch, 1, XContentType.JSON);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(req0);
+        bulkRequest.add(req1);
+        bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
+
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        router.preResolveTimestamps(project, bulkRequest.requests());
+
+        assertThat(req0.getTimeSeriesTimestamp(), equalTo(DataStream.getCanonicalTimestampBound(ts0)));
+        assertThat(req1.getTimeSeriesTimestamp(), equalTo(DataStream.getCanonicalTimestampBound(ts1)));
+        router.close();
+    }
+
+    /**
+     * A TSDB batch with no {@code @timestamp} column throws during
+     * {@link BatchModeRouter#preResolveTimestamps}: no column means no backing-index selection is
+     * possible, so the batch is rejected early.
+     */
+    public void testPreResolveTimestampsMissingColumnThrows() throws IOException {
+        IndexMetadata md = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        ProjectMetadata project = projectWithDataStream(md);
+
+        // buildBatch produces {"dim": "d0", "val": 0} with no @timestamp.
+        EscfBatch batch = buildBatch(1);
+        IndexRequest req = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);
+        req.indexSource().setSourceRow(batch, 0, XContentType.JSON);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(req);
+        bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
+
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        var e = expectThrows(IllegalArgumentException.class, () -> router.preResolveTimestamps(project, bulkRequest.requests()));
+        assertThat(e.getMessage(), containsString("@timestamp"));
+        router.close();
+    }
+
+    /**
+     * A batch where some requests carry a pre-set timestamp and some do not violates the all-or-none
+     * invariant: either the producer supplies timestamps for every row, or none. A mix is rejected
+     * during {@link BatchModeRouter#preResolveTimestamps}.
+     */
+    public void testPreResolveTimestampsMixedPresetThrows() throws IOException {
+        IndexMetadata md = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        ProjectMetadata project = projectWithDataStream(md);
+
+        EscfBatch batch = buildBatch(2);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(tsdbRowRequest(DATA_STREAM, batch, 0, IN_GEN_1)); // has pre-set timestamp
+        IndexRequest withoutTs = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);
+        withoutTs.indexSource().setSourceRow(batch, 1, XContentType.JSON);
+        bulkRequest.add(withoutTs); // no timestamp
+        bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
+
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        var e = expectThrows(IllegalArgumentException.class, () -> router.preResolveTimestamps(project, bulkRequest.requests()));
+        assertThat(e.getMessage(), containsString("mix of requests"));
         router.close();
     }
 

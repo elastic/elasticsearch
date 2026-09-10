@@ -280,19 +280,7 @@ final class BatchModeRouter implements Releasable {
             setTimestampOnRequest(byRow, r, Instant.ofEpochMilli(cursor.longValue()));
             seen[r] = true;
         }
-        for (int row = 0; row < docCount; row++) {
-            if (seen[row] == false && byRow[row] != null) {
-                throw new IllegalArgumentException(
-                    "pre-built batch for ["
-                        + indexAbstractionName
-                        + "] row "
-                        + row
-                        + " has no ["
-                        + DataStream.TIMESTAMP_FIELD_NAME
-                        + "] value; every TSDB document must have a timestamp"
-                );
-            }
-        }
+        checkAllRowsHaveTimestamp(seen, byRow, indexAbstractionName);
     }
 
     /**
@@ -311,19 +299,7 @@ final class BatchModeRouter implements Releasable {
             setTimestampOnRequest(byRow, r, ts);
             seen[r] = true;
         }
-        for (int row = 0; row < docCount; row++) {
-            if (seen[row] == false && byRow[row] != null) {
-                throw new IllegalArgumentException(
-                    "pre-built batch for ["
-                        + indexAbstractionName
-                        + "] row "
-                        + row
-                        + " has no ["
-                        + DataStream.TIMESTAMP_FIELD_NAME
-                        + "] value; every TSDB document must have a timestamp"
-                );
-            }
-        }
+        checkAllRowsHaveTimestamp(seen, byRow, indexAbstractionName);
     }
 
     /**
@@ -359,7 +335,11 @@ final class BatchModeRouter implements Releasable {
             setTimestampOnRequest(byRow, r, ts);
             seen[r] = true;
         }
-        for (int row = 0; row < docCount; row++) {
+        checkAllRowsHaveTimestamp(seen, byRow, indexAbstractionName);
+    }
+
+    private static void checkAllRowsHaveTimestamp(boolean[] seen, IndexRequest[] byRow, String indexAbstractionName) {
+        for (int row = 0; row < seen.length; row++) {
             if (seen[row] == false && byRow[row] != null) {
                 throw new IllegalArgumentException(
                     "pre-built batch for ["
@@ -467,8 +447,9 @@ final class BatchModeRouter implements Releasable {
         int newTargetIdx = targetCount;
         targetCount++;
 
-        // Lazily allocate rowTargets on the second target. Zero fill is correct: all rows recorded
-        // before this point (i.e. rows [0..lastRow]) belong to target 0.
+        // Allocate rowTargets exactly once, on the transition from 1→2 targets. == 2 (not >= 2)
+        // ensures later targets don't re-allocate and discard already-written assignments. Zero fill
+        // is correct: every row recorded before this call belongs to target 0.
         if (targetCount == 2) {
             rowTargets = new int[source.docCount()];
         }
@@ -601,6 +582,11 @@ final class BatchModeRouter implements Releasable {
 
         // Route each target. Collect shard ids before touching requestsByShard so a failure on a
         // later target leaves earlier targets' items out of the map (all-or-none).
+        // No try/finally around postProcess: indexShard() clears batchHashes at entry (before it
+        // can throw), so the routing object is already clean on failure. Calling postProcess() in
+        // a finally would itself throw (batchHashes == null) and mask the real exception.
+        // The failed items are never re-routed, so the preProcess side-effect (auto-generated id)
+        // on partially-processed requests is harmless.
         int[][] shardsByTarget = new int[targetCount][];
         for (int t = 0; t < targetCount; t++) {
             IndexTarget target = targets[t];

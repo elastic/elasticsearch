@@ -42,11 +42,11 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
     try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       MvMedian.Longs work = new MvMedian.Longs();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int end = first + valueCount;
         for (int i = first; i < end; i++) {
@@ -96,11 +96,11 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
     try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       MvMedian.Longs work = new MvMedian.Longs();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         long result = MvMedian.ascendingUnsignedLong(v, first, valueCount);
         builder.appendLong(result);

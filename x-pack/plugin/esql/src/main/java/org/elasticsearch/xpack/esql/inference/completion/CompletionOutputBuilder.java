@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceResponseItem;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.OutputBuilder;
 
@@ -22,7 +22,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 /**
  * Builds output pages for completion inference operations.
  * <p>
- * Converts {@link ChatCompletionResults} from inference responses into a {@link BytesRefBlock} that is appended
+ * Converts {@link CompletionResults} from inference responses into a {@link BytesRefBlock} that is appended
  * to the input page. Handles multi-valued outputs where a single input row can produce multiple completion results.
  * </p>
  */
@@ -112,29 +112,29 @@ class CompletionOutputBuilder implements OutputBuilder {
     /**
      * Extracts completion text values from an inference response.
      * <p>
-     * Validates that the response contains {@link ChatCompletionResults} and extracts
+     * Validates that the response contains {@link CompletionResults} and extracts
      * the content strings from each completion result.
      * </p>
      *
      * @param responseItem The inference response item to extract values from
      * @return A list of completion strings (empty if response is null)
-     * @throws IllegalStateException if the response is not of type {@link ChatCompletionResults}
+     * @throws IllegalStateException if the response is not of type {@link CompletionResults}
      */
     public static List<String> extractOutputValues(BulkInferenceResponseItem responseItem) {
         if (responseItem == null || responseItem.inferenceResponse() == null) {
             return List.of();
         }
 
-        if (responseItem.inferenceResponse().getResults() instanceof ChatCompletionResults chatCompletionResults) {
-            List<ChatCompletionResults.Result> results = chatCompletionResults.getResults();
-            return results.stream().map(ChatCompletionResults.Result::content).toList();
+        if (responseItem.inferenceResponse().getResults() instanceof CompletionResults chatCompletionResults) {
+            List<CompletionResults.Result> results = chatCompletionResults.getResults();
+            return results.stream().map(CompletionResults.Result::content).toList();
         }
 
         throw new IllegalStateException(
             format(
                 "Inference result has wrong type. Got [{}] while expecting [{}]",
                 responseItem.inferenceResponse().getResults().getClass().getName(),
-                ChatCompletionResults.class.getName()
+                CompletionResults.class.getName()
             )
         );
     }

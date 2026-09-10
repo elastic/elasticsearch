@@ -169,8 +169,13 @@ If you write or modify ES|QL csv-spec, rest, or yaml tests, read the javadoc for
 `EsqlCapabilities.Cap` and `FunctionDefinition.Builder#capabilities` before proceeding.
 They describe two separate capability mechanisms and the rule for choosing between them.
 
+`knn` csv-spec tests must not assert an exact top-k table. `knn` is approximate
+and `LIMIT` is pushed to `k`, so membership is not unique. Pin results with a
+filter on a uniquely nearest document, or assert counts / `{any}`. See
+`x-pack/plugin/esql/qa/testFixtures/src/main/resources/_README.md` (Approximate knn).
+
 ## Backwards compatibility
-- For changes to a `Writeable` implementation (`writeTo` and constructor from `StreamInput`), add a new `public static final <UNIQUE_DESCRIPTIVE_NAME> = TransportVersion.fromName("<unique_descriptive_name>")` and use it in the new code paths. Confirm the backport branches and then generate a new version file with `./gradlew generateTransportVersion`.
+- For changes to a `Writeable` implementation (`writeTo` and constructor from `StreamInput`), add a new `public static final <UNIQUE_DESCRIPTIVE_NAME> = TransportVersion.fromName("<unique_descriptive_name>")` and use it in the new code paths. Confirm the backport branches and then generate a new version file with `./gradlew generateTransportVersion`. On the `patch/serverless-fix` branch use `./gradlew generateTransportVersion --patch`, which generates a patch id rather than one `main` may already have taken.
 - Never hand-edit transport version resource files; always use the Gradle tasks. See `docs/internal/Versioning.md` for the full workflow.
 
 Stay aligned with `CONTRIBUTING.md`, `BUILDING.md`, and `TESTING.asciidoc`; this AGENTS guide summarizes—but does not replace—those authoritative docs.

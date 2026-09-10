@@ -33,6 +33,16 @@ public interface SourceStatistics {
     OptionalLong sizeInBytes();
 
     /**
+     * Number of independently readable units in the file (Parquet row groups, ORC stripes), if known.
+     * Split discovery can skip a second footer open when this is {@code 1}: the file is already one
+     * split and the file-level extrema on this object are that unit's extrema. Empty means the
+     * harvest did not record a count, so discovery must run.
+     */
+    default OptionalLong readableUnitCount() {
+        return OptionalLong.empty();
+    }
+
+    /**
      * Returns per-column statistics, if available.
      * The map keys are column names.
      *

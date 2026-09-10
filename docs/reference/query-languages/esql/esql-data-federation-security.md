@@ -55,7 +55,7 @@ Dataset operations are authorized by the standard {{es}} [index privileges](../.
 
 Creating a dataset that references a data source also requires the `read` data source privilege for that data source. The two are authorized independently.
 
-The `read` privilege granted on a dataset name must not carry document-level or field-level security. `FROM <dataset>` is rejected if it does. The same restriction applies to [{{esql}} views](esql-views.md).
+The `read` privilege granted on a dataset name must not carry document-level or field-level security. `FROM <dataset>` is rejected if it does. The same restriction applies to [{{esql}} views](esql-views.md#esql-views-privileges).
 
 `superuser` has full access to data sources and datasets. Data source management is reached through the cluster `manage` (or `all`) privilege, or through a role explicitly granted `global.data_source` for fine-grained control.
 

@@ -8,11 +8,15 @@
  */
 
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+import org.elasticsearch.gradle.internal.test.TestUtil
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.foreign-library'
 apply plugin: 'elasticsearch.foreign-api'
 apply plugin: 'java-test-fixtures'
+apply plugin: 'elasticsearch.native-library-build'
+apply plugin: 'elasticsearch.jmh'
 
 dependencies {
   implementation project(':libs:lucene-store')
@@ -20,14 +24,31 @@ dependencies {
   implementation project(':libs:logging')
   implementation "org.apache.lucene:lucene-core:${versions.lucene}"
 
+  // PosixGuardPageAllocator (test fixture) reaches into PosixCLibrary from libs:native.
+  testFixturesImplementation project(':libs:native')
+
   testImplementation(testArtifact(project(':x-pack:plugin:searchable-snapshots')))
-  testImplementation(testFixtures(project(':libs:native')))
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'native'
   }
   testFixturesImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'native'
   }
+
+  // JMH benchmark source set. jmh-core, jopt-simple, commons-math3, :benchmarks:common,
+  // :benchmarks:processor and :test:framework (the latter for benchmarkTest only) are
+  // added by elasticsearch.jmh; everything below is what this module needs on top.
+  benchmarkImplementation testFixtures(project(':libs:simdvec'))
+  benchmarkImplementation project(':server')
+  // VectorTestUtils lives in :test:framework main and is used from benchmark bodies, not
+  // only from correctness tests, so :test:framework must also be on `benchmark`.
+  benchmarkImplementation(project(':test:framework')) {
+    exclude group: 'org.elasticsearch', module: 'native'
+  }
+  // Consumed via DirectoryFactory in this source set.
+  benchmarkImplementation(testArtifact(project(':x-pack:plugin:searchable-snapshots')))
+  benchmarkImplementation(testArtifact(project(':x-pack:plugin:stateless')))
+  benchmarkTestImplementation project(':x-pack:plugin:blob-cache')
 }
 
 tasks.named('compileJava').configure {
@@ -38,6 +59,16 @@ tasks.named('compileJava').configure {
   // be individually suppressed. -nowarn is scoped to this submodule only.
   // TODO: replace with -Xlint:-incubating when the compile toolchain moves to JDK 22+
   options.compilerArgs << '-nowarn'
+}
+
+// The foreign-library annotation processor task is a separate JavaCompile that parses the
+// whole main source set with -proc:only. Panama scorers import jdk.incubator.vector, so the
+// module must be visible here too. Unlike compileJava this task runs on the JDK 25 toolchain
+// fixed by the foreign-library plugin, where we can already use -Xlint:-incubating
+tasks.named('processForeignAnnotations').configure {
+  options.compilerArgs << '--add-modules=jdk.incubator.vector'
+  options.compilerArgs << '--add-reads=org.elasticsearch.simdvec=jdk.incubator.vector'
+  options.compilerArgs << '-Xlint:-incubating'
 }
 
 tasks.named('javadoc').configure {
@@ -53,8 +84,47 @@ tasks.named('test').configure {
   if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 21) {
     jvmArgs '--add-modules=jdk.incubator.vector'
   }
+  // Required by VectorSystemPropertyTests, which spawns a subprocess via ProcessBuilder.
+  // The default ES test system call filter blocks posix_spawn.
+  systemProperty "tests.system_call_filter", "false"
+}
+
+tasks.named('benchmark').configure {
+  dependsOn ':libs:native:native-libraries:extractLibs'
+  jvmArgs '--add-modules=jdk.incubator.vector', '--enable-native-access=ALL-UNNAMED'
+  // Forward the native library path to the forked JMH VMs where the benchmark bodies run,
+  // not only to the harness. Mirrors benchmarks/build.gradle's `run` task.
+  def nativeLibsPath = TestUtil.getTestLibraryPath(file('../native/libraries/build/platform/').toString())
+  args '-jvmArgsAppend', "-Des.nativelibs.path=${nativeLibsPath}"
+}
+
+tasks.named('benchmarkTest').configure {
+  dependsOn ':libs:native:native-libraries:extractLibs'
+  jvmArgs '--add-modules=jdk.incubator.vector'
+
+  systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file('../native/libraries/build/platform/').toString())
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
+}
+
+// --- Native library build (libvec) ---
+// Set VEC_NATIVE_BUILD=docker to cross-compile every platform in the toolchain image, or
+// VEC_NATIVE_BUILD=host to build the current platform only. Unset, the published artifact is used.
+nativeLibraryBuild {
+  modeEnvironmentVariable = 'VEC_NATIVE_BUILD'
+  sourceDir = layout.projectDirectory.dir('native')
+  sources = ['src/vec/**', 'Makefile']
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6'
+  forwardedEnvironment = ['CLANG_CXX']
+
+  dockerCommand = ['make', 'all']
+  collect = [
+    'build/libs/vec/shared/aarch64/libvec.dylib': 'darwin-aarch64/libvec.dylib',
+    'build/libs/vec/shared/aarch64/libvec.so'   : 'linux-aarch64/libvec.so',
+    'build/libs/vec/shared/amd64/libvec.so'     : 'linux-x64/libvec.so',
+  ]
+
+  hostCommand { outputDir -> ['make', 'local-install', "DEST=${outputDir.asFile}"] }
 }

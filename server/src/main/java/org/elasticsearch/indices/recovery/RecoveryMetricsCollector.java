@@ -19,14 +19,16 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongGaugeMetric;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.io.Closeable;
 import java.util.Map;
 
 /// Collects and emits recovery metrics.
-public class RecoveryMetricsCollector implements IndexEventListener, RecoverySchedulingListener {
+public class RecoveryMetricsCollector implements IndexEventListener, RecoverySchedulingListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(RecoveryMetricsCollector.class);
 
@@ -43,6 +45,11 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     public static final String QUEUED_STORE_RECOVERIES = "es.recovery.store.queued.current";
 
     public static final String RECOVERY_DIRECT_CANCELLATIONS_METRIC = "es.recovery.shard.directcancellations.total";
+    public static final String RECOVERY_DIRECT_CANCELLATIONS_WORK_TIME_METRIC = "es.recovery.shard.directcancellations.work.time";
+    public static final String RECOVERY_GATE_BLOCKED_CURRENT_METRIC = "es.recovery.gate.blocked.current";
+    public static final String RECOVERY_GATE_BLOCKED_TOTAL_METRIC = "es.recovery.gate.blocked.total";
+    public static final String RECOVERY_GATE_BLOCKED_DURATION_METRIC = "es.recovery.gate.blocked.time";
+    public static final String RECOVERY_GATE_NAME_ATTRIBUTE_KEY = "es_recovery_gate_name";
 
     public static final RecoveryMetricsCollector NOOP = new RecoveryMetricsCollector(TelemetryProvider.NOOP);
 
@@ -59,6 +66,10 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     private final LongUpDownCounter queuedStoreRecoveriesMetric;
 
     private final LongCounter shardRecoveryDirectCancellationsMetric;
+    private final LongHistogram shardRecoveryDirectCancellationsWorkTimeMetric;
+    private final LongGaugeMetric recoveryGateBlockedCurrentMetric;
+    private final LongCounter recoveryGateBlockedMetric;
+    private final LongHistogram recoveryGateBlockedDurationMetric;
 
     public RecoveryMetricsCollector(TelemetryProvider telemetryProvider) {
         final MeterRegistry meterRegistry = telemetryProvider.getMeterRegistry();
@@ -117,6 +128,28 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
             "Number of shard recoveries that have been directly cancelled by the master, while queued or started",
             "unit"
         );
+        shardRecoveryDirectCancellationsWorkTimeMetric = meterRegistry.registerLongHistogram(
+            RECOVERY_DIRECT_CANCELLATIONS_WORK_TIME_METRIC,
+            "For shard recoveries that have been directly cancelled by the master after starting, "
+                + "the elapsed time between starting and cancelling, i.e. the lost work time",
+            "ms"
+        );
+        recoveryGateBlockedCurrentMetric = LongGaugeMetric.create(
+            meterRegistry,
+            RECOVERY_GATE_BLOCKED_CURRENT_METRIC,
+            "Whether recovery dispatch is currently blocked by recovery gates",
+            "unit"
+        );
+        recoveryGateBlockedMetric = meterRegistry.registerLongCounter(
+            RECOVERY_GATE_BLOCKED_TOTAL_METRIC,
+            "Number of times recovery dispatch entered the blocked state",
+            "unit"
+        );
+        recoveryGateBlockedDurationMetric = meterRegistry.registerLongHistogram(
+            RECOVERY_GATE_BLOCKED_DURATION_METRIC,
+            "Duration recovery dispatch remained blocked by recovery gates",
+            "ms"
+        );
     }
 
     @Override
@@ -124,7 +157,6 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
         try {
             if (indexShard.state() == IndexShardState.RECOVERING) {
                 final RecoveryState recoveryState = indexShard.recoveryState();
-                assert recoveryState != null;
                 if (recoveryState.getStage() == Stage.DONE) {
                     shardRecoveryTotalMetric.increment();
                     final Map<String, Object> metricLabels = recoveryTimeMetricLabels(indexShard);
@@ -151,8 +183,13 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
 
     @Override
     public void onRecoveryCancelledBeforeQueuingOnTarget(RecoverySource.Type type) {
-        // Record this as queued in metrics for simplicity, we can refine the distinction later on if needed
-        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.QUEUED));
+        // For simplicity, we record this in metrics as QUEUED and in stage CREATED, even though we actually cancelled before we got there.
+        // It is a race whether we hit this path or onQueuedRecoveryCancelledOnTarget so it seems reasonable to record both the same.
+        // We can refine the distinction later on if needed.
+        shardRecoveryDirectCancellationsMetric.incrementBy(
+            1,
+            directCancellationMetricLabels(type, RecoverySchedulingState.QUEUED, Stage.CREATED)
+        );
     }
 
     @Override
@@ -196,7 +233,10 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
             );
             case PEER -> queuedPeerRecoveriesAsTargetMetric.add(-1, peerRecoveryTargetLifecycleMetricLabels(priorityGroup));
         }
-        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.QUEUED));
+        shardRecoveryDirectCancellationsMetric.incrementBy(
+            1,
+            directCancellationMetricLabels(type, RecoverySchedulingState.QUEUED, Stage.CREATED)
+        );
     }
 
     @Override
@@ -225,8 +265,9 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     }
 
     @Override
-    public void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type) {
-        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.STARTED));
+    public void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type, Stage stage, long elapsedTimeMillis) {
+        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.STARTED, stage));
+        shardRecoveryDirectCancellationsWorkTimeMetric.record(elapsedTimeMillis);
     }
 
     @Override
@@ -245,6 +286,24 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
         activePeerRecoveriesAsSourceMetric.add(-1, peerRecoverySourceLifecycleMetricLabels());
     }
 
+    @Override
+    public void onRecoveriesBlocked(String gateName) {
+        recoveryGateBlockedCurrentMetric.set(1L);
+        recoveryGateBlockedMetric.incrementBy(1, Map.of(RECOVERY_GATE_NAME_ATTRIBUTE_KEY, gateName));
+    }
+
+    @Override
+    public void onRecoveriesUnblocked(long blockedTimeMillis) {
+        recoveryGateBlockedCurrentMetric.set(0L);
+        recoveryGateBlockedDurationMetric.record(blockedTimeMillis);
+    }
+
+    @Override
+    public void close() {
+        // Only the asynchronous gauge is closeable; the synchronous counters and histograms need no cleanup.
+        recoveryGateBlockedCurrentMetric.gauge().close();
+    }
+
     private static Map<String, Object> storeRecoveryTargetLifecycleMetricLabels(RecoverySource.Type type, PriorityGroup priorityGroup) {
         return Map.of("es_recovery_type", type.name(), "es_recovery_priority_group", priorityGroup.name());
     }
@@ -257,8 +316,12 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
         return Map.of();
     }
 
-    private static Map<String, Object> directCancellationMetricLabels(RecoverySource.Type type, RecoverySchedulingState state) {
-        return Map.of("es_recovery_type", type.name(), "es_recovery_scheduling_state", state.name());
+    private static Map<String, Object> directCancellationMetricLabels(
+        RecoverySource.Type type,
+        RecoverySchedulingState state,
+        RecoveryState.Stage stage
+    ) {
+        return Map.of("es_recovery_type", type.name(), "es_recovery_scheduling_state", state.name(), "es_recovery_stage", stage.name());
     }
 
     private enum RecoverySchedulingState {

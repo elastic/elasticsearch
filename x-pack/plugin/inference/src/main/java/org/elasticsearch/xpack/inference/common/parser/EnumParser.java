@@ -17,8 +17,8 @@ import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.inference.InferenceUtils.invalidValue;
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.validateEnumValue;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidValue;
 
 public final class EnumParser {
     public static <E extends Enum<E>> E extractEnum(

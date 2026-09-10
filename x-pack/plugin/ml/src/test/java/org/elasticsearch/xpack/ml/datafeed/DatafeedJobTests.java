@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -482,6 +483,27 @@ public class DatafeedJobTests extends ESTestCase {
         assertEquals(2000L, endTimeCaptor.getAllValues().get(1).longValue());
         assertThat(flushJobRequests.getAllValues().isEmpty(), is(true));
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
+    }
+
+    public void testSkippedClustersStatsUpdatedOnExtractionFailure() throws Exception {
+        when(dataExtractor.hasNext()).thenReturn(true);
+        when(dataExtractor.next()).thenThrow(new ResourceNotFoundException("remote cluster skipped"));
+        List<LinkedClusterState> skippedStates = List.of(new LinkedClusterState("remote1", LinkedClusterState.Status.SKIPPED, null, 10));
+        when(dataExtractor.getLinkedClusterStates()).thenReturn(skippedStates);
+
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
+        DatafeedJob datafeedJob = createDatafeedJob(
+            1000,
+            500,
+            -1,
+            -1,
+            randomBoolean(),
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            stats
+        );
+
+        expectThrows(DatafeedJob.ExtractionProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+        assertThat(stats.getSkippedClusters(), equalTo(1));
     }
 
     public void testCloudCredentialFailureShouldAuditOncePerFailureEpisode() throws Exception {

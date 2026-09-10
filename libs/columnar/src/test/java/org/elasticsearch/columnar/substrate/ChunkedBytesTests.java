@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -395,6 +396,95 @@ public class ChunkedBytesTests extends ESTestCase {
                 }
                 offsets[values.size()] = writer.uncompressedLength();
                 return ChunkIndexMetadata.of(writer.finish());
+            }
+        }
+    }
+
+    /**
+     * {@code span} points at bytes where they already are rather than copying them: inside the decoded chunk
+     * under a compressing codec, and inside a buffer the reader fills from the file under the identity one,
+     * where there is no decoded chunk to point into.
+     */
+    public void testSpanPointsAtTheBytes() throws IOException {
+        final List<byte[]> values = new ArrayList<>();
+        for (int i = 0; i < between(50, 400); i++) {
+            values.add(bytes("value-" + i + "-" + "x".repeat(between(0, 60))));
+        }
+        for (ChunkCodec codec : codecs()) {
+            for (int target : List.of(64, 1024, 16 * 1024)) {
+                try (Directory dir = newDirectory()) {
+                    final long[] offsets = new long[values.size() + 1];
+                    final ChunkIndexMetadata index = writeStream(dir, codec, target, values, offsets);
+                    try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
+                        final ChunkedBytesReader reader = index.open(in);
+                        final BytesRef span = new BytesRef();
+                        final String label = "codec=" + codec + " target=" + target;
+                        for (int i = 0; i < values.size(); i++) {
+                            final int length = (int) (offsets[i + 1] - offsets[i]);
+                            reader.span(offsets[i], length, span);
+                            assertEquals(label + " length at " + i, length, span.length);
+                            assertArrayEquals(
+                                label + " bytes at " + i,
+                                values.get(i),
+                                Arrays.copyOfRange(span.bytes, span.offset, span.offset + span.length)
+                            );
+                        }
+                        // Backwards too, so a span re-enters a chunk the reader has already left.
+                        for (int i = values.size() - 1; i >= 0; i--) {
+                            final int length = (int) (offsets[i + 1] - offsets[i]);
+                            reader.span(offsets[i], length, span);
+                            assertArrayEquals(
+                                label + " bytes backwards at " + i,
+                                values.get(i),
+                                Arrays.copyOfRange(span.bytes, span.offset, span.offset + span.length)
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** A span of nothing is an empty reference, and asks the reader for no chunk at all. */
+    public void testSpanOfZeroLength() throws IOException {
+        for (ChunkCodec codec : codecs()) {
+            try (Directory dir = newDirectory()) {
+                final List<byte[]> values = List.of(bytes("a"), bytes("b"));
+                final long[] offsets = new long[values.size() + 1];
+                final ChunkIndexMetadata index = writeStream(dir, codec, 64, values, offsets);
+                try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
+                    final BytesRef span = new BytesRef("untouched");
+                    index.open(in).span(0, 0, span);
+                    assertEquals("codec=" + codec, 0, span.length);
+                }
+            }
+        }
+    }
+
+    /**
+     * The buffer a span uses under the identity codec is grown by the longest span asked for and then reused,
+     * so a long span followed by a short one leaves the short one reading its own bytes and not the tail of
+     * the long one.
+     */
+    public void testSpanBufferIsReusedAcrossLengths() throws IOException {
+        final List<byte[]> values = List.of(bytes("x".repeat(4000)), bytes("tiny"), bytes("y".repeat(2000)), bytes("z"));
+        for (ChunkCodec codec : codecs()) {
+            try (Directory dir = newDirectory()) {
+                final long[] offsets = new long[values.size() + 1];
+                final ChunkIndexMetadata index = writeStream(dir, codec, 64 * 1024, values, offsets);
+                try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
+                    final ChunkedBytesReader reader = index.open(in);
+                    final BytesRef span = new BytesRef();
+                    for (int i = 0; i < values.size(); i++) {
+                        final int length = (int) (offsets[i + 1] - offsets[i]);
+                        reader.span(offsets[i], length, span);
+                        assertArrayEquals(
+                            "codec=" + codec + " value " + i,
+                            values.get(i),
+                            Arrays.copyOfRange(span.bytes, span.offset, span.offset + span.length)
+                        );
+                    }
+                }
             }
         }
     }

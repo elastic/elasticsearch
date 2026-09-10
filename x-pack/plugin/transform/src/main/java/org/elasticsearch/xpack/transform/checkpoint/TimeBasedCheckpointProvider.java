@@ -18,7 +18,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
@@ -59,19 +58,10 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
         final TransformConfig transformConfig,
-        final CrossProjectModeDecider crossProjectModeDecider,
         final TimeValue initialDelay,
         final BooleanSupplier hasProcessedData
     ) {
-        super(
-            clock,
-            threadContextSupplier,
-            clientSupplier,
-            transformConfigManager,
-            transformAuditor,
-            transformConfig,
-            crossProjectModeDecider
-        );
+        super(clock, threadContextSupplier, clientSupplier, transformConfigManager, transformAuditor, transformConfig);
         timeSyncConfig = (TimeSyncConfig) transformConfig.getSyncConfig();
         alignTimestamp = createAlignTimestampFunction(transformConfig);
         this.initialDelay = initialDelay;
@@ -107,9 +97,10 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
             .runtimeMappings(transformConfig.getSource().getRuntimeMappings())
             .query(queryBuilder);
         SearchRequest searchRequest = new SearchRequest(transformConfig.getSource().getIndex()).allowPartialSearchResults(false)
-            .indicesOptions(checkpointIndicesOptions())
+            .indicesOptions(transformConfig.getScopedIndicesOptions())
             .source(sourceBuilder);
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+            && transformConfig.getScopedIndicesOptions().resolveCrossProjectIndexExpression()) {
             searchRequest.setProjectRouting(transformConfig.getSource().getProjectRouting());
         }
 

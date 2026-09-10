@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
@@ -144,5 +145,41 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
             case "datetime_format" -> "dd/MM/yyyy HH:mm:ss";
             default -> throw new AssertionError("update sampleValueFor() for new recognised key: " + key);
         };
+    }
+
+    /**
+     * Every key the reader consumes must either participate in the cache identity
+     * ({@link SchemaCacheKey#affectsIdentity}) or be declared inert here with a justification.
+     * <ul>
+     *   <li>{@code segment_size} — read segmentation only. The split-alignment protocol (leading partial record
+     *       dropped, trailing partial record finished) makes the surviving record set, and therefore every
+     *       statistic over it, independent of where segments fall.</li>
+     * </ul>
+     */
+    private static final Set<String> IDENTITY_INERT_KEYS = Set.of(NdJsonFormatReader.CONFIG_SEGMENT_SIZE);
+
+    public void testEveryRecognizedKeyIsIdentityAffectingOrDeclaredInert() {
+        for (String key : NdJsonFormatReader.RECOGNIZED_KEYS) {
+            boolean affects = SchemaCacheKey.affectsIdentity(key);
+            boolean inert = IDENTITY_INERT_KEYS.contains(key);
+            assertTrue(
+                "key ["
+                    + key
+                    + "] is consumed by the reader but neither participates in the cache identity nor is declared "
+                    + "inert: add it to SchemaCacheKey's identity params, or declare it in IDENTITY_INERT_KEYS with "
+                    + "a justification that it cannot change which rows survive or what values they hold",
+                affects || inert
+            );
+            assertFalse("key [" + key + "] cannot be both identity-affecting and declared inert", affects && inert);
+        }
+    }
+
+    public void testDeclaredInertKeysAreStillRecognized() {
+        for (String key : IDENTITY_INERT_KEYS) {
+            assertTrue(
+                "stale IDENTITY_INERT_KEYS entry [" + key + "]: the reader no longer consumes it",
+                NdJsonFormatReader.RECOGNIZED_KEYS.contains(key)
+            );
+        }
     }
 }

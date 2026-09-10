@@ -392,6 +392,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
         // A multi-source FROM <dataset> has no single-EXTERNAL equivalent, so a suite that rebuilds specs
         // into an EXTERNAL query cannot express it. Skip such specs here rather than failing in the rebuild.
+        // Unreachable while no suite overrides forceExternalRebuild(): only directive-free specs get this far,
+        // so datasetSources is empty. Kept paired with that hook -- see its javadoc.
         assumeFalse(
             "multi-source FROM <dataset> has no single-EXTERNAL equivalent; skipped on EXTERNAL-rebuild backends",
             testCase.datasetSources.size() > 1
@@ -399,11 +401,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
         // A declared schema is a property of the DATASET, not of a query: EXTERNAL has no clause that carries one, and
         // copying the directive's reserved `mappings` key into an EXTERNAL WITH would fail option validation instead of
-        // declaring anything, so such a case is skipped rather than rebuilt.
-        //
-        // Live, not dormant: ParquetRsFormatSpecIT globs external-*.csv-spec AND forces the EXTERNAL rebuild, and
-        // external-declared-schema.csv-spec is now such a file in which every case declares a schema. This skip is
-        // what keeps those cases off that suite -- a declaration has no EXTERNAL-query equivalent to rebuild into.
+        // declaring anything, so such a case is skipped rather than rebuilt. Unreachable for the same reason as the
+        // guard above.
         assumeFalse(
             "a declared schema cannot be expressed as an EXTERNAL ... WITH query; skipped on EXTERNAL-rebuild backends",
             declaresMappings()
@@ -413,12 +412,15 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         useAzureHadoopForm = storageBackend == StorageBackend.AZURE && randomBoolean();
 
         // Either a raw-EXTERNAL spec with no dataset: directive (the Iceberg holdout, left unchanged) or a
-        // holdout suite whose reader cannot be addressed via FROM <dataset> (parquet-rs — see
-        // forceExternalRebuild()): in the latter case rebuild the EXTERNAL query from the single dataset
-        // directive so the suite's reader override still applies. A spec with no directive is returned as-is.
+        // holdout suite whose reader cannot be addressed via FROM <dataset>: in the latter case rebuild the
+        // EXTERNAL query from the single dataset directive so the suite's reader override still applies.
+        // A spec with no directive is returned as-is.
         String query = rebuildExternalFromDatasets(testCase.query);
 
-        if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}")) {
+        // The dataset path below matches on the bare suffix; this one matches on suffix + "}}" because it reads the
+        // rebuilt query text. HIVE_SHADOW_SUFFIX therefore needs naming explicitly: it contains HIVE_SUFFIX but does
+        // not end with it, so "_hive}}" does not match "{{employees_hive_shadow}}".
+        if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}") || query.contains(HIVE_SHADOW_SUFFIX + "}}")) {
             // HTTP does not support directory listing, so skip multi-file/Hive-partitioned glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
         }
@@ -471,8 +473,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * same idiom the raw-EXTERNAL flow uses. Each source's resource template is resolved to the backend
      * URI exactly as the EXTERNAL path resolves it. The format reader is selected by the resource's file
      * extension against the readers the cluster's installed datasource plugin registers; the dataset model
-     * exposes no {@code reader}/{@code format} selector, so a reader that registers no extension (e.g. the
-     * parquet-rs native reader) is not reachable on this path.
+     * exposes no {@code reader}/{@code format} selector, so a reader that registers no file extension
+     * is not reachable on this path.
      * <p>
      * Skipped (rather than failed) on a cluster that lacks {@code dataset_in_from_command}: that
      * capability gates resolving {@code FROM <dataset>} in {@code POST /_query}, which is what this path
@@ -561,7 +563,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * Override to specify a reader implementation for the EXTERNAL query.
      * When non-null, a {@code "reader": "<name>"} parameter is injected into the WITH clause.
      *
-     * @return the reader name (e.g. "java", "parquet-rs"), or null for the default reader
+     * @return the reader name (e.g. "java"), or null for the default reader
      */
     protected String readerName() {
         return null;
@@ -571,12 +573,16 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * Whether this suite must drive its specs through the raw {@code EXTERNAL} command rather than the
      * {@code FROM <dataset>} path, rebuilding the EXTERNAL query from each spec's {@code dataset:} directive.
      * <p>
-     * Defaults to {@code false}: every dataset-backed suite runs via {@code FROM <dataset>}. The sole opt-in
-     * is the parquet-rs suite: the parquet-rs native reader registers no file extension and the dataset model
-     * exposes no {@code reader}/{@code format} selector ({@code Dataset} carries only
-     * {@code data_source}/{@code resource}/{@code settings}, and settings are validated against the format's
-     * config keys), so parquet-rs is reachable only via {@code EXTERNAL ... WITH "reader": "parquet-rs"}. It is
-     * therefore a sanctioned EXTERNAL holdout, like gRPC/Flight and Iceberg.
+     * Defaults to {@code false}: every dataset-backed suite runs via {@code FROM <dataset>}. Override
+     * to {@code true} for a reader that registers no file extension and is therefore only reachable via
+     * {@code EXTERNAL ... WITH "reader": "<name>"}, making it a sanctioned EXTERNAL holdout like gRPC/Flight
+     * and Iceberg.
+     * <p>
+     * <b>No suite overrides this today.</b> The only one that did was the native parquet reader's, which has
+     * been removed, so {@link #doTest} now falls through to the EXTERNAL branch solely for specs that carry no
+     * {@code dataset:} directive at all (the Iceberg holdout). Consequently {@link #rebuildExternalFromDatasets}
+     * always returns its argument unchanged and the two dataset-shape guards in {@link #doTest} cannot fire.
+     * Kept as the hook for the next reader that is unaddressable via {@code FROM <dataset>}.
      */
     protected boolean forceExternalRebuild() {
         return false;
@@ -826,6 +832,13 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static final String HIVE_SUFFIX = "_hive";
 
     /**
+     * Hive-partitioned fixture whose partition key collides with a real payload column (see the
+     * {@code generateHiveShadowParquet_employees} fixture task). Checked before {@link #HIVE_SUFFIX}; the name still
+     * contains {@code _hive} so the HTTP glob-skip applies to it too.
+     */
+    private static final String HIVE_SHADOW_SUFFIX = "_hive_shadow";
+
+    /**
      * Resolve a template name to an actual path based on storage backend and format.
      *
      * @param templateName the template name (e.g., "employees", "employees_multifile", or "employees_multifile_ubn")
@@ -851,6 +864,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {
             // Multi-file template: employees_multifile -> multifile/*.parquet
             relativePath = "multifile/*." + format;
+        } else if (templateName.endsWith(HIVE_SHADOW_SUFFIX)) {
+            // Hive layout whose partition key shadows a same-named payload column.
+            relativePath = "hive-partitioned-shadow/**/*." + format;
         } else if (templateName.endsWith(HIVE_SUFFIX)) {
             // Hive-partitioned template: employees_hive -> hive-partitioned/**/*.parquet
             // (uses ** so the glob recurses into lang=*/ partition directories; HivePartitionDetector

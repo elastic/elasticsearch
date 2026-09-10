@@ -17,6 +17,10 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.IncreaseExponentialHistogramGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.RateDoubleGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.RateIntGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.RateLongGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.aggregation.TimeSeriesGroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.WindowGroupingAggregatorFunction;
@@ -25,6 +29,8 @@ import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -32,8 +38,8 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
-import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.joining;
 
@@ -86,7 +92,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 dateNanos ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
                 aggregatorMode,
                 aggregators,
-                () -> {
+                dc -> {
                     // Use TimeSeriesBlockHash for groups over the [tsid, timestamp] pair, to reduce the group overhead.
                     if (groups.size() == 2) {
                         var g1 = groups.get(0);
@@ -98,7 +104,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                         }
                     }
                     // Broken optimizations are allowed as the inputs are vectors.
-                    return BlockHash.build(groups, driverContext.blockFactory(), aggregationBatchSize, true);
+                    return BlockHash.build(groups, dc.blockFactory(), aggregationBatchSize, true);
                 },
                 targetChunkRows,
                 driverContext
@@ -125,13 +131,18 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         DateFieldMapper.Resolution timeResolution,
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
-        Supplier<BlockHash> blockHash,
+        Function<DriverContext, BlockHash> blockHash,
         int targetChunkRows,
         DriverContext driverContext
     ) {
-        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, targetChunkRows, null, driverContext);
+        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, targetChunkRows, null, null, driverContext, null);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
+    }
+
+    @Override
+    public Operator tryPromote(DriverContext driverContext) {
+        return this;
     }
 
     @Override
@@ -264,6 +275,58 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             return selectedForValuesAggregator(driverContext.blockFactory(), selected);
         }
         return super.customizeSelected(aggregator, selected);
+    }
+
+    @Override
+    protected boolean assertGroupAssignments(Page page, int positionOffset, IntVector groupIds) {
+        if (aggregatorMode.isInputPartial() || blockHash instanceof TimeSeriesBlockHash == false) {
+            return true;
+        }
+        TimeSeriesBlockHash tsBlockHash = (TimeSeriesBlockHash) blockHash;
+        for (GroupingAggregator aggregator : aggregators) {
+            int timestampChannel = timestampChannel(aggregator.aggregatorFunction());
+            if (timestampChannel < 0) {
+                continue;
+            }
+            var timestamps = ((LongBlock) page.getBlock(timestampChannel)).asVector();
+            assert timestamps != null : "expected timestamp vector in time-series aggregation";
+            for (int p = 0; p < groupIds.getPositionCount(); p++) {
+                int groupId = groupIds.getInt(p);
+                long groupTimestampInMillis = timeResolution.roundDownToMillis(tsBlockHash.timestampForGroup(groupId));
+                long bucketStart = timeResolution.convert(timeBucket.roundingFloor(groupTimestampInMillis));
+                long bucketEnd = timeResolution.convert(timeBucket.roundingCeiling(groupTimestampInMillis));
+                long timestamp = timestamps.getLong(positionOffset + p);
+                assert timestamp >= bucketStart && timestamp <= bucketEnd
+                    : "timestamp "
+                        + timestamp
+                        + " at position "
+                        + (positionOffset + p)
+                        + " was assigned to group "
+                        + groupId
+                        + " outside bucket ["
+                        + bucketStart
+                        + ", "
+                        + bucketEnd
+                        + "]";
+            }
+        }
+        return true;
+    }
+
+    private static int timestampChannel(GroupingAggregatorFunction function) {
+        if (function instanceof RateDoubleGroupingAggregatorFunction rate) {
+            return rate.timestampChannel();
+        }
+        if (function instanceof RateLongGroupingAggregatorFunction rate) {
+            return rate.timestampChannel();
+        }
+        if (function instanceof RateIntGroupingAggregatorFunction rate) {
+            return rate.timestampChannel();
+        }
+        if (function instanceof IncreaseExponentialHistogramGroupingAggregatorFunction increase) {
+            return increase.timestampChannel();
+        }
+        return -1;
     }
 
     private IntVector selectedForValuesAggregator(BlockFactory blockFactory, IntVector selected) {

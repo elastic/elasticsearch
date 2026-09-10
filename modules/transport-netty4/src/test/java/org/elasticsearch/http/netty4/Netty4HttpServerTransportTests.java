@@ -73,6 +73,7 @@ import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.http.HttpUtils;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
@@ -540,7 +541,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
                     assertThat(response.status(), equalTo(HttpResponseStatus.OK));
                     assertThat(response.headers().get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), equalTo("elastic.co"));
                     assertThat(response.headers().get(CorsHandler.VARY), equalTo(CorsHandler.ORIGIN));
-                    assertTrue(response.headers().contains(CorsHandler.DATE));
+                    assertTrue(response.headers().contains(HttpUtils.DATE));
                 } finally {
                     response.release();
                 }

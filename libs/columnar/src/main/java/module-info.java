@@ -23,6 +23,7 @@ module org.elasticsearch.columnar {
     exports org.elasticsearch.columnar;
     exports org.elasticsearch.columnar.substrate;
     exports org.elasticsearch.columnar.numeric;
+    exports org.elasticsearch.columnar.string;
 
     provides org.apache.lucene.codecs.DocValuesFormat with org.elasticsearch.columnar.ColumNARDocValuesFormat;
 }

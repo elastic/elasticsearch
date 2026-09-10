@@ -309,6 +309,8 @@ public class InferencePlugin extends Plugin
     private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
     private final SetOnce<AmazonBedrockRequestSender.Factory> amazonBedrockFactory = new SetOnce<>();
     private final SetOnce<HttpRequestSender.Factory> elasticInferenceServiceFactory = new SetOnce<>();
+    private final SetOnce<HttpClientManager> httpClientManagerRef = new SetOnce<>();
+    private final SetOnce<HttpClientManager> eisHttpClientManagerRef = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
     private final SetOnce<TokenCache> oauth2TokenCache = new SetOnce<>();
     private final SetOnce<ProjectResolver> projectResolver = new SetOnce<>();
@@ -421,6 +423,7 @@ public class InferencePlugin extends Plugin
             throttlerManager,
             circuitBreaker
         );
+        httpClientManagerRef.set(httpClientManager);
         var httpRequestSenderFactory = new HttpRequestSender.Factory(serviceComponents.get(), httpClientManager, services.clusterService());
         httpFactory.set(httpRequestSenderFactory);
 
@@ -448,6 +451,7 @@ public class InferencePlugin extends Plugin
             circuitBreaker
         );
         var elasticInferenceServiceHttpClientManager = eisRequestSenderFactoryComponents.httpClientManager();
+        eisHttpClientManagerRef.set(elasticInferenceServiceHttpClientManager);
         elasticInferenceServiceFactory.set(eisRequestSenderFactoryComponents.factory());
 
         var inferencePreferencesCache = new InferencePreferencesCache(
@@ -932,7 +936,12 @@ public class InferencePlugin extends Plugin
         var serviceComponentsRef = serviceComponents.get();
         var throttlerToClose = serviceComponentsRef != null ? serviceComponentsRef.throttlerManager() : null;
 
-        IOUtils.closeWhileHandlingException(inferenceServiceRegistry.get(), throttlerToClose);
+        IOUtils.closeWhileHandlingException(
+            inferenceServiceRegistry.get(),
+            throttlerToClose,
+            httpClientManagerRef.get(),
+            eisHttpClientManagerRef.get()
+        );
     }
 
     @Override

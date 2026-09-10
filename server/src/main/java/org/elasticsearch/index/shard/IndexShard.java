@@ -74,6 +74,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -121,6 +122,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
@@ -167,6 +169,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
@@ -2381,41 +2384,194 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Replays translog operations from the provided translog {@code snapshot} to the current engine using the given {@code origin}.
-     * The callback {@code onOperationRecovered} is notified after each translog operation is replayed successfully.
+     * Replays translog records from the provided translog {@code snapshot} to the current engine using the given {@code origin}.
+     * Single operations are applied one at a time; an {@link IndexOperationBatch.TranslogRecord} is indexed as a batch via
+     * {@link #applyTranslogBatch}. The callback {@code onOperationRecovered} is notified after each operation is replayed
+     * successfully.
      */
     int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot, Engine.Operation.Origin origin, Runnable onOperationRecovered)
         throws IOException {
         int opsRecovered = 0;
-        Translog.Operation operation;
-        while ((operation = snapshot.next()) != null) {
+        Translog.Record record;
+        while ((record = snapshot.nextRecord()) != null) {
+            if (record instanceof IndexOperationBatch.TranslogRecord batch) {
+                opsRecovered += applyTranslogBatch(engine, batch, origin, onOperationRecovered);
+                continue;
+            }
+            final Translog.Operation operation = (Translog.Operation) record;
             try {
                 logger.trace("[translog] recover op {}", operation);
-                Engine.Result result = applyTranslogOperation(engine, operation, origin);
-                switch (result.getResultType()) {
-                    case FAILURE:
-                        throw result.getFailure();
-                    case MAPPING_UPDATE_REQUIRED:
-                        throw new IllegalArgumentException("unexpected mapping update: " + result.getRequiredMappingUpdate());
-                    case SUCCESS:
-                        break;
-                    default:
-                        throw new AssertionError("Unknown result type [" + result.getResultType() + "]");
-                }
-
+                checkTranslogRecoveryResult(applyTranslogOperation(engine, operation, origin));
                 opsRecovered++;
                 onOperationRecovered.run();
             } catch (Exception e) {
-                // TODO: Don't enable this leniency unless users explicitly opt-in
-                if (origin == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY && ExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
-                    // mainly for MapperParsingException and Failure to detect xcontent
-                    logger.info("ignoring recovery of a corrupt translog entry", e);
-                } else {
-                    throw ExceptionsHelper.convertToRuntime(e);
+                handleTranslogRecoveryFailure(origin, e);
+            }
+        }
+        return opsRecovered;
+    }
+
+    /**
+     * Replays one batch record. The record is mapped columnar once and every run of consecutive
+     * {@link IndexOperationBatch.TranslogRecord#ROW_INDEXED} rows is handed to {@link Engine#indexBatch} as a
+     * slice of that batch, {@link IndexOperationBatch.TranslogRecord#ROW_NO_OP} rows are marked as no-ops and
+     * the remaining rows (preflight errors, rows the snapshot skipped) are passed over, all in row order. Only
+     * when the record cannot be mapped columnar (see {@link ShardBatchMapper#mapTranslogBatch}) is it replayed
+     * row by row through the single-operation path.
+     *
+     * @return the number of operations replayed successfully
+     */
+    private int applyTranslogBatch(
+        Engine engine,
+        IndexOperationBatch.TranslogRecord batch,
+        Engine.Operation.Origin origin,
+        Runnable onOperationRecovered
+    ) throws IOException {
+        assert batch.primaryTerm() <= getOperationPrimaryTerm()
+            : "batch term [" + batch.primaryTerm() + "] > shard term [" + getOperationPrimaryTerm() + "]";
+        assert origin == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY || origin == Engine.Operation.Origin.LOCAL_RESET : origin;
+        logger.trace(
+            "[translog] recover batch of [{}] rows starting at seq# [{}], replaying [{}]",
+            batch.docCount(),
+            batch.startSeqNo(),
+            batch.replayCount()
+        );
+        ensureWriteAllowed(origin);
+        final EngineBatch engineBatch;
+        try (SourceBatch sourceBatch = EscfBatch.parse(batch.batchData(), () -> {})) {
+            engineBatch = ShardBatchMapper.mapTranslogBatch(
+                batch,
+                sourceBatch,
+                this,
+                origin,
+                translogConfig.getBigArrays().bytesRefRecycler()
+            );
+            if (engineBatch == null) {
+                return applyTranslogBatchRowByRow(engine, batch, origin, onOperationRecovered);
+            }
+            int opsRecovered = 0;
+            int runStart = -1;
+            for (int row = 0; row < batch.docCount(); row++) {
+                final byte status = batch.rowStatus(row);
+                if (status == IndexOperationBatch.TranslogRecord.ROW_INDEXED) {
+                    if (runStart < 0) {
+                        runStart = row;
+                    }
+                    continue;
+                }
+                if (runStart >= 0) {
+                    opsRecovered += indexTranslogBatchRun(engine, engineBatch, runStart, row, origin, onOperationRecovered);
+                    runStart = -1;
+                }
+                if (status == IndexOperationBatch.TranslogRecord.ROW_NO_OP) {
+                    try {
+                        checkTranslogRecoveryResult(
+                            markSeqNoAsNoop(engine, batch.seqNo(row), batch.primaryTerm(), batch.noOpReason(row), origin)
+                        );
+                        opsRecovered++;
+                        onOperationRecovered.run();
+                    } catch (Exception e) {
+                        handleTranslogRecoveryFailure(origin, e);
+                    }
+                }
+            }
+            if (runStart >= 0) {
+                opsRecovered += indexTranslogBatchRun(engine, engineBatch, runStart, batch.docCount(), origin, onOperationRecovered);
+            }
+            return opsRecovered;
+        }
+    }
+
+    /**
+     * Indexes rows {@code [from, to)} of a mapped translog batch as one engine batch and accounts for the per-row
+     * results the way the single-operation path does: every success is counted first, then each failure goes
+     * through {@link #handleTranslogRecoveryFailure}, so a failure that aborts recovery never hides an op that was
+     * indexed.
+     */
+    private int indexTranslogBatchRun(
+        Engine engine,
+        EngineBatch engineBatch,
+        int from,
+        int to,
+        Engine.Operation.Origin origin,
+        Runnable onOperationRecovered
+    ) throws IOException {
+        final EngineBatch run = from == 0 && to == engineBatch.batch().docCount()
+            ? engineBatch
+            : new EngineBatch(engineBatch.batch().slice(from, to), engineBatch.columns().slice(from, to));
+        final List<Engine.IndexResult> results;
+        try {
+            results = indexBatch(engine, run);
+        } catch (Exception e) {
+            handleTranslogRecoveryFailure(origin, e);
+            return 0;
+        }
+        int opsRecovered = 0;
+        for (Engine.IndexResult result : results) {
+            if (result.getResultType() == Engine.Result.Type.SUCCESS) {
+                opsRecovered++;
+                onOperationRecovered.run();
+            }
+        }
+        for (Engine.IndexResult result : results) {
+            if (result.getResultType() != Engine.Result.Type.SUCCESS) {
+                try {
+                    checkTranslogRecoveryResult(result);
+                } catch (Exception e) {
+                    handleTranslogRecoveryFailure(origin, e);
                 }
             }
         }
         return opsRecovered;
+    }
+
+    /**
+     * Fallback for a batch record that cannot be mapped columnar against the current mapping: replays its
+     * operations one at a time exactly like single translog operations.
+     */
+    private int applyTranslogBatchRowByRow(
+        Engine engine,
+        IndexOperationBatch.TranslogRecord batch,
+        Engine.Operation.Origin origin,
+        Runnable onOperationRecovered
+    ) throws IOException {
+        logger.debug("[translog] batch starting at seq# [{}] cannot be mapped as a batch, replaying row by row", batch.startSeqNo());
+        int opsRecovered = 0;
+        for (Translog.Operation operation : batch.explode()) {
+            try {
+                logger.trace("[translog] recover op {}", operation);
+                checkTranslogRecoveryResult(applyTranslogOperation(engine, operation, origin));
+                opsRecovered++;
+                onOperationRecovered.run();
+            } catch (Exception e) {
+                handleTranslogRecoveryFailure(origin, e);
+            }
+        }
+        return opsRecovered;
+    }
+
+    /** Throws the failure carried by a non-successful replay result; a mapping update can never be needed on replay. */
+    private static void checkTranslogRecoveryResult(Engine.Result result) throws Exception {
+        switch (result.getResultType()) {
+            case FAILURE:
+                throw result.getFailure();
+            case MAPPING_UPDATE_REQUIRED:
+                throw new IllegalArgumentException("unexpected mapping update: " + result.getRequiredMappingUpdate());
+            case SUCCESS:
+                break;
+            default:
+                throw new AssertionError("Unknown result type [" + result.getResultType() + "]");
+        }
+    }
+
+    private void handleTranslogRecoveryFailure(Engine.Operation.Origin origin, Exception e) {
+        // TODO: Don't enable this leniency unless users explicitly opt-in
+        if (origin == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY && ExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
+            // mainly for MapperParsingException and Failure to detect xcontent
+            logger.info("ignoring recovery of a corrupt translog entry", e);
+        } else {
+            throw ExceptionsHelper.convertToRuntime(e);
+        }
     }
 
     private void loadGlobalCheckpointToReplicationTracker() throws IOException {

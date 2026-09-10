@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
@@ -174,10 +175,19 @@ public final class BatchMappingContext {
 
     /**
      * Returns the per-document source array. Individual entries may be {@code null} for documents
-     * that carry no source.
+     * that carry no source, notably every document of a batch replayed from the translog; use
+     * {@link #sourceRow} for those.
      */
     public BytesReference[] sources() {
         return batch.sources();
+    }
+
+    /**
+     * Returns document {@code doc}'s row of the source batch, the only representation of the source
+     * available when {@link #sources()} has no request bytes for it.
+     */
+    public SourceRow sourceRow(int doc) {
+        return batch.sourceBatch().row(doc);
     }
 
     /**

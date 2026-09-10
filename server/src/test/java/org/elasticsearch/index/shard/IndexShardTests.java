@@ -27,6 +27,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -56,6 +57,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -78,6 +80,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.EngineTestUtils;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -85,8 +89,10 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
@@ -118,6 +124,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.store.StoreUtils;
 import org.elasticsearch.index.translog.TestTranslog;
+import org.elasticsearch.index.translog.TestTranslog.RecordBuilder;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -181,6 +188,7 @@ import java.util.function.IntSupplier;
 import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -3242,6 +3250,219 @@ public class IndexShardTests extends IndexShardTestCase {
         );
         assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(numTotalEntries - numCorruptEntries));
 
+        closeShards(primary);
+    }
+
+    private static final String KEYWORD_MAPPING = """
+        { "properties": { "value": { "type": "keyword" } } }""";
+
+    /**
+     * A primary ready for translog recovery whose engine counts batch and single-operation indexing calls, so tests can
+     * tell how a translog batch record was replayed. {@code resultsTransform} lets a test tamper with the batch results
+     * the real engine produced. The index is columnar with synthetic recovery source, the configuration the columnar
+     * batch mapping path supports (stored {@code _source} keeps every batch on the row path).
+     */
+    private IndexShard newBatchRecoveryShard(
+        String mapping,
+        AtomicInteger batchCalls,
+        AtomicInteger singleOpCalls,
+        UnaryOperator<List<Engine.IndexResult>> resultsTransform
+    ) throws IOException {
+        final Settings settings = indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+            .build();
+        final IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping(mapping)
+            .settings(settings)
+            .primaryTerm(0, randomLongBetween(1, Long.MAX_VALUE))
+            .build();
+        final ShardRouting routing = shardRoutingBuilder(new ShardId(metadata.getIndex(), 0), "n1", true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE)
+            .build();
+        final IndexShard primary = newShard(routing, metadata, null, config -> new InternalEngine(config) {
+            @Override
+            public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
+                batchCalls.incrementAndGet();
+                return resultsTransform.apply(super.indexBatch(batch));
+            }
+
+            @Override
+            public IndexResult index(Index index) throws IOException {
+                singleOpCalls.incrementAndGet();
+                return super.index(index);
+            }
+        });
+        primary.markAsRecovering(
+            "store",
+            new RecoveryState(primary.routingEntry(), getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
+        );
+        recoverFromStore(primary);
+        return primary;
+    }
+
+    /** Replays the seqNo range of {@code translog} into {@code primary} exactly as local recovery does. */
+    private int recoverFromTranslog(IndexShard primary, Translog translog, long fromSeqNo, long toSeqNo) throws IOException {
+        try (Translog.Snapshot snapshot = translog.newSnapshot(fromSeqNo, toSeqNo)) {
+            primary.recoveryState().getTranslog().totalOperations(snapshot.totalOperations());
+            primary.recoveryState().getTranslog().totalOperationsOnStart(snapshot.totalOperations());
+            primary.state = IndexShardState.RECOVERING; // translog recovery would otherwise fail as we are in POST_RECOVERY
+            return primary.runTranslogRecovery(
+                primary.getEngine(),
+                snapshot,
+                Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                primary.recoveryState().getTranslog()::incrementRecoveredOperations
+            );
+        }
+    }
+
+    /** The ids of the live documents; a columnar index keeps {@code _id} in doc values, which {@link #getShardDocIDs} does not read. */
+    private static Set<String> columnarDocIds(IndexShard shard) throws IOException {
+        return shard.withEngineException(engine -> EngineTestUtils.getDocIds(engine, true, true))
+            .stream()
+            .map(DocIdSeqNoAndSource::id)
+            .collect(Collectors.toSet());
+    }
+
+    private static List<BytesReference> keywordSources(int count) {
+        final List<BytesReference> sources = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            sources.add(new BytesArray("{\"value\":\"v" + i + "\"}"));
+        }
+        return sources;
+    }
+
+    public void testRecoverBatchFromTranslogAsOneBatch() throws IOException {
+        assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
+        final AtomicInteger batchCalls = new AtomicInteger();
+        final AtomicInteger singleOpCalls = new AtomicInteger();
+        final IndexShard primary = newBatchRecoveryShard(KEYWORD_MAPPING, batchCalls, singleOpCalls, UnaryOperator.identity());
+        final long term = primary.getOperationPrimaryTerm();
+
+        try (Translog translog = TestTranslog.newTranslog(createTempDir(), primary.shardId(), term)) {
+            translog.add(TestTranslog.batchRecord(keywordSources(5), 0L, term, "doc-"));
+            // a single operation behind the batch still replays on its own
+            translog.add(new Translog.Index(Uid.encodeId("solo"), 5L, term, 1L, new BytesArray("{\"value\":\"solo\"}"), null, -1L));
+            assertThat(recoverFromTranslog(primary, translog, 0L, Long.MAX_VALUE), equalTo(6));
+        }
+
+        assertThat(columnarDocIds(primary), containsInAnyOrder("doc-0", "doc-1", "doc-2", "doc-3", "doc-4", "solo"));
+        assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(6));
+        assertThat("the batch record is indexed as one batch", batchCalls.get(), equalTo(1));
+        assertThat("only the single operation goes through the single-op path", singleOpCalls.get(), equalTo(1));
+        assertThat(primary.getLocalCheckpoint(), equalTo(5L));
+        closeShards(primary);
+    }
+
+    public void testRecoverBatchFromTranslogWithinSeqNoRange() throws IOException {
+        assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
+        final AtomicInteger batchCalls = new AtomicInteger();
+        final AtomicInteger singleOpCalls = new AtomicInteger();
+        final IndexShard primary = newBatchRecoveryShard(KEYWORD_MAPPING, batchCalls, singleOpCalls, UnaryOperator.identity());
+        final long term = primary.getOperationPrimaryTerm();
+
+        // rows 0..5 hold seqNos 0..5; recovery starting after a safe commit at seqNo 1 and capped at 4 must replay rows 2..4 only
+        try (Translog translog = TestTranslog.newTranslog(createTempDir(), primary.shardId(), term)) {
+            translog.add(TestTranslog.batchRecord(keywordSources(6), 0L, term, "doc-"));
+            assertThat(recoverFromTranslog(primary, translog, 2L, 4L), equalTo(3));
+        }
+
+        assertThat(columnarDocIds(primary), containsInAnyOrder("doc-2", "doc-3", "doc-4"));
+        assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(3));
+        assertThat("the kept rows are indexed as one batch slice", batchCalls.get(), equalTo(1));
+        assertThat(singleOpCalls.get(), equalTo(0));
+        closeShards(primary);
+    }
+
+    public void testRecoverBatchFromTranslogWithNoOpAndPreflightErrorRows() throws IOException {
+        assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
+        final AtomicInteger batchCalls = new AtomicInteger();
+        final AtomicInteger singleOpCalls = new AtomicInteger();
+        final IndexShard primary = newBatchRecoveryShard(KEYWORD_MAPPING, batchCalls, singleOpCalls, UnaryOperator.identity());
+        final long term = primary.getOperationPrimaryTerm();
+
+        // rows: indexed (seqNo 0), no-op (seqNo 1), indexed (seqNo 2), preflight error (no seqNo), indexed (seqNo 3)
+        final IndexOperationBatch.TranslogRecord record = new RecordBuilder(5).indexed(0, 0L, 1L, 100L, XContentType.JSON, "doc-0", null)
+            .noOp(1, 1L, "post-lucene failure")
+            .indexed(2, 2L, 1L, 102L, XContentType.JSON, "doc-2", null)
+            .skipped(3)
+            .indexed(4, 3L, 1L, 104L, XContentType.JSON, "doc-4", null)
+            .build(term, TestTranslog.encodeBatchData(keywordSources(5)));
+        try (Translog translog = TestTranslog.newTranslog(createTempDir(), primary.shardId(), term)) {
+            translog.add(record);
+            assertThat(recoverFromTranslog(primary, translog, 0L, Long.MAX_VALUE), equalTo(4));
+        }
+
+        assertThat(columnarDocIds(primary), containsInAnyOrder("doc-0", "doc-2", "doc-4"));
+        assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(4));
+        assertThat("each run of indexed rows is one batch slice", batchCalls.get(), equalTo(3));
+        assertThat(singleOpCalls.get(), equalTo(0));
+        // the no-op filled seqNo 1, so the checkpoint advances over the whole record
+        assertThat(primary.getLocalCheckpoint(), equalTo(3L));
+        closeShards(primary);
+    }
+
+    public void testRecoverBatchFromTranslogFallsBackToRowReplayWhenMappingIsNotColumnar() throws IOException {
+        assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
+        final AtomicInteger batchCalls = new AtomicInteger();
+        final AtomicInteger singleOpCalls = new AtomicInteger();
+        // a nested object keeps the mapping outside the columnar batch support matrix (see ShardBatchMapper#resolveMappers)
+        final String mapping = """
+            {
+              "properties": {
+                "value": { "type": "keyword" },
+                "comments": { "type": "nested", "properties": { "text": { "type": "keyword" } } }
+              }
+            }""";
+        final IndexShard primary = newBatchRecoveryShard(mapping, batchCalls, singleOpCalls, UnaryOperator.identity());
+        final long term = primary.getOperationPrimaryTerm();
+
+        try (Translog translog = TestTranslog.newTranslog(createTempDir(), primary.shardId(), term)) {
+            translog.add(TestTranslog.batchRecord(keywordSources(4), 0L, term, "doc-"));
+            assertThat(recoverFromTranslog(primary, translog, 0L, Long.MAX_VALUE), equalTo(4));
+        }
+
+        assertThat(columnarDocIds(primary), containsInAnyOrder("doc-0", "doc-1", "doc-2", "doc-3"));
+        assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(4));
+        assertThat(batchCalls.get(), equalTo(0));
+        assertThat("every row is replayed as a single operation", singleOpCalls.get(), equalTo(4));
+        closeShards(primary);
+    }
+
+    public void testRecoverBatchFromTranslogCountsSuccessesBeforeFailing() throws IOException {
+        assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
+        final AtomicInteger batchCalls = new AtomicInteger();
+        final AtomicInteger singleOpCalls = new AtomicInteger();
+        final int failedRow = 2;
+        // Let the real engine index every row, then swap one result for a failure: this isolates the recovery
+        // accounting under test from engine-level failure semantics, which are exercised in the engine tests.
+        final IndexShard primary = newBatchRecoveryShard(KEYWORD_MAPPING, batchCalls, singleOpCalls, results -> {
+            final Engine.IndexResult original = results.get(failedRow);
+            results.set(
+                failedRow,
+                new Engine.IndexResult(
+                    new RuntimeException("injected failure"),
+                    original.getVersion(),
+                    original.getTerm(),
+                    original.getSeqNo(),
+                    original.getId()
+                )
+            );
+            return results;
+        });
+        final long term = primary.getOperationPrimaryTerm();
+
+        try (Translog translog = TestTranslog.newTranslog(createTempDir(), primary.shardId(), term)) {
+            translog.add(TestTranslog.batchRecord(keywordSources(5), 0L, term, "doc-"));
+            final RuntimeException thrown = expectThrows(
+                RuntimeException.class,
+                () -> recoverFromTranslog(primary, translog, 0L, Long.MAX_VALUE)
+            );
+            assertThat(thrown.getMessage(), equalTo("injected failure"));
+        }
+
+        // the four rows that succeeded are counted before the failure aborts recovery
+        assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(4));
+        assertThat(batchCalls.get(), equalTo(1));
         closeShards(primary);
     }
 

@@ -65,7 +65,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -605,7 +604,7 @@ public class Verifier {
             // so a LOOKUP JOIN is still a LookupJoin node here and other Join subclasses (InlineJoin etc.) are not admitted.
             || plan instanceof LookupJoin
             || plan instanceof Enrich
-            || (plan instanceof Fork && (plan instanceof UnionAll) == false);
+            || plan instanceof Fork;
     }
 
     /**

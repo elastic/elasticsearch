@@ -42,6 +42,7 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * Tests grouping aggregations with and without partitioning.
+ * Partitioned block hashes are covered by {@link org.elasticsearch.compute.aggregation.blockhash.PartitionedBlockHashTestCase}
  */
 public abstract class PartitionedGroupingAggregatorFunctionTestCase extends GroupingAggregatorFunctionTestCase {
     private static final String WORKER_EXECUTOR = "esql_partition_worker";

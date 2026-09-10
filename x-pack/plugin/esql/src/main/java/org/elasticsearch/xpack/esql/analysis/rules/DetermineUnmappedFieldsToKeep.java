@@ -209,8 +209,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
                 }
                 newChildren.add(annotated);
             }
-            LogicalPlan replaced = union.replaceChildren(newChildren);
-            return replaced instanceof UnionAll unionAll ? alignUnmappedFields(unionAll) : replaced;
+            return union.replaceChildren(newChildren);
         }
         if (pattern.isNone()) {
             return plan;
@@ -303,7 +302,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * does not yet contain the attribute, so it would be dropped.
      */
     private static UnionAll alignUnmappedFields(UnionAll unionAll) {
-        UnmappedFieldsAttribute unmapped = unmappedFieldsAttribute(unionAll.children());
+        UnmappedFieldsAttribute unmapped = UnmappedFieldsAttribute.unionFrom(unionAll.children());
         List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
         boolean childrenChanged = false;
         for (LogicalPlan child : unionAll.children()) {
@@ -329,9 +328,5 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             return unionAll;
         }
         return withChildren.replaceSubPlansAndOutput(withChildren.children(), newOutput);
-    }
-
-    private static UnmappedFieldsAttribute unmappedFieldsAttribute(List<LogicalPlan> branches) {
-        return UnmappedFieldsAttribute.unionFrom(branches);
     }
 }

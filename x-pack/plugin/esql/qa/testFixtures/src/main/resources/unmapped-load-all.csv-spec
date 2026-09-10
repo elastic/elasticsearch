@@ -4113,3 +4113,85 @@ mapped-2       | Jane Austen
 nonexistent-1  | null
 nonexistent-1  | null
 ;
+
+// A RENAME or DROP cannot remove a column another branch maps, so an unrelated one must not stop this branch reading
+// language_code from _source: all 11 rows have it, not just the 4 from languages.
+loadAllSubqueryUnrelatedRenameStillLoadsMappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM languages), (FROM partial_mapping_sample_data | RENAME message AS msg)
+| STATS with_lc = COUNT(*) WHERE language_code IS NOT NULL, rows = COUNT(*)
+;
+
+with_lc:long | rows:long
+11           | 11
+;
+
+loadAllSubqueryUnrelatedRenameThenKeepStarStillLoadsMappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM languages), (FROM partial_mapping_sample_data | RENAME message AS msg | KEEP *)
+| STATS with_lc = COUNT(*) WHERE language_code IS NOT NULL, rows = COUNT(*)
+;
+
+with_lc:long | rows:long
+11           | 11
+;
+
+loadAllSubqueryUnrelatedDropStillLoadsMappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM languages), (FROM partial_mapping_sample_data | DROP message)
+| STATS with_lc = COUNT(*) WHERE language_code IS NOT NULL, rows = COUNT(*)
+;
+
+with_lc:long | rows:long
+11           | 11
+;
+
+// The renaming leaves no language_code behind, so the branch feeds lc instead and the union column stays null there.
+loadAllSubqueryRenameOfMappedSiblingNameNullFills
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM languages), (FROM partial_mapping_sample_data | RENAME language_code AS lc)
+| STATS with_lc = COUNT(*) WHERE language_code IS NOT NULL, with_alias = COUNT(*) WHERE lc IS NOT NULL, ips = COUNT(client_ip), rows = COUNT(*)
+;
+
+with_lc:long | with_alias:long | ips:long | rows:long
+4            | 7               | 7        | 11
+;
+
+loadAllSubqueryDropOfMappedSiblingNameNullFills
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM languages), (FROM partial_mapping_sample_data | DROP language_code)
+| STATS with_lc = COUNT(*) WHERE language_code IS NOT NULL, ips = COUNT(client_ip), rows = COUNT(*)
+;
+
+with_lc:long | ips:long | rows:long
+4            | 7        | 11
+;
+
+// `RENAME x AS x` is skipped as a NOP when the projections are resolved, so it must not block language_code either.
+loadAllSubquerySelfRenameStillLoadsMappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM languages), (FROM partial_mapping_sample_data | RENAME language_code AS language_code)
+| STATS with_lc = COUNT(*) WHERE language_code IS NOT NULL, rows = COUNT(*)
+;
+
+with_lc:long | rows:long
+11           | 11
+;

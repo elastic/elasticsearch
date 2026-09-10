@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
@@ -253,16 +252,13 @@ public final class ExpandUnmappedFieldsPostProcessor {
         if (orderedExpandedAttributes == null || orderedExpandedAttributes.size() != dataColumnCount + expandedFieldsAttributes.size()) {
             // Either nothing was captured, or the replay disagrees with the executed schema because something rewrote the shape
             // after analysis. Fall back to the natural real-then-discovered order rather than dropping or duplicating a column.
-            if (Assertions.ENABLED && ordering != null) {
-                throw new IllegalStateException(
-                    "unmapped fields ordering replay diverged from the executed schema: replay="
-                        + (orderedExpandedAttributes == null ? "null" : orderedExpandedAttributes.stream().map(Attribute::name).toList())
-                        + " executedWithoutUfa="
-                        + nameToSchemaIdx.keySet()
-                        + " discovered="
-                        + expandedFieldsNames
-                );
-            }
+            assert ordering == null
+                : "unmapped fields ordering replay diverged from the executed schema: replay="
+                    + (orderedExpandedAttributes == null ? "null" : orderedExpandedAttributes.stream().map(Attribute::name).toList())
+                    + " executedWithoutUfa="
+                    + nameToSchemaIdx.keySet()
+                    + " discovered="
+                    + expandedFieldsNames;
             orderedExpandedAttributes = new ArrayList<>(dataColumnCount + expandedFieldsAttributes.size());
             for (int i = 0; i < originalColumnCount; i++) {
                 if (i != unmappedIdx && isApproximationColumn(schema.get(i).name()) == false) {

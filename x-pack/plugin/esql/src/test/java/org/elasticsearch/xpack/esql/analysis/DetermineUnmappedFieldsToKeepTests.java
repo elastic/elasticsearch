@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -457,8 +458,8 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
                 withAttribute++;
             }
         }
-        assertThat(withAttribute, is(1));
-        assertThat(withoutAttribute, is(1));
+        assertThat(withAttribute, equalTo(1));
+        assertThat(withoutAttribute, equalTo(1));
     }
 
     public void testSubqueryKeepWildcardInOneBranchStampsBothBranchesWithDifferentPatterns() {
@@ -479,8 +480,8 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
                 droppedExtra++;
             }
         }
-        assertThat(keptExtra, is(1));
-        assertThat(droppedExtra, is(1));
+        assertThat(keptExtra, equalTo(1));
+        assertThat(droppedExtra, equalTo(1));
         assertKept(unmappedFieldsPattern(plan), "unmapped_extra");
     }
 
@@ -545,7 +546,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
                 assertKept(unmappedFieldsPattern(relation), "unmapped_extra");
             }
         }
-        assertThat(stamped, is(1));
+        assertThat(stamped, equalTo(1));
     }
 
     public void testForkStatsInOneBranchStillSurfacesUnmappedFieldsAttribute() {
@@ -558,7 +559,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
                 assertKept(unmappedFieldsPattern(relation), "unmapped_extra");
             }
         }
-        assertThat(stamped, is(1));
+        assertThat(stamped, equalTo(1));
     }
 
     public void testForkKeepWildcardInOneBranchStampsBothBranchesWithDifferentPatterns() {
@@ -574,8 +575,8 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
                 droppedExtra++;
             }
         }
-        assertThat(keptExtra, is(1));
-        assertThat(droppedExtra, is(1));
+        assertThat(keptExtra, equalTo(1));
+        assertThat(droppedExtra, equalTo(1));
         // Coordinator expansion filters every branch's keys through Fork's pattern, so the union must still
         // keep extras the WHERE sibling loaded even when the KEEP branch is listed first.
         assertKept(unmappedFieldsPattern(plan), "unmapped_extra");

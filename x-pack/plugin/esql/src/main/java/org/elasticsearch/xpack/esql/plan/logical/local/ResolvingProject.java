@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
@@ -127,12 +129,38 @@ public class ResolvingProject extends Project {
 
     /**
      * Whether a source field named {@code name}, materialized in the child only after this node was resolved, would survive this
-     * projection — {@link #replaceChild} re-resolves the projections, so a matching pattern picks the field up. Answered from the
-     * pattern for a {@code KEEP} only: {@link UnmappedFieldsPattern#forDrop} records solely wildcard removals and a {@code RENAME}
-     * reports {@link UnmappedFieldsPattern#ALL}, so for those two the pattern cannot rule out an explicitly named field.
+     * projection — {@link #replaceChild} re-resolves the projections, so a matching pattern picks the field up. The pattern alone
+     * cannot answer this for the other two kinds, which have to consult the terms they were written with: {@link
+     * UnmappedFieldsPattern#forDrop} records solely wildcard removals, and a {@code RENAME} reports {@link UnmappedFieldsPattern#ALL}
+     * because it removes no column.
      */
     public boolean admitsLateUnmappedField(String name) {
-        return command.kind() == Kind.KEEP && unmappedFieldsPattern().matches(name);
+        return switch (command.kind()) {
+            case KEEP -> unmappedFieldsPattern().matches(name);
+            case RENAME -> renamingTouches(name) == false;
+            case DROP -> unmappedFieldsPattern().matches(name) && removedByName(name) == false;
+        };
+    }
+
+    /**
+     * Whether a renaming leaves no column called {@code name}: it is either the source, renamed away, or the target, which
+     * {@code ResolveRefs#projectionsForRename} drops any existing column of that name for.
+     */
+    private boolean renamingTouches(String name) {
+        for (NamedExpression renaming : command.projections()) {
+            if (renaming instanceof Alias alias) {
+                String from = Expressions.name(alias.child());
+                // `RENAME a AS a` is skipped as a NOP, so it touches nothing.
+                if (from.equals(alias.name()) == false && (name.equals(from) || name.equals(alias.name()))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean removedByName(String name) {
+        return command.projections().stream().anyMatch(r -> r instanceof UnresolvedAttribute ua && name.equals(ua.name()));
     }
 
     @Override

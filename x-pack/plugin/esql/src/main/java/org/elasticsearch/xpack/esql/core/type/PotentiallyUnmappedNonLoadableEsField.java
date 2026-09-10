@@ -61,8 +61,9 @@ public class PotentiallyUnmappedNonLoadableEsField extends EsField {
 
     /**
      * Always the real name, like {@link PotentiallyUnmappedKeywordEsField}: substituting a plain {@link EsField} for a node too old to
-     * know this type would strip the very instruction it carries, so that node would return null where it must fail. Such a node cannot
-     * run a {@code LOAD_ALL} query anyway - it does not know {@code UnmappedFieldsAttribute} either - so it fails on the unknown name.
+     * know this type would strip the very instruction it carries, so that node would return null where it must fail. It rejects the
+     * unknown name in {@link EsField#getReader} instead, which is where the rest of {@code LOAD_ALL} leaves it too - none of it is
+     * transport-version gated yet.
      */
     @Override
     public String getWriteableName(TransportVersion transportVersion) {

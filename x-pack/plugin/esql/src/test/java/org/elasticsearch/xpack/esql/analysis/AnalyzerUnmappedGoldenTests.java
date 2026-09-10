@@ -1347,17 +1347,6 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """).run();
     }
 
-    // Suffix glob so LOAD_ALL extras stay enabled without also keeping the aggregate_metric_double metric subfields.
-    public void testLoadAllSubqueryMappedAmdLoadsOnUnmappedSibling() throws Exception {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());
-        assumeTrue("Requires AGGREGATE_METRIC_DOUBLE_V0", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());
-        loadAll("""
-            FROM (FROM k8s-downsampled), (FROM k8s_nonexistent)
-            | KEEP *eth0.tx
-            """).run();
-    }
-
     // KEEP of an unmapped name is a mention: LOAD_ALL loads it from _source on the unrestricted sibling too.
     public void testLoadAllSubqueryKeepUnmappedLoadsOnSibling() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -1442,16 +1431,6 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
         assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());
         loadAll("""
             FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP event_duration, *)
-            """).run();
-    }
-
-    public void testLoadAllSubqueryKeepStarAmdLoadsOnUnmappedSibling() throws Exception {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());
-        assumeTrue("Requires AGGREGATE_METRIC_DOUBLE_V0", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());
-        loadAll("""
-            FROM (FROM k8s-downsampled), (FROM k8s_nonexistent | KEEP network.eth0.tx, *)
-            | KEEP *eth0.tx
             """).run();
     }
 

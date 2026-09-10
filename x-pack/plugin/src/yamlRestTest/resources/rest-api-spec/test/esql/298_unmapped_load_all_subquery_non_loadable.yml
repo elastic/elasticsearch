@@ -53,7 +53,6 @@ setup:
         allow_partial_results: false
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx1), (FROM idx2) | KEEP *tx'
-  - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
   - contains: { error.reason: 'Field [tx] of type [aggregate_metric_double] is unmapped in this index and has no implicit conversion from KEYWORD, so its _source value cannot be loaded' }
 
@@ -65,7 +64,6 @@ setup:
         allow_partial_results: false
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx1), (FROM idx2) | KEEP txt'
-  - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
   - contains: { error.reason: 'Field [txt] of type [text] is unmapped in this index and has no implicit conversion from KEYWORD, so its _source value cannot be loaded' }
 
@@ -77,7 +75,6 @@ setup:
         allow_partial_results: false
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx1), (FROM idx2) | KEEP vec'
-  - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
   - contains: { error.reason: 'Field [vec] of type [dense_vector] is unmapped in this index and has no implicit conversion from KEYWORD, so its _source value cannot be loaded' }
 

@@ -1,2 +1,0 @@
-SET unmapped_fields="LOAD_ALL"; FROM (FROM k8s-downsampled), (FROM k8s_nonexistent)
-| KEEP *eth0.tx

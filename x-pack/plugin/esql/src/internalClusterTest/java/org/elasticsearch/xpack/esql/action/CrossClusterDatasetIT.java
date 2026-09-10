@@ -221,10 +221,11 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
      * since a wildcard and an exact name do not take the same branch when a remote resolves nothing.
      */
     public void testWildcardMatchingOnlyTheRemoteDatasetResolvesLikeAPatternMatchingNothing() {
-        assertThat(
-            outcomeShape(REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET + "*", REMOTE_DATASET),
-            equalTo(outcomeShape(REMOTE_CLUSTER_1 + ":" + NO_SUCH_NAME + "*", NO_SUCH_NAME))
-        );
+        String shape = outcomeShape(REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET + "*", REMOTE_DATASET);
+        assertThat(shape, equalTo(outcomeShape(REMOTE_CLUSTER_1 + ":" + NO_SUCH_NAME + "*", NO_SUCH_NAME)));
+        // The equality alone would also hold if both arms failed identically for some reason unrelated to datasets, so
+        // the outcome is anchored as well: a wildcard resolving nothing succeeds rather than failing, and returns none.
+        assertThat(shape, equalTo("succeeded partial=false rows=0"));
     }
 
     /**

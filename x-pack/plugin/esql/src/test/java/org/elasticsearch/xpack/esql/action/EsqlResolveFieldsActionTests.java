@@ -32,18 +32,21 @@ public class EsqlResolveFieldsActionTests extends ESTestCase {
 
             EsqlResolveFieldsAction.clearDatasetResolution(request);
 
-            // The expectation names the two sibling flags outright rather than copying them through the same builder
-            // the clear uses. Rebuilding it the same way would make both sides drop anything the copy constructor
-            // failed to carry, and the assertion would stay green on exactly the drift it is here to catch.
-            var expected = IndicesOptions.builder(incoming)
-                .indexAbstractionOptions(
-                    new IndicesOptions.IndexAbstractionOptions(
-                        incoming.indexAbstractionOptions().resolveAliases(),
-                        incoming.indexAbstractionOptions().resolveViews(),
-                        false
-                    )
+            // The expectation is built from the canonical constructors at both levels rather than through the builders
+            // the clear itself uses. Copying it through those builders would make both sides drop anything a copy
+            // constructor failed to carry, and the assertion would stay green on exactly the drift it is here to
+            // catch. Naming every component also makes a component added later a compile error here.
+            var expected = new IndicesOptions(
+                incoming.concreteTargetOptions(),
+                incoming.wildcardOptions(),
+                incoming.gatekeeperOptions(),
+                incoming.crossProjectModeOptions(),
+                new IndicesOptions.IndexAbstractionOptions(
+                    incoming.indexAbstractionOptions().resolveAliases(),
+                    incoming.indexAbstractionOptions().resolveViews(),
+                    false
                 )
-                .build();
+            );
             assertThat(request.indicesOptions(), equalTo(expected));
             assertThat(request.indicesOptions().indexAbstractionOptions().resolveDatasets(), equalTo(false));
             assertThat(request.indices(), equalTo(new String[] { "remote_employees" }));

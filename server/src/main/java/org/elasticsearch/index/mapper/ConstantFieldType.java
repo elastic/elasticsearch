@@ -187,6 +187,10 @@ public abstract class ConstantFieldType extends MappedFieldType {
         SearchExecutionContext context,
         String description
     ) {
+        if (context.isFieldVisible(name()) == false) {
+            return Queries.NO_DOCS_INSTANCE;
+        }
+
         CharacterRunAutomaton compiled = characterRunAutomatonSupplier.get();
         boolean matches = compiled.run(getConstantFieldValue(context));
         if (matches) {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -16,6 +17,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -26,6 +28,7 @@ import java.util.function.Supplier;
  * @param sourcePathsLookup       a function to get source paths for a specific field
  * @param idFieldDataEnabled      a supplier that can be used to check whether loading field data from _id field's inverted index is allowed
  * @param fielddataOperation      the operation used to determine data structures to generate fielddata from
+ * @param fieldVisibilityPredicate indicates whether a field is visible in the current context
  */
 public record FieldDataContext(
     String fullyQualifiedIndexName,
@@ -33,7 +36,8 @@ public record FieldDataContext(
     Supplier<SearchLookup> lookupSupplier,
     Function<String, Set<String>> sourcePathsLookup,
     BooleanSupplier idFieldDataEnabled,
-    MappedFieldType.FielddataOperation fielddataOperation
+    MappedFieldType.FielddataOperation fielddataOperation,
+    Predicate<String> fieldVisibilityPredicate
 ) {
 
     /**
@@ -60,6 +64,10 @@ public record FieldDataContext(
     public static FieldDataContext noRuntimeFields(BooleanSupplier idFieldDataEnabled, String indexName, String reason) {
         return new FieldDataContext(indexName, null, () -> {
             throw new UnsupportedOperationException("Runtime fields not supported for [" + reason + "]");
-        }, Set::of, idFieldDataEnabled, MappedFieldType.FielddataOperation.SEARCH);
+        }, Set::of, idFieldDataEnabled, MappedFieldType.FielddataOperation.SEARCH, Predicates.always());
+    }
+
+    public boolean isFieldVisible(String fieldName) {
+        return fieldVisibilityPredicate.test(fieldName);
     }
 }

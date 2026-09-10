@@ -31,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -355,7 +356,15 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
     protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
         MappedFieldType ft = mapperService.fieldType(field);
         SourceToParse source = source(b -> b.field(ft.name(), value));
-        var fielddataContext = new FieldDataContext("", null, () -> null, Set::of, () -> false, MappedFieldType.FielddataOperation.SCRIPT);
+        var fielddataContext = new FieldDataContext(
+            "",
+            null,
+            () -> null,
+            Set::of,
+            () -> false,
+            MappedFieldType.FielddataOperation.SCRIPT,
+            Predicates.always()
+        );
         var fdt = fielddataContext.fielddataOperation();
         ValueFetcher docValueFetcher = new DocValueFetcher(
             ft.docValueFormat(format, null),
@@ -574,7 +583,8 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
                     () -> null,
                     Set::of,
                     () -> false,
-                    MappedFieldType.FielddataOperation.SCRIPT
+                    MappedFieldType.FielddataOperation.SCRIPT,
+                    Predicates.always()
                 );
                 var fieldData = ft.fielddataBuilder(fieldDataContext)
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
@@ -676,7 +686,8 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
                     () -> null,
                     Set::of,
                     () -> false,
-                    MappedFieldType.FielddataOperation.SCRIPT
+                    MappedFieldType.FielddataOperation.SCRIPT,
+                    Predicates.always()
                 );
                 var fieldData = ft.fielddataBuilder(fieldDataContext)
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
@@ -715,7 +726,8 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
                     () -> null,
                     Set::of,
                     () -> false,
-                    MappedFieldType.FielddataOperation.SCRIPT
+                    MappedFieldType.FielddataOperation.SCRIPT,
+                    Predicates.always()
                 );
                 var fieldData = ft.fielddataBuilder(fieldDataContext)
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());

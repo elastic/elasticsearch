@@ -58,6 +58,7 @@ import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -735,7 +736,8 @@ public class TextFieldMapperTests extends MapperTestCase {
                 () -> null,
                 Set::of,
                 () -> false,
-                MappedFieldType.FielddataOperation.SEARCH
+                MappedFieldType.FielddataOperation.SEARCH,
+                Predicates.always()
             );
             IndexFieldData<?> fieldData = fieldType.fielddataBuilder(ctx).build(null, null);
             assertNotNull(fieldData);
@@ -799,7 +801,8 @@ public class TextFieldMapperTests extends MapperTestCase {
                 () -> null,
                 Set::of,
                 () -> false,
-                MappedFieldType.FielddataOperation.SEARCH
+                MappedFieldType.FielddataOperation.SEARCH,
+                Predicates.always()
             );
             IndexFieldData<?> fieldData = fieldType.fielddataBuilder(ctx).build(null, null);
             assertNotNull(fieldData);
@@ -1527,7 +1530,17 @@ public class TextFieldMapperTests extends MapperTestCase {
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> disabledMapper.fieldType("field")
-                .fielddataBuilder(new FieldDataContext("index", null, null, null, () -> false, MappedFieldType.FielddataOperation.SEARCH))
+                .fielddataBuilder(
+                    new FieldDataContext(
+                        "index",
+                        null,
+                        null,
+                        null,
+                        () -> false,
+                        MappedFieldType.FielddataOperation.SEARCH,
+                        Predicates.always()
+                    )
+                )
         );
         assertThat(
             e.getMessage(),
@@ -2239,7 +2252,15 @@ public class TextFieldMapperTests extends MapperTestCase {
             SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
             var indexSettings = mapperService.getIndexSettings();
             IndexFieldData<?> sfd = ft.fielddataBuilder(
-                new FieldDataContext("", indexSettings, () -> searchLookup, Set::of, () -> false, MappedFieldType.FielddataOperation.SCRIPT)
+                new FieldDataContext(
+                    "",
+                    indexSettings,
+                    () -> searchLookup,
+                    Set::of,
+                    () -> false,
+                    MappedFieldType.FielddataOperation.SCRIPT,
+                    Predicates.always()
+                )
             ).build(null, null);
             LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
             TextDocValuesField scriptDV = (TextDocValuesField) lfd.getScriptFieldFactory("field");

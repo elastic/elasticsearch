@@ -46,6 +46,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -751,7 +752,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     () -> searchLookup,
                     Set::of,
                     () -> false,
-                    MappedFieldType.FielddataOperation.SCRIPT
+                    MappedFieldType.FielddataOperation.SCRIPT,
+                    Predicates.always()
                 )
             ).build(null, null);
             LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
@@ -2168,7 +2170,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         () -> null,
                         Set::of,
                         () -> false,
-                        MappedFieldType.FielddataOperation.SEARCH
+                        MappedFieldType.FielddataOperation.SEARCH,
+                        Predicates.always()
                     )
                 ).build(null, null).sortField(false, IndexVersion.current(), null, MultiValueMode.MIN, null, false);
             });
@@ -2196,7 +2199,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     MappedFieldType ft = mapperService.fieldType(sortShortcutSupport.fieldname);
                     SortField sortField = ft.fielddataBuilder(new FieldDataContext("", mapperService.getIndexSettings(), () -> {
                         throw new UnsupportedOperationException();
-                    }, Set::of, () -> false, MappedFieldType.FielddataOperation.SEARCH))
+                    }, Set::of, () -> false, MappedFieldType.FielddataOperation.SEARCH, Predicates.always()))
                         .build(null, null)
                         .sortField(false, getVersion(), null, MultiValueMode.MIN, null, false);
                     var comparator = sortField.getComparator(1, Pruning.GREATER_THAN_OR_EQUAL_TO);

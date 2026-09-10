@@ -94,6 +94,7 @@ import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVers
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 
 public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRequest, TermsEnumResponse> {
 
@@ -450,6 +451,13 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             IndicesAccessControl indicesAccessControl = AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.get(threadContext);
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
+
+            if (indexAccessControl != null
+                && indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
+                && (indexAccessControl.isDlsFlsImplicit() || FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState))
+                && indexAccessControl.getFieldPermissions().grantsAccessTo(request.field()) == false) {
+                return false;
+            }
 
             if (indexAccessControl != null
                 && indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions()

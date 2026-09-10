@@ -132,7 +132,8 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
      * Stops this cluster resolving its own datasets for the request, whatever the caller asked for.
      * <p>
      * A dataset is a registration on the cluster that holds it, read by that cluster's own query, so it must not
-     * resolve for a caller on another one. A coordinator that predates that rule still asks for datasets here, and by
+     * resolve for a caller on another one. A coordinator that predates that rule can still ask for datasets here — a
+     * snapshot build with federation on, new enough for the option to survive the wire — and by
      * the time this runs the security layer has already resolved the request under that flag ({@link
      * EsqlResolveFieldsRequest} is an {@code IndicesRequest.Replaceable} and {@code IndicesAndAliasesResolver} reads
      * {@code resolveDatasets}), so a dataset name can already be sitting in {@code indices()}. Clearing the option is

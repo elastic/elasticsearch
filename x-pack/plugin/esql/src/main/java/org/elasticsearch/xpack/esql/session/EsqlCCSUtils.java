@@ -230,8 +230,8 @@ public class EsqlCCSUtils {
             for (FieldCapabilitiesFailure failure : entry.getValue()) {
                 Throwable cause = ExceptionsHelper.unwrapCause(failure.getException());
                 // The aggregate is read defensively rather than because anything can send one. A remote only ever
-                // reported datasets when the request asked it to, and this coordinator never asks, so every peer takes
-                // its views-only branch. If one arrives anyway, only its views half can be acted on here.
+                // reported datasets when the request asked it to, and this coordinator never asks, so no peer can take
+                // its dataset branch. If an aggregate arrives anyway, only its views half can be acted on here.
                 if (cause instanceof RemoteResourceNotSupportedException resourceEx) {
                     views.addAll(resourceEx.views());
                 } else if (cause instanceof RemoteViewNotSupportedException viewEx) {

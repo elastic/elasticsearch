@@ -110,8 +110,8 @@ public class CrossProjectIndexResolutionValidator {
         for (Exception remoteEx : remoteExceptions.values()) {
             Throwable cause = ExceptionsHelper.unwrapCause(remoteEx);
             // The aggregate is read defensively rather than because anything can send one. A linked project only ever
-            // reported datasets when the request asked it to, and nothing asks any more, so every project takes its
-            // views-only branch. If one arrives anyway, only its views half can be acted on here.
+            // reported datasets when the request asked it to, and nothing asks any more, so no project can take its
+            // dataset branch. If an aggregate arrives anyway, only its views half can be acted on here.
             if (cause instanceof RemoteResourceNotSupportedException resourceException) {
                 remoteViews.addAll(resourceException.views());
             } else if (cause instanceof RemoteViewNotSupportedException viewException) {

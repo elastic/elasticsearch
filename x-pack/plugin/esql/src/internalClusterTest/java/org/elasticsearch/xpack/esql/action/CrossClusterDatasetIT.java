@@ -161,9 +161,11 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
     /**
      * On a remote whose {@code skip_unavailable} is false, the exact qualified name of a dataset reports an unknown
      * index and fails the query — and {@link #NO_SUCH_NAME}, which exists nowhere, reports the same thing in the same
-     * position. Pinning that equality rather than the message is the point: invisibility is the property that the two
-     * names are indistinguishable, so an assertion on one particular wording would both pass for the wrong reason if
-     * the failure ever moved and go red for the right one if the wording were merely reworded.
+     * position. Pinning that equality rather than the message is the point. The old remote-dataset rejection did not
+     * say {@code Unknown index}, so matching that alone would have discriminated against it — but the wording is not
+     * peculiar to a name that does not exist either: {@code DatasetRewriter} surfaces an explicitly named but
+     * unauthorized dataset the same way, on purpose, so that a {@code 403} does not become an existence oracle. An
+     * assertion on the message pins a wording; the control pins the property, which is what invisibility means.
      */
     public void testRemoteDatasetIsIndistinguishableFromAMissingName() {
         assertThat(failureShape(REMOTE_CLUSTER_1, REMOTE_DATASET), equalTo(failureShape(REMOTE_CLUSTER_1, NO_SUCH_NAME)));

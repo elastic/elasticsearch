@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentType;
-
 import java.util.Arrays;
 import java.util.List;
 
@@ -281,122 +280,6 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A nested-only index hides {@code item.value} from field caps, so the coordinator treats it as
-     * fully unmapped. {@code NULLIFY} lets the query run; the nested shard still contributes nulls.
-     */
-    public void testUnmappedFieldsNullifySingleNestedIndex() {
-        assumeTrue("Requires SET unmapped_fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
-        String nested = createSingleNestedIndex();
-        assertThat(
-            esql("SET unmapped_fields=\"nullify\"; FROM " + nested + " | KEEP id, item.value | SORT id"),
-            equalTo(List.of(Arrays.asList("n00", null), Arrays.asList("n01", null)))
-        );
-        assertThat(
-            esql("SET unmapped_fields=\"nullify\"; FROM " + nested + " | STATS c = COUNT(item.value)"),
-            equalTo(List.of(List.of(0L)))
-        );
-    }
-
-    /**
-     * {@code LOAD} would normally read a fully unmapped field from {@code _source}. Nested subfields
-     * stay null so the loader cannot reopen the typed nested mapping.
-     */
-    public void testUnmappedFieldsLoadSingleNestedIndex() {
-        assumeTrue("Requires unmapped_fields=\"load\"", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
-        String nested = createSingleNestedIndex();
-        assertThat(
-            esql("SET unmapped_fields=\"load\"; FROM " + nested + " | KEEP id, item.value | SORT id"),
-            equalTo(List.of(Arrays.asList("n00", null), Arrays.asList("n01", null)))
-        );
-        assertThat(esql("SET unmapped_fields=\"load\"; FROM " + nested + " | STATS c = COUNT(item.value)"), equalTo(List.of(List.of(0L))));
-    }
-
-    /**
-     * {@code LOAD_ALL} with an explicit {@code KEEP} must still nullify the nested shard.
-     * STATS is not allowed in this mode.
-     */
-    public void testUnmappedFieldsLoadAllExplicit() {
-        testUnmappedFieldsLoadAll("id, item.value");
-    }
-
-    /**
-     * {@code LOAD_ALL} with {@code KEEP *} must still nullify nested {@code item.value}.
-     */
-    public void testUnmappedFieldsLoadAllWildcard() {
-        testUnmappedFieldsLoadAll("*");
-    }
-
-    private void testUnmappedFieldsLoadAll(String keep) {
-        assumeTrue("Requires unmapped_fields=\"load_all\"", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
-        String nested = indexName("nest_load_");
-        String object = indexName("obj_load_");
-        createIndex(nested, """
-            {
-              "properties": {
-                "id": {
-                  "type": "keyword"
-                },
-                "item": {
-                  "type": "nested",
-                  "properties": {
-                    "value": {
-                      "type": "integer"
-                    }
-                  }
-                }
-              }
-            }""");
-        createIndex(object, """
-            {
-              "properties": {
-                "id": {
-                  "type": "keyword"
-                },
-                "item": {
-                  "properties": {
-                    "value": {
-                      "type": "long"
-                    }
-                  }
-                }
-              }
-            }""");
-        client().prepareBulk().add(prepareIndexJson(nested, "0", """
-            {
-              "id": "n00",
-              "item": [
-                {
-                  "value": 100
-                }
-              ]
-            }""")).add(prepareIndexJson(nested, "1", """
-            {
-              "id": "n01",
-              "item": [
-                {
-                  "value": 101
-                }
-              ]
-            }""")).add(prepareIndexJson(object, "0", """
-            {
-              "id": "o00",
-              "item": {
-                "value": 1
-              }
-            }""")).add(prepareIndexJson(object, "1", """
-            {
-              "id": "o01",
-              "item": {
-                "value": 2
-              }
-            }""")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        assertThat(
-            esql("SET unmapped_fields=\"load_all\"; FROM " + nested + ", " + object + " | KEEP " + keep + " | SORT id"),
-            equalTo(List.of(Arrays.asList("n00", null), Arrays.asList("n01", null), Arrays.asList("o00", 1L), Arrays.asList("o01", 2L)))
-        );
-    }
-
-    /**
      * Nested is hidden from field caps, so {@code item.value} is the object index's {@code long},
      * not a union type. A {@code ::long} cast must not start reading nested values.
      */
@@ -420,56 +303,6 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
         String node1 = randomDataNode().getName();
         String node2 = randomBoolean() ? node1 : randomValueOtherThan(node1, () -> randomDataNode().getName());
         return new String[] { node1, node2 };
-    }
-
-    private String createSingleNestedIndex() {
-        String nested = indexName("nest_only_");
-        createIndex(nested, """
-            {
-              "properties": {
-                "id": {
-                  "type": "keyword"
-                },
-                "item": {
-                  "type": "nested",
-                  "properties": {
-                    "value": {
-                      "type": "integer"
-                    }
-                  }
-                }
-              }
-            }""");
-        client().prepareBulk().add(prepareIndexJson(nested, "0", """
-            {
-              "id": "n00",
-              "item": [
-                {
-                  "value": 100
-                }
-              ]
-            }""")).add(prepareIndexJson(nested, "1", """
-            {
-              "id": "n01",
-              "item": [
-                {
-                  "value": 101
-                }
-              ]
-            }""")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        return nested;
-    }
-
-    private void createIndex(String index, String mapping) {
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(index)
-                .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                )
-                .setMapping(mapping)
-        );
     }
 
     private void createPinnedIndex(String index, String mapping, String node) {

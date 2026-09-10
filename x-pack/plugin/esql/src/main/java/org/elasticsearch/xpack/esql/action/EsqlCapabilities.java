@@ -3916,8 +3916,8 @@ public class EsqlCapabilities {
 
         /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
-         * field-caps request, so the coordinator never plans nested subfields. Shard extraction and
-         * {@code SearchContextStats} now treat those fields as absent (constant nulls) instead of
+         * field-caps request, so the coordinator never plans nested subfields. Shard extraction
+         * and {@code SearchContextStats} treat those fields as absent (constant nulls) instead of
          * loading the nested mapper's native type, which used to crash
          * {@code ValuesSourceReaderOperator.sanityCheckBlock} on cross-index type skew
          * (e.g. nested {@code integer} vs object {@code long}).

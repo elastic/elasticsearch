@@ -306,7 +306,7 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         assertNull(ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), indexSettings));
     }
 
-    /** A dimension sub-field contributes to the routing hash, which the columnar path does not compute. */
+    /** A multi-field with that is a dimension must still resolve. */
     public void testDimensionSubFieldFallsBack() throws IOException {
         MapperService ms = mapper(mapping(b -> {
             b.startObject("host");
@@ -316,7 +316,9 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
             b.endObject();
             b.endObject();
         }));
-        assertNull(ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), indexSettings));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertSame(resolution.columnMappers()[0], ms.mappingLookup().getMapper("host"));
     }
 
     /** A multi-field on a leaf that itself sits under an object path must still resolve. */

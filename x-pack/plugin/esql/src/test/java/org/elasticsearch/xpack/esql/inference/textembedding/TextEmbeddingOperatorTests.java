@@ -133,6 +133,12 @@ public class TextEmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTe
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("TextEmbeddingOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "]]");
+        return equalTo(
+            "TextEmbeddingOperator[inference_id=["
+                + SIMPLE_INFERENCE_ID
+                + "], batch_size=["
+                + InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE
+                + "]]"
+        );
     }
 }

@@ -35,6 +35,7 @@ import java.util.function.IntFunction;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
+import static org.elasticsearch.columnar.ColumnarTestUtils.stringPayload;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -99,13 +100,22 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
      * bisects or searches for bytes rather than running an automaton over every distinct value.
      */
     public void testForWildcardNarrowsToTheCheapestQuery() {
-        assertEquals(ColumnarStringTermQuery.term(FIELD, new BytesRef("alpha")), ColumnarStringAutomatonQuery.forWildcard(FIELD, "alpha"));
-        assertEquals(ColumnarStringTermQuery.prefix(FIELD, new BytesRef("al")), ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*"));
-        // Every value, which is a prefix of no bytes rather than an automaton.
-        assertEquals(ColumnarStringTermQuery.prefix(FIELD, new BytesRef("")), ColumnarStringAutomatonQuery.forWildcard(FIELD, "*"));
         assertEquals(
-            ColumnarStringTermQuery.contains(FIELD, new BytesRef("lph")),
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "*lph*")
+            ColumnarStringTermQuery.term(FIELD, new BytesRef("alpha"), ScanBudget.UNLIMITED),
+            ColumnarStringAutomatonQuery.forWildcard(FIELD, "alpha", ScanBudget.UNLIMITED)
+        );
+        assertEquals(
+            ColumnarStringTermQuery.prefix(FIELD, new BytesRef("al"), ScanBudget.UNLIMITED),
+            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*", ScanBudget.UNLIMITED)
+        );
+        // Every value, which is a prefix of no bytes rather than an automaton.
+        assertEquals(
+            ColumnarStringTermQuery.prefix(FIELD, new BytesRef(""), ScanBudget.UNLIMITED),
+            ColumnarStringAutomatonQuery.forWildcard(FIELD, "*", ScanBudget.UNLIMITED)
+        );
+        assertEquals(
+            ColumnarStringTermQuery.contains(FIELD, new BytesRef("lph"), ScanBudget.UNLIMITED),
+            ColumnarStringAutomatonQuery.forWildcard(FIELD, "*lph*", ScanBudget.UNLIMITED)
         );
     }
 
@@ -115,7 +125,7 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
         for (String pattern : new String[] { "*pha", "al*a", "alph?", "**", "a*b*c", "al\\*pha", "*a?c*", "" }) {
             assertThat(
                 "pattern [" + pattern + "]",
-                ColumnarStringAutomatonQuery.forWildcard(FIELD, pattern),
+                ColumnarStringAutomatonQuery.forWildcard(FIELD, pattern, ScanBudget.UNLIMITED),
                 instanceOf(ColumnarStringAutomatonQuery.class)
             );
         }
@@ -127,13 +137,22 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
      * cached filter would be handed to the wrong one.
      */
     public void testCacheIdentityFollowsThePattern() {
-        assertEquals(ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a"), ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a"));
         assertEquals(
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a").hashCode(),
-            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a").hashCode()
+            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED),
+            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED)
         );
-        assertNotEquals(ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a"), ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*b"));
-        assertNotEquals(ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a"), ColumnarStringAutomatonQuery.forWildcard("other", "al*a"));
+        assertEquals(
+            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED).hashCode(),
+            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED).hashCode()
+        );
+        assertNotEquals(
+            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED),
+            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*b", ScanBudget.UNLIMITED)
+        );
+        assertNotEquals(
+            ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED),
+            ColumnarStringAutomatonQuery.forWildcard("other", "al*a", ScanBudget.UNLIMITED)
+        );
     }
 
     /**
@@ -144,12 +163,13 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
     public void testMatchesThroughAnOverlaidColumn() throws IOException {
         final List<String> values = values(between(400, 1200), d -> d % 5 == 0 ? "alpine-" + d : TERMS[d % TERMS.length]);
         try (Directory dir = newDirectory()) {
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
-            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(new LogDocMergePolicy());
+            final FieldType type = columnarBinaryFieldType();
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (String value : values) {
                     final Document doc = new Document();
-                    doc.add(new Field(FIELD, new BytesRef(value), type));
+                    doc.add(new Field(FIELD, stringPayload(value), type));
                     writer.addDocument(doc);
                 }
                 writer.forceMerge(1);
@@ -160,7 +180,7 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
                     assertEquals(
                         "pattern [" + pattern + "] through an overlay",
                         accepted(values, pattern),
-                        found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, pattern))
+                        found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, pattern, ScanBudget.UNLIMITED))
                     );
                     // The narrowed shapes go through the overlay too, since forWildcard picks them first.
                     assertEquals(
@@ -176,13 +196,14 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
     /** Every pattern, against the documents running Lucene's automaton for it over the values would find. */
     private void assertPatterns(List<String> values) throws IOException {
         try (Directory dir = newDirectory()) {
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
-            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(new LogDocMergePolicy());
+            final FieldType type = columnarBinaryFieldType();
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (String value : values) {
                     final Document doc = new Document();
                     if (value != null) {
-                        doc.add(new Field(FIELD, new BytesRef(value), type));
+                        doc.add(new Field(FIELD, stringPayload(value), type));
                     }
                     writer.addDocument(doc);
                 }
@@ -194,7 +215,7 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
                     assertEquals(
                         "pattern [" + pattern + "]",
                         accepted(values, pattern),
-                        found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, pattern))
+                        found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, pattern, ScanBudget.UNLIMITED))
                     );
                     // The automaton is what the narrowed queries have to agree with, so it is asked too.
                     assertEquals(
@@ -215,7 +236,8 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
                 WildcardQuery.toAutomaton(new Term(FIELD, pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
             ),
-            "pattern=" + pattern
+            "pattern=" + pattern,
+            ScanBudget.UNLIMITED
         );
     }
 

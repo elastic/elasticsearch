@@ -123,23 +123,26 @@ def REQUIRED_CONTROLLER_PROTOCOL_VERSION = 1
 tasks.register("verifyControllerProtocolVersion") {
   dependsOn configurations.nativeBundle
   doLast {
-    // TEMPORARY: downgraded from a hard failure to a warning while the companion ml-cpp change
-    // (https://github.com/elastic/ml-cpp/pull/3188) that publishes 'controller-protocol.version' has not
-    // yet landed and this project's resolved ml-cpp SNAPSHOT does not contain it. sandbox_enabled defaults
-    // to false during this dark-launch window, so nothing downstream depends on the mismatch today. Once
-    // ml-cpp#3188 merges and mlCppVersion() resolves to an artifact that contains the file, these warnings
-    // MUST be reverted back to `throw new GradleException(...)` - do not mistake this for the intended
-    // long-term behaviour.
+    // This is a hard build-time failure, not an advisory-only check. PyTorchBuilder emits
+    // '--disableSandbox' unconditionally on Linux whenever xpack.ml.trained_models.sandbox_enabled
+    // is false - which is now the default - and only a native controller that understands that
+    // token (i.e. one built against this same controller-protocol version) can accept it without
+    // the child process aborting at startup. In other words: the default-off sandbox path is
+    // exactly the path that depends on this compatibility check, not one that's independent of it.
+    // This Elasticsearch build must not be assembled/shipped until the paired ml-cpp artifact
+    // (publishing 'controller-protocol.version' at >= REQUIRED_CONTROLLER_PROTOCOL_VERSION) is
+    // bundled - see docs/projects/mlcpp-sandbox2-pr2873/sandbox2_clean_rebuild_3df1182e.plan.md:115
+    // ("do not publish an Elasticsearch build that emits --disableSandbox to an older native
+    // controller that would forward it to the child").
     configurations.nativeBundle.files.each { zipFile ->
       def matches = zipTree(zipFile).matching { include 'controller-protocol.version' }.files
       if (matches.isEmpty()) {
-        logger.warn(
+        throw new GradleException(
           "Native controller bundle '${zipFile.name}' is missing the top-level 'controller-protocol.version' " +
           "file (required: controller-protocol-version >= ${REQUIRED_CONTROLLER_PROTOCOL_VERSION}). The resolved " +
           "ml-cpp artifact predates the controller-protocol.version publication and is incompatible with this " +
-          "Elasticsearch build. Not failing the build: see TEMPORARY note on verifyControllerProtocolVersion."
+          "Elasticsearch build."
         )
-        return
       }
       def versionFile = matches.iterator().next()
       // Match line-by-line (each trimmed individually) rather than the whole trimmed file content,
@@ -155,20 +158,17 @@ tasks.register("verifyControllerProtocolVersion") {
         }
       }
       if (matcher == null) {
-        logger.warn(
+        throw new GradleException(
           "Native controller bundle '${zipFile.name}' has a malformed 'controller-protocol.version' file " +
-          "(got '${versionFile.text.trim()}', expected a line matching 'controller-protocol-version=<int>'). " +
-          "Not failing the build: see TEMPORARY note on verifyControllerProtocolVersion."
+          "(got '${versionFile.text.trim()}', expected a line matching 'controller-protocol-version=<int>')."
         )
-        return
       }
       def foundVersion = matcher.group(1).toInteger()
       if (foundVersion < REQUIRED_CONTROLLER_PROTOCOL_VERSION) {
-        logger.warn(
+        throw new GradleException(
           "Native controller bundle '${zipFile.name}' publishes controller-protocol version ${foundVersion}, " +
           "but this Elasticsearch build requires controller-protocol version >= " +
-          "${REQUIRED_CONTROLLER_PROTOCOL_VERSION}. Upgrade the resolved ml-cpp artifact. " +
-          "Not failing the build: see TEMPORARY note on verifyControllerProtocolVersion."
+          "${REQUIRED_CONTROLLER_PROTOCOL_VERSION}. Upgrade the resolved ml-cpp artifact."
         )
       }
     }

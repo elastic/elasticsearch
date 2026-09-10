@@ -92,19 +92,33 @@ public class NodeHeapUsageCalculatorTests extends ESTestCase {
         final ShardId shard1 = new ShardId(index1, 0);
         final ShardId shard2 = new ShardId(index2, 0);
         final long nonShardHeapUsage = 50L;
+        final long shard1HeapUsage = 10L;
+        final long shard2HeapUsage = 20L;
+        final long index1OverheadUsage = 100L;
+        final long index2OverheadUsage = 1_000L;
+        final long shard1PostingsUsage = 5L;
+        final long shard2PostingsUsage = 7L;
         final ClusterState clusterState = multiProjectClusterStateWithStartedShardsOnSameNode("node", shard1, shard2);
 
         final var result = NodeHeapUsageCalculator.calculateForRoutingNodes(
             clusterState,
             nonShardHeapUsage,
             new ShardHeapUsageEstimates(
-                Map.of(shard1, new ShardAndIndexHeapUsage(10L, 100L, 5L), shard2, new ShardAndIndexHeapUsage(20L, 100L, 7L)),
+                Map.of(
+                    shard1,
+                    new ShardAndIndexHeapUsage(shard1HeapUsage, index1OverheadUsage, shard1PostingsUsage),
+                    shard2,
+                    new ShardAndIndexHeapUsage(shard2HeapUsage, index2OverheadUsage, shard2PostingsUsage)
+                ),
                 ShardAndIndexHeapUsage.ZERO
             )
         );
 
         // These indices have the same name but different UUIDs, so they are separate Index identities and each incurs index heap.
-        assertThat(result.nodeHeapEstimates().get("node"), equalTo(new NodeHeapEstimates(292L, 242L, nonShardHeapUsage)));
+        // There is one index node, so max postings is the same as its local postings:
+        // total = 50 non-shard + 30 shard + 1100 index overhead + 12 postings; hosted = 30 shard + 1100 index overhead + 12 postings.
+        assertThat(result.maxPostingsHeapUsage(), equalTo(12L));
+        assertThat(result.nodeHeapEstimates().get("node"), equalTo(new NodeHeapEstimates(1_192L, 1_142L, nonShardHeapUsage)));
     }
 
     public void testTotalHeapCanBeLeftUnmodeledForSearchNodes() {
@@ -153,6 +167,8 @@ public class NodeHeapUsageCalculatorTests extends ESTestCase {
             new ShardHeapUsageEstimates(Map.of(), new ShardAndIndexHeapUsage(10L, 100L, 5L))
         );
 
+        // No per-shard metric exists, so the default estimate supplies all components:
+        // total = 50 non-shard + 10 shard + 100 index + 5 max postings; hosted = 10 shard + 100 index + 5 local postings.
         assertThat(result.nodeHeapEstimates().get("node"), equalTo(new NodeHeapEstimates(165L, 115L, nonShardHeapUsage)));
     }
 

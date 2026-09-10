@@ -22,6 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardAndIndexHeapUsageTests extends ESTestCase {
 
     public void testShardHeapUsageIncludingPostingsBytes() {
+        // Some legacy consumers still need the effective shard-local cost: shard heap plus the postings heap now tracked separately.
         assertThat(new ShardAndIndexHeapUsage(10L, 20L, 30L).shardHeapUsageIncludingPostingsBytes(), equalTo(40L));
     }
 

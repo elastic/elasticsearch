@@ -31,17 +31,17 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * Implicitly grants read access to the Elastic AI Index ({@code .ai-index-idx-sml-data}) for
- * users whose roles include a Kibana application privilege grant carrying at least one
- * {@code ai_index:} action.
+ * Implicitly grants read access to the Elastic-managed AI indices ({@code .ai-index-idx-*} and
+ * {@code .ai-index-ds-*}) for users whose roles include a Kibana application privilege grant carrying
+ * at least one {@code ai_index:} action.
  * <p>
  * {@code permissions.kibana.privileges} is a {@code nested} field with one element per space the
  * document is visible in, each listing that space's required {@code ai_index:} actions and their
  * {@code count}. Space {@code "*"} means every space. An element with {@code count: 0} and no
  * {@code name} requires nothing, so the document is public within that element's space. A document
  * with no elements is public everywhere, though the Kibana indexer never writes that shape. The shape
- * is owned by the Kibana agent_builder_sml storage schema; the {@code ai-index-*} template does not
- * declare it, so this Javadoc and {@code ElasticAiIndexImplicitPrivilegesIT} are the de-facto contract.
+ * is owned by the {@code ai-index-managed@mappings} component template, which the {@code ai-index-idx-managed}
+ * and {@code ai-index-ds-managed} templates apply to every dot-prefixed AI index.
  * <p>
  * The DLS query makes a document visible only when the user holds <em>all</em> the actions it
  * requires <em>within a single space</em>. See {@link #buildDlsQuery} for how the clauses are constructed.
@@ -49,13 +49,14 @@ import java.util.stream.Collectors;
 public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProvider {
 
     static final String KIBANA_APPLICATION = "kibana-.kibana";
-    // Index pattern mirrors the Kibana-side definition; keep in sync if it changes.
-    static final String ELASTIC_AI_INDEX = ".ai-index-idx-sml-data";
+    static final String[] ELASTIC_MANAGED_AI_INDICES = { ".ai-index-idx-*", ".ai-index-ds-*" };
     static final String RESOURCE_PREFIX = "space:";
+
     // Action namespace owned by Elastic AI Index; mirrors the Kibana-side AiIndexActions definition, keep in sync if it changes.
     static final String AI_INDEX_ACTION_PREFIX = "ai_index:";
     static final String ALL_RESOURCES = "*";
     static final String INDEX_READ_PRIVILEGE = "read";
+
     static final String PRIVILEGES_PATH = "permissions.kibana.privileges";
     static final String NAME_FIELD = PRIVILEGES_PATH + ".name";
     static final String SPACE_FIELD = PRIVILEGES_PATH + ".space";
@@ -73,7 +74,11 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
         }
 
         return List.of(
-            RoleDescriptor.IndicesPrivileges.builder().indices(ELASTIC_AI_INDEX).privileges(INDEX_READ_PRIVILEGE).query(dlsQuery).build()
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(ELASTIC_MANAGED_AI_INDICES)
+                .privileges(INDEX_READ_PRIVILEGE)
+                .query(dlsQuery)
+                .build()
         );
     }
 

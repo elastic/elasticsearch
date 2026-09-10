@@ -6,6 +6,13 @@ setup:
         wait_for_events: languid
 
 ---
+teardown:
+  - do:
+      cluster.delete_component_template:
+        name: ai-index@custom
+        ignore: 404
+
+---
 "The base `ai-index-` prefix alone is not matched by either template, so no mappings are applied":
   - do:
       indices.create:
@@ -25,7 +32,7 @@ setup:
         index: ai-index-ds-foo
 
 ---
-"Standard AI index picks up the managed template":
+"Standard AI index picks up the built-in template":
   - do:
       indices.create:
         index: ai-index-idx-foo
@@ -36,9 +43,11 @@ setup:
       indices.get_mapping:
         index: ai-index-idx-foo
   - match: { ai-index-idx-foo.mappings.properties.type.type: keyword }
+  - match: { ai-index-idx-foo.mappings.properties.type.normalizer: lowercase }
+  - match: { ai-index-idx-foo.mappings.properties.tags.normalizer: lowercase }
 
 ---
-"Data stream AI index is backed by the managed template":
+"Data stream AI index is backed by the built-in template":
   - do:
       indices.create_data_stream:
         name: ai-index-ds-foo
@@ -49,3 +58,97 @@ setup:
         name: ai-index-ds-foo
   - match: { data_streams.0.name: ai-index-ds-foo }
   - match: { data_streams.0.template: ai-index-ds }
+
+---
+"Dot-prefixed standard AI index composes the shared mappings with the Elastic-managed ones":
+  - requires:
+      test_runner_features: ["allowed_warnings_regex"]
+
+  # MetadataCreateIndexService warns for any non-hidden dot-prefixed index. The template
+  # deliberately leaves index.hidden unset.
+  - do:
+      allowed_warnings_regex:
+        - "index name .* starts with a dot.*"
+      indices.create:
+        index: .ai-index-idx-foo
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_mapping:
+        index: .ai-index-idx-foo
+  # From ai-index@mappings.
+  - match: { \.ai-index-idx-foo.mappings.properties.type.type: keyword }
+  - match: { \.ai-index-idx-foo.mappings.properties.type.normalizer: lowercase }
+  - match: { \.ai-index-idx-foo.mappings.properties.title.fields.semantic.type: semantic_text }
+  - match: { \.ai-index-idx-foo.mappings.properties.attributes.type: flattened }
+
+  # From ai-index-managed@mappings.
+  - match: { \.ai-index-idx-foo.mappings.dynamic: strict }
+  # The implicit privilege provider's DLS filter requires this to be `nested`.
+  - match: { \.ai-index-idx-foo.mappings.properties.permissions.properties.kibana.properties.privileges.type: nested }
+
+---
+"Dot-prefixed data stream AI index is backed by the Elastic-managed template":
+  - do:
+      indices.create_data_stream:
+        name: .ai-index-ds-foo
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_data_stream:
+        name: .ai-index-ds-foo
+  - match: { data_streams.0.name: .ai-index-ds-foo }
+  - match: { data_streams.0.template: ai-index-ds-managed }
+
+---
+"Elastic-managed AI index rejects unmapped fields":
+  - requires:
+      test_runner_features: ["allowed_warnings_regex"]
+
+  - do:
+      allowed_warnings_regex:
+        - "index name .* starts with a dot.*"
+      indices.create:
+        index: .ai-index-idx-foo
+
+  - do:
+      catch: /strict_dynamic_mapping_exception/
+      index:
+        index: .ai-index-idx-foo
+        body: { not_a_mapped_field: "x" }
+
+---
+"A user ai-index@custom component does not reach the Elastic-managed AI indices":
+  - requires:
+      test_runner_features: ["allowed_warnings_regex"]
+
+  - do:
+      cluster.put_component_template:
+        name: ai-index@custom
+        body:
+          template:
+            mappings:
+              properties:
+                user_custom_field:
+                  type: keyword
+
+  - do:
+      indices.create:
+        index: ai-index-idx-foo
+  - do:
+      allowed_warnings_regex:
+        - "index name .* starts with a dot.*"
+      indices.create:
+        index: .ai-index-idx-foo
+
+  # The user-facing AI index template composes ai-index@custom, so the user field lands there.
+  - do:
+      indices.get_mapping:
+        index: ai-index-idx-foo
+  - match: { ai-index-idx-foo.mappings.properties.user_custom_field.type: keyword }
+
+  # The Elastic-managed template deliberately does not, so the same component cannot alter it.
+  - do:
+      indices.get_mapping:
+        index: .ai-index-idx-foo
+  - is_false: \.ai-index-idx-foo.mappings.properties.user_custom_field

@@ -71,15 +71,33 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
         trackGroupId(groupId);
     }
 
-    long getOrDefault(int groupId) {
-        return groupId < capacity ? get(groupId) : init;
-    }
-
-    void increment(int groupId, long value) {
+    void addExact(int groupId, long value) {
         if (groupId >= capacity) {
             grow(groupId + 1);
         }
-        pages[groupId >>> PAGE_SHIFT][groupId & PAGE_MASK] += value;
+        final long[] page = pages[groupId >>> PAGE_SHIFT];
+        final int index = groupId & PAGE_MASK;
+        page[index] = Math.addExact(page[index], value);
+        trackGroupId(groupId);
+    }
+
+    void min(int groupId, long value) {
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        final long[] page = pages[groupId >>> PAGE_SHIFT];
+        final int index = groupId & PAGE_MASK;
+        page[index] = Math.min(page[index], value);
+        trackGroupId(groupId);
+    }
+
+    void max(int groupId, long value) {
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        final long[] page = pages[groupId >>> PAGE_SHIFT];
+        final int index = groupId & PAGE_MASK;
+        page[index] = Math.max(page[index], value);
         trackGroupId(groupId);
     }
 

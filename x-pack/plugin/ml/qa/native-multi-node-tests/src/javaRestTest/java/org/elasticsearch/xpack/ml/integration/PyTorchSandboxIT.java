@@ -157,10 +157,10 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/3188")
     public void testConcurrentDeploymentsDoNotCollideUnderLegacyPipeNaming() throws Exception {
-        String modelIdA = "sandbox_ipc_isolation_a";
-        String modelIdB = "sandbox_ipc_isolation_b";
-        String deploymentIdA = "sandbox_ipc_isolation_dep_a";
-        String deploymentIdB = "sandbox_ipc_isolation_dep_b";
+        String modelIdA = "sandbox_legacy_pipe_naming_a";
+        String modelIdB = "sandbox_legacy_pipe_naming_b";
+        String deploymentIdA = "sandbox_legacy_pipe_naming_dep_a";
+        String deploymentIdB = "sandbox_legacy_pipe_naming_dep_b";
 
         createPassThroughModel(modelIdA);
         putModelDefinition(modelIdA, PyTorchModelIT.BASE_64_ENCODED_MODEL, PyTorchModelIT.RAW_MODEL_SIZE);
@@ -172,7 +172,8 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
 
         // Start both deployments concurrently (rather than sequentially) so that, if the paired ml-cpp
         // artifact is present, this actually exercises the interesting race: two native controllers
-        // creating their respective ml-child-ipc/<deploymentId>/ directories at close to the same time.
+        // creating their respective flat-named pipe sets (no per-deployment ml-child-ipc directory at
+        // this sandbox_enabled=false default - see the class javadoc) in $TMPDIR at close to the same time.
         Future<Response> startA = executorService.submit(() -> startWithDeploymentId(modelIdA, deploymentIdA));
         Future<Response> startB = executorService.submit(() -> startWithDeploymentId(modelIdB, deploymentIdB));
 

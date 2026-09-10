@@ -25,13 +25,13 @@ The plugin must be installed on every node in the cluster, and each node must be
 restarted after installation.
 
 You can download this plugin
-for [offline install](/reference/elasticsearch-plugins/plugin-management-custom-url.md)
+for [offline install](docs-content://deploy-manage/plugins-and-bundles/self-managed/custom-url.md)
 from [https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip).
 To verify the `.zip` file, use
 the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip.sha512)
 or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip.asc).
 
-For all other deployment types, refer to [plugin management](/reference/elasticsearch-plugins/plugin-management.md).
+For all other deployment types, refer to [Plugins and bundles](docs-content://deploy-manage/plugins-and-bundles.md).
 
 ## Removal [ms-graph-authz-remove]
 

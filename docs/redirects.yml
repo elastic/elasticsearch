@@ -63,23 +63,37 @@ redirects:
   'reference/elasticsearch/index-settings/pressure.md': 'reference/elasticsearch/configuration-reference/indexing-pressure-settings.md'
 
   # Manage plugins and extensions API guide moved to docs-content
-  'reference/elasticsearch-plugins/cloud/ec-plugins-guide.md': 'docs-content://deploy-manage/deploy/elastic-cloud/manage-plugins-extensions-through-api.md'
+  'reference/elasticsearch-plugins/cloud/ec-plugins-guide.md': 'docs-content://deploy-manage/plugins-and-bundles/elastic-cloud/manage-plugins-extensions-through-api.md'
 
   # Related to https://github.com/elastic/elasticsearch/pull/130716/
   'reference/query-languages/eql/eql-ex-threat-detection.md': 'docs-content://explore-analyze/query-filter/languages/example-detect-threats-with-eql.md'
 
   # Custom plugins and bundles moved to docs-content (narrative ECH deployment docs)
-  'reference/elasticsearch-plugins/cloud/ec-custom-bundles.md': 'docs-content://deploy-manage/deploy/elastic-cloud/upload-custom-plugins-bundles.md'
+  'reference/elasticsearch-plugins/cloud/ec-custom-bundles.md': 'docs-content://deploy-manage/plugins-and-bundles/elastic-cloud/upload-custom-plugins-bundles.md'
 
-  # ECE and ECH plugin management procedures moved to docs-content (see elastic/docs-content#7101)
+  # Plugin management moved to docs-content (see elastic/docs-content#7101)
   'reference/elasticsearch-plugins/plugin-management.md':
-    to: 'reference/elasticsearch-plugins/plugin-management.md'
+    to: 'docs-content://deploy-manage/plugins-and-bundles.md'
     anchors: {}
     many:
-      - to: 'docs-content://deploy-manage/deploy/elastic-cloud/add-plugins-extensions.md'
+      - to: 'docs-content://deploy-manage/plugins-and-bundles/elastic-cloud/add-plugins-extensions.md'
         anchors: {'ec-adding-plugins', 'managing-plugins-for-ech', 'ec-adding-elastic-plugins', 'ec_before_you_begin_6'}
-      - to: 'docs-content://deploy-manage/deploy/cloud-enterprise/add-plugins.md'
+      - to: 'docs-content://deploy-manage/plugins-and-bundles/cloud-enterprise/add-plugins.md'
         anchors: {'ece-adding-plugins', 'managing-plugins-for-ece'}
+      - to: 'docs-content://deploy-manage/plugins-and-bundles/self-managed/manage-plugins.md'
+        anchors: {'managing-plugins-for-self-managed', 'manage-plugins-with-package-and-archive-installs'}
+      - to: 'docs-content://deploy-manage/plugins-and-bundles/cloud-on-k8s/manage-plugins.md'
+        anchors: {'managing-plugins-for-eck'}
+
+  # Self-managed plugin procedures moved to docs-content (see elastic/docs-content#7101)
+  'reference/elasticsearch-plugins/installation.md': 'docs-content://deploy-manage/plugins-and-bundles/self-managed/install-plugins.md'
+  'reference/elasticsearch-plugins/plugin-management-custom-url.md': 'docs-content://deploy-manage/plugins-and-bundles/self-managed/custom-url.md'
+  'reference/elasticsearch-plugins/installing-multiple-plugins.md': 'docs-content://deploy-manage/plugins-and-bundles/self-managed/install-multiple-plugins.md'
+  'reference/elasticsearch-plugins/mandatory-plugins.md': 'docs-content://deploy-manage/plugins-and-bundles/self-managed/mandatory-plugins.md'
+  'reference/elasticsearch-plugins/listing-removing-updating.md': 'docs-content://deploy-manage/plugins-and-bundles/self-managed/list-remove-update.md'
+  'reference/elasticsearch-plugins/_other_command_line_parameters.md': 'docs-content://deploy-manage/plugins-and-bundles/self-managed/other-command-line-parameters.md'
+  'reference/elasticsearch-plugins/_plugins_directory.md': 'docs-content://deploy-manage/plugins-and-bundles/self-managed/plugins-directory.md'
+  'reference/elasticsearch-plugins/manage-plugins-using-configuration-file.md': 'docs-content://deploy-manage/plugins-and-bundles/self-managed/manage-plugins-using-configuration-file.md'
 
   # https://github.com/elastic/elasticsearch/pull/131385
   'reference/elasticsearch/rest-apis/retrievers.md':

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -14,8 +15,13 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.BytesRefBlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.IntBlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.LongBlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.PartitionedBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -285,6 +291,249 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
             }
         }
     }
+
+    // ---- single-key tests (IntBlockHash / LongBlockHash / BytesRefBlockHash) ----
+
+    public void testSingleIntKey() {
+        assumeTrue("requires partitioning support", PartitionedBlockHash.supportPartitioning());
+        runSingleKeyTest(SingleKeyType.INT, between(100, 2000), blockFactory(), driverContext(), normalParallelConfig());
+    }
+
+    public void testSingleLongKey() {
+        assumeTrue("requires partitioning support", PartitionedBlockHash.supportPartitioning());
+        runSingleKeyTest(SingleKeyType.LONG, between(100, 2000), blockFactory(), driverContext(), normalParallelConfig());
+    }
+
+    public void testSingleBytesRefKey() {
+        assumeTrue("requires partitioning support", PartitionedBlockHash.supportPartitioning());
+        runSingleKeyTest(SingleKeyType.BYTES_REF, between(100, 2000), blockFactory(), driverContext(), normalParallelConfig());
+    }
+
+    public void testCrankySingleIntKey() {
+        assumeTrue("requires partitioning support", PartitionedBlockHash.supportPartitioning());
+        try {
+            runSingleKeyTest(SingleKeyType.INT, between(100, 2000), crankyBlockFactory(), crankyDriverContext(), normalParallelConfig());
+        } catch (CircuitBreakingException ignored) {}
+    }
+
+    public void testCrankySingleLongKey() {
+        assumeTrue("requires partitioning support", PartitionedBlockHash.supportPartitioning());
+        try {
+            runSingleKeyTest(SingleKeyType.LONG, between(100, 2000), crankyBlockFactory(), crankyDriverContext(), normalParallelConfig());
+        } catch (CircuitBreakingException ignored) {}
+    }
+
+    public void testCrankySingleBytesRefKey() {
+        assumeTrue("requires partitioning support", PartitionedBlockHash.supportPartitioning());
+        try {
+            runSingleKeyTest(
+                SingleKeyType.BYTES_REF,
+                between(100, 2000),
+                crankyBlockFactory(),
+                crankyDriverContext(),
+                normalParallelConfig()
+            );
+        } catch (CircuitBreakingException ignored) {}
+    }
+
+    private HashAggregationOperator.ParallelConfig normalParallelConfig() {
+        return new HashAggregationOperator.ParallelConfig(
+            randomWorkerExecutor(),
+            randomIntBetween(1, 8),
+            randomIntBetween(1, 1024),
+            randomIntBetween(64, 512)
+        );
+    }
+
+    enum SingleKeyType {
+        INT,
+        LONG,
+        BYTES_REF
+    }
+
+    /**
+     * Runs a COUNT aggregation grouped by a single key column with partitioning enabled.
+     * Input pages: key (channel 0), count value (channel 1), seen (channel 2).
+     * The block hash reads channel 0; the COUNT FINAL aggregator reads channels 1 and 2.
+     */
+    void runSingleKeyTest(
+        SingleKeyType keyType,
+        int numRows,
+        BlockFactory sourceBlockFactory,
+        DriverContext driverContext,
+        HashAggregationOperator.ParallelConfig parallelConfig
+    ) {
+        int keyCardinality = between(2, 20);
+        List<Object> inputKeys = new ArrayList<>(numRows);
+        List<Long> inputValues = new ArrayList<>(numRows);
+        for (int i = 0; i < numRows; i++) {
+            inputKeys.add(rarely() ? null : randomSingleKey(keyType, keyCardinality));
+            inputValues.add(randomLongBetween(1, 100));
+        }
+
+        Map<Object, Long> expected = new HashMap<>();
+        for (int i = 0; i < inputKeys.size(); i++) {
+            expected.merge(inputKeys.get(i), inputValues.get(i), Long::sum);
+        }
+
+        List<Page> inputPages = buildSingleKeyPages(sourceBlockFactory, keyType, inputKeys, inputValues);
+        List<Page> outputPages = new ArrayList<>();
+        HashAggregationOperator hashOperator = null;
+        try {
+            hashOperator = new HashAggregationOperator(
+                AggregatorMode.FINAL,
+                List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(1, 2))),
+                dc -> buildSingleKeyHash(keyType, dc.blockFactory()),
+                randomIntBetween(1, 1024),
+                randomDouble(),
+                randomIntBetween(128, 4096),
+                null,
+                null,
+                driverContext,
+                parallelConfig
+            );
+            try (
+                SourceOperator source = new CannedSourceOperator(inputPages.iterator());
+                Driver d = TestDriverFactory.create(
+                    driverContext,
+                    source,
+                    List.of(hashOperator),
+                    new TestResultPageSinkOperator(outputPages::add)
+                )
+            ) {
+                hashOperator = null;
+                new TestDriverRunner().run(d);
+            }
+            Map<Object, Long> actual = extractSingleKeyResults(keyType, outputPages);
+            assertThat(actual.keySet(), equalTo(expected.keySet()));
+            for (Object key : actual.keySet()) {
+                assertThat("count for key=" + key, actual.get(key), equalTo(expected.get(key)));
+            }
+        } finally {
+            Releasables.close(hashOperator, Releasables.wrap(outputPages));
+        }
+    }
+
+    private static Object randomSingleKey(SingleKeyType keyType, int cardinality) {
+        return switch (keyType) {
+            case INT -> randomIntBetween(0, cardinality - 1);
+            case LONG -> (long) randomIntBetween(0, cardinality - 1);
+            case BYTES_REF -> new BytesRef(String.valueOf(randomIntBetween(0, cardinality - 1)));
+        };
+    }
+
+    private static BlockHash buildSingleKeyHash(SingleKeyType keyType, BlockFactory blockFactory) {
+        return switch (keyType) {
+            case INT -> new IntBlockHash(0, blockFactory);
+            case LONG -> new LongBlockHash(0, blockFactory);
+            case BYTES_REF -> new BytesRefBlockHash(0, blockFactory);
+        };
+    }
+
+    private static List<Page> buildSingleKeyPages(
+        BlockFactory blockFactory,
+        SingleKeyType keyType,
+        List<Object> keys,
+        List<Long> values
+    ) {
+        List<Page> pages = new ArrayList<>();
+        boolean success = false;
+        try {
+            for (int start = 0; start < keys.size();) {
+                int end = Math.min(keys.size(), start + between(1, 512));
+                pages.add(buildSingleKeyPage(blockFactory, keyType, keys.subList(start, end), values.subList(start, end)));
+                start = end;
+            }
+            success = true;
+            return pages;
+        } finally {
+            if (success == false) {
+                Releasables.close(pages);
+            }
+        }
+    }
+
+    private static Page buildSingleKeyPage(BlockFactory blockFactory, SingleKeyType keyType, List<Object> keys, List<Long> values) {
+        Block[] blocks = new Block[3];
+        boolean success = false;
+        try {
+            blocks[0] = switch (keyType) {
+                case INT -> {
+                    try (IntBlock.Builder b = blockFactory.newIntBlockBuilder(keys.size())) {
+                        for (Object k : keys) {
+                            if (k == null) b.appendNull();
+                            else b.appendInt((int) k);
+                        }
+                        yield b.build();
+                    }
+                }
+                case LONG -> {
+                    try (LongBlock.Builder b = blockFactory.newLongBlockBuilder(keys.size())) {
+                        for (Object k : keys) {
+                            if (k == null) b.appendNull();
+                            else b.appendLong((long) k);
+                        }
+                        yield b.build();
+                    }
+                }
+                case BYTES_REF -> {
+                    try (BytesRefBlock.Builder b = blockFactory.newBytesRefBlockBuilder(keys.size())) {
+                        for (Object k : keys) {
+                            if (k == null) b.appendNull();
+                            else b.appendBytesRef((BytesRef) k);
+                        }
+                        yield b.build();
+                    }
+                }
+            };
+            try (LongBlock.Builder valBuilder = blockFactory.newLongBlockBuilder(values.size())) {
+                for (Long v : values) {
+                    valBuilder.appendLong(v);
+                }
+                blocks[1] = valBuilder.build();
+            }
+            blocks[2] = blockFactory.newConstantBooleanBlockWith(true, keys.size());
+            success = true;
+            return new Page(blocks);
+        } finally {
+            if (success == false) {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
+    private static Map<Object, Long> extractSingleKeyResults(SingleKeyType keyType, List<Page> pages) {
+        Map<Object, Long> actual = new HashMap<>();
+        for (Page page : pages) {
+            assertThat(page.getBlockCount(), equalTo(2));
+            LongBlock counts = page.getBlock(1);
+            switch (keyType) {
+                case INT -> {
+                    IntBlock keys = page.getBlock(0);
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        assertNull(actual.put(keys.isNull(i) ? null : keys.getInt(i), counts.getLong(i)));
+                    }
+                }
+                case LONG -> {
+                    LongBlock keys = page.getBlock(0);
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        assertNull(actual.put(keys.isNull(i) ? null : keys.getLong(i), counts.getLong(i)));
+                    }
+                }
+                case BYTES_REF -> {
+                    BytesRefBlock keys = page.getBlock(0);
+                    BytesRef scratch = new BytesRef();
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        Object key = keys.isNull(i) ? null : BytesRef.deepCopyOf(keys.getBytesRef(i, scratch));
+                        assertNull(actual.put(key, counts.getLong(i)));
+                    }
+                }
+            }
+        }
+        return actual;
+    }
+
+    // ---- thread pool setup ----
 
     @Before
     public void setupThreadPool() {

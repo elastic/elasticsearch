@@ -22,15 +22,16 @@ import static org.elasticsearch.simdvec.BBQEncoding.D1Q1;
 import static org.elasticsearch.simdvec.BBQEncoding.D1Q4;
 import static org.elasticsearch.simdvec.BBQEncoding.D2Q4;
 import static org.elasticsearch.simdvec.BBQEncoding.D4Q4;
+import static org.elasticsearch.simdvec.BBQEncoding.D7Q7;
 
 /** Scorer for quantized vectors stored as an {@link IndexInput}. */
 public class ES940OSQVectorsScorer {
 
     public static final int BULK_SIZE = 32;
 
-    public static boolean supportsQuantization(byte queryBits, byte indexBits) {
+    public static boolean supportsQuantization(byte indexBits, byte queryBits) {
         return switch ((indexBits << 8) | queryBits) {
-            case D1Q1, D1Q4, D2Q4, D4Q4, (7 << 8) | 7 -> true;
+            case D1Q1, D1Q4, D2Q4, D4Q4, D7Q7 -> true;
             default -> false;
         };
     }
@@ -61,14 +62,14 @@ public class ES940OSQVectorsScorer {
             this.bitEncoding = bitEncoding;
         }
 
-        public static QuantEncoding of(byte queryBits, byte indexBits, BitEncoding bitEncoding) {
-            return switch ((indexBits << 8) | queryBits) {
+        public static QuantEncoding of(BBQEncoding bbqEncoding, BitEncoding bitEncoding) {
+            return switch (bbqEncoding.toSwitchValue()) {
                 case BBQEncoding.D1Q1 -> D1Q1;
                 case BBQEncoding.D1Q4 -> D1Q4;
                 case BBQEncoding.D2Q4 -> bitEncoding == BitEncoding.PACKED ? D2Q4_PACKED : D2Q4_STRIPED;
                 case BBQEncoding.D4Q4 -> bitEncoding == BitEncoding.PACKED ? D4Q4_PACKED : D4Q4_STRIPED;
-                case (7 << 8) | 7 -> D7Q7;
-                default -> throw new IllegalArgumentException("Unsupported query/index bits combination: " + queryBits + "/" + indexBits);
+                case BBQEncoding.D7Q7 -> D7Q7;
+                default -> throw new IllegalArgumentException("Unsupported query/index bits combination: " + bbqEncoding);
             };
         }
 
@@ -133,22 +134,21 @@ public class ES940OSQVectorsScorer {
 
     public ES940OSQVectorsScorer(
         IndexInput in,
-        byte queryBits,
-        byte indexBits,
+        BBQEncoding bbqEncoding,
         int dimensions,
         int dataLength,
         int bulkSize,
         BitEncoding bitEncoding
     ) {
-        this(in, QuantEncoding.of(queryBits, indexBits, bitEncoding), dimensions, dataLength, bulkSize);
+        this(in, QuantEncoding.of(bbqEncoding, bitEncoding), dimensions, dataLength, bulkSize);
     }
 
-    public ES940OSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {
-        this(in, queryBits, indexBits, dimensions, dataLength, bulkSize, BitEncoding.STRIPED);
+    public ES940OSQVectorsScorer(IndexInput in, BBQEncoding bbqEncoding, int dimensions, int dataLength, int bulkSize) {
+        this(in, bbqEncoding, dimensions, dataLength, bulkSize, BitEncoding.STRIPED);
     }
 
-    public ES940OSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength) {
-        this(in, queryBits, indexBits, dimensions, dataLength, BULK_SIZE);
+    public ES940OSQVectorsScorer(IndexInput in, BBQEncoding bbqEncoding, int dimensions, int dataLength) {
+        this(in, bbqEncoding, dimensions, dataLength, BULK_SIZE);
     }
 
     /**

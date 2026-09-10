@@ -47,7 +47,7 @@ final class DefaultVectorScorerFactory implements VectorScorerFactory {
         int bulkSize,
         ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) {
-        return new ES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, bitEncoding);
+        return new ES940OSQVectorsScorer(input, new BBQEncoding(indexBits, queryBits), dimension, dataLength, bulkSize, bitEncoding);
     }
 
     @Override

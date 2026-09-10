@@ -67,14 +67,13 @@ final class PanamaVectorScorerFactory implements VectorScorerFactory {
         int bulkSize,
         ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) throws IOException {
-        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS && ES940OSQVectorsScorer.supportsQuantization(queryBits, indexBits)) {
+        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS && ES940OSQVectorsScorer.supportsQuantization(indexBits, queryBits)) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
             if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
                 return MemorySegmentES940OSQVectorsScorer.usingPanama(
                     unwrappedInput,
-                    queryBits,
-                    indexBits,
+                    new BBQEncoding(indexBits, queryBits),
                     dimension,
                     dataLength,
                     bulkSize,
@@ -82,7 +81,7 @@ final class PanamaVectorScorerFactory implements VectorScorerFactory {
                 );
             }
         }
-        return new ES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, bitEncoding);
+        return new ES940OSQVectorsScorer(input, new BBQEncoding(indexBits, queryBits), dimension, dataLength, bulkSize, bitEncoding);
     }
 
     @Override

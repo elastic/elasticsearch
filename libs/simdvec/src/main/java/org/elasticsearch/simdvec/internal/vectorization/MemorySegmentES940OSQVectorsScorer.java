@@ -20,6 +20,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.BufferScratch;
 
@@ -37,14 +38,13 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
     public static MemorySegmentES940OSQVectorsScorer usingNative(
         IndexInput in,
-        byte queryBits,
-        byte indexBits,
+        BBQEncoding bbqEncoding,
         int dimensions,
         int dataLength,
         int bulkSize,
         @Nullable ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) {
-        QuantEncoding encoding = QuantEncoding.of(queryBits, indexBits, Objects.requireNonNullElse(bitEncoding, BitEncoding.STRIPED));
+        QuantEncoding encoding = QuantEncoding.of(bbqEncoding, Objects.requireNonNullElse(bitEncoding, BitEncoding.STRIPED));
         return new MemorySegmentES940OSQVectorsScorer(
             in,
             encoding,
@@ -57,14 +57,13 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
     public static MemorySegmentES940OSQVectorsScorer usingPanama(
         IndexInput in,
-        byte queryBits,
-        byte indexBits,
+        BBQEncoding bbqEncoding,
         int dimensions,
         int dataLength,
         int bulkSize,
         @Nullable ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) {
-        QuantEncoding encoding = QuantEncoding.of(queryBits, indexBits, Objects.requireNonNullElse(bitEncoding, BitEncoding.STRIPED));
+        QuantEncoding encoding = QuantEncoding.of(bbqEncoding, Objects.requireNonNullElse(bitEncoding, BitEncoding.STRIPED));
         return new MemorySegmentES940OSQVectorsScorer(
             in,
             encoding,

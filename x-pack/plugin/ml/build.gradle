@@ -137,42 +137,55 @@ tasks.register("verifyControllerProtocolVersion") {
     // bundled - see docs/projects/mlcpp-sandbox2-pr2873/sandbox2_clean_rebuild_3df1182e.plan.md:115
     // ("do not publish an Elasticsearch build that emits --disableSandbox to an older native
     // controller that would forward it to the child").
-    nativeBundleFiles.files.each { zipFile ->
-      def matches = archiveOps.zipTree(zipFile).matching { include 'controller-protocol.version' }.files
-      if (matches.isEmpty()) {
-        throw new GradleException(
-          "Native controller bundle '${zipFile.name}' is missing the top-level 'controller-protocol.version' " +
-          "file (required: controller-protocol-version >= ${REQUIRED_CONTROLLER_PROTOCOL_VERSION}). The resolved " +
-          "ml-cpp artifact predates the controller-protocol.version publication and is incompatible with this " +
-          "Elasticsearch build."
-        )
-      }
-      def versionFile = matches.iterator().next()
-      // Match line-by-line (each trimmed individually) rather than the whole trimmed file content,
-      // so trailing blank lines, CRLF line endings, or an extra comment line the ml-cpp side might
-      // legitimately add don't trip the "malformed" check below.
-      def versionLinePattern = ~/^controller-protocol-version=(\d+)$/
-      def matcher = null
-      for (fileLine in versionFile.text.readLines()) {
-        def candidate = versionLinePattern.matcher(fileLine.trim())
-        if (candidate.matches()) {
-          matcher = candidate
-          break
+    //
+    // The design doc describes the token as living in "the deps bundle" (singular), so this check is
+    // deliberately deps-artifact-first - but it tolerates the marker appearing in EITHER resolved
+    // nativeBundle artifact (deps@zip or nodeps@zip), at ANY depth rather than only the archive root,
+    // because the exact publication path isn't nailed down yet. In particular, ml-cpp's nodeps
+    // packaging (noDependenciesSpec in ml-cpp's own build.gradle) is an include-only file spec with no
+    // pattern admitting a root-level marker file, so it can never carry one; requiring the marker in
+    // every artifact would make this gate permanently red even after the paired ml-cpp change lands.
+    // It is sufficient for at least one resolved artifact to carry a valid, sufficiently new marker.
+    def matchesByZip = nativeBundleFiles.files.collectEntries { zipFile ->
+      [zipFile, archiveOps.zipTree(zipFile).matching { include '**/controller-protocol.version' }.files]
+    }
+    if (matchesByZip.values().every { it.isEmpty() }) {
+      def checkedNames = nativeBundleFiles.files.collect { it.name }.join(', ')
+      throw new GradleException(
+        "None of the resolved native controller bundles (checked: ${checkedNames}) contain a " +
+        "'controller-protocol.version' file, at any depth (required: controller-protocol-version >= " +
+        "${REQUIRED_CONTROLLER_PROTOCOL_VERSION}). The resolved ml-cpp artifact predates the " +
+        "controller-protocol.version publication and is incompatible with this Elasticsearch build."
+      )
+    }
+    matchesByZip.each { zipFile, matches ->
+      matches.each { versionFile ->
+        // Match line-by-line (each trimmed individually) rather than the whole trimmed file content,
+        // so trailing blank lines, CRLF line endings, or an extra comment line the ml-cpp side might
+        // legitimately add don't trip the "malformed" check below.
+        def versionLinePattern = ~/^controller-protocol-version=(\d+)$/
+        def matcher = null
+        for (fileLine in versionFile.text.readLines()) {
+          def candidate = versionLinePattern.matcher(fileLine.trim())
+          if (candidate.matches()) {
+            matcher = candidate
+            break
+          }
         }
-      }
-      if (matcher == null) {
-        throw new GradleException(
-          "Native controller bundle '${zipFile.name}' has a malformed 'controller-protocol.version' file " +
-          "(got '${versionFile.text.trim()}', expected a line matching 'controller-protocol-version=<int>')."
-        )
-      }
-      def foundVersion = matcher.group(1).toInteger()
-      if (foundVersion < REQUIRED_CONTROLLER_PROTOCOL_VERSION) {
-        throw new GradleException(
-          "Native controller bundle '${zipFile.name}' publishes controller-protocol version ${foundVersion}, " +
-          "but this Elasticsearch build requires controller-protocol version >= " +
-          "${REQUIRED_CONTROLLER_PROTOCOL_VERSION}. Upgrade the resolved ml-cpp artifact."
-        )
+        if (matcher == null) {
+          throw new GradleException(
+            "Native controller bundle '${zipFile.name}' has a malformed 'controller-protocol.version' file " +
+            "(got '${versionFile.text.trim()}', expected a line matching 'controller-protocol-version=<int>')."
+          )
+        }
+        def foundVersion = matcher.group(1).toInteger()
+        if (foundVersion < REQUIRED_CONTROLLER_PROTOCOL_VERSION) {
+          throw new GradleException(
+            "Native controller bundle '${zipFile.name}' publishes controller-protocol version ${foundVersion}, " +
+            "but this Elasticsearch build requires controller-protocol version >= " +
+            "${REQUIRED_CONTROLLER_PROTOCOL_VERSION}. Upgrade the resolved ml-cpp artifact."
+          )
+        }
       }
     }
   }

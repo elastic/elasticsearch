@@ -26,6 +26,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -63,8 +64,9 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
     // Registered alongside the ai_index: action to prove non-ai_index: actions are filtered out of the DLS query.
     private static final String SAVED_OBJECT_GET_ACTION = "saved_object:dashboard/get";
     private static final String ELASTIC_AI_INDEX = ".ai-index-idx-sml-data";
-    // Installed by the stack plugin's AiIndexTemplateRegistry; matches every `.ai-index-idx-*` index.
+    // Installed by the stack plugin's AiIndexTemplateRegistry; match every `.ai-index-idx-*` / `.ai-index-ds-*` name.
     private static final String AI_INDEX_MANAGED_TEMPLATE = "ai-index-idx-managed";
+    private static final String AI_INDEX_DS_MANAGED_TEMPLATE = "ai-index-ds-managed";
 
     // Shared between the _search and ES|QL assertions: both engines must resolve each role's DLS
     // filter to exactly these sets.
@@ -130,7 +132,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         // 6. The user can read the Elastic AI Index without any explicit index privilege, and DLS restricts the
         // visible documents to exactly those that satisfy a whole nested element — through both
         // the _search path and ES|QL, which executes on its own engine.
-        assertUserSeesOnlyAuthorizedDocs(SPACE_SCOPED_VISIBLE_DOC_IDS);
+        assertUserSeesOnlyAuthorizedDocs(ELASTIC_AI_INDEX, SPACE_SCOPED_VISIBLE_DOC_IDS);
     }
 
     /**
@@ -144,7 +146,44 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         putUser(SML_USER, SML_USER_PASSWORD, "ai_all_spaces_reader");
         createAiIndexWithDocs();
 
-        assertUserSeesOnlyAuthorizedDocs(WILDCARD_GRANT_VISIBLE_DOC_IDS);
+        assertUserSeesOnlyAuthorizedDocs(ELASTIC_AI_INDEX, WILDCARD_GRANT_VISIBLE_DOC_IDS);
+    }
+
+    /**
+     * The grant is over the {@code .ai-index-idx-*} and {@code .ai-index-ds-*} patterns rather than one
+     * concrete index, so any other Elastic-managed AI index or data stream is readable under the same DLS filter.
+     */
+    public void testGrantCoversEveryElasticManagedAiIndex() throws Exception {
+        putKibanaPrivileges();
+        putAiIndexReaderRole(AI_INDEX_READER_ROLE);
+        putUser(SML_USER, SML_USER_PASSWORD, AI_INDEX_READER_ROLE);
+
+        final String otherIndex = ".ai-index-idx-other";
+        createAiIndex(otherIndex);
+        indexDoc(otherIndex, "other-marketing-dashboard", dashboardIn("marketing"));
+        indexDoc(otherIndex, "other-finance-dashboard", dashboardIn("finance"));
+        assertOK(client().performRequest(new Request("POST", "/" + otherIndex + "/_refresh")));
+        assertUserSeesOnlyAuthorizedDocs(otherIndex, List.of("other-marketing-dashboard"));
+
+        final String otherDataStream = ".ai-index-ds-other";
+        createAiDataStream(otherDataStream);
+        indexDoc(otherDataStream, "ds-marketing-dashboard", dashboardIn("marketing"));
+        indexDoc(otherDataStream, "ds-finance-dashboard", dashboardIn("finance"));
+        assertOK(client().performRequest(new Request("POST", "/" + otherDataStream + "/_refresh")));
+        assertUserSeesOnlyAuthorizedDocs(otherDataStream, List.of("ds-marketing-dashboard"));
+    }
+
+    /** A dashboard requiring {@code ai_index:dashboard/read} in {@code space}; stamped so it is valid for a data stream too. */
+    private static String dashboardIn(String space) {
+        return Strings.format("""
+            {
+              "@timestamp": "2026-01-01T00:00:00Z",
+              "type": "dashboard",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "%s", "name": ["ai_index:dashboard/read"], "count": 1 }
+              ]}}
+            }
+            """, space);
     }
 
     private void putKibanaPrivileges() throws Exception {
@@ -232,33 +271,52 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
     }
 
-    private void createAiIndexWithDocs() throws Exception {
-        // Mappings come from the ai-index-idx-managed template and the test tracks the shipped `permissions`
-        // shape. The registry installs the template asynchronously after startup, so wait for
-        // it: without the template, dynamic mapping never produces `nested`.
-        assertBusy(() -> {
-            try {
-                assertOK(client().performRequest(new Request("GET", "/_index_template/" + AI_INDEX_MANAGED_TEMPLATE)));
-            } catch (ResponseException e) {
-                fail(e.getMessage());
-            }
-        });
+    /**
+     * Creates {@code index} bare, as Kibana does, so every mapping on it comes from the
+     * {@code ai-index-idx-managed} template.
+     */
+    private void createAiIndex(String index) throws Exception {
+        waitForTemplate(AI_INDEX_MANAGED_TEMPLATE);
 
-        // Created bare, as Kibana does: no body, so every mapping on it comes from the template.
-        final Request create = new Request("PUT", "/" + ELASTIC_AI_INDEX);
+        final Request create = new Request("PUT", "/" + index);
         // Creating a dot-prefixed index emits a deprecation warning that is irrelevant to this test.
         create.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         assertOK(client().performRequest(create));
 
         // Fail fast if the template stopped matching
-        final Map<String, Object> mapping = entityAsMap(client().performRequest(new Request("GET", "/" + ELASTIC_AI_INDEX + "/_mapping")));
+        final Map<String, Object> mapping = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_mapping")));
         assertThat(
             "expected [" + AI_INDEX_MANAGED_TEMPLATE + "] to map permissions.kibana.privileges as nested",
-            new ObjectPath(mapping.get(ELASTIC_AI_INDEX)).evaluate(
-                "mappings.properties.permissions.properties.kibana.properties.privileges.type"
-            ),
+            new ObjectPath(mapping.get(index)).evaluate("mappings.properties.permissions.properties.kibana.properties.privileges.type"),
             equalTo("nested")
         );
+    }
+
+    /** Creates the data stream {@code name} bare; its backing index is mapped by the {@code ai-index-ds-managed} template. */
+    private void createAiDataStream(String name) throws Exception {
+        waitForTemplate(AI_INDEX_DS_MANAGED_TEMPLATE);
+        assertOK(client().performRequest(new Request("PUT", "/_data_stream/" + name)));
+
+        final Map<String, Object> dataStream = entityAsMap(client().performRequest(new Request("GET", "/_data_stream/" + name)));
+        assertThat(new ObjectPath(dataStream).evaluate("data_streams.0.template"), equalTo(AI_INDEX_DS_MANAGED_TEMPLATE));
+    }
+
+    /**
+     * The registry installs its templates asynchronously after startup, so wait: without the template,
+     * dynamic mapping never produces `nested`.
+     */
+    private void waitForTemplate(String template) throws Exception {
+        assertBusy(() -> {
+            try {
+                assertOK(client().performRequest(new Request("GET", "/_index_template/" + template)));
+            } catch (ResponseException e) {
+                fail(e.getMessage());
+            }
+        });
+    }
+
+    private void createAiIndexWithDocs() throws Exception {
+        createAiIndex(ELASTIC_AI_INDEX);
 
         // Documents deliberately carry no title/description/content: the template maps a semantic_text
         // sub-field on each of those, and populating one would require an inference-capable license.
@@ -266,7 +324,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         // space-scoped role; the wildcard-resource test pins its own set in WILDCARD_GRANT_VISIBLE_DOC_IDS.
 
         // VISIBLE: user holds ai_index:dashboard/read in marketing.
-        indexDoc("marketing-dashboard", """
+        indexDoc(ELASTIC_AI_INDEX, "marketing-dashboard", """
             {
               "type": "dashboard",
               "permissions": { "kibana": { "privileges": [
@@ -276,7 +334,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             """);
 
         // HIDDEN: right action, wrong space — user holds dashboard/read in marketing, not finance.
-        indexDoc("finance-dashboard", """
+        indexDoc(ELASTIC_AI_INDEX, "finance-dashboard", """
             {
               "type": "dashboard",
               "permissions": { "kibana": { "privileges": [
@@ -286,7 +344,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             """);
 
         // HIDDEN: right space, wrong action — user holds workflow/read in finance, not marketing.
-        indexDoc("marketing-workflow", """
+        indexDoc(ELASTIC_AI_INDEX, "marketing-workflow", """
             {
               "type": "workflow",
               "permissions": { "kibana": { "privileges": [
@@ -297,7 +355,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
         // VISIBLE: shared into two spaces; the user satisfies the marketing element.
         // Proves nested matching is existential — OR across spaces.
-        indexDoc("shared-dashboard", """
+        indexDoc(ELASTIC_AI_INDEX, "shared-dashboard", """
             {
               "type": "dashboard",
               "permissions": { "kibana": { "privileges": [
@@ -309,7 +367,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
         // HIDDEN: Requires BOTH actions in marketing AND both in finance. The user holds
         // dashboard/read in marketing and workflow/read in finance — one of two in each.
-        indexDoc("cross-space-leak", """
+        indexDoc(ELASTIC_AI_INDEX, "cross-space-leak", """
             {
               "type": "dashboard",
               "permissions": { "kibana": { "privileges": [
@@ -321,7 +379,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
         // VISIBLE: proves `count` is read from the MATCHING entry, not from the first entry or from
         // some document-wide value.
-        indexDoc("mixed-counts", """
+        indexDoc(ELASTIC_AI_INDEX, "mixed-counts", """
             {
               "type": "dashboard",
               "permissions": { "kibana": { "privileges": [
@@ -334,7 +392,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         // VISIBLE: scoped to every space via the "*" marker, and the user holds the action it
         // requires (in marketing). An all-spaces document lives in marketing too, so a
         // marketing-scoped user must see it — this is what the "*" arm of the space match buys.
-        indexDoc("all-spaces-dashboard", """
+        indexDoc(ELASTIC_AI_INDEX, "all-spaces-dashboard", """
             {
               "type": "dashboard",
               "permissions": { "kibana": { "privileges": [
@@ -345,7 +403,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
         // HIDDEN: all-spaces, but requires an action the user holds in no space at all.
         // Proves the "*" space arm widens which elements are eligible, never which actions are held.
-        indexDoc("all-spaces-connector", """
+        indexDoc(ELASTIC_AI_INDEX, "all-spaces-connector", """
             {
               "type": "connector",
               "permissions": { "kibana": { "privileges": [
@@ -356,7 +414,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
         // VISIBLE: requires no action, in marketing where the user is. This is what Kibana writes for
         // an SML type that opts out of gating: empty `name`, `count: 0`.
-        indexDoc("marketing-public", """
+        indexDoc(ELASTIC_AI_INDEX, "marketing-public", """
             {
               "type": "dashboard",
               "permissions": { "kibana": { "privileges": [
@@ -366,7 +424,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             """);
 
         // HIDDEN: requires no action, but in a space the user is not in (public only within its space).
-        indexDoc("engineering-public", """
+        indexDoc(ELASTIC_AI_INDEX, "engineering-public", """
             {
               "type": "dashboard",
               "permissions": { "kibana": { "privileges": [
@@ -376,7 +434,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             """);
 
         // VISIBLE: requires no action, in every space — genuinely public to any granted user.
-        indexDoc("all-spaces-public", """
+        indexDoc(ELASTIC_AI_INDEX, "all-spaces-public", """
             {
               "type": "dashboard",
               "permissions": { "kibana": { "privileges": [
@@ -388,7 +446,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         // HIDDEN: malformed — `count: 0` while still naming an action. Only a buggy or hostile producer
         // writes this, so it must fail closed. No test role holds the named action, so `terms_set` never
         // visits it — isolating the count:0 escape (arm one) from the terms_set arm.
-        indexDoc("malformed-zero-count", """
+        indexDoc(ELASTIC_AI_INDEX, "malformed-zero-count", """
             {
               "type": "dashboard",
               "permissions": { "kibana": { "privileges": [
@@ -398,7 +456,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             """);
 
         // Malformed count:0 must remain hidden even when the named action is held.
-        indexDoc("malformed-zero-count-held-action", """
+        indexDoc(ELASTIC_AI_INDEX, "malformed-zero-count-held-action", """
             {
               "type": "dashboard",
               "permissions": { "kibana": { "privileges": [
@@ -409,7 +467,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
         // VISIBLE: no permissions block → public, via the must_not(nested(match_all)) branch. Kibana
         // never writes this, but the branch must work for any other producer.
-        indexDoc("global-no-perms", """
+        indexDoc(ELASTIC_AI_INDEX, "global-no-perms", """
             {
               "type": "dashboard"
             }
@@ -418,8 +476,9 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("POST", "/" + ELASTIC_AI_INDEX + "/_refresh")));
     }
 
-    private void indexDoc(String id, String body) throws Exception {
-        final Request request = new Request("PUT", "/" + ELASTIC_AI_INDEX + "/_doc/" + id);
+    private void indexDoc(String index, String id, String body) throws Exception {
+        // _create rather than _doc: data streams only accept create operations, and plain indices accept both.
+        final Request request = new Request("PUT", "/" + index + "/_create/" + id);
         request.setJsonEntity(body);
         assertOK(client().performRequest(request));
     }
@@ -442,6 +501,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         assertThat("expected exactly one implicit Elastic AI Index grant, got " + indices, implicitEntries, hasSize(1));
 
         final Map<String, Object> implicit = implicitEntries.get(0);
+        assertThat((List<String>) implicit.get("names"), containsInAnyOrder(".ai-index-idx-*", ".ai-index-ds-*"));
         assertThat((List<String>) implicit.get("privileges"), equalTo(List.of("read")));
 
         final String query = (String) implicit.get("query");
@@ -466,14 +526,14 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
      * Asserts the DLS-visible set through both query engines — _search endpoint and ES|QL
      * Pinning the identical positive set catches DLS regressions where the two engines drift apart.
      */
-    private void assertUserSeesOnlyAuthorizedDocs(List<String> expectedIds) throws Exception {
-        final Request searchRequest = new Request("GET", "/" + ELASTIC_AI_INDEX + "/_search");
+    private void assertUserSeesOnlyAuthorizedDocs(String index, List<String> expectedIds) throws Exception {
+        final Request searchRequest = new Request("GET", "/" + index + "/_search");
         searchRequest.setOptions(getRequestOptions());
 
         final Request esqlRequest = new Request("POST", "/_query");
         esqlRequest.setOptions(getRequestOptions());
         // The explicit LIMIT avoids the "no limit defined" warning header, which the test REST client treats as a failure.
-        esqlRequest.setJsonEntity(Strings.format("{ \"query\": \"FROM %s METADATA _id | KEEP _id | LIMIT 100\" }", ELASTIC_AI_INDEX));
+        esqlRequest.setJsonEntity(Strings.format("{ \"query\": \"FROM %s METADATA _id | KEEP _id | LIMIT 100\" }", index));
 
         final Response searchResponse = client().performRequest(searchRequest);
         final Response esqlResponse = client().performRequest(esqlRequest);

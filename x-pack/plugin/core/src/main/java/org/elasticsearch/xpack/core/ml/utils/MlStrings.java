@@ -70,7 +70,7 @@ public final class MlStrings {
 
     /**
      * Checks that {@code id} is safe to use as a single path component - i.e. that joining it onto a
-     * parent directory (as {@code NamedPipeHelper#getDefaultPipeDirectoryPrefix} does for the isolated
+     * parent directory (as {@code NamedPipeHelper#getChildIpcDirectoryPrefix} does for the isolated
      * ml-child-ipc directory, keyed on {@code deployment_id}) cannot escape that parent directory or
      * otherwise inject something unexpected into the filesystem path.
      *

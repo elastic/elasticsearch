@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -21,8 +22,10 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
@@ -39,6 +42,7 @@ import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,13 +51,18 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING;
 import static org.hamcrest.Matchers.is;
 
 public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegTestCase {
+
+    @Before
+    public void resetPlugin() {
+        TestStatelessPlugin.resetAllLatches();
+        TestStatelessPlugin.resetFlushInterceptor();
+    }
 
     @Override
     protected boolean addMockFsRepository() {
@@ -71,7 +80,8 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
+        return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), TimeValue.timeValueHours(1));
     }
 
     /// A BCC upload is in flight when the relocation starts. The pre-flush drains it via `waitForCurrentCommitDurability`,
@@ -191,7 +201,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         // Disable the latches so the pre-flush and final flush are not intercepted.
         TestStatelessPlugin.resetAllLatches();
 
-        PreFlushObserver preFlush = installPreFlushInterceptor();
+        PreFlushObserver preFlush = installPreFlushObserver(sourceNode, indexName);
         PlainActionFuture<Void> relocationCompletedOnSource = triggerRelocationAndTrackCompletionOnSource(sourceNode, indexName);
 
         if (threshold.equals(TimeValue.ZERO)) {
@@ -288,7 +298,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
             unblockFirstUpload.countDown();
         }
 
-        PreFlushObserver preFlush = installPreFlushInterceptor();
+        PreFlushObserver preFlush = installPreFlushObserver(sourceNode, indexName);
         PlainActionFuture<Void> relocationCompletedOnSource = triggerRelocationAndTrackCompletionOnSource(sourceNode, indexName);
 
         if (releaseGen1BeforeRelocation == false) {
@@ -302,7 +312,6 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         } else {
             assertThat(safeGet(preFlush.waitIfOngoing()), is(false));
         }
-        TestStatelessPlugin.resetFlushInterceptor();
 
         // Unblock gen2's commit: it commits, releases flushLock, and gen2 BCC upload begins.
         unblockCommitLatch.countDown();
@@ -325,16 +334,30 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
 
     private String createTestIndex() {
         final var indexName = randomIndexName();
-        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(Long.MAX_VALUE))
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING.getKey(), TimeValue.timeValueHours(1))
+                .put(IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(Long.MAX_VALUE))
+                .build()
+        );
         ensureGreen(indexName);
         return indexName;
     }
 
     private record PreFlushObserver(PlainActionFuture<Boolean> waitIfOngoing, PlainActionFuture<Engine.FlushResult> result) {}
 
-    private static PreFlushObserver installPreFlushInterceptor() {
-        PreFlushObserver observer = new PreFlushObserver(new PlainActionFuture<>(), new PlainActionFuture<>());
-        TestStatelessPlugin.flushInterceptor = (waitIfOngoing, listener) -> {
+    private interface FlushInterceptor {
+        Engine.FlushResultListener apply(String nodeName, String indexName, boolean waitIfOngoing, Engine.FlushResultListener listener);
+    }
+
+    private static PreFlushObserver installPreFlushObserver(String nodeName, String indexName) {
+        final var observer = new PreFlushObserver(new PlainActionFuture<>(), new PlainActionFuture<>());
+        TestStatelessPlugin.flushInterceptor = (node, index, waitIfOngoing, listener) -> {
+            if (nodeName.equals(node) == false || indexName.equals(index) == false) {
+                return listener;
+            }
             observer.waitIfOngoing().onResponse(waitIfOngoing);
             return Engine.FlushResultListener.wrap(ActionListener.wrap(r -> {
                 observer.result().onResponse(r);
@@ -371,10 +394,13 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
     public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
         static volatile CountDownLatch commitStartedLatch;
         static volatile CountDownLatch unblockCommitLatch;
-        static volatile BiFunction<Boolean, Engine.FlushResultListener, Engine.FlushResultListener> flushInterceptor;
+        static volatile FlushInterceptor flushInterceptor;
+
+        private final String nodeName;
 
         public TestStatelessPlugin(Settings settings) {
             super(settings);
+            nodeName = Node.NODE_NAME_SETTING.get(settings);
         }
 
         public static void resetAllLatches() {
@@ -400,6 +426,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
             IndexEngine.EngineMetrics engineMetrics,
             IndexEngineDynamicSettings indexEngineDynamicSettings
         ) {
+            final var indexName = engineConfig.getShardId().getIndexName();
             return new IndexEngine(
                 engineConfig,
                 translogReplicator,
@@ -431,10 +458,11 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
                 @Override
                 protected void flushHoldingLock(boolean force, boolean waitIfOngoing, Engine.FlushResultListener listener)
                     throws EngineException {
+                    final var interceptor = flushInterceptor;
                     super.flushHoldingLock(
                         force,
                         waitIfOngoing,
-                        flushInterceptor != null ? flushInterceptor.apply(waitIfOngoing, listener) : listener
+                        interceptor != null ? interceptor.apply(nodeName, indexName, waitIfOngoing, listener) : listener
                     );
                 }
             };

@@ -222,7 +222,9 @@ public class EsqlCCSUtils {
      * view on more than one of them names all of them at once rather than whichever was iterated first.
      * <p>
      * The aggregate carries an empty dataset list: a dataset on another cluster is invisible rather than an error, so
-     * nothing can put one here. The class keeps its shape until the view rail goes the same way.
+     * nothing can put one here. Since #157726 this coordinator does not ask a remote to resolve its views either, so
+     * the views half is defensive on this path as well. Where a view still fails is cross-project search, which goes
+     * through {@code CrossProjectIndexResolutionValidator} rather than through here.
      */
     static void checkForRemoteResourceErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
         List<String> views = new ArrayList<>();

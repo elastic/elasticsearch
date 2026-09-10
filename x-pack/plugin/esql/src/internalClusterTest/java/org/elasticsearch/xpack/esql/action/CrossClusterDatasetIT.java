@@ -37,12 +37,13 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Cross-cluster counterpart of {@link CrossClusterViewIT} for datasets, and deliberately its opposite. Registers a
- * dataset and an index on each remote, then asserts that the dataset is invisible from another cluster rather than
- * fatal to the query: a wildcard returns the index rows beside it, and the exact qualified name behaves exactly as a
- * name registered nowhere does, which is why every such assertion is paired with that name as its control. What
- * happens to an unresolved name is decided by the remote's {@code skip_unavailable}, so both of its values are
- * covered. A view in the same position still fails the query, which CrossClusterViewIT covers.
+ * Cross-cluster counterpart of {@link CrossClusterViewIT} for datasets. Registers a dataset and an index on each
+ * remote, then asserts that the dataset is invisible from another cluster rather than fatal to the query: a wildcard
+ * returns the index rows beside it, and the exact qualified name behaves exactly as a name registered nowhere does,
+ * which is why every such assertion is paired with that name as its control. What happens to an unresolved name is
+ * decided by the remote's {@code skip_unavailable}, so both of its values are covered. Since #157726 a remote view in
+ * the same position is invisible too, so the two suites now assert the same shape on their own abstraction rather than
+ * opposite ones.
  *
  * <p>Multi-node remotes are safe: the diff-apply indices-lookup reuse guard now accounts for dataset metadata.
  */

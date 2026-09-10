@@ -1824,7 +1824,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
     /**
      * The linked-project counterpart of the defensive aggregate case. Nothing can send one carrying datasets now that
      * no request asks a project to resolve them, but the branch exists, so its views half must still fail the query,
-     * its datasets half must be dropped, and datasets alone must fail nothing at all.
+     * its datasets half must be dropped, and a dataset list on its own must make no difference to the outcome.
      */
     public void testAggregateExceptionFromAnOlderLinkedProjectKeepsViewsAndDropsDatasets() {
         ResolvedIndexExpressions local = flatExpressionWithRemoteFanout("logs-*", "P1:logs-*");
@@ -1848,21 +1848,27 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         assertThat(e.getMessage(), not(containsString("datasets")));
         assertThat(e.getMetadata("es.esql.view.names"), equalTo(List.of("P1:my-view")));
 
-        // Datasets alone carry nothing to act on, so nothing is returned and the query is not failed at all.
+        // Datasets alone carry nothing to act on, so they must not change the outcome. The control is an unrelated
+        // remote failure from the same project rather than no exception at all: the project still has to count as
+        // having answered with a failure, or the validator takes a different path entirely and trips its own assertion
+        // about cluster exclusions. What the outcome then is depends on whether the expression resolved locally, which
+        // the fixture randomises; the property under test is that the dataset list makes no difference to it.
         Map<String, Exception> datasetsOnly = Map.of(
             "P1",
             new RemoteTransportException("test failure", new RemoteResourceNotSupportedException(List.of(), List.of("P1:my-dataset")))
         );
-        assertThat(
-            CrossProjectIndexResolutionValidator.validate(
-                randomBoolean() ? getStrictIgnoreUnavailable() : getLenientIndicesOptions(),
-                useProjectRouting ? "_alias:*" : null,
-                local,
-                Map.of(),
-                datasetsOnly
-            ),
-            nullValue()
-        );
+        Map<String, Exception> namesNoAbstraction = Map.of("P1", new RemoteTransportException("test failure", new IllegalStateException()));
+        var options = randomBoolean() ? getStrictIgnoreUnavailable() : getLenientIndicesOptions();
+        String routing = useProjectRouting ? "_alias:*" : null;
+        var withDatasets = CrossProjectIndexResolutionValidator.validate(options, routing, local, Map.of(), datasetsOnly);
+        var withNeither = CrossProjectIndexResolutionValidator.validate(options, routing, local, Map.of(), namesNoAbstraction);
+        assertThat(describe(withDatasets), equalTo(describe(withNeither)));
+        assertThat(describe(withDatasets), not(containsString("my-dataset")));
+    }
+
+    /** An exception as its type plus message, or {@code "none"}, so two outcomes can be compared as one value. */
+    private static String describe(Exception e) {
+        return e == null ? "none" : e.getClass().getName() + ": " + e.getMessage();
     }
 
     public void testWildcardClusterAliasConcreteIndex() {

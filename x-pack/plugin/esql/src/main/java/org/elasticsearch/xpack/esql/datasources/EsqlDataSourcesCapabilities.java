@@ -24,11 +24,10 @@ public final class EsqlDataSourcesCapabilities {
     public static final String DATA_SOURCES_SERVERLESS_SCOPE = "data_sources_serverless_scope";
 
     /**
-     * {@code text} is no longer a declarable column type: registration rejects it, and a mapping stored before the
-     * withdrawal reads its text columns as {@code keyword}. Gates the yaml pin on the rejection, because this suite
-     * also runs mixed-cluster, where a node predating the withdrawal still accepts the declaration and answers 200.
+     * Registration rejects a column declared {@code text}. Gates the yaml pin on that rejection, because the suite
+     * also runs mixed-cluster, where a node without this capability accepts the declaration and answers 200.
      */
-    public static final String DATASET_TEXT_TYPE_WITHDRAWN = "dataset_text_type_withdrawn";
+    public static final String DATASET_TEXT_TYPE_NOT_DECLARABLE = "dataset_text_type_not_declarable";
 
     private EsqlDataSourcesCapabilities() {}
 }

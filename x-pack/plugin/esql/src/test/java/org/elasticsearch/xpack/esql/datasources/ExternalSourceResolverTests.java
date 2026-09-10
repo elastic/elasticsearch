@@ -213,13 +213,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
     private static final String DECLARED_GLOB = "s3://bucket/data/*.parquet";
 
     /**
-     * A mapping stored before {@code text} was withdrawn still carries it. The column reads as {@code keyword} and
-     * the substitution is announced on the resolution, not swallowed: the bytes are unchanged but MATCH stops
-     * analyzing, so a user whose query silently changes meaning has to be told. Warnings ride the resolution object
-     * rather than {@code ThreadContext} for the reason
+     * A stored mapping declaring {@code text} reads as {@code keyword}, and says so on the resolution rather than
+     * swallowing it: the bytes match but matching does not, so a query whose meaning changes has to be told.
+     * Warnings ride the resolution rather than {@code ThreadContext} for the reason
      * {@link #testShadowWarningReachesCallerAcrossAsyncCompletion} documents.
      */
-    public void testWithdrawnDeclaredTextReadsAsKeywordAndWarns() throws Exception {
+    public void testStoredTextReadsAsKeywordAndWarns() throws Exception {
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
         props.put("msg", new DatasetFieldMapping("text", null));
         props.put("n", new DatasetFieldMapping("long", null));
@@ -238,17 +237,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("summary + one detail", 2, warnings.size());
         assertThat(warnings.get(0), containsString("withdrawn [text] type"));
         assertThat(warnings.get(0), containsString("TO_TEXT"));
-        // The consequence a user cannot absorb by reading their results: both MATCH and MATCH_PHRASE accept options
-        // on a runtime-search field only when its type is TEXT, so a stored query that passes any now fails
-        // verification. A warning that mentioned only the analyzing would leave that to be discovered as an error.
+        // Both functions accept options on a runtime-search field only at type TEXT, so a query passing any fails
+        // verification — an error the user would otherwise meet with no explanation.
         assertThat(warnings.get(0), containsString("passes options on one now fails verification"));
-        // Scoring changes in silence, which is the other reason this warns: Match#toScorer routes only TEXT without
-        // options to the matched-term-weight scorer, so the same rows come back ordered differently.
+        // Match#toScorer routes only TEXT without options to the matched-term-weight scorer, so the same rows come
+        // back ordered differently. Silent without this clause.
         assertThat(warnings.get(0), containsString("scores 1.0 instead of by matched terms"));
         assertThat(warnings.get(1), containsString("column [msg] is declared [text] and is read as [keyword]"));
     }
 
-    /** No declared text column, no warning — the overwhelmingly common case must stay silent. */
+    /** No declared text column, no warning — the common case stays silent. */
     public void testNoWarningWhenNothingDeclaresText() throws Exception {
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
         props.put("msg", new DatasetFieldMapping("keyword", null));

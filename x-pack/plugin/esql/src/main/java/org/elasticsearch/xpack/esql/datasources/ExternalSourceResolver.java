@@ -435,11 +435,9 @@ public class ExternalSourceResolver {
         // across resolve() calls in tests.
         pendingShadowWarnings.clear();
 
-        // Once per query, before the per-path recursion: a mapping stored before `text` was withdrawn reads its
-        // text columns as keyword, and the user is told so. Emitting here rather than from the resolver keeps it
-        // to one warning per column however many paths and files the resource expands to, and covers the strict
-        // rail, which never reaches the non-strict overlay.
-        warnOnWithdrawnDeclaredTypes(declaredMappings, pendingShadowWarnings::add);
+        // Once per query, before the per-path recursion: one warning per column however many paths and files the
+        // resource expands to, and on the strict rail, which never reaches the non-strict overlay.
+        warnOnSubstitutedDeclaredTypes(declaredMappings, pendingShadowWarnings::add);
 
         // Resolution runs on the caller-supplied executor (esql_worker in production, isolated from SEARCH so a wide
         // wildcard cannot starve regular ES searches). The initial dispatch performs the cheap synchronous prep (glob
@@ -2480,40 +2478,33 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Warns that columns declared with the withdrawn {@code text} type are read as {@code keyword}.
+     * Warns that a column declared {@code text} is read as {@code keyword} — see
+     * {@link DeclaredSchemaResolver#declaredTypeAsRead}, which substitutes rather than failing the query.
      * <p>
-     * {@code text} was a declarable type before it was withdrawn, so a mapping stored by an earlier version can still
-     * carry it; {@link DeclaredSchemaResolver#resolveType} reads such a column as {@code keyword} rather than failing
-     * the query. The bytes are unchanged — every reader's string arm is {@code case KEYWORD, TEXT} — but
-     * {@code MATCH}/{@code MATCH_PHRASE} stop analyzing the column; {@code MATCH} scoring leaves the
-     * matched-term-weight branch for a flat 1.0, since {@code Match#toScorer} sends only {@code TEXT} without
-     * options to the text scorer; and a call passing options stops planning at all, because both functions accept
-     * options on a runtime-search field only when its type is {@code TEXT}. The last a user cannot absorb without
-     * editing the query and the middle one changes result ordering in silence, which is why the substitution is
-     * announced rather than silent and the message names all three alongside the query-side replacement.
+     * The bytes match, so the message is about matching: {@code MATCH}/{@code MATCH_PHRASE} do not analyze a
+     * {@code keyword} column, {@code MATCH} scores it a flat 1.0 rather than by matched terms, and either function
+     * rejects options on it, since both accept options on a runtime-search field only at type {@code TEXT}. The
+     * scoring one reorders results in silence and the options one needs the query edited, so all three are named.
      * <p>
-     * Called once per {@link #resolve} rather than per path or per file, so a column warns once however wide the
-     * resource expands. Unlike {@link #warnOnShadowedColumns} this one runs synchronously on the calling thread,
-     * above the {@link #metadataReadExecutor} dispatch, so the racy-context argument in that method does not apply
-     * here. It takes the same {@code warningSink} anyway, because the delivery route is what matters: buffered onto
-     * {@link ExternalSourceResolution} (see {@link #pendingShadowWarnings}) the message reaches the client through
-     * {@code TransportEsqlQueryAction#toResponse} whatever thread {@code resolve} was called on, and one route for
-     * every warning this class raises beats two. A no-op for every mapping registered since the withdrawal.
+     * {@code warningSink} rather than {@code HeaderWarning}: buffered onto {@link ExternalSourceResolution} (see
+     * {@link #pendingShadowWarnings}) the message reaches the client through
+     * {@code TransportEsqlQueryAction#toResponse} whatever thread {@code resolve} ran on, which is the one route
+     * every warning here takes. This one runs synchronously above the {@link #metadataReadExecutor} dispatch, so
+     * the racy-context constraint on {@link #warnOnShadowedColumns} does not bind it.
      */
-    private static void warnOnWithdrawnDeclaredTypes(
+    private static void warnOnSubstitutedDeclaredTypes(
         @Nullable Map<String, DatasetMapping> declaredMappings,
         @Nullable Consumer<String> warningSink
     ) {
         if (declaredMappings == null || declaredMappings.isEmpty()) {
             return;
         }
-        // Keyed by resource path, so one dataset contributes as many entries as its resource expands to paths, and a
-        // multi-dataset query contributes all of them. Dedupe by logical column name: the warning is about the
-        // declaration, and a column named once is a column the user has to fix once. That is also why the message
-        // does not name a dataset — from here a column name is all that is unambiguous.
+        // Keyed by resource path, so one dataset contributes an entry per path it expands to. Dedupe by logical
+        // column name: a column the user has to fix once is a column named once, and a column name is the only
+        // thing unambiguous from here — hence no dataset name in the message.
         Set<String> columns = new LinkedHashSet<>();
         for (DatasetMapping mapping : declaredMappings.values()) {
-            columns.addAll(DeclaredSchemaResolver.withdrawnTextColumns(mapping));
+            columns.addAll(DeclaredSchemaResolver.substitutedColumns(mapping));
         }
         if (columns.isEmpty()) {
             return;
@@ -3053,9 +3044,8 @@ public class ExternalSourceResolver {
             if (inferredType == null) {
                 continue; // absence is handled by the overlay's own missing-column check
             }
-            // Through the resolver's funnel, not DataType.fromNameOrAlias: a stored `text` is read as keyword, so it is
-            // the keyword pair that has to be coercible here. Decoding the raw name would validate a type the reader
-            // never sees.
+            // Through the resolver, not DataType.fromNameOrAlias: a stored `text` reads as keyword, so it is the
+            // keyword pair that has to be coercible here.
             DataType declaredType = DeclaredSchemaResolver.declaredTypeAsRead(e.getValue().type());
             boolean coercible = coercing ? DeclaredTypeCoercions.supports(inferredType, declaredType) : declaredType == inferredType;
             if (coercible == false) {

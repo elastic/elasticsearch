@@ -169,10 +169,9 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
     }
 
     /**
-     * {@code text} is rejected like any other undeclarable type, but for a reason a user cannot infer from the
-     * supported-type list, so the message names the replacement. Separate from
-     * {@link #testUnsupportedTypeRejected} because that method's assertions are shared across its whole array and
-     * no other rejected type carries this tail.
+     * {@code text} is rejected like any undeclarable type, and the message additionally names the replacement,
+     * which no other rejected type does. Separate from {@link #testUnsupportedTypeRejected} because that method's
+     * assertions are shared across its whole array.
      */
     public void testDeclaredTextIsRejectedAndNamesTheReplacement() {
         IllegalArgumentException e = expectThrows(
@@ -183,14 +182,12 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
             e.getMessage(),
             allOf(
                 containsString("unsupported declared type [text] for column [msg]"),
-                // The literal, not the constant: asserting DeclaredSchemaValidator.TEXT_ROUTE moves both sides
-                // together, so renaming the function in the message would keep this green.
+                // The literal, not TEXT_ROUTE: asserting the constant moves both sides together.
                 containsString("apply TO_TEXT in the query")
             )
         );
-        // The list the message prints must no longer advertise the withdrawn type. Pinned as the whole list rather
-        // than as the absence of a substring: the names are sorted, so `text` lands mid-list and every "does not
-        // contain" spelling of it is one edit away from matching nothing and passing for free.
+        // The whole list, not the absence of `text` from it: the names are sorted, so a "does not contain"
+        // assertion lands mid-list and is one edit away from matching nothing and passing for free.
         assertThat(
             e.getMessage(),
             containsString("supported types are [boolean, date_nanos, datetime, double, integer, ip, keyword, long, unsigned_long]")
@@ -198,9 +195,8 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
     }
 
     /**
-     * The declarable set is nine types. Pinned as a count as well as by {@link #testAllDeclarableTypesPass}'s
-     * enumeration, so adding a tenth has to be a deliberate edit here rather than a silent widening of the
-     * PUT-time vocabulary.
+     * Nine declarable types. A count as well as {@link #testAllDeclarableTypesPass}'s enumeration, so widening the
+     * PUT-time vocabulary takes a deliberate edit here.
      */
     public void testDeclarableTypeCount() {
         assertThat(DeclaredSchemaValidator.declarableTypes(), hasSize(9));

@@ -1599,10 +1599,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testDeclaredTextColumnReadsString() throws IOException {
-        // TEXT is no longer declarable on a dataset mapping, so no dataset query reaches this arm any more. Kept
-        // and pinned rather than deleted: it decodes like KEYWORD — a BytesRef block — which is exactly why the
-        // declared type was withdrawn as a duplicate of keyword, and removing the arms is a sweep across the reader
-        // modules that buys nothing a user can see.
+        // TEXT is not declarable on a dataset mapping, so no dataset query reaches this arm. Pinned anyway: it
+        // decodes to the same BytesRef block as KEYWORD, which is why the two are indistinguishable once read.
         String ndjson = "{\"t\": \"hello\"}\n";
         var object = new BytesStorageObject("file:///text.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);

@@ -24,9 +24,8 @@ import java.util.TreeSet;
  *
  * <p>What is checked here:
  * <ul>
- *   <li>every declared {@code type} is one of the {@link #DECLARABLE_TYPES}. Most of the vocabulary is bounded by
- *       what the readers can produce, so {@code geo_point}/{@code version}/etc. are rejected until the readers grow
- *       them; {@code text} is rejected for a different reason and permanently — see {@link #DECLARABLE_TYPES};</li>
+ *   <li>every declared {@code type} is one of the {@link #DECLARABLE_TYPES} — {@code geo_point}/{@code version}/etc.
+ *       are rejected until the readers grow them, and {@code text} for the separate reason that field documents;</li>
  *   <li>under strict mode ({@code dynamic: false}) the {@code _id.path} column must be declared —
  *       nothing is inferred to satisfy it.</li>
  * </ul>
@@ -49,13 +48,10 @@ public final class DeclaredSchemaValidator {
      * string source parses with the column's declared {@code format} (else ISO nanos);
      * per-format narrowing stays deferred to read time like the rest of the set (see the class Javadoc).
      *
-     * <p>{@code text} is deliberately absent, and not because a reader cannot produce it. Every member here names
-     * something the read path does — a distinct value encoding ({@code ip}, {@code datetime}, {@code date_nanos}) or
-     * a distinct element type — whereas a {@code text} column decoded byte-identically to a {@code keyword} one:
-     * every reader's string arm is {@code case KEYWORD, TEXT} and no coercion in {@code DeclaredTypeCoercions}
-     * separates them. What declaring it actually selected was a runtime-search behaviour, whose analyzer a dataset
-     * mapping has no field to name, so the type promised a choice it could not offer. An analyzed column is built in
-     * the query with {@code TO_TEXT}, which takes the analyzer as an argument.
+     * <p>{@code text} is absent for a different reason: a reader can produce it, but it is indistinguishable from
+     * {@code keyword} once read — every string arm is {@code case KEYWORD, TEXT} and no coercion separates them —
+     * and what it selects is a runtime-search behaviour whose analyzer a dataset mapping has no field to name. An
+     * analyzed column is built in the query with {@code TO_TEXT}, which takes the analyzer as an argument.
      */
     static final Set<DataType> DECLARABLE_TYPES = Set.of(
         DataType.KEYWORD,
@@ -137,10 +133,7 @@ public final class DeclaredSchemaValidator {
         }
     }
 
-    /**
-     * Appended when a column is declared {@code text}. A dataset mapping cannot name an analyzer, so the type never
-     * carried the choice its name implies; the query-side conversion does, and takes the analyzer as an argument.
-     */
+    /** Appended when a column is declared {@code text}: the analyzer is an argument to {@code TO_TEXT}, not a mapping field. */
     static final String TEXT_ROUTE = "declare [keyword] and apply TO_TEXT in the query, with its [analyzer] option "
         + "if the values need a non-standard analyzer";
 

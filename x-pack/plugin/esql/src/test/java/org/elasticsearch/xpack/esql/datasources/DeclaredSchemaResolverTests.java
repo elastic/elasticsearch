@@ -135,9 +135,8 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
     }
 
     public void testUnsupportedTypeThrowsDefensively() {
-        // Both shapes the backstop must reject: a name that is not a type at all, and a real ES|QL type that was
-        // never declarable. Only `text` is read leniently (see testStoredTextResolvesToKeyword); everything else
-        // outside the whitelist still fails the query.
+        // Both shapes the backstop rejects: a name that is not a type, and a real ES|QL type that is not
+        // declarable. `text` is the one exception (see testStoredTextResolvesToKeyword).
         for (String bad : new String[] { "not_a_type", "geo_point" }) {
             Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
             props.put("c", new DatasetFieldMapping(bad, null));
@@ -150,10 +149,8 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
     }
 
     /**
-     * `text` was declarable before it was withdrawn, so a mapping stored by an earlier version can still carry it.
-     * It reads as keyword rather than failing the query: the bytes are identical, and the dataset stays queryable
-     * across the upgrade. The warning that announces the substitution is emitted by ExternalSourceResolver, which
-     * is where it can reach the response — see ExternalSourceResolverTests#testWithdrawnDeclaredTextReadsAsKeywordAndWarns.
+     * Cluster state can hold a mapping that declares `text`. It reads as keyword rather than failing the query, on
+     * both rails. The warning is asserted at ExternalSourceResolver level, which is where it reaches the response.
      */
     public void testStoredTextResolvesToKeyword() {
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
@@ -176,10 +173,9 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
     }
 
     /**
-     * The substitution funnel itself, pinned apart from the whitelist that {@code resolveType} layers on top. Every
-     * site that turns a stored declared type into an ES|QL type calls this, including
-     * {@code ExternalSourceResolver#rejectUncoercibleFileTypedRetypes}, which validates a declared type against a
-     * columnar file's own type and must therefore see the type the reader will actually be handed.
+     * The substitution on its own, apart from the whitelist {@code resolveType} layers on top. Every site that
+     * turns a stored declared type into an ES|QL type calls it, including the columnar type check, which has to
+     * see the type the reader is handed.
      */
     public void testDeclaredTypeAsReadSubstitutesOnlyText() {
         assertThat(DeclaredSchemaResolver.declaredTypeAsRead("text"), equalTo(DataType.KEYWORD));
@@ -191,16 +187,16 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         assertThat(DeclaredSchemaResolver.declaredTypeAsRead("not_a_type"), equalTo(DataType.UNSUPPORTED));
     }
 
-    /** The columns a caller has to warn about are exactly the ones declared with the withdrawn type. */
-    public void testWithdrawnTextColumnsNamesOnlyTextColumns() {
+    /** The columns a caller warns about are the ones whose read type differs from the declared one. */
+    public void testSubstitutedColumnsNamesOnlyRetypedColumns() {
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
         props.put("a", new DatasetFieldMapping("keyword", null));
         props.put("msg", new DatasetFieldMapping("text", null));
         props.put("body", new DatasetFieldMapping("text", "body_raw"));
         props.put("n", new DatasetFieldMapping("long", null));
 
-        assertThat(DeclaredSchemaResolver.withdrawnTextColumns(mapping(props)), equalTo(List.of("msg", "body")));
-        assertThat(DeclaredSchemaResolver.withdrawnTextColumns(null), empty());
+        assertThat(DeclaredSchemaResolver.substitutedColumns(mapping(props)), equalTo(List.of("msg", "body")));
+        assertThat(DeclaredSchemaResolver.substitutedColumns(null), empty());
     }
 
     public void testMoveConsumesPhysicalInPlace() {

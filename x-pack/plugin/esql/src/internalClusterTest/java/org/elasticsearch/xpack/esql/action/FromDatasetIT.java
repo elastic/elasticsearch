@@ -634,10 +634,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * The route a user is now directed to when they wanted an analyzed column: declare the column keyword and build
-     * the analyzed one in the query, where the analyzer is an argument. Pinned end to end because the withdrawal of
-     * the declared `text` type rests on this working — the ticket's whole argument is that the mapping form bought
-     * nothing the query form does not, with more control.
+     * The route to an analyzed column over a dataset: declare the column keyword, convert in the query, and name the
+     * analyzer as an argument. This is what the rejection message points a user at, so it is pinned end to end.
      */
     public void testToTextOverDeclaredKeywordGivesAnAnalyzedColumn() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -677,7 +675,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         ) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(1))));
         }
-        // And the analyzer is nameable here, which is the thing the mapping form had no field for.
+        // The analyzer is an argument here; a dataset mapping has no field for one.
         try (
             var response = run(
                 syncEsqlQueryRequest(

@@ -174,21 +174,14 @@ public final class DeclaredSchemaResolver {
     }
 
     /**
-     * The declared type as the read path sees it: {@link DataType#fromNameOrAlias} except that the withdrawn
-     * {@code text} reads as {@code keyword}.
+     * The declared type as the read path sees it: {@link DataType#fromNameOrAlias}, except that a stored
+     * {@code text} reads as {@code keyword}. {@code text} is not declarable, but cluster state can still hold it,
+     * and the two decode identically — every reader's string arm is {@code case KEYWORD, TEXT}. Matching does
+     * differ, which {@code ExternalSourceResolver#warnOnSubstitutedDeclaredTypes} reports.
      * <p>
-     * {@code text} was declarable before it was withdrawn, so a mapping stored by an earlier version can still carry
-     * it. Reading it as {@code keyword} is representation-preserving — every reader's string arm is
-     * {@code case KEYWORD, TEXT} and produces the same {@code BytesRef} block — so the dataset stays queryable across
-     * the upgrade. What it does change is how the column matches — {@code MATCH}/{@code MATCH_PHRASE} stop analyzing
-     * it, and a call passing options on it stops planning — which is why the read path warns: see
-     * {@code ExternalSourceResolver#warnOnWithdrawnDeclaredTypes}, the one place that emits, since resolution here
-     * runs once per file on the non-strict rail.
-     * <p>
-     * Every site that turns a stored declared type into an ES|QL type calls this, so the substitution cannot hold on
-     * one rail and be missed on another. It deliberately does not apply the declarable-type whitelist: callers that
-     * need that check ({@link #resolveType}) apply it themselves, and callers validating a declared type against a
-     * file's own type must not have the whitelist error pre-empt their own.
+     * Every site that turns a stored declared type into an ES|QL type calls this. It applies no whitelist of its
+     * own: {@link #resolveType} adds that, and the columnar type check must not have a whitelist error pre-empt
+     * its own.
      */
     static DataType declaredTypeAsRead(String type) {
         DataType resolved = DataType.fromNameOrAlias(type);
@@ -208,12 +201,11 @@ public final class DeclaredSchemaResolver {
     }
 
     /**
-     * The logical columns of {@code mapping} whose declared type is not the type the read path gives them, in
-     * declaration order — today exactly the columns declared with the withdrawn {@code text}. Derived from
-     * {@link #declaredTypeAsRead} rather than naming the type again, so a column cannot be substituted here and
-     * missed by the warning, or the reverse. Empty for every mapping registered since the withdrawal.
+     * The logical columns of {@code mapping} the read path gives a different type from the declared one, in
+     * declaration order. Derived from {@link #declaredTypeAsRead} rather than naming a type, so a substituted
+     * column cannot be missed here or reported here and not substituted.
      */
-    public static List<String> withdrawnTextColumns(DatasetMapping mapping) {
+    public static List<String> substitutedColumns(DatasetMapping mapping) {
         DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
         if (mappings == null) {
             return List.of();

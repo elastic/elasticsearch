@@ -38,6 +38,7 @@ import static org.elasticsearch.tasks.Task.HEADERS_TO_COPY;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -672,6 +673,97 @@ public class ThreadContextTests extends ESTestCase {
         if (expectThird) {
             assertThat(warnings, hasItem(equalTo("No is the saddest experience")));
         }
+    }
+
+    public void testTakeResponseHeaders() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        // taking from an empty context returns empty
+        assertThat(threadContext.takeResponseHeaders("Warning"), empty());
+        assertThat(threadContext.getResponseHeaders().get("Warning"), nullValue());
+
+        // add two warnings; take removes and returns them both
+        threadContext.addResponseHeader("Warning", "w1");
+        threadContext.addResponseHeader("Warning", "w2");
+        threadContext.addResponseHeader("Other", "o1");
+
+        List<String> taken = threadContext.takeResponseHeaders("Warning");
+        assertThat(taken, containsInAnyOrder("w1", "w2"));
+        assertThat(threadContext.getResponseHeaders().get("Warning"), nullValue());
+        // other headers are unaffected
+        assertThat(threadContext.getResponseHeaders().get("Other"), contains("o1"));
+
+        // second take returns empty
+        assertThat(threadContext.takeResponseHeaders("Warning"), empty());
+
+        // values added after a take accumulate normally
+        threadContext.addResponseHeader("Warning", "w3");
+        assertThat(threadContext.getResponseHeaders().get("Warning"), contains("w3"));
+    }
+
+    public void testTakeResponseHeadersInsideStashContext() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        // add a warning before the stash (simulates coordinator planning warning)
+        threadContext.addResponseHeader("Warning", "planning");
+
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            // inside the stash the context is empty
+            assertThat(threadContext.getResponseHeaders().get("Warning"), nullValue());
+
+            // simulates old data-node response header deposited by transport layer
+            threadContext.addResponseHeader("Warning", "data-node-raw");
+
+            List<String> taken = threadContext.takeResponseHeaders("Warning");
+            assertThat(taken, contains("data-node-raw"));
+            assertThat(threadContext.getResponseHeaders().get("Warning"), nullValue());
+        }
+
+        // overwriting restore brings back the pre-stash state: planning warning is present, data-node-raw is not
+        assertThat(threadContext.getResponseHeaders().get("Warning"), contains("planning"));
+    }
+
+    public void testTakeResponseHeadersInsidePreservingResponseHeaders() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        // add a warning before the scope (simulates coordinator planning warning)
+        threadContext.addResponseHeader("Warning", "planning");
+
+        try (ThreadContext.StoredContext ignored = threadContext.newStoredContextPreservingResponseHeaders()) {
+            // scope inherits the planning warning
+            assertThat(threadContext.getResponseHeaders().get("Warning"), contains("planning"));
+
+            // simulates old data-node response header deposited by transport layer
+            threadContext.addResponseHeader("Warning", "data-node-raw");
+            assertThat(threadContext.getResponseHeaders().get("Warning"), containsInAnyOrder("planning", "data-node-raw"));
+
+            // take removes both
+            List<String> taken = threadContext.takeResponseHeaders("Warning");
+            assertThat(taken, containsInAnyOrder("planning", "data-node-raw"));
+            assertThat(threadContext.getResponseHeaders().get("Warning"), nullValue());
+        }
+
+        // merging restore: found.responseHeaders has no Warning key, so putResponseHeaders doesn't touch it.
+        // The originalContext still had "planning", so it is preserved. "data-node-raw" does not reappear.
+        assertThat(threadContext.getResponseHeaders().get("Warning"), contains("planning"));
+    }
+
+    public void testTakeResponseHeadersWarningsSizeReset() {
+        Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey(), "1000b").build();
+        final ThreadContext threadContext = new ThreadContext(settings);
+
+        // fill some warning headers
+        threadContext.addResponseHeader("Warning", "first warning");
+        threadContext.addResponseHeader("Warning", "second warning");
+
+        // take drains them and resets the size counter
+        List<String> taken = threadContext.takeResponseHeaders("Warning");
+        assertThat(taken, containsInAnyOrder("first warning", "second warning"));
+        assertThat(threadContext.getResponseHeaders().get("Warning"), nullValue());
+
+        // after a take, new warnings can be added freely (the size budget has been reset)
+        threadContext.addResponseHeader("Warning", "fresh warning");
+        assertThat(threadContext.getResponseHeaders().get("Warning"), contains("fresh warning"));
     }
 
     public void testDropWarningsExceedingMaxSettings() {

@@ -64,6 +64,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -235,7 +236,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomIntBetween(1, 10),
             pageSize,
             LuceneOperator.NO_LIMIT,
-            false // no scoring
+            false, // no scoring
+            QueryWarnings.EMIT
         );
         return luceneFactory.get(context);
     }
@@ -1549,7 +1551,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomIntBetween(1, 10),
             randomPageSize(),
             LuceneOperator.NO_LIMIT,
-            false // no scoring
+            false, // no scoring
+            QueryWarnings.EMIT
         );
         try (
             Driver driver = TestDriverFactory.create(
@@ -2211,7 +2214,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 randomIntBetween(1, 10),
                 1000,
                 LuceneOperator.NO_LIMIT,
-                false // no scoring
+                false, // no scoring
+                QueryWarnings.EMIT
             );
             MappedFieldType ft = mapperService.fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(

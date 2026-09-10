@@ -30,6 +30,7 @@ import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -119,7 +120,8 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
             limit,
             sorts,
             estimatedPerRowSortSize,
-            scoring
+            scoring,
+            QueryWarnings.EMIT
         );
     }
 
@@ -261,7 +263,8 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
                 10,
                 sorts,
                 estimatedPerRowSortSize,
-                scoring
+                scoring,
+                QueryWarnings.EMIT
             );
             DriverContext ctx = driverContext();
             LuceneTopNSourceOperator sourceOperator = (LuceneTopNSourceOperator) factory.get(ctx);

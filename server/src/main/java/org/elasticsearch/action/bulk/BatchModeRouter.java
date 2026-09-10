@@ -286,6 +286,17 @@ final class BatchModeRouter implements Releasable {
 
             for (int i = 0; i < requests.length; i++) {
                 int shardId = shards[i];
+                if (shardId < 0 || shardId >= shardCount) {
+                    throw new IllegalStateException(
+                        "shard ["
+                            + shardId
+                            + "] is outside the valid range [0, "
+                            + shardCount
+                            + ") for index ["
+                            + concreteIndex.getName()
+                            + "]"
+                    );
+                }
                 partitionIds[i] = shardId;
                 requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), k -> new ArrayList<>()).add(items[i]);
             }

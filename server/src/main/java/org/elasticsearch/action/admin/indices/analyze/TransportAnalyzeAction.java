@@ -264,19 +264,43 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         if (request.explain()) {
             return new AnalyzeAction.Response(null, detailAnalyze(request, analyzer, maxTokenCount, maxCharCount));
         }
-        // On this path the character filters run inside Analyzer#tokenStream, so bound their output by wrapping the analyzer.
-        try (Analyzer limitAnalyzer = new LimitCharCountAnalyzer(analyzer, maxCharCount)) {
-            return new AnalyzeAction.Response(simpleAnalyze(request, limitAnalyzer, maxTokenCount), null);
-        }
+        return new AnalyzeAction.Response(simpleAnalyze(request, analyzer, maxTokenCount, maxCharCount), null);
     }
 
-    private static List<AnalyzeAction.AnalyzeToken> simpleAnalyze(AnalyzeAction.Request request, Analyzer analyzer, int maxTokenCount) {
+    /**
+     * Builds the fully analyzed token stream for one input value, capping the characters the tokenizer reads at
+     * {@code maxCharCount}. When the analyzer exposes its components, its character-filter chain is rebuilt so the cap
+     * sits on the reader the tokenizer consumes; otherwise the input is capped before analysis.
+     */
+    private static TokenStream boundedTokenStream(AnalyzeAction.Request request, Analyzer analyzer, String text, int maxCharCount) {
+        Analyzer potentialCustomAnalyzer = analyzer instanceof NamedAnalyzer namedAnalyzer ? namedAnalyzer.analyzer() : analyzer;
+        if (potentialCustomAnalyzer instanceof AnalyzerComponentsProvider customAnalyzer) {
+            AnalyzerComponents components = customAnalyzer.getComponents();
+            TokenFilterFactory[] tokenFilters = components.getTokenFilters();
+            return createStackedTokenStream(
+                text,
+                components.getCharFilters(),
+                components.getTokenizerFactory(),
+                tokenFilters,
+                tokenFilters == null ? 0 : tokenFilters.length,
+                maxCharCount
+            );
+        }
+        return analyzer.tokenStream(request.field(), new LimitingReader(new StringReader(text), maxCharCount));
+    }
+
+    private static List<AnalyzeAction.AnalyzeToken> simpleAnalyze(
+        AnalyzeAction.Request request,
+        Analyzer analyzer,
+        int maxTokenCount,
+        int maxCharCount
+    ) {
         TokenCounter tc = new TokenCounter(maxTokenCount);
         List<AnalyzeAction.AnalyzeToken> tokens = new ArrayList<>();
         int lastPosition = -1;
         int lastOffset = 0;
         for (String text : request.text()) {
-            try (TokenStream stream = analyzer.tokenStream(request.field(), text)) {
+            try (TokenStream stream = boundedTokenStream(request, analyzer, text, maxCharCount)) {
                 stream.reset();
                 CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
                 PositionIncrementAttribute posIncr = stream.addAttribute(PositionIncrementAttribute.class);
@@ -451,8 +475,10 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         int maxCharCount
     ) {
         Reader reader = new StringReader(source);
-        for (CharFilterFactory charFilterFactory : charFilterFactories) {
-            reader = charFilterFactory.create(reader);
+        if (charFilterFactories != null) {
+            for (CharFilterFactory charFilterFactory : charFilterFactories) {
+                reader = charFilterFactory.create(reader);
+            }
         }
         Tokenizer tokenizer = tokenizerFactory.create();
         tokenizer.setReader(new LimitingReader(reader, maxCharCount));

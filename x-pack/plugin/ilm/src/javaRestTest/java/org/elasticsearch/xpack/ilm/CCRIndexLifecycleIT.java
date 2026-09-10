@@ -745,7 +745,7 @@ public class CCRIndexLifecycleIT extends AbstractCCRRestTestCase {
         } else if (targetCluster == TargetCluster.FOLLOWER) {
             createNewSingletonPolicy(policyName, "delete", DeleteAction.NO_SNAPSHOT_DELETE, TimeValue.timeValueSeconds(5));
 
-            followIndex(indexName,  followerIndexName);
+            followIndex(indexName, followerIndexName);
             ensureGreen(followerIndexName);
 
             final RestClient followerClient = client();

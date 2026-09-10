@@ -239,7 +239,8 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         String smallRulesetId = "r";
         // namedObject charges the organic query (MatchAll = 256) before charging RuleQueryBuilder itself
         long organicCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
-        long limit = organicCost + AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + mapEstimate + smallRulesetId.length() * 2L + 32L;
+        long limit = organicCost + AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + mapEstimate + smallRulesetId.length() * 2L
+            + 32L;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {

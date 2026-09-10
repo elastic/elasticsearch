@@ -179,7 +179,7 @@ public class RecursiveChunkerTests extends ESTestCase {
         RecursiveChunkingSettings settings = generateChunkingSettings(10, List.of("(a+)+b"));
 
         var exception = expectThrows(IllegalArgumentException.class, () -> new RecursiveChunker().chunk(input, settings));
-        assertThat(exception.getMessage(), startsWith("Chunk separator regex has exceeded the read limit "));
+        assertThat(exception.getMessage(), startsWith("Chunk separator regex [(a+)+b] has exceeded the character read limit"));
     }
 
     public void testChunkLongDocument() {

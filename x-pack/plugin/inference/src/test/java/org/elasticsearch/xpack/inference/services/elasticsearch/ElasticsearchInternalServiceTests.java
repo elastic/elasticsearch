@@ -135,6 +135,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.assertArg;
@@ -1600,7 +1601,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             service.chunkedInfer(model, List.of(input), Map.of(), InputType.SEARCH, null, listener);
 
             var exception = expectThrows(IllegalArgumentException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
-            assertThat(exception.getMessage(), containsString("Chunk separator regex has exceeded the read limit"));
+            assertThat(exception.getMessage(), startsWith("Chunk separator regex [(a+)+b] has exceeded the character read limit"));
         }
     }
 
@@ -2530,7 +2531,8 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             Set.of(
                 MachineLearningField.MAX_LAZY_ML_NODES,
                 MachineLearningField.MODEL_PLATFORM_ARCHITECTURES,
-                InferencePlugin.INFERENCE_QUERY_TIMEOUT
+                InferencePlugin.INFERENCE_QUERY_TIMEOUT,
+                RecursiveChunkingSettings.REGEX_READ_LIMIT_FACTOR_SETTING
             )
         );
         when(cs.getClusterSettings()).thenReturn(cSettings);

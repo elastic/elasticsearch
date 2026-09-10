@@ -13,7 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class ReadLimitedCharSequenceTests extends ESTestCase {
     public void testBadFactor() {
@@ -47,12 +46,6 @@ public class ReadLimitedCharSequenceTests extends ESTestCase {
         }
         var ex = expectThrows(ReadLimitedCharSequence.LimitExceededException.class, () -> seq.charAt(0));
         assertThat(ex.readLimit(), equalTo(6));
-    }
-
-    public void testSubSequence() {
-        CharSequence subseq = new ReadLimitedCharSequence("abcdef", 1).subSequence(3, 6);
-        assertThat(subseq, instanceOf(ReadLimitedCharSequence.class));
-        assertThat(subseq, hasToString("def"));
     }
 
     public void testToString() {

@@ -114,9 +114,7 @@ public class RecursiveChunker implements Chunker {
 
             return chunkOffsets;
         } catch (ReadLimitedCharSequence.LimitExceededException e) {
-            throw new IllegalArgumentException(
-                "Chunk separator regex " + separatorRegex + " has exceeded the character read limit " + e.readLimit()
-            );
+            throw new IllegalArgumentException("Chunk separator regex [" + separatorRegex + "] has exceeded the character read limit");
         }
     }
 

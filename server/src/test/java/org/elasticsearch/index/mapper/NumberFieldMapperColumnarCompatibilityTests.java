@@ -522,4 +522,57 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
             batch("half_float stored", 1L, doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":1.5}"))
         );
     }
+
+    /** TSDB settings naming both the keyword {@code dim} and the numeric {@code f} as index dimensions. */
+    private static Settings tsdbDimensionSettings() {
+        return Settings.builder().put(tsdbSettings()).putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim", FIELD).build();
+    }
+
+    public void testLongField_dimension() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        final String idB = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_B);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "long").field("time_series_dimension", true).endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "long dimension",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":42}"),
+                doc(idB, ST_ROUTING, ST_TSID, 2L, "{\"@timestamp\":" + ST_TS_B + ",\"f\":-7}")
+            )
+        );
+    }
+
+    public void testLongField_dimensionAbsentDoc() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        final String idB = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_B);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "long").field("time_series_dimension", true).endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "long dimension absent doc",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":42}"),
+                doc(idB, ST_ROUTING, ST_TSID, 2L, "{\"@timestamp\":" + ST_TS_B + "}")
+            )
+        );
+    }
+
+    public void testIntegerField_dimension() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "integer").field("time_series_dimension", true).endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch("integer dimension", 1L, doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":7}"))
+        );
+    }
 }

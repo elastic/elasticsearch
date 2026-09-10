@@ -135,6 +135,29 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
     }
 
     /**
+     * A reader's page storage outlives the call that grew it, so the charge for it has to land on one budget.
+     * Handing the same reader a second budget would leave the first holding storage it can no longer give back.
+     */
+    public void testAReaderAnswersToOneBudgetForItsLife() throws IOException {
+        assumeTrue("the guard is an assertion", org.elasticsearch.core.Assertions.ENABLED);
+        final BytesRef[] docValues = new BytesRef[600];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef("term-" + (d % 7));
+        }
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            final int[] docs = new int[docValues.length];
+            for (int d = 0; d < docs.length; d++) {
+                docs[d] = d;
+            }
+            final PageBudget first = bytes -> {};
+            final PageBudget second = bytes -> {};
+            assertTrue(reader.readBlock(docs, 0, 256, new Rebuilt(), first));
+            assertTrue("the same budget again is how a reader is meant to be used", reader.readBlock(docs, 0, 256, new Rebuilt(), first));
+            expectThrows(AssertionError.class, () -> reader.readBlock(docs, 0, docs.length, new Rebuilt(), second));
+        });
+    }
+
+    /**
      * What the column tells a page about naming its values. The survey counts the runs it walks, so a column whose
      * every value differs from the one before it has nothing for a page to collapse and is read without hashing
      * anything, while one whose equal values arrive together is named as before. A column written under no policy

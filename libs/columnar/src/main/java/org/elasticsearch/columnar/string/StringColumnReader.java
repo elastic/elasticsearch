@@ -93,6 +93,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
 
     /** Charged before the page's storage grows; see {@link #readBlock}. */
     private PageBudget budget = PageBudget.UNLIMITED;
+    private boolean budgetBound;
 
     /** The running extreme, held so comparing one value against another survives the buffer being reused. */
     private final BytesRefBuilder extremeSoFar = new BytesRefBuilder();
@@ -564,6 +565,9 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * and only grows, so a page no larger than one already served is charged nothing.
      */
     public boolean readBlock(int[] docs, int offset, int count, StringBlockSink sink, PageBudget budget) throws IOException {
+        assert budgetBound == false || this.budget == budget
+            : "a reader's page storage outlives the call that grew it, so it answers to one budget for its life";
+        this.budgetBound = true;
         this.budget = budget;
         if (count == 0) {
             sink.appendValues(pageValues, 0, null, 0);

@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.columnar.string.PageBudget;
 import org.elasticsearch.columnar.string.StringBlockSink;
 import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -22,6 +21,7 @@ import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BreakerPageBudget;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 
@@ -122,19 +122,16 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
         /** The ranks a page is asked for, held per reader rather than allocated per page. */
         private int[] wanted = new int[0];
         private final PageSink sink = new PageSink();
-        /** What the column's page storage has been charged to the breaker, released when this reader is. */
-        private long chargedPageBytes;
         /**
          * Charged before the column grows its page storage, so there is no room for a page the breaker would
-         * refuse. The storage is reused, so this settles after the first page and charges nothing again.
+         * refuse, and released with this reader because the storage lives as long as the reader does. The
+         * storage is reused, so it settles after the first page and charges nothing again.
          */
-        private final PageBudget budget = bytes -> {
-            docValues.breaker().addEstimateBytesAndMaybeBreak(bytes, "load blocks");
-            chargedPageBytes += bytes;
-        };
+        private final BreakerPageBudget budget;
 
         ColumnarPayload(TrackingBinaryDocValues docValues) {
             super(docValues);
+            this.budget = new BreakerPageBudget(docValues.breaker());
         }
 
         /**
@@ -184,11 +181,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
 
         @Override
         public void close() {
-            if (chargedPageBytes > 0) {
-                docValues.breaker().addWithoutBreaking(-chargedPageBytes);
-                chargedPageBytes = 0;
-            }
-            super.close();
+            Releasables.close(budget, super::close);
         }
 
         @Override

@@ -99,3 +99,6 @@ server/src/main/resources/transport/definitions/manifest.txt
 
 # Vector data files
 qa/vector/.data
+
+# superpowers agent harness (internal planning artifacts, must never reach upstream)
+.superpowers/

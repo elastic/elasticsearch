@@ -33,7 +33,7 @@ public final class NodeHeapUsageCalculator {
      * The stateless service reports shard-level heap inputs independent of the current routing. This method joins those inputs with the
      * current routing table, counts index-level heap once per index per node, includes node-local postings in hosted-shards usage, and
      * applies the largest node-local postings value to every index node's total to preserve the existing conservative total-heap behavior.
-     * Search nodes receive hosted-shards and non-shard components, but their total heap is intentionally left unmodeled as {@code 0}.
+     * Search nodes receive hosted-shards estimates only, total and non-shard heap are intentionally left unmodeled as {@code 0}.
      */
     public static NodeHeapEstimatesAndMaxPostingsHeapUsage calculateForRoutingNodes(
         ClusterState clusterState,
@@ -73,7 +73,8 @@ public final class NodeHeapUsageCalculator {
      * Calculates heap usage for a single routing node.
      * <p>
      * This is used by local callers that need the same per-node component math as {@link #calculateForRoutingNodes} without computing a
-     * cluster-wide max postings value. Indexing nodes include their local postings in total heap; search nodes leave total heap unmodeled.
+     * cluster-wide max postings value. Indexing nodes include their local postings in total heap; search nodes leave total and non-shard
+     * heap unmodeled.
      */
     public static NodeHeapEstimates calculateForRoutingNode(
         RoutingNode routingNode,
@@ -99,12 +100,13 @@ public final class NodeHeapUsageCalculator {
         long nonShardHeapUsage,
         long postingsHeapUsageForTotal
     ) {
+        final boolean isIndexingNode = isIndexingNode(discoveryNode);
         return new NodeHeapEstimates(
-            isIndexingNode(discoveryNode)
+            isIndexingNode
                 ? Math.addExact(Math.addExact(nonShardHeapUsage, nodeHeapUsageComponents.shardAndIndexHeapUsage), postingsHeapUsageForTotal)
                 : 0L,
             Math.addExact(nodeHeapUsageComponents.shardAndIndexHeapUsage, nodeHeapUsageComponents.postingsHeapUsage),
-            nonShardHeapUsage
+            isIndexingNode ? nonShardHeapUsage : 0L
         );
     }
 

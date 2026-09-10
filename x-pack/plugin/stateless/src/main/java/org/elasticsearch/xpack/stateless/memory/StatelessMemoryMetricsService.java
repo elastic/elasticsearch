@@ -219,13 +219,10 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * @return A map of node id to node-heap-estimate objects
      */
     public Map<String, NodeHeapEstimates> getPerNodeMemoryMetrics(ClusterState clusterState) {
-        return computeNodeMemoryMetrics(clusterState, shardMemoryMetrics).nodeHeapEstimates();
+        return computeNodeMemoryMetrics(clusterState, getShardHeapUsageEstimates(snapshotShardMemoryMetrics())).nodeHeapEstimates();
     }
 
-    private EstimatedHeapUsageStats computeNodeMemoryMetrics(
-        ClusterState clusterState,
-        Map<ShardId, ShardMemoryMetrics> shardMemoryMetricsSnapshot
-    ) {
+    private EstimatedHeapUsageStats computeNodeMemoryMetrics(ClusterState clusterState, ShardHeapUsageEstimates shardHeapUsageEstimates) {
         final long nodeBaseHeapEstimateInBytes = getNodeBaseHeapEstimateInBytes();
         final long mergeMemoryEstimate = mergeMemoryEstimation();
         final long minimumRequiredHeapForHandlingLargeIndexingOps = minimumRequiredHeapForAcceptingLargeIndexingOps();
@@ -234,7 +231,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             minimumRequiredHeapForHandlingLargeIndexingOps,
             mergeMemoryEstimate
         );
-        final ShardHeapUsageEstimates shardHeapUsageEstimates = getShardHeapUsageEstimates(shardMemoryMetricsSnapshot);
         final var result = NodeHeapUsageCalculator.calculateForRoutingNodes(clusterState, nonShardHeapUsage, shardHeapUsageEstimates);
         lastMaxTotalPostingsInMemoryBytes = result.maxPostingsHeapUsage();
         return new EstimatedHeapUsageStats(result.nodeHeapEstimates(), shardHeapUsageEstimates);
@@ -244,8 +240,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * Computes node and shard heap usage estimates from the same snapshot of shard memory metrics.
      */
     public EstimatedHeapUsageStats getEstimatedHeapUsageStats(ClusterState clusterState) {
-        Map<ShardId, ShardMemoryMetrics> shardMemoryMetricsSnapshot = snapshotShardMemoryMetrics();
-        return computeNodeMemoryMetrics(clusterState, shardMemoryMetricsSnapshot);
+        final ShardHeapUsageEstimates shardHeapUsageEstimates = getShardHeapUsageEstimates(snapshotShardMemoryMetrics());
+        return computeNodeMemoryMetrics(clusterState, shardHeapUsageEstimates);
     }
 
     public long getIndexMemoryOverhead() {
@@ -871,7 +867,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * {@link org.elasticsearch.cluster.ClusterInfoSimulator}.
      */
     public ShardHeapUsageEstimates getShardHeapUsageEstimates() {
-        return getShardHeapUsageEstimates(shardMemoryMetrics);
+        return getShardHeapUsageEstimates(snapshotShardMemoryMetrics());
     }
 
     private ShardHeapUsageEstimates getShardHeapUsageEstimates(Map<ShardId, ShardMemoryMetrics> shardMemoryMetricsSnapshot) {

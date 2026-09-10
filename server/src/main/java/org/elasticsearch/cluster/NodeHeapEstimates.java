@@ -25,7 +25,8 @@ import java.io.IOException;
  *                       {@code StatelessMemoryMetricsService#WORKLOAD_MEMORY_OVERHEAD}.
  * @param hostedShardsHeapUsage The estimated heap usage attributable to hosted shards only, this is populated for both indexing and
  *                              search nodes.
- * @param nonShardHeapUsage The estimated heap usage that is not derived from the node's hosted shard allocation.
+ * @param nonShardHeapUsage The estimated heap usage that is not derived from the node's hosted shard allocation. This is only populated
+ *                          for indexing nodes.
  */
 public record NodeHeapEstimates(long totalHeapUsage, long hostedShardsHeapUsage, long nonShardHeapUsage) implements Writeable {
 

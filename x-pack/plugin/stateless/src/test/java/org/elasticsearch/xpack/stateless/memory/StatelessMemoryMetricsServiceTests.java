@@ -210,9 +210,28 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         final var updatingMetric = new UpdatingOnSnapshotShardMemoryMetrics(initialMappingSize, updatedMappingSize);
         service.getShardMemoryMetrics().put(shardId, updatingMetric);
 
-        // These expected values are computed before the snapshot hook mutates the live metric, so they represent the old data.
-        final NodeHeapEstimates expectedNodeHeapEstimate = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
-        final ShardAndIndexHeapUsage expectedShardHeapUsage = service.getShardHeapUsageEstimates().perShard().get(shardId);
+        final var initialEstimate = estimateHeapUsageExcludingPostings(
+            service,
+            StatelessMemoryMetricsService.ShardMemoryMetrics.fromShardMappingSize(initialMappingSize, System.nanoTime())
+        );
+        final ShardAndIndexHeapUsage expectedShardHeapUsage = new ShardAndIndexHeapUsage(
+            initialEstimate.shardHeapEstimate(),
+            initialEstimate.indexHeapEstimate(),
+            initialEstimate.shardPostingsHeapEstimate()
+        );
+        final long expectedHostedShardsHeapUsage = Math.addExact(
+            Math.addExact(expectedShardHeapUsage.shardHeapUsageBytes(), expectedShardHeapUsage.indexHeapUsageBytes()),
+            expectedShardHeapUsage.shardPostingsHeapUsageBytes()
+        );
+        final long expectedNonShardHeapUsage = Math.addExact(
+            Math.addExact(service.getNodeBaseHeapEstimateInBytes(), service.minimumRequiredHeapForAcceptingLargeIndexingOps()),
+            service.mergeMemoryEstimation()
+        );
+        final NodeHeapEstimates expectedNodeHeapEstimate = new NodeHeapEstimates(
+            Math.addExact(expectedNonShardHeapUsage, expectedHostedShardsHeapUsage),
+            expectedHostedShardsHeapUsage,
+            expectedNonShardHeapUsage
+        );
 
         // getEstimatedHeapUsageStats snapshots shardMemoryMetrics first. The custom metric below returns the old values to that
         // snapshot and then updates the live metric. Both node-level and shard-level estimates must keep reading from the old
@@ -767,6 +786,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
      * Search nodes must appear in {@link StatelessMemoryMetricsService#getPerNodeMemoryMetrics} with:
      * <ul>
      *   <li>{@code totalHeapUsage == 0} — the total-heap estimate is not meaningful for search nodes</li>
+     *   <li>{@code nonShardHeapUsage == 0} — the non-shard estimate is only populated where total heap is calculated</li>
      *   <li>{@code hostedShardsHeapUsage > 0} — the hosted-shards estimate is populated from shard metrics</li>
      * </ul>
      * Search node postings must not influence the cross-node max used for indexing nodes' total heap estimate.
@@ -839,6 +859,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         final NodeHeapEstimates searchEstimates = perNode.get(searchNode.getId());
         assertThat("search node totalHeapUsage must be 0", searchEstimates.totalHeapUsage(), equalTo(0L));
+        assertThat("search node nonShardHeapUsage must be 0", searchEstimates.nonShardHeapUsage(), equalTo(0L));
         assertThat("search node hostedShardsHeapUsage must be > 0", searchEstimates.hostedShardsHeapUsage(), greaterThan(0L));
         // The search node hosts both shards but counts their shared index mapping only once.
         assertThat(

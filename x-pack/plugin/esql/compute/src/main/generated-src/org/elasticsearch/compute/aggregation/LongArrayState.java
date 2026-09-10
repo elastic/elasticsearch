@@ -317,7 +317,8 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
                 final int base = p * PARTITION_WRITE_BATCH;
                 for (int i = 0; i < count; i++) {
                     final int id = firstId + shiftedIds[base + i];
-                    if (id < capacity && hasValue(id)) {
+                    if (hasValue(id)) {
+                        assert id < capacity : id + ">=" + capacity;
                         partitionedState.values[p][offset + i] = get(id);
                         partitionedState.seen[p][offset + i] = true;
                     }
@@ -336,7 +337,7 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
                 final int base = p * PARTITION_WRITE_BATCH;
                 for (int i = 0; i < count; i++) {
                     final int id = firstId + shiftedIds[base + i];
-                    assert id < capacity;
+                    assert id < capacity : id + ">=" + capacity;
                     partitionedState.values[p][offset + i] = get(id);
                 }
             }

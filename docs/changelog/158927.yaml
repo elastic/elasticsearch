@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: [158927]
+pr: 158927
+summary: Limit concurrent text structure analyses to the allocated processor count
+type: bug

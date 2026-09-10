@@ -224,3 +224,41 @@ setup:
   - do:
       esql.delete_data_source:
         name: parent
+
+---
+"declared-text-is-rejected":
+  # Its own section rather than an arm of "mappings-validator-rejections", because `requires` is section-scoped:
+  # putting this capability there would skip that section's existing pins on any node lacking it. The gate matters
+  # in the mixed-cluster run, where a node without the capability accepts the declaration and answers 200.
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/dataset/{name}
+          capabilities: [dataset_text_type_not_declarable]
+      test_runner_features: capabilities
+      reason: "text is not a declarable dataset column type"
+
+  - do:
+      esql.put_data_source:
+        name: parent
+        body:
+          type: s3
+          settings:
+            auth: anonymous
+
+  # One regex over the whole message: the rejection names the column and the route, since the supported-type list
+  # alone does not say where an analyzed column comes from.
+  - do:
+      catch: /unsupported declared type \[text\] for column \[msg\].+apply TO_TEXT in the query/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            properties:
+              msg: { type: text }
+
+  - do:
+      esql.delete_data_source:
+        name: parent

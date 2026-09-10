@@ -173,15 +173,55 @@ public final class DeclaredSchemaResolver {
         return new Overlaid(output, output);
     }
 
+    /**
+     * The declared type as the read path sees it: {@link DataType#fromNameOrAlias} put through
+     * {@link DataType#noText}, the collapse the rest of ES|QL already applies to a string type. {@code text} is not
+     * declarable, but cluster state can still hold it, and the two decode identically — every reader's string arm
+     * is {@code case KEYWORD, TEXT}. Matching does differ, which
+     * {@code ExternalSourceResolver#warnOnSubstitutedDeclaredTypes} reports.
+     * <p>
+     * Every site that turns a stored declared type into an ES|QL type calls this. It applies no whitelist of its
+     * own: {@link #resolveType} adds that, and the columnar type check must not have a whitelist error pre-empt
+     * its own.
+     */
+    static DataType declaredTypeAsRead(String type) {
+        return DataType.fromNameOrAlias(type).noText();
+    }
+
     private static DataType resolveType(String column, String type) {
-        DataType resolved = DataType.fromNameOrAlias(type);
-        // PUT-time DeclaredSchemaValidator already rejects undeclarable types; this is the defensive backstop for a
-        // mapping that reached resolution another way (e.g. a hand-edited cluster state). Mirror the validator's
-        // whitelist exactly so the backstop is as strict — a known-but-non-declarable type (e.g. geo_point) is rejected
-        // here too, not just an unknown one.
+        DataType resolved = declaredTypeAsRead(type);
+        // The validator's whitelist again, as a backstop for a mapping that reached resolution another way (a
+        // hand-edited cluster state, say). It tests the substituted type, so a stored `text` passes here as
+        // `keyword` even though PUT rejects it. Every other type outside the whitelist is rejected on both paths,
+        // a known one (`geo_point`) as much as an unknown name.
         if (resolved == DataType.UNSUPPORTED || DeclaredSchemaValidator.DECLARABLE_TYPES.contains(resolved) == false) {
             throw new IllegalArgumentException("declared type [" + type + "] for column [" + column + "] is not a declarable type");
         }
         return resolved;
+    }
+
+    /** A logical column whose {@code declared} type is not the {@code read} type the read path gives it. */
+    record Substitution(String column, DataType declared, DataType read) {}
+
+    /**
+     * The substitutions {@code mapping} carries, in declaration order. Derived from {@link #declaredTypeAsRead}
+     * rather than naming a type, so a substituted column cannot be missed here or reported here and not
+     * substituted, and it carries both types so a caller describes the one it found rather than a hard-coded pair.
+     */
+    static List<Substitution> substitutions(DatasetMapping mapping) {
+        DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
+        if (mappings == null) {
+            return List.of();
+        }
+        List<Substitution> substitutions = new ArrayList<>();
+        for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
+            String type = e.getValue().type();
+            DataType declared = DataType.fromNameOrAlias(type);
+            DataType read = declaredTypeAsRead(type);
+            if (declared != read) {
+                substitutions.add(new Substitution(e.getKey(), declared, read));
+            }
+        }
+        return substitutions;
     }
 }

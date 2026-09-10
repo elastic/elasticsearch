@@ -184,8 +184,8 @@ public class CsvTestsDataLoader {
             "unmapped_source_synthetic"
         ).withSetting("synthetic-source-settings.json"),
         new TestDataset("unmapped_source_stored", "mapping-unmapped_source.json", "unmapped_source.csv").withIndex(
-            "unmapped_source_synth_keep_all"
-        ).withSetting("synthetic-source-keep-all-settings.json"),
+            "unmapped_source_synth_keep_arrays"
+        ).withSetting("synthetic-source-keep-arrays-settings.json"),
         new TestDataset("unmapped_source_disabled", "mapping-unmapped_source_disabled.json", "unmapped_source.csv"),
         new TestDataset("unmapped_source_excludes", "mapping-unmapped_source_excludes.json", "unmapped_source.csv"),
         new TestDataset("unmapped_source_includes", "mapping-unmapped_source_includes.json", "unmapped_source.csv"),

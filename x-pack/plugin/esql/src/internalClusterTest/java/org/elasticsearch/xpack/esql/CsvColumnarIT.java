@@ -175,7 +175,7 @@ public class CsvColumnarIT extends CsvIT {
         // additionally sets _source: {enabled: false}, which columnar index modes do not permit at all.
         "unmapped_source_stored",
         "unmapped_source_synthetic",
-        "unmapped_source_synth_keep_all",
+        "unmapped_source_synth_keep_arrays",
         "unmapped_source_disabled",
         "unmapped_source_excludes",
         "unmapped_source_includes",

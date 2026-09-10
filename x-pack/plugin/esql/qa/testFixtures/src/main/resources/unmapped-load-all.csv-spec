@@ -3182,6 +3182,7 @@ foo:integer | id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.de
 
 showMeTheSource
 required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_fix_unmapped_object_value
 skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -3282,7 +3283,7 @@ required_capability: optional_fields_load_all_v2
 skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_source_stored, unmapped_source_synthetic, unmapped_source_synth_keep_all METADATA _index, _source
+FROM unmapped_source_stored, unmapped_source_synthetic, unmapped_source_synth_keep_arrays METADATA _index, _source
 | WHERE id == "8" OR id == "7" OR id == "6" OR id == "5"
 | SORT id, _index
 | KEEP _index, nest.inner.leaf, objarr.j, objarr.k, *arr*, _source
@@ -3293,16 +3294,16 @@ FROM unmapped_source_stored, unmapped_source_synthetic, unmapped_source_synth_ke
 
 _index:keyword                 | nest.inner.leaf:keyword | objarr.j:keyword | objarr.k:keyword | arr:keyword | _source:_source                                                                                                    | n:integer | m:integer | o:integer
 unmapped_source_stored         | null                    | null             | null             | [x, y]      | "{""id"":""5"",""arr"":[""x"",""y""]}"                                                                             | null      | null      | 2
-unmapped_source_synth_keep_all | null                    | null             | null             | [x, y]      | "{""arr"":[""x"",""y""],""id"":""5""}"                                                                             | null      | null      | 2
+unmapped_source_synth_keep_arrays | null                    | null             | null             | [x, y]      | "{""arr"":[""x"",""y""],""id"":""5""}"                                                                             | null      | null      | 2
 unmapped_source_synthetic      | null                    | null             | null             | [x, y]      | "{""arr"":[""x"",""y""],""id"":""5""}"                                                                             | null      | null      | 2
 unmapped_source_stored         | null                    | null             | [p, q]           | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                                                          | null      | 2         | null
-unmapped_source_synth_keep_all | null                    | null             | [p, q]           | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                                                          | null      | 2         | null
+unmapped_source_synth_keep_arrays | null                    | null             | [p, q]           | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                                                          | null      | 2         | null
 unmapped_source_synthetic      | null                    | null             | [p, q]           | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                                                          | null      | 2         | null
 unmapped_source_stored         | null                    | s                | r                | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                                                          | null      | 1         | null
-unmapped_source_synth_keep_all | null                    | s                | r                | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                                                          | null      | 1         | null
+unmapped_source_synth_keep_arrays | null                    | s                | r                | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                                                          | null      | 1         | null
 unmapped_source_synthetic      | null                    | s                | r                | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                                                          | null      | 1         | null
 unmapped_source_stored         | [t, u]                  | null             | null             | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                          | 2         | null      | null
-unmapped_source_synth_keep_all | [t, u]                  | null             | null             | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                          | 2         | null      | null
+unmapped_source_synth_keep_arrays | [t, u]                  | null             | null             | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                          | 2         | null      | null
 unmapped_source_synthetic      | [t, u]                  | null             | null             | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                          | 2         | null      | null
 ;
 
@@ -3462,7 +3463,7 @@ required_capability: optional_fields_load_all_v2
 skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
-FROM unmapped_source_stored, unmapped_source_synthetic, unmapped_source_synth_keep_all METADATA _index, _source
+FROM unmapped_source_stored, unmapped_source_synthetic, unmapped_source_synth_keep_arrays METADATA _index, _source
 | WHERE id IN ("1", "2", "5")
 | KEEP id, a.b, arr, _*
 | SORT id, _index
@@ -3470,13 +3471,13 @@ FROM unmapped_source_stored, unmapped_source_synthetic, unmapped_source_synth_ke
 
 id:keyword | a.b:keyword | arr:keyword | _index:keyword                 | _source:_source
 1          | v1          | null        | unmapped_source_stored         | "{""id"":""1"",""a"":{""b"":""v1""}}"
-1          | v1          | null        | unmapped_source_synth_keep_all | "{""a"":{""b"":""v1""},""id"":""1""}"
+1          | v1          | null        | unmapped_source_synth_keep_arrays | "{""a"":{""b"":""v1""},""id"":""1""}"
 1          | v1          | null        | unmapped_source_synthetic      | "{""a"":{""b"":""v1""},""id"":""1""}"
 2          | v2          | null        | unmapped_source_stored         | "{""id"":""2"",""a.b"":""v2""}"
-2          | v2          | null        | unmapped_source_synth_keep_all | "{""a"":{""b"":""v2""},""id"":""2""}"
+2          | v2          | null        | unmapped_source_synth_keep_arrays | "{""a"":{""b"":""v2""},""id"":""2""}"
 2          | v2          | null        | unmapped_source_synthetic      | "{""a"":{""b"":""v2""},""id"":""2""}"
 5          | null        | [x, y]      | unmapped_source_stored         | "{""id"":""5"",""arr"":[""x"",""y""]}"
-5          | null        | [x, y]      | unmapped_source_synth_keep_all | "{""arr"":[""x"",""y""],""id"":""5""}"
+5          | null        | [x, y]      | unmapped_source_synth_keep_arrays | "{""arr"":[""x"",""y""],""id"":""5""}"
 5          | null        | [x, y]      | unmapped_source_synthetic      | "{""arr"":[""x"",""y""],""id"":""5""}"
 ;
 

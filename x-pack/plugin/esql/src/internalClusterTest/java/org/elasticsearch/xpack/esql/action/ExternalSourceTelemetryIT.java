@@ -18,8 +18,11 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
@@ -36,6 +39,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -46,6 +50,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.ToLongFunction;
+import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -119,6 +124,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(HttpDataSourcePlugin.class);
         plugins.add(CsvDataSourcePlugin.class);
+        plugins.add(GzipDataSourcePlugin.class);
         plugins.add(TestDataSourcePlugin.class);
         plugins.add(TestTelemetryPlugin.class);
         return plugins;
@@ -145,7 +151,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     /** SUITE-scoped cluster: names every dataset/data source a test body PUTs so {@link #cleanup} can drop them between methods. */
-    private static final Set<String> CREATED_DATASETS = Set.of("emp_glob", "emp_missing", "emp_crud", "emp_dep", "emp_iae");
+    private static final Set<String> CREATED_DATASETS = Set.of("emp_glob", "emp_missing", "emp_gz", "emp_crud", "emp_dep", "emp_iae");
     private static final Set<String> CREATED_DATASOURCES = Set.of("ds", "ds_crud", "ds_max", "ds_dep", "ds_iae");
 
     @After
@@ -211,6 +217,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
         // Snapshot accumulator before the query so assertions use deltas (SUITE-scoped cluster).
         long parseRowsBefore = clusterTotal(DataSourceUsageAccumulator::parseRows);
+        long parseRowsCsvBefore = clusterTotal(a -> a.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_CSV));
         long storageRequestsBefore = clusterTotal(a -> a.storageRequests(Type.LOCAL));
         long storageBytesReadBefore = clusterTotal(a -> a.storageBytesRead(Type.LOCAL));
         long queriesSuccessBefore = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS));
@@ -228,23 +235,39 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertThat("the scan must return every fixture row", returnedRows, equalTo(10));
 
         collectAllMeters();
+        assertNoSchemeAttribute();
 
         // --- discovery (coordinator), multi-file listing path ---
-        Measurement filesScanned = singleForScheme(histograms(ExternalSourceMetrics.DISCOVERY_FILES_SCANNED), "local");
+        Measurement filesScanned = singleForType(histograms(ExternalSourceMetrics.DISCOVERY_FILES_SCANNED), "local");
         assertThat("discovery.files_scanned must record the two-file listing", filesScanned.getLong(), equalTo(2L));
-        Measurement bytesScanned = singleForScheme(histograms(ExternalSourceMetrics.DISCOVERY_BYTES_SCANNED), "local");
+        Measurement bytesScanned = singleForType(histograms(ExternalSourceMetrics.DISCOVERY_BYTES_SCANNED), "local");
         assertThat("discovery.bytes_scanned must be positive", bytesScanned.getLong(), greaterThan(0L));
         assertThat(
             "discovery.duration must be recorded (value may be sub-ms)",
-            forScheme(histograms(ExternalSourceMetrics.DISCOVERY_DURATION), "local"),
+            forType(histograms(ExternalSourceMetrics.DISCOVERY_DURATION), "local"),
             not(hasSize(0))
         );
 
-        // --- parse (data node): exactly the rows the scan produced ---
+        // --- parse (data node): exactly the rows the scan produced, tagged type=local (file folded) and format=csv ---
         assertThat(
-            "parse.rows.total must equal the number of rows scanned",
-            counterTotalForScheme(ExternalSourceMetrics.PARSE_ROWS_TOTAL, "local"),
+            "parse.rows.total must equal the number of rows scanned with {type=local, format=csv}",
+            counterTotalForTypeAndFormat(ExternalSourceMetrics.PARSE_ROWS_TOTAL, "local", "csv"),
             equalTo(10L)
+        );
+        assertThat(
+            "parse.duration must be recorded with {type=local, format=csv}",
+            forTypeAndFormat(histograms(ExternalSourceMetrics.PARSE_DURATION), "local", "csv"),
+            not(hasSize(0))
+        );
+        assertThat(
+            "parse.splits_scanned must be recorded with {type=local, format=csv}",
+            forTypeAndFormat(histograms(ExternalSourceMetrics.PARSE_SPLITS_SCANNED), "local", "csv"),
+            not(hasSize(0))
+        );
+        assertThat(
+            "time_to_first_row must be recorded with {type=local, format=csv}",
+            forTypeAndFormat(histograms(ExternalSourceMetrics.QUERY_TIME_TO_FIRST_ROW), "local", "csv"),
+            not(hasSize(0))
         );
 
         // --- query level (coordinator): exactly one successful external-source query ---
@@ -268,13 +291,13 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
         // storage read layer (data node), tagged with the canonical local type (file:// folded)
         assertThat(
-            "storage.requests.total must fire for the local type",
-            counterTotalForScheme(ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL, "local"),
+            "storage.requests.total must fire for type=local (file folded)",
+            counterTotalForType(ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL, "local"),
             greaterThan(0L)
         );
         assertThat(
-            "storage.bytes_read.total must fire for the local type",
-            counterTotalForScheme(ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL, "local"),
+            "storage.bytes_read.total must fire for type=local (file folded)",
+            counterTotalForType(ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL, "local"),
             greaterThan(0L)
         );
 
@@ -284,6 +307,11 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertThat(
             "phone-home: parse.rows must increase by 10",
             clusterTotal(DataSourceUsageAccumulator::parseRows) - parseRowsBefore,
+            equalTo(10L)
+        );
+        assertThat(
+            "phone-home: parse.rows.by_format.csv must increase by 10",
+            clusterTotal(a -> a.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_CSV)) - parseRowsCsvBefore,
             equalTo(10L)
         );
         assertThat(
@@ -391,6 +419,67 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             "phone-home: queries.total (success) must not increase for a resolution failure",
             clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS)) - queriesSuccessBefore,
             equalTo(0L)
+        );
+    }
+
+    /**
+     * A {@code local} dataset whose format is inferred from a compound {@code .csv.gz} extension (no
+     * explicit {@code format}) must be accepted by production CRUD and readable on the query path.
+     * PUT includes a CSV-only key ({@code header_row}) so registration fails unless
+     * {@code FileDataSourceValidator} delegates extension inference to the live registry.
+     *
+     * <p>This test asserts CRUD acceptance, a successful scan, {@code PARSE_ROWS_TOTAL} on
+     * {@code {type=local, format=csv}}, and that the coordinator registry resolves the same object
+     * as {@code csv}.
+     */
+    public void testInferredCompoundExtensionDatasetIsQueryable() throws Exception {
+        Path gz = createTempDir().resolve("data.csv.gz");
+        byte[] csv = "emp_no:integer,first_name:keyword\n1,ann\n".getBytes(StandardCharsets.UTF_8);
+        try (GZIPOutputStream out = new GZIPOutputStream(Files.newOutputStream(gz))) {
+            out.write(csv);
+        }
+        String resource = gz.toUri().toString();
+
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds", "local", null, new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, "emp_gz", "ds", resource, null, new HashMap<>(Map.of("header_row", true)))
+            )
+        );
+
+        resetAllMeters();
+        int returnedRows;
+        try (var response = run(syncEsqlQueryRequest("FROM emp_gz"), TIMEOUT)) {
+            returnedRows = getValuesList(response).size();
+        }
+        assertThat("the scan must return the gzipped fixture row", returnedRows, equalTo(1));
+
+        collectAllMeters();
+        assertThat(
+            "parse.rows.total must fire with {type=local, format=csv}",
+            counterTotalForTypeAndFormat(ExternalSourceMetrics.PARSE_ROWS_TOTAL, "local", "csv"),
+            equalTo(1L)
+        );
+
+        FormatReaderRegistry registry = null;
+        for (String node : internalCluster().getNodeNames()) {
+            PlanExecutor planExecutor = internalCluster().getInstance(PlanExecutor.class, node);
+            if (planExecutor.dataSourceModule() != null) {
+                registry = planExecutor.dataSourceModule().formatReaderRegistry();
+                break;
+            }
+        }
+        assertNotNull("no node has a DataSourceModule format reader registry", registry);
+        assertThat(
+            "query-path registry must infer csv from the compound extension",
+            FormatNameResolver.resolveFormatName(null, resource, registry),
+            equalTo("csv")
         );
     }
 
@@ -776,9 +865,19 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         return counters(name).stream().mapToLong(Measurement::getLong).sum();
     }
 
-    private long counterTotalForScheme(String name, String scheme) {
+    private long counterTotalForType(String name, String type) {
         return counters(name).stream()
-            .filter(m -> scheme.equals(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE)))
+            .filter(m -> type.equals(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE)))
+            .mapToLong(Measurement::getLong)
+            .sum();
+    }
+
+    private long counterTotalForTypeAndFormat(String name, String type, String format) {
+        return counters(name).stream()
+            .filter(
+                m -> type.equals(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE))
+                    && format.equals(m.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE))
+            )
             .mapToLong(Measurement::getLong)
             .sum();
     }
@@ -790,17 +889,26 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             .sum();
     }
 
-    private static List<Measurement> forScheme(List<Measurement> measurements, String scheme) {
-        return measurements.stream().filter(m -> scheme.equals(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE))).toList();
+    private static List<Measurement> forType(List<Measurement> measurements, String type) {
+        return measurements.stream().filter(m -> type.equals(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE))).toList();
+    }
+
+    private static List<Measurement> forTypeAndFormat(List<Measurement> measurements, String type, String format) {
+        return measurements.stream()
+            .filter(
+                m -> type.equals(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE))
+                    && format.equals(m.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE))
+            )
+            .toList();
     }
 
     private static List<Measurement> forOutcome(List<Measurement> measurements, String outcome) {
         return measurements.stream().filter(m -> outcome.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE))).toList();
     }
 
-    private static Measurement singleForScheme(List<Measurement> measurements, String scheme) {
-        List<Measurement> found = forScheme(measurements, scheme);
-        assertThat("expected exactly one measurement for scheme [" + scheme + "]", found, hasSize(1));
+    private static Measurement singleForType(List<Measurement> measurements, String type) {
+        List<Measurement> found = forType(measurements, type);
+        assertThat("expected exactly one measurement for type [" + type + "]", found, hasSize(1));
         return found.get(0);
     }
 
@@ -826,5 +934,44 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         }
         assertTrue("No node has a DataSourceModule with a non-null usageAccumulator", found);
         return total;
+    }
+
+    /**
+     * Done-when pin: no instrument still carries the retired {@code es_datasource_scheme} attribute.
+     */
+    private void assertNoSchemeAttribute() {
+        for (String name : List.of(
+            ExternalSourceMetrics.DISCOVERY_FILES_SCANNED,
+            ExternalSourceMetrics.DISCOVERY_BYTES_SCANNED,
+            ExternalSourceMetrics.DISCOVERY_DURATION,
+            ExternalSourceMetrics.PARSE_ROWS_TOTAL,
+            ExternalSourceMetrics.PARSE_DURATION,
+            ExternalSourceMetrics.PARSE_SPLITS_SCANNED,
+            ExternalSourceMetrics.QUERY_TIME_TO_FIRST_ROW,
+            ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL,
+            ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL,
+            ExternalSourceMetrics.STORAGE_REQUESTS_DURATION,
+            ExternalSourceMetrics.STORAGE_RETRIES_TOTAL,
+            ExternalSourceMetrics.STORAGE_ERRORS_TOTAL,
+            ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL,
+            ExternalSourceMetrics.STORAGE_READ_STALL_DURATION,
+            ExternalSourceMetrics.QUERIES_TOTAL,
+            ExternalSourceMetrics.QUERY_DURATION
+        )) {
+            for (Measurement m : counters(name)) {
+                assertThat(
+                    "instrument [" + name + "] must not carry es_datasource_scheme",
+                    m.attributes().containsKey("es_datasource_scheme"),
+                    equalTo(false)
+                );
+            }
+            for (Measurement m : histograms(name)) {
+                assertThat(
+                    "instrument [" + name + "] must not carry es_datasource_scheme",
+                    m.attributes().containsKey("es_datasource_scheme"),
+                    equalTo(false)
+                );
+            }
+        }
     }
 }

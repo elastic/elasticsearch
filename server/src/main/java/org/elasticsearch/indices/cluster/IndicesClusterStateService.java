@@ -535,7 +535,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      * Detects a change, between two {@link IndexMetadata} instances for the same open index, to the cluster-state-level
      * {@link IndexMetadata#SETTING_HISTORY_UUID} setting. This is useful because it lets us know if an in-place snapshot restore is being
      * attempted. Today, a snapshot restore is the only thing that writes the SETTING_HISTORY_UUID setting onto an index that a node already
-     * has open. A restore assigns the destination a new history UUID (see {@code RestoreService#restoreOverClosedIndex}) while preserving
+     * has open. A restore assigns the destination a new history UUID (see {@code RestoreService#restoreOverExistingIndex}) while preserving
      * its index UUID.
      *
      * @param existingMetadata the metadata backing the index service currently loaded on this node

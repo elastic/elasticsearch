@@ -33,6 +33,7 @@ public class CoreWithMappedRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .feature(FeatureFlag.TIME_SERIES_MODE)
+        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
         .build();

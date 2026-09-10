@@ -133,44 +133,82 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
     }
 
     public void testTrailingMissingSliceDocValues() throws IOException {
-        final int dimensions = 12;
+        final int dimensions = random().nextInt(12, 128);
+        final int numSlices = random().nextInt(2, 8);
+        final int docsPerSlice = random().nextInt(2, 20);
+        final int routedDocs = numSlices * docsPerSlice;
+        final int tombstones = random().nextInt(1, Math.max(2, numSlices));
         final IndexWriterConfig iwc = newIndexWriterConfig();
         final SortField sliceSort = new SortField(SLICE_FIELD, SortField.Type.STRING);
         sliceSort.setMissingValue(SortField.STRING_LAST);
         iwc.setIndexSort(new Sort(sliceSort));
         iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+        // Keep segments small enough to exercise both single- and multi-segment readers. Tombstones are interleaved
+        // with routed documents below, so at least one segment contains both kinds of documents.
+        iwc.setMaxBufferedDocs(random().nextInt(3, Math.min(20, routedDocs + tombstones + 1)));
 
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, iwc)) {
-            final Document tombstone = new Document();
-            tombstone.add(new NumericDocValuesField(Lucene.SOFT_DELETES_FIELD, 1L));
-            writer.addDocument(tombstone);
+            int tombstonesAdded = 0;
+            final int tombstoneInterval = Math.max(1, routedDocs / (tombstones + 1));
+            for (int i = 0; i < routedDocs; i++) {
+                final int slice = i % numSlices;
+                final String sliceValue = Integer.toString(slice);
+                final Document document = new Document();
+                document.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef(sliceValue)));
+                document.add(new StoredField(SLICE_FIELD, new BytesRef(sliceValue)));
+                document.add(createVectorField("vector", dimensions));
+                writer.addDocument(document);
 
-            for (int slice = 0; slice < 2; slice++) {
-                for (int i = 0; i < 2; i++) {
-                    final Document document = new Document();
-                    document.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef(Integer.toString(slice))));
-                    document.add(new StoredField(SLICE_FIELD, new BytesRef(Integer.toString(slice))));
-                    document.add(createVectorField("vector", dimensions));
-                    writer.addDocument(document);
+                if (tombstonesAdded < tombstones && (i + 1) % tombstoneInterval == 0) {
+                    final Document tombstone = new Document();
+                    tombstone.add(new NumericDocValuesField(Lucene.SOFT_DELETES_FIELD, 1L));
+                    writer.addDocument(tombstone);
+                    tombstonesAdded++;
                 }
             }
             writer.commit();
 
             try (DirectoryReader reader = new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(writer), Lucene.SOFT_DELETES_FIELD)) {
-                assertEquals(4, reader.numDocs());
-                assertEquals(1, reader.leaves().size());
-                final var leaf = reader.leaves().getFirst().reader();
-                assertSame(SortField.STRING_LAST, leaf.getMetaData().sort().getSort()[0].getMissingValue());
-                assertNotNull(leaf.getDocValuesSkipper(SLICE_FIELD));
-                assertEquals(4, leaf.getDocValuesSkipper(SLICE_FIELD).docCount());
-                assertEquals(5, leaf.maxDoc());
+                assertEquals(routedDocs, reader.numDocs());
+                int sparseLeaves = 0;
+                for (var context : reader.leaves()) {
+                    final var leaf = context.reader();
+                    assertSame(SortField.STRING_LAST, leaf.getMetaData().sort().getSort()[0].getMissingValue());
+                    final var skipper = leaf.getDocValuesSkipper(SLICE_FIELD);
+                    if (skipper != null && skipper.docCount() < leaf.maxDoc()) {
+                        sparseLeaves++;
+                    }
+                }
+                assertTrue("expected at least one leaf with trailing missing slice doc values", sparseLeaves > 0);
 
                 final IndexSearcher searcher = new IndexSearcher(reader);
-                final Query oneSlice = createSlicedQuery("vector", dimensions, 2, 2, null, 1.0f, new BytesRef("1"));
-                assertEquals(2, searcher.search(oneSlice, 2).scoreDocs.length);
-                final Query allSlices = createSlicedQuery("vector", dimensions, 4, 4, null, 1.0f);
-                assertEquals(4, searcher.search(allSlices, 4).scoreDocs.length);
+                final int targetSlice = random().nextInt(numSlices);
+                final String targetSliceValue = Integer.toString(targetSlice);
+                final Query oneSlice = createSlicedQuery(
+                    "vector",
+                    dimensions,
+                    docsPerSlice,
+                    docsPerSlice,
+                    null,
+                    1.0f,
+                    new BytesRef(targetSliceValue)
+                );
+                final TopDocs oneSliceResults = searcher.search(oneSlice, docsPerSlice);
+                assertEquals(docsPerSlice, oneSliceResults.scoreDocs.length);
+                for (var scoreDoc : oneSliceResults.scoreDocs) {
+                    final Document document = reader.storedFields().document(scoreDoc.doc);
+                    assertThat(document.getField(SLICE_FIELD).binaryValue().utf8ToString(), equalTo(targetSliceValue));
+                }
+
+                final Query allSlices = createSlicedQuery("vector", dimensions, routedDocs, routedDocs, null, 1.0f);
+                final TopDocs allSliceResults = searcher.search(allSlices, routedDocs);
+                assertEquals(routedDocs, allSliceResults.scoreDocs.length);
+                for (var scoreDoc : allSliceResults.scoreDocs) {
+                    final Document document = reader.storedFields().document(scoreDoc.doc);
+                    final int slice = Integer.parseInt(document.getField(SLICE_FIELD).binaryValue().utf8ToString());
+                    assertTrue(slice >= 0 && slice < numSlices);
+                }
             }
         }
     }

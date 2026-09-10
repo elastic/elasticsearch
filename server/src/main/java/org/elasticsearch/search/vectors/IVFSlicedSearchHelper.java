@@ -74,7 +74,8 @@ final class IVFSlicedSearchHelper {
         if (sort == null
             || sort.getSort().length == 0
             || sort.getSort()[0].getField().equals(sliceField) == false
-            || sort.getSort()[0].getType() != SortField.Type.STRING) {
+            || sort.getSort()[0].getType() != SortField.Type.STRING
+            || sort.getSort()[0].getReverse()) {
             throw new IllegalArgumentException("sliceField must be the first field of the index sort and of type STRING");
         }
 
@@ -107,7 +108,7 @@ final class IVFSlicedSearchHelper {
         final SortField sliceSort = sort.getSort()[0];
         // Internal soft-deleted documents such as tombstones may not carry the slice field. With an ascending,
         // missing-last index sort, documents that have a slice remain a contiguous prefix ending at docCount().
-        if (skipper.docCount() != maxDoc && (sliceSort.getReverse() || sliceSort.getMissingValue() != SortField.STRING_LAST)) {
+        if (skipper.docCount() != maxDoc && sliceSort.getMissingValue() != SortField.STRING_LAST) {
             throw new IllegalArgumentException(
                 "sparse sliceField [" + sliceField + "] requires ascending index sort with missing values last"
             );

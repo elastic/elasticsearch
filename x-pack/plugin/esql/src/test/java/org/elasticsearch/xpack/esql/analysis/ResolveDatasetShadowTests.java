@@ -497,7 +497,7 @@ public class ResolveDatasetShadowTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put(name, new NamedSubquery(EMPTY, body, name));
         children.put(name + "#shadow", shadow);
-        return new ViewUnionAll(EMPTY, children, List.of());
+        return new ViewUnionAll(EMPTY, children, Set.of(name), List.of());
     }
 
     /** True if the plan subtree contains a node of the given type anywhere below (or at) the given root. */

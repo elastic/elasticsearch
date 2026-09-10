@@ -329,6 +329,7 @@ public class ViewResolver {
                             viewQueries,
                             hasInSubquery,
                             depth,
+                            preserveViewBoundaries,
                             planListener.delegateFailureAndWrap((l, result) -> {
                                 result.forEachDown(resolvedPlans::add);
                                 l.onResponse(result);
@@ -353,6 +354,7 @@ public class ViewResolver {
                             viewQueries,
                             hasInSubquery,
                             depth,
+                            preserveViewBoundaries,
                             planListener.delegateFailureAndWrap((l, result) -> {
                                 result.forEachDown(resolvedPlans::add);
                                 l.onResponse(result);

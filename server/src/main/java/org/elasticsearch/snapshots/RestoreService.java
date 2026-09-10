@@ -604,8 +604,8 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * A single destination for {@link #restoreSnapshotOverOpenIndices}. This represents the exact identity of the existing open index to restore
-     * over, the repository-side identity of the snapshot index to restore it from, and that snapshot index's metadata.
+     * A single destination for {@link #restoreSnapshotOverOpenIndices}. This represents the exact identity of the existing open index to
+     * restore over, the repository-side identity of the snapshot index to restore it from, and that snapshot index's metadata.
      *
      * @param destinationIndex      the exact current identity (name and index UUID) of the open index to restore over, resolved by the
      *                              caller before submitting the restore, so that an index deleted and recreated under the same name is

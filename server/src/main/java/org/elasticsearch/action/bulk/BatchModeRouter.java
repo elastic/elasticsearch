@@ -249,8 +249,11 @@ final class BatchModeRouter implements Releasable {
     }
 
     /**
-     * Returns the per-shard batches. In provided-batch mode returns empty on any call after the
-     * first — the failure-store redirect pass must not re-scatter batches already in flight.
+     * Completes routing for provided-batch mode: computes the shard assignment for each deferred
+     * item and adds it to {@code requestsByShard}, then returns that map. In x-content mode the
+     * items were already routed in {@link #route}, so this is a no-op that returns the map as-is.
+     * Must be called exactly once per bulk; {@link #shardBatches()} scatters the source data to
+     * match the grouping produced here.
      */
     Map<ShardId, List<BulkItemRequest>> buildGrouping(
         Map<ShardId, List<BulkItemRequest>> requestsByShard,
@@ -264,6 +267,8 @@ final class BatchModeRouter implements Releasable {
         if (routedCount == 0) {
             return requestsByShard;
         }
+        // Count mismatch is a caller precondition violation (wrong batch attached), not a per-item
+        // routing failure, so we throw rather than routing through onItemFailure.
         if (routedCount != source.docCount()) {
             throw new IllegalStateException(
                 "pre-built batch ["
@@ -283,6 +288,17 @@ final class BatchModeRouter implements Releasable {
 
             for (int i = 0; i < requests.length; i++) {
                 int shardId = shards[i];
+                if (shardId < 0 || shardId >= shardCount) {
+                    throw new IllegalStateException(
+                        "shard ["
+                            + shardId
+                            + "] is outside the valid range [0, "
+                            + shardCount
+                            + ") for index ["
+                            + concreteIndex.getName()
+                            + "]"
+                    );
+                }
                 partitionIds[i] = shardId;
                 requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), k -> new ArrayList<>()).add(items[i]);
             }

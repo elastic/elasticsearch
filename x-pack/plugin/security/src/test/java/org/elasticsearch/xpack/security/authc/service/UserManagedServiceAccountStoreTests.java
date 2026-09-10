@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -78,6 +79,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.SERVICE_ACCOUNT_DOC_TYPE;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -152,6 +154,9 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         featureService = mock(FeatureService.class);
         when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS))).thenReturn(true);
 
@@ -447,6 +452,25 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
                     .filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_DOC_TYPE))
                     .filter(QueryBuilders.prefixQuery("username", "engineering/"))
             )
+        );
+    }
+
+    public void testListAccountsSelectsANamespaceWhenExpensiveQueriesAreDisabled() {
+        store = newStore(Settings.builder().put(ALLOW_EXPENSIVE_QUERIES.getKey(), false).build());
+        // The prefix cannot run, so the search returns every service-account document and the store
+        // keeps only the ones in the namespace.
+        respondToSearchWith(
+            List.of(
+                accountDocument(PRINCIPAL, List.of(ROLE_A), true),
+                accountDocument("engineering/other_bot", List.of(ROLE_B), false),
+                accountDocument("operations/pager-bot", List.of(ROLE_B), true)
+            )
+        );
+
+        assertThat(listAccounts("engineering", null), hasSize(2));
+        assertThat(
+            searchedQuery(),
+            equalTo(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_DOC_TYPE)))
         );
     }
 

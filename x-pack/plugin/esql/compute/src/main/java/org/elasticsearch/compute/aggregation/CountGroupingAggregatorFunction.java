@@ -555,6 +555,13 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     static final class CountPartitionedState implements PartitionedState {
         static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOf(CountPartitionedState.class);
+
+        @Override
+        public boolean hasAllValues(int partition) {
+            // count is never null
+            return true;
+        }
+
         final long baseBytes;
         final int[][] ints;
         final long[][] longs;

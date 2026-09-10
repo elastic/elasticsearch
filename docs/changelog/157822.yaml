@@ -1,5 +1,6 @@
 area: Search
-issues: []
+issues:
+ - 156942
 pr: 157822
 summary: Update `fetchEmbeddingsFields` to fetch `dense_vector` field embeddings using
   docvalues

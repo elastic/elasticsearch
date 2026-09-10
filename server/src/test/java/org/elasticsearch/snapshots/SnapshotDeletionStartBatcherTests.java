@@ -1088,6 +1088,34 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
         safeAwait(deletionFuture);
     }
 
+    /**
+     * If the protection cannot be determined then deleting is unsafe, so a throwing {@link RestoreSourceProtection} must reject the whole
+     * batch rather than let any deletion through. The failure surfaces to the caller unwrapped.
+     */
+    public void testRejectsWholeBatchWhenProtectionThrows() {
+        final var snapshot = randomSnapshot();
+        addCompleteSnapshot(snapshot);
+
+        final var failure = new IllegalStateException("simulated protection failure");
+        restoreSourceProtection = new RestoreSourceProtection() {
+            @Override
+            public Map<SnapshotId, String> protectedSnapshots(ClusterState state, ProjectId projectId, String repositoryName) {
+                throw failure;
+            }
+        };
+
+        final var deletionFuture = startDeletion(snapshot.getSnapshotId().getName());
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+        assertTrue(deletionFuture.isDone());
+        assertSame(failure, safeAwaitFailure(deletionFuture));
+
+        assertTrue(snapshotEndNotifications.isEmpty());
+        assertTrue(snapshotAbortNotifications.isEmpty());
+        assertTrue(startedDeletions.isEmpty());
+        assertTrue(completionHandlers.isEmpty());
+        assertTrue(SnapshotDeletionsInProgress.get(clusterService.state()).getEntries().isEmpty());
+    }
+
     public void testIgnoresRestoreSourceInOtherRepositories() {
         final var snapshot = randomSnapshot();
         addCompleteSnapshot(snapshot);

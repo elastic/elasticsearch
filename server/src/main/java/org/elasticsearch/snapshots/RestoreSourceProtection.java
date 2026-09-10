@@ -18,28 +18,18 @@ import java.util.Map;
 /**
  * Extension point that keeps a snapshot protected from deletion while it is still the source of a restore, using evidence that outlives
  * the restore's {@link RestoreInProgress} entry.
- *
- * <p>An active {@link RestoreInProgress} entry is ordinarily what stops its source snapshot from being deleted. That protection ends the
- * moment the entry is removed, which happens before a recovery implementation has durably recorded the restore's outcome. Deleting the
- * source snapshot in that window would destroy the data a retry needs. An implementation closes the window by reporting the snapshot as
- * protected for as long as its own durable record says the restore has started but not yet finished.
- *
- * <p>Ordinary restores have no such durable record and rely on {@link RestoreInProgress} alone, so {@link #NOOP} leaves their behaviour
- * unchanged.
  */
 public interface RestoreSourceProtection {
 
     /**
      * Returns the snapshots in the given repository that must not be deleted because a restore from them may still be in flight, beyond
      * those already protected by an active {@link RestoreInProgress} entry. Called while resolving a batch of snapshot deletions, so it
-     * must not block or perform I/O.
+     * must not block or perform I/O. If it throws, the whole batch is rejected and nothing is deleted.
      *
      * @param state          cluster state to resolve the protection against
      * @param projectId      project of the repository whose deletions are being resolved
      * @param repositoryName repository whose deletions are being resolved
      * @return the protected snapshots, each mapped to the UUID of the restore that protects it so that a rejected deletion can name it.
-     *         Snapshots absent from {@link RepositoryData} are ignored, so an implementation need not filter them.
-     *         Defaults to protecting nothing beyond {@link RestoreInProgress}.
      */
     default Map<SnapshotId, String> protectedSnapshots(ClusterState state, ProjectId projectId, String repositoryName) {
         return Map.of();

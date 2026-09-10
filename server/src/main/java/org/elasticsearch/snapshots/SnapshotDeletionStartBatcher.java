@@ -327,8 +327,6 @@ final class SnapshotDeletionStartBatcher {
             }
         }
 
-        // A RestoreInProgress entry is removed before a recovery implementation has durably recorded the restore's outcome, so it cannot be
-        // the only evidence that a snapshot is still being restored from. Resolved once per batch, like activeRestoreSources above.
         final Map<SnapshotId, String> protectedRestoreSources = restoreSourceProtection.protectedSnapshots(
             initialState,
             projectId,

@@ -1390,8 +1390,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     /**
      * Applied to every {@link SnapshotDeletionStartBatcher} as it is created. Defaults to {@link RestoreSourceProtection#NOOP}, so an
-     * ordinary restore is protected from having its source snapshot deleted by its {@link org.elasticsearch.cluster.RestoreInProgress}
-     * entry alone.
+     * ordinary restore's source snapshot is protected by its {@link org.elasticsearch.cluster.RestoreInProgress} entry alone.
      */
     private volatile RestoreSourceProtection restoreSourceProtection = RestoreSourceProtection.NOOP;
 

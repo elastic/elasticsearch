@@ -194,13 +194,10 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         if (rowsEmitted == 0 && splitsProcessed == 0) {
             return;
         }
-        long readNanos = buffer.readCounters().readNanos();
-        long readCpuNanos = buffer.readCounters().readCpuNanos();
-        // Both record methods self-guard (best-effort): an instrumentation failure cannot break teardown.
         externalSourceMetrics.recordParse(
             rowsEmitted,
-            TimeUnit.NANOSECONDS.toMillis(readNanos),
-            TimeUnit.NANOSECONDS.toMillis(readCpuNanos),
+            TimeUnit.NANOSECONDS.toMillis(buffer.readCounters().readNanos()),
+            TimeUnit.NANOSECONDS.toMillis(buffer.readCounters().readCpuNanos()),
             scheme,
             format
         );

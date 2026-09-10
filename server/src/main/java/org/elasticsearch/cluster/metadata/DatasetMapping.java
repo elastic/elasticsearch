@@ -83,8 +83,8 @@ public final class DatasetMapping implements Writeable {
         public Mappings {
             Objects.requireNonNull(dynamic, "dynamic must not be null");
             properties = properties == null ? Map.of() : Collections.unmodifiableMap(properties);
-            // Normalised to null, including for a value read off the wire from an older node. Nothing reads it, and
-            // leaving one set would round-trip through toXContent into an _id block that parseMappings now rejects.
+            // Normalised to null, including for a value read off the wire or off disk from an older node. Nothing
+            // reads it, and toXContent no longer emits an _id block for it to travel in.
             idPath = null;
         }
 
@@ -109,6 +109,12 @@ public final class DatasetMapping implements Writeable {
 
     private static final String DYNAMIC = "dynamic";
     private static final String PROPERTIES = "properties";
+    /**
+     * The retired {@code _id} declaration. 9.5 accepted {@code "_id": {"path": "col"}} and wrote it into every
+     * gateway snapshot of the cluster state, so the name survives here purely to be skipped when that state is
+     * read back. It is not a field this version has.
+     */
+    private static final String RETIRED_ID = "_id";
 
     @Nullable
     private final Mappings mappings;
@@ -136,8 +142,26 @@ public final class DatasetMapping implements Writeable {
         return mappings == null ? null : new DatasetMapping(mappings);
     }
 
-    /** Parses the {@code mappings} object ({@code dynamic}, {@code properties}). */
+    /**
+     * Parses a user-supplied {@code mappings} object ({@code dynamic}, {@code properties}). A {@code _id} block is
+     * a retired declaration and is refused here like any other field this version does not have — a dataset answers
+     * no {@code METADATA _id}, so accepting the declaration would take a column name and do nothing with it.
+     */
     public static Mappings parseMappings(XContentParser parser) throws IOException {
+        return parseMappings(parser, false);
+    }
+
+    /**
+     * Parses a {@code mappings} object off persisted cluster state, where a 9.5 node may have written a
+     * {@code _id} block. That block is read and discarded: refusing it would leave an upgraded node unable to
+     * load its own cluster state, and the declaration has nothing left to feed. Same precedent as
+     * {@link DataStream}'s parser, which reads and drops the retired {@code timestamp_field} block.
+     */
+    public static Mappings parseStoredMappings(XContentParser parser) throws IOException {
+        return parseMappings(parser, true);
+    }
+
+    private static Mappings parseMappings(XContentParser parser, boolean fromStoredState) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         Dynamic dynamic = Dynamic.TRUE;
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
@@ -159,6 +183,9 @@ public final class DatasetMapping implements Writeable {
                         properties.put(name, DatasetFieldMapping.fromXContent(parser));
                     }
                 }
+            } else if (fromStoredState && RETIRED_ID.equals(field)) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+                parser.skipChildren();
             } else {
                 throw new IllegalArgumentException("unknown mappings field [" + field + "]");
             }

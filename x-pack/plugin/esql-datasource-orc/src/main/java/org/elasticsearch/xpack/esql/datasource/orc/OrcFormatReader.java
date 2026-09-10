@@ -1771,7 +1771,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
          * Emits the synthetic {@code _rowPosition} column: the file-global row index of each row in
          * the batch, {@code [batchStartRow, batchStartRow + rowCount)}. Never null. This is the
          * opaque, split-invariant per-record token the producer pipeline renders as
-         * {@code _file.record_ref} / composes into {@code _id}.
+         * {@code _file.record_ref}.
          *
          * <p>Direct array fill + {@link BlockFactory#newLongArrayVector} rather than
          * {@link LongVector.Builder#appendLong}: the values are a known-size arithmetic sequence,

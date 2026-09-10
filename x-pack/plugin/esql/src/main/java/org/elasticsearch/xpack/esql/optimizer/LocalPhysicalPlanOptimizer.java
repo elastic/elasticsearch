@@ -119,10 +119,10 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             // is also the precondition the planner's {@code tryBuildNumericTopN} checks before
             // swapping in the specialised {@code NumericTopNOperator}.
             new InsertExternalFieldExtraction(),
-            // Sibling injection: when _id is referenced on an external source, add the
-            // synthetic _rowPosition column so the producer pipeline can compose
-            // the opaque (location, mtime, rowPosition) hash id per row. Idempotent and independent of deferred
-            // extraction (no TopN/ColumnExtractorAware preconditions).
+            // Sibling injection: when _file.record_ref is referenced on an external source, add the
+            // synthetic _rowPosition column so the producer pipeline has the per-record position to
+            // render. Idempotent and independent of deferred extraction (no TopN/ColumnExtractorAware
+            // preconditions).
             new InjectRowPositionForRecordRef()
         );
 

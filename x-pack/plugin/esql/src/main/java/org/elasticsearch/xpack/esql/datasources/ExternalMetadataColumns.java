@@ -22,8 +22,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Registry of the standard ES index metadata names ({@code _id}, {@code _index},
- * {@code _version}, ...) that the external-source pipeline knows how to materialise on
+ * Registry of the standard ES index metadata names ({@code _index}, {@code _score},
+ * {@code _ignored}, ...) that the external-source pipeline knows how to materialise on
  * external datasets. The data types are sourced from
  * {@link MetadataAttribute#ATTRIBUTES_MAP} so the binding here and in the analyzer
  * always agree (including snapshot-only entries such as {@code _tier}).
@@ -98,12 +98,21 @@ public final class ExternalMetadataColumns {
     }
 
     /**
-     * The document-level names a dataset refuses: a file holds no document identity, no document
-     * version and no stored source. All three are registered in {@link MetadataAttribute#ATTRIBUTES_MAP},
-     * so {@code METADATA _id} parses into a RESOLVED attribute and the analyzer has to refuse it
-     * explicitly rather than let it fall through as an unknown name.
+     * Whether {@code name} is a standard metadata name that a dataset cannot answer: registered in
+     * {@link MetadataAttribute#ATTRIBUTES_MAP}, and so parsed into a RESOLVED attribute, but outside
+     * {@link #STANDARD_NAMES}. The analyzer has to refuse such a name explicitly — forwarding a resolved
+     * attribute onto the unresolved list drops it in silence.
+     * <p>
+     * Derived from the registry rather than listed, so a name added to {@code ATTRIBUTES_MAP} tomorrow
+     * without a dataset-side value is refused loudly instead of disappearing. Today it answers true for
+     * exactly {@code _id}, {@code _version} and {@code _source} — a file holds no document identity, no
+     * document version and no stored source. It answers false for {@code _doc}, which is not in the
+     * registry at all: {@code InfoCommandPlanUtils} injects that one directly for TS_INFO / METRICS_INFO,
+     * and it keeps its existing pass-through.
      */
-    public static final Set<String> DOCUMENT_NAMES = Set.of(ID, VERSION, SOURCE);
+    public static boolean isRegisteredButUnbindable(String name) {
+        return MetadataAttribute.isSupported(name) && STANDARD_NAMES.contains(name) == false;
+    }
 
     /**
      * The dedicated metadata namespace for reservation/rename purposes: {@link #STANDARD_NAMES}

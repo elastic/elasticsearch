@@ -112,6 +112,33 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
         }
     }
 
+    /**
+     * The tolerant entry point used for persisted cluster state reads the retired {@code _id} block and drops it,
+     * whatever it contains. The strict entry point beside it still refuses the same document, so the API keeps
+     * telling a caller that the declaration is gone; only state already on disk gets the leniency.
+     */
+    public void testStoredMappingsSkipRetiredIdBlock() {
+        for (String idBlock : new String[] { "{\"path\":\"request_id\"}", "{\"type\":\"keyword\"}", "{}" }) {
+            String json = "{\"dynamic\":\"true\",\"properties\":{\"request_id\":{\"type\":\"keyword\"}},\"_id\":" + idBlock + "}";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+                parser.nextToken();
+                DatasetMapping.Mappings mappings = DatasetMapping.parseStoredMappings(parser);
+                assertEquals(DatasetMapping.Dynamic.TRUE, mappings.dynamic());
+                assertEquals(Set.of("request_id"), mappings.properties().keySet());
+                assertNull(mappings.idPath());
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+                parser.nextToken();
+                Exception e = expectThrows(Exception.class, () -> DatasetMapping.parseMappings(parser));
+                assertThat(e.getMessage(), containsString("unknown mappings field [_id]"));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }
+    }
+
     public void testDynamicRejectsUnknownValue() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DatasetMapping.Dynamic.fromString("strict"));
         assertTrue(e.getMessage().contains("strict"));

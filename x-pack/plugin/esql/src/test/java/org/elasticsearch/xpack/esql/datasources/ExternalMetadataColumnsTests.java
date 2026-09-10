@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Unit tests for {@link ExternalMetadataColumns}, the per-file constant synthesizer for the
@@ -53,8 +55,10 @@ public class ExternalMetadataColumnsTests extends ESTestCase {
     }
 
     /**
-     * The three unbindable names stay reserved: a dataset cannot answer them, but a layout must not be able
-     * to claim them either, or a file column called {@code _id} would shadow the metadata namespace.
+     * The three unbindable names stay reserved: a dataset cannot answer them, but a partition key must not be
+     * able to claim them either. {@code ReservedPartitionNames#isReserved} is the one consumer, so a Hive or
+     * template layout whose partition column is called {@code _id} is renamed under {@code _partition.}
+     * instead of shadowing a metadata name.
      */
     public void testIdentityVersionAndSourceStayReserved() {
         assertTrue(ExternalMetadataColumns.RESERVED_NAMES.contains(ExternalMetadataColumns.ID));
@@ -75,6 +79,28 @@ public class ExternalMetadataColumnsTests extends ESTestCase {
                 ExternalMetadataColumns.RESERVED_NAMES.contains(name)
             );
         }
+    }
+
+    /**
+     * Drift tripwire for the refusal itself. {@code isRegisteredButUnbindable} is what makes the analyzer
+     * re-wrap a resolved attribute so the verifier reports it, and a name that escapes it is dropped in
+     * silence rather than refused. Deriving it from the registry means a name added to
+     * {@code MetadataAttribute.ATTRIBUTES_MAP} tomorrow is refused without anyone editing this class; this
+     * pins that the derived set is exactly the three document names today, and that no bindable name is in
+     * it.
+     */
+    public void testRegisteredButUnbindableIsExactlyTheDocumentNames() {
+        Set<String> derived = MetadataAttribute.ATTRIBUTES_MAP.keySet()
+            .stream()
+            .filter(ExternalMetadataColumns::isRegisteredButUnbindable)
+            .collect(Collectors.toSet());
+        assertEquals(Set.of(ExternalMetadataColumns.ID, ExternalMetadataColumns.VERSION, ExternalMetadataColumns.SOURCE), derived);
+        for (String name : ExternalMetadataColumns.STANDARD_NAMES) {
+            assertFalse("bindable name [" + name + "] must not be refused", ExternalMetadataColumns.isRegisteredButUnbindable(name));
+        }
+        // _doc never enters the registry: InfoCommandPlanUtils injects it directly for TS_INFO / METRICS_INFO,
+        // and it must keep its pass-through rather than being reported as an unresolved pattern.
+        assertFalse(ExternalMetadataColumns.isRegisteredButUnbindable(MetadataAttribute.DOC));
     }
 
     /** Every bindable standard name is one the analyzer knows, and one the per-file synthesizer answers. */

@@ -454,7 +454,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             declaredReadSpec.writeTo(out);
         } else if (declaredReadSpec.isEmpty() == false) {
             // Silently dropping a non-empty spec toward an older data node would return wrong rows (physical names,
-            // synthetic _id, unparsed dates). Reject loudly instead — mirrors PutDatasetAction's older-master reject.
+            // unparsed dates). Reject loudly instead — mirrors PutDatasetAction's older-master reject.
             throw new IllegalArgumentException(
                 "declared dataset read-instructions are not supported on all nodes in the cluster; retry after the upgrade"
             );

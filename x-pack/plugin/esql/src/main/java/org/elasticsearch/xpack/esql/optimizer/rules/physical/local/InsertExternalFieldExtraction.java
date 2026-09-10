@@ -174,6 +174,12 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
         // arm catches everything else. {@link #DEFERRED_COLUMN_MIN} then bails out, so TopN
         // late-materialisation is disabled for `_source` queries (correctness preserves over the
         // I/O optimisation).
+        //
+        // This branch does not fire on a query today. A dataset answers no `METADATA _source` — a file
+        // carries no stored source — so the analyzer never binds a `_source` attribute on an external
+        // relation and `sourceProjected` stays false. It is kept, alongside the `_source` column pin in
+        // {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns} and the synthesizer
+        // both feed ({@code SynthesizeExternalSource}), for the surface that composes a row's source next.
         boolean sourceProjected = false;
         for (Attribute a : sourceOutput) {
             if (a instanceof ExternalMetadataAttribute && ExternalMetadataColumns.SOURCE.equals(a.name())) {

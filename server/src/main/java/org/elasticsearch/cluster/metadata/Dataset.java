@@ -79,8 +79,10 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         PARSER.declareString(ConstructingObjectParser.constructorArg(), RESOURCE);
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
-        // Declared mapping: an optional `mappings` block (columns + the `_id` meta-field).
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DatasetMapping.parseMappings(p), MAPPINGS);
+        // Declared mapping: an optional `mappings` block of column declarations. This parser reads persisted
+        // cluster state, which on a cluster upgraded from 9.5 can still carry that version's retired `_id` block,
+        // so it uses the tolerant entry point. The registration API uses the strict one.
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DatasetMapping.parseStoredMappings(p), MAPPINGS);
     }
 
     private final String name;

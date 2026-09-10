@@ -1780,7 +1780,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // mode is enabled the data path goes through CsvLogicalRecordReader and never reaches the
         // Jackson bulk iterator, so the wrap brings no defense-in-depth there either.
         boolean useBracketAware = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ',';
-        // _rowPosition projected (_id / _file.record_ref requested) forces the same CsvLogicalRecordReader
+        // _rowPosition projected (_file.record_ref requested) forces the same CsvLogicalRecordReader
         // data path as bracket mode: the Jackson bulk iterator bypasses recordReader's per-record byte
         // accounting, so the composed file-global offset would stay pinned at the header boundary for every
         // data row. That path enforces external_max_record_size per record (char-decoded), so it must not also carry
@@ -3863,7 +3863,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // Two exceptions route through the recordReader-backed per-record iterator instead of the
                     // Jackson bulk path. read() suppresses the byte-level cap wrap on both to match (see
                     // useRecordReaderPath):
-                    // 1. _rowPosition projected (rowPositionSlot >= 0, i.e. _id / _file.record_ref): each
+                    // 1. _rowPosition projected (rowPositionSlot >= 0, i.e. _file.record_ref): each
                     // record must advance CsvLogicalRecordReader's byte accounting so the offset
                     // (splitStartByte + bytesRead - lastRecordBytes) stays exact; the Jackson bulk path
                     // bypasses recordReader and would pin every data row at the header boundary.

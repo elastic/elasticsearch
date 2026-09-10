@@ -244,6 +244,11 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
      * that requests {@code _source} but drops it without reading does not need the pin). Indexed
      * {@code _source} reads from the stored doc and is independent of projection; external {@code _source}
      * has no stored doc to fall back to.
+     * <p>
+     * <b>The pin does not fire on a query today.</b> A dataset answers no {@code METADATA _source} — a file
+     * carries no stored source — so the analyzer never binds a {@code _source} attribute on an external
+     * relation and the branch below sees none. It is kept, and kept under test, alongside the synthesizer
+     * it serves ({@code SynthesizeExternalSource}), for the surface that composes a row's source next.
      */
     private static LogicalPlan pruneColumnsInExternalRelation(ExternalRelation ext, AttributeSet.Builder used) {
         boolean sourceConsumed = false;

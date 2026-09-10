@@ -392,10 +392,24 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
         // Route requested standard metadata names through VirtualColumnIterator's constant-block
         // path by unioning them into the partition-column set.
+        //
+        // Every ExternalMetadataAttribute that reaches here is either a per-file constant standard name
+        // or a _file.* column; Analyzer.bindMetadataFields builds them from exactly those two registries.
+        // A third kind would fall through both arms below, be dropped from the projection by
+        // dataProjectedColumns and never materialised — an all-null column with no error. Fail loud
+        // instead, the same way VirtualColumnIterator does when _file.record_ref has no _rowPosition
+        // channel behind it.
         Set<String> stdMetaNames = new LinkedHashSet<>();
         for (Attribute attr : attributes) {
-            if (attr instanceof ExternalMetadataAttribute && ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(attr.name())) {
+            if (attr instanceof ExternalMetadataAttribute == false) {
+                continue;
+            }
+            if (ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(attr.name())) {
                 stdMetaNames.add(attr.name());
+            } else if (FileMetadataColumns.isFileMetadataColumn(attr.name()) == false) {
+                throw new IllegalStateException(
+                    "metadata column [" + attr.name() + "] is neither a per-file constant nor a _file.* column and cannot be materialised"
+                );
             }
         }
         this.standardMetadataPerFileNames = stdMetaNames.isEmpty() ? Set.of() : Set.copyOf(stdMetaNames);

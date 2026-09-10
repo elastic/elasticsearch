@@ -681,11 +681,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * avoiding the need for source-specific logical plan nodes in core ESQL code.
      * <p>
      * Binds the user's {@code METADATA ...} clause. Every name in
-     * {@link MetadataAttribute#ATTRIBUTES_MAP} (standard names like {@code _id}/{@code _index}/...)
-     * and every name in {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS}
+     * {@link org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns#STANDARD_NAMES}
+     * ({@code _index}, {@code _score}, {@code _ignored}, ...) and every name in
+     * {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS}
      * ({@code _file.path}, {@code _file.name}, ...) becomes an {@link ExternalMetadataAttribute} of
-     * the registered type. Unknown names propagate as-is for the verifier to flag with the existing
-     * "Unknown column" diagnostic. Names already present in the source's natural schema are skipped
+     * the registered type. Every other name — an unknown one, and equally {@code _id},
+     * {@code _version} and {@code _source}, which a file cannot answer — is left unresolved for the
+     * verifier to flag. Names already present in the source's natural schema are skipped
      * — the source's own column wins.
      */
     private static class ResolveExternalRelations extends ParameterizedAnalyzerRule<UnresolvedExternalRelation, AnalyzerContext> {
@@ -776,15 +778,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // A name a dataset cannot answer. The verifier reports it through
                     // ExternalRelation#metadataFields(), and only an UNRESOLVED expression carries a message
                     // for that walk. A name outside MetadataAttribute.ATTRIBUTES_MAP already arrives as one,
-                    // but _id, _version and _source are registered there and so arrive resolved — forwarding
-                    // one of those would drop the name silently instead of rejecting it, so re-wrap them.
-                    // Everything else is forwarded as-is, which keeps _doc (injected by TS_INFO / METRICS_INFO
-                    // rather than typed by the user) on its existing pass-through path.
+                    // but a registered name arrives resolved — forwarding one of those would drop the name
+                    // silently instead of rejecting it, so re-wrap it. Everything else is forwarded as-is,
+                    // which keeps _doc (injected by TS_INFO / METRICS_INFO rather than typed by the user) on
+                    // its existing pass-through path.
                     if (unresolved == null) {
                         unresolved = new ArrayList<>();
                     }
                     unresolved.add(
-                        ExternalMetadataColumns.DOCUMENT_NAMES.contains(name)
+                        ExternalMetadataColumns.isRegisteredButUnbindable(name)
                             ? new UnresolvedMetadataAttributeExpression(requested.source(), name)
                             : requested
                     );

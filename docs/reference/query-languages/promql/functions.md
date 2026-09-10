@@ -76,7 +76,7 @@ Functions that convert between scalars and instant vectors.
 
 ### Sorting functions
 
-Functions that order an instant vector by sample value.
+Functions that order an instant vector by sample value or by label values.
 
 ::::{dropdown} Sorting function list
 :open:

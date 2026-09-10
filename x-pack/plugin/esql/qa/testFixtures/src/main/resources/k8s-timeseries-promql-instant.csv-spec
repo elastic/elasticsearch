@@ -398,3 +398,173 @@ PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_desc(vector(NaN)));
 bytes:double | step:datetime
 NaN          | 2024-05-10T00:03:00.000Z
 ;
+
+instant_sort_by_label_closed_header_skips_extra_label
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(avg by (cluster) (last_over_time(network.bytes_in[1m])), "pod"))
+| SORT cluster;
+
+bytes:double | step:datetime            | cluster:keyword
+612.0        | 2024-05-10T00:03:00.000Z | prod
+749.0        | 2024-05-10T00:03:00.000Z | qa
+382.5        | 2024-05-10T00:03:00.000Z | staging
+;
+
+instant_sort_by_label_open_header_adds_pod
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(last_over_time(network.bytes_in[1m]), "pod"))
+| STATS c = COUNT(), pods = MV_SORT(VALUES(pod));
+
+c:long | pods:keyword
+6      | [three, two]
+;
+
+instant_sort_by_label_open_header_same_series_count
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(last_over_time(network.bytes_in[1m]))
+| STATS c = COUNT();
+
+c:long
+6
+;
+
+instant_sort_by_label_closed_header_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(avg by (cluster) (last_over_time(network.bytes_in[1m])), "cluster"));
+
+bytes:double | step:datetime            | cluster:keyword
+612.0        | 2024-05-10T00:03:00.000Z | prod
+749.0        | 2024-05-10T00:03:00.000Z | qa
+382.5        | 2024-05-10T00:03:00.000Z | staging
+;
+
+instant_sort_by_label_desc_closed_header_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label_desc(avg by (cluster) (last_over_time(network.bytes_in[1m])), "cluster"));
+
+bytes:double | step:datetime            | cluster:keyword
+382.5        | 2024-05-10T00:03:00.000Z | staging
+749.0        | 2024-05-10T00:03:00.000Z | qa
+612.0        | 2024-05-10T00:03:00.000Z | prod
+;
+
+instant_sort_by_label_closed_header_skipped_label_tie_break
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+// "pod" is not in the closed header, so it is skipped; remaining identity (cluster) is the tie-break.
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(avg by (cluster) (last_over_time(network.bytes_in[1m])), "pod"));
+
+bytes:double | step:datetime            | cluster:keyword
+612.0        | 2024-05-10T00:03:00.000Z | prod
+749.0        | 2024-05-10T00:03:00.000Z | qa
+382.5        | 2024-05-10T00:03:00.000Z | staging
+;
+
+instant_sort_by_label_multi_label_first_key_wins
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+// "pod" is skipped on the closed header; "cluster" is the first usable key.
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(avg by (cluster) (last_over_time(network.bytes_in[1m])), "pod", "cluster"));
+
+bytes:double | step:datetime            | cluster:keyword
+612.0        | 2024-05-10T00:03:00.000Z | prod
+749.0        | 2024-05-10T00:03:00.000Z | qa
+382.5        | 2024-05-10T00:03:00.000Z | staging
+;
+
+instant_sort_by_label_open_header_by_pod
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label(last_over_time(network.bytes_in[1m]), "pod"))
+| KEEP pod;
+
+pod:keyword
+three
+three
+three
+two
+two
+two
+;
+
+instant_sort_by_label_desc_open_header_by_pod
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_by_label_desc(last_over_time(network.bytes_in[1m]), "pod"))
+| KEEP pod;
+
+pod:keyword
+two
+two
+two
+three
+three
+three
+;
+
+instant_sort_by_label_natural_order
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+required_capability: promql_label_functions
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+// Lexicographic order would put pod10 before pod2; natural order puts pod2 first.
+PROMQL index=prom-metrics-name time="2024-05-10T01:00:00.000Z" result=(sort_by_label(sum by (pod) (label_replace(label_replace(last_over_time(metrics.requests{pod=~"podA|podB"}[5m]), "pod", "pod10", "pod", "podB"), "pod", "pod2", "pod", "podA")), "pod"));
+
+result:double | step:datetime            | pod:keyword
+10.0          | 2024-05-10T01:00:00.000Z | pod2
+20.0          | 2024-05-10T01:00:00.000Z | pod10
+;
+
+instant_sort_by_label_desc_natural_order
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+required_capability: promql_label_functions
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prom-metrics-name time="2024-05-10T01:00:00.000Z" result=(sort_by_label_desc(sum by (pod) (label_replace(label_replace(last_over_time(metrics.requests{pod=~"podA|podB"}[5m]), "pod", "pod10", "pod", "podB"), "pod", "pod2", "pod", "podA")), "pod"));
+
+result:double | step:datetime            | pod:keyword
+20.0          | 2024-05-10T01:00:00.000Z | pod10
+10.0          | 2024-05-10T01:00:00.000Z | pod2
+;
+
+instant_sort_by_label_missing_label_as_empty
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+required_capability: promql_label_functions
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+// podC has no zone. The output column stays null; COALESCE in the sort key treats that as "" so it sorts first.
+PROMQL index=prom-metrics-name time="2024-05-10T01:00:00.000Z" result=(sort_by_label(sum by (zone) (last_over_time(metrics.requests[5m])), "zone"));
+
+result:double | step:datetime            | zone:keyword
+2.0           | 2024-05-10T01:00:00.000Z | null
+10.0          | 2024-05-10T01:00:00.000Z | eu
+20.0          | 2024-05-10T01:00:00.000Z | us
+;

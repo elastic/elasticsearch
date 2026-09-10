@@ -90,6 +90,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.SortByLabelFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.SortFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
@@ -367,6 +368,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 case HistogramFunctionCall histogramFunction -> doTranslateHistogramFunction(histogramFunction);
                 case ScalarConversionFunction scalar -> doTranslateScalarConvertion(scalar);
                 case MetadataManipulationFunction relabel -> doTranslateMetadataManipulation(relabel);
+                case SortByLabelFunction sortByLabel -> doTranslateSortByLabel(sortByLabel);
                 case SortFunction sort -> doTranslateSort(sort);
                 case PromqlFunctionCall functionCall -> doTranslateFunc(functionCall);
                 case ScalarFunction scalarFunction -> doTranslateScalarFunc(scalarFunction);
@@ -731,6 +733,16 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                     : collapse(skipped, result.header(), nullGrouping);
             }
             return result;
+        }
+
+        /**
+         * Identity translation for {@code sort_by_label}/{@code sort_by_label_desc}: histograms are kept, and usable
+         * sort labels are pushed into the child's required header next to the packed {@code _timeseries} identity so
+         * they materialize as extra columns without unpacking the blob. Ordering is injected later.
+         */
+        private IntermediateResult doTranslateSortByLabel(SortByLabelFunction sort) {
+            Header childRequired = required.union(open()).union(finite(mapFinite(sort.usableSortLabels())));
+            return new Translation(cmd, analyzer, stepBucketAlias, childRequired, time).doTranslateNode(sort.child());
         }
 
         /** Translates a generic PromQL function call (rate, ceil, abs, etc.) into an expression over the child's value. */

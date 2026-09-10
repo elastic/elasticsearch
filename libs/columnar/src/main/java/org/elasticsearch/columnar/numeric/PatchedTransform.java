@@ -71,7 +71,7 @@ public final class PatchedTransform implements BlockTransform {
             if (exceptional(exceptions, valueCount) == false) {
                 continue;
             }
-            final long cost = packedBits(w, valueCount) + (long) exceptions * exceptionBits(width);
+            final long cost = packedBits(w, valueCount) + (long) exceptions * exceptionBits(width, valueCount);
             if (cost < cheapest) {
                 cheapest = cost;
                 narrowest = w;
@@ -116,8 +116,17 @@ public final class PatchedTransform implements BlockTransform {
         return (long) DocValuesForUtil.roundBits(width) * valueCount;
     }
 
-    /** What one value set aside costs: its position in the block, and its own bytes as a vlong. */
-    private static long exceptionBits(int width) {
-        return Byte.SIZE + (long) (width + 6) / 7 * Byte.SIZE;
+    /**
+     * What one value set aside costs: its position in the block as a vint, and its own bytes as a vlong. The
+     * position is charged at the width the last one in the block would need, since which positions a width
+     * sets aside is not known while that width is still a candidate.
+     */
+    private static long exceptionBits(int width, int valueCount) {
+        return (long) (vIntBytes(valueCount - 1) + (width + 6) / 7) * Byte.SIZE;
+    }
+
+    /** Bytes a vint of {@code value} occupies. */
+    private static int vIntBytes(int value) {
+        return (Integer.SIZE - 1 - Integer.numberOfLeadingZeros(value | 1)) / 7 + 1;
     }
 }

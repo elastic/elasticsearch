@@ -170,6 +170,26 @@ public class PatchedTransformTests extends ESTestCase {
     }
 
     /** Params written by one block must not be read by the next, so the buffer is round-tripped as bytes. */
+    /**
+     * A block may hold up to {@link org.elasticsearch.columnar.ColumNARDocValuesFormat#MAX_BLOCK_SIZE} values, so
+     * beyond 128 a position costs two bytes rather than one. Here 1800 wide values among 8192 are worth setting
+     * aside at one byte a position and not at two, so charging them at one would grow the block it was meant to
+     * shrink.
+     *
+     * <p>The shape straddles the decision by about 5%, which is what lets it tell the two costs apart. A change
+     * to what a stage costs, or to how {@code ForTerminal} rounds a width, moves that margin and this block has
+     * to be re-chosen rather than simply kept.
+     */
+    public void testAPositionBeyondAByteIsChargedAsTwo() throws IOException {
+        final int valueCount = 8192;
+        final long[] block = new long[valueCount];
+        Arrays.fill(block, 255L);
+        for (int i = 0; i < 1800; i++) {
+            block[i * 4] = 65535L;
+        }
+        assertLeftAlone(block, valueCount);
+    }
+
     private void assertRoundTrip(long[] original, long[] encoded, int valueCount, MetadataBuffer params) throws IOException {
         for (int i = 0; i < valueCount; i++) {
             assertTrue("a value set aside is packed narrower at " + i, encoded[i] <= original[i]);

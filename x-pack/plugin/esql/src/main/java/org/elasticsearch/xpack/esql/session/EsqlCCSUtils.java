@@ -222,7 +222,7 @@ public class EsqlCCSUtils {
      * view on more than one of them names all of them at once rather than whichever was iterated first.
      * <p>
      * The aggregate carries an empty dataset list: a dataset on another cluster is invisible rather than an error, so
-     * nothing can put one here. The class keeps its shape until the view rail goes the same way (esql-planning#1801).
+     * nothing can put one here. The class keeps its shape until the view rail goes the same way.
      */
     static void checkForRemoteResourceErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
         List<String> views = new ArrayList<>();

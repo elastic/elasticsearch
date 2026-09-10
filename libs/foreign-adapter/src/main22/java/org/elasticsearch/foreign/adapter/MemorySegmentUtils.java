@@ -9,7 +9,6 @@
 
 package org.elasticsearch.foreign.adapter;
 
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 
 import java.lang.foreign.MemorySegment;
@@ -40,21 +39,5 @@ public final class MemorySegmentUtils {
     public static <R, E extends Exception> R withDowncallSegment(byte[] array, int length, CheckedFunction<MemorySegment, R, E> action)
         throws E {
         return action.apply(MemorySegment.ofArray(array).asSlice(0, length));
-    }
-
-    /**
-     * Variant of {@link #withDowncallSegment} for actions that produce no value.
-     *
-     * <p>The segment is obtained the same way and is valid only for the duration of
-     * the call; callers must not retain it.
-     *
-     * @param array  the source bytes; may be longer than {@code length}, in which case only the
-     *               leading {@code length} bytes are exposed
-     * @param length the number of bytes in {@code array} to expose as a {@link MemorySegment}
-     * @param action the action to perform on the segment
-     */
-    public static <E extends Exception> void withVoidDowncallSegment(byte[] array, int length, CheckedConsumer<MemorySegment, E> action)
-        throws E {
-        action.accept(MemorySegment.ofArray(array).asSlice(0, length));
     }
 }

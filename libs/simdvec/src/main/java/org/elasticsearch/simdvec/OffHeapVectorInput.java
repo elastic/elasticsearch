@@ -145,12 +145,10 @@ public final class OffHeapVectorInput extends IndexInput implements HasIndexSlic
     }
 
     /**
-     * Resolves {@code count} byte offsets to raw native addresses with zero per-call allocation,
-     * then invokes {@code action} with the populated {@code addrsOut} buffer. Always returns
-     * {@code true} (the backing arena is always live).
+     * Resolves {@code count} byte offsets to raw native addresses, then invokes {@code action} with the populated {@code addrsOut} buffer.
+     * Always returns {@code true} (the backing arena is always live).
      *
-     * <p>Each offset is mapped to its page via {@code off / pageBytes}. The caller is
-     * responsible for fencing on this input after the native call to prevent the arena from being
+     * <p>The caller is responsible for fencing on this input after the native call to prevent the arena from being
      * collected mid-flight.
      */
     @Override

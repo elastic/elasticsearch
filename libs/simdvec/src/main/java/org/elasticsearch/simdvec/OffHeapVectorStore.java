@@ -103,7 +103,6 @@ public final class OffHeapVectorStore<T> implements Closeable {
 
     /**
      * Materializes the vector at {@code ordinal} into a new array.
-     * Not called on the hot path; used only by the flush/serialization path via {@code getVectors()}.
      *
      * @param ordinal zero-based ordinal
      * @return a heap copy of the vector
@@ -122,8 +121,8 @@ public final class OffHeapVectorStore<T> implements Closeable {
     }
 
     /**
-     * Returns the number of bytes committed to native memory by this store: whole pages, including the
-     * unused tail of the last one. Callers use this for flush accounting, which has to reflect memory
+     * Returns the number of bytes committed to native memory by this store (whole pages, including the
+     * unused tail of the last one). Callers use this for flush accounting, as it reflects memory
      * actually held rather than memory occupied by data.
      */
     public long nativeBytes() {
@@ -140,7 +139,7 @@ public final class OffHeapVectorStore<T> implements Closeable {
      * {@link org.apache.lucene.codecs.lucene95.HasIndexSlice} slice in the native scorer chain.
      *
      * <p>The returned input reflects the live {@link #size()} of the store (growing as vectors are
-     * appended), so it can be created before indexing completes and passed to the supplier.
+     * appended).
      *
      * <p>Multiple views may be created; all share the same underlying pages and arena.
      */

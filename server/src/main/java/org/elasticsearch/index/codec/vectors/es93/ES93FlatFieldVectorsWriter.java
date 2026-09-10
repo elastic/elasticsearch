@@ -37,7 +37,7 @@ import java.util.List;
  *
  * <p>{@link #getVectors} returns a view that materialises a fresh heap array on every access, so each
  * traversal of it copies the whole field. It is therefore only suitable for formats that traverse it once
- * at write-out, and never for one that mutates the arrays it gets back — those mutations are lost.
+ * at write-out, and never for one that mutates the arrays it gets back (mutations are lost).
  *
  * <p>Use the static factory {@link #create(FieldInfo)} as an
  * {@code IOFunction<FieldInfo, FlatFieldVectorsWriter<?>>} passed to the 3-arg

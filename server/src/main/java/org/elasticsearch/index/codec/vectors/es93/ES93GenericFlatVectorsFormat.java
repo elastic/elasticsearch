@@ -49,12 +49,10 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
 
     /**
      * A write-side-only variant of {@link #defaultVectorFormat} that buffers vectors in native memory
-     * ({@link ES93FlatFieldVectorsWriter}) instead of an on-heap list, making them addressable as an
-     * {@code IndexInput} so that {@link ES93GenericFlatVectorScorer} can pick a native scorer.
+     * ({@link ES93FlatFieldVectorsWriter}) instead of an on-heap list.
      *
      * <p>It produces the same files as {@link #defaultVectorFormat} and deliberately inherits its
-     * {@code getName()}, which is written into the {@code .vfi} meta and used by the read side to
-     * resolve the format. It therefore must not be added to {@link #supportedFormats}.
+     * {@code getName()}. It therefore must not be added to {@link #supportedFormats}.
      */
     private static final DirectIOCapableFlatVectorsFormat offHeapBufferedDefaultVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         ES93GenericFlatVectorScorer.INSTANCE
@@ -98,10 +96,10 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     }
 
     /**
-     * @param offHeapBuffering buffer FLOAT32 and BYTE vectors in native memory while the segment is written,
-     *                         see {@link #offHeapBufferedDefaultVectorFormat}. Requires that each buffered
-     *                         vector is read at most once, and never mutated in place, by the enclosing
-     *                         format's write path. Ignored for BIT and BFLOAT16.
+     * Variant that can buffer FLOAT32 and BYTE vectors in native memory while the segment is written, see
+     * {@link #offHeapBufferedDefaultVectorFormat}. Off-heap buffering requires that each buffered vector is
+     * read at most once, and never mutated in place, by the enclosing format's write path; it is ignored for
+     * BIT and BFLOAT16.
      */
     public ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO, boolean offHeapBuffering) {
         super(NAME);

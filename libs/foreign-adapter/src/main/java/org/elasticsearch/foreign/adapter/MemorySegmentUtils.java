@@ -9,7 +9,6 @@
 
 package org.elasticsearch.foreign.adapter;
 
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 
 import java.lang.foreign.Arena;
@@ -45,26 +44,6 @@ public final class MemorySegmentUtils {
             MemorySegment segment = arena.allocate(length);
             MemorySegment.copy(array, 0, segment, ValueLayout.JAVA_BYTE, 0, length);
             return action.apply(segment);
-        }
-    }
-
-    /**
-     * Variant of {@link #withDowncallSegment} for actions that produce no value.
-     *
-     * <p>The segment is obtained the same way and is valid only for the duration of
-     * the call; callers must not retain it.
-     *
-     * @param array  the source bytes; may be longer than {@code length}, in which case only the
-     *               leading {@code length} bytes are exposed
-     * @param length the number of bytes in {@code array} to expose as a {@link MemorySegment}
-     * @param action the action to perform on the segment
-     */
-    public static <E extends Exception> void withVoidDowncallSegment(byte[] array, int length, CheckedConsumer<MemorySegment, E> action)
-        throws E {
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment segment = arena.allocate(length);
-            MemorySegment.copy(array, 0, segment, ValueLayout.JAVA_BYTE, 0, length);
-            action.accept(segment);
         }
     }
 }

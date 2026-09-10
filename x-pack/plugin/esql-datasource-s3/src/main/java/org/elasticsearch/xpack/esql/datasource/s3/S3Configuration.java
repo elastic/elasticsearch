@@ -80,7 +80,10 @@ public class S3Configuration extends FileDataSourceConfiguration {
         }
     }
 
-    private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
+    // Fields accepted on a data-source PUT. region is kept here for backward-compat storage;
+    // the storage provider never reads a data-source-level region (DatasetRewriter.mergeSettings
+    // removes it from the _datasource contribution before query time).
+    private static final Map<String, DataSourceConfigDefinition> DATA_SOURCE_FIELDS = DataSourceConfigDefinition.mapOf(
         ACCESS_KEY,
         SECRET_KEY,
         SESSION_TOKEN,
@@ -95,12 +98,16 @@ public class S3Configuration extends FileDataSourceConfiguration {
         AUTH
     );
 
+    // Fields consumed at query time. Same set for now; can diverge if region is eventually
+    // retired from the data-source vocabulary (see elastic/esql-planning#1747 step 7).
+    private static final Map<String, DataSourceConfigDefinition> QUERY_FIELDS = DATA_SOURCE_FIELDS;
+
     private S3Configuration(Map<String, Object> raw) {
-        super(raw, FIELDS);
+        super(raw, DATA_SOURCE_FIELDS);
     }
 
     private S3Configuration(Map<String, Object> raw, Set<String> preexistingSecretKeys) {
-        super(raw, FIELDS, preexistingSecretKeys);
+        super(raw, DATA_SOURCE_FIELDS, preexistingSecretKeys);
     }
 
     @Override
@@ -142,7 +149,7 @@ public class S3Configuration extends FileDataSourceConfiguration {
      * before construction; cross-field validation (auth/credential conflicts) still runs.
      */
     public static Configured<S3Configuration> fromQueryConfig(Map<String, Object> raw) {
-        return filterAndConstruct(raw, FIELDS, S3Configuration::new);
+        return filterAndConstruct(raw, QUERY_FIELDS, S3Configuration::new);
     }
 
     public static S3Configuration fromFields(String accessKey, String secretKey, String endpoint, String region) {
@@ -273,9 +280,9 @@ public class S3Configuration extends FileDataSourceConfiguration {
     }
 
     /**
-     * Optional region for the STS client, independent of the bucket {@link #region()}. STS uses regional endpoints
+     * Optional region for the STS client, independent of the dataset {@link #region()}. STS uses regional endpoints
      * ({@code sts.<region>.amazonaws.com}), so this allows assuming the role through a different region than the
-     * bucket. When unset, the bucket region is used (which also keeps STS in the bucket's AWS partition).
+     * dataset. When unset, the dataset region is used (which also keeps STS in the dataset's AWS partition).
      */
     public String stsRegion() {
         return get(STS_REGION.name());

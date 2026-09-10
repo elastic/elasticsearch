@@ -1174,6 +1174,39 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertEquals(";", result.get("delimiter"));
     }
 
+    /** Validator configured as the plugin does: additional dataset key + deprecation hook for region. */
+    private final FileDataSourceValidator pluginValidator = new FileDataSourceValidator(
+        "s3",
+        S3Configuration::fromMap,
+        Set.of("s3", "s3a", "s3n")
+    ).withAdditionalDatasetKeys(Set.of("region"))
+        .withDeprecatedDatasourceKey(
+            "region",
+            "[region] on a data source is deprecated and will be ignored; "
+                + "set [region] on the dataset instead, or omit it to have the bucket region detected automatically"
+        );
+
+    public void testValidateDatasetAcceptsRegion() {
+        // region is an additional dataset key registered by the S3 plugin; a dataset PUT with region
+        // must succeed without an "unknown field" error.
+        var result = pluginValidator.validateDataset(Map.of(), "s3://bucket/data.parquet", Map.of("region", "eu-west-1"));
+        assertEquals("eu-west-1", result.get("region"));
+    }
+
+    public void testValidateDatasourceRegionDeprecationWarningEmitted() {
+        // Placing region on a data source is valid (backward compat) but deprecated.
+        // The PUT must succeed, emit the expected deprecation warning, and store the value unchanged
+        // so GET still returns it (the storage provider ignores it; only the dataset-level value is used).
+        var stored = pluginValidator.validateDatasource(
+            Map.of("access_key", "AKIAIOSFODNN7EXAMPLE", "secret_key", "secret", "region", "us-east-1")
+        );
+        assertEquals("us-east-1", stored.get("region").nonSecretValue());
+        assertWarnings(
+            "[region] on a data source is deprecated and will be ignored; "
+                + "set [region] on the dataset instead, or omit it to have the bucket region detected automatically"
+        );
+    }
+
     public void testUnsupportedSchemeListsTheSchemesInAStableOrder() {
         // Nine schemes declared out of order. Set.of salts its iteration per JVM run; over nine elements the sorted
         // arrangement is not among the orderings it can produce, so with the renderer's sort removed this fails every

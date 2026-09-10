@@ -166,9 +166,15 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
-        DataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, supportedSchemes()).withResourceCheck(
-            S3ResourceCheck::validate
-        );
+        DataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, supportedSchemes()).withAdditionalDatasetKeys(
+            Set.of("region")
+        )
+            .withDeprecatedDatasourceKey(
+                "region",
+                "[region] on a data source is deprecated and will be ignored; "
+                    + "set [region] on the dataset instead, or omit it to have the bucket region detected automatically"
+            )
+            .withResourceCheck(S3ResourceCheck::validate);
         return Map.of(v.type(), v);
     }
 

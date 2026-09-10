@@ -9,6 +9,15 @@ setup:
       reason: "ES|QL data source CRUD API"
 
 ---
+teardown:
+  # Safety-net cleanup for the region-on-datasource-warns test. Uses ignore: 404 because the
+  # resource is only created by that one test; every other test case leaves it absent.
+  - do:
+      esql.delete_data_source:
+        name: ds_region_warn
+        ignore: 404
+
+---
 "get-empty":
   - do:
       esql.get_data_source: { }
@@ -105,6 +114,39 @@ setup:
         name: "no_match_*"
 
   - match: { data_sources: [] }
+
+---
+"region-on-datasource-warns":
+  # region on a data-source PUT is valid (backward compat) but deprecated.
+  # The PUT must return HTTP 200 and a Warning response header containing the deprecation message.
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/data_source/{name}
+          capabilities: [dataset_region]
+      test_runner_features: [capabilities, warnings]
+      reason: "region deprecation warning on data-source PUT"
+
+  - do:
+      warnings:
+        - "[region] on a data source is deprecated and will be ignored; set [region] on the dataset instead, or omit it to have the bucket region detected automatically"
+      esql.put_data_source:
+        name: ds_region_warn
+        body:
+          type: s3
+          settings:
+            auth: anonymous
+            region: us-east-1
+
+  - do:
+      esql.get_data_source:
+        name: ds_region_warn
+
+  - match: { data_sources.0.settings.region: "us-east-1" }
+
+  - do:
+      esql.delete_data_source:
+        name: ds_region_warn
 
 ---
 "cluster-state-visibility":

@@ -83,6 +83,14 @@ public class S3HttpHandler implements HttpHandler {
     private final S3ConsistencyModel consistencyModel;
     private final Supplier<String> uuidGenerator;
 
+    /**
+     * When non-null, any HEAD /{bucket} request responds with HTTP 400 AuthorizationHeaderMalformed
+     * and an {@code x-amz-bucket-region} response header pointing at this region. Used by tests that
+     * exercise the provider's HeadBucket-based region-discovery retry path.
+     */
+    @Nullable
+    private volatile String correctRegion;
+
     private final ConcurrentMap<String, BlobEntry> blobs = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, MultipartUpload> uploads = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, AtomicInteger> completingUploads = new ConcurrentHashMap<>();
@@ -102,6 +110,15 @@ public class S3HttpHandler implements HttpHandler {
         // generates different UUIDs.
         final var random = new Random(ESTestCase.randomLong());
         this.uuidGenerator = () -> UUIDs.randomBase64UUID(random);
+    }
+
+    /**
+     * Configures the handler to return a wrong-region 400 on {@code HEAD /<bucket>}.
+     * Set to the bucket's actual region so that clients can discover it via the
+     * {@code x-amz-bucket-region} response header and retry with the correct signing region.
+     */
+    public void setCorrectRegion(String region) {
+        this.correctRegion = region;
     }
 
     /**
@@ -134,7 +151,23 @@ public class S3HttpHandler implements HttpHandler {
         }
 
         try (exchange) {
-            if (request.isHeadObjectRequest()) {
+            if (request.isHeadBucketRequest()) {
+                final String cr = correctRegion;
+                if (cr != null) {
+                    final byte[] body = ("""
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <Error>
+                          <Code>AuthorizationHeaderMalformed</Code>
+                          <Message>The authorization header is malformed; the region '%s' is wrong; expecting '%s'</Message>
+                        </Error>""".formatted("us-east-1", cr)).getBytes(StandardCharsets.UTF_8);
+                    exchange.getResponseHeaders().add("x-amz-bucket-region", cr);
+                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                    exchange.sendResponseHeaders(400, body.length);
+                    exchange.getResponseBody().write(body);
+                } else {
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                }
+            } else if (request.isHeadObjectRequest()) {
                 final BlobEntry blobEntry = blobs.get(request.path());
                 if (blobEntry == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
@@ -913,6 +946,10 @@ public class S3HttpHandler implements HttpHandler {
 
         private boolean isUnderBucketRootAndBasePath() {
             return path.startsWith("/" + bucketAndBasePath + "/");
+        }
+
+        public boolean isHeadBucketRequest() {
+            return "HEAD".equals(method) && isBucketRootPath();
         }
 
         public boolean isHeadObjectRequest() {

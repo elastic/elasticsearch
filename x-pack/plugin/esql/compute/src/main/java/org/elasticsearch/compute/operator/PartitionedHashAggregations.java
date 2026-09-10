@@ -141,7 +141,7 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
             List<GroupingAggregator> aggregators = op.aggregators;
             for (int i = 0; i < aggregators.size(); i++) {
                 final var aggregator = aggregators.get(i).aggregatorFunction();
-                // If some group in any generation doesn't value we need to track groupIds
+                // If some group in any generation is missing a value we need to track groupIds
                 for (int g = 0; g < numGens; g++) {
                     if (generations.get(g).aggs.states[i].hasAllValues(p) == false) {
                         aggregator.selectedMayContainUnseenGroups(new SeenGroupIds.Empty());

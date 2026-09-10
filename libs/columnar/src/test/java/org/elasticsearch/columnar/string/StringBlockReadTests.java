@@ -19,6 +19,7 @@ import java.util.Map;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -105,6 +106,15 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
             final Rebuilt third = new Rebuilt();
             assertTrue(reader.readBlock(docs, 0, docs.length, third, counting));
             assertThat("a larger page is charged the difference", charged[0], greaterThan(afterFirst));
+            if (metadata instanceof StringColumnMetadata.Dictionary) {
+                // The ordinals a page touches are held one per value, so widening the page from 256 values to
+                // all of them cannot be charged less than that array grew by.
+                assertThat(
+                    "the ordinals a page touches are charged too",
+                    charged[0] - afterFirst,
+                    greaterThanOrEqualTo((long) (docs.length - 256) * Integer.BYTES)
+                );
+            }
         });
     }
 

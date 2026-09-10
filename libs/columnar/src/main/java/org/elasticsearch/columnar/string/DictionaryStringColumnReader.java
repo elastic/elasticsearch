@@ -565,11 +565,13 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
      */
     private int distinctOrdinals(int count, int dictionarySize) {
         if (touched.length < count) {
+            charge((long) (count - touched.length) * Integer.BYTES);
             touched = new int[count];
         }
         int distinct = 0;
         if (dictionarySize <= count) {
             if (slotByOrdinal.length < dictionarySize) {
+                charge(2L * (dictionarySize - slotByOrdinal.length) * Integer.BYTES);
                 slotByOrdinal = new int[dictionarySize];
                 stampByOrdinal = new int[dictionarySize];
                 generation = 0;

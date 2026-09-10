@@ -190,6 +190,14 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     }
 
     /**
+     * Charges the page budget for storage about to be taken. Called before the allocation, so a budget with
+     * no room for it refuses while the reader still holds nothing it has not accounted for.
+     */
+    protected void charge(long bytes) {
+        budget.charge(bytes);
+    }
+
+    /**
      * Whether the slot at {@code valueAddress} is null rather than a value. How that is recorded is the
      * layout's own, so answering it is too — see {@link PlainStringColumnReader} and
      * {@link DictionaryStringColumnReader}.
@@ -581,7 +589,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
             capacity <<= 1;
         }
         if (slotByHash.length < capacity) {
-            budget.charge(2L * (capacity - slotByHash.length) * Integer.BYTES);
+            charge(2L * (capacity - slotByHash.length) * Integer.BYTES);
             slotByHash = new int[capacity];
             slotStamp = new int[capacity];
             slotGeneration = 0;
@@ -632,10 +640,12 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
 
     /** Copies a value into the page's own bytes, so the reader's buffer can be reused for the next one. */
     protected void appendToPage(int slot, BytesRef value) {
-        if (pageBytes.length < pageBytesLength + value.length) {
-            final int was = pageBytes.length;
-            pageBytes = ArrayUtil.grow(pageBytes, pageBytesLength + value.length);
-            budget.charge(pageBytes.length - was);
+        final int needed = pageBytesLength + value.length;
+        if (pageBytes.length < needed) {
+            // Sized first and charged second, so a budget with no room refuses before the array is replaced.
+            final int grown = ArrayUtil.oversize(needed, Byte.BYTES);
+            charge((long) grown - pageBytes.length);
+            pageBytes = ArrayUtil.growExact(pageBytes, grown);
         }
         System.arraycopy(value.bytes, value.offset, pageBytes, pageBytesLength, value.length);
         pageStarts[slot] = pageBytesLength;
@@ -655,7 +665,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     /** Room for a page covering {@code docCount} documents, whatever they turn out to hold. */
     protected void growPageDocs(int docCount) {
         if (pageRanks.length < docCount) {
-            budget.charge(2L * (docCount - pageRanks.length) * Integer.BYTES);
+            charge(2L * (docCount - pageRanks.length) * Integer.BYTES);
             pageRanks = new int[docCount];
             pageValueCounts = new int[docCount];
         }
@@ -670,7 +680,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
             return;
         }
         final int more = valueCount - pageOrdinals.length;
-        budget.charge((long) more * (3L * Integer.BYTES + Long.BYTES + 2L * BYTES_REF_BYTES));
+        charge((long) more * (3L * Integer.BYTES + Long.BYTES + 2L * BYTES_REF_BYTES));
         pageOrdinals = new int[valueCount];
         pageValueAddresses = new long[valueCount];
         pageStarts = new int[valueCount];

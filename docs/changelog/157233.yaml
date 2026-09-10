@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 157233
-summary: Change the output of METADATA paired with logical views
+summary: Fix METADATA behavior with subqueries and extend that to logical views
 type: "bug, enhancement"

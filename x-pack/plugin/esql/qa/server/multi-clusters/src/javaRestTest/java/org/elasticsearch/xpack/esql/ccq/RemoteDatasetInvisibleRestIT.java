@@ -47,9 +47,12 @@ import static org.hamcrest.Matchers.not;
  * federation available at each end, which is the shape the invisibility has to hold in.
  *
  * <p>The exact qualified name must fail as a plain missing index, exactly like a name that was never registered, and
- * the wildcard must come back with the index's row and no partial flag. What reds them is the coordinator asking for
- * datasets again while the remote is willing to answer; neither half alone does it, since a remote only ever answers
- * when asked. The forced clear on the receiving side is discriminated by {@code EsqlResolveFieldsActionTests} instead.
+ * the wildcard must come back with the index's row and no partial flag. Which half of the change carries that depends
+ * on the task. With both ends on this version the coordinator never asks and a remote only answers when asked, so the
+ * receiving side's clear is never reached and {@code EsqlResolveFieldsActionTests} discriminates it instead. Under the
+ * task that boots the previous minor as the coordinator, that coordinator does ask — {@link Clusters#localCluster}
+ * turns federation on for every node that knows the setting — so there the clear is the only thing hiding the dataset
+ * and reverting it alone reds these assertions.
  *
  * <p>This module's backwards compatibility tasks run the whole source set with an older distribution on one side, so
  * each assertion picks its expectation from {@link EsqlCapabilities.Cap#REMOTE_DATASETS_ARE_INVISIBLE} rather than

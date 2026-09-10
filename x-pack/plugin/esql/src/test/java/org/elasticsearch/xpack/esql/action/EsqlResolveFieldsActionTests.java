@@ -10,6 +10,8 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlResolveFieldsActionTests extends ESTestCase {
@@ -21,44 +23,65 @@ public class EsqlResolveFieldsActionTests extends ESTestCase {
      * flag, so anything it touched beyond this one option would be a second, unrelated change to a resolved request.
      */
     public void testDatasetResolutionIsClearedWhateverTheCallerAsked() {
-        for (boolean callerAsked : new boolean[] { true, false }) {
-            var request = new FieldCapabilitiesRequest().indices("remote_employees");
-            var incoming = IndicesOptions.builder(randomIndicesOptions())
-                .indexAbstractionOptions(
-                    IndicesOptions.IndexAbstractionOptions.builder().resolveViews(randomBoolean()).resolveDatasets(callerAsked)
-                )
-                .build();
-            request.indicesOptions(incoming);
-
-            EsqlResolveFieldsAction.clearDatasetResolution(request);
-
-            // The expectation is built from the canonical constructors at both levels rather than through the builders
-            // the clear itself uses. Copying it through those builders would make both sides drop anything a copy
-            // constructor failed to carry, and the assertion would stay green on exactly the drift it is here to
-            // catch. Naming every component also makes a component added later a compile error here.
-            var expected = new IndicesOptions(
-                incoming.concreteTargetOptions(),
-                incoming.wildcardOptions(),
-                incoming.gatekeeperOptions(),
-                incoming.crossProjectModeOptions(),
-                new IndicesOptions.IndexAbstractionOptions(
-                    incoming.indexAbstractionOptions().resolveAliases(),
-                    incoming.indexAbstractionOptions().resolveViews(),
-                    false
-                )
-            );
-            assertThat(request.indicesOptions(), equalTo(expected));
-            assertThat(request.indicesOptions().indexAbstractionOptions().resolveDatasets(), equalTo(false));
-            assertThat(request.indices(), equalTo(new String[] { "remote_employees" }));
+        for (IndicesOptions base : BASES) {
+            for (boolean crossProject : new boolean[] { true, false }) {
+                for (boolean callerAsked : new boolean[] { true, false }) {
+                    run(base, crossProject, callerAsked);
+                }
+            }
         }
     }
 
-    private static IndicesOptions randomIndicesOptions() {
-        return randomFrom(
-            IndicesOptions.DEFAULT,
-            IndicesOptions.strictExpandOpen(),
-            IndicesOptions.lenientExpandOpen(),
-            IndicesOptions.strictSingleIndexNoExpandForbidClosed()
+    /**
+     * One cell of the sweep above: hand {@code clearDatasetResolution} a request whose options are {@code base} with
+     * the cross-project mode and the dataset flag set as given, and require that only that flag moved.
+     */
+    private static void run(IndicesOptions base, boolean crossProject, boolean callerAsked) {
+        var request = new FieldCapabilitiesRequest().indices("remote_employees");
+        // Minted through the canonical constructors, never through IndicesOptions.Builder. The clear itself copies
+        // through that builder, so an incoming value that had already been through it would arrive already missing
+        // whatever the copy failed to carry, and the expectation below would read the same lossy value back.
+        var incoming = new IndicesOptions(
+            base.concreteTargetOptions(),
+            base.wildcardOptions(),
+            base.gatekeeperOptions(),
+            new IndicesOptions.CrossProjectModeOptions(crossProject),
+            new IndicesOptions.IndexAbstractionOptions(base.indexAbstractionOptions().resolveAliases(), true, callerAsked)
         );
+        request.indicesOptions(incoming);
+
+        EsqlResolveFieldsAction.clearDatasetResolution(request);
+
+        // The expectation is built from the canonical constructors at both levels rather than through the builders
+        // the clear itself uses. Copying it through those builders would make both sides drop anything a copy
+        // constructor failed to carry, and the assertion would stay green on exactly the drift it is here to
+        // catch. Naming every component also makes a component added later a compile error here.
+        var expected = new IndicesOptions(
+            incoming.concreteTargetOptions(),
+            incoming.wildcardOptions(),
+            incoming.gatekeeperOptions(),
+            incoming.crossProjectModeOptions(),
+            new IndicesOptions.IndexAbstractionOptions(
+                incoming.indexAbstractionOptions().resolveAliases(),
+                incoming.indexAbstractionOptions().resolveViews(),
+                false
+            )
+        );
+        assertThat(request.indicesOptions(), equalTo(expected));
+        assertThat(request.indicesOptions().indexAbstractionOptions().resolveDatasets(), equalTo(false));
+        assertThat(request.indices(), equalTo(new String[] { "remote_employees" }));
     }
+
+    /**
+     * Every base the sweep runs, rather than one drawn at random. They differ from one another in the concrete target,
+     * wildcard and gatekeeper components, so dropping any of those three on the way through reds this test. A random
+     * draw would have exercised a given difference only on some seeds. All four carry the same cross-project mode,
+     * which is why the sweep varies that itself rather than leaning on the base to vary it.
+     */
+    private static final List<IndicesOptions> BASES = List.of(
+        IndicesOptions.DEFAULT,
+        IndicesOptions.strictExpandOpen(),
+        IndicesOptions.lenientExpandOpen(),
+        IndicesOptions.strictSingleIndexNoExpandForbidClosed()
+    );
 }

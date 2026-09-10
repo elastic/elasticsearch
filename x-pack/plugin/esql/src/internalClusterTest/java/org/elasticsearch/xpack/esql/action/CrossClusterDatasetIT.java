@@ -216,9 +216,10 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
     /**
      * The cell no other wildcard test reaches: a pattern on a remote that cannot be skipped whose only match there is
      * the dataset. With no index beside it to carry the result, this is where the change is furthest from the old
-     * behaviour, which failed the whole query naming the dataset. It resolves the way a pattern matching nothing
-     * anywhere resolves, and that control is what the outcome is compared against rather than a fixed expectation,
-     * since a wildcard and an exact name do not take the same branch when a remote resolves nothing.
+     * behaviour, which failed the whole query naming the dataset. Two assertions, and they answer different questions.
+     * The control establishes the equivalence: it resolves the way a pattern matching nothing anywhere resolves, which
+     * a fixed expectation could not show, since a wildcard and an exact name do not take the same branch when a remote
+     * resolves nothing. The anchor then says what both arms actually did, so they cannot agree by failing alike.
      */
     public void testWildcardMatchingOnlyTheRemoteDatasetResolvesLikeAPatternMatchingNothing() {
         String shape = outcomeShape(REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET + "*", REMOTE_DATASET);

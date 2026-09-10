@@ -12,6 +12,9 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -118,18 +121,18 @@ class NodeHeapMemoryShardMovementSimulator {
     /**
      * Apply the deltas to the initial estimates, clamping the results to 0 to avoid producing negative estimates.
      */
-    Map<String, NodeHeapMetrics> getSimulatedHeapMetrics() {
+    Map<String, NodeHeapMetrics> getSimulatedHeapMetrics(DiscoveryNodes nodes) {
         // If there was no shard movement, just return the unchanged metrics
         if (usageDeltaByNode.isEmpty()) {
             return initialNodeHeapMetrics;
         }
         return initialNodeHeapMetrics.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> {
+            boolean nodeIsIndexingNode = nodeIsIndexingNode(entry.getKey(), nodes);
             if (usageDeltaByNode.containsKey(entry.getKey())) {
                 NodeHeapMetrics initialMetrics = entry.getValue();
-                final var adjustedTotalUsage = Math.max(
-                    0,
-                    Math.addExact(initialMetrics.nodeHeapEstimates().totalHeapUsage(), usageDeltaByNode.get(entry.getKey()))
-                );
+                final var adjustedTotalUsage = nodeIsIndexingNode
+                    ? Math.max(0, Math.addExact(initialMetrics.nodeHeapEstimates().totalHeapUsage(), usageDeltaByNode.get(entry.getKey())))
+                    : 0;
                 final var adjustedHostedShardsUsage = Math.max(
                     0,
                     Math.addExact(initialMetrics.nodeHeapEstimates().hostedShardsHeapUsage(), usageDeltaByNode.get(entry.getKey()))
@@ -142,5 +145,10 @@ class NodeHeapMemoryShardMovementSimulator {
             }
             return entry.getValue();
         }));
+    }
+
+    private boolean nodeIsIndexingNode(String nodeId, DiscoveryNodes discoveryNodes) {
+        DiscoveryNode discoveryNode = discoveryNodes.get(nodeId);
+        return discoveryNode != null && discoveryNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE);
     }
 }

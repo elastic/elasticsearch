@@ -3505,43 +3505,6 @@ id:keyword | a.b:keyword | _source:_source
 9          | null        | "{""id"":""9""}"
 ;
 
-mixedStdColumnarCrossIndexLoadAll
-required_capability: optional_fields_load_all_v2
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM idx_std, idx_col METADATA _index
-| SORT foo NULLS LAST, bar NULLS LAST
-;
-
-bar:keyword | foo:keyword | _index:keyword
-b1          | a1          | idx_std
-b2          | null        | idx_col
-;
-
-wildcardExpansionUnderColumnar
-required_capability: optional_fields_load_all_v2
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM idx_col_dynamic_false METADATA _source
-| KEEP foo, unmapped*, *
-;
-
-foo:keyword | _source:_source
-v1          | "{""foo"":""v1""}"
-;
-
-explicitReferenceUnderColumnar
-required_capability: optional_fields_load_all_v2
-
-SET unmapped_fields="LOAD_ALL"\;
-FROM idx_col_dynamic_false METADATA _source
-| KEEP unmapped_x, _source
-;
-
-unmapped_x:keyword | _source:_source
-null               | "{""foo"":""v1""}"
-;
-
 // this test shows that unmapped_source_mapped index which has "subobjects": false and has objarr.k and objarr.j declared as keyword (a field with dot in its name directly in the mapping)
 // will not accept values that come via JSON as objects, for example "objarr":[{"k":"p"},{"k":"q"}]. If this JSON would have been "objarr.k":["p","q"] then LOAD_ALL would have loaded it.
 storedobjectsFalse_For_unmapped_source_mapped_Highlight

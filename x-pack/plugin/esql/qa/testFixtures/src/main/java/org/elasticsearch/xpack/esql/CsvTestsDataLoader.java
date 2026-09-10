@@ -196,15 +196,6 @@ public class CsvTestsDataLoader {
             "unmapped_source.csv",
             "synthetic-source-settings.json"
         ),
-        // idx_std/idx_col/idx_col_dynamic_false: columnar LOAD_ALL boundary tests
-        new TestDataset("idx_std", "mapping-idx_std.json", "idx_std.csv"),
-        new TestDataset("idx_col", "mapping-idx_col.json", "idx_col.csv", "columnar-settings.json"),
-        new TestDataset(
-            "idx_col_dynamic_false",
-            "mapping-idx_col_dynamic_false.json",
-            "idx_col_dynamic_false.csv",
-            "columnar-settings.json"
-        ),
         new TestDataset("cross_mapping_a", "mapping-cross_mapping_a.json", "cross_mapping_a.csv"),
         new TestDataset("cross_mapping_b", "mapping-cross_mapping_b.json", "cross_mapping_b.csv"),
         new TestDataset("no_message_sample_data", "mapping-sample_data.json", "sample_data.csv").withTypeMapping(removeFields("message"))

@@ -180,10 +180,6 @@ public class CsvColumnarIT extends CsvIT {
         "unmapped_source_excludes",
         "unmapped_source_includes",
         "unmapped_source_subobjects_false",
-        // idx_std: deliberately standard-mode index (standard half of mixedStdColumnarCrossIndexLoadAll).
-        // Asserts asymmetry: standard loads unmapped fields from _source, columnar drops them at ingest.
-        // Setting index.mode=columnar would eliminate the asymmetry and destroy the test's premise.
-        "idx_std",
         // no_mapping_sample_data has no explicit mapping; all its fields are unmapped. When
         // combined with other indices in a multi-index query and LOAD is used to load the
         // unmapped fields, columnar mode returns null for them (synthetic _source cannot

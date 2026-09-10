@@ -1,4 +1,0 @@
-// Columnar index (index.mode=columnar, dynamic:false), foo mapped, unmapped_x unmapped.
-// One document: {foo:"v1", unmapped_x:"ignored_at_ingest"}. unmapped_x dropped at ingest.
-foo:keyword,unmapped_x:keyword
-v1,ignored_at_ingest

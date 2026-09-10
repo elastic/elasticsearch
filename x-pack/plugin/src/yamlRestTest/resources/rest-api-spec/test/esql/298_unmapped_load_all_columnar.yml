@@ -1,0 +1,133 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_v2 ]
+      reason: >
+        Columnar index mode (index.mode=columnar) is a 9.5+ preview feature gated by
+        optional_fields_load_all_v2 (snapshot-only). In strict columnar mode the generic
+        _ignored_source is disabled, so unmapped fields are dropped at ingest and cannot
+        be recovered by LOAD_ALL at query time.
+
+  # Standard mode (default), dynamic:false, foo mapped. bar is unmapped and lands in _source.
+  - do:
+      indices.create:
+        index: unmapped-idx-std
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              foo:
+                type: keyword
+
+  - do:
+      index:
+        index: unmapped-idx-std
+        id: "1"
+        refresh: true
+        body:
+          foo: "a1"
+          bar: "b1"
+
+  # Columnar mode, dynamic:false, bar mapped. foo is dropped at ingest (no _ignored_source in columnar).
+  - do:
+      indices.create:
+        index: unmapped-idx-col
+        body:
+          settings:
+            index:
+              mode: columnar
+          mappings:
+            dynamic: false
+            properties:
+              bar:
+                type: keyword
+
+  - do:
+      index:
+        index: unmapped-idx-col
+        id: "1"
+        refresh: true
+        body:
+          foo: "a2"
+          bar: "b2"
+
+  # Columnar mode, dynamic:false, foo mapped. unmapped_x is dropped at ingest (no _ignored_source in columnar).
+  - do:
+      indices.create:
+        index: unmapped-idx-col-dyn-false
+        body:
+          settings:
+            index:
+              mode: columnar
+          mappings:
+            dynamic: false
+            properties:
+              foo:
+                type: keyword
+
+  - do:
+      index:
+        index: unmapped-idx-col-dyn-false
+        id: "1"
+        refresh: true
+        body:
+          foo: "v1"
+          unmapped_x: "ignored_at_ingest"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: unmapped-idx-std,unmapped-idx-col,unmapped-idx-col-dyn-false
+        ignore_unavailable: true
+
+---
+'standard leg loads unmapped from source, columnar leg yields null':
+  # LOAD_ALL reads bar from unmapped-idx-std (standard, keeps full _source) but cannot recover
+  # foo from unmapped-idx-col (strict columnar, dropped it at ingest). The cross-index result
+  # proves the boundary: b1 flows from the standard leg, foo from the columnar leg is null.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM unmapped-idx-std, unmapped-idx-col METADATA _index | SORT foo NULLS LAST, bar NULLS LAST | LIMIT 5'
+  - length: { columns: 3 }
+  - match: { columns.0.name: bar }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: foo }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: _index }
+  - match: { columns.2.type: keyword }
+  - match: { values.0: [ "b1", "a1", "unmapped-idx-std" ] }
+  - match: { values.1: [ "b2", null, "unmapped-idx-col" ] }
+
+---
+'wildcard unmapped* expansion produces no extra columns in columnar LOAD_ALL':
+  # unmapped_x was dropped at ingest by the columnar engine (isStrictColumnar() disables
+  # _ignored_source, so the field is lost during document parsing). Under LOAD_ALL, the
+  # wildcard unmapped* finds no candidates in source, so only foo survives KEEP.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM unmapped-idx-col-dyn-false | KEEP foo, unmapped*, * | LIMIT 5'
+  - length: { columns: 1 }
+  - match: { columns.0.name: foo }
+  - match: { columns.0.type: keyword }
+  - match: { values.0: [ "v1" ] }
+
+---
+'explicit reference to unmapped field on columnar index yields null':
+  # Naming unmapped_x explicitly under LOAD_ALL is valid syntax (the field expands as keyword),
+  # but because columnar mode dropped it at ingest there is nothing to load from source.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM unmapped-idx-col-dyn-false | KEEP unmapped_x | LIMIT 5'
+  - length: { columns: 1 }
+  - match: { columns.0.name: unmapped_x }
+  - match: { columns.0.type: keyword }
+  - match: { values.0: [ null ] }

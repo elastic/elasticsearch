@@ -543,9 +543,6 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
   method: testSnapshotWithLargeSegmentFiles
   issue: https://github.com/elastic/elasticsearch/issues/156468
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testTargetRecoversAfterMasterRestartDuringHandoff
-  issue: https://github.com/elastic/elasticsearch/issues/156561
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationOrObjectStoreFailures
   issue: https://github.com/elastic/elasticsearch/issues/156569
@@ -771,3 +768,11 @@ tests:
 - class: org.elasticsearch.xpack.esql.stats.SearchContextStatsTests
   method: testSkipperKeywordSingleValuedWithAbsentSegmentIsDetectedAsSingleValued
   issue: https://github.com/elastic/elasticsearch/issues/158895
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=search/351_point_in_time_slice/PIT search respects slice scoping}
+  issue: https://github.com/elastic/elasticsearch/issues/158908
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=search/351_point_in_time_slice/PIT open with slice scopes shards}
+  issue: https://github.com/elastic/elasticsearch/issues/158909
+- class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/158911

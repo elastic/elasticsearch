@@ -164,6 +164,7 @@ public abstract class PartitionedGroupingAggregatorFunctionTestCase extends Grou
                 randomDouble(),
                 randomIntBetween(128, 4096),
                 null,
+                null,
                 driverContext,
                 parallelConfig
             );

@@ -294,7 +294,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "epoch_ovf_nj_skip",
         "epoch_ovf_nj_fail",
         "employees_parquet_absent_warn",
-        "employees_ndjson_absent_warn"
+        "employees_ndjson_absent_warn",
+        "mixed_ts_inferred",
+        "mixed_int_inferred"
     );
 
     /**
@@ -3010,6 +3012,26 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         return baos.toByteArray();
     }
 
+    private byte[] int32FixtureBytes(String column, int... values) throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named(column).named("test");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int value : values) {
+                Group g = factory.newGroup();
+                g.add(column, value);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
+    }
+
     private byte[] dateFixtureBytes(int... days) throws IOException {
         MessageType schema = MessageTypeParser.parseMessageType("message logs { required int32 d (DATE); }");
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -3352,6 +3374,74 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             // micros -> millis: the .456 microsecond remainder truncates away
             assertThat(rows.get(0).get(0), equalTo(1704067200_123L));
         }
+    }
+
+    /**
+     * {@code TIMESTAMP(MICROS)} infers as {@code date_nanos}. A {@code TO_DATETIME} literal is the other date
+     * type, so reader prune and stats fold decline; {@code FilterExec} still keeps the matching row.
+     */
+    public void testDatetimeLiteralFiltersInferredTimestampMicros() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = createTempDir().resolve("ts_micros.parquet");
+        Files.write(parquet, timestampMicrosFixtureBytes(1767312000_000_000L));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mixed_ts_inferred",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null
+                )
+            )
+        );
+        String iso = "2026-01-02T00:00:00Z";
+        assertQ(
+            "matching date_nanos literal",
+            "FROM mixed_ts_inferred | WHERE ts == TO_DATE_NANOS(\"" + iso + "\") | STATS c = COUNT(*)",
+            1L
+        );
+        assertQ("datetime equals", "FROM mixed_ts_inferred | WHERE ts == TO_DATETIME(\"" + iso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ("datetime lte", "FROM mixed_ts_inferred | WHERE ts <= TO_DATETIME(\"" + iso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ("datetime in", "FROM mixed_ts_inferred | WHERE ts IN (TO_DATETIME(\"" + iso + "\")) | STATS c = COUNT(*)", 1L);
+        assertQ(
+            "datetime range",
+            "FROM mixed_ts_inferred | WHERE ts >= TO_DATETIME(\"2026-01-01T00:00:00Z\") AND ts <= TO_DATETIME(\"2026-01-03T00:00:00Z\")"
+                + " | STATS c = COUNT(*)",
+            1L
+        );
+    }
+
+    /**
+     * An inferred {@code integer} compared to a {@code double} or {@code long} literal must stay in
+     * {@code FilterExec}; a column-typed bound would drop the matching row.
+     */
+    public void testNumericLiteralFiltersInferredInteger() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = createTempDir().resolve("id.parquet");
+        Files.write(parquet, int32FixtureBytes("i", 5));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mixed_int_inferred",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null
+                )
+            )
+        );
+        assertQ("integer lt double", "FROM mixed_int_inferred | WHERE i < 5.5 | STATS c = COUNT(*)", 1L);
+        assertQ("integer lte long", "FROM mixed_int_inferred | WHERE i <= 3000000000 | STATS c = COUNT(*)", 1L);
+        assertQ("integer in int and double", "FROM mixed_int_inferred | WHERE i IN (5, 5.5) | STATS c = COUNT(*)", 1L);
     }
 
     /** Declares {@code {ts: date, format: <the composite>}} over one dataset and asserts ts recovers EPOCH_SECOND_MILLIS. */

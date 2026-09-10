@@ -441,6 +441,8 @@ public class EsqlSession {
         // once resolution succeeds, because IN subqueries can be hidden inside view definitions and only become visible — and are
         // rewritten away into SemiJoin/AntiJoin/MarkJoin — during resolution. The WHERE counter is set by the analyzer/verifier plan
         // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/MarkJoin too.
+        boolean preserveViewBoundaries = request.filter() != null
+            && ViewRequestFilterRewriter.REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled();
         viewResolver.replaceViews(
             parsedPlan,
             QuerySettings.PROJECT_ROUTING.get(resolved),
@@ -451,6 +453,7 @@ public class EsqlSession {
                 inferenceService.inferenceSettings(),
                 viewName
             ).plan(),
+            preserveViewBoundaries,
             listener.delegateFailureAndWrap((l, viewResolution) -> {
                 // Validate: no InSubquery expressions should survive view and subquery resolution.
                 InSubqueryResolver.verify(viewResolution.plan());
@@ -2556,7 +2559,15 @@ public class EsqlSession {
             }
             TimeSpanMarker analysisProfile = executionInfo.queryProfile().analysis();
             analysisProfile.start();
-            LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo, timestampBounds);
+            LogicalPlan plan = analyzedPlan(
+                parsed,
+                unmappedResolution,
+                configuration,
+                result,
+                executionInfo,
+                timestampBounds,
+                requestFilter != null && ViewRequestFilterRewriter.REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled()
+            );
             analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // Analysis succeeded on the first attempt. For unmapped_fields=nullify/load we intentionally do NOT re-resolve without the
@@ -2614,7 +2625,8 @@ public class EsqlSession {
         Configuration configuration,
         PreAnalysisResult r,
         EsqlExecutionInfo executionInfo,
-        TimestampBounds timestampBounds
+        TimestampBounds timestampBounds,
+        boolean preserveViewBoundaries
     ) throws Exception {
         handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
         AnalyzerContext analyzerContext = new AnalyzerContext(
@@ -2626,7 +2638,8 @@ public class EsqlSession {
             projectMetadata,
             r,
             timestampBounds,
-            resolveIpLocations(parsed)
+            resolveIpLocations(parsed),
+            preserveViewBoundaries
         );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed);

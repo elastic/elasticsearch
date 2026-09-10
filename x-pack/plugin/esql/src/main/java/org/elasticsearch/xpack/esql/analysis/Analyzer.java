@@ -589,11 +589,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * structures, and unwraps remaining {@code NamedSubquery} wrappers. See {@link ViewCompaction} for the rationale behind splitting
      * compaction across the analyzer boundary.
      */
-    private static class ViewCompactionPostIndexResolution extends Rule<LogicalPlan, LogicalPlan> {
+    private static class ViewCompactionPostIndexResolution extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
         @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            return ViewCompaction.postIndexResolution(plan);
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            return ViewCompaction.postIndexResolution(plan, context.preserveViewBoundaries());
         }
     }
 

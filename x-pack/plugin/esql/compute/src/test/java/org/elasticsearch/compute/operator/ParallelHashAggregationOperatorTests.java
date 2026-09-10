@@ -15,9 +15,6 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.BytesRefBlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.IntBlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.LongBlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.PartitionedBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -423,11 +420,12 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
     }
 
     private static BlockHash buildSingleKeyHash(SingleKeyType keyType, BlockFactory blockFactory) {
-        return switch (keyType) {
-            case INT -> new IntBlockHash(0, blockFactory);
-            case LONG -> new LongBlockHash(0, blockFactory);
-            case BYTES_REF -> new BytesRefBlockHash(0, blockFactory);
+        ElementType elementType = switch (keyType) {
+            case INT -> ElementType.INT;
+            case LONG -> ElementType.LONG;
+            case BYTES_REF -> ElementType.BYTES_REF;
         };
+        return BlockHash.build(List.of(new BlockHash.GroupSpec(0, elementType)), blockFactory, between(128, 1024), false);
     }
 
     private static List<Page> buildSingleKeyPages(BlockFactory blockFactory, SingleKeyType keyType, List<Object> keys, List<Long> values) {

@@ -442,13 +442,7 @@ $if(partitioned)$
     @Override
     public void clear() {
         seenNull = false;
-$if(BytesRef)$
         hash.clear();
-$else$
-        if (hash instanceof $swissHash$ swiss) {
-            swiss.clear();
-        }
-$endif$
     }
 
 $endif$

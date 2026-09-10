@@ -183,8 +183,7 @@ final class IntBlockHash extends PartitionedBlockHash {
     }
 
     private record PartitionedHashKeysWithSeenNull(PartitionedHashTable.PartitionedHashKeys delegate, boolean seenNull)
-        implements
-            PartitionedHashTable.PartitionedHashKeys {
+        implements PartitionedHashTable.PartitionedHashKeys {
 
         @Override
         public int keysInPartition(int partition) {
@@ -234,9 +233,7 @@ final class IntBlockHash extends PartitionedBlockHash {
     @Override
     public void clear() {
         seenNull = false;
-        if (hash instanceof LongSwissHash swiss) {
-            swiss.clear();
-        }
+        hash.clear();
     }
 
     @Override

@@ -604,7 +604,7 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * A single destination for {@link #restoreOverOpenIndices}. This represents the exact identity of the existing open index to restore
+     * A single destination for {@link #restoreSnapshotOverOpenIndices}. This represents the exact identity of the existing open index to restore
      * over, the repository-side identity of the snapshot index to restore it from, and that snapshot index's metadata.
      *
      * @param destinationIndex      the exact current identity (name and index UUID) of the open index to restore over, resolved by the
@@ -613,7 +613,7 @@ public final class RestoreService implements ClusterStateApplier {
      * @param snapshotIndexId       the repository-side identity of the index to restore from within the snapshot
      * @param snapshotIndexMetadata the {@link IndexMetadata} exactly as recorded in the snapshot. The caller is not responsible for
      *                              applying {@link RestoreService#indexMetadataRestoreTransformer} because
-     *                              {@link RestoreService#restoreOverOpenIndices} applies it internally, the same as
+     *                              {@link RestoreService#restoreSnapshotOverOpenIndices} applies it internally, the same as
      *                              {@link RestoreService#restoreSnapshot} does for every other index restored from a snapshot
      */
     public record OpenIndexRestoreTarget(Index destinationIndex, IndexId snapshotIndexId, IndexMetadata snapshotIndexMetadata) {}
@@ -645,7 +645,7 @@ public final class RestoreService implements ClusterStateApplier {
      *
      * @param restoreUUID the caller-supplied UUID correlating this restore, matching {@link RestoreInProgress.Entry#uuid()}
      */
-    public void restoreOverOpenIndices(
+    public void restoreSnapshotOverOpenIndices(
         ProjectId projectId,
         Snapshot snapshot,
         SnapshotInfo snapshotInfo,

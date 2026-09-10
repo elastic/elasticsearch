@@ -845,7 +845,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
             awaitNDeletionsInProgress(1);
 
             final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
-            restoreService().restoreOverOpenIndices(
+            restoreService().restoreSnapshotOverOpenIndices(
                 ProjectId.DEFAULT,
                 snapshot,
                 snapshotInfo,

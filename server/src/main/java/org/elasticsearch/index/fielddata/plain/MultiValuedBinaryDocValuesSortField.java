@@ -23,6 +23,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
@@ -141,11 +142,21 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
     private static final class ColumnarPayloadMinMaxBinaryDocValues extends FilterBinaryDocValues {
         private final boolean maxMode;
         private final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
+
+        /**
+         * The column behind these values, where there is one. Asked for the extreme directly: it decides it over
+         * ordinals and resolves only the value that wins, where the payload route below has to build the whole
+         * payload out of the column and then take it apart again to find the same value.
+         */
+        @Nullable
+        private final StringColumnSource columnar;
+        private final BytesRef scratch = new BytesRef();
         private BytesRef sortKey;
 
         ColumnarPayloadMinMaxBinaryDocValues(BinaryDocValues values, boolean maxMode) {
             super(values);
             this.maxMode = maxMode;
+            this.columnar = values instanceof StringColumnSource source ? source : null;
         }
 
         @Override
@@ -189,7 +200,7 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
 
         /** Decodes the sort key of the document {@code in} is positioned on, reporting whether it has one at all. */
         private boolean decodeSortKey() throws IOException {
-            sortKey = decoder.extreme(in.binaryValue(), maxMode);
+            sortKey = columnar != null ? columnar.extreme(maxMode, scratch) : decoder.extreme(in.binaryValue(), maxMode);
             return sortKey != null;
         }
     }

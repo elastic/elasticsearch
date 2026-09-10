@@ -96,6 +96,7 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
      * <p>Limitation: "no automatic fallback" to a disabled/degraded sandbox is enforced entirely in
      * ml-cpp and cannot be verified here without the paired controller-protocol artifact.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/3188")
     public void testExplicitSandboxEnabledStartsAndInfersSuccessfully() throws IOException {
         Request clusterSettings = new Request("PUT", "_cluster/settings");
         clusterSettings.setJsonEntity("""

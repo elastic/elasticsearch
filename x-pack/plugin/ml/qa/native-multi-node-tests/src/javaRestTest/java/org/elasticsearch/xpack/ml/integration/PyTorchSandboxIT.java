@@ -54,7 +54,7 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
      * line on Linux (see {@code PyTorchBuilder#buildCommand}). This asserts that a deployment started
      * under that default configuration reaches a healthy state and serves inference correctly.
      */
-    public void testDefaultSandboxDisabledEmitsDisableSandboxFlag() throws IOException {
+    public void testDefaultSandboxDisabledStartsAndInfersSuccessfully() throws IOException {
         String modelId = "sandbox_default_disabled";
         createPassThroughModel(modelId);
         putModelDefinition(modelId, PyTorchModelIT.BASE_64_ENCODED_MODEL, PyTorchModelIT.RAW_MODEL_SIZE);
@@ -68,16 +68,8 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
                 equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}")
             );
 
-            // Diagnostic-surface limitation: there is currently no REST/notification-visible signal that
-            // distinguishes "started with the seccomp sandbox disabled via --disableSandbox" from
-            // "started with the sandbox enabled". The only related observability added so far
-            // (commit "Improve ML Sandbox2 failure observability in Java layer") raises *connect
-            // failures* to WARN and includes pipe paths/timeout in the exception message - it does not
-            // emit anything for the successful, degraded/legacy-seccomp-mode path exercised here. So this
-            // test can only assert the functional outcome (deployment starts, inference succeeds); it
-            // cannot assert that the child actually ran with seccomp disabled versus enforced. That
-            // assertion needs either a paired ml-cpp diagnostic (e.g. a stats field surfacing the sandbox
-            // mode) or the real V5 enforced-sandbox behavioural test (see the @Ignore stub below).
+            // Limitation: no REST/notification-visible signal distinguishes "started with seccomp
+            // disabled" from "started with seccomp enforced", so this only asserts the functional outcome.
             Response statsResponse = getTrainedModelStats(modelId);
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(statsResponse).get("trained_model_stats");
@@ -100,13 +92,10 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
      * class, which is independent of this setting and blocks *every* PyTorch deployment on Linux with
      * today's bundled controller, sandboxed or not).
      *
-     * <p>What this test does NOT and cannot verify with today's bundled native controller: that leaving
-     * the sandbox enabled results in "no automatic fallback" to a disabled/degraded sandbox under any
-     * condition (e.g. seccomp being unsupported in the runtime environment). That guarantee is enforced
-     * (or not) entirely in ml-cpp and requires the paired artifact with the new controller-protocol
-     * version to exercise for real.
+     * <p>Limitation: "no automatic fallback" to a disabled/degraded sandbox is enforced entirely in
+     * ml-cpp and cannot be verified here without the paired controller-protocol artifact.
      */
-    public void testExplicitSandboxEnabledOmitsDisableSandboxFlag() throws IOException {
+    public void testExplicitSandboxEnabledStartsAndInfersSuccessfully() throws IOException {
         Request clusterSettings = new Request("PUT", "_cluster/settings");
         clusterSettings.setJsonEntity("""
             {"persistent" : {
@@ -149,14 +138,9 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
      * {@code $TMPDIR/ml-child-ipc/<deploymentId>/}), so two concurrently-running deployments must not
      * collide.
      *
-     * <p><b>Harness limitation:</b> {@code PyTorchModelRestTestCase} extends {@code ESRestTestCase} and
-     * only has a REST client to the test cluster - there is no hook in this IT harness to list a node's
-     * {@code $TMPDIR} contents or otherwise introspect the filesystem, so the isolated-directory paths
-     * themselves cannot be asserted directly from here. The closest available check is functional: start
-     * two deployments with distinct deployment ids concurrently and confirm both come up healthy and
-     * each serves inference correctly and independently - if their IPC directories/pipes collided, we
-     * would expect one or both deployments to fail to start, misroute pipe traffic, or return the wrong
-     * model's result.
+     * <p>Limitation: the REST-only IT harness cannot list a node's {@code $TMPDIR} to assert the
+     * isolated directory paths directly, so this checks the functional proxy instead - two concurrent
+     * deployments both starting healthy and serving correct, uncorrupted inference independently.
      */
     public void testChildIpcPathsIsolatedPerDeployment() throws Exception {
         String modelIdA = "sandbox_ipc_isolation_a";

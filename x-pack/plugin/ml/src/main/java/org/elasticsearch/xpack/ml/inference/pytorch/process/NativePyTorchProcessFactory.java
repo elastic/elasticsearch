@@ -87,7 +87,10 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
             true,
             true,
             false, // We do not need a persist pipe. This is also why we use 3 threads per model assignment in the pytorch thread pool.
-            true // Isolate this process's IPC pipes in their own per-deployment directory, created by the native controller.
+            // Only isolate this process's IPC pipes in a per-deployment directory when sandboxing is enabled. Today's bundled
+            // ml-cpp controller does not create that directory at all when sandboxing is off, so requesting isolation
+            // unconditionally would break every PyTorch launch under the (currently default) disabled setting.
+            sandboxEnabled
         );
 
         executeProcess(processPipes, task);

@@ -35,6 +35,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -369,7 +370,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         // A working data source and dataset, so every negative case below differs from a known-good
         // baseline by exactly one thing.
         putDataSource("good_ds", staticCredentialSettings());
-        putDataset("good_ds_rows", "good_ds", s3(GOOD_CSV), null, null);
+        putDataset("good_ds_rows", "good_ds", s3(GOOD_CSV), Map.of("region", regionSupplier.get()), null);
         assertQuerySucceeds("FROM good_ds_rows | STATS c = COUNT(*)");
 
         sweepReportedCase();
@@ -999,7 +1000,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             setup.run();
         }
         record(group, name, expectation, () -> {
-            putDataset(dataset, dataSource, resource, null, null);
+            putDataset(dataset, dataSource, resource, Map.of("region", regionSupplier.get()), null);
             runEsql("FROM " + dataset + " | LIMIT 5");
         });
     }
@@ -1014,7 +1015,9 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         Map<String, Object> settings
     ) throws IOException {
         record(group, name, expectation, () -> {
-            putDataset(dataset, dataSource, resource, settings, null);
+            Map<String, Object> withRegion = new HashMap<>(settings);
+            withRegion.put("region", regionSupplier.get());
+            putDataset(dataset, dataSource, resource, Map.copyOf(withRegion), null);
             runEsql("FROM " + dataset + " | LIMIT 5");
         });
     }

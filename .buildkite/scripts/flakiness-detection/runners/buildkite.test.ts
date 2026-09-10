@@ -309,7 +309,6 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
   const pipeline = toResolvePipeline(DEFAULT_AGENT_CONFIG);
   const group = pipeline.steps[0];
   const [orchestration, generate] = group.steps;
-  const cmd = orchestration.command;
 
   test("emits TWO steps, both under the flakiness-orchestration prefix", () => {
     expect(group.group).toBe("flakiness-detection");
@@ -324,13 +323,16 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
     expect(generate.retry).toEqual({ automatic: false });
   });
 
-  test("orchestration step: gradle agent, no inline generate, resolve+compile+scan budget", () => {
+  test("orchestration step: gradle agent, invokes the runner, resolve+compile+scan budget", () => {
     expect(orchestration.depends_on).toBeUndefined();
     // Runs gradle, so it pins the gradle-tuned image; timeout covers the three gradle phases only.
     expect(orchestration.agents?.provider).toBe("gcp");
     expect(orchestration.timeout_in_minutes).toBe(30 + 30 + 30);
+    // The phase sequencing, failure classification and build_failed markers live in the script now; they
+    // are covered by orchestrate.test.ts, which runs it against a fake gradle.
+    expect(orchestration.command).toBe(".buildkite/scripts/flakiness-detection/runners/orchestrate.sh");
     // It must NOT run node generate.ts anywhere.
-    expect(cmd).not.toContain("node .buildkite/scripts/flakiness-detection/entrypoints/generate.ts");
+    expect(orchestration.command).not.toContain("generate.ts");
     // Uploads the plan (+ precompile marker) the separate generate agent downloads, plus intermediates.
     // The per-project answers go up as ONE tarball, not a `*.json` glob: every project writes its share, so
     // a glob would mean ~450 uploads per build of what is debug-only detail.
@@ -339,10 +341,29 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
       "flakiness-plan.json",
       "flakiness-precompile.json",
     ]);
-    expect(cmd).toContain("tar -czf flakiness-project-targets.tgz");
     // No compile-task-list artifact: the compile phase invokes a fixed, unqualified task list, so there is
     // nothing run-specific left to persist for triage.
     expect(orchestration.artifact_paths).not.toContain("flakiness-compile-tasks.txt");
+  });
+
+  test("every value the runner needs is named on the step", () => {
+    // The script validates each of these and exits 2 if one is missing, so a dropped value fails at the
+    // top of the step rather than expanding to an empty path partway through.
+    expect(orchestration.env).toEqual({
+      FLAKINESS_REFS_ARTIFACT: "flakiness-refs.json",
+      FLAKINESS_PLAN_ARTIFACT: "flakiness-plan.json",
+      FLAKINESS_PRECOMPILE_ARTIFACT: "flakiness-precompile.json",
+      FLAKINESS_TARGETS_DIR: "build/flakiness/project-targets",
+      FLAKINESS_TARGETS_ARCHIVE: "flakiness-project-targets.tgz",
+      // A fixed, UNQUALIFIED lifecycle task list: gradle runs each in every project that has the source
+      // set, so the whole repo's test code is compiled. That is what lets the scan phase connect an
+      // abstract base to subclasses in other projects.
+      FLAKINESS_COMPILE_TASKS: "compileTestJava compileInternalClusterTestJava compileJavaRestTestJava compileYamlRestTestJava",
+      // 30m budget each, less the 2m grace, so the script wins the race against the agent's SIGKILL.
+      FLAKINESS_RESOLVE_INNER_TIMEOUT: "28",
+      FLAKINESS_COMPILE_INNER_TIMEOUT: "28",
+      FLAKINESS_SCAN_INNER_TIMEOUT: "28",
+    });
   });
 
   test("generate step: no agents pin, depends_on orchestration allow_failure, downloads plan, uploads outputs", () => {
@@ -358,74 +379,5 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
       "flakiness-precompile.json",
       "flakiness-plan.json",
     ]);
-  });
-
-  test("resolve phase downloads refs and runs the UNQUALIFIED per-project task, with the config cache ON", () => {
-    expect(cmd).toContain('buildkite-agent artifact download "flakiness-refs.json" . || true');
-    // Unqualified: it runs in EVERY project, each of which self-selects on whether it owns a ref. No caller
-    // side project guessing, and no --no-configuration-cache (the model travels through task inputs).
-    expect(cmd).toContain(".ci/scripts/run-gradle.sh -Pflakiness.resolve flakinessResolveProject");
-    expect(cmd).not.toContain("--no-configuration-cache");
-    expect(cmd).toContain("timeout --foreground --signal=TERM --kill-after=30s 28m .ci/scripts/run-gradle.sh");
-  });
-
-  test("compile phase is skipped entirely when resolve produced no targets", () => {
-    // The second of two gates. pr.ts already declines to upload this step when nothing changed under a
-    // source directory, so a docs-only PR never gets here; this guard catches what that coarse filter lets
-    // through - a change confined to src/main/java, say - which would otherwise pay the whole repo test
-    // compile to produce an empty plan.
-    expect(cmd).toContain(`if grep -qs '"refIndex"' build/flakiness/project-targets/*.json; then`);
-    expect(cmd).toContain('echo "resolve produced no runnable targets; skipping the repo-wide test compile."');
-    // scan still runs either way - it is what reports refs no project could claim at all.
-    const afterCompile = cmd.slice(cmd.indexOf("# --- scan"));
-    expect(afterCompile).toContain(".ci/scripts/run-gradle.sh -Pflakiness.resolve flakinessScan");
-  });
-
-  test("compile phase compiles every test source set, unqualified, reading nothing from resolve", () => {
-    // A fixed, UNQUALIFIED lifecycle task list: gradle runs each in every project that has the source set,
-    // so the whole repo's test code is compiled. That is what lets the scan phase connect an abstract base
-    // to subclasses in other projects.
-    expect(cmd).toContain(
-      "timeout --foreground --signal=TERM --kill-after=30s 28m .ci/scripts/run-gradle.sh " +
-        "compileTestJava compileInternalClusterTestJava compileJavaRestTestJava compileYamlRestTestJava",
-    );
-    // Plain compile: no -Pflakiness property and no flakiness task name in this phase.
-    const compilePhase = cmd.slice(cmd.indexOf("# --- compile"), cmd.indexOf("# --- scan"));
-    expect(compilePhase).not.toContain("-Pflakiness");
-    // None of the old per-project glue survives: no concatenation, no task-list variable, no empty-list branch.
-    expect(cmd).not.toContain(".compile-tasks.txt");
-    expect(cmd).not.toContain("$$TASKS");
-    expect(cmd).not.toContain("No compile tasks listed");
-  });
-
-  test("scan phase runs flakinessScan against the local compiled output", () => {
-    expect(cmd).toContain(".ci/scripts/run-gradle.sh -Pflakiness.resolve flakinessScan");
-  });
-
-  test("only compile failure is build_failed; it writes markers then exits non-zero (no inline generate)", () => {
-    // The buildFailed markers are written ONLY in the compile-failure branch.
-    expect(cmd).toContain('printf \'{"buildFailed":true,"reason":"precompile","entries":[]}\' > flakiness-plan.json');
-    expect(cmd).toContain('printf \'{"outcome":"build_failed","reason":"precompile"}\' > flakiness-precompile.json');
-    // Ordering: the buildFailed plan is written, THEN the red exit propagates. generate runs on its own
-    // step (depends_on allow_failure), NOT inline here.
-    const planIdx = cmd.indexOf("> flakiness-plan.json");
-    const exitIdx = cmd.indexOf("exit $$rc", planIdx);
-    expect(planIdx).toBeGreaterThanOrEqual(0);
-    expect(exitIdx).toBeGreaterThan(planIdx);
-  });
-
-  test("resolve and scan failures are NOT build_failed (no markers)", () => {
-    // Both guard with a plain `exit $$rc` and a diagnostic that names them infra/resolver defects.
-    expect(cmd).toContain('echo "flakiness resolve failed (rc=$$rc): resolver/infra defect, not a PR build failure."');
-    expect(cmd).toContain('echo "flakiness scan failed (rc=$$rc): resolver/infra defect, not a PR build failure."');
-    // The resolve guard appears before the compile phase, so a resolve failure never reaches compile/scan.
-    const resolveGuardIdx = cmd.indexOf("flakiness resolve failed");
-    const compilePhaseIdx = cmd.indexOf("# --- compile");
-    expect(resolveGuardIdx).toBeGreaterThanOrEqual(0);
-    expect(resolveGuardIdx).toBeLessThan(compilePhaseIdx);
-  });
-
-  test("happy path ends by exiting 0 after scan (generate is a separate step)", () => {
-    expect(cmd.trimEnd().endsWith("exit 0")).toBe(true);
   });
 });

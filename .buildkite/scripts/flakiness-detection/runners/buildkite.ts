@@ -2,7 +2,17 @@ import { execSync } from "child_process";
 import { resolve } from "path";
 import { stringify } from "yaml";
 
-import { COMPILE_TASKS, JOB_STATUS_FILE_PREFIX, STATUS_DIR_NAME, TASK_STATUS_FILE_PREFIX } from "../domain.ts";
+import {
+  COMPILE_TASKS,
+  FLAKINESS_PLAN_ARTIFACT,
+  FLAKINESS_PRECOMPILE_ARTIFACT,
+  FLAKINESS_REFS_ARTIFACT,
+  FLAKINESS_TARGETS_ARCHIVE,
+  FLAKINESS_TARGETS_DIR,
+  JOB_STATUS_FILE_PREFIX,
+  STATUS_DIR_NAME,
+  TASK_STATUS_FILE_PREFIX,
+} from "../domain.ts";
 import type { AgentConfig, RunnableCommand, TestKind } from "../domain.ts";
 
 const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
@@ -57,8 +67,7 @@ const NEVER_FAIL_SCRIPT = ".buildkite/scripts/flakiness-detection/runners/never-
  * Omitting `kind` gives never-fail behaviour with no batch outcome, which is what the analyze step wants.
  */
 function wrapNeverFail(contextKey: string, outerTimeoutMin: number, emitOutcome?: { kind: TestKind }): string {
-  const innerTimeoutMin = Math.max(1, outerTimeoutMin - NEVER_FAIL_GRACE_MINUTES);
-  const args = [`--context ${contextKey}`, `--inner-timeout-minutes ${innerTimeoutMin}`];
+  const args = [`--context ${contextKey}`, `--inner-timeout-minutes ${innerTimeout(outerTimeoutMin)}`];
   if (emitOutcome) {
     args.push(`--kind ${emitOutcome.kind}`);
   }
@@ -85,28 +94,9 @@ const FLAKINESS_OUTCOMES_ARTIFACT = "flakiness-outcomes.json";
 // and the bootstrap step's `artifact_paths` in pipelines/pull-request/flakiness-detection.yml.
 const FLAKINESS_SKIPPED_ARTIFACT = "flakiness-skipped.json";
 
-// Written by the compile orchestration step only when compilation fails, so the
-// analyze step (run from generate) can record a single `build_failed` outcome
-// instead of the batches (which are skipped) producing none. Keep in sync with
-// entrypoints/analyze.ts.
-const FLAKINESS_PRECOMPILE_ARTIFACT = "flakiness-precompile.json";
-
 // The pipeline topology and the reasoning behind its step split are described in README.md
 // ("Pipeline topology"). Kept here are only the facts that would be silently re-broken if forgotten,
 // each next to the code that depends on it.
-
-// Written by the bootstrap step, consumed by the resolve step (downloaded onto its fresh agent).
-const FLAKINESS_REFS_ARTIFACT = "flakiness-refs.json";
-// Written by the scan step (or, on failure, by the compile step), consumed by the generate step.
-const FLAKINESS_PLAN_ARTIFACT = "flakiness-plan.json";
-// Where each project drops its share of the resolve answer: `<project>.json`, carrying its resolved targets
-// and its class directories, both consumed by the scan step. Shell/Java contract only (no TS type). Keep in
-// sync with FlakinessProjectResolvePlugin.TARGETS_DIR on the Java side.
-const FLAKINESS_TARGETS_DIR = "build/flakiness/project-targets";
-// One tarball, not a `*.json` glob: every project writes a file whether or not it owns a ref, so a glob
-// would mean ~450 uploads per build of pure debugging detail. Nothing downstream reads them - resolve,
-// compile and scan share an agent, so scan reads them off local disk.
-const FLAKINESS_TARGETS_ARCHIVE = "flakiness-project-targets.tgz";
 
 const ORCHESTRATION_KEY = "flakiness-orchestration:run";
 const GENERATE_KEY = "flakiness-orchestration:generate";
@@ -126,80 +116,32 @@ const GENERATE_ENTRYPOINT = "node .buildkite/scripts/flakiness-detection/entrypo
 // Fire each phase's inner gradle timeout a grace period before its budget so we can capture the exit code
 // (and write the buildFailed markers, for compile) before it runs long. `--foreground` keeps the gradle CLI
 // in the parent process group so its develocity scan plugin does not hang (see wrapNeverFail).
-function innerGradleTimeout(outerTimeoutMin: number): string {
-  const inner = Math.max(1, outerTimeoutMin - NEVER_FAIL_GRACE_MINUTES);
-  return `timeout --foreground --signal=TERM --kill-after=30s ${inner}m`;
+/**
+ * The timeout a runner script should apply, in minutes: far enough inside Buildkite's outer
+ * `timeout_in_minutes` that the script wins the race and can still classify the failure. If the agent
+ * fires first it SIGKILLs the step and the run is reported as "timed_out" with nothing attributed.
+ */
+function innerTimeout(outerTimeoutMin: number): number {
+  return Math.max(1, outerTimeoutMin - NEVER_FAIL_GRACE_MINUTES);
 }
 
+const ORCHESTRATE_SCRIPT = ".buildkite/scripts/flakiness-detection/runners/orchestrate.sh";
+
 /**
- * The orchestration shell: resolve -> compile -> scan, sequentially on ONE gradle agent (scan reads the
- * `build/classes` output compile produced, and separate agents share no workspace).
- *
- * Which phase failed decides how the run is reported, so the exit codes are not interchangeable:
- *  - compile non-zero -> the SOLE build_failed signal: write the buildFailed plan + precompile marker,
- *                        then exit rc. generate depends on this step with allow_failure and turns those
- *                        markers into the single build_failed record.
- *  - resolve or scan non-zero -> a resolver/infra defect, NOT build_failed: write no marker, exit rc.
- *
- * `$$rc` defers past Buildkite's pipeline-upload interpolation pass.
+ * Everything the orchestration step needs.
  */
-function orchestrationCommand(): string {
-  return [
-    // refs are produced by the bootstrap step on a different agent, so fetch them onto this one.
-    `buildkite-agent artifact download "${FLAKINESS_REFS_ARTIFACT}" . || true`,
-    "set +e",
-    "",
-    "# --- resolve ---",
-    // UNQUALIFIED on purpose: every project that registered the task runs it and self-selects on whether a
-    // ref lands in its own source sets. The configuration cache stays ON - each project's model reaches the
-    // task as an @Input, which survives the configuration/execution boundary.
-    `${innerGradleTimeout(RESOLVE_TIMEOUT_MINUTES)} .ci/scripts/run-gradle.sh -Pflakiness.resolve flakinessResolveProject`,
-    "rc=$?",
-    `if [ "$$rc" -ne 0 ]; then`,
-    `  echo "flakiness resolve failed (rc=$$rc): resolver/infra defect, not a PR build failure."`,
-    "  exit $$rc",
-    "fi",
-    "",
-    `tar -czf ${FLAKINESS_TARGETS_ARCHIVE} -C ${FLAKINESS_TARGETS_DIR} . 2>/dev/null || true`,
-    "",
-
-    "# --- compile (every test source set in the repo; see COMPILE_TASKS) ---",
-    // UNQUALIFIED, so the whole repo compiles rather than only the projects that owned a ref - that is what
-    // lets scan resolve an abstract base against subclasses in other projects.
-    //
-    // The guard is the second of two gates (`pr.ts` is the first, and coarser), and it exists because a PR
-    // touching only `src/main/java` still produces refs that resolve to nothing runnable. `"refIndex"` is
-    // the marker: it appears in a per-project file exactly when that project resolved a target, which keeps
-    // this a single-token grep instead of parsing JSON in shell. Keep in sync with
-    // FlakinessJson.RefTarget#refIndex.
-    `if grep -qs '"refIndex"' ${FLAKINESS_TARGETS_DIR}/*.json; then`,
-    `  ${innerGradleTimeout(COMPILE_TIMEOUT_MINUTES)} .ci/scripts/run-gradle.sh ${COMPILE_TASKS.join(" ")}`,
-    "  rc=$?",
-    `  if [ "$$rc" -ne 0 ]; then`,
-    // compile is the ONLY build_failed signal. Leave the markers, then propagate the red exit. The separate
-    // generate step (depends_on allow_failure) picks up the markers and records the single build_failed.
-    `    printf '{"buildFailed":true,"reason":"precompile","entries":[]}' > ${FLAKINESS_PLAN_ARTIFACT}`,
-    `    printf '{"outcome":"build_failed","reason":"precompile"}' > ${FLAKINESS_PRECOMPILE_ARTIFACT}`,
-    "    exit $$rc",
-    "  fi",
-    "else",
-    `  echo "resolve produced no runnable targets; skipping the repo-wide test compile."`,
-    "fi",
-    "",
-
-    // Runs even when compile was skipped: scan is what reports refs no project could claim (a muted-tests
-    // entry naming a deleted class). Worth its ~9s - it is the only signal for those refs.
-    "# --- scan (reads the now-local compiled output; no cross-agent shipping needed) ---",
-    `${innerGradleTimeout(SCAN_TIMEOUT_MINUTES)} .ci/scripts/run-gradle.sh -Pflakiness.resolve flakinessScan`,
-    "rc=$?",
-    `if [ "$$rc" -ne 0 ]; then`,
-    `  echo "flakiness scan failed (rc=$$rc): resolver/infra defect, not a PR build failure."`,
-    "  exit $$rc",
-    "fi",
-    "",
-    "# --- happy path: scan wrote the plan; the separate generate step uploads batch + analyze ---",
-    "exit 0",
-  ].join("\n");
+function orchestrationEnv(): Record<string, string> {
+  return {
+    FLAKINESS_REFS_ARTIFACT,
+    FLAKINESS_PLAN_ARTIFACT,
+    FLAKINESS_PRECOMPILE_ARTIFACT,
+    FLAKINESS_TARGETS_DIR,
+    FLAKINESS_TARGETS_ARCHIVE,
+    FLAKINESS_COMPILE_TASKS: COMPILE_TASKS.join(" "),
+    FLAKINESS_RESOLVE_INNER_TIMEOUT: String(innerTimeout(RESOLVE_TIMEOUT_MINUTES)),
+    FLAKINESS_COMPILE_INNER_TIMEOUT: String(innerTimeout(COMPILE_TIMEOUT_MINUTES)),
+    FLAKINESS_SCAN_INNER_TIMEOUT: String(innerTimeout(SCAN_TIMEOUT_MINUTES)),
+  };
 }
 
 /**
@@ -228,8 +170,9 @@ export function toResolvePipeline(cfg: AgentConfig): Pipeline {
   const orchestration: PipelineStep = {
     label: "Flakiness / resolve · compile · scan",
     key: ORCHESTRATION_KEY,
-    command: orchestrationCommand(),
+    command: ORCHESTRATE_SCRIPT,
     timeout_in_minutes: ORCHESTRATION_TIMEOUT_MINUTES,
+    env: orchestrationEnv(),
     // gradle-tuned image; it has no node (that is the generate step below).
     agents: { ...cfg.agents },
     // What a later, separate agent needs: the plan, the compile-failure marker, and the debug tarball.
@@ -336,7 +279,7 @@ export function toBuildkitePipeline(
     // allow_failure so the report still runs when a batch fails - it has to record those outcomes too.
     const deps = steps.map((s) => ({ step: s.key, allow_failure: true }));
     steps.push({
-      label: "flakiness report",
+      label: "Flakiness / report",
       key: "flakiness-detection:analyze",
       // The analyzer downloads each job's JUnit XML itself (`--step <jobId>`) so results stay attributed
       // to a job before classification. `|| true` tolerates a build with no status/skipped artifacts.

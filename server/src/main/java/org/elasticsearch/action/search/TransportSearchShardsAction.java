@@ -121,13 +121,10 @@ public class TransportSearchShardsAction extends TransportAction<SearchShardsReq
     public void searchShards(Task task, SearchShardsRequest searchShardsRequest, ActionListener<SearchShardsResponse> listener) {
         final long relativeStartNanos = System.nanoTime();
         SearchRequest original = new SearchRequest(searchShardsRequest.indices()).indicesOptions(searchShardsRequest.indicesOptions())
+            .routing(searchShardsRequest.routing())
+            .setRoutingFromSlice(searchShardsRequest.isRoutingFromSlice())
             .preference(searchShardsRequest.preference())
             .allowPartialSearchResults(searchShardsRequest.allowPartialSearchResults());
-        if (searchShardsRequest.isRoutingFromSlice()) {
-            original.searchSlice(searchShardsRequest.searchSlice());
-        } else {
-            original.routing(searchShardsRequest.routing());
-        }
         if (searchShardsRequest.query() != null) {
             original.source(new SearchSourceBuilder().query(searchShardsRequest.query()));
         }

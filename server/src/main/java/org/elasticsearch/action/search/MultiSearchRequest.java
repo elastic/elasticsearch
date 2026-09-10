@@ -387,10 +387,9 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
     }
 
     private static void applySearchRoutingOrSlice(SearchRequest searchRequest, @Nullable SliceIndexing.ParsedRouting parsedRouting) {
-        if (parsedRouting == null) {
-            return;
+        if (parsedRouting != null) {
+            searchRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
         }
-        SliceIndexing.applySearchRoutingOrSlice(parsedRouting, searchRequest);
     }
 
     private static SliceIndexing.ParsedRouting parseSearchRoutingOrSlice(String sliceValue) {

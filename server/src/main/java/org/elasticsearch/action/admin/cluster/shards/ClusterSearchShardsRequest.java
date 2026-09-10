@@ -34,8 +34,6 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
     private String routing;
     @Nullable
     private String preference;
-    @Nullable
-    private String searchSlice;
     private boolean routingFromSlice;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
@@ -53,10 +51,11 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
         indices = in.readStringArray();
         routing = in.readOptionalString();
         if (in.getTransportVersion().supports(SliceIndexing.CLUSTER_SEARCH_SHARDS_SLICE_ROUTING_STATE_VERSION)) {
-            searchSlice = in.readOptionalString();
+            final String searchSlice = in.readOptionalString(); // redundant on the wire, kept for compatibility
             routingFromSlice = in.readBoolean();
+            assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
+                : "transmitted slice [" + searchSlice + "] does not match routing [" + routing + "] from slice [" + routingFromSlice + "]";
         } else {
-            searchSlice = null;
             routingFromSlice = false;
         }
         preference = in.readOptionalString();
@@ -69,7 +68,7 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
         out.writeStringArray(indices);
         out.writeOptionalString(routing);
         if (out.getTransportVersion().supports(SliceIndexing.CLUSTER_SEARCH_SHARDS_SLICE_ROUTING_STATE_VERSION)) {
-            out.writeOptionalString(searchSlice);
+            out.writeOptionalString(searchSlice());
             out.writeBoolean(routingFromSlice);
         }
         out.writeOptionalString(preference);
@@ -140,21 +139,31 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
         return this;
     }
 
+    /**
+     * Returns the {@code slice} value implied by the routing and its provenance, or {@code null} when routing did not come from
+     * {@code slice}.
+     */
     @Nullable
     public String searchSlice() {
-        return searchSlice;
+        return SliceIndexing.toSearchSlice(routing, routingFromSlice);
     }
 
+    /**
+     * Convenience for setting slice-provided routing: equivalent to {@code routing(slice).setRoutingFromSlice(true)}, with
+     * {@link SliceIndexing#SLICE_ALL} mapping to unrestricted routing.
+     */
     public ClusterSearchShardsRequest searchSlice(String searchSlice) {
         Objects.requireNonNull(searchSlice, "[slice] must not be null");
-        this.searchSlice = searchSlice;
-        this.routingFromSlice = true;
-        this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
-        return this;
+        return routing(SliceIndexing.sliceToRouting(searchSlice)).setRoutingFromSlice(true);
     }
 
     public boolean isRoutingFromSlice() {
         return routingFromSlice;
+    }
+
+    public ClusterSearchShardsRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
     }
 
     /**

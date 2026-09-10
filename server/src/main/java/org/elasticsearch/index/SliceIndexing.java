@@ -10,10 +10,6 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
-import org.elasticsearch.action.search.OpenPointInTimeRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
@@ -59,62 +55,27 @@ public final class SliceIndexing {
     /**
      * Parsed routing result with provenance indicating if the value came from {@code slice}.
      */
-    public record ParsedRouting(String routing, boolean fromSlice) {
-        /**
-         * Returns the {@code slice} parameter value for search-style requests, or {@code null} when routing did not come from
-         * {@code slice}.
-         */
-        @Nullable
-        String toSearchSlice() {
-            if (fromSlice == false) {
-                return null;
-            }
-            return routing == null ? SLICE_ALL : routing;
+    public record ParsedRouting(@Nullable String routing, boolean fromSlice) {}
+
+    /**
+     * Returns the {@code slice} value implied by a routing value and its provenance: {@code null} when routing did not come from
+     * {@code slice}, {@link #SLICE_ALL} when it did but is unrestricted, otherwise the routing value itself.
+     */
+    @Nullable
+    public static String toSearchSlice(@Nullable String routing, boolean routingFromSlice) {
+        if (routingFromSlice == false) {
+            return null;
         }
+        return routing == null ? SLICE_ALL : routing;
     }
 
     /**
-     * Applies parsed REST {@code routing}/{@code slice} parameters to a {@link SearchRequest}.
+     * Inverse of {@link #toSearchSlice}: returns the routing value implied by a {@code slice} value, where {@link #SLICE_ALL}
+     * means unrestricted ({@code null}) routing.
      */
-    public static void applySearchRoutingOrSlice(ParsedRouting parsedRouting, SearchRequest request) {
-        if (parsedRouting.fromSlice()) {
-            request.searchSlice(parsedRouting.toSearchSlice());
-        } else {
-            request.routing(parsedRouting.routing());
-        }
-    }
-
-    /**
-     * Applies parsed REST {@code routing}/{@code slice} parameters to an {@link OpenPointInTimeRequest}.
-     */
-    public static void applySearchRoutingOrSlice(ParsedRouting parsedRouting, OpenPointInTimeRequest request) {
-        if (parsedRouting.fromSlice()) {
-            request.searchSlice(parsedRouting.toSearchSlice());
-        } else {
-            request.routing(parsedRouting.routing());
-        }
-    }
-
-    /**
-     * Applies parsed REST {@code routing}/{@code slice} parameters to a {@link ClusterSearchShardsRequest}.
-     */
-    public static void applySearchRoutingOrSlice(ParsedRouting parsedRouting, ClusterSearchShardsRequest request) {
-        if (parsedRouting.fromSlice()) {
-            request.searchSlice(parsedRouting.toSearchSlice());
-        } else {
-            request.routing(parsedRouting.routing());
-        }
-    }
-
-    /**
-     * Applies parsed REST {@code routing}/{@code slice} parameters to a {@link ValidateQueryRequest}.
-     */
-    public static void applySearchRoutingOrSlice(ParsedRouting parsedRouting, ValidateQueryRequest request) {
-        if (parsedRouting.fromSlice()) {
-            request.searchSlice(parsedRouting.toSearchSlice());
-        } else {
-            request.routing(parsedRouting.routing());
-        }
+    @Nullable
+    public static String sliceToRouting(String slice) {
+        return SLICE_ALL.equals(slice) ? null : slice;
     }
 
     /**

@@ -43,8 +43,6 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
     private boolean allShards;
     @Nullable
     private String routing;
-    @Nullable
-    private String searchSlice;
     private boolean routingFromSlice;
 
     long nowInMillis;
@@ -61,11 +59,12 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
         allShards = in.readBoolean();
         if (in.getTransportVersion().supports(SliceIndexing.VALIDATE_QUERY_SLICE_ROUTING_STATE_VERSION)) {
             routing = in.readOptionalString();
-            searchSlice = in.readOptionalString();
+            final String searchSlice = in.readOptionalString(); // redundant on the wire, kept for compatibility
             routingFromSlice = in.readBoolean();
+            assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
+                : "transmitted slice [" + searchSlice + "] does not match routing [" + routing + "] from slice [" + routingFromSlice + "]";
         } else {
             routing = null;
-            searchSlice = null;
             routingFromSlice = false;
         }
     }
@@ -157,21 +156,31 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
         return this;
     }
 
+    /**
+     * Returns the {@code slice} value implied by the routing and its provenance, or {@code null} when routing did not come from
+     * {@code slice}.
+     */
     @Nullable
     public String searchSlice() {
-        return searchSlice;
+        return SliceIndexing.toSearchSlice(routing, routingFromSlice);
     }
 
+    /**
+     * Convenience for setting slice-provided routing: equivalent to {@code routing(slice).setRoutingFromSlice(true)}, with
+     * {@link SliceIndexing#SLICE_ALL} mapping to unrestricted routing.
+     */
     public ValidateQueryRequest searchSlice(String searchSlice) {
         Objects.requireNonNull(searchSlice, "[slice] must not be null");
-        this.searchSlice = searchSlice;
-        this.routingFromSlice = true;
-        this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
-        return this;
+        return routing(SliceIndexing.sliceToRouting(searchSlice)).setRoutingFromSlice(true);
     }
 
     public boolean isRoutingFromSlice() {
         return routingFromSlice;
+    }
+
+    public ValidateQueryRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
     }
 
     @Override
@@ -183,7 +192,7 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
         out.writeBoolean(allShards);
         if (out.getTransportVersion().supports(SliceIndexing.VALIDATE_QUERY_SLICE_ROUTING_STATE_VERSION)) {
             out.writeOptionalString(routing);
-            out.writeOptionalString(searchSlice);
+            out.writeOptionalString(searchSlice());
             out.writeBoolean(routingFromSlice);
         }
     }
@@ -203,7 +212,7 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
             + ", routing:"
             + routing
             + ", slice:"
-            + searchSlice;
+            + searchSlice();
     }
 
     @Override

@@ -42,10 +42,17 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
- * Per-bulk router: decides each item's destination shard and builds the per-shard {@link SourceBatch}.
- * Provided-batch mode maps pre-built {@link EscfBatch} rows to shards and scatters; x-content mode
- * delegates encoding and routing to {@link BulkBatchEncoders} (TODO: temporary — goes away once all
- * producers build ESCF at the index-abstraction level).
+ * Per-bulk router: decides each item's destination shard and builds the per-shard {@link SourceBatch}
+ * by scattering one pre-built {@link EscfBatch} per index abstraction.
+ *
+ * <p>A bulk may carry multiple batches — one per index-abstraction write target. Each batch is
+ * tracked as a {@link BatchGroup}. The router routes items to their group's concrete shards
+ * (deferring the actual shard assignment until {@link #buildGrouping}), then scatters each batch
+ * into per-shard sub-batches via {@link EscfBatchScatterer}.
+ *
+ * <p>Items that are dropped during the grouping loop (closed index, validation failure, etc.)
+ * leave their corresponding rows unclaimed. At scatter time those orphan rows are routed to a
+ * discard partition that is immediately released and never mapped to a {@link ShardId}.
  */
 final class BatchModeRouter implements Releasable {
 
@@ -55,134 +62,178 @@ final class BatchModeRouter implements Releasable {
      */
     private record IndexTarget(Index index, IndexRouting routing, int shardCount, int partitionBase) {}
 
-    @Nullable
-    private final String indexAbstractionName;
-    @Nullable
-    private final EscfBatch source;
-    @Nullable
-    private final int[] partitionIds;
-    @Nullable
-    private final BulkItemRequest[] items;
-    @Nullable
-    private IndexTarget[] targets;
-    private int targetCount;
-    /** Sum of all {@link IndexTarget#shardCount()} values; also the next available partitionBase. */
-    private int totalPartitions;
-
     /**
-     * Target index (into {@link #targets}) for each row. Allocated lazily on the first second-target
-     * sighting; stays null while {@code targetCount <= 1}. Zero-filled allocation is safe because all
-     * rows recorded before the second target belongs to target 0 (the default zero value is correct).
+     * All per-batch state for one index-abstraction write target. The router may hold several of
+     * these (one per target), but the typical case is exactly one.
      */
-    @Nullable
-    private int[] rowTargets;
+    private static final class BatchGroup {
+        /** Key returned by {@link #batchKey} for this group's abstraction. */
+        final String key;
+        final EscfBatch source;
+        /**
+         * Global partition id for each row. Initialized to {@code -1} (unclaimed / discard).
+         * {@link #buildGroupingForGroup} overwrites entries for successfully routed rows with their
+         * real partition ids; any remaining {@code -1} entries identify orphan rows that must go to
+         * the discard partition during scatter.
+         */
+        final int[] partitionIds;
+        /** The {@link BulkItemRequest} for each row, in row-index order. Null for orphan rows. */
+        final BulkItemRequest[] items;
+        /**
+         * Concrete-index targets encountered so far. Linear scan; N is typically 1–2 (TSDB rollover
+         * boundary).
+         */
+        @Nullable
+        IndexTarget[] targets;
+        int targetCount;
+        /** Sum of all {@link IndexTarget#shardCount()} values; also the next available partitionBase. */
+        int totalPartitions;
 
-    private int lastRow = -1;
-    private int routedCount;
+        /**
+         * Target index (into {@link #targets}) for each row. Allocated lazily on the first
+         * second-target sighting; stays null while {@code targetCount <= 1}. Zero-fill is correct:
+         * every row recorded before the second target belongs to target 0.
+         */
+        @Nullable
+        int[] rowTargets;
+
+        int lastRow = -1;
+        int routedCount;
+
+        BatchGroup(String key, EscfBatch source) {
+            this.key = key;
+            this.source = source;
+            int n = source.docCount();
+            this.partitionIds = new int[n];
+            Arrays.fill(this.partitionIds, -1);
+            this.items = new BulkItemRequest[n];
+        }
+    }
+
+    private final BatchGroup[] groups;
+    private final int groupCount;
+
     private boolean scattered;
     private boolean groupingBuilt;
 
-    // x-content mode state (null in provided-batch mode)
-    @Nullable
-    private final BulkBatchEncoders encoders;
-
-    private BatchModeRouter(String indexAbstractionName, EscfBatch source) {
-        this.indexAbstractionName = indexAbstractionName;
-        this.source = source;
-        this.partitionIds = new int[source.docCount()];
-        this.items = new BulkItemRequest[source.docCount()];
-        this.encoders = null;
-    }
-
-    private BatchModeRouter(BulkBatchEncoders encoders) {
-        this.indexAbstractionName = null;
-        this.source = null;
-        this.partitionIds = null;
-        this.items = null;
-        this.encoders = encoders;
-    }
-
-    /** Returns the router for this bulk, or {@code null} when batch indexing does not apply. */
-    @Nullable
-    static BatchModeRouter create(BulkRequest bulkRequest, boolean batchIndexingSupported) {
-        Map<String, SourceBatch> provided = bulkRequest.getPreBuiltBatches();
-        boolean hasProvidedBatch = provided != null && provided.isEmpty() == false;
-
-        if (hasProvidedBatch) {
-            if (batchIndexingSupported == false) {
-                throw new IllegalStateException(
-                    "pre-built source batch submitted but batch indexing is not supported"
-                        + " (setting disabled, feature flag off, or mixed-version cluster)"
-                );
-            }
-            if (provided.size() > 1) {
-                throw new IllegalArgumentException(
-                    "pre-built source batch bulk carries "
-                        + provided.size()
-                        + " batches, but at most one is supported in step 1; multi-batch support will be added in a follow-up"
-                );
-            }
-        } else if (batchIndexingSupported == false || bulkRequest.isSimulated() || bulkRequest.requests().isEmpty()) {
-            return null;
-        }
-
-        // Single scan: both paths require all items to be IndexRequests; the provided-batch path
-        // additionally requires every item to carry a source-row reference; the x-content path
-        // requires each item to carry inline source with a known content type.
-        for (DocWriteRequest<?> request : bulkRequest.requests()) {
-            if (request instanceof IndexRequest indexRequest) {
-                if (hasProvidedBatch) {
-                    if (indexRequest.indexSource().hasSourceRow() == false) {
-                        throw new IllegalArgumentException(
-                            "item targeting index ["
-                                + request.index()
-                                + "] must carry a source-row reference when a pre-built batch is attached"
-                        );
-                    }
-                } else if (BulkBatchEncoders.isItemBatchEligible(indexRequest) == false) {
-                    return null;
-                }
-            } else {
-                if (hasProvidedBatch) {
-                    throw new IllegalArgumentException(
-                        "["
-                            + request.opType()
-                            + "] operation on index ["
-                            + request.index()
-                            + "] cannot be mixed with pre-built source batches; every item of such a bulk must be an index"
-                            + " request carrying a source-row reference"
-                    );
-                }
-                return null;
-            }
-        }
-
-        if (hasProvidedBatch) {
-            Map.Entry<String, SourceBatch> only = provided.entrySet().iterator().next();
-            String name = only.getKey();
-            SourceBatch batch = only.getValue();
-            if (batch instanceof EscfBatch escfBatch) {
-                return new BatchModeRouter(name, escfBatch);
-            }
-            throw new IllegalArgumentException(
-                "pre-built batch for index [" + name + "] must be an EscfBatch but was [" + batch.getClass().getName() + "]"
-            );
-        }
-
-        return new BatchModeRouter(new BulkBatchEncoders());
+    private BatchModeRouter(BatchGroup[] groups, int groupCount) {
+        this.groups = groups;
+        this.groupCount = groupCount;
     }
 
     /**
-     * Resolves {@code @timestamp} from the ESCF columns and caches it on each item's
+     * Returns the router for this bulk when the bulk carries externally pre-built ESCF batches, or
+     * {@code null} when batch indexing does not apply.
+     *
+     * <p>The internally-encoded path (via {@code BulkEscfEncodePass}) creates a router via
+     * {@link #forBatches} after the encode pass completes.
+     */
+    @Nullable
+    static BatchModeRouter create(BulkRequest bulkRequest, boolean batchIndexingSupported) {
+        Map<String, SourceBatch> provided = bulkRequest.getPreBuiltBatches();
+        if (provided == null || provided.isEmpty()) {
+            return null;
+        }
+        if (batchIndexingSupported == false) {
+            throw new IllegalStateException(
+                "pre-built source batch submitted but batch indexing is not supported"
+                    + " (setting disabled, feature flag off, or mixed-version cluster)"
+            );
+        }
+
+        // Validate that every item is an IndexRequest carrying a source-row reference.
+        for (DocWriteRequest<?> request : bulkRequest.requests()) {
+            if (request instanceof IndexRequest indexRequest) {
+                if (indexRequest.indexSource().hasSourceRow() == false) {
+                    throw new IllegalArgumentException(
+                        "item targeting index ["
+                            + request.index()
+                            + "] must carry a source-row reference when a pre-built batch is attached"
+                    );
+                }
+            } else {
+                throw new IllegalArgumentException(
+                    "["
+                        + request.opType()
+                        + "] operation on index ["
+                        + request.index()
+                        + "] cannot be mixed with pre-built source batches; every item of such a bulk must be an index"
+                        + " request carrying a source-row reference"
+                );
+            }
+        }
+
+        return forBatches(provided);
+    }
+
+    /**
+     * Creates a router from a map of pre-built (or internally-encoded) {@link SourceBatch}es. Each
+     * key is the string returned by {@link #batchKey} for the corresponding abstraction.
+     *
+     * @throws IllegalArgumentException if any batch is not an {@link EscfBatch}
+     */
+    static BatchModeRouter forBatches(Map<String, SourceBatch> batches) {
+        BatchGroup[] groups = new BatchGroup[batches.size()];
+        int g = 0;
+        for (Map.Entry<String, SourceBatch> e : batches.entrySet()) {
+            String name = e.getKey();
+            SourceBatch batch = e.getValue();
+            if (batch instanceof EscfBatch escfBatch) {
+                groups[g++] = new BatchGroup(name, escfBatch);
+            } else {
+                throw new IllegalArgumentException(
+                    "pre-built batch for [" + name + "] must be an EscfBatch but was [" + batch.getClass().getName() + "]"
+                );
+            }
+        }
+        return new BatchModeRouter(groups, g);
+    }
+
+    /**
+     * Computes the batch key for an index abstraction — the string under which its documents are
+     * accumulated. Chosen so that two distinct keys always resolve to distinct concrete write indices,
+     * preventing per-shard batch collisions after scatter.
+     *
+     * <ul>
+     *   <li>DATA_STREAM or an alias over one: the data stream's canonical name.</li>
+     *   <li>CONCRETE_INDEX (plain): the index's own name (which is its own write index).</li>
+     *   <li>ALIAS (non-data-stream): the alias's write index's name.</li>
+     *   <li>CONCRETE_INDEX that is a backing index of a data stream: {@code null} — such items
+     *       cannot be batched without a batch-merge utility; the whole bulk falls back to the row
+     *       path.</li>
+     *   <li>ALIAS with no write index: {@code null}.</li>
+     * </ul>
+     */
+    @Nullable
+    static String batchKey(IndexAbstraction ia, ProjectMetadata project) {
+        if (ia == null) {
+            return null;
+        }
+        if (ia.getType() == IndexAbstraction.Type.CONCRETE_INDEX && ia.getParentDataStream() != null) {
+            // Direct write to a backing index. Its rows would belong in the parent data stream's batch,
+            // but the batch's items were resolved through a different abstraction. Rare (requires OCC
+            // terms or sequence numbers disabled) and not worth a batch merge — take the whole bulk
+            // down the row path.
+            return null;
+        }
+        DataStream ds = DataStream.resolveDataStream(ia, project);
+        if (ds != null) {
+            return ds.getName(); // DATA_STREAM, or an ALIAS that points to one
+        }
+        Index writeIndex = ia.getWriteIndex();
+        return writeIndex == null ? null : writeIndex.getName(); // CONCRETE_INDEX, or a plain ALIAS
+    }
+
+    /**
+     * Resolves {@code @timestamp} from each group's ESCF columns and caches it on each item's
      * {@link IndexRequest} via {@link IndexRequest#setTimeSeriesTimestamp}. Must be called before the
      * per-item routing loop (before {@link #route}) so that
      * {@link DataStream#getWriteIndex(IndexRequest, ProjectMetadata)} finds the memoized value and can
      * select the correct backing index.
      *
-     * <p>No-op in x-content mode (items have inline source) and for non-TSDB data streams.
-     *
-     * <p>All-or-none: if every request already has a timestamp set (producer supplied it out-of-band),
-     * returns immediately. A mixed batch (some set, some not) throws.
+     * <p>No-op for non-TSDB data streams. All-or-none per group: if every request in a group
+     * already has a timestamp set (producer supplied it out-of-band), that group is skipped. A mixed
+     * group (some set, some not) throws.
      *
      * @param requests the bulk request's items, in the same order as the bulk; each row-bearing
      *                 {@link IndexRequest}'s row index is used to map it to the batch column
@@ -190,11 +241,14 @@ final class BatchModeRouter implements Releasable {
      *                                  or a row has no value for it
      */
     void preResolveTimestamps(ProjectMetadata project, List<DocWriteRequest<?>> requests) {
-        if (encoders != null || source == null) {
-            return;
+        for (int g = 0; g < groupCount; g++) {
+            preResolveTimestampsForGroup(groups[g], project, requests);
         }
+    }
+
+    private static void preResolveTimestampsForGroup(BatchGroup group, ProjectMetadata project, List<DocWriteRequest<?>> requests) {
         // Only TSDB data streams need per-document backing-index selection.
-        IndexAbstraction ia = project.getIndicesLookup().get(indexAbstractionName);
+        IndexAbstraction ia = project.getIndicesLookup().get(group.key);
         if (ia == null) {
             return;
         }
@@ -203,13 +257,19 @@ final class BatchModeRouter implements Releasable {
             return;
         }
 
-        // Build a row→IndexRequest map so we can set timestamps by row index.
-        // Rows arrive in ascending order per the bulk invariant; any non-row-bearing request is skipped.
-        IndexRequest[] byRow = new IndexRequest[source.docCount()];
+        // Build a row→IndexRequest map so we can set timestamps by row index. Filter to items that
+        // belong to this group (multi-group bulks may have overlapping row-index ranges across groups).
+        IndexRequest[] byRow = new IndexRequest[group.source.docCount()];
         boolean anyHasTimestamp = false;
         boolean anyLacksTimestamp = false;
         for (DocWriteRequest<?> req : requests) {
             if (req instanceof IndexRequest ir && ir.indexSource().hasSourceRow()) {
+                // Determine which group this item belongs to via its abstraction.
+                IndexAbstraction reqIa = project.getIndicesLookup().get(ir.index());
+                String reqKey = batchKey(reqIa, project);
+                if (group.key.equals(reqKey) == false) {
+                    continue;
+                }
                 int rowIndex = ir.indexSource().rowIndex();
                 if (rowIndex >= 0 && rowIndex < byRow.length) {
                     byRow[rowIndex] = ir;
@@ -225,39 +285,38 @@ final class BatchModeRouter implements Releasable {
         if (anyHasTimestamp && anyLacksTimestamp) {
             throw new IllegalArgumentException(
                 "pre-built batch for ["
-                    + indexAbstractionName
+                    + group.key
                     + "] has a mix of requests with and without a pre-set timestamp;"
                     + " either all requests must supply a timestamp (producer-side) or none"
             );
         }
         if (anyHasTimestamp) {
-            // All timestamps pre-supplied by the producer — nothing to resolve.
-            return;
+            return; // All timestamps pre-supplied by the producer — nothing to resolve.
         }
 
         // Find the @timestamp column index.
-        SourceSchema schema = source.schema();
+        SourceSchema schema = group.source.schema();
         int leaf = schema.findLeaf(DataStream.TIMESTAMP_FIELD_NAME, 0);
         if (leaf < 0) {
             throw new IllegalArgumentException(
                 "pre-built batch for ["
-                    + indexAbstractionName
+                    + group.key
                     + "] targets a TSDB data stream but the batch has no ["
                     + DataStream.TIMESTAMP_FIELD_NAME
                     + "] column; the batch producer must include a timestamp column"
             );
         }
 
-        EscfColumn col = source.column(leaf);
+        EscfColumn col = group.source.column(leaf);
         byte kind = col.kind();
 
         switch (kind) {
-            case EscfColumnKind.LONG -> resolveTimestampsFromLong(col, byRow);
-            case EscfColumnKind.STRING -> resolveTimestampsFromString(col, byRow);
-            case EscfColumnKind.UNION -> resolveTimestampsFromUnion(col, byRow);
+            case EscfColumnKind.LONG -> resolveTimestampsFromLong(group.key, group.source, col, byRow);
+            case EscfColumnKind.STRING -> resolveTimestampsFromString(group.key, group.source, col, byRow);
+            case EscfColumnKind.UNION -> resolveTimestampsFromUnion(group.key, group.source, col, byRow);
             default -> throw new UnsupportedOperationException(
                 "pre-built batch for ["
-                    + indexAbstractionName
+                    + group.key
                     + "] has a ["
                     + DataStream.TIMESTAMP_FIELD_NAME
                     + "] column of unsupported kind ["
@@ -269,9 +328,10 @@ final class BatchModeRouter implements Releasable {
 
     /**
      * Resolves {@code @timestamp} from a LONG (epoch-millis) column and caches on each row's
-     * {@link IndexRequest}. An absent row throws because TSDB requires every document to have a timestamp.
+     * {@link IndexRequest}. An absent row throws because TSDB requires every document to have a
+     * timestamp.
      */
-    private void resolveTimestampsFromLong(EscfColumn col, IndexRequest[] byRow) {
+    private static void resolveTimestampsFromLong(String groupKey, EscfBatch source, EscfColumn col, IndexRequest[] byRow) {
         int docCount = source.docCount();
         boolean[] seen = new boolean[docCount];
         LongTupleCursor cursor = col.longCursor();
@@ -280,14 +340,14 @@ final class BatchModeRouter implements Releasable {
             setTimestampOnRequest(byRow, r, Instant.ofEpochMilli(cursor.longValue()));
             seen[r] = true;
         }
-        checkAllRowsHaveTimestamp(seen, byRow, indexAbstractionName);
+        checkAllRowsHaveTimestamp(seen, byRow, groupKey);
     }
 
     /**
      * Resolves {@code @timestamp} from a STRING (ISO-8601 or epoch-millis) column and caches on each
      * row's {@link IndexRequest}.
      */
-    private void resolveTimestampsFromString(EscfColumn col, IndexRequest[] byRow) {
+    private static void resolveTimestampsFromString(String groupKey, EscfBatch source, EscfColumn col, IndexRequest[] byRow) {
         int docCount = source.docCount();
         boolean[] seen = new boolean[docCount];
         ObjectTupleCursor<BytesRef> cursor = col.bytesRefCursor(false);
@@ -299,14 +359,14 @@ final class BatchModeRouter implements Releasable {
             setTimestampOnRequest(byRow, r, ts);
             seen[r] = true;
         }
-        checkAllRowsHaveTimestamp(seen, byRow, indexAbstractionName);
+        checkAllRowsHaveTimestamp(seen, byRow, groupKey);
     }
 
     /**
      * Resolves {@code @timestamp} from a UNION column (dispatching on the per-row type byte) and
      * caches on each row's {@link IndexRequest}.
      */
-    private void resolveTimestampsFromUnion(EscfColumn col, IndexRequest[] byRow) {
+    private static void resolveTimestampsFromUnion(String groupKey, EscfBatch source, EscfColumn col, IndexRequest[] byRow) {
         int docCount = source.docCount();
         boolean[] seen = new boolean[docCount];
         ObjectTupleCursor<BytesRef> cursor = col.bytesRefCursor(false);
@@ -322,7 +382,7 @@ final class BatchModeRouter implements Releasable {
             } else {
                 throw new UnsupportedOperationException(
                     "pre-built batch for ["
-                        + indexAbstractionName
+                        + groupKey
                         + "] row "
                         + r
                         + " has a UNION ["
@@ -335,15 +395,15 @@ final class BatchModeRouter implements Releasable {
             setTimestampOnRequest(byRow, r, ts);
             seen[r] = true;
         }
-        checkAllRowsHaveTimestamp(seen, byRow, indexAbstractionName);
+        checkAllRowsHaveTimestamp(seen, byRow, groupKey);
     }
 
-    private static void checkAllRowsHaveTimestamp(boolean[] seen, IndexRequest[] byRow, String indexAbstractionName) {
+    private static void checkAllRowsHaveTimestamp(boolean[] seen, IndexRequest[] byRow, String groupKey) {
         for (int row = 0; row < seen.length; row++) {
             if (seen[row] == false && byRow[row] != null) {
                 throw new IllegalArgumentException(
                     "pre-built batch for ["
-                        + indexAbstractionName
+                        + groupKey
                         + "] row "
                         + row
                         + " has no ["
@@ -354,7 +414,7 @@ final class BatchModeRouter implements Releasable {
         }
     }
 
-    private void setTimestampOnRequest(IndexRequest[] byRow, int row, Instant rawTimestamp) {
+    private static void setTimestampOnRequest(IndexRequest[] byRow, int row, Instant rawTimestamp) {
         Instant ts = DataStream.getCanonicalTimestampBound(rawTimestamp);
         IndexRequest ir = byRow[row];
         if (ir != null) {
@@ -363,10 +423,9 @@ final class BatchModeRouter implements Releasable {
     }
 
     /**
-     * Records one item for routing. For the provided-batch mode the actual shard assignment is
-     * deferred until {@link #buildGrouping}; for x-content the item is encoded and routed immediately.
-     *
-     * @param requestsByShard the grouping map to fill; both modes write into it
+     * Records one item for deferred routing. The actual shard assignment is deferred until
+     * {@link #buildGrouping}; this call registers the item with its batch group via
+     * {@link #batchKey}.
      */
     void route(
         BulkItemRequest bulkItem,
@@ -377,44 +436,49 @@ final class BatchModeRouter implements Releasable {
         ProjectMetadata project,
         Map<ShardId, List<BulkItemRequest>> requestsByShard
     ) {
-        if (encoders != null) {
-            request.preRoutingProcess(routing);
-            int shardId = encoders.tryEncodeAndRoute((IndexRequest) request, concreteIndex, routing);
-            if (shardId == BulkBatchEncoders.NOT_BATCHABLE) {
-                shardId = request.route(routing);
-            }
-            request.postRoutingProcess(routing);
-            requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), k -> new ArrayList<>()).add(bulkItem);
-        } else {
-            IndexRequest batchItem = (IndexRequest) request;
-            int targetIdx = prepareRouting(batchItem, abstraction, concreteIndex, routing, project);
-            recordDeferredItem(bulkItem, batchItem.indexSource().rowIndex(), targetIdx);
+        IndexRequest batchItem = (IndexRequest) request;
+        BatchGroup group = findGroup(abstraction, project);
+        if (group == null) {
+            throw new IllegalArgumentException(
+                "item targeting index ["
+                    + request.index()
+                    + "] carries a source-row reference but no pre-built batch was supplied for it;"
+                    + " batches must be keyed by the write-target resolved from the request's target index"
+            );
         }
+        int targetIdx = prepareRouting(group, batchItem, concreteIndex, routing, project);
+        recordDeferredItem(group, bulkItem, batchItem.indexSource().rowIndex(), targetIdx);
+    }
+
+    /** Linear scan over groups; N is typically 1. Returns {@code null} if no group key matches. */
+    @Nullable
+    private BatchGroup findGroup(IndexAbstraction abstraction, ProjectMetadata project) {
+        String key = batchKey(abstraction, project);
+        if (key == null) {
+            return null;
+        }
+        for (int g = 0; g < groupCount; g++) {
+            if (groups[g].key.equals(key)) {
+                return groups[g];
+            }
+        }
+        return null;
     }
 
     /**
-     * Validates the request, resolves (or registers) the concrete-index target, and returns the target
-     * index into {@link #targets}.
+     * Validates the request, resolves (or registers) the concrete-index target for the group, and
+     * returns the target index into {@link BatchGroup#targets}.
      */
-    private int prepareRouting(
+    private static int prepareRouting(
+        BatchGroup group,
         IndexRequest request,
-        IndexAbstraction abstraction,
         Index concreteIndex,
         IndexRouting routing,
         ProjectMetadata project
     ) {
-        if (indexAbstractionName.equals(abstraction.getName()) == false) {
-            throw new IllegalArgumentException(
-                "item targeting index ["
-                    + request.index()
-                    + "] carries a source-row reference but no pre-built batch was supplied under that name;"
-                    + " batches must be keyed by the name set on the requests whose rows they hold"
-            );
-        }
-
         // Linear scan over targets (typically 1–2 entries at a TSDB rollover boundary; no Map needed).
-        for (int i = 0; i < targetCount; i++) {
-            Index t = targets[i].index();
+        for (int i = 0; i < group.targetCount; i++) {
+            Index t = group.targets[i].index();
             // == short-circuit: same object is the common case within one backing-index generation.
             if (t == concreteIndex || t.equals(concreteIndex)) {
                 return i;
@@ -434,61 +498,66 @@ final class BatchModeRouter implements Releasable {
             }
         }
         int shardCount = project.getIndexSafe(concreteIndex).getNumberOfShards();
-        int partitionBase = totalPartitions;
-        totalPartitions += shardCount;
+        int partitionBase = group.totalPartitions;
+        group.totalPartitions += shardCount;
 
         IndexTarget newTarget = new IndexTarget(concreteIndex, routing, shardCount, partitionBase);
-        if (targets == null) {
-            targets = new IndexTarget[2];
-        } else if (targetCount == targets.length) {
-            targets = Arrays.copyOf(targets, targetCount * 2);
+        if (group.targets == null) {
+            group.targets = new IndexTarget[2];
+        } else if (group.targetCount == group.targets.length) {
+            group.targets = Arrays.copyOf(group.targets, group.targetCount * 2);
         }
-        targets[targetCount] = newTarget;
-        int newTargetIdx = targetCount;
-        targetCount++;
+        group.targets[group.targetCount] = newTarget;
+        int newTargetIdx = group.targetCount;
+        group.targetCount++;
 
         // Allocate rowTargets exactly once, on the transition from 1→2 targets. == 2 (not >= 2)
         // ensures later targets don't re-allocate and discard already-written assignments. Zero fill
         // is correct: every row recorded before this call belongs to target 0.
-        if (targetCount == 2) {
-            rowTargets = new int[source.docCount()];
+        if (group.targetCount == 2) {
+            group.rowTargets = new int[group.source.docCount()];
         }
 
         return newTargetIdx;
     }
 
-    private void recordDeferredItem(BulkItemRequest bulkItem, int rowIndex, int targetIdx) {
-        int docCount = source.docCount();
+    private static void recordDeferredItem(BatchGroup group, BulkItemRequest bulkItem, int rowIndex, int targetIdx) {
+        int docCount = group.source.docCount();
         if (rowIndex < 0 || rowIndex >= docCount) {
             throw new IllegalArgumentException(
-                "rowIndex " + rowIndex + " is out of range [0, " + docCount + ") for pre-built batch [" + indexAbstractionName + "]"
+                "rowIndex " + rowIndex + " is out of range [0, " + docCount + ") for pre-built batch [" + group.key + "]"
             );
         }
-        if (rowIndex <= lastRow) {
+        if (rowIndex <= group.lastRow) {
             throw new IllegalArgumentException(
                 "rowIndex "
                     + rowIndex
                     + " is not strictly greater than the previous row "
-                    + lastRow
+                    + group.lastRow
                     + " of pre-built batch ["
-                    + indexAbstractionName
+                    + group.key
                     + "]; rows must arrive in ascending order"
             );
         }
-        lastRow = rowIndex;
-        items[rowIndex] = bulkItem;
-        if (rowTargets != null) {
-            rowTargets[rowIndex] = targetIdx;
+        if (group.items[rowIndex] != null) {
+            throw new IllegalArgumentException("rowIndex " + rowIndex + " is claimed by two items in pre-built batch [" + group.key + "]");
         }
-        routedCount++;
+        group.lastRow = rowIndex;
+        group.items[rowIndex] = bulkItem;
+        if (group.rowTargets != null) {
+            group.rowTargets[rowIndex] = targetIdx;
+        }
+        group.routedCount++;
     }
 
     /**
-     * Completes routing for provided-batch mode: computes the shard assignment for each deferred
-     * item and adds it to {@code requestsByShard}, then returns that map. In x-content mode the
-     * items were already routed in {@link #route}, so this is a no-op that returns the map as-is.
-     * Must be called exactly once per bulk; {@link #shardBatches()} scatters the source data to
-     * match the grouping produced here.
+     * Completes routing for all groups: computes the shard assignment for each deferred item and
+     * adds it to {@code requestsByShard}. Must be called exactly once per bulk;
+     * {@link #shardBatches()} scatters the source data to match the grouping produced here.
+     *
+     * <p>Rows with no corresponding item (orphans from {@link org.elasticsearch.escf.EscfBatchBuilder#abortRow}
+     * or items dropped during routing) are left with {@code partitionIds == -1}; the scatter step
+     * remaps them to the discard partition.
      */
     Map<ShardId, List<BulkItemRequest>> buildGrouping(
         Map<ShardId, List<BulkItemRequest>> requestsByShard,
@@ -496,88 +565,102 @@ final class BatchModeRouter implements Releasable {
     ) {
         assert groupingBuilt == false : "buildGrouping called more than once";
         groupingBuilt = true;
-        if (encoders != null) {
-            return requestsByShard;
-        }
-        if (routedCount == 0) {
-            return requestsByShard;
-        }
-        // Count mismatch is a caller precondition violation (wrong batch attached), not a per-item
-        // routing failure, so we throw rather than routing through onItemFailure.
-        if (routedCount != source.docCount()) {
-            throw new IllegalStateException(
-                "pre-built batch ["
-                    + indexAbstractionName
-                    + "] had "
-                    + source.docCount()
-                    + " rows but only "
-                    + routedCount
-                    + " were routed; dropped rows in pre-built batches are not yet supported and will be added in a follow-up"
-            );
-        }
-        try {
-            if (targetCount == 1) {
-                routeSingleTarget(requestsByShard);
-            } else {
-                routeMultipleTargets(requestsByShard);
-            }
-        } catch (Exception e) {
-            // The trio does not give us a row index, so we cannot isolate which row(s) caused the
-            // problem. Fail every deferred item with the same exception.
-            scattered = true; // prevent shardBatches() from attempting a stale scatter
-            for (int i = 0; i < source.docCount(); i++) {
-                if (items[i] != null) {
-                    onItemFailure.accept(items[i], e);
-                }
-            }
+        for (int g = 0; g < groupCount; g++) {
+            buildGroupingForGroup(groups[g], requestsByShard, onItemFailure);
         }
         return requestsByShard;
     }
 
+    private void buildGroupingForGroup(
+        BatchGroup group,
+        Map<ShardId, List<BulkItemRequest>> requestsByShard,
+        BiConsumer<BulkItemRequest, Exception> onItemFailure
+    ) {
+        if (group.routedCount == 0) {
+            return;
+        }
+        try {
+            if (group.targetCount == 1) {
+                routeSingleTarget(group, requestsByShard);
+            } else {
+                routeMultipleTargets(group, requestsByShard);
+            }
+        } catch (Exception e) {
+            // Routing failed for this group. Fail every deferred item; mark scattered so
+            // shardBatches() won't try a stale scatter.
+            scattered = true;
+            for (int i = 0; i < group.source.docCount(); i++) {
+                if (group.items[i] != null) {
+                    onItemFailure.accept(group.items[i], e);
+                }
+            }
+        }
+    }
+
     /**
-     * Fast path for a single concrete index — identical semantics to the original single-index logic.
+     * Fast path for a single concrete index. Collects claimed rows (skipping any orphans), routes
+     * them, and fills partitionIds for claimed rows only; orphan rows retain their {@code -1}.
      */
-    private void routeSingleTarget(Map<ShardId, List<BulkItemRequest>> requestsByShard) {
-        IndexTarget target = targets[0];
-        IndexRequest[] requests = buildRequestArray();
+    private static void routeSingleTarget(BatchGroup group, Map<ShardId, List<BulkItemRequest>> requestsByShard) {
+        IndexTarget target = group.targets[0];
+        int n = group.source.docCount();
+
+        // Collect claimed rows to handle orphans (aborted rows or items dropped before route()).
+        int[] claimedRows = new int[group.routedCount];
+        IndexRequest[] requests = new IndexRequest[group.routedCount];
+        int k = 0;
+        for (int row = 0; row < n; row++) {
+            if (group.items[row] != null) {
+                claimedRows[k] = row;
+                requests[k] = (IndexRequest) group.items[row].request();
+                k++;
+            }
+        }
+
         target.routing().preProcess(requests);
-        int[] shards = target.routing().indexShard(requests, source, null);
+        int[] shards = target.routing().indexShard(requests, group.source, claimedRows);
         target.routing().postProcess(requests);
-        for (int i = 0; i < requests.length; i++) {
+        for (int i = 0; i < k; i++) {
+            int row = claimedRows[i];
             int shardId = shards[i];
-            partitionIds[i] = shardId; // partitionBase is 0 for target 0
-            requestsByShard.computeIfAbsent(new ShardId(target.index(), shardId), k -> new ArrayList<>()).add(items[i]);
+            group.partitionIds[row] = shardId; // partitionBase is 0 for target 0
+            requestsByShard.computeIfAbsent(new ShardId(target.index(), shardId), key -> new ArrayList<>()).add(group.items[row]);
         }
     }
 
     /**
      * Routes multiple targets. Builds per-target row-index arrays, calls the routing trio once per
      * target (rollover-safe: each target has its own dimension predicate), then fills
-     * {@link #partitionIds} and {@code requestsByShard} atomically.
+     * {@link BatchGroup#partitionIds} and {@code requestsByShard} atomically.
      *
      * <p>All target routing completes before {@code requestsByShard} is modified, so a failure on any
-     * target leaves {@code requestsByShard} untouched.
+     * target leaves {@code requestsByShard} untouched. Orphan rows (null items) are skipped.
      */
-    private void routeMultipleTargets(Map<ShardId, List<BulkItemRequest>> requestsByShard) {
+    private static void routeMultipleTargets(BatchGroup group, Map<ShardId, List<BulkItemRequest>> requestsByShard) {
+        int n = group.source.docCount();
         // Count rows per target to size the per-target arrays.
-        int[] targetRowCounts = new int[targetCount];
-        for (int row = 0; row < routedCount; row++) {
-            targetRowCounts[rowTargets[row]]++;
+        int[] targetRowCounts = new int[group.targetCount];
+        for (int row = 0; row < n; row++) {
+            if (group.items[row] != null) {
+                targetRowCounts[group.rowTargets[row]]++;
+            }
         }
 
         // Build per-target row-index arrays (in ascending order) and IndexRequest arrays.
-        int[][] rowsByTarget = new int[targetCount][];
-        IndexRequest[][] requestsByTarget = new IndexRequest[targetCount][];
-        for (int t = 0; t < targetCount; t++) {
+        int[][] rowsByTarget = new int[group.targetCount][];
+        IndexRequest[][] requestsByTarget = new IndexRequest[group.targetCount][];
+        for (int t = 0; t < group.targetCount; t++) {
             rowsByTarget[t] = new int[targetRowCounts[t]];
             requestsByTarget[t] = new IndexRequest[targetRowCounts[t]];
         }
-        int[] fill = new int[targetCount];
-        for (int row = 0; row < routedCount; row++) {
-            int t = rowTargets[row];
-            int slot = fill[t]++;
-            rowsByTarget[t][slot] = row;
-            requestsByTarget[t][slot] = (IndexRequest) items[row].request();
+        int[] fill = new int[group.targetCount];
+        for (int row = 0; row < n; row++) {
+            if (group.items[row] != null) {
+                int t = group.rowTargets[row];
+                int slot = fill[t]++;
+                rowsByTarget[t][slot] = row;
+                requestsByTarget[t][slot] = (IndexRequest) group.items[row].request();
+            }
         }
 
         // Route each target. Collect shard ids before touching requestsByShard so a failure on a
@@ -585,87 +668,103 @@ final class BatchModeRouter implements Releasable {
         // No try/finally around postProcess: indexShard() clears batchHashes at entry (before it
         // can throw), so the routing object is already clean on failure. Calling postProcess() in
         // a finally would itself throw (batchHashes == null) and mask the real exception.
-        // The failed items are never re-routed, so the preProcess side-effect (auto-generated id)
-        // on partially-processed requests is harmless.
-        int[][] shardsByTarget = new int[targetCount][];
-        for (int t = 0; t < targetCount; t++) {
-            IndexTarget target = targets[t];
+        int[][] shardsByTarget = new int[group.targetCount][];
+        for (int t = 0; t < group.targetCount; t++) {
+            IndexTarget target = group.targets[t];
             target.routing().preProcess(requestsByTarget[t]);
-            shardsByTarget[t] = target.routing().indexShard(requestsByTarget[t], source, rowsByTarget[t]);
+            shardsByTarget[t] = target.routing().indexShard(requestsByTarget[t], group.source, rowsByTarget[t]);
             target.routing().postProcess(requestsByTarget[t]);
         }
 
         // All routing succeeded — commit to partitionIds and requestsByShard.
-        for (int t = 0; t < targetCount; t++) {
-            IndexTarget target = targets[t];
+        for (int t = 0; t < group.targetCount; t++) {
+            IndexTarget target = group.targets[t];
             int[] rows = rowsByTarget[t];
             int[] shards = shardsByTarget[t];
             for (int k = 0; k < rows.length; k++) {
                 int row = rows[k];
                 int globalPartition = target.partitionBase() + shards[k];
-                partitionIds[row] = globalPartition;
-                requestsByShard.computeIfAbsent(new ShardId(target.index(), shards[k]), key -> new ArrayList<>()).add(items[row]);
+                group.partitionIds[row] = globalPartition;
+                requestsByShard.computeIfAbsent(new ShardId(target.index(), shards[k]), key -> new ArrayList<>()).add(group.items[row]);
             }
         }
     }
 
-    private IndexRequest[] buildRequestArray() {
-        IndexRequest[] requests = new IndexRequest[routedCount];
-        for (int i = 0; i < routedCount; i++) {
-            requests[i] = (IndexRequest) items[i].request();
-        }
-        return requests;
-    }
-
     /**
-     * Returns the per-shard batches. For provided-batch mode, returns empty on any call after the
-     * first — the failure-store redirect pass must not re-scatter batches already in flight.
+     * Returns the per-shard batches. Returns empty on any call after the first — the failure-store
+     * redirect pass must not re-scatter batches already in flight.
      */
     Map<ShardId, SourceBatch> shardBatches() {
-        if (encoders != null) {
-            return encoders.finalizeBatches();
-        }
         if (scattered) {
             return Map.of();
         }
         scattered = true;
-        if (routedCount == 0) {
-            return Map.of();
-        }
-        if (totalPartitions == 1) {
-            // Fast path: single target, single shard — hand the original batch through untouched.
-            return Map.of(new ShardId(targets[0].index(), 0), source);
-        }
-        return scatter();
-    }
-
-    private Map<ShardId, SourceBatch> scatter() {
-        EscfBatch[] parts;
-        try (EscfBatchScatterer scatterer = new EscfBatchScatterer(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
-            parts = scatterer.scatter(source, partitionIds, totalPartitions);
-        }
         Map<ShardId, SourceBatch> result = new HashMap<>();
-        int[] nextRow = new int[totalPartitions];
-        for (int row = 0; row < routedCount; row++) {
-            int globalPartition = partitionIds[row];
-            EscfBatch part = parts[globalPartition];
-            assert part != null : "null partition " + globalPartition + " for row " + row;
-
-            // Recover the ShardId from the global partition: find which target owns this partition.
-            IndexTarget target = targetForPartition(globalPartition);
-            int localShardId = globalPartition - target.partitionBase();
-            result.putIfAbsent(new ShardId(target.index(), localShardId), part);
-
-            IndexRequest req = (IndexRequest) items[row].request();
-            req.indexSource().setSourceRow(part, nextRow[globalPartition]++, req.indexSource().contentType());
+        for (int g = 0; g < groupCount; g++) {
+            scatterGroup(groups[g], result);
         }
         return result;
     }
 
+    private static void scatterGroup(BatchGroup group, Map<ShardId, SourceBatch> result) {
+        if (group.routedCount == 0) {
+            return;
+        }
+        int n = group.source.docCount();
+        if (group.totalPartitions == 1 && group.routedCount == n) {
+            // Fast path: single target, single shard, no dropped rows — hand the original batch
+            // through untouched. Source rows were already set by the encoder or external producer.
+            result.put(new ShardId(group.targets[0].index(), 0), group.source);
+            return;
+        }
+
+        boolean hasOrphans = group.routedCount != n;
+        int discardPartition = group.totalPartitions; // only meaningful when hasOrphans
+        int totalPartitionsForScatter = hasOrphans ? group.totalPartitions + 1 : group.totalPartitions;
+
+        // Remap unclaimed rows (partitionIds == -1) to the discard partition.
+        if (hasOrphans) {
+            for (int row = 0; row < n; row++) {
+                if (group.partitionIds[row] < 0) {
+                    group.partitionIds[row] = discardPartition;
+                }
+            }
+        }
+
+        EscfBatch[] parts;
+        try (EscfBatchScatterer scatterer = new EscfBatchScatterer(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+            parts = scatterer.scatter(group.source, group.partitionIds, totalPartitionsForScatter);
+        }
+
+        // Immediately release the discard partition — it is the only copy of orphan rows and must
+        // not be mapped to any shard.
+        if (hasOrphans && parts[discardPartition] != null) {
+            parts[discardPartition].close();
+            parts[discardPartition] = null;
+        }
+
+        int[] nextRow = new int[group.totalPartitions];
+        for (int row = 0; row < n; row++) {
+            int globalPartition = group.partitionIds[row];
+            EscfBatch part = parts[globalPartition];
+            if (part == null) {
+                // Discard partition (released above) or a zero-row real partition — skip.
+                continue;
+            }
+
+            IndexTarget target = targetForPartition(group, globalPartition);
+            int localShardId = globalPartition - target.partitionBase();
+            result.putIfAbsent(new ShardId(target.index(), localShardId), part);
+
+            IndexRequest req = (IndexRequest) group.items[row].request();
+            req.indexSource().setSourceRow(part, nextRow[globalPartition]++, req.indexSource().contentType());
+        }
+    }
+
     /** Returns the target that owns the given global partition id. Linear scan; N is typically 1–2. */
-    private IndexTarget targetForPartition(int globalPartition) {
-        for (int t = 0; t < targetCount; t++) {
-            IndexTarget target = targets[t];
+    private static IndexTarget targetForPartition(BatchGroup group, int globalPartition) {
+        for (int t = 0; t < group.targetCount; t++) {
+            IndexTarget target = group.targets[t];
             if (globalPartition >= target.partitionBase() && globalPartition < target.partitionBase() + target.shardCount()) {
                 return target;
             }
@@ -710,8 +809,7 @@ final class BatchModeRouter implements Releasable {
 
     @Override
     public void close() {
-        if (encoders != null) {
-            encoders.close();
-        }
+        // Nothing to release: source batches are owned by the caller (BulkEscfEncodePass for
+        // internally-encoded batches, or the external producer for pre-built batches).
     }
 }

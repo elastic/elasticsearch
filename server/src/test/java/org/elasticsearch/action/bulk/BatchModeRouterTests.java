@@ -29,7 +29,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -133,10 +132,9 @@ public class BatchModeRouterTests extends ESTestCase {
                 doc.endObject();
                 BytesReference source = BytesReference.bytes(doc);
                 sources.add(source);
-                encoder.parseToScratch(source, XContentType.JSON, LeafSink.NO_OP);
-                encoder.commitScratchTo(0);
+                encoder.addDocument(source, XContentType.JSON);
             }
-            return new Docs(encoder.buildPartition(0), sources);
+            return new Docs(encoder.build(), sources);
         }
     }
 
@@ -292,19 +290,6 @@ public class BatchModeRouterTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("must be an EscfBatch"));
     }
 
-    /**
-     * Step-1 limit: exactly one pre-built batch per bulk. A second batch name triggers an immediate
-     * rejection at create time with a message pointing to the upcoming follow-up.
-     */
-    public void testRejectsMultipleBatches() throws IOException {
-        EscfBatch batchA = buildBatch(1);
-        EscfBatch batchB = buildBatch(1);
-        BulkRequest request = new BulkRequest();
-        request.setPreBuiltBatches(Map.of("index-a", batchA, "index-b", batchB));
-        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(request, true));
-        assertThat(e.getMessage(), containsString("at most one is supported in step 1"));
-    }
-
     public void testSingleShardAllRowsRouted() throws IOException {
         int numDocs = randomIntBetween(3, 20);
         EscfBatch batch = buildBatch(numDocs);
@@ -343,11 +328,11 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     /**
-     * If some (but not all) rows are dropped before routing, {@code completeDeferredRouting} must
-     * fail rather than silently produce a misaligned batch. Discard-bucket support will be added in
-     * a follow-up.
+     * When some (but not all) rows are dropped before routing, the dropped rows flow to the discard
+     * partition at scatter time. The remaining non-dropped rows are routed normally and must align
+     * with the items that were actually routed.
      */
-    public void testThrowsWhenSomeRowsDropped() throws IOException {
+    public void testSomeRowsDroppedGoesToDiscardPartition() throws IOException {
         int numDocs = randomIntBetween(3, 20);
         int numShards = randomIntBetween(1, 4);
         EscfBatch batch = buildBatch(numDocs);
@@ -361,8 +346,11 @@ public class BatchModeRouterTests extends ESTestCase {
             dropped.add(randomIntBetween(0, numDocs - 1));
         }
         BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
-        var e = expectThrows(IllegalStateException.class, () -> routeAll(router, bulkRequest, project, dropped));
-        assertThat(e.getMessage(), containsString("not yet supported"));
+        // No exception — dropped rows go to the discard partition.
+        var requestsByShard = routeAll(router, bulkRequest, project, dropped);
+        assertFalse("at least one non-dropped row must land on a shard", requestsByShard.isEmpty());
+        var shardBatches = router.shardBatches();
+        assertShardsAligned(requestsByShard, shardBatches);
         router.close();
     }
 
@@ -430,7 +418,7 @@ public class BatchModeRouterTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> router.route(item, request, ia, other.getIndex(), IndexRouting.fromIndexMetadata(other), project, new HashMap<>())
         );
-        assertThat(e.getMessage(), containsString("no pre-built batch was supplied under that name"));
+        assertThat(e.getMessage(), containsString("no pre-built batch was supplied"));
         router.close();
     }
 
@@ -621,23 +609,24 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     /**
-     * Even a single-shard index throws when a row is dropped, because the passthrough fast path
-     * requires all rows to be present. The exception comes from {@code completeDeferredRouting},
-     * which is called by {@code routeAll} after the scan.
+     * A single-shard index with one dropped row bypasses the pass-through fast path (which requires
+     * all rows to be present). The dropped row goes to the discard partition; the remaining rows land
+     * on the single shard and must be aligned with the routed items.
      */
-    public void testSingleShardWithDroppedRowThrows() throws IOException {
+    public void testSingleShardWithDroppedRowUsesDiscardPartition() throws IOException {
         int numDocs = randomIntBetween(2, 20);
         EscfBatch batch = buildBatch(numDocs);
         BulkRequest bulkRequest = buildBulkRequest("myindex", batch, numDocs);
         IndexMetadata md = plainMetadata("myindex", 1);
         ProjectMetadata project = project(md);
 
+        Set<Integer> dropped = Set.of(randomIntBetween(0, numDocs - 1));
         BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
-        var e = expectThrows(
-            IllegalStateException.class,
-            () -> routeAll(router, bulkRequest, project, Set.of(randomIntBetween(0, numDocs - 1)))
-        );
-        assertThat(e.getMessage(), containsString("not yet supported"));
+        var requestsByShard = routeAll(router, bulkRequest, project, dropped);
+        assertFalse("at least one non-dropped row must land on the shard", requestsByShard.isEmpty());
+        var shardBatches = router.shardBatches();
+        assertThat(shardBatches.size(), equalTo(1));
+        assertShardsAligned(requestsByShard, shardBatches);
         router.close();
     }
 
@@ -732,7 +721,7 @@ public class BatchModeRouterTests extends ESTestCase {
                 requestsByShard
             )
         );
-        assertThat(e.getMessage(), containsString("no pre-built batch was supplied under that name"));
+        assertThat(e.getMessage(), containsString("no pre-built batch was supplied"));
         router.close();
     }
 
@@ -849,10 +838,9 @@ public class BatchModeRouterTests extends ESTestCase {
                 doc.field("dim", "d");
                 doc.field("@timestamp", ts.toEpochMilli());
                 doc.endObject();
-                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON, LeafSink.NO_OP);
-                encoder.commitScratchTo(0);
+                encoder.addDocument(BytesReference.bytes(doc), XContentType.JSON);
             }
-            batch = encoder.buildPartition(0);
+            batch = encoder.build();
         }
 
         IndexRequest req0 = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);
@@ -887,9 +875,8 @@ public class BatchModeRouterTests extends ESTestCase {
             doc.field("dim", "d0");
             doc.field("@timestamp", IN_GEN_1.toString());
             doc.endObject();
-            encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON, LeafSink.NO_OP);
-            encoder.commitScratchTo(0);
-            batch = encoder.buildPartition(0);
+            encoder.addDocument(BytesReference.bytes(doc), XContentType.JSON);
+            batch = encoder.build();
         }
 
         IndexRequest req = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);
@@ -925,8 +912,7 @@ public class BatchModeRouterTests extends ESTestCase {
             doc0.field("dim", "d");
             doc0.field("@timestamp", ts0.toEpochMilli());
             doc0.endObject();
-            encoder.parseToScratch(BytesReference.bytes(doc0), XContentType.JSON, LeafSink.NO_OP);
-            encoder.commitScratchTo(0);
+            encoder.addDocument(BytesReference.bytes(doc0), XContentType.JSON);
 
             // Row 1: STRING timestamp — promotes the column to UNION.
             XContentBuilder doc1 = JsonXContent.contentBuilder();
@@ -934,10 +920,9 @@ public class BatchModeRouterTests extends ESTestCase {
             doc1.field("dim", "d");
             doc1.field("@timestamp", ts1.toString());
             doc1.endObject();
-            encoder.parseToScratch(BytesReference.bytes(doc1), XContentType.JSON, LeafSink.NO_OP);
-            encoder.commitScratchTo(0);
+            encoder.addDocument(BytesReference.bytes(doc1), XContentType.JSON);
 
-            batch = encoder.buildPartition(0);
+            batch = encoder.build();
         }
 
         IndexRequest req0 = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);

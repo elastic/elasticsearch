@@ -43,7 +43,16 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
 
     @Override
     public StoredFieldsReader fieldsReader(Directory directory, SegmentInfo si, FieldInfos fn, IOContext context) throws IOException {
-        return new TSDBStoredFieldsReader(directory, si, fn, context);
+        if (hasSyntheticId(fn)) {
+            return new TSDBStoredFieldsReader(directory, si, fn, context);
+        }
+        // Lucene selects its stored fields merge strategy by testing the reader against Lucene90CompressingStoredFieldsReader.
+        return delegate.fieldsReader(directory, si, fn, context);
+    }
+
+    private static boolean hasSyntheticId(FieldInfos fn) {
+        var fieldInfo = fn.fieldInfo(IdFieldMapper.NAME);
+        return fieldInfo != null && SyntheticIdField.hasSyntheticIdAttributes(fieldInfo.attributes());
     }
 
     @Override

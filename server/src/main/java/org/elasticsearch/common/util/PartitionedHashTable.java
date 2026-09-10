@@ -52,14 +52,16 @@ public interface PartitionedHashTable {
      */
     interface PartitionedHashKeys {
         /**
-         * Returns the number of keys in the given partition.
+         * Returns the number of keys in the given partition. The count remains available after the partition is released with
+         * {@link #releasePartition(CircuitBreaker, int)}. This method must not be called after {@link #releaseAll(CircuitBreaker)}.
          */
         int keysInPartition(int partition);
 
         /**
          * Releases the given partition without waiting for the remaining ones.
-         * One partition index must be released by one thread at a time,
-         * but different partitions can be released by different threads.
+         * One partition index must be released by one thread at a time, but different partitions can be released by different threads.
+         * Even after this method returns, {@link #keysInPartition(int)} continues to return the correct number of keys in the released
+         * partition.
          */
         void releasePartition(CircuitBreaker breaker, int partition);
 

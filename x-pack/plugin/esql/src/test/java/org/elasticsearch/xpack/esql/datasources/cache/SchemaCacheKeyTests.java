@@ -62,6 +62,23 @@ public class SchemaCacheKeyTests extends ESTestCase {
         assertNotEquals(strict, lenient);
     }
 
+    public void testDatasetAggregateKeyChangesWithFileSortByAndFileOrder() {
+        FileSetFingerprint fingerprint = new FileSetFingerprint(11, 22);
+        SchemaCacheKey listDefault = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            fingerprint,
+            "ndjson",
+            Map.of("schema_resolution", "first_file_wins")
+        );
+        SchemaCacheKey mtimeDesc = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            fingerprint,
+            "ndjson",
+            Map.of("schema_resolution", "first_file_wins", "file_sort_by", "mtime", "file_order", "desc")
+        );
+        assertNotEquals(listDefault, mtimeDesc);
+    }
+
     public void testDatasetAggregateKeyIgnoresCredentials() {
         // Mirrors buildFormatConfig: credentials are not row-interpretation-affecting, so two users
         // over the same files share the aggregate (the schema cache is shared by design).

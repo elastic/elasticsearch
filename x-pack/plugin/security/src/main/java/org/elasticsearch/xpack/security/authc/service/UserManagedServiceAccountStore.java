@@ -353,13 +353,13 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
                 SECURITY_ORIGIN,
                 TransportDeleteAction.TYPE,
                 deleteRequest,
-                ActionListener.wrap(deleteResponse -> {
-                    if (deleteResponse.getResult() == DocWriteResponse.Result.DELETED) {
-                        invalidateAccountCacheClusterWide(accountId.asPrincipal(), listener.map(ignore -> true));
-                    } else {
-                        listener.onResponse(false);
-                    }
-                }, listener::onFailure)
+                ActionListener.wrap(
+                    deleteResponse -> invalidateAccountCacheClusterWide(
+                        accountId.asPrincipal(),
+                        listener.map(ignore -> deleteResponse.getResult() == DocWriteResponse.Result.DELETED)
+                    ),
+                    listener::onFailure
+                )
             );
         });
     }
@@ -403,6 +403,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             validationException.addValidationError("roles is required");
         } else {
             roles.forEach(role -> addIfError(validationException, NativeRealmValidationUtil.validateRoleName(role, true)));
+            addIfError(validationException, Validation.UserManagedServiceAccounts.validateRoles(roles));
         }
         return validationException.validationErrors().isEmpty() ? null : validationException;
     }

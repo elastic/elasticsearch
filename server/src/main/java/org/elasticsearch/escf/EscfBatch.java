@@ -10,6 +10,7 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -134,6 +135,48 @@ public final class EscfBatch implements SourceBatch {
     @Override
     public void close() {
         releasable.close();
+    }
+
+    /**
+     * Estimates the bytes this batch contributes to the Lucene indexing buffer.
+     */
+    @Override
+    public int estimatedBytes() {
+        int size = schemaBytes(schema);
+        if (columnData != null) {
+            for (EscfColumnData col : columnData) {
+                size += valueBytes(col);
+            }
+            return size;
+        }
+        // Slice views share the parent's backing; materialize each column's parent's data.
+        for (EscfColumn column : columns) {
+            size += valueBytes(column.toColumnData());
+        }
+        return size;
+    }
+
+    /** Raw value bytes of one column: the payload ref length, or the kind-specific equivalent when there is no payload. */
+    private static int valueBytes(EscfColumnData col) {
+        return switch (col.kind()) {
+            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.BINARY, EscfColumnKind.UNION ->
+                (int) refLen(col.data());
+            // BOOL has no byte payload: values are one bit per document
+            case EscfColumnKind.BOOL -> EscfBatchCodec.bitsetBytes(col.docCount());
+            // ARRAY has no payload of its own: the elements live in the child column
+            case EscfColumnKind.ARRAY -> valueBytes(col.child());
+            default -> throw new IllegalStateException("Unknown ESCF column kind: " + EscfColumnKind.name(col.kind()));
+        };
+    }
+
+    /** UTF-8 bytes of every leaf's full field path. */
+    private static int schemaBytes(SourceSchema schema) {
+        int size = 0;
+        for (int i = 0; i < schema.leafCount(); i++) {
+            String path = schema.getFullPath(i);
+            size += UnicodeUtil.calcUTF16toUTF8Length(path, 0, path.length());
+        }
+        return size;
     }
 
     @Override

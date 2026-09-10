@@ -22,7 +22,7 @@
     },
     {
       "enabled": true,
-      "target_branch": "main",
+      "target_branch": ["main", "patch/serverless-fix"],
       "pipeline_slug": "elasticsearch-pull-request-transport-versions",
       "allow_org_users": true,
       "allowed_repo_permissions": [

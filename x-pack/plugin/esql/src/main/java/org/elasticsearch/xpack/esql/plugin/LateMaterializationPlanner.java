@@ -9,33 +9,35 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
-import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.expression.function.scalar.RemoteFetchHandleFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
@@ -119,6 +121,65 @@ class LateMaterializationPlanner {
             boolean fragmentIsSorted = ctx.withAddedDocToRelation instanceof TopN;
             return fragmentIsSorted ? t.replaceChild(exchangeExec).withSortedInput() : t.replaceChild(exchangeExec);
         })));
+    }
+
+    /**
+     * Consumes the coordinator-planned remote-fetch boundary and builds the data and node-reduce plans around its schema contract.
+     */
+    public static Optional<ReductionPlan> planRemoteFetchTopN(
+        Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
+        ExchangeSinkExec originalPlan,
+        String localNodeId,
+        String retainedSessionId
+    ) {
+        if (originalPlan.child() instanceof RemoteFetchBoundaryExec == false) {
+            return Optional.empty();
+        }
+        RemoteFetchBoundaryExec boundary = (RemoteFetchBoundaryExec) originalPlan.child();
+        if (boundary.child() instanceof FragmentExec == false) {
+            throw invalidRemoteFetchBoundary("expected direct Fragment child", boundary);
+        }
+        FragmentExec fragmentExec = (FragmentExec) boundary.child();
+        if (fragmentExec.fragment() instanceof Project == false) {
+            throw invalidRemoteFetchBoundary("expected Fragment(Project) shape", boundary);
+        }
+        Project project = (Project) fragmentExec.fragment();
+        if (project.child() instanceof TopN == false) {
+            throw invalidRemoteFetchBoundary("expected Fragment(Project -> TopN) shape", boundary);
+        }
+        TopN topN = (TopN) project.child();
+        if (topN.child().anyMatch(PipelineBreaker.class::isInstance)) {
+            throw invalidRemoteFetchBoundary("nested pipeline breaker below TopN", boundary);
+        }
+        if (originalPlan.output().equals(boundary.handoffOutput()) == false) {
+            throw invalidRemoteFetchBoundary(
+                "handoff output " + boundary.handoffOutput() + " does not match exchange output " + originalPlan.output(),
+                boundary
+            );
+        }
+
+        ExchangeSinkExec updatedDataPlan = originalPlan.replaceChildAndUpdateOutput(fragmentExec);
+        LocalPhysicalOptimizerContext context = contextFactory.apply(SEARCH_STATS_LATE_MATERIALIZATION_REPLACEMENT);
+        PhysicalPlan reductionPlan = PlannerUtils.toPhysicalPlanForReductionSchema(fragmentExec.fragment(), context)
+            .transformDown(
+                TopNExec.class,
+                exec -> exec.replaceChild(new ExchangeSourceExec(topN.source(), boundary.dataOutput(), false)).withSortedInput()
+            );
+        Alias handleAlias = new Alias(
+            Source.EMPTY,
+            boundary.handleAttribute().name(),
+            new RemoteFetchHandleFunction(Source.EMPTY, boundary.documentAttribute(), localNodeId, retainedSessionId),
+            boundary.handleAttribute().id(),
+            true
+        );
+        PhysicalPlan withHandle = new EvalExec(Source.EMPTY, reductionPlan, List.of(handleAlias));
+        PhysicalPlan projected = new ProjectExec(Source.EMPTY, withHandle, boundary.handoffOutput());
+        PhysicalPlan sizedReductionPlan = EstimatesRowSize.estimateRowSize(fragmentExec.estimatedRowSize(), projected);
+        return Optional.of(new ReductionPlan(originalPlan.replaceChild(sizedReductionPlan), updatedDataPlan));
+    }
+
+    private static IllegalStateException invalidRemoteFetchBoundary(String reason, RemoteFetchBoundaryExec boundary) {
+        return new IllegalStateException("invalid remote-fetch boundary: " + reason + " [" + boundary.nodeName() + "]");
     }
 
     /**
@@ -220,7 +281,7 @@ class LateMaterializationPlanner {
         LogicalPlan pipelineBreaker = topLevelProject.child();
         LocalPhysicalOptimizerContext context = contextFactory.apply(SEARCH_STATS_LATE_MATERIALIZATION_REPLACEMENT);
 
-        List<Attribute> physicalPlanOutput = toNonOptimizedPhysicalDataPlan(pipelineBreaker, context).output();
+        List<Attribute> physicalPlanOutput = PlannerUtils.toPhysicalPlanForReductionSchema(pipelineBreaker, context).output();
         Attribute doc = physicalPlanOutput.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
         if (doc == null) {
             return null;
@@ -255,7 +316,7 @@ class LateMaterializationPlanner {
         ExchangeSinkExec updatedDataPlan = originalPlan.replaceChildAndUpdateOutput(updatedFragmentExec);
 
         PhysicalPlan reductionPlan = reductionPlanTransformer.apply(
-            toNonOptimizedPhysicalDataPlan(ctx.fragmentExec.fragment(), ctx.context)
+            PlannerUtils.toPhysicalPlanForReductionSchema(ctx.fragmentExec.fragment(), ctx.context)
         );
         PhysicalPlan sizedReductionPlan = EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), reductionPlan);
         return new ReductionPlan(originalPlan.replaceChild(sizedReductionPlan), updatedDataPlan);
@@ -269,20 +330,6 @@ class LateMaterializationPlanner {
         List<Attribute> physicalPlanOutput,
         LogicalPlan withAddedDocToRelation
     ) {}
-
-    /**
-     * A stripped-down version of {@link org.elasticsearch.xpack.esql.planner.PlannerUtils#localPlan}, doing just the bare minimum to
-     * translate the logical plan to a physical one. This is needed here since we need to solidify the expected output between the data
-     * drivers and node-reduce one.
-     */
-    private static PhysicalPlan toNonOptimizedPhysicalDataPlan(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
-        var logicalContext = new LocalLogicalOptimizerContext(context.configuration(), context.foldCtx(), context.searchStats());
-        // Replace NULL-typed fields (from UNMAPPED_FIELDS="NULLIFY") with constant nulls in the *data* node using
-        // ReplaceFieldWithConstantOrNull, so that InsertFieldExtraction in the *node-reduce* driver won't try to load them from the index.
-        // TODO: Do this in InsertFieldExtraction (See #146068) in the node-reduce driver instead.
-        LogicalPlan optimized = new ReplaceFieldWithConstantOrNull().apply(plan, logicalContext);
-        return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(LocalMapper.INSTANCE.map(optimized)), context);
-    }
 
     private LateMaterializationPlanner() { /* static class */ }
 

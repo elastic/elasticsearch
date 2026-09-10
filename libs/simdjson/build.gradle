@@ -1,0 +1,86 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.foreign-library'
+apply plugin: 'elasticsearch.foreign-api'
+apply plugin: 'elasticsearch.native-library-build'
+
+dependencies {
+  api project(':libs:foreign-library')
+  api project(':libs:logging')
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'simdjson'
+  }
+  testImplementation(testFixtures(project(':libs:simdvec'))) {
+    exclude group: 'org.elasticsearch', module: 'simdjson'
+  }
+}
+
+tasks.named('compileJava').configure {
+  options.compilerArgs << '--add-modules=jdk.incubator.vector'
+  options.compilerArgs << '--add-reads=org.elasticsearch.simdjson=jdk.incubator.vector'
+  // Suppress the "using incubating module(s)" mandatory warning that javac emits for
+  // jdk.incubator.vector. On JDK 21 this warning has no named lint category and cannot
+  // be individually suppressed. -nowarn is scoped to this submodule only.
+  // TODO: replace with -Xlint:-incubating when the compile toolchain moves to JDK 22+
+  options.compilerArgs << '-nowarn'
+}
+
+// The foreign-library annotation processor task is a separate JavaCompile that parses the
+// whole main source set with -proc:only. StringParser imports jdk.incubator.vector, so the
+// module must be visible here too. Unlike compileJava this task runs on the JDK 25 toolchain
+// fixed by the foreign-library plugin, where we can already use -Xlint:-incubating
+tasks.named('processForeignAnnotations').configure {
+  options.compilerArgs << '--add-modules=jdk.incubator.vector'
+  options.compilerArgs << '--add-reads=org.elasticsearch.simdjson=jdk.incubator.vector'
+  options.compilerArgs << '-Xlint:-incubating'
+}
+
+tasks.named('javadoc').configure {
+  options.addStringOption("-add-modules", "jdk.incubator.vector")
+  options.addStringOption("-add-reads", "org.elasticsearch.simdjson=jdk.incubator.vector")
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  ignoreMissingClasses = true
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+// Vendored simdjson C++ amalgamation notices (not tied to a jar dependency).
+tasks.named('dependencyLicenses').configure {
+  ignoreFile 'simdjson-LICENSE.txt'
+  ignoreFile 'simdjson-NOTICE.txt'
+}
+
+// --- Native library build (libsimdjson) ---
+// Set SIMDJSON_NATIVE_BUILD=docker to cross-compile every platform in the toolchain image, or
+// SIMDJSON_NATIVE_BUILD=host to build the current platform only. Unset, the published artifact is used.
+nativeLibraryBuild {
+  modeEnvironmentVariable = 'SIMDJSON_NATIVE_BUILD'
+  sourceDir = layout.projectDirectory.dir('native')
+  sources = ['src/**', 'Makefile']
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6'
+  forwardedEnvironment = ['CLANG_CXX']
+
+  dockerCommand = ['make', 'all']
+  collect = [
+    'build/libs/simdjson/shared/aarch64/libsimdjson.dylib': 'darwin-aarch64/libsimdjson.dylib',
+    'build/libs/simdjson/shared/aarch64/libsimdjson.so'   : 'linux-aarch64/libsimdjson.so',
+    'build/libs/simdjson/shared/amd64/libsimdjson.so'     : 'linux-x64/libsimdjson.so',
+  ]
+
+  hostCommand { outputDir -> ['make', 'local-install', "DEST=${outputDir.asFile}"] }
+}

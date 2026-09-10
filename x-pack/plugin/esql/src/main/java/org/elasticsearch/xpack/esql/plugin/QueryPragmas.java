@@ -220,6 +220,7 @@ public final class QueryPragmas implements Writeable {
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
+        PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
         KNN_RUNTIME_FIELD
 
     ).map(Setting::getKey).toList();
@@ -396,6 +397,19 @@ public final class QueryPragmas implements Writeable {
     public double partialAggregationEmitUniquenessThreshold(double defaultThreshold) {
         if (settings.hasValue(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey())) {
             return PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.get(settings);
+        }
+        return defaultThreshold;
+    }
+
+    public int aggregationPartitioningCountThreshold(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey())) {
+            final String v = settings.get(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey());
+            try {
+                // allow smaller value for the threshold in tests than the min setting in the production
+                return Integer.parseInt(v);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("invalid aggregation partitioning threshold [" + v + "]", e);
+            }
         }
         return defaultThreshold;
     }

@@ -423,7 +423,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      */
     public void testDeleteMountedFrozenIndexBeforeSwap() throws Exception {
         Index candidateIndex = setupClusterAndInfrastructure(1);
-        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
+        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex.getName();
 
         CountDownLatch latch = registerDisruptionInterceptor(
             "indices:admin/data_stream/modify",
@@ -504,7 +504,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         assertTrue("GetSnapshots request was never seen by the interceptor", latch.await(60, TimeUnit.SECONDS));
         assertNoErrorRecorded(candidateIndex);
 
-        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
+        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex.getName();
         assertBusy(() -> {
             var projectMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()

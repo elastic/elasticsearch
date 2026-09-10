@@ -22,7 +22,6 @@ public class PromqlPlanSortTests extends AbstractPromqlPlanOptimizerTests {
     @Before
     public void assumeSortEnabled() {
         assumeTrue("Requires PROMQL_SORT capability", EsqlCapabilities.Cap.PROMQL_SORT.isEnabled());
-        assumeTrue("Requires PROMQL_SORT_DESC capability", EsqlCapabilities.Cap.PROMQL_SORT_DESC.isEnabled());
     }
 
     public void testSortIsIdentityWithBareSelector() {

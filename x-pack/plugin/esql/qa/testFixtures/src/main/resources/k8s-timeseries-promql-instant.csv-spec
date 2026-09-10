@@ -350,7 +350,7 @@ bytes:double | step:datetime            | cluster:keyword
 instant_sort_desc_same_rows_as_bare
 required_capability: promql_command_v0
 required_capability: promql_instant_query
-required_capability: promql_sort_desc
+required_capability: promql_sort
 
 PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_desc(avg by (cluster) (last_over_time(network.bytes_in[1m]))))
 | SORT cluster;
@@ -377,7 +377,7 @@ bytes:double | step:datetime            | cluster:keyword
 instant_sort_desc_by_value
 required_capability: promql_command_v0
 required_capability: promql_instant_query
-required_capability: promql_sort_desc
+required_capability: promql_sort
 
 PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_desc(avg by (cluster) (last_over_time(network.bytes_in[1m]))));
 
@@ -390,7 +390,7 @@ bytes:double | step:datetime            | cluster:keyword
 instant_sort_desc_nan_last
 required_capability: promql_command_v0
 required_capability: promql_instant_query
-required_capability: promql_sort_desc
+required_capability: promql_sort
 // NaN is not null, so the missing-sample filter keeps it. The result has no extra
 // column: the synthetic key used to sort NaN last is not projected.
 PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_desc(vector(NaN)));

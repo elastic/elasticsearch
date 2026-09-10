@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -16,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -27,7 +25,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,12 +34,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class WeightedAvg extends AggregateFunction implements SurrogateExpression {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "WeightedAvg",
-        WeightedAvg::readFrom
-    );
+public class WeightedAvg extends AggregateFunction implements OnlySurrogateExpression {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(WeightedAvg.class)
         .binary(WeightedAvg::new)
         .name("weighted_avg");
@@ -69,31 +61,14 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
         super(source, List.of(field, weight), filter, window, List.of());
     }
 
-    private static WeightedAvg readFrom(StreamInput in) throws IOException {
-        // Legacy serialization format for backwards compatibility
-        Source source = Source.readFrom((PlanStreamInput) in);
-        Expression field = in.readNamedWriteable(Expression.class);
-        Expression filter = in.readNamedWriteable(Expression.class);
-        Expression window = readWindow(in);
-        Expression weight = in.readNamedWriteableCollectionAsList(Expression.class).get(0);
-        return new WeightedAvg(source, field, weight, filter, window);
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // Legacy serialization format for backwards compatibility
-        source().writeTo(out);
-        out.writeNamedWriteable(field());
-        out.writeNamedWriteable(filter());
-        if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
-            out.writeNamedWriteable(window());
-        }
-        out.writeNamedWriteableCollection(List.of(weight()));
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
@@ -160,7 +135,6 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
         return new WeightedAvg(source(), field(), weight(), filter, window());
     }
 
-    // TODO(jan): make OnlySurrogateExpression??
     @Override
     public Expression surrogate() {
         var s = source();

@@ -1,0 +1,24 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "result_ordering",
+  "name" : "sort",
+  "description" : "Sorts instant-vector series by sample value in ascending order. NaN values are sorted last. Ordering is observable only on instant queries. After a range query the Prometheus engine re-sorts the matrix by label set, so the sort has no effect on the returned series order.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "sort(http_requests_total)"
+  ],
+  "snapshot_only" : false
+}

@@ -597,26 +597,28 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         indexRandom(true, builders);
         ensureSearchable(rankIndex);
 
-        var getResp = client(coordinatorNode).prepareGet(rankIndex, "0").get();
+        client(coordinatorNode).prepareGet(rankIndex, "0").get();
         long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        Script largeScript = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, LARGE_LIST_SCRIPT, Collections.emptyMap());
 
         assertNoFailuresAndResponse(
             client(coordinatorNode).prepareSearch(rankIndex)
                 .setQuery(matchAllQuery())
                 .setRankBuilder(new FieldBasedRerankerIT.FieldBasedRankBuilder(numDocs, rankFeatureField))
+                .addScriptField("expanded", largeScript)
                 .setSize(numDocs),
             response -> {
                 assertThat(response.getHits().getHits().length, equalTo(numDocs));
+                assertThat(response.getHits().getHits()[0].getFields().get("expanded"), notNullValue());
             }
         );
 
-        assertBusy(() -> {
-            assertThat(
-                "Circuit breaker should be released after rank_feature phase completes",
-                getRequestBreakerUsed(dataNode),
-                lessThanOrEqualTo(breakerBeforeSearch)
-            );
-        });
+        assertBusy(() -> assertThat(
+            "Circuit breaker should be released after rank_feature phase completes",
+            getRequestBreakerUsed(dataNode),
+            lessThanOrEqualTo(breakerBeforeSearch)
+        ));
     }
 
     private String startDataNode(String cbRequestLimit) {

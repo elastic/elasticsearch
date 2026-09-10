@@ -918,7 +918,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 rankFeatureShardPhase.prepareForFetch(searchContext, request);
                 fetchPhase.execute(searchContext, docIds, null);
-                rankFeatureShardPhase.processFetch(searchContext);
+                try {
+                    rankFeatureShardPhase.processFetch(searchContext);
+                } finally {
+                    searchContext.fetchResult().releaseCircuitBreakerBytes(searchContext.circuitBreaker());
+                }
                 var rankFeatureResult = searchContext.rankFeatureResult();
                 rankFeatureResult.incRef();
                 return rankFeatureResult;

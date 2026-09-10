@@ -212,6 +212,10 @@ public final class ShardBatchMapper {
                 return null;
             }
             final FieldMapper fieldMapper = (FieldMapper) resolved;
+            if (isMultiFieldSubField(fullPath, lookup)) {
+                logger.debug("batch indexing disabled: field [{}] is a mapped as a multi-field", fullPath);
+                return null;
+            }
             if (fieldMapper.supportsColumnarParse(indexSettings) == false) {
                 logger.debug(
                     "columnar batch mapping disabled: mapper at [{}] of type [{}] does not support columnar parsing",
@@ -293,6 +297,27 @@ public final class ShardBatchMapper {
             return null;
         }
         return sink;
+    }
+
+    /**
+     * Detects whether a field is mapped as a multi-field. This to avoid trying to index a multi-field directly, which isn't allowed.
+     * If a field is a multi-field, then {@link #resolveMappers(SourceSchema, MappingLookup, IndexSettings)} should
+     * fall back to the sequential execution path, which will ignore the field in question. This is current behavior.
+     */
+    private static boolean isMultiFieldSubField(String fullPath, MappingLookup lookup) {
+        int dot = fullPath.lastIndexOf('.');
+        if (dot <= 0) {
+            return false;
+        }
+        // Only check immediate dotted parent, because multi-fields are always leaf fields:
+        if (lookup.getMapper(fullPath.substring(0, dot)) instanceof FieldMapper ancestor) {
+            for (FieldMapper subMapper : ancestor.multiFields()) {
+                if (subMapper.fullPath().equals(fullPath)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

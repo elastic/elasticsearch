@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -53,8 +52,8 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
 
     public static Request createRandom() {
         boolean deploymemtIdSameAsModelId = randomBoolean();
-        String modelId = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        Request request = new Request(modelId, deploymemtIdSameAsModelId ? modelId : randomAlphaOfLength(10).toLowerCase(Locale.ROOT));
+        String modelId = randomAlphaOfLength(10);
+        Request request = new Request(modelId, deploymemtIdSameAsModelId ? modelId : randomAlphaOfLength(10));
         if (randomBoolean()) {
             request.setTimeout(randomPositiveTimeValue());
         }

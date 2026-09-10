@@ -111,13 +111,15 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         }
         final MappingLookup mappingLookup = mapperService.mappingLookup();
         final IndexSettings indexSettings = mapperService.getIndexSettings();
-        final BatchMappingContext ctx = new BatchMappingContext(
-            EngineTestCase.initFromRequests(requests),
-            mappingLookup,
-            indexSettings,
-            new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
-        );
-        try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)) {
+        try (
+            BatchMappingContext ctx = new BatchMappingContext(
+                EngineTestCase.initFromRequests(requests),
+                mappingLookup,
+                indexSettings,
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            );
+            EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)
+        ) {
             final SourceSchema schema = escfBatch.schema();
             for (int c = 0; c < schema.leafCount(); c++) {
                 final String path = schema.getFullPath(c);
@@ -177,24 +179,25 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         final IndexRequest[] requests = buildIndexRequests(docs, sourceBytesArray);
         final MappingLookup mappingLookup = mapperService.mappingLookup();
         final IndexSettings indexSettings = mapperService.getIndexSettings();
-        final BatchMappingContext ctx = new BatchMappingContext(
-            EngineTestCase.initFromRequests(requests),
-            mappingLookup,
-            indexSettings,
-            new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
-        );
+        try (
+            BatchMappingContext ctx = new BatchMappingContext(
+                EngineTestCase.initFromRequests(requests),
+                mappingLookup,
+                indexSettings,
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            )
+        ) {
+            // Drive all supported metadata mappers through their columnar hooks, mirroring the
+            // preParse-all / postParse-all ordering of the row-major path.
+            final MetadataFieldMapper[] allMetadata = mappingLookup.getMapping().getSortedMetadataMappers();
+            final List<MetadataFieldMapper> supportedMappers = Arrays.stream(allMetadata)
+                .filter(m -> m.supportsColumnarParse(mapperService.getIndexSettings()))
+                .toList();
+            for (MetadataFieldMapper m : supportedMappers) {
+                m.preColumnarParse(ctx);
+            }
 
-        // Drive all supported metadata mappers through their columnar hooks, mirroring the
-        // preParse-all / postParse-all ordering of the row-major path.
-        final MetadataFieldMapper[] allMetadata = mappingLookup.getMapping().getSortedMetadataMappers();
-        final List<MetadataFieldMapper> supportedMappers = Arrays.stream(allMetadata)
-            .filter(m -> m.supportsColumnarParse(mapperService.getIndexSettings()))
-            .toList();
-        for (MetadataFieldMapper m : supportedMappers) {
-            m.preColumnarParse(ctx);
-        }
-
-        try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)) {
+            try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)) {
             final SourceSchema schema = escfBatch.schema();
 
             // Accumulate leaves owned by a group mapper (e.g. flattened). Groups are ordered by first-seen
@@ -295,6 +298,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                         + docs.get(i).id()
                         + "]: x-content vs column-batch field sets differ"
                 );
+            }
             }
         }
     }

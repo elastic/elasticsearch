@@ -93,7 +93,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.CheckedRunnable;
@@ -258,7 +257,7 @@ public class InternalEngineTests extends EngineTestCase {
             indexBatch,
             mapperService.mappingLookup(),
             defaultSettings,
-            new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
         );
         for (MetadataFieldMapper mapper : metadataMappers) {
             mapper.preColumnarParse(ctx);

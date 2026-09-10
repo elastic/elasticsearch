@@ -338,32 +338,34 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
             new IndexRequest("index").id("1").routing("route-a"),
             new IndexRequest("index").id("2") };
         IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
-        BatchMappingContext context = new BatchMappingContext(
-            batch,
-            mapperService.mappingLookup(),
-            mapperService.getIndexSettings(),
-            new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
-        );
+        try (
+            BatchMappingContext context = new BatchMappingContext(
+                batch,
+                mapperService.mappingLookup(),
+                mapperService.getIndexSettings(),
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            )
+        ) {
+            mapper.preColumnarParse(context);
 
-        mapper.preColumnarParse(context);
-
-        final MappedColumns mappedColumns = context.columns();
-        Column routingColumn = null;
-        for (Column column : mappedColumns.toColumnBatch().columns()) {
-            if (column.name().equals(RoutingFieldMapper.NAME)) {
-                routingColumn = column;
+            final MappedColumns mappedColumns = context.columns();
+            Column routingColumn = null;
+            for (Column column : mappedColumns.toColumnBatch().columns()) {
+                if (column.name().equals(RoutingFieldMapper.NAME)) {
+                    routingColumn = column;
+                }
             }
-        }
-        assertNotNull("expected a _routing column", routingColumn);
-        assertEquals("doc values type must be SORTED", DocValuesType.SORTED, routingColumn.fieldType().docValuesType());
-        assertEquals("must have no inverted index", IndexOptions.NONE, routingColumn.fieldType().indexOptions());
-        assertFalse("must not be stored", routingColumn.fieldType().stored());
+            assertNotNull("expected a _routing column", routingColumn);
+            assertEquals("doc values type must be SORTED", DocValuesType.SORTED, routingColumn.fieldType().docValuesType());
+            assertEquals("must have no inverted index", IndexOptions.NONE, routingColumn.fieldType().indexOptions());
+            assertFalse("must not be stored", routingColumn.fieldType().stored());
 
-        BinaryColumn binaryColumn = (BinaryColumn) routingColumn;
-        ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
-        assertEquals(0, cursor.nextDoc());
-        assertEquals(new BytesRef("route-a"), cursor.value());
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+            BinaryColumn binaryColumn = (BinaryColumn) routingColumn;
+            ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
+            assertEquals(0, cursor.nextDoc());
+            assertEquals(new BytesRef("route-a"), cursor.value());
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+        }
     }
 
     private static void assertRoutingStoredAsDocValues(LuceneDocument document, String routing) {

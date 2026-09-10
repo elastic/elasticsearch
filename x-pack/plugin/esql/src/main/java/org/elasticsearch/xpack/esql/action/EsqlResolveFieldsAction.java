@@ -137,9 +137,12 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
      * the time this runs the security layer has already resolved the request under that flag ({@link
      * EsqlResolveFieldsRequest} is an {@code IndicesRequest.Replaceable} and {@code IndicesAndAliasesResolver} reads
      * {@code resolveDatasets}), so a dataset name can already be sitting in {@code indices()}. Clearing the option is
-     * what stops field caps resolving it, and from there the name is just a name that matches nothing: what becomes of
-     * it is decided by the request's own indices options and by the caller's missing-index rules, exactly as for a name
-     * registered on no cluster at all.
+     * what stops field caps resolving it, and from there the name is just a name that matches nothing.
+     * <p>
+     * What the clear cannot undo is anything authorization already did under that flag. {@code
+     * ViewAndDatasetDlsFlsRequestInterceptor} gates on the same option and runs earlier, so such a request from a
+     * caller whose role carries document or field level security still fails by name. That window closes once both
+     * ends are current, since a coordinator on this version never sets the option in the first place.
      */
     static void clearDatasetResolution(FieldCapabilitiesRequest fieldCapsRequest) {
         fieldCapsRequest.indicesOptions(

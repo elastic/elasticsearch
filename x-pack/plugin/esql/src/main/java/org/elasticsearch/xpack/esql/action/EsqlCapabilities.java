@@ -2986,10 +2986,10 @@ public class EsqlCapabilities {
         /**
          * A dataset registered on another cluster is invisible to this node's queries instead of failing them: a
          * wildcard that matches one returns that cluster's indices beside it, and the exact qualified name resolves to
-         * nothing rather than surfacing a {@code RemoteDatasetNotSupportedException}. Gates a mixed-cluster test, where
-         * a coordinator that predates the change still asks its remotes for datasets and a remote that predates it
-         * still answers, so either end being old brings the old behaviour back.
-         * See <a href="https://github.com/elastic/esql-planning/issues/1942">esql-planning#1942</a>.
+         * nothing rather than surfacing a {@code RemoteDatasetNotSupportedException}. Advertised so that a test whose
+         * subject is this behaviour can gate on it: either end of a mixed cluster being older brings the old behaviour
+         * back, because a coordinator that predates the change still asks its remotes for datasets and a remote that
+         * predates it still answers.
          */
         REMOTE_DATASETS_ARE_INVISIBLE,
 

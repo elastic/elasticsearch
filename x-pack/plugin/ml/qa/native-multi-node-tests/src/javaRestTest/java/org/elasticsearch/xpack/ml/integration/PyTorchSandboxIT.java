@@ -102,14 +102,10 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
     /**
      * Flips {@code xpack.ml.trained_models.sandbox_enabled} to {@code true} via a dynamic cluster
      * settings update. With the setting {@code true}, {@code PyTorchBuilder} omits
-     * {@code --disableSandbox} entirely - i.e. the command line is identical to what it was before the
-     * Sandbox2 kill-switch existed at all. Because omitting a flag the current bundled ml-cpp
-     * controller never knew about is a no-op from the controller's point of view, a deployment started
-     * with the setting {@code true} is expected to behave exactly like a deployment started before this
-     * feature existed: no {@code --disableSandbox} is passed, but flipping the setting
-     * to {@code true} also makes {@code NativePyTorchProcessFactory} request the isolated child IPC
-     * directory (see the class javadoc), which today's bundled ml-cpp controller does not create - so
-     * this test is expected to fail end-to-end until the paired ml-cpp artifact lands.
+     * {@code --disableSandbox} entirely, but flipping the setting to {@code true} also makes
+     * {@code NativePyTorchProcessFactory} request the isolated child IPC directory (see the class
+     * javadoc), which today's bundled ml-cpp controller does not create - so this test is expected to
+     * fail end-to-end until the paired ml-cpp artifact lands.
      *
      * <p>Limitation: "no automatic fallback" to a disabled/degraded sandbox is enforced entirely in
      * ml-cpp and cannot be verified here without the paired controller-protocol artifact.
@@ -147,19 +143,20 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
     }
 
     /**
-     * Runs at the (default) {@code sandbox_enabled=false} setting. Per the class javadoc, this path is
-     * blocked on the paired ml-cpp artifact too - the bundled controller aborts on the unrecognized
-     * {@code --disableSandbox} token before either deployment can even start, so today this test cannot
-     * pass any more than the explicit-enable tests can. Once the paired artifact lands, this asserts
-     * that two concurrently-running deployments, each identified by their own deployment id, do not
-     * collide under the (legacy, non-isolated) flat pipe naming that applies at this setting.
+     * Runs at the (default) {@code sandbox_enabled=false} setting, where the isolated child IPC
+     * directory is NOT used (see the class javadoc) - the legacy, flat pipe naming applies instead.
+     * Per the class javadoc, this path is blocked on the paired ml-cpp artifact too - the bundled
+     * controller aborts on the unrecognized {@code --disableSandbox} token before either deployment
+     * can even start, so today this test cannot pass any more than the explicit-enable tests can. Once
+     * the paired artifact lands, this asserts that two concurrently-running deployments, each
+     * identified by their own deployment id, do not collide under that legacy flat pipe naming.
      *
      * <p>Limitation: the REST-only IT harness cannot list a node's {@code $TMPDIR} to assert pipe
      * paths directly, so this checks the functional proxy instead - two concurrent deployments both
      * starting healthy and serving correct, uncorrupted inference independently.
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/3188")
-    public void testChildIpcPathsIsolatedPerDeployment() throws Exception {
+    public void testConcurrentDeploymentsDoNotCollideUnderLegacyPipeNaming() throws Exception {
         String modelIdA = "sandbox_ipc_isolation_a";
         String modelIdB = "sandbox_ipc_isolation_b";
         String deploymentIdA = "sandbox_ipc_isolation_dep_a";

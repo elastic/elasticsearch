@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesExemplars;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -1013,6 +1014,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) {
         return visitRelation(source(ctx), SourceCommand.TS, ctx.indexPatternAndMetadataFields());
+    }
+
+    @Override
+    public LogicalPlan visitTimeSeriesExemplarsCommand(EsqlBaseParser.TimeSeriesExemplarsCommandContext ctx) {
+        Source source = source(ctx);
+        LogicalPlan metricsQuery = ctx.timeSeriesCommand() != null
+            ? visitTimeSeriesCommand(ctx.timeSeriesCommand())
+            : visitPromqlCommand(ctx.promqlCommand());
+        for (PlanFactory processingCommand : visitList(this, ctx.processingCommand(), PlanFactory.class)) {
+            metricsQuery = processingCommand.apply(metricsQuery);
+        }
+        return new TimeSeriesExemplars(source, metricsQuery);
     }
 
     @Override

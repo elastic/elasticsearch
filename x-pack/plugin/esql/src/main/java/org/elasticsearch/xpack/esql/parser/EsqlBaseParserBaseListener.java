@@ -182,6 +182,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterTimeSeriesExemplarsCommand(EsqlBaseParser.TimeSeriesExemplarsCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitTimeSeriesExemplarsCommand(EsqlBaseParser.TimeSeriesExemplarsCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterExternalCommand(EsqlBaseParser.ExternalCommandContext ctx) { }
   /**
    * {@inheritDoc}

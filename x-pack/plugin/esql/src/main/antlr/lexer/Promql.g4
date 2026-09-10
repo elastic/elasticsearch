@@ -43,8 +43,10 @@ PROMQL_NESTED_RP
     : ')' {this.isPromqlQuery()}? {this.decPromqlDepth();} -> type(RP)
     ;
 
+// An unmatched ')' closes an enclosing subquery, e.g. TS_EXEMPLARS (PROMQL ...): like the RP of other command modes it pops
+// both the command's mode and the default mode pushed by the enclosing LP
 PROMQL_QUERY_RP
-    : ')' {!this.isPromqlQuery()}? {this.resetPromqlDepth();} -> type(RP), popMode
+    : ')' {!this.isPromqlQuery()}? {this.resetPromqlDepth();} -> type(RP), popMode, popMode
     ;
 
 // Comments and whitespace

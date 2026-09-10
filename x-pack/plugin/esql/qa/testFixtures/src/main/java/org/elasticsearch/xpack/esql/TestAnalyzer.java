@@ -59,6 +59,7 @@ import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -947,9 +948,9 @@ public class TestAnalyzer {
     public Analyzer buildAnalyzer(Verifier verifier) {
         return new Analyzer(buildContext(), verifier) {
             @Override
-            public LogicalPlan analyze(LogicalPlan plan) {
+            public LogicalPlan analyze(LogicalPlan plan, BitSet partialMetrics) {
                 resolveEnrichResolution(plan);
-                return super.analyze(plan);
+                return super.analyze(plan, partialMetrics);
             }
         };
     }

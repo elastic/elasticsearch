@@ -14,6 +14,9 @@ FROM : 'from'                 -> pushMode(FROM_MODE);
 // TS command
 TS : 'ts' -> pushMode(FROM_MODE);
 
+// TS_EXEMPLARS command: the metrics query in parentheses is lexed like a subquery in FROM
+TS_EXEMPLARS : 'ts_exemplars' -> pushMode(FROM_MODE);
+
 // EXTERNAL command (internal, deprecated, snapshot-only)
 DEV_EXTERNAL : {EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()}? 'external' -> pushMode(FROM_MODE);
 

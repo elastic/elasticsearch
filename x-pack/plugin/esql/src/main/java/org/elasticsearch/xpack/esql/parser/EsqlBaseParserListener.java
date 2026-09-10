@@ -153,6 +153,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#timeSeriesExemplarsCommand}.
+   * @param ctx the parse tree
+   */
+  void enterTimeSeriesExemplarsCommand(EsqlBaseParser.TimeSeriesExemplarsCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#timeSeriesExemplarsCommand}.
+   * @param ctx the parse tree
+   */
+  void exitTimeSeriesExemplarsCommand(EsqlBaseParser.TimeSeriesExemplarsCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#externalCommand}.
    * @param ctx the parse tree
    */

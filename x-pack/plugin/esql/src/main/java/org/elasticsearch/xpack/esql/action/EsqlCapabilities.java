@@ -3821,6 +3821,11 @@ public class EsqlCapabilities {
          */
         TS_STATS_LITERAL_AGG_FIX,
 
+        /**
+         * Support for {@code TS_EXEMPLARS (<metrics query>)}: fetches the exemplars of the series a metrics query reads.
+         */
+        TS_EXEMPLARS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

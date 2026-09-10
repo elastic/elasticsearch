@@ -42,6 +42,7 @@ sourceCommand
     : fromCommand
     | rowCommand
     | showCommand
+    | timeSeriesExemplarsCommand
     | timeSeriesCommand
     | promqlCommand
     // in development
@@ -111,6 +112,10 @@ fromCommand
 
 timeSeriesCommand
     : TS indexPatternAndMetadataFields
+    ;
+
+timeSeriesExemplarsCommand
+    : TS_EXEMPLARS LP (timeSeriesCommand | promqlCommand) (PIPE processingCommand)* RP
     ;
 
 externalCommand

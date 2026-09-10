@@ -1,0 +1,299 @@
+// TS_EXEMPLARS (<metrics query>) plans the metrics query but does not execute it: it reads the aggregated metric fields and the
+// filters before the aggregation from the optimized plan and fetches the matching exemplars from the exemplar index derived from the
+// metrics index pattern (metrics-cpu -> exemplars-cpu). An exemplar document carries the value of exactly one metric.
+
+exemplarsOfSingleMetric
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-cpu | STATS AVG(metrics.cpu_time))
+| KEEP @timestamp, attributes.cpu, attributes.state, metrics.cpu_time, trace_id
+| SORT @timestamp
+;
+
+@timestamp:date           | attributes.cpu:keyword | attributes.state:keyword | metrics.cpu_time:double | trace_id:keyword
+2024-05-10T00:00:10.000Z  | cpu0                   | idle                     | 1.7                     | trace-idle-cpu0-cpu
+2024-05-10T00:01:10.000Z  | cpu0                   | busy                     | 8.1                     | trace-busy-cpu0-cpu
+2024-05-10T00:02:20.000Z  | cpu1                   | idle                     | 2.9                     | trace-idle-cpu1-cpu
+;
+
+allColumns
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-cpu | STATS MAX(metrics.memory_usage) BY attributes.cpu)
+| SORT @timestamp
+;
+
+@timestamp:date           | attributes.cpu:keyword | attributes.state:keyword | metrics.cpu_time:double | metrics.memory_usage:double | metrics.request_duration:double | span_id:keyword | trace_id:keyword
+2024-05-10T00:02:10.000Z  | cpu1                   | idle                     | null                    | 310.0                       | null                            | span-4          | trace-idle-cpu1-mem
+2024-05-10T00:03:10.000Z  | cpu1                   | busy                     | null                    | 420.0                       | null                            | span-7          | trace-busy-cpu1-mem
+2024-05-10T00:04:10.000Z  | cpu0                   | idle                     | null                    | 105.0                       | null                            | span-9          | trace-idle-cpu0-mem
+;
+
+// The dimension filter of the metrics query is applied to the exemplars too.
+dimensionFilter
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-cpu | WHERE attributes.state == "idle" | STATS AVG(metrics.cpu_time) BY attributes.cpu)
+| KEEP @timestamp, attributes.cpu, attributes.state, trace_id
+| SORT @timestamp
+;
+
+@timestamp:date           | attributes.cpu:keyword | attributes.state:keyword | trace_id:keyword
+2024-05-10T00:00:10.000Z  | cpu0                   | idle                     | trace-idle-cpu0-cpu
+2024-05-10T00:02:20.000Z  | cpu1                   | idle                     | trace-idle-cpu1-cpu
+;
+
+// Filters on the metric value itself describe the metric samples, not the exemplars, and are not carried over: the exemplar
+// with cpu_time 1.7 is returned even though the metrics query only reads samples with cpu_time > 2.
+metricValueFilterIsNotAppliedToExemplars
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-cpu | WHERE attributes.state == "idle" AND metrics.cpu_time > 2 | STATS AVG(metrics.cpu_time))
+| KEEP @timestamp, metrics.cpu_time, trace_id
+| SORT @timestamp
+;
+
+@timestamp:date           | metrics.cpu_time:double | trace_id:keyword
+2024-05-10T00:00:10.000Z  | 1.7                     | trace-idle-cpu0-cpu
+2024-05-10T00:02:20.000Z  | 2.9                     | trace-idle-cpu1-cpu
+;
+
+// Null checks on metrics, also through conversion functions, are carried over like dimension filters; the metric they mention is not
+// what the exemplars are fetched for, so the memory_usage exemplars are not selected.
+metricNullCheckFilterIsApplied
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-cpu | WHERE TO_LONG(metrics.memory_usage) IS NULL AND attributes.state == "idle" | STATS AVG(metrics.cpu_time))
+| KEEP @timestamp, metrics.cpu_time, trace_id
+| SORT @timestamp
+;
+
+@timestamp:date           | metrics.cpu_time:double | trace_id:keyword
+2024-05-10T00:00:10.000Z  | 1.7                     | trace-idle-cpu0-cpu
+2024-05-10T00:02:20.000Z  | 2.9                     | trace-idle-cpu1-cpu
+;
+
+// Only filters before STATS describe the series read; a filter after STATS, even on a grouping dimension, does not carry over.
+filterAfterStatsOnDimensionIsNotApplied
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-cpu | STATS AVG(metrics.cpu_time) BY attributes.cpu | WHERE attributes.cpu == "cpu1")
+| KEEP @timestamp, attributes.cpu, trace_id
+| SORT @timestamp
+;
+
+@timestamp:date           | attributes.cpu:keyword | trace_id:keyword
+2024-05-10T00:00:10.000Z  | cpu0                   | trace-idle-cpu0-cpu
+2024-05-10T00:01:10.000Z  | cpu0                   | trace-busy-cpu0-cpu
+2024-05-10T00:02:20.000Z  | cpu1                   | trace-idle-cpu1-cpu
+;
+
+multipleMetrics
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-cpu | WHERE attributes.cpu == "cpu1" | STATS AVG(metrics.cpu_time), MAX(metrics.memory_usage))
+| KEEP @timestamp, metrics.cpu_time, metrics.memory_usage, trace_id
+| SORT @timestamp
+;
+
+@timestamp:date           | metrics.cpu_time:double | metrics.memory_usage:double | trace_id:keyword
+2024-05-10T00:02:10.000Z  | null                    | 310.0                       | trace-idle-cpu1-mem
+2024-05-10T00:02:20.000Z  | 2.9                     | null                        | trace-idle-cpu1-cpu
+2024-05-10T00:03:10.000Z  | null                    | 420.0                       | trace-busy-cpu1-mem
+;
+
+// Only the metrics the metrics query reads select exemplars: exemplars carrying memory_usage are not returned.
+unreadMetricDoesNotSelectExemplars
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-cpu | STATS AVG(metrics.cpu_time), MAX(metrics.memory_usage) BY attributes.state | KEEP `AVG(metrics.cpu_time)`)
+| STATS exemplars = COUNT(*), cpu_time = COUNT(metrics.cpu_time), memory_usage = COUNT(metrics.memory_usage)
+;
+
+exemplars:long | cpu_time:long | memory_usage:long
+3              | 3             | 0
+;
+
+tracesOfMultipleMetrics
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-cpu | STATS AVG(metrics.cpu_time), MAX(metrics.memory_usage))
+| STATS exemplars = COUNT(*), traces = VALUES(trace_id)
+| MV_EXPAND traces
+| SORT traces
+;
+
+exemplars:long | traces:keyword
+6              | trace-busy-cpu0-cpu
+6              | trace-busy-cpu1-mem
+6              | trace-idle-cpu0-cpu
+6              | trace-idle-cpu0-mem
+6              | trace-idle-cpu1-cpu
+6              | trace-idle-cpu1-mem
+;
+
+// PROMQL metrics queries work the same way: the label matchers and the evaluated time range are applied to the exemplars.
+promqlMetricsQuery
+required_capability: ts_exemplars
+required_capability: promql_command_v0
+TS_EXEMPLARS (PROMQL index=metrics-cpu start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:02:00.000Z" step=1m (avg(avg_over_time(metrics.cpu_time{attributes.state="idle"}[1m]))))
+| KEEP @timestamp, attributes.state, metrics.cpu_time, trace_id
+| SORT @timestamp
+;
+
+@timestamp:date           | attributes.state:keyword | metrics.cpu_time:double | trace_id:keyword
+2024-05-10T00:00:10.000Z  | idle                     | 1.7                     | trace-idle-cpu0-cpu
+;
+
+// The exemplar rows can be processed like the output of any source command.
+processingAfterExemplars
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-cpu | STATS AVG(metrics.cpu_time), MAX(metrics.memory_usage))
+| WHERE attributes.state == "busy"
+| EVAL value = COALESCE(metrics.cpu_time, metrics.memory_usage)
+| KEEP attributes.cpu, value, trace_id, span_id
+| SORT value
+;
+
+attributes.cpu:keyword | value:double | trace_id:keyword     | span_id:keyword
+cpu0                   | 8.1          | trace-busy-cpu0-cpu  | span-2
+cpu1                   | 420.0        | trace-busy-cpu1-mem  | span-7
+;
+
+// Exemplars of an exponential histogram metric are the raw observations that were sampled into the histogram; in the exemplar
+// index the metric field therefore holds a plain double.
+exponentialHistogramMetric
+required_capability: ts_exemplars
+required_capability: exponential_histogram_tech_preview
+TS_EXEMPLARS (TS metrics-cpu | WHERE attributes.state == "busy" | STATS p95 = PERCENTILE(LAST_OVER_TIME(metrics.request_duration), 95) BY attributes.cpu)
+| KEEP @timestamp, attributes.cpu, attributes.state, metrics.request_duration, trace_id
+| SORT @timestamp
+;
+
+@timestamp:date           | attributes.cpu:keyword | attributes.state:keyword | metrics.request_duration:double | trace_id:keyword
+2024-05-10T00:01:20.000Z  | cpu0                   | busy                     | 47.5                            | trace-busy-cpu0-dur
+2024-05-10T00:03:20.000Z  | cpu1                   | busy                     | 38.0                            | trace-busy-cpu1-dur
+;
+
+exponentialHistogramAndGaugeMetrics
+required_capability: ts_exemplars
+required_capability: exponential_histogram_tech_preview
+TS_EXEMPLARS (TS metrics-cpu | WHERE attributes.cpu == "cpu1" | STATS AVG(metrics.cpu_time), MAX(MAX_OVER_TIME(metrics.request_duration)) BY attributes.cpu)
+| STATS cpu_time = COUNT(metrics.cpu_time), request_duration = COUNT(metrics.request_duration), traces = VALUES(trace_id)
+| MV_EXPAND traces
+| SORT traces
+;
+
+cpu_time:long | request_duration:long | traces:keyword
+1             | 2                     | trace-busy-cpu1-dur
+1             | 2                     | trace-idle-cpu1-cpu
+1             | 2                     | trace-idle-cpu1-dur
+;
+
+exponentialHistogramPromqlMetricsQuery
+required_capability: ts_exemplars
+required_capability: promql_command_v0
+required_capability: promql_histogram_sum_count_avg
+TS_EXEMPLARS (PROMQL index=metrics-cpu start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:05:00.000Z" step=1m (histogram_count(metrics.request_duration{attributes.cpu="cpu1"})))
+| KEEP @timestamp, attributes.cpu, metrics.request_duration, trace_id
+| SORT @timestamp
+;
+
+@timestamp:date           | attributes.cpu:keyword | metrics.request_duration:double | trace_id:keyword
+2024-05-10T00:02:30.000Z  | cpu1                   | 9.5                             | trace-idle-cpu1-dur
+2024-05-10T00:03:20.000Z  | cpu1                   | 38.0                            | trace-busy-cpu1-dur
+;
+
+// Without an exemplar data stream to read from the command yields no rows, but still has the @timestamp and dimension columns of
+// the metrics query. Unlike for other source commands, a concrete exemplar data stream that does not exist is not
+// an error.
+metricsWithoutExemplarDataStream
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-noexemplars | WHERE attributes.state == "idle" | STATS AVG(metrics.cpu_time) BY attributes.cpu)
+| KEEP @timestamp, attributes.cpu, attributes.state
+;
+
+@timestamp:null | attributes.cpu:null | attributes.state:null
+;
+
+metricsWithoutExemplarDataStreamWildcard
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-noexemplars* | STATS AVG(metrics.cpu_time) BY attributes.cpu)
+| STATS exemplars = COUNT(*)
+;
+
+exemplars:long
+0
+;
+
+// Index patterns that do not follow the metrics-* naming have no exemplar data streams either.
+nonMetricsIndexPattern
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS k8s | STATS MAX(RATE(network.total_bytes_in)) BY cluster)
+| STATS exemplars = COUNT(*), clusters = COUNT_DISTINCT(cluster)
+;
+
+exemplars:long | clusters:long
+0              | 0
+;
+
+// Only the metrics-* expressions of a mixed index pattern contribute exemplars, and only those whose exemplar data stream exists.
+mixedIndexPattern
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-cpu,metrics-noexemplars,k8s | STATS AVG(metrics.cpu_time) BY attributes.cpu)
+| STATS exemplars = COUNT(*)
+;
+
+exemplars:long
+3
+;
+
+// When only some of the queried metrics data streams have exemplars, fields that exist in none of the exemplar indices are treated as
+// null there: metrics-k8s has neither exemplars nor the fields of metrics-cpu and vice versa.
+metricOnlyInDataStreamWithoutExemplars
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-cpu,metrics-k8s | STATS AVG(metrics.cpu_time), MAX(RATE(network.total_bytes_in)))
+| STATS exemplars = COUNT(*), cpu_time = COUNT(metrics.cpu_time), network_bytes = COUNT(network.total_bytes_in)
+;
+
+exemplars:long | cpu_time:long | network_bytes:long
+3              | 3             | 0
+;
+
+// A filter on a dimension that only the data stream without exemplars has excludes all series of the other data streams in the metrics
+// query, and therefore all of their exemplars.
+dimensionFilterOnlyInDataStreamWithoutExemplars
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-cpu,metrics-k8s | WHERE cluster == "prod" | STATS AVG(metrics.cpu_time), MAX(RATE(network.total_bytes_in)))
+| STATS exemplars = COUNT(*)
+;
+
+exemplars:long
+0
+;
+
+dimensionFilterInDataStreamWithExemplars
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-cpu,metrics-k8s | WHERE attributes.state == "idle" | STATS AVG(metrics.cpu_time), MAX(RATE(network.total_bytes_in)))
+| KEEP @timestamp, attributes.state, trace_id
+| SORT @timestamp
+;
+
+@timestamp:date           | attributes.state:keyword | trace_id:keyword
+2024-05-10T00:00:10.000Z  | idle                     | trace-idle-cpu0-cpu
+2024-05-10T00:02:20.000Z  | idle                     | trace-idle-cpu1-cpu
+;
+
+// Only metrics of the data stream without exemplars are read: the exemplar indices exist, but hold none of them.
+onlyMetricsOfDataStreamWithoutExemplars
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-cpu,metrics-k8s | STATS MAX(RATE(network.total_bytes_in)) BY cluster)
+| STATS exemplars = COUNT(*)
+;
+
+exemplars:long
+0
+;
+
+// Queries with TS_EXEMPLARS default to unmapped_fields=nullify, so the rest of the query can refer to fields of the data stream without
+// exemplars as well: they are null for every exemplar.
+outerReferenceToFieldOfDataStreamWithoutExemplars
+required_capability: ts_exemplars
+TS_EXEMPLARS (TS metrics-cpu,metrics-k8s | STATS AVG(metrics.cpu_time), MAX(RATE(network.total_bytes_in)))
+| STATS exemplars = COUNT(*), bytes = MAX(network.total_bytes_in) BY cluster
+;
+
+exemplars:long | bytes:null | cluster:null
+3              | null       | null
+;

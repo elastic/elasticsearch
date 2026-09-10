@@ -1,0 +1,36 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "cpu": {
+          "type": "keyword",
+          "time_series_dimension": true
+        },
+        "state": {
+          "type": "keyword",
+          "time_series_dimension": true
+        }
+      }
+    },
+    "metrics": {
+      "properties": {
+        "cpu_time": {
+          "type": "double",
+          "time_series_metric": "gauge"
+        },
+        "memory_usage": {
+          "type": "double",
+          "time_series_metric": "gauge"
+        },
+        "request_duration": {
+          "type": "exponential_histogram",
+          "time_series_metric": "histogram"
+        }
+      }
+    }
+  }
+}

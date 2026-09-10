@@ -341,7 +341,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
-        BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
+        return analyze(plan, new BitSet(FeatureMetric.values().length));
+    }
+
+    /**
+     * Analyzes and verifies the plan.
+     *
+     * @param partialMetrics usage telemetry already known to apply to the query, e.g. for commands that were rewritten away before
+     *                       analysis and are therefore no longer visible in the plan
+     */
+    public LogicalPlan analyze(LogicalPlan plan, BitSet partialMetrics) {
         LogicalPlan analyzed = execute(plan);
         LogicalPlan verified = verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
         // verify throws on failure, so we only reach here once the plan is valid: flush the warnings deferred during analysis.

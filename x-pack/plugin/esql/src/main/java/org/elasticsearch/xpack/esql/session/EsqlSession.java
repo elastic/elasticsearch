@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -114,6 +115,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesExemplars;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -150,6 +152,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -497,6 +500,7 @@ public class EsqlSession {
             finalConfiguration,
             executionInfo,
             request.filter(),
+            foldContext,
             new EsqlCCSUtils.CssPartialErrorsActionListener(finalConfiguration, executionInfo, listener) {
                 @Override
                 public void onResponse(Versioned<LogicalPlan> analyzedPlan) {
@@ -1418,10 +1422,10 @@ public class EsqlSession {
     static void handleFieldCapsFailures(
         boolean allowPartialResults,
         EsqlExecutionInfo executionInfo,
-        Map<IndexPattern, IndexResolution> indexResolutions
+        Collection<IndexResolution> indexResolutions
     ) throws Exception {
         FailureCollector failureCollector = new FailureCollector();
-        for (IndexResolution indexResolution : indexResolutions.values()) {
+        for (IndexResolution indexResolution : indexResolutions) {
             handleFieldCapsFailures(allowPartialResults, executionInfo, indexResolution.failures(), failureCollector);
         }
         Exception failure = failureCollector.getFailure();
@@ -1470,6 +1474,7 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
+        FoldContext foldContext,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
@@ -1483,7 +1488,15 @@ public class EsqlSession {
         // no FROM pattern can match a registered dataset.
         datasetResolver.replaceDatasets(parsed, projectMetadata, logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
             datasetResolutionProfile.stop();
-            analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
+            analyzedPlanAfterDatasetResolution(
+                rewritten,
+                unmappedResolution,
+                configuration,
+                executionInfo,
+                requestFilter,
+                foldContext,
+                delegate
+            );
         }));
     }
 
@@ -1493,6 +1506,7 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
+        FoldContext foldContext,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
@@ -1525,6 +1539,7 @@ public class EsqlSession {
             executionInfo,
             description,
             requestFilter,
+            foldContext,
             timestampBounds,
             preAnalysis,
             result,
@@ -1539,6 +1554,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         String description,
         QueryBuilder requestFilter,
+        FoldContext foldContext,
         TimestampBounds timestampBounds,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
@@ -1549,6 +1565,9 @@ public class EsqlSession {
         // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
         boolean trackedUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
         boolean nullify = parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
+        UnmappedResolution effectiveUnmappedResolution = nullify
+            ? UnmappedResolution.NULLIFY
+            : TimeSeriesExemplarsRewriter.unmappedResolution(parsed, unmappedResolution);
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, trackedUnmappedFieldIndices, result, requestFilter, l)
         ).andThenApply(r -> {
@@ -1598,6 +1617,9 @@ public class EsqlSession {
             return r;
         })
             .<PreAnalysisResult>andThen(
+                (l, r) -> preAnalyzeExemplarIndices(parsed, preAnalysis, executionInfo, trackedUnmappedFieldIndices, r, requestFilter, l)
+            )
+            .<PreAnalysisResult>andThen(
                 (l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), parsed, r, executionInfo, l)
             )
             .andThenApply(r -> {
@@ -1629,11 +1651,12 @@ public class EsqlSession {
             .<Versioned<LogicalPlan>>andThen((l, r) -> {
                 analyzeWithRetry(
                     parsed,
-                    nullify ? UnmappedResolution.NULLIFY : unmappedResolution,
+                    effectiveUnmappedResolution,
                     configuration,
                     executionInfo,
                     description,
                     requestFilter,
+                    foldContext,
                     timestampBounds,
                     preAnalysis,
                     r,
@@ -2262,6 +2285,54 @@ public class EsqlSession {
     }
 
     /**
+     * Performs a field caps request for the exemplar data streams of every {@code TS_EXEMPLARS} command. They are derived from the
+     * metrics data streams the metrics query matched (see {@link TimeSeriesExemplarsRewriter#exemplarIndexPattern}), so this has to
+     * run after the main index patterns are resolved. Metrics patterns deriving the same exemplar data streams share one request;
+     * those that matched no metrics data stream have nothing to resolve and get no {@link ExemplarsResolution} entry.
+     */
+    private void preAnalyzeExemplarIndices(
+        LogicalPlan parsed,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        EsqlExecutionInfo executionInfo,
+        boolean trackUnmappedFieldIndices,
+        PreAnalysisResult result,
+        QueryBuilder requestFilter,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        Map<String, Set<IndexPattern>> metricsPatternsByExemplarPattern = new LinkedHashMap<>();
+        parsed.forEachDown(TimeSeriesExemplars.class, exemplars -> {
+            IndexPattern metricsIndexPattern = exemplars.metricsIndexPattern();
+            String exemplarIndexPattern = TimeSeriesExemplarsRewriter.exemplarIndexPattern(
+                result.indexResolution().get(metricsIndexPattern)
+            );
+            if (exemplarIndexPattern != null) {
+                metricsPatternsByExemplarPattern.computeIfAbsent(exemplarIndexPattern, k -> new HashSet<>()).add(metricsIndexPattern);
+            }
+        });
+        forAll(metricsPatternsByExemplarPattern.entrySet().iterator(), result, (e, r, l) -> {
+            executionInfo.queryProfile().incFieldCapsCalls();
+            indexResolver.resolveDerivedDataStreamsVersioned(
+                e.getKey(),
+                r.fieldNames,
+                requestFilter,
+                r.minimumTransportVersion(),
+                preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+                preAnalysis.useDenseVectorWhenNotSupported(),
+                preAnalysis.hasTimeSeriesAggregation(),
+                trackUnmappedFieldIndices,
+                l.delegateFailureAndWrap((ll, indexResolution) -> {
+                    EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                    EsqlCCSUtils.checkForRemoteResourceErrors(indexResolution.inner().failures());
+                    for (IndexPattern metricsIndexPattern : e.getValue()) {
+                        r.exemplarsResolution().addResolution(metricsIndexPattern, indexResolution.inner());
+                    }
+                    ll.onResponse(r.withMinimumTransportVersion(indexResolution.minimumVersion()));
+                })
+            );
+        }, listener);
+    }
+
+    /**
      * This performs field caps resolutions for linkedIndexPatterns
      * in order to resolve optional and required linked indices shadowed by local views.
      */
@@ -2432,6 +2503,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         String description,
         QueryBuilder requestFilter,
+        FoldContext foldContext,
         TimestampBounds timestampBounds,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
@@ -2451,7 +2523,7 @@ public class EsqlSession {
             }
             TimeSpanMarker analysisProfile = executionInfo.queryProfile().analysis();
             analysisProfile.start();
-            LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo, timestampBounds);
+            LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo, timestampBounds, foldContext);
             analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // Analysis succeeded on the first attempt. For unmapped_fields=nullify/load we intentionally do NOT re-resolve without the
@@ -2474,6 +2546,7 @@ public class EsqlSession {
                     executionInfo,
                     "second attempt, without filter",
                     null,
+                    foldContext,
                     timestampBounds,
                     preAnalysis,
                     result,
@@ -2509,9 +2582,14 @@ public class EsqlSession {
         Configuration configuration,
         PreAnalysisResult r,
         EsqlExecutionInfo executionInfo,
-        TimestampBounds timestampBounds
+        TimestampBounds timestampBounds,
+        FoldContext foldContext
     ) throws Exception {
-        handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
+        handleFieldCapsFailures(
+            configuration.allowPartialResults(),
+            executionInfo,
+            CollectionUtils.concatLists(r.exemplarsResolution().resolutions(), r.indexResolution().values())
+        );
         AnalyzerContext analyzerContext = new AnalyzerContext(
             configuration,
             functionRegistry,
@@ -2524,7 +2602,14 @@ public class EsqlSession {
             resolveIpLocations(parsed)
         );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
-        LogicalPlan plan = analyzer.analyze(parsed);
+        // TS_EXEMPLARS analyzes and optimizes its metrics query with the same analyzer and optimizer settings the outer query gets; the
+        // command itself is gone afterwards, so its usage telemetry is recorded from the parsed plan.
+        TimeSeriesExemplarsRewriter exemplarsRewriter = new TimeSeriesExemplarsRewriter(
+            analyzer,
+            new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldContext, r.minimumTransportVersion())),
+            r.exemplarsResolution()
+        );
+        LogicalPlan plan = analyzer.analyze(exemplarsRewriter.rewrite(parsed), TimeSeriesExemplarsRewriter.preAnalysisMetrics(parsed));
         plan.setAnalyzed();
         return plan;
     }
@@ -2600,6 +2685,7 @@ public class EsqlSession {
         Set<String> fieldNames,
         Set<String> wildcardJoinIndices,
         Map<IndexPattern, IndexResolution> indexResolution,
+        ExemplarsResolution exemplarsResolution,
         Map<String, IndexResolution> lookupIndices,
         // CPS specific linkedIndexPatterns. Such patterns references indices (if present) shadowing views resolved on origin
         Map<LinkedIndexPattern, IndexResolution> linkedResolution,
@@ -2614,6 +2700,7 @@ public class EsqlSession {
                 fieldNames,
                 wildcardJoinIndices,
                 new HashMap<>(),
+                new ExemplarsResolution(),
                 new HashMap<>(),
                 new HashMap<>(),
                 null,
@@ -2643,6 +2730,7 @@ public class EsqlSession {
                 fieldNames,
                 wildcardJoinIndices,
                 indexResolution,
+                exemplarsResolution,
                 lookupIndices,
                 linkedResolution,
                 enrichResolution,
@@ -2657,6 +2745,7 @@ public class EsqlSession {
                 fieldNames,
                 wildcardJoinIndices,
                 indexResolution,
+                exemplarsResolution,
                 lookupIndices,
                 linkedResolution,
                 enrichResolution,
@@ -2671,6 +2760,7 @@ public class EsqlSession {
                 fieldNames,
                 wildcardJoinIndices,
                 indexResolution,
+                exemplarsResolution,
                 lookupIndices,
                 linkedResolution,
                 enrichResolution,
@@ -2691,6 +2781,7 @@ public class EsqlSession {
                 fieldNames,
                 wildcardJoinIndices,
                 indexResolution,
+                exemplarsResolution,
                 lookupIndices,
                 linkedResolution,
                 enrichResolution,

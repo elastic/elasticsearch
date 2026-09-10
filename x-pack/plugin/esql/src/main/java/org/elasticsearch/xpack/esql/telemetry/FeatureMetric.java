@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesExemplars;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -138,7 +139,10 @@ public enum FeatureMetric {
     // IN_SUBQUERY is collected by InSubqueryResolver on the pre-resolution plan (when the
     // InSubquery expression is still in place); by the time the Analyzer/Verifier walk runs,
     // InSubquery has already been rewritten to SemiJoin/AntiJoin/MarkJoin.
-    IN_SUBQUERY(plan -> false);
+    IN_SUBQUERY(plan -> false),
+    // TS_EXEMPLARS is rewritten into a query over the exemplar indices before analysis, see TimeSeriesExemplarsRewriter; it is
+    // collected from the parsed plan and handed to the Analyzer as partial metrics.
+    TS_EXEMPLARS(TimeSeriesExemplars.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry

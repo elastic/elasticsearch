@@ -79,7 +79,7 @@ public final class ExternalMetadataColumns {
         if (EsqlCapabilities.Cap.METADATA_TIER_FIELD.isEnabled()) {
             names.add(DataTierFieldMapper.NAME);
         }
-        // _slice is backed by _routing doc values on slice-enabled indices; not available on external datasets.
+        // _slice is backed by _routing doc values on indices. A file has no routing, so it binds and answers NULL.
         if (EsqlCapabilities.Cap.METADATA_SLICE.isEnabled()) {
             names.add(SLICE);
         }
@@ -88,11 +88,10 @@ public final class ExternalMetadataColumns {
 
     /**
      * Every standard metadata name an external relation can bind. {@code Analyzer.bindMetadataFields}
-     * consults this set, so a standard name outside it resolves the way an unknown name does.
-     * It currently has the same membership as {@link #PER_FILE_CONSTANT_NAMES} — every name a
-     * dataset can answer happens to be a per-file constant — but the two say different things and
-     * a name backed by a real per-row source would join this set without joining that one.
-     * For namespace protection use {@link #RESERVED_NAMES}, which is wider.
+     * consults this set, so a standard name outside it resolves the way an unknown name does. Its
+     * membership currently matches {@link #PER_FILE_CONSTANT_NAMES}, but a name backed by a real
+     * per-row source would join this set and not that one. For namespace protection use
+     * {@link #RESERVED_NAMES}, which is wider.
      */
     public static final Set<String> STANDARD_NAMES;
 

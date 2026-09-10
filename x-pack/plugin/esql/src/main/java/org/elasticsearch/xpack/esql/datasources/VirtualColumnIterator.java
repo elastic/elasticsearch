@@ -276,8 +276,8 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
 
     /**
      * Builds the {@code _file.record_ref} block: the masked physical position from the reader-emitted
-     * {@code _rowPosition} channel, surfaced as an opaque per-record LONG. The mask strips any
-     * deferred-extraction extractor id packed into the high bits (a no-op for unencoded values from
+     * {@code _rowPosition} channel, surfaced as an opaque per-record LONG. Decoding strips any
+     * deferred-extraction extractor id, keeping the token independent of split layout (a no-op for
      * the row-index / byte-offset readers). Null positions propagate to null.
      */
     private Block buildRecordRefBlock(LongBlock rowPositionBlock, int positions) {
@@ -287,7 +287,7 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
                     builder.appendNull();
                 } else {
                     long encoded = rowPositionBlock.getLong(rowPositionBlock.getFirstValueIndex(i));
-                    builder.appendLong(encoded & ExternalRowIdentity.LOCAL_POSITION_MASK);
+                    builder.appendLong(SourceExtractors.decodeLocalPosition(encoded));
                 }
             }
             return builder.build();

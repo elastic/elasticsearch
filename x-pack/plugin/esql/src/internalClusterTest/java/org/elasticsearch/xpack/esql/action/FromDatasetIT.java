@@ -5172,12 +5172,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     public void testFromDatasetStandardMetadataNeverFails() throws Exception {
-        // Standing contract: every metadata name a dataset can answer is accepted, returning a value or
-        // SQL NULL, but never an error. _index carries the dataset name; the rest (no relevance scoring,
-        // no per-row _ignored, etc.) come back as NULL columns. None may be dropped and none may crash
-        // the query. _id, _version and _source belong to the NULL set too — a file carries no document
-        // identity, no document version and no stored source — and are pinned per format in
-        // AbstractExternalMetadataMatrixIT#testAllStandardMetadataColumnsPinned.
+        // Standing contract: every metadata name a dataset can answer returns a value or SQL NULL, never an
+        // error. _index carries the dataset name; the rest come back as NULL columns, _id / _version / _source
+        // among them. Pinned per format in AbstractExternalMetadataMatrixIT#testAllStandardMetadataColumnsPinned.
         registerDataSource("local_ds", Map.of());
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
@@ -5725,9 +5722,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // entirely and fail hasItem. An explicit KEEP would mask exactly that regression — it lands in Analyzer's
         // explicitlyKept set and is never stripped.
         //
-        // _id rides along because it is the name that carries a value on one half and SQL NULL on the other. It is why a
-        // dataset binds _id instead of refusing it: a query mixing an index and a dataset in one FROM stays one query,
-        // and a refusal would make it depend on which sources it names.
+        // _id rides along because it is the name that carries a value on one half and SQL NULL on the other: a
+        // refusal on the dataset half would make a mixed FROM depend on which sources it names.
         try (
             var response = run(syncEsqlQueryRequest("FROM metadata_idx, employees METADATA _index, _id | SORT emp_no | LIMIT 10"), TIMEOUT)
         ) {

@@ -681,9 +681,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * avoiding the need for source-specific logical plan nodes in core ESQL code.
      * <p>
      * Binds the user's {@code METADATA ...} clause. Every name in
-     * {@link org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns#STANDARD_NAMES}
+     * {@link ExternalMetadataColumns#STANDARD_NAMES}
      * ({@code _index}, {@code _score}, {@code _ignored}, ...) and every name in
-     * {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS}
+     * {@link FileMetadataColumns#COLUMNS}
      * ({@code _file.path}, {@code _file.name}, ...) becomes an {@link ExternalMetadataAttribute} of
      * the registered type. {@code _id}, {@code _version} and {@code _source} are among the standard
      * names and bind to a column that is SQL NULL on every row, because a file holds no document
@@ -737,11 +737,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private record MetadataBindResult(List<Attribute> schema, List<? extends NamedExpression> unresolvedMetadata) {}
 
         /**
-         * Walks the user's METADATA clause. Names registered in
-         * {@link MetadataAttribute#ATTRIBUTES_MAP} or
-         * {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS} are bound
+         * Walks the user's METADATA clause. Names in
+         * {@link ExternalMetadataColumns#STANDARD_NAMES} or
+         * {@link FileMetadataColumns#COLUMNS} are bound
          * to an {@link ExternalMetadataAttribute} appended to the source's natural schema. Names
-         * registered in neither are returned as {@code UnresolvedMetadataAttributeExpression} in the
+         * in neither are returned as {@code UnresolvedMetadataAttributeExpression} in the
          * {@code unresolvedMetadata} list — the verifier picks them up via the relation's expression
          * walk and fires its native {@code "Unresolved metadata pattern [...]"} error, matching the
          * diagnostic indexed {@code FROM x METADATA _typo} produces. Names already present in the
@@ -765,19 +765,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (existing.contains(name)) {
                     continue;
                 }
-                // A dataset answers only the standard names in ExternalMetadataColumns.STANDARD_NAMES.
-                // _id, _version and _source are among them and every row is NULL: a file holds no
-                // document identity, version or stored source, so the column binds and answers
-                // nothing rather than being answered with a value composed at the reader.
+                // A dataset answers only the names in ExternalMetadataColumns.STANDARD_NAMES. _id,
+                // _version and _source are among them and bind to an all-NULL column: a file holds
+                // no document identity, version or stored source.
                 DataType type = ExternalMetadataColumns.STANDARD_NAMES.contains(name) ? MetadataAttribute.dataType(name) : null;
                 if (type == null) {
                     type = FileMetadataColumns.COLUMNS.get(name);
                 }
                 if (type == null) {
-                    // A name a dataset does not answer. Forwarded as-is: an unknown name already arrives as an
-                    // UnresolvedMetadataAttributeExpression carrying the message the verifier reports through
-                    // ExternalRelation#metadataFields(), and forwarding also keeps _doc (injected by TS_INFO /
-                    // METRICS_INFO rather than typed by the user) on its existing pass-through path.
+                    // A name a dataset does not answer. Forwarded as-is: it already carries the message the
+                    // verifier reports through ExternalRelation#metadataFields(), and forwarding keeps _doc
+                    // (injected by TS_INFO / METRICS_INFO, never typed by the user) on its pass-through path.
                     if (unresolved == null) {
                         unresolved = new ArrayList<>();
                     }

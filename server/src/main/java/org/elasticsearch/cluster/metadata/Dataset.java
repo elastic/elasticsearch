@@ -80,8 +80,8 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
         // Declared mapping: an optional `mappings` block of column declarations. This parser reads persisted
-        // cluster state, which on a cluster upgraded from 9.5 can still carry that version's retired `_id` block,
-        // so it uses the tolerant entry point. The registration API uses the strict one.
+        // cluster state, which on a cluster upgraded from 9.5 can still carry an `_id` block this version has no
+        // field for, so it uses the tolerant entry point. The registration API uses the strict one.
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DatasetMapping.parseStoredMappings(p), MAPPINGS);
     }
 

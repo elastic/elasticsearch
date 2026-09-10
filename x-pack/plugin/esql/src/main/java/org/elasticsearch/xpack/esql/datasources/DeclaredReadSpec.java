@@ -145,6 +145,7 @@ public record DeclaredReadSpec(
         // Was the declared _id.path. A dataset answers METADATA _id as SQL NULL, so no declared column feeds it and
         // nothing reads a value here, but dataset_declared_schema is present on 9.5 and the slot has to stay for a
         // mixed-version peer.
+        // TODO: remove the slot once 9.5 is out of the wire-compatibility window and no supported peer writes it.
         out.writeOptionalString(null);
         out.writeMap(dateFormats, StreamOutput::writeString, StreamOutput::writeString);
         out.writeCollection(declaredTypeColumns, StreamOutput::writeString);
@@ -155,7 +156,7 @@ public record DeclaredReadSpec(
 
     public static DeclaredReadSpec readFrom(StreamInput in) throws IOException {
         Map<String, String> renames = in.readMap(StreamInput::readString);
-        in.readOptionalString(); // the retired _id.path slot; see writeTo
+        in.readOptionalString(); // the _id.path slot a 9.5 peer writes; see writeTo
         Map<String, String> dateFormats = in.readMap(StreamInput::readString);
         Set<String> declaredTypeColumns = in.readCollectionAsSet(StreamInput::readString);
         SchemaProvenance provenance = in.getTransportVersion().supports(DECLARED_READ_SPEC_PROVENANCE)

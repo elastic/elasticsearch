@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -226,6 +227,50 @@ public class VirtualColumnIteratorTests extends ESTestCase {
             () -> new VirtualColumnIterator(emptyDelegate(), fullOutput, partitionCols, Map.of(), blockFactory)
         );
         assertThat(e.getMessage(), containsString("_rowPosition"));
+    }
+
+    /**
+     * Under deferred extraction the {@code _rowPosition} channel packs an extractor id above the file-local position.
+     * {@code _file.record_ref} must answer the position alone, or the token would vary with how many extractors a
+     * driver registered. Only Parquet and ORC pack anything there, so no end-to-end case reaches this.
+     */
+    public void testRecordRefStripsExtractorIdFromEncodedPosition() {
+        List<Attribute> fullOutput = List.of(
+            attr(ColumnExtractor.ROW_POSITION_COLUMN, DataType.LONG),
+            partAttr(FileMetadataColumns.RECORD_REF, DataType.LONG)
+        );
+        Set<String> partitionCols = new LinkedHashSet<>(List.of(FileMetadataColumns.RECORD_REF));
+
+        long[] localPositions = { 0L, 7L, SourceExtractors.MAX_LOCAL_POSITION };
+        int extractorId = 3;
+
+        VirtualColumnIterator it = new VirtualColumnIterator(
+            new SinglePageIterator(new Page(0)),
+            fullOutput,
+            partitionCols,
+            Map.of(),
+            blockFactory
+        );
+
+        Page injected;
+        try (LongBlock.Builder encoded = blockFactory.newLongBlockBuilder(localPositions.length)) {
+            for (long localPosition : localPositions) {
+                encoded.appendLong(SourceExtractors.encode(extractorId, localPosition));
+            }
+            injected = it.inject(new Page(localPositions.length, new Block[] { encoded.build() }));
+        }
+        try {
+            LongBlock refs = injected.getBlock(1);
+            for (int i = 0; i < localPositions.length; i++) {
+                assertEquals(
+                    "record_ref must carry the local position, not the packed value",
+                    localPositions[i],
+                    refs.getLong(refs.getFirstValueIndex(i))
+                );
+            }
+        } finally {
+            injected.releaseBlocks();
+        }
     }
 
     /**

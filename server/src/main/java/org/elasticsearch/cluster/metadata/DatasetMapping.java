@@ -82,10 +82,9 @@ public final class DatasetMapping implements Writeable {
 
         Mappings(StreamInput in) throws IOException {
             this(in.readEnum(Dynamic.class), in.readOrderedMap(StreamInput::readString, DatasetFieldMapping::new));
-            // The retired _id.path slot. dataset_declared_schema is present on 9.5, so the optional string stays on
-            // the wire and is read and written unconditionally; dropping it would be a wire break. A 9.5 peer can
-            // still put a path in it, and that value is discarded here — this version has no identity declaration
-            // and nothing downstream to give it to.
+            // An optional string this version has no field for. dataset_declared_schema is on 9.5, so dropping the
+            // read would be a wire break; a 9.5 peer writes a column name here and it is discarded.
+            // TODO: remove the slot once 9.5 is out of the wire-compatibility window.
             in.readOptionalString();
         }
 
@@ -93,18 +92,19 @@ public final class DatasetMapping implements Writeable {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeEnum(dynamic);
             out.writeMap(properties, (o, v) -> v.writeTo(o));
-            out.writeOptionalString(null); // the retired _id.path slot; see the stream constructor
+            out.writeOptionalString(null); // the _id.path slot a 9.5 peer expects; see the stream constructor
         }
     }
 
     private static final String DYNAMIC = "dynamic";
     private static final String PROPERTIES = "properties";
     /**
-     * The retired {@code _id} declaration. 9.5 accepted {@code "_id": {"path": "col"}} and wrote it into every
-     * gateway snapshot of the cluster state, so the name survives here purely to be skipped when that state is
-     * read back. It is not a field this version has.
+     * Not a field this version has. Cluster state persisted by a 9.5 node carries an {@code _id} block, and the
+     * name is here only so {@link #parseStoredMappings} can skip it when that state is read back.
+     * <p>
+     * TODO: remove this and the tolerant entry point once no supported upgrade starts from a node that writes it.
      */
-    private static final String RETIRED_ID = "_id";
+    private static final String UNSUPPORTED_ID_FIELD = "_id";
 
     @Nullable
     private final Mappings mappings;
@@ -134,7 +134,7 @@ public final class DatasetMapping implements Writeable {
 
     /**
      * Parses a user-supplied {@code mappings} object ({@code dynamic}, {@code properties}). A {@code _id} block is
-     * a retired declaration and is refused here like any other field this version does not have — a dataset answers
+     * not a field this version has, and is refused like any other unknown key — a dataset answers
      * {@code METADATA _id} as SQL NULL, so accepting the declaration would take a column name and do nothing with it.
      */
     public static Mappings parseMappings(XContentParser parser) throws IOException {
@@ -144,8 +144,9 @@ public final class DatasetMapping implements Writeable {
     /**
      * Parses a {@code mappings} object off persisted cluster state, where a 9.5 node may have written a
      * {@code _id} block. That block is read and discarded: refusing it would leave an upgraded node unable to
-     * load its own cluster state, and the declaration has nothing left to feed. Same precedent as
-     * {@link DataStream}'s parser, which reads and drops the retired {@code timestamp_field} block.
+     * load its own cluster state, and there is nothing for the declaration to feed. Precedent for skipping an
+     * unsupported block unexamined is {@code IndexMetadata.Builder.fromXContent}'s {@code warmers} arm.
+     * ({@link DataStream}'s {@code timestamp_field} is a different shape — it validates and writes the block back.)
      */
     public static Mappings parseStoredMappings(XContentParser parser) throws IOException {
         return parseMappings(parser, true);
@@ -173,7 +174,7 @@ public final class DatasetMapping implements Writeable {
                         properties.put(name, DatasetFieldMapping.fromXContent(parser));
                     }
                 }
-            } else if (fromStoredState && RETIRED_ID.equals(field)) {
+            } else if (fromStoredState && UNSUPPORTED_ID_FIELD.equals(field)) {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
                 parser.skipChildren();
             } else {

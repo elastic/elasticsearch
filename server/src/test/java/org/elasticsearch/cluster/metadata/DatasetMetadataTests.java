@@ -74,7 +74,7 @@ public class DatasetMetadataTests extends AbstractChunkedSerializingTestCase<Dat
      * declared one. Reading that state must not fail: a node that cannot parse its own persisted metadata never
      * finishes starting. The block is read and dropped, and everything beside it survives.
      */
-    public void testGatewayStateFrom95WithRetiredIdBlockLoads() throws IOException {
+    public void testGatewayStateFrom95WithIdBlockLoads() throws IOException {
         String json = """
             {
               "datasets": {

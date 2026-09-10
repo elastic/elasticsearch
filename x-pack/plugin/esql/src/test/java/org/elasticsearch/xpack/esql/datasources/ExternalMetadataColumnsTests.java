@@ -68,11 +68,18 @@ public class ExternalMetadataColumnsTests extends ESTestCase {
         }
     }
 
-    /** Every bindable standard name is one the analyzer knows, and one the per-file synthesizer answers. */
+    /**
+     * Equality, not containment: a name added to {@link MetadataAttribute#ATTRIBUTES_MAP} and not here would bind on
+     * an index and error on a dataset, which is the outcome bind-and-NULL exists to rule out.
+     */
     public void testStandardNamesAreBindableAndAnswered() {
+        assertEquals(
+            "every metadata name the analyzer registers must be answerable on a dataset, and vice versa",
+            MetadataAttribute.ATTRIBUTES_MAP.keySet(),
+            ExternalMetadataColumns.STANDARD_NAMES
+        );
         Map<String, Object> constants = ExternalMetadataColumns.extractPerFileConstants("events");
         for (String name : ExternalMetadataColumns.STANDARD_NAMES) {
-            assertTrue("standard name [" + name + "] is not known to the analyzer", MetadataAttribute.ATTRIBUTES_MAP.containsKey(name));
             assertTrue("standard name [" + name + "] has no per-file value", constants.containsKey(name));
         }
     }

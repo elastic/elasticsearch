@@ -35,10 +35,8 @@ import static org.hamcrest.Matchers.nullValue;
  * regression in any of those paths would otherwise pass with only the CSV coverage in
  * {@link FromDatasetIT}.
  *
- * <p>{@code _id}, {@code _version} and {@code _source} are in the always-null set because a file
- * holds no document identity, no document version and no stored source. The column binds and every
- * row is NULL — the honest answer, rather than an identifier, a timestamp or a document body
- * composed at the reader.
+ * <p>{@code _id}, {@code _version} and {@code _source} are in that null set because a file holds no
+ * document identity, no document version and no stored source.
  *
  * <p>This base owns the {@code @Test} bodies; each concrete subclass binds them to one format
  * by supplying {@link #format()}, {@link #formatPlugins()} and a {@link #writeFixture(Path)} that

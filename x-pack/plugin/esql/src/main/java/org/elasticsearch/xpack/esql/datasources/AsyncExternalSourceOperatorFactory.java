@@ -390,15 +390,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.rowLimit = rowLimit;
         this.fileList = fileList;
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
-        // Route requested standard metadata names through VirtualColumnIterator's constant-block
-        // path by unioning them into the partition-column set.
-        //
-        // Every ExternalMetadataAttribute that reaches here is either a per-file constant standard name
-        // or a _file.* column; Analyzer.bindMetadataFields builds them from exactly those two registries.
-        // A third kind would fall through both arms below, be dropped from the projection by
-        // dataProjectedColumns and never materialised — an all-null column with no error. Fail loud
-        // instead, the same way VirtualColumnIterator does when _file.record_ref has no _rowPosition
-        // channel behind it.
+        // Route requested standard metadata names through VirtualColumnIterator's constant-block path by
+        // unioning them into the partition-column set. Analyzer.bindMetadataFields builds every
+        // ExternalMetadataAttribute from exactly two registries, so a third kind would fall through both
+        // arms below and silently become an all-null column — fail loud instead.
         Set<String> stdMetaNames = new LinkedHashSet<>();
         for (Attribute attr : attributes) {
             if (attr instanceof ExternalMetadataAttribute == false) {

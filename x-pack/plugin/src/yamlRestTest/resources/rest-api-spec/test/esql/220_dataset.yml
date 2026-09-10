@@ -111,6 +111,17 @@ setup:
             dynamic: "true"
             runtime: { }
 
+  # _id: refused on registration (a dataset answers METADATA _id as NULL), but still skipped when reading old state.
+  - do:
+      catch: /unknown mappings field \[_id\]/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            _id: { path: request_id }
+
   # Field parameters outside {type, path, format} are rejected (index-mapping params we don't model).
   - do:
       catch: /\[analyzer\]/

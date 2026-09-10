@@ -82,7 +82,8 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
      * reading of) the core mapping vocabulary — supporting a new key has to be a deliberate, test-breaking change.
      */
     public void testRejectsCoreMappingsKeysWeDoNotSupport() throws IOException {
-        for (String key : List.of("runtime", "dynamic_templates", "_routing", "_meta", "_field_names", "subobjects", "_size")) {
+        // _id is here because it is the one key the two entry points disagree on: refused on registration, skipped on read.
+        for (String key : List.of("runtime", "dynamic_templates", "_routing", "_meta", "_field_names", "subobjects", "_size", "_id")) {
             String json = "{\"dynamic\":\"true\",\"" + key + "\":{}}";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
                 parser.nextToken(); // advance to START_OBJECT, where parseMappings expects to begin
@@ -97,15 +98,11 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
     }
 
     /**
-     * Cluster state persisted by a 9.5 node carries an {@code _id} block. That node wrote only
-     * {@code {"path": "<column>"}} — it rejected any other key and emitted nothing when no path was set — so that
-     * shape is the one an upgraded node actually meets; the empty and {@code type} shapes are here because the
-     * persisted-state entry point skips the whole block by structure rather than by key, and a reader that only
-     * tolerated the written shape would be relying on 9.5 never having been laxer than it was.
-     * The entry point used for persisted state reads past it and returns the rest of the block intact, so an
-     * upgraded node can still load its own gateway metadata.
+     * A 9.5 node wrote {@code {"path": "<column>"}} and nothing else. The parser matches the block by key and skips
+     * its contents unexamined, so the other two shapes cost nothing to tolerate and cover 9.5 having been laxer than
+     * it looks. The rest of the block must survive, or an upgraded node cannot load its own gateway metadata.
      */
-    public void testStoredMappingsSkipRetiredIdBlock() {
+    public void testStoredMappingsSkipUnsupportedIdBlock() {
         for (String idBlock : new String[] { "{\"path\":\"request_id\"}", "{\"type\":\"keyword\"}", "{}" }) {
             String json = "{\"dynamic\":\"true\",\"properties\":{\"request_id\":{\"type\":\"keyword\"}},\"_id\":" + idBlock + "}";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
@@ -120,13 +117,11 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
     }
 
     /**
-     * A 9.5 peer still writes a path into the retired {@code _id.path} slot. Reading it must consume the slot and
-     * throw the value away, leaving the rest of the block intact — a reader that skipped the read instead would
-     * leave the stream misaligned for whatever follows, and one that kept the value would revive a declaration this
-     * version has nothing to give to. Written here as raw stream bytes because no in-repo writer produces a non-null
-     * value any more.
+     * Written as raw stream bytes because no in-repo writer puts a value in the {@code _id.path} slot. The
+     * trailing marker is the point: a reader that dropped the read instead of consuming the slot would leave the
+     * stream misaligned against a 9.5 peer.
      */
-    public void testRetiredIdPathIsReadAndDiscarded() throws IOException {
+    public void testIdPathSlotIsReadAndDiscarded() throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeEnum(DatasetMapping.Dynamic.TRUE);
             out.writeMap(Map.of("request_id", new DatasetFieldMapping("keyword", null)), (o, v) -> v.writeTo(o));

@@ -7,6 +7,9 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -79,9 +82,9 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
     }
 
     /**
-     * A peer that predates the provenance transport version reads only the four original fields; the enum is skipped
-     * and defaults INFERRED (= today's positional behaviour), which is the safe mixed-cluster degradation. The other
-     * fields must survive the downlevel round-trip unchanged.
+     * A peer that predates the provenance transport version reads the three live fields plus the unused
+     * {@code _id.path} slot; the enum is skipped and defaults INFERRED (= today's positional behaviour), which is the
+     * safe mixed-cluster degradation. The other fields must survive the downlevel round-trip unchanged.
      */
     public void testPreProvenanceVersionDegradesToInferred() throws IOException {
         DeclaredReadSpec declared = DeclaredReadSpec.of(
@@ -97,5 +100,31 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
         assertEquals(declared.renames(), downlevel.renames());
         assertEquals(declared.dateFormats(), downlevel.dateFormats());
         assertEquals(declared.declaredTypeColumns(), downlevel.declaredTypeColumns());
+    }
+
+    /**
+     * A symmetric round-trip cannot catch the write and the read being dropped together, which desynchronises the
+     * stream against a 9.5 peer rather than producing a wrong value. Hence a hand-written 9.5 stream: the trailing
+     * marker only reads back if the slot was consumed.
+     */
+    public void testIdPathSlotIsReadAndDiscarded() throws IOException {
+        TransportVersion preProvenance = TransportVersion.fromName("dataset_declared_schema");
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(preProvenance);
+            out.writeMap(Map.of("id", "emp_no"), StreamOutput::writeString, StreamOutput::writeString);
+            out.writeOptionalString("request_id"); // the _id.path slot, as a 9.5 peer writes it
+            out.writeMap(Map.of("ts", "epoch_millis"), StreamOutput::writeString, StreamOutput::writeString);
+            out.writeCollection(Set.of("id"), StreamOutput::writeString);
+            out.writeString("marker"); // whatever the enclosing message writes next
+
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setTransportVersion(preProvenance);
+                DeclaredReadSpec spec = DeclaredReadSpec.readFrom(in);
+                assertEquals(Map.of("id", "emp_no"), spec.renames());
+                assertEquals(Map.of("ts", "epoch_millis"), spec.dateFormats());
+                assertEquals(Set.of("id"), spec.declaredTypeColumns());
+                assertEquals("the slot must be consumed, leaving the stream aligned", "marker", in.readString());
+            }
+        }
     }
 }

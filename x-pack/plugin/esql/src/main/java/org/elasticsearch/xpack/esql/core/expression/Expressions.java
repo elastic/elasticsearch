@@ -45,14 +45,15 @@ public final class Expressions {
      *   <li>A {@link FieldAttribute} backed by a {@link TypeConflictedField} (ambiguous type across indices) is converted
      *   to an {@link UnsupportedAttribute} via {@link FieldAttribute#flagTypeConflicts()}, so the analyzer can surface a
      *   clear user-facing error. Exception: a two-legged PUNK ({@link TypeConflictedField#isSingleTypePotentiallyUnmapped()})
-     *   keeps its single mapped type on the {@link ReferenceAttribute} so it surfaces through a Fork/UnionAll output.</li>
+     *   keeps its single mapped type on the {@link ReferenceAttribute} so it surfaces through a
+     *   {@link org.elasticsearch.xpack.esql.plan.logical.MergePlan} output.</li>
      *   <li>An {@link ExternalMetadataAttribute} is rebuilt as the same subtype with the preserved id. The
-     *   "virtual column" identity must survive operators that re-class their output (e.g. {@code Fork.refreshedOutput})
+     *   "virtual column" identity must survive operators that re-class their output (e.g. {@code MergePlan.refreshOutput()})
      *   because downstream rules such as {@code Analyzer.planWithoutSyntheticAttributes} (which strips
      *   {@code _file.*} from the default top-level projection) and the predicate-pushdown helpers
      *   ({@code PushdownPredicates#isVirtualColumn}) test this subtype to decide whether an attribute is
      *   a virtual column or a real data column. Erasing the type would silently leak {@code _file.*}
-     *   into default output and would also re-enable predicate pushdown on virtual columns past a Fork.</li>
+     *   into default output and would also re-enable predicate pushdown on virtual columns past a {@code MergePlan}.</li>
      * </ul>
      */
     public static List<Attribute> toReferenceAttributesPreservingIds(

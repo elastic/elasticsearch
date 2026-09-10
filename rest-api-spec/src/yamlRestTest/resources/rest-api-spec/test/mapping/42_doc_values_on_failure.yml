@@ -1052,8 +1052,8 @@
           "@timestamp": "2024-01-01T00:00:00Z"
           kw: [null, null]
 
-  # A mixed array with at least one real value satisfies the requirement — the null is discarded
-  # by nullIsAbsent, so the field is not marked ignored.
+  # A mixed array with at least one real value satisfies the requirement — "val" satisfies nullability:false,
+  # so the field is not marked ignored.
   - do:
       index:
         index: test_on_failure_nullability_null
@@ -1088,8 +1088,7 @@
   - match: { _ignored: [ "kw" ] }
 
   # The mixed-array document must not have triggered the nullability violation.
-  # Note: synthetic source preserves the original array including the leading null, so
-  # _source.kw is [null, "val"] — we assert the field is present and the violation was not triggered.
+  # Synthetic source preserves the original array including the leading null, so _source.kw is [null, "val"].
   - do:
       get:
         index: test_on_failure_nullability_null
@@ -1101,7 +1100,7 @@
       get:
         index: test_on_failure_nullability_null
         id: "4"
-  - is_true: _source.kw
+  - match: { _source.kw: [null, "val"] }
 
 ---
 "nullability=false with on_failure=ignore accepts null and empty arrays (columnar)":
@@ -1153,8 +1152,8 @@
         body:
           kw: [null, null]
 
-  # A mixed array with at least one real value satisfies the requirement — the null is discarded
-  # by nullIsAbsent, so the field is not marked ignored.
+  # A mixed array with at least one real value satisfies the requirement — "val" satisfies nullability:false,
+  # so the field is not marked ignored.
   - do:
       index:
         index: test_on_failure_nullability_null_columnar
@@ -1188,8 +1187,7 @@
   - match: { _ignored: [ "kw" ] }
 
   # The mixed-array document must not have triggered the nullability violation.
-  # Note: synthetic source preserves the original array including the leading null, so
-  # _source.kw is [null, "val"] — we assert the field is present and the violation was not triggered.
+  # Synthetic source preserves the original array including the leading null, so _source.kw is [null, "val"].
   - do:
       get:
         index: test_on_failure_nullability_null_columnar
@@ -1201,7 +1199,7 @@
       get:
         index: test_on_failure_nullability_null_columnar
         id: "4"
-  - is_true: _source.kw
+  - match: { _source.kw: [null, "val"] }
 
 ---
 # on_failure is resolved per required field: a field configured with on_failure=ignore is silently

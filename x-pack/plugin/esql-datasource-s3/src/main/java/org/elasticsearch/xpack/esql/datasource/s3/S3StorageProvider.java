@@ -18,6 +18,7 @@ import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvide
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
+import software.amazon.awssdk.core.interceptor.ExecutionInterceptor;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
 import software.amazon.awssdk.identity.spi.IdentityProvider;
@@ -274,6 +275,29 @@ public class S3StorageProvider implements StorageProvider {
         IdentityProvider<? extends AwsCredentialsIdentity> credentials,
         RetryStrategy retryStrategy
     ) {
+        return configureCommon(builder, config, credentials, retryStrategy, List.of());
+    }
+
+    /**
+     * Applies credentials, region, endpoint, and profile settings common to both the sync and async S3 clients.
+     * Pass an empty list for {@code interceptors} in production.
+     */
+    static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(
+        B builder,
+        S3Configuration config,
+        IdentityProvider<? extends AwsCredentialsIdentity> credentials,
+        List<ExecutionInterceptor> interceptors
+    ) {
+        return configureCommon(builder, config, credentials, AwsRetryStrategy.standardRetryStrategy(), interceptors);
+    }
+
+    private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(
+        B builder,
+        S3Configuration config,
+        IdentityProvider<? extends AwsCredentialsIdentity> credentials,
+        RetryStrategy retryStrategy,
+        List<ExecutionInterceptor> interceptors
+    ) {
         // Disable profile file loading to prevent the AWS SDK from reading ~/.aws/config
         // or the path set via AWS_CONFIG_FILE, which would be blocked by the entitlement system.
         ProfileFile emptyProfileFile = ProfileFile.aggregator().build();
@@ -285,6 +309,7 @@ public class S3StorageProvider implements StorageProvider {
             // defaults to Legacy / 4 attempts, or whatever AWS_RETRY_MODE/AWS_MAX_ATTEMPTS happen to be). This is
             // the per-backend, connection-aware retry layer beneath our provider-agnostic RetryPolicy.
             c.retryStrategy(retryStrategy);
+            interceptors.forEach(c::addExecutionInterceptor);
         });
 
         // Disable optional response checksum validation. The SDK default (WHEN_SUPPORTED) wraps
@@ -302,7 +327,20 @@ public class S3StorageProvider implements StorageProvider {
 
         if (config != null && config.endpoint() != null) {
             builder.endpointOverride(URI.create(config.endpoint()));
-            builder.forcePathStyle(true);
+        }
+
+        S3Configuration.AddressingStyleMode addressingStyle = config != null
+            ? config.resolveAddressingStyle()
+            : S3Configuration.AddressingStyleMode.AUTO;
+        switch (addressingStyle) {
+            case PATH -> builder.forcePathStyle(true);
+            case VIRTUAL_HOSTED -> builder.forcePathStyle(false);
+            case AUTO -> {
+                // path-style when an endpoint override is set, SDK default otherwise
+                if (config != null && config.endpoint() != null) {
+                    builder.forcePathStyle(true);
+                }
+            }
         }
 
         return builder;

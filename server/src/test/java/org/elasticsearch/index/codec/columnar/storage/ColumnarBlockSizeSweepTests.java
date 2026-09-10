@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.columnar.storage;
 
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.logging.LogManager;
@@ -90,7 +91,11 @@ public class ColumnarBlockSizeSweepTests extends ColumnarNumericStorageTestBase 
 
     private void runParity(String workload, NumericPipelineSelector selector, long[] values) throws IOException {
         for (int blockSize : ES95_BLOCK_SIZES) {
-            final long columnar = measureConsumer(new ColumNARDocValuesFormat(selector, blockSize), values, true);
+            final long columnar = measureConsumer(
+                new ColumNARDocValuesFormat(selector, field -> ColumnarFieldType.LONG, blockSize),
+                values,
+                true
+            );
             final long es95 = measureConsumer(es95Format(workload, blockSize == 512), values, false);
             final double ratio = (double) columnar / es95;
             logger.info(

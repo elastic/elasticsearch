@@ -90,7 +90,11 @@ public enum NumericFormat {
                     (f, bs) -> es95FieldContext(workload, f, bs)
                 );
             }
-            case COLUMNAR -> new ColumNARDocValuesFormat((f, t) -> bs -> selectPipeline(workload, bs), blockSize);
+            case COLUMNAR -> new ColumNARDocValuesFormat(
+                (f, t) -> bs -> selectPipeline(workload, bs),
+                f -> ColumnarFieldType.LONG,
+                blockSize
+            );
         };
         return new Elasticsearch96Codec() {
             @Override
@@ -203,7 +207,6 @@ public enum NumericFormat {
     private static FieldType columnarFieldType() {
         final FieldType type = new FieldType();
         type.setDocValuesType(DocValuesType.BINARY);
-        type.putAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, ColumnarFieldType.LONG.name());
         type.freeze();
         return type;
     }

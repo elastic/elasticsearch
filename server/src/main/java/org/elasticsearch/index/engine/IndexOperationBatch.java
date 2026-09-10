@@ -341,10 +341,19 @@ public final class IndexOperationBatch {
     /**
      * Returns a view of {@code [from, to)} sharing all backing arrays with the parent. Only the
      * {@link SourceBatch} is re-sliced; seqNo/primaryTerm/version arrays remain full-batch-sized.
+     * Preserves the parent's {@link #startTime()}.
      *
      * @throws IndexOutOfBoundsException if the range is invalid
      */
     public IndexOperationBatch slice(int from, int to) {
+        return slice(from, to, startTime);
+    }
+
+    /**
+     * Like {@link #slice(int, int)} but stamps the sub-batch with {@code startTime} instead of
+     * inheriting the parent's.
+     */
+    public IndexOperationBatch slice(int from, int to, long startTime) {
         Objects.checkFromToIndex(from, to, docCount);
         if (from == to) {
             throw new IllegalArgumentException("empty slice [" + from + ", " + to + "); a batch must contain at least one document");
@@ -497,6 +506,22 @@ public final class IndexOperationBatch {
 
     public SourceBatch sourceBatch() {
         return sourceBatch;
+    }
+
+    /**
+     * Estimates the bytes this batch contributes to the Lucene indexing buffer. Includes per-doc
+     * id overhead and delegates to {@link SourceBatch#estimatedBytes()} for the column values
+     */
+    public int estimatedBytes() {
+        int estimate = 0;
+        for (int i = 0; i < docCount; i++) {
+            final BytesRef uid = uids[offset + i];
+            estimate += uid != null ? uid.length : 0;
+        }
+        if (sourceBatch != null) {
+            estimate += sourceBatch.estimatedBytes();
+        }
+        return estimate;
     }
 
     /**

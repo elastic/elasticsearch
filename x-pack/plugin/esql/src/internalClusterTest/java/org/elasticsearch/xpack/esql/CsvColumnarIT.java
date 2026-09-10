@@ -132,9 +132,6 @@ public class CsvColumnarIT extends CsvIT {
         // data contains deliberate duplicates in boolean MV fields (e.g. [false,true,true]).
         // SortedSetDocValues deduplicates those in standard mode while columnar may preserve them.
         "employees_incompatible",
-        // Multi-value double / date fields cause COUNT to count documents instead of individual
-        // MV values in columnar mode, producing different aggregate results.
-        "mv_decades",
         // Contains semantic_text and dense_vector fields that are absent from columnar field_caps,
         // and has a short-typed field "short" that columnar normalises to long — both cause
         // expected column-type header mismatches vs csv-spec declared types.
@@ -161,9 +158,6 @@ public class CsvColumnarIT extends CsvIT {
         // cartesian_shape field with doc_values:false cannot be reconstructed from doc values
         // in columnar mode: "field [shape] cannot reconstruct _source from doc values".
         "cartesian_multipolygons_no_doc_values",
-        // 245 000+ documents with MV integer fields; bulk indexing and force-merge can time out
-        // in columnar mode or exceed REST client limits.
-        "many_numbers",
         // index.mapping.index_disabled_by_default=true disables the inverted index for fields
         // without an explicit "index: true", so full-text (:) queries return different results
         // between standard and columnar modes.

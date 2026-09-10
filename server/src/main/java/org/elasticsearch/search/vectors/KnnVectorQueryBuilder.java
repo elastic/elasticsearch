@@ -26,7 +26,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -126,7 +125,7 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         );
         PARSER.declareFieldArray(
             KnnVectorQueryBuilder::addFilterQueries,
-            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
+            (p, c) -> parseInnerQueryBuilder(p),
             FILTER_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY
         );

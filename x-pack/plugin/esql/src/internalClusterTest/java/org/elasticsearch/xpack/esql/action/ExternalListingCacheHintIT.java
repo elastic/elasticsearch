@@ -30,9 +30,12 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
  *
  * <p>Two conditions are load-bearing and easy to get subtly wrong:
  * <ul>
- *   <li><b>Product path.</b> Dataset settings are the default ({@code union_by_name}) so hint keys are computed on
- *       the rail users hit. Assertions are row counts: they catch a cached listing keyed without hints, not a
- *       skip-cache regression (fresh lists still yield 6). Listing hit/miss is asserted in
+ *   <li><b>Listing + hints.</b> {@code registerDataset} uses the pass-through TestValidator, so an
+ *       omitted {@code schema_resolution} stays missing and query hydrates {@code union_by_name}
+ *       (NAME_ASC listing). Files are homogeneous: row counts match the FFW rail. Hint-poison is
+ *       valid on UBN. The FFW listing-cache discriminator is {@code GlobExpanderTests}. Assertions
+ *       are row counts: they catch a cached listing keyed without hints, not a skip-cache
+ *       regression (fresh lists still yield 6). Listing hit/miss is asserted in
  *       {@code ExternalSourceResolverTests}.</li>
  *   <li><b>Both queries on one coordinator.</b> The listing cache is a node singleton on the resolving coordinator, so
  *       the sequence must be pinned to a single node with {@code client(coordinator)} for the second query to hit the
@@ -88,10 +91,11 @@ public class ExternalListingCacheHintIT extends AbstractExternalDataSourceIT {
      * The core defect: a filtered query narrows the listing to a subset of the
      * files and caches it; keyed only on the path, that subset is then served to a later unfiltered query, which
      * silently reads fewer files than the dataset holds. Uses a {@code _file.name} filter on a plain glob — that
-     * pruning runs on any multi-file listing, so the defect is not specific to hive-partitioned globs. Runs on the
-     * default {@code union_by_name} rail so poison keys are computed on the product path. Row counts do not prove a
-     * cache hit — skip-cache still returns 6. Hit/miss is {@code ExternalSourceResolverTests}. Both queries are pinned
-     * to one coordinator because the listing cache is a node singleton.
+     * pruning runs on any multi-file listing, so the defect is not specific to hive-partitioned globs. TestValidator
+     * omit-key hydrates {@code union_by_name}; poison keys are still computed. Homogeneous files, so row counts
+     * match FFW. Row counts do not prove a cache hit — skip-cache still returns 6. Hit/miss is
+     * {@code ExternalSourceResolverTests}. Both queries are pinned to one coordinator because the listing cache is
+     * a node singleton.
      */
     public void testFilteredThenUnfilteredSeesEveryFile() throws Exception {
         for (TextFormat format : TextFormat.values()) {

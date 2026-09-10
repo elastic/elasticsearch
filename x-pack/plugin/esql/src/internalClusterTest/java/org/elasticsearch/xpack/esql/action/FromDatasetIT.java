@@ -175,6 +175,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
+     * File-backed {@code local} data source so PUT goes through {@code FileDataSourceValidator}
+     * and materializes omitted {@code schema_resolution} as {@code first_file_wins}. The {@code test}
+     * validator used by {@code local_ds} is a pass-through and stores a missing key (legacy hydrate).
+     */
+    private static final String FILE_DS = "file_ds";
+
+    /**
      * Names every {@code testXxx} body creates via {@link PutViewAction}. As with datasets, the SUITE-scoped
      * cluster requires explicit teardown so views don't leak across methods.
      */
@@ -210,12 +217,14 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 logger.warn("dataset cleanup [{}] failed", ds.name(), e);
             }
         }
-        try {
-            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds")).actionGet(30, SECONDS);
-        } catch (ResourceNotFoundException ignored) {
-            // already deleted by the test itself
-        } catch (Exception e) {
-            logger.warn("data source cleanup [local_ds] failed", e);
+        for (String dataSource : List.of("local_ds", FILE_DS)) {
+            try {
+                client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dataSource)).actionGet(30, SECONDS);
+            } catch (ResourceNotFoundException ignored) {
+                // already deleted by the test itself
+            } catch (Exception e) {
+                logger.warn("data source cleanup [{}] failed", dataSource, e);
+            }
         }
     }
 
@@ -5941,6 +5950,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
 
+    private static PutDataSourceAction.Request putLocalFileDataSourceRequest() {
+        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, FILE_DS, "local", null, new HashMap<>());
+    }
+
     /**
      * A marker and a sidecar in an otherwise clean prefix used to fail the whole query. They are excluded by
      * default now, and a {@code _}-prefixed Hive partition directory in the same tree still resolves — the two
@@ -6279,6 +6292,107 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(documentsReadBy("FROM widen_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
     }
 
+    public void testPutOmittingSchemaResolutionStoresFirstFileWinsAndNoOpPutComparesEqual() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putLocalFileDataSourceRequest()));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        settings.put("file_sort_by", "name");
+        PutDatasetAction.Request put = putDatasetRequest("omit_schema_put_get", FILE_DS, StoragePath.fileUri(dir) + "/*.parquet", settings);
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, put));
+        Dataset first = getDataset("omit_schema_put_get");
+        assertThat(first.settings().get("schema_resolution"), equalTo("first_file_wins"));
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, put));
+        Dataset second = getDataset("omit_schema_put_get");
+        assertThat(second, equalTo(first));
+        assertThat(second.settings().get("schema_resolution"), equalTo("first_file_wins"));
+    }
+
+    public void testOmittedSchemaResolutionWarmAggregateMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putLocalFileDataSourceRequest()));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        putOmittedSchemaResolutionGlob("drift_pq_type_default", dir);
+
+        List<String> scanWarnings = collectWarningsContaining(
+            "FROM drift_pq_type_default | KEEP x | SORT x",
+            "incompatible with planner type"
+        );
+        assertThat(scanWarnings, not(empty()));
+        assertThat(firstRowOf("FROM drift_pq_type_default | KEEP x | SORT x"), equalTo(List.of(1)));
+        assertThat(firstRowOf("FROM drift_pq_type_default | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(firstRowOf("FROM drift_pq_type_default | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(documentsReadBy("FROM drift_pq_type_default | STATS c = COUNT(x)"), equalTo(0L));
+        assertThat(
+            firstRowOf("FROM drift_pq_type_default | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(1, 2, 2L))
+        );
+        assertThat(firstRowOf("FROM drift_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(1, 2, 2L)));
+        assertThat(documentsReadBy("FROM drift_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+    }
+
+    public void testOmittedSchemaResolutionWarmAggregateKeepsWideningFileValues() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putLocalFileDataSourceRequest()));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        putOmittedSchemaResolutionGlob("widen_pq_type_default", dir);
+
+        assertThat(firstRowOf("FROM widen_pq_type_default | KEEP x | SORT x"), equalTo(List.of(-10L)));
+        assertThat(
+            firstRowOf("FROM widen_pq_type_default | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(-10L, 20L, 4L))
+        );
+        assertThat(
+            firstRowOf("FROM widen_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(-10L, 20L, 4L))
+        );
+        assertThat(documentsReadBy("FROM widen_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+    }
+
+    /**
+     * Pass-through TestValidator stores a missing {@code schema_resolution} key. Query hydrate is
+     * {@code union_by_name}: INT32 and INT64 widen, {@code COUNT(x)=4}.
+     */
+    public void testLegacyMissingKeyHydratesUnionByNameOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("drift_pq_type_legacy", "local_ds", StoragePath.fileUri(dir) + "/*.parquet", settings)
+            )
+        );
+
+        assertThat(firstRowOf("FROM drift_pq_type_legacy | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+        assertThat(firstRowOf("FROM drift_pq_type_legacy | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+    }
+
+    public void testUnionByNameWarmAggregateWidensDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        settings.put("schema_resolution", "union_by_name");
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("drift_pq_type_ubn", "local_ds", StoragePath.fileUri(dir) + "/*.parquet", settings)
+            )
+        );
+
+        assertThat(firstRowOf("FROM drift_pq_type_ubn | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+        assertThat(firstRowOf("FROM drift_pq_type_ubn | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+    }
+
     public void testFirstFileWinsTextWarmCountMatchesTheScanOnDivergentColumnTypes() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path dir = createTempDir();
@@ -6376,6 +6490,26 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     private void putFirstFileWinsGlob(String dataset, Path dir) {
         putFirstFileWinsGlob(dataset, dir, "parquet", Map.of());
+    }
+
+    private void putOmittedSchemaResolutionGlob(String dataset, Path dir) {
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        settings.put("file_sort_by", "name");
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(dataset, FILE_DS, StoragePath.fileUri(dir) + "/*.parquet", settings)
+            )
+        );
+    }
+
+    private Dataset getDataset(String name) throws Exception {
+        GetDatasetAction.Request req = new GetDatasetAction.Request(TIMEOUT);
+        req.indices(name);
+        GetDatasetAction.Response resp = client().execute(GetDatasetAction.INSTANCE, req).get();
+        assertThat(resp.getDatasets(), hasSize(1));
+        return resp.getDatasets().iterator().next();
     }
 
     private static void writeInt64Parquet(Path target, boolean unsigned, long... values) throws IOException {

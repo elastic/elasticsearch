@@ -21,12 +21,13 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
-import org.elasticsearch.indices.recovery.ThrottlingRecoveryService.PendingRecoverySnapshot;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService.BlockedState;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -38,6 +39,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Transport action for shard recovery operation. This transport action does not actually
@@ -47,7 +49,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<
     RecoveryRequest,
     RecoveryResponse,
     ShardRecoveryInfo,
-    PendingRecoverySnapshot> {
+    TransportRecoveryAction.BlockedRecoveries> {
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
@@ -119,7 +121,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<
         RecoveryRequest request,
         ShardRouting shardRouting,
         Task task,
-        PendingRecoverySnapshot nodeContext,
+        BlockedRecoveries nodeContext,
         ActionListener<ShardRecoveryInfo> listener
     ) {
         ActionListener.completeWith(listener, () -> {
@@ -127,13 +129,31 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
             assert shardRouting.allocationId() != null;
-            return new ShardRecoveryInfo(indexShard.recoveryState(), nodeContext.gateFor(shardRouting.allocationId().getId()));
+            final RecoveryState recoveryState = indexShard.recoveryState();
+            return new ShardRecoveryInfo(recoveryState, nodeContext.gateFor(shardRouting.allocationId().getId(), recoveryState.getStage()));
         });
     }
 
     @Override
-    protected PendingRecoverySnapshot createNodeContext() {
-        return throttlingRecoveryService.pendingRecoveries();
+    protected BlockedRecoveries createNodeContext() {
+        final Set<String> queuedAllocationIds = throttlingRecoveryService.queuedAllocationIds();
+        return new BlockedRecoveries(throttlingRecoveryService.blockedState(), queuedAllocationIds);
+    }
+
+    /// Captures the recoveries that are blocked by a recovery gate.
+    record BlockedRecoveries(@Nullable BlockedState blockedState, Set<String> allocationIds) {
+        BlockedRecoveries {
+            allocationIds = Set.copyOf(allocationIds);
+        }
+
+        @Nullable
+        String gateFor(String allocationId, RecoveryState.Stage stage) {
+            // the gate is only reported for recoveries that are queued and have not yet started, i.e. those in the CREATED stage.
+            // Once a recovery has started, it is no longer queued and the gate is no longer relevant.
+            return blockedState != null && stage == RecoveryState.Stage.CREATED && allocationIds.contains(allocationId)
+                ? blockedState.gateName()
+                : null;
+        }
     }
 
     @Override

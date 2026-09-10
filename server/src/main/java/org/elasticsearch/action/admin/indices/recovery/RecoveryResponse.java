@@ -62,7 +62,7 @@ public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedTo
     }
 
     public boolean hasRecoveries() {
-        return shardRecoveryInfos.size() > 0;
+        return shardRecoveryInfos.isEmpty() == false;
     }
 
     public Map<String, List<RecoveryState>> shardRecoveryStates() {

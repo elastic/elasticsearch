@@ -3352,6 +3352,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
         assertQ("datetime equals", "FROM mixed_ts_inferred | WHERE ts == TO_DATETIME(\"" + iso + "\") | STATS c = COUNT(*)", 1L);
         assertQ("datetime lte", "FROM mixed_ts_inferred | WHERE ts <= TO_DATETIME(\"" + iso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ("datetime in", "FROM mixed_ts_inferred | WHERE ts IN (TO_DATETIME(\"" + iso + "\")) | STATS c = COUNT(*)", 1L);
         assertQ(
             "datetime range",
             "FROM mixed_ts_inferred | WHERE ts >= TO_DATETIME(\"2026-01-01T00:00:00Z\") AND ts <= TO_DATETIME(\"2026-01-03T00:00:00Z\")"
@@ -3385,6 +3386,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
         assertQ("integer lt double", "FROM mixed_int_inferred | WHERE i < 5.5 | STATS c = COUNT(*)", 1L);
         assertQ("integer lte long", "FROM mixed_int_inferred | WHERE i <= 3000000000 | STATS c = COUNT(*)", 1L);
+        assertQ("integer in int and double", "FROM mixed_int_inferred | WHERE i IN (5, 5.5) | STATS c = COUNT(*)", 1L);
     }
 
     /** Declares {@code {ts: date, format: <the composite>}} over one dataset and asserts ts recovers EPOCH_SECOND_MILLIS. */

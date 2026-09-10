@@ -28,6 +28,11 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
+$if(long)$
+import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
+import static org.elasticsearch.common.util.PartitionedHashTable.PARTITION_WRITE_BATCH;
+$endif$
+
 /**
  * Aggregator state for an array of $type$s. It is created in a mode where it
  * won't track the {@code groupId}s that are sent to it and it is the
@@ -327,6 +332,191 @@ $endif$
     static long bytesUsedByPage(int length) {
         return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) $if(boolean)$Long.BYTES$else$$BYTES$$endif$ * length);
     }
+
+$if(long)$
+    private static long bytesUsedByPartitionPage(int length) {
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) $if(boolean)$Byte.BYTES$else$$BYTES$$endif$ * length);
+    }
+
+    private static long bytesUsedBySeenPage(int length) {
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + length);
+    }
+
+    private static final class $Type$PartitionedState implements GroupingAggregatorFunction.PartitionedState {
+        private static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOf($Type$PartitionedState.class);
+        private static final String LABEL = "$Type$ArrayState#partition";
+
+        private final long baseBytes;
+        private final $type$[][] values;
+        private final boolean[][] seen;
+
+        private $Type$PartitionedState(CircuitBreaker breaker, int partitionSize, boolean trackSeen) {
+            baseBytes = BASE_RAM_USAGE + bytesUsedByPagesArray(NUM_PARTITIONS) + (trackSeen ? bytesUsedByPagesArray(NUM_PARTITIONS) : 0);
+            long pageBytes = bytesUsedByPartitionPage(partitionSize) + (trackSeen ? bytesUsedBySeenPage(partitionSize) : 0);
+            breaker.addEstimateBytesAndMaybeBreak(baseBytes + NUM_PARTITIONS * pageBytes, LABEL);
+            values = new $type$[NUM_PARTITIONS][partitionSize];
+            seen = trackSeen ? new boolean[NUM_PARTITIONS][partitionSize] : null;
+        }
+
+        @Override
+        public boolean hasAllValues(int partition) {
+            return seen == null;
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            long usedBytes = 0;
+            if (values[partition] != null) {
+                usedBytes += bytesUsedByPartitionPage(values[partition].length);
+                values[partition] = null;
+            }
+            if (seen != null && seen[partition] != null) {
+                usedBytes += bytesUsedBySeenPage(seen[partition].length);
+                seen[partition] = null;
+            }
+            breaker.addWithoutBreaking(-usedBytes);
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            long usedBytes = baseBytes;
+            for (int p = 0; p < NUM_PARTITIONS; p++) {
+                if (values[p] != null) {
+                    usedBytes += bytesUsedByPartitionPage(values[p].length);
+                    values[p] = null;
+                }
+                if (seen != null && seen[p] != null) {
+                    usedBytes += bytesUsedBySeenPage(seen[p].length);
+                    seen[p] = null;
+                }
+            }
+            breaker.addWithoutBreaking(-usedBytes);
+        }
+    }
+
+    private final class $Type$PartitionSplitter implements GroupingAggregatorFunction.PartitionSplitter {
+        private final CircuitBreaker partitionBreaker;
+        private $Type$PartitionedState partitionedState;
+
+        private $Type$PartitionSplitter(CircuitBreaker partitionBreaker) {
+            this.partitionBreaker = partitionBreaker;
+            int partitionSize = ArrayUtil.oversize(Math.max(1, Math.ceilDiv(capacity, NUM_PARTITIONS)), $if(boolean)$Byte.BYTES$else$$BYTES$$endif$);
+            partitionedState = new $Type$PartitionedState(partitionBreaker, partitionSize, trackingGroupIds());
+        }
+
+        @Override
+        public void split(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
+            if (partitionedState.seen == null) {
+                splitWithAllValues(firstId, shiftedIds, batchSize, batchPartitionCounts, partitionOffsets);
+                return;
+            }
+            for (int p = 0; p < NUM_PARTITIONS; p++) {
+                final int count = batchPartitionCounts[p];
+                if (count == 0) {
+                    continue;
+                }
+                final int offset = partitionOffsets[p];
+                ensurePartitionCapacity(p, offset + count);
+                final int base = p * PARTITION_WRITE_BATCH;
+                for (int i = 0; i < count; i++) {
+                    final int id = firstId + shiftedIds[base + i];
+                    if (id < capacity && hasValue(id)) {
+                        partitionedState.values[p][offset + i] = get(id);
+                        partitionedState.seen[p][offset + i] = true;
+                    }
+                }
+            }
+        }
+
+        void splitWithAllValues(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
+            for (int p = 0; p < NUM_PARTITIONS; p++) {
+                final int count = batchPartitionCounts[p];
+                if (count == 0) {
+                    continue;
+                }
+                final int offset = partitionOffsets[p];
+                ensurePartitionCapacity(p, offset + count);
+                final int base = p * PARTITION_WRITE_BATCH;
+                for (int i = 0; i < count; i++) {
+                    final int id = firstId + shiftedIds[base + i];
+                    assert id < capacity;
+                    partitionedState.values[p][offset + i] = get(id);
+                }
+            }
+        }
+
+        private void ensurePartitionCapacity(int partition, int minSize) {
+            final $type$[] oldValues = partitionedState.values[partition];
+            if (oldValues.length >= minSize) {
+                return;
+            }
+            final int newSize = ArrayUtil.oversize(minSize, $if(boolean)$Byte.BYTES$else$$BYTES$$endif$);
+            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPartitionPage(newSize), $Type$PartitionedState.LABEL);
+            partitionedState.values[partition] = Arrays.copyOf(oldValues, newSize);
+            partitionBreaker.addWithoutBreaking(-bytesUsedByPartitionPage(oldValues.length));
+
+            if (partitionedState.seen != null) {
+                final boolean[] oldSeen = partitionedState.seen[partition];
+                partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedBySeenPage(newSize), $Type$PartitionedState.LABEL);
+                partitionedState.seen[partition] = Arrays.copyOf(oldSeen, newSize);
+                partitionBreaker.addWithoutBreaking(-bytesUsedBySeenPage(oldSeen.length));
+            }
+        }
+
+        @Override
+        public $Type$PartitionedState finish() {
+            final $Type$PartitionedState result = partitionedState;
+            partitionedState = null;
+            return result;
+        }
+
+        @Override
+        public void release(CircuitBreaker breaker) {
+            if (partitionedState != null) {
+                partitionedState.releaseAll(breaker);
+                partitionedState = null;
+            }
+        }
+    }
+
+    GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
+        return new $Type$PartitionSplitter(breaker);
+    }
+
+    $type$[] partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
+        return (($Type$PartitionedState) source).values[partition];
+    }
+
+    boolean[] partitionSeen(GroupingAggregatorFunction.PartitionedState source, int partition) {
+        final boolean[][] seen = (($Type$PartitionedState) source).seen;
+        return seen == null ? null : seen[partition];
+    }
+
+    void appendPartition($type$[] src, int firstId, int length) {
+        final int end = firstId + length;
+        assert end <= capacity : end + " > " + capacity;
+$if(boolean)$
+        for (int id = firstId, i = 0; id < end; id++, i++) {
+            final long[] page = pages[id >>> PAGE_SHIFT];
+            final int word = (id & PAGE_MASK) >>> 6;
+            if (src[i]) {
+                page[word] |= 1L << id;
+            } else {
+                page[word] &= ~(1L << id);
+            }
+        }
+$else$
+        for (int id = firstId, i = 0; id < end;) {
+            final int indexInPage = id & PAGE_MASK;
+            final int copyLength = Math.min(PAGE_SIZE - indexInPage, end - id);
+            System.arraycopy(src, i, pages[id >>> PAGE_SHIFT], indexInPage, copyLength);
+            id += copyLength;
+            i += copyLength;
+        }
+$endif$
+        trackGroupIds(firstId, end);
+    }
+$endif$
 
     @Override
     public void close() {

@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHashTable;
+import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -73,7 +74,7 @@ import java.util.List;
  *     and the last column being the inner-most loop. See {@link Group} for more.
  * </p>
  */
-final class PackedValuesBlockHash extends BlockHash {
+final class PackedValuesBlockHash extends PartitionedBlockHash {
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
 
     private final int emitBatchSize;
@@ -519,6 +520,58 @@ final class PackedValuesBlockHash extends BlockHash {
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new SeenGroupIds.Range(0, Math.toIntExact(bytesRefHash.size())).seenGroupIds(bigArrays);
+    }
+
+    @Override
+    public void ensureCapacity(int size) {
+        if (bytesRefHash instanceof BytesRefSwissHash swiss) {
+            swiss.ensureCapacity(size);
+        }
+    }
+
+    @Override
+    public void clear() {
+        seenNull = false;
+        bytesRefHash.clear();
+    }
+
+    private record PartitionedHashKeysWithSeenNull(PartitionedHashKeys delegate, boolean seenNull) implements PartitionedHashKeys {
+        @Override
+        public int keysInPartition(int partition) {
+            return delegate.keysInPartition(partition);
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            delegate.releasePartition(breaker, partition);
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            delegate.releaseAll(breaker);
+        }
+    }
+
+    @Override
+    public PartitionedHashTable.PartitionedHashKeys splitPartition(
+        CircuitBreaker breaker,
+        PartitionedHashTable.PartitionSplitter partitionSplitter
+    ) {
+        if (bytesRefHash instanceof BytesRefSwissHash swiss) {
+            PartitionedHashKeys keys = swiss.splitPartition(breaker, partitionSplitter);
+            return new PartitionedHashKeysWithSeenNull(keys, seenNull);
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    @Override
+    public boolean combinePartition(PartitionedHashTable.PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
+        if (bytesRefHash instanceof BytesRefSwissHash swiss) {
+            PartitionedHashKeysWithSeenNull withSeenNull = (PartitionedHashKeysWithSeenNull) keys;
+            seenNull |= withSeenNull.seenNull;
+            return swiss.combinePartition(withSeenNull.delegate, partitionIndex, resultIds);
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
     }
 
     @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -1058,5 +1059,36 @@ public class RestoreServiceTests extends ESTestCase {
         } finally {
             terminate(threadPool);
         }
+    }
+
+    /**
+     * This tests that a restore over an open index that is being resharded is rejected. Restoring while resharding is happening would fail.
+     * Plus, you can't close an index that is resharding, so we are not losing any functionality a user had previously by explicitly closing
+     * an index and then restoring.
+     */
+    public void testRestoreOverOpenIndexRejectsReshardingIndex() {
+        final IndexMetadata currentIndexMetadata = IndexMetadata.builder("test-idx")
+            .settings(indexSettings(IndexVersion.current(), 2, 0))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(2, 2))
+            .build();
+        final Index index = currentIndexMetadata.getIndex();
+        final ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(ProjectId.DEFAULT).put(currentIndexMetadata, false))
+            .build();
+        final Snapshot snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("test-snap", randomUUID()));
+
+        final SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.validateExistingOpenIndexForRestore(
+                snapshot,
+                state,
+                ProjectId.DEFAULT,
+                currentIndexMetadata,
+                currentIndexMetadata,
+                index,
+                false
+            )
+        );
+        assertThat(e.getMessage(), containsString("being resharded"));
     }
 }

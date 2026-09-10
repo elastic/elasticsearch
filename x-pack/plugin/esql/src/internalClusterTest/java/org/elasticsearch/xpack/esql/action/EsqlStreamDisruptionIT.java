@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,6 +91,11 @@ import static org.hamcrest.Matchers.in;
  */
 @ESIntegTestCase.ClusterScope(scope = TEST, minNumDataNodes = 2, maxNumDataNodes = 3, numClientNodes = 1)
 public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
+
+    @BeforeClass
+    public static void disableForReleaseBuilds() {
+        assumeTrue("ES|QL streaming is not available in release builds yet", Build.current().isSnapshot());
+    }
 
     private static final TimeValue SINK_INACTIVE_INTERVAL = TimeValue.timeValueMinutes(1);
 

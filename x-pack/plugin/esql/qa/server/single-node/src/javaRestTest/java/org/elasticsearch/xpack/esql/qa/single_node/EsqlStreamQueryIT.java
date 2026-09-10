@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.EsqlStreamTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -49,6 +50,11 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
+
+    @BeforeClass
+    public static void disableForReleaseBuilds() {
+        assumeTrue("ES|QL streaming is not available in release builds yet", Build.current().isSnapshot());
+    }
 
     @Override
     protected String getTestRestCluster() {

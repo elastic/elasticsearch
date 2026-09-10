@@ -369,6 +369,41 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString("HTTP 412"));
     }
 
+    public void testSuccessfulResponseFromDifferentGenerationIsObjectChanged() throws Exception {
+        HttpResponse<InputStream> first = mock(HttpResponse.class);
+        when(first.statusCode()).thenReturn(HttpStatus.SC_OK);
+        when(first.headers()).thenReturn(
+            HttpHeaders.of(
+                java.util.Map.of("Content-Length", java.util.List.of("5"), "ETag", java.util.List.of("\"gen-1\"")),
+                (a, b) -> true
+            )
+        );
+        when(first.body()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+
+        HttpResponse<InputStream> second = mock(HttpResponse.class);
+        when(second.statusCode()).thenReturn(HttpStatus.SC_OK);
+        when(second.headers()).thenReturn(
+            HttpHeaders.of(
+                java.util.Map.of("Content-Length", java.util.List.of("5"), "ETag", java.util.List.of("\"gen-2\"")),
+                (a, b) -> true
+            )
+        );
+        when(second.body()).thenReturn(new ByteArrayInputStream("other".getBytes(StandardCharsets.UTF_8)));
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(first).doReturn(second).when(mockClient).send(any(), any());
+        HttpStorageObject obj = new HttpStorageObject(
+            mockClient,
+            StoragePath.of("https://example.com/file.txt"),
+            HttpConfiguration.defaults()
+        );
+
+        try (InputStream in = obj.newStream()) {
+            in.readAllBytes();
+        }
+        expectThrows(ExternalObjectChangedException.class, obj::newStream);
+    }
+
     /**
      * Metadata-probe paths (length(), exists(), lastModified()) are intentionally NOT counted in
      * metrics() — they're not data reads.

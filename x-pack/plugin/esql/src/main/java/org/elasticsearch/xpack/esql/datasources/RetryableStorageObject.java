@@ -466,9 +466,12 @@ class RetryableStorageObject implements StorageObject {
         private volatile InputStream current;
         private long delivered = 0;
         /**
-         * Generation of the first successful open of this stream. Compared against
-         * {@link StorageObject#contentGeneration()} after every re-open so a no-If-Match rewrite
-         * cannot splice. Separate from the provider's If-Match pin.
+         * The provider's generation pin ({@link StorageObject#contentGeneration()}) as of the first open.
+         * A successful re-open proves the generation is unchanged because the provider either sends this
+         * as a request condition or validates the response generation. {@code null} when the provider
+         * could not pin (for example, GCS with metadata access denied); the check below then refuses to
+         * adopt a pin that only materializes after bytes were delivered, which is the one case where an
+         * unpinned re-open could splice.
          */
         private String pinnedGeneration;
         /** {@link StorageObject#knownLength()} at the first open; {@link #READ_TO_END} if unknown. */
@@ -621,20 +624,24 @@ class RetryableStorageObject implements StorageObject {
         }
 
         /**
-         * After a re-open, fail if the provider observed a different generation or a different object
-         * size than the first open. Uses the generation of <em>this</em> open ({@link
-         * StorageObject#contentGeneration()}), not a sticky first-GET cache on the provider.
+         * Backstop for the case the provider's pin cannot cover. When the provider is pinned, the
+         * re-open either carried If-Match / generationMatch or had its response generation validated,
+         * so a rewrite surfaces as {@link ExternalObjectChangedException} from the provider and there is
+         * nothing left to compare.
+         * When it is <em>not</em> pinned, a pin that materializes only after bytes were delivered is a
+         * generation this stream cannot attribute to its earlier bytes — adopting it would splice — and a
+         * changed object size is the same story with no generation at all.
          */
         private void ensureGenerationConsistent() {
             String observed = delegate.contentGeneration();
             if (pinnedGeneration == null) {
-                // A generation that appears only after bytes were delivered is a different object,
-                // not a delayed observation of the same open. Adopting it would splice.
                 if (observed != null && delivered > 0) {
                     throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
                 }
                 pinnedGeneration = observed;
             } else if (observed != null && pinnedGeneration.equals(observed) == false) {
+                // Providers set the pin once, so this is unreachable today; kept as an assertion of that
+                // invariant rather than as a silent splice if a provider ever moves its pin.
                 throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
             }
             long observedLength = delegate.knownLength();

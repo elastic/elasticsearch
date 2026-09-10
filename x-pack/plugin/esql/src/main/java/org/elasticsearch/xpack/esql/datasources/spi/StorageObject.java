@@ -89,10 +89,20 @@ public interface StorageObject {
     }
 
     /**
-     * Opaque identifier of the object generation last observed by a successful open of this instance
-     * (S3/HTTP/Azure ETag, GCS generation number, ...). {@code null} if no generation has been
-     * observed yet. A later open of the same instance that observes a different value has read a
-     * different generation.
+     * Opaque identifier of the object generation this instance's reads are <em>pinned</em> to
+     * (S3/HTTP/Azure ETag, GCS generation number, ...). Implementations normally send this as
+     * {@code If-Match} / {@code generationMatch}; a compatibility store that does not implement the
+     * conditional header must instead validate the generation returned by every successful response.
+     * {@code null} when no pin has been acquired: before the first read, or when the store cannot
+     * supply one (metadata access denied, weak ETag only).
+     * <p>
+     * This is deliberately <em>not</em> "the last generation seen anywhere". A metadata-only request
+     * (HEAD, {@code getProperties}, {@code objects.get}) may well see a newer generation than the one
+     * the open readers are pinned to, and reporting that here would make a perfectly valid resume
+     * look like a mid-read rewrite. Implementations must therefore acquire the pin only from a
+     * request that transfers object bytes (or, for GCS, the metadata GET issued specifically to
+     * acquire the pin), never from a metadata-only request, and must not move it once set. Pin
+     * acquisition must be atomic: concurrent first reads from different generations cannot both succeed.
      */
     default String contentGeneration() {
         return null;

@@ -13,9 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Set;
@@ -107,11 +105,6 @@ public final class ExternalFailures {
         if (t instanceof IllegalArgumentException iae) {
             return iae;
         }
-        if (isInflaterPrematureEof(t)) {
-            // JDK InflaterInputStream throws this when the raw stream EOFs mid-DEFLATE. That is a
-            // truncated transport body, not malformed caller data — 503, never 400.
-            return new ExternalUnavailableException(t, "Failed to read external source: {}", detail(t));
-        }
         if (t instanceof IOException || t instanceof UncheckedIOException || isMalformedDataException(t)) {
             return new ExternalClientException(t, "Failed to read external source: {}", detail(t));
         }
@@ -163,9 +156,6 @@ public final class ExternalFailures {
         // UncheckedIOException is checked before the generic RuntimeException branch so its IO origin is
         // typed as 400 with the coordinator's context prefix, instead of falling through unchanged and
         // letting classify() re-wrap it with the boundary's generic message.
-        if (isInflaterPrematureEof(failure)) {
-            return new ExternalUnavailableException(failure, "{}: {}", fallbackMessage, detail(failure));
-        }
         if (failure instanceof IOException || failure instanceof UncheckedIOException) {
             return new ExternalClientException(failure, "{}: {}", fallbackMessage, detail(failure));
         }
@@ -173,32 +163,6 @@ public final class ExternalFailures {
             return re;
         }
         return new ExternalServerException(failure, "{}: {}", fallbackMessage, detail(failure));
-    }
-
-    /**
-     * JDK {@code InflaterInputStream.fill} throws this if and only if the raw stream returned a clean
-     * {@code -1} while the DEFLATE stream was unfinished. That is a truncated transport body, not
-     * malformed caller data.
-     */
-    private static final String INFLATER_PREMATURE_EOF = "Unexpected end of ZLIB input stream";
-
-    private static boolean isInflaterPrematureEof(Throwable t) {
-        Throwable current = t;
-        for (int depth = 0; depth < MAX_CAUSE_DEPTH && current != null; depth++) {
-            if (current instanceof UncheckedIOException uioe) {
-                current = uioe.getCause();
-                continue;
-            }
-            if (current instanceof EOFException && INFLATER_PREMATURE_EOF.equals(current.getMessage())) {
-                return true;
-            }
-            Throwable cause = current.getCause();
-            if (cause == null || cause == current) {
-                break;
-            }
-            current = cause;
-        }
-        return false;
     }
 
     private static boolean isMalformedDataException(Throwable t) {

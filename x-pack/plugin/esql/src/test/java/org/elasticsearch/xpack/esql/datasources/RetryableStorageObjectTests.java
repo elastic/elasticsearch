@@ -1013,14 +1013,20 @@ public class RetryableStorageObjectTests extends ESTestCase {
         assertEquals("the resume was counted as a retry", 1L, obj.metrics().retryCount());
     }
 
-    public void testWholeObjectCleanEarlyEofResumesUsingKnownLength() throws IOException {
+    /**
+     * Open-ended read: there is no requested length to hold the body to, so the expected byte count comes
+     * from the provider's cached object size. A compressed file split does not take this path — it is read
+     * as a closed range over the listing span (see {@link ProductionResumeStackTests}) — but a bare
+     * {@code newStream()} on a provider does.
+     */
+    public void testOpenEndedCleanEarlyEofResumesUsingKnownLength() throws IOException {
         RetryPolicy policy = new RetryPolicy(3, 1, 10);
         byte[] payload = new byte[800];
         for (int i = 0; i < payload.length; i++) {
             payload[i] = (byte) (i % 251);
         }
         EarlyEofStorageObject delegate = new EarlyEofStorageObject(
-            StoragePath.of("s3://bucket/2024.csv.gz"),
+            StoragePath.of("s3://bucket/2024.ndjson"),
             payload,
             250,
             payload.length,
@@ -1032,7 +1038,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
         try (InputStream in = obj.newStream()) {
             read = in.readAllBytes();
         }
-        assertArrayEquals("whole-object gzip path resumes a clean short EOF", payload, read);
+        assertArrayEquals("the cached object size is the expected byte count", payload, read);
         assertEquals(2, delegate.openCount());
     }
 

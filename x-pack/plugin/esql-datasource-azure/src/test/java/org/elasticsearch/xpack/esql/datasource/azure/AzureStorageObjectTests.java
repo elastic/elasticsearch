@@ -271,6 +271,32 @@ public class AzureStorageObjectTests extends ESTestCase {
         }
     }
 
+    public void testSuccessfulResponseFromDifferentGenerationIsObjectChanged() throws IOException {
+        byte[] payload = "hello".getBytes(StandardCharsets.UTF_8);
+        AtomicInteger gets = new AtomicInteger();
+        HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            String etag = gets.getAndIncrement() == 0 ? "\"0x1\"" : "\"0x2\"";
+            addBlobHeaders(exchange, payload.length, payload.length, etag);
+            exchange.sendResponseHeaders(206, payload.length);
+            exchange.getResponseBody().write(payload);
+            exchange.close();
+        });
+        server.start();
+        try {
+            BlobClient blobClient = newBlobClient(server, "container", "blob.csv.gz");
+            StoragePath path = StoragePath.of("wasbs://devstoreaccount1.blob.core.windows.net/container/blob.csv.gz");
+            AzureStorageObject obj = new AzureStorageObject(blobClient, "container", "blob.csv.gz", path);
+
+            try (InputStream stream = obj.newStream()) {
+                stream.readAllBytes();
+            }
+            expectThrows(ExternalObjectChangedException.class, obj::newStream);
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static void addBlobHeaders(HttpExchange exchange, int contentLength, long blobSize, String etag) {
         // BlobInputStream always issues a ranged GET and requires Content-Range (see existing
         // range-read tests). Whole-object opens are the same SDK path.

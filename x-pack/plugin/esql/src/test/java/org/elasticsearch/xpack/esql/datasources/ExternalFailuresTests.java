@@ -100,22 +100,22 @@ public class ExternalFailuresTests extends ESTestCase {
         }
     }
 
-    public void testInflaterPrematureEofIsUnavailable503() {
+    public void testInflaterPrematureEofIsMalformedInput() {
         EOFException inflater = new EOFException("Unexpected end of ZLIB input stream");
         RuntimeException classified = ExternalFailures.classify(inflater);
-        assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalUnavailableException.class));
+        assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
         assertSame(inflater, classified.getCause());
-        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(classified));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
 
         RuntimeException surfaced = ExternalFailures.surface(inflater, "Streaming parallel parsing failed");
-        assertThat(surfaced, org.hamcrest.Matchers.instanceOf(ExternalUnavailableException.class));
-        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(surfaced));
+        assertThat(surfaced, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(surfaced));
         assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("Streaming parallel parsing failed"));
 
         UncheckedIOException wrapped = new UncheckedIOException(inflater);
         RuntimeException classifiedWrapped = ExternalFailures.classify(wrapped);
-        assertThat(classifiedWrapped, org.hamcrest.Matchers.instanceOf(ExternalUnavailableException.class));
-        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(classifiedWrapped));
+        assertThat(classifiedWrapped, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classifiedWrapped));
     }
 
     public void testObjectChangedPassesThroughAs503() {

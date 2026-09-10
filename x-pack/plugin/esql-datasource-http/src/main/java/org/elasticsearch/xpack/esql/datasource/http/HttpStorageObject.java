@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * StorageObject implementation using HTTP Range requests for efficient partial reads.
@@ -58,8 +59,8 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     private Long cachedLength;
     private Instant cachedLastModified;
     private Boolean cachedExists;
-    private volatile String pinnedEtag;
-    private volatile String lastObservedEtag;
+    /** First strong ETag returned by a GET; sent as If-Match on later GETs and reported as {@link #contentGeneration()}. */
+    private final AtomicReference<String> pinnedEtag = new AtomicReference<>();
 
     /**
      * Creates an HttpStorageObject without pre-known metadata.
@@ -113,8 +114,8 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 if (contentLength.isPresent()) {
                     bytesHolder[0] = contentLength.getAsLong();
                 }
-                observeHeaders(response.headers(), 0L, false);
-                return new HttpTransientTypingInputStream(response.body(), path);
+                InputStream body = validateHeaders(response.headers(), 0L, false, response.body());
+                return new HttpTransientTypingInputStream(body, path);
             });
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, bytesHolder[0]);
@@ -208,8 +209,8 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 // 206 = Partial Content (successful range request)
                 // 200 = OK (server doesn't support ranges but returned full content)
                 if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
-                    observeHeaders(response.headers(), position, toEnd == false);
-                    return new HttpTransientTypingInputStream(response.body(), path);
+                    InputStream body = validateHeaders(response.headers(), position, toEnd == false, response.body());
+                    return new HttpTransientTypingInputStream(body, path);
                 } else if (statusCode == HttpStatus.SC_OK) {
                     // Server doesn't support Range requests, skip to position manually. The skip runs on the raw
                     // body (it is open-phase setup, retried by the open loop on failure); typing wraps the
@@ -220,7 +221,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                         stream.close();
                         throw new IOException("Failed to skip to position " + position + ", only skipped " + skipped + " bytes");
                     }
-                    observeHeaders(response.headers(), 0L, false);
+                    stream = validateHeaders(response.headers(), 0L, false, stream);
                     InputStream typed = new HttpTransientTypingInputStream(stream, path);
                     // READ_TO_END: read to the end (no bound); otherwise cap at the requested length.
                     return toEnd ? typed : new BoundedInputStream(typed, length);
@@ -282,7 +283,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public String contentGeneration() {
-        return lastObservedEtag;
+        return pinnedEtag.get();
     }
 
     // === ASYNC API (native implementation using HttpClient.sendAsync) ===
@@ -338,8 +339,13 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 // slicing internally for both 206 (server-side range) and 200 (full body) responses,
                 // returning a DirectReadBuffer scoped to the requested window.
                 if (statusCode == HttpStatus.SC_PARTIAL_CONTENT || statusCode == HttpStatus.SC_OK) {
-                    if (response.headers() != null) {
+                    try {
                         observeHeaders(response.headers(), position, true);
+                    } catch (ExternalObjectChangedException e) {
+                        counters.addRequest(System.nanoTime() - startNanos, 0L);
+                        response.body().close();
+                        listener.onFailure(e);
+                        return;
                     }
                     deliverRead(listener, response.body(), startNanos);
                 } else {
@@ -419,16 +425,18 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     }
 
     private void addIfMatch(HttpRequest.Builder builder) {
-        if (pinnedEtag != null) {
-            builder.header(HttpHeaders.IF_MATCH, pinnedEtag);
+        String etag = pinnedEtag.get();
+        if (etag != null) {
+            builder.header(HttpHeaders.IF_MATCH, etag);
         }
     }
 
     private void observeHeaders(java.net.http.HttpHeaders headers, long position, boolean closedRange) {
         if (headers == null) {
+            observeEtag(null);
             return;
         }
-        headers.firstValue(HttpHeaders.ETAG).ifPresent(this::observeEtag);
+        observeEtag(headers.firstValue(HttpHeaders.ETAG).orElse(null));
         Long total = headers.firstValue(HttpHeaders.CONTENT_RANGE).map(ContentRangeParser::parseTotalLength).orElse(null);
         if (total != null) {
             cachedLength = total;
@@ -437,13 +445,38 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         }
     }
 
+    /** Weak ETags ({@code W/"..."}) are not byte-for-byte identifiers, so they are never used as a pin. */
     private void observeEtag(String etag) {
-        if (etag == null || etag.isBlank()) {
+        String current = pinnedEtag.get();
+        if (etag == null || etag.isBlank() || etag.regionMatches(true, 0, "W/", 0, 2)) {
+            if (current != null) {
+                throw new ExternalObjectChangedException("Object generation could not be verified during read of [{}]", path);
+            }
             return;
         }
-        lastObservedEtag = etag;
-        if (pinnedEtag == null && etag.regionMatches(true, 0, "W/", 0, 2) == false) {
-            pinnedEtag = etag;
+        if (current == null) {
+            if (pinnedEtag.compareAndSet(null, etag)) {
+                return;
+            }
+            current = pinnedEtag.get();
+        }
+        if (current.equals(etag) == false) {
+            throw new ExternalObjectChangedException("Object changed during read of [{}]", path);
+        }
+    }
+
+    private InputStream validateHeaders(java.net.http.HttpHeaders headers, long position, boolean closedRange, InputStream body)
+        throws IOException {
+        try {
+            observeHeaders(headers, position, closedRange);
+            return body;
+        } catch (RuntimeException e) {
+            try {
+                body.close();
+            } catch (Exception closeException) {
+                e.addSuppressed(closeException);
+            }
+            throw e;
         }
     }
 
@@ -547,12 +580,18 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 if (contentLength.isPresent() == false) {
                     throw new IOException("Server did not return " + HttpHeaders.CONTENT_LENGTH + " for " + path);
                 }
-                cachedLength = contentLength.getAsLong();
+                // HEAD is not a GET: it reports whatever representation is current, which is not necessarily
+                // the one reads are pinned to. It must neither establish the pin nor overwrite the pinned
+                // representation's size (already set by the GET that pinned it).
+                String etag = pinnedEtag.get();
+                String observedEtag = response.headers().firstValue(HttpHeaders.ETAG).orElse(null);
+                if (etag == null || etag.equals(observedEtag)) {
+                    cachedLength = contentLength.getAsLong();
+                }
 
                 // Extract Last-Modified (optional)
                 java.util.Optional<String> lastModified = response.headers().firstValue(HttpHeaders.LAST_MODIFIED);
                 cachedLastModified = lastModified.isPresent() ? parseHttpDate(lastModified.get()) : null;
-                response.headers().firstValue(HttpHeaders.ETAG).ifPresent(this::observeEtag);
             } else if (statusCode == HttpStatus.SC_NOT_FOUND) {
                 cachedExists = false;
                 cachedLength = 0L;

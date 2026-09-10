@@ -69,11 +69,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private volatile Long cachedLength;
     private volatile Instant cachedLastModified;
     private volatile Boolean cachedExists;
-    /** First strong ETag observed; sent as If-Match on later GETs. */
-    private volatile String pinnedEtag;
-    /** ETag of the most recent successful GET; {@link #contentGeneration()}. */
-    private volatile String lastObservedEtag;
-    /** Some S3-compatible stores reject If-Match on GET with 400; stop sending it. */
+    /** First strong ETag returned by a GET; sent as If-Match on later GETs and reported as {@link #contentGeneration()}. */
+    private final AtomicReference<String> pinnedEtag = new AtomicReference<>();
+    /** Some S3-compatible stores do not implement If-Match on GET; validate each response ETag instead. */
     private volatile boolean ifMatchUnsupported;
 
     // Retries: the SDK RetryStrategy at the S3Client layer handles them (pinned to Standard in
@@ -174,6 +172,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * Returns the exception (never throws) so both the synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, Throwable cause) {
+        if (cause instanceof ExternalObjectChangedException changed) {
+            return changed;
+        }
         CircuitBreakingException breakerTrip = unwrapBreakerTrip(cause, context, path);
         if (breakerTrip != null) {
             return breakerTrip;
@@ -322,33 +323,35 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public String contentGeneration() {
-        return lastObservedEtag;
+        return pinnedEtag.get();
     }
 
     /**
-     * Issues GET, sending If-Match of the first strong ETag on later opens. A 400 with If-Match is
-     * treated as an S3-compatible store that rejects the header: one unpinned retry, then stop sending it.
+     * Issues GET, sending If-Match of the first strong ETag on later opens. A store that answers
+     * {@code NotImplemented} does not support If-Match on GET: one unconditioned retry is allowed,
+     * but its response and every later response must carry the pinned ETag.
      */
     private ResponseInputStream<GetObjectResponse> getObject(GetObjectRequest.Builder builder) {
         boolean sentIfMatch = applyIfMatch(builder);
         GetObjectRequest request = builder.build();
         try {
-            return s3Client.getObject(request);
+            return validateGeneration(s3Client.getObject(request));
         } catch (S3Exception e) {
-            if (sentIfMatch && isIfMatchRejected(e)) {
+            if (sentIfMatch && isIfMatchUnsupported(e)) {
                 ifMatchUnsupported = true;
-                logger.debug("S3 If-Match rejected for [{}]; continuing without a generation pin", path);
-                return s3Client.getObject(unpinned(request));
+                logger.debug("S3 If-Match not implemented for [{}]; validating response ETags instead", path);
+                return validateGeneration(s3Client.getObject(unpinned(request)));
             }
             throw e;
         }
     }
 
     private boolean applyIfMatch(GetObjectRequest.Builder builder) {
-        if (ifMatchUnsupported || pinnedEtag == null) {
+        String etag = pinnedEtag.get();
+        if (ifMatchUnsupported || etag == null) {
             return false;
         }
-        builder.ifMatch(pinnedEtag);
+        builder.ifMatch(etag);
         return true;
     }
 
@@ -360,12 +363,21 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         return builder.build();
     }
 
-    private static boolean isIfMatchRejected(Throwable cause) {
-        return cause instanceof S3Exception s3 && s3.statusCode() == 400;
+    /**
+     * True only for the store-does-not-implement-If-Match answer. Deliberately not "any 400": a
+     * malformed range, a bad request signature, or an invalid argument are also 400s, and unpinning
+     * on those would silently drop the generation pin for the rest of the query and retry the same
+     * request unpinned. {@code NotImplemented} is the S3 API's own "this server lacks the feature"
+     * code; AWS itself answers a genuine If-Match mismatch with 412, handled in {@link #mapReadFailure}.
+     */
+    private static boolean isIfMatchUnsupported(Throwable cause) {
+        if (cause instanceof S3Exception s3 && s3.awsErrorDetails() != null) {
+            return "NotImplemented".equals(s3.awsErrorDetails().errorCode());
+        }
+        return false;
     }
 
     private void observeResponse(GetObjectResponse metadata, long position, boolean closedRange) {
-        observeEtag(metadata.eTag());
         Long total = ContentRangeParser.parseTotalLength(metadata.contentRange());
         if (total != null) {
             cachedLength = total;
@@ -378,16 +390,40 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     }
 
     private void observeEtag(String etag) {
-        if (etag == null || etag.isBlank()) {
+        String current = pinnedEtag.get();
+        if (etag == null || etag.isBlank() || isStrongEtag(etag) == false) {
+            if (current != null) {
+                throw new ExternalObjectChangedException("Object generation could not be verified during read of [{}]", path);
+            }
             return;
         }
-        lastObservedEtag = etag;
-        if (pinnedEtag == null && isStrongEtag(etag)) {
-            pinnedEtag = etag;
+        if (current == null) {
+            if (pinnedEtag.compareAndSet(null, etag)) {
+                return;
+            }
+            current = pinnedEtag.get();
+        }
+        if (current.equals(etag) == false) {
+            throw new ExternalObjectChangedException("Object changed during read of [{}]", path);
         }
     }
 
-    static boolean isStrongEtag(String etag) {
+    /**
+     * Validates the response generation before exposing its body. This also closes the race between
+     * concurrent first reads: exactly one ETag wins the pin and a response from another generation is aborted.
+     */
+    private ResponseInputStream<GetObjectResponse> validateGeneration(ResponseInputStream<GetObjectResponse> response) {
+        try {
+            observeEtag(response.response().eTag());
+            return response;
+        } catch (RuntimeException e) {
+            response.abort();
+            throw e;
+        }
+    }
+
+    /** Weak ETags ({@code W/"..."}) are not byte-for-byte identifiers, so they are never used as a pin. */
+    private static boolean isStrongEtag(String etag) {
         return etag.regionMatches(true, 0, "W/", 0, 2) == false;
     }
 
@@ -519,9 +555,14 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             HeadObjectResponse response = s3Client.headObject(request);
 
             cachedExists = true;
-            cachedLength = response.contentLength();
+            // HEAD is not a GET: it reports whatever generation is current, which is not necessarily the
+            // one reads are pinned to. It must neither establish the pin nor overwrite the pinned
+            // generation's size (already set by the GET that pinned it).
+            String etag = pinnedEtag.get();
+            if (etag == null || etag.equals(response.eTag())) {
+                cachedLength = response.contentLength();
+            }
             cachedLastModified = response.lastModified();
-            observeEtag(response.eTag());
         } catch (NoSuchKeyException e) {
             setNotFound();
         } catch (Exception e) {
@@ -638,8 +679,8 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     }
 
     /**
-     * Issues the async GET. A 400 with If-Match is treated as an S3-compatible store that rejects
-     * the header: one unpinned retry, then stop sending it — matching the sync {@link #getObject} path.
+     * Issues the async GET. A store that answers {@code NotImplemented} does not support If-Match on
+     * GET: one unconditioned retry, with response-ETag validation, matching the sync {@link #getObject} path.
      */
     private void issueAsyncGet(
         GetObjectRequest request,
@@ -661,9 +702,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         onReadComplete(sdkFuture, (buffer, throwable) -> {
             if (throwable != null) {
                 Throwable cause = unwrapCompletionWrappers(throwable);
-                if (allowIfMatchFallback && isIfMatchRejected(cause)) {
+                if (allowIfMatchFallback && isIfMatchUnsupported(cause)) {
                     ifMatchUnsupported = true;
-                    logger.debug("S3 If-Match rejected for [{}]; continuing without a generation pin", path);
+                    logger.debug("S3 If-Match not implemented for [{}]; validating response ETags instead", path);
                     issueAsyncGet(unpinned(request), position, length, factory, listener, startNanos, false, live);
                     return;
                 }
@@ -674,7 +715,15 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
             GetObjectResponse response = transformer.response();
             if (response != null) {
-                observeResponse(response, position, true);
+                try {
+                    observeEtag(response.eTag());
+                    observeResponse(response, position, true);
+                } catch (ExternalObjectChangedException e) {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    buffer.close();
+                    listener.onFailure(e);
+                    return;
+                }
             }
 
             deliverRead(listener, buffer, startNanos);

@@ -84,14 +84,7 @@ public class IndexMetadataRamBytesUsedBenchmark {
         long start = System.nanoTime();
         long estimate = project.ramBytesUsed();
         long coldNs = System.nanoTime() - start;
-        System.out.printf(
-            Locale.ROOT,
-            "[cold] indices=%d mappingMode=%s ns=%,d estimate=%,d B%n",
-            indices,
-            mappingMode,
-            coldNs,
-            estimate
-        );
+        System.out.printf(Locale.ROOT, "[cold] indices=%d mappingMode=%s ns=%,d estimate=%,d B%n", indices, mappingMode, coldNs, estimate);
     }
 
     @Benchmark

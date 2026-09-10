@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Calculates node heap estimates from routing nodes, shard heap inputs, and explicit non-shard heap estimates.
@@ -39,7 +40,9 @@ public final class NodeHeapUsageCalculator {
         long nonShardHeapUsage,
         ShardHeapUsageEstimates shardHeapUsageEstimates
     ) {
-        final Map<DiscoveryNode, NodeHeapUsageComponents> nodeHeapUsageComponentsByNode = new HashMap<>();
+        final Map<DiscoveryNode, NodeHeapUsageComponents> nodeHeapUsageComponentsByNode = new HashMap<>(
+            clusterState.getRoutingNodes().size()
+        );
         long maxPostingsHeapUsage = 0L;
         for (var routingNode : clusterState.getRoutingNodes()) {
             final var discoveryNode = routingNode.node();
@@ -53,14 +56,17 @@ public final class NodeHeapUsageCalculator {
             }
         }
 
-        final Map<String, NodeHeapEstimates> nodeHeapEstimates = new HashMap<>(nodeHeapUsageComponentsByNode.size());
-        for (var entry : nodeHeapUsageComponentsByNode.entrySet()) {
-            nodeHeapEstimates.put(
-                entry.getKey().getId(),
-                nodeHeapEstimate(entry.getKey(), entry.getValue(), nonShardHeapUsage, maxPostingsHeapUsage)
+        long finalMaxPostingsHeapUsage = maxPostingsHeapUsage;
+        final Map<String, NodeHeapEstimates> nodeHeapEstimates = nodeHeapUsageComponentsByNode.entrySet()
+            .stream()
+            .collect(
+                Collectors.toUnmodifiableMap(
+                    entry -> entry.getKey().getId(),
+                    entry -> nodeHeapEstimate(entry.getKey(), entry.getValue(), nonShardHeapUsage, finalMaxPostingsHeapUsage)
+                )
             );
-        }
-        return new NodeHeapEstimatesAndMaxPostingsHeapUsage(Collections.unmodifiableMap(nodeHeapEstimates), maxPostingsHeapUsage);
+
+        return new NodeHeapEstimatesAndMaxPostingsHeapUsage(nodeHeapEstimates, finalMaxPostingsHeapUsage);
     }
 
     /**

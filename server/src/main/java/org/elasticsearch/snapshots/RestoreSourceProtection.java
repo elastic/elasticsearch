@@ -11,7 +11,6 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.repositories.RepositoryData;
 
 import java.util.Map;
 

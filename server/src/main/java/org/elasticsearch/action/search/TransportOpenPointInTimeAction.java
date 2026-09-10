@@ -278,9 +278,13 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         final SearchRequest searchRequest = new SearchRequest().indices(request.indices())
             .indicesOptions(request.indicesOptions())
             .preference(request.preference())
-            .routing(request.routing())
             .allowPartialSearchResults(request.allowPartialSearchResults())
             .source(new SearchSourceBuilder().query(request.indexFilter()));
+        if (request.searchSlice() != null) {
+            searchRequest.searchSlice(request.searchSlice());
+        } else {
+            searchRequest.routing(request.routing());
+        }
         searchRequest.setMaxConcurrentShardRequests(request.maxConcurrentShardRequests());
         searchRequest.setCcsMinimizeRoundtrips(false);
 

@@ -661,11 +661,47 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * Validates format-specific settings by running the same parsers used at query time.
+     * Throws {@link IllegalArgumentException} on any invalid value, giving message parity with the query path.
+     * Called at dataset registration time via {@link CsvDataSourcePlugin}'s
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatSpec.FormatConfigValidator}.
+     *
+     * <p>This method is stricter than the query path in two ways: multi-character values for
+     * {@code delimiter}, {@code quote}, and {@code escape} are rejected here but truncated to their first
+     * character at query time (see {@link #parseChar}); and {@code mode: escaped} combined with an explicit
+     * {@code quote} is rejected here but emits a warning at query time. In both cases datasets stored before
+     * this gate existed keep reading exactly as they did.
+     *
+     * @param baseline the format's default options ({@link CsvFormatOptions#DEFAULT} for csv,
+     *                 {@link CsvFormatOptions#TSV} for tsv)
+     */
+    static void validateConfig(Map<String, Object> config, CsvFormatOptions baseline) {
+        if (config == null || config.isEmpty()) {
+            return;
+        }
+        // Strict chars (reject multi-char values) but no HeaderWarning: the validator runs on the PUT
+        // request thread, so any warning would reach the dataset author rather than the query author.
+        parseOptionsFromConfig(config, baseline, true, false);
+    }
+
+    /**
      * Merge {@code WITH} options into {@code baseline} (the reader's current {@link CsvFormatOptions}).
      * Absent keys keep baseline values so e.g. TSV's tab delimiter is preserved when only {@code header_row}
      * is overridden.
+     *
+     * @param strictChars whether a multi-character {@code delimiter}/{@code quote}/{@code escape} is
+     *                    rejected ({@code true}, the PUT-time gate) or truncated to its first character
+     *                    ({@code false}, the query path — see {@link #parseChar} for why)
+     * @param emitWarnings whether to emit {@link org.elasticsearch.common.logging.HeaderWarning} on
+     *                     the current request thread ({@code true} at query time, {@code false} at
+     *                     PUT-validation time where the warning reaches the wrong audience)
      */
-    private static CsvFormatOptions parseOptionsFromConfig(Map<String, Object> config, CsvFormatOptions baseline) {
+    private static CsvFormatOptions parseOptionsFromConfig(
+        Map<String, Object> config,
+        CsvFormatOptions baseline,
+        boolean strictChars,
+        boolean emitWarnings
+    ) {
         // `mode` is a named preset over the (quoting, escaping) pair; explicit quote/escape keys then
         // override whatever the preset (or the extension baseline) chose. Overrides always win — we no
         // longer reject an "incoherent" combination, so a resulting silent misread is the user's to own.
@@ -707,7 +743,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 quoting = false;
             } else {
                 quoting = true;
-                quoteChar = parseChar(quoteValue, quoteChar);
+                quoteChar = parseChar(quoteValue, CONFIG_QUOTE, quoteChar, strictChars);
             }
         }
         Object escapeValue = config.get(CONFIG_ESCAPE);
@@ -716,7 +752,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 escaping = false;
             } else {
                 escaping = true;
-                escapeChar = parseChar(escapeValue, escapeChar);
+                escapeChar = parseChar(escapeValue, CONFIG_ESCAPE, escapeChar, strictChars);
             }
         }
         if (multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS && quoting == false) {
@@ -728,17 +764,27 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (parsedMode == CsvFormatOptions.Mode.ESCAPED && quoting) {
             // The user named the C-style decode (mode: escaped) but a quote override turned quoting on,
             // which resolves to (true, true) and hands the escape char to Jackson — so \N/\t are no
-            // longer C-style-decoded. The data-driven null-marker warning can't catch this (Jackson
-            // rewrites \N to N before the sample is built), so warn deterministically here, at config
-            // time, on the response header the query author actually reads.
-            HeaderWarning.addWarning(
-                "Mode [escaped] with a quote override turns quoting on, which disables the escaped-mode decode "
-                    + "(\\N to null, \\t to tab). To keep decoding, do not set quote; "
-                    + "keep it to parse quoted fields instead."
-            );
+            // longer C-style-decoded. At PUT time this is rejected so the broken config is never stored.
+            // At query time (emitWarnings=true) the combination is warned about on the response header.
+            if (emitWarnings) {
+                HeaderWarning.addWarning(
+                    "Mode [escaped] with a quote override turns quoting on, which disables the escaped-mode decode "
+                        + "(\\N to null, \\t to tab). To keep decoding, do not set quote; "
+                        + "keep it to parse quoted fields instead."
+                );
+            } else {
+                throw new IllegalArgumentException(
+                    "Mode [escaped] combined with an explicit [quote] turns quoting on, which disables "
+                        + "the escaped-mode decode (\\N to null, \\t to tab); "
+                        + "remove [quote] to keep C-style decoding, or use mode [quoted] to enable quoting explicitly"
+                );
+            }
         }
 
-        char delimiter = parseChar(config.get(CONFIG_DELIMITER), baseline.delimiter());
+        Object delimiterValue = config.get(CONFIG_DELIMITER);
+        char delimiter = isExplicitlySet(delimiterValue)
+            ? parseChar(delimiterValue, CONFIG_DELIMITER, baseline.delimiter(), strictChars)
+            : baseline.delimiter();
         String commentPrefix = parseString(config.get(CONFIG_COMMENT), baseline.commentPrefix());
         String nullValue = parseString(config.get(CONFIG_NULL_VALUE), baseline.nullValue());
         Charset encoding = parseEncoding(config.get(CONFIG_ENCODING), baseline.encoding());
@@ -791,7 +837,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
         throw new IllegalArgumentException("Invalid multi_value_syntax [" + value + "]. Accepted values: \"none\", \"brackets\"");
     }
 
-    private static char parseChar(Object value, char defaultValue) {
+    /**
+     * A multi-character value beyond the four escapes is rejected only when {@code strict} (the PUT-time
+     * validator): datasets registered before that gate existed carry values like {@code delimiter: "||"}
+     * and read today by truncating to the first character, so the query path must keep truncating —
+     * an upgrade cannot turn a working (if misconfigured) dataset into a query-time error. New
+     * registrations of such values are stopped at PUT, where the user can act on them.
+     */
+    private static char parseChar(Object value, String settingName, char defaultValue, boolean strict) {
         if (value == null) {
             return defaultValue;
         }
@@ -814,7 +867,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if ("\\\\".equals(s)) {
             return '\\';
         }
-        return s.charAt(0);
+        if (strict == false) {
+            return s.charAt(0);
+        }
+        throw new IllegalArgumentException(
+            "Invalid character value for [" + settingName + "] [" + value + "]: expected a single character or one of \\t, \\n, \\r, \\\\"
+        );
     }
 
     private static String parseString(Object value, String defaultValue) {
@@ -1135,7 +1193,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (config == null || config.isEmpty()) {
             return Configured.empty(this);
         }
-        CsvFormatOptions parsed = parseOptionsFromConfig(config, options);
+        // Lenient char parsing (multi-char values truncate, as they always have): stored datasets
+        // may carry such values from before the PUT-time gate; see parseChar.
+        CsvFormatOptions parsed = parseOptionsFromConfig(config, options, false, true);
         int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
         Check.clientError(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);

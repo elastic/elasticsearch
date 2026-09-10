@@ -443,6 +443,26 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
+    /**
+     * Verifies that the format-specific value validators wired through {@code EsqlPlugin} (the
+     * 3-argument {@code FormatConfigKeyResolver.of}) actually fire at PUT time — not just that the
+     * key is accepted. A multi-char delimiter on a {@code .csv} resource must be rejected with a 400.
+     */
+    public void testPutDatasetRejectsMultiCharDelimiterOnCsvResource() throws IOException {
+        final String parent = "csv_validator_parent";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> putDataset("csv_validator_child", parent, "s3://bucket/data.csv", Map.of("delimiter", "||"))
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        // Assert the setting name, not just the echoed value: naming the offending key is the point of
+        // the check, and a message that only echoes "||" would leave the user guessing between
+        // delimiter, quote and escape.
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("Invalid character value for [delimiter] [||]"));
+        deleteDataSource(parent);
+    }
+
     private static Map<String, Object> getDataSource(String name) throws IOException {
         Response resp = client().performRequest(new Request("GET", "/_query/data_source/" + name));
         return entityAsMap(resp);

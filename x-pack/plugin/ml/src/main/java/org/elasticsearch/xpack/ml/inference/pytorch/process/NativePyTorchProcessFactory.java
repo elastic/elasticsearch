@@ -75,6 +75,10 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
         TimeoutRunnable afterInStreamClose,
         Consumer<String> onProcessCrash
     ) {
+        // Snapshot the volatile field once so the isolated-pipe-layout decision below and the
+        // --disableSandbox decision in executeProcess() agree, even if a dynamic cluster-settings
+        // update flips sandboxEnabled between the two reads.
+        boolean sandboxEnabledSnapshot = sandboxEnabled;
         ProcessPipes processPipes = new ProcessPipes(
             env,
             NAMED_PIPE_HELPER,
@@ -90,10 +94,10 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
             // Only isolate this process's IPC pipes in a per-deployment directory when sandboxing is enabled. Today's bundled
             // ml-cpp controller does not create that directory at all when sandboxing is off, so requesting isolation
             // unconditionally would break every PyTorch launch under the (currently default) disabled setting.
-            sandboxEnabled
+            sandboxEnabledSnapshot
         );
 
-        executeProcess(processPipes, task);
+        executeProcess(processPipes, task, sandboxEnabledSnapshot);
 
         NativePyTorchProcess process = new NativePyTorchProcess(
             task.getDeploymentId(),
@@ -120,13 +124,13 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
         return process;
     }
 
-    private void executeProcess(ProcessPipes processPipes, TrainedModelDeploymentTask task) {
+    private void executeProcess(ProcessPipes processPipes, TrainedModelDeploymentTask task, boolean sandboxEnabledSnapshot) {
         PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(
             nativeController,
             processPipes,
             task.getParams(),
             modelGraphValidationEnabled,
-            sandboxEnabled
+            sandboxEnabledSnapshot
         );
         try {
             pyTorchBuilder.build();

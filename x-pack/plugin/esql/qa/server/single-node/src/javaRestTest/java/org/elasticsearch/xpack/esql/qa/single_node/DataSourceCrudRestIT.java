@@ -14,6 +14,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -450,6 +451,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
 
     private static void putDataSource(String name, String type, Map<String, Object> settings) throws IOException {
         Request req = new Request("PUT", "/_query/data_source/" + name);
+        req.setOptions(req.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject().field("type", type);
             if (settings.isEmpty() == false) {

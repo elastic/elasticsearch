@@ -2396,7 +2396,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
-        setUser(request, "test-admin");
+        request.setOptions(runAsUserOptions("test-admin", WarningsHandler.PERMISSIVE));
         assertOK(client().performRequest(request));
     }
 
@@ -2490,7 +2490,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
-        setUser(request, "ds_manage_datasource");
+        request.setOptions(runAsUserOptions("ds_manage_datasource", WarningsHandler.PERMISSIVE));
         assertOK(client().performRequest(request));
         Request delete = new Request("DELETE", "/_query/data_source/" + name);
         setUser(delete, "test-admin");

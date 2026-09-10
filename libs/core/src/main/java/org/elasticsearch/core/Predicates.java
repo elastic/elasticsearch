@@ -9,6 +9,7 @@
 
 package org.elasticsearch.core;
 
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
@@ -109,5 +110,16 @@ public enum Predicates {
      */
     public static BooleanSupplier once() {
         return new OnceTrue();
+    }
+
+    public static <T> Predicate<T> any(Collection<? extends Predicate<T>> predicates) {
+        return value -> {
+            for (var p: predicates) {
+                if (p.test(value)) {
+                    return true;
+                }
+            }
+            return false;
+        };
     }
 }

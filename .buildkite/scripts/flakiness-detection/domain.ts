@@ -164,6 +164,16 @@ export const COMPILE_TASKS = [
 // never-fail wrapper in runners/buildkite.ts writes them as workspace-relative shell paths, and
 // entrypoints/analyze.ts reads them back by joining against PROJECT_ROOT. Only the primitives are shared -
 // each side composes the shape it needs, so neither carries the other's directory prefix.
+// Run-scoped artifact names, shared because both the runner scripts and the pipeline's artifact_paths
+// address the same files. Keeping them here means orchestrate.sh does not re-spell them in bash.
+export const FLAKINESS_REFS_ARTIFACT = "flakiness-refs.json";
+export const FLAKINESS_PLAN_ARTIFACT = "flakiness-plan.json";
+export const FLAKINESS_PRECOMPILE_ARTIFACT = "flakiness-precompile.json";
+// Where each project drops its share of the resolve answer. Keep in sync with
+// FlakinessProjectResolvePlugin.TARGETS_DIR on the Java side.
+export const FLAKINESS_TARGETS_DIR = "build/flakiness/project-targets";
+export const FLAKINESS_TARGETS_ARCHIVE = "flakiness-project-targets.tgz";
+
 export const STATUS_DIR_NAME = "flakiness-status";
 
 // Per-job copy of gradle-runner's build/task-status.json. analyze.ts rebuilds this exact filename from a

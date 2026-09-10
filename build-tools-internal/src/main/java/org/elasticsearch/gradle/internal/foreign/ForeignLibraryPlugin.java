@@ -122,6 +122,8 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
             ? GENERATED_CLASSES_DIR
             : GENERATED_CLASSES_DIR + "-" + sourceSet.getName();
 
+        TaskProvider<JavaCompile> compileTask = project.getTasks().named(sourceSet.getCompileJavaTaskName(), JavaCompile.class);
+
         TaskProvider<JavaCompile> task = project.getTasks().register(taskName, JavaCompile.class, t -> {
             t.setSource(sourceSet.getJava());
             t.setClasspath(sourceSet.getCompileClasspath());
@@ -142,6 +144,12 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
             t.setSourceCompatibility(PROCESSOR_TOOLCHAIN.toString());
             t.setTargetCompatibility(PROCESSOR_TOOLCHAIN.toString());
             t.getModularity().getInferModulePath().set(true);
+            // -proc:only still parses every source file to find annotations. Sibling classes compiled
+            // into the source set output are not on compileClasspath, so resolve them first.
+            t.dependsOn(compileTask);
+            t.setClasspath(
+                sourceSet.getCompileClasspath().plus(project.files(compileTask.flatMap(JavaCompile::getDestinationDirectory)))
+            );
         });
 
         return task;

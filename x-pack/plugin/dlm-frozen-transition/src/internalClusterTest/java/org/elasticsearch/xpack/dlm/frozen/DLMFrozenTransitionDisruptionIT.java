@@ -458,7 +458,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
 
         assertTrue("ForceMerge request was never seen by the interceptor", latch.await(30, TimeUnit.SECONDS));
 
-        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
+        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex.getName();
         String expectedFrozenIndexName2 = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + secondBackingIndex.getName();
         assertBusy(() -> {
             var projectMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)

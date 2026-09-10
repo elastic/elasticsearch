@@ -11,6 +11,9 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -23,8 +26,10 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
@@ -37,7 +42,7 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
     public void testNoDeltasReturnsSameMetricsReference() {
         var nodeId = "node-0";
         var initialMetrics = Map.of(nodeId, nodeHeapMetrics(nodeId, randomIntBetween(100, 300), randomIntBetween(0, 100)));
-        var simulator = newSimulator(initialMetrics, Map.of(), ShardAndIndexHeapUsage.ZERO, emptyRoutingNodes());
+        var simulator = newSimulator(initialMetrics, Map.of(), ShardAndIndexHeapUsage.ZERO, routingNodes(nodeId));
 
         assertThat(simulator.getSimulatedHeapMetrics(), sameInstance(initialMetrics));
     }
@@ -203,6 +208,87 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         assertThat(result.get(nodeA).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(0L));
     }
 
+    /**
+     * Non-indexing nodes (nodes without the {@link DiscoveryNodeRole#INDEX_ROLE}, such as stateless search nodes) always have
+     * totalHeapUsage reported as zero when a delta is present, regardless of the delta magnitude.
+     * hostedShardsHeapUsage is still computed with the normal clamped adjustment.
+     * In contrast, indexing nodes have their totalHeapUsage updated by the delta as normal.
+     * This is verified via both the simulateAddIndexToNode and simulateShardStarted paths.
+     */
+    public void testNonIndexingNodeTotalHeapEstimateIsZeroWhenDeltaIsPresent() {
+        var searchNodeId = "search-node";
+        var indexingNodeId = "indexing-node";
+        long indexingInitialTotal = randomLongBetween(200, 500);
+        long indexingInitialHosted = randomLongBetween(50, 150);
+        long searchInitialHosted = randomLongBetween(50, 150);
+        long shardHeap = randomLongBetween(10, 50);
+        long indexHeap = randomLongBetween(10, 40);
+        var indexMetadata = IndexMetadata.builder("test-index").settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        var index = indexMetadata.getIndex();
+        var shardId0 = new ShardId(index, 0);
+        var initialMetrics = Map.of(
+            searchNodeId,
+            nodeHeapMetrics(searchNodeId, 0, searchInitialHosted),
+            indexingNodeId,
+            nodeHeapMetrics(indexingNodeId, indexingInitialTotal, indexingInitialHosted)
+        );
+        var shardHeapUsages = Map.of(shardId0, new ShardAndIndexHeapUsage(shardHeap, indexHeap));
+
+        // Both branches produce expectedDelta = shardHeap + indexHeap per node, via different call paths.
+        NodeHeapMemoryShardMovementSimulator simulator;
+
+        var irtBuilder = IndexRoutingTable.builder(index);
+        final var unassignedPrimary = newShardRouting(shardId0, null, true, UNASSIGNED);
+        final var unassignedReplica = newShardRouting(shardId0, null, false, UNASSIGNED);
+        irtBuilder.addShard(unassignedPrimary);
+        irtBuilder.addShard(unassignedReplica);
+        final var state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(createDiscoveryNodes(Set.of(indexingNodeId), Set.of(searchNodeId)))
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(ProjectId.DEFAULT).put(indexMetadata, false)).build())
+            .routingTable(
+                GlobalRoutingTable.builder().put(ProjectId.DEFAULT, RoutingTable.builder().add(irtBuilder.build()).build()).build()
+            )
+            .build();
+        final var routingNodes = state.mutableRoutingNodes();
+        final var initializingPrimary = routingNodes.initializeShard(
+            unassignedPrimary,
+            indexingNodeId,
+            null,
+            0L,
+            RoutingChangesObserver.NOOP
+        );
+        final var startedPrimary = routingNodes.startShard(initializingPrimary, RoutingChangesObserver.NOOP, 0L);
+        final var initializingReplica = routingNodes.initializeShard(
+            unassignedReplica,
+            searchNodeId,
+            null,
+            0L,
+            RoutingChangesObserver.NOOP
+        );
+        final var startedReplica = routingNodes.startShard(initializingReplica, RoutingChangesObserver.NOOP, 0L);
+
+        if (randomBoolean()) {
+            // add shard and index usage separately
+            simulator = newSimulator(initialMetrics, shardHeapUsages, ShardAndIndexHeapUsage.ZERO, routingNodes);
+            simulator.simulateShardStarted(startedPrimary, false);
+            simulator.simulateShardStarted(startedReplica, false);
+            simulator.simulateAddIndexToNode(searchNodeId, index);
+            simulator.simulateAddIndexToNode(indexingNodeId, index);
+        } else {
+            // or add shard and index usage together
+            simulator = newSimulator(initialMetrics, shardHeapUsages, ShardAndIndexHeapUsage.ZERO, routingNodes);
+            simulator.simulateShardStarted(startedPrimary, true);
+            simulator.simulateShardStarted(startedReplica, true);
+        }
+
+        long expectedDelta = shardHeap + indexHeap;
+        var result = simulator.getSimulatedHeapMetrics();
+        assertThat(result.get(searchNodeId).nodeHeapEstimates().totalHeapUsage(), equalTo(0L));
+        assertThat(result.get(searchNodeId).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(searchInitialHosted + expectedDelta));
+        assertThat(result.get(indexingNodeId).nodeHeapEstimates().totalHeapUsage(), equalTo(indexingInitialTotal + expectedDelta));
+        assertThat(result.get(indexingNodeId).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(indexingInitialHosted + expectedDelta));
+    }
+
     /** Nodes not present in the initial metrics map are silently skipped; results for known nodes are unaffected. */
     public void testNodeWithoutInitialMetricsIsSkipped() {
         var nodeA = "node-a";
@@ -243,7 +329,7 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
             Map.of(nodeId, nodeHeapMetrics(nodeId, initialTotal, initialHosted)),
             Map.of(new ShardId(index, 0), new ShardAndIndexHeapUsage(shardHeap, indexHeap)),
             ShardAndIndexHeapUsage.ZERO,
-            emptyRoutingNodes()
+            routingNodes(nodeId)
         );
 
         simulator.simulateAddIndexToNode(nodeId, index);
@@ -264,7 +350,7 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
             Map.of(nodeId, nodeHeapMetrics(nodeId, initialTotal, initialHosted)),
             Map.of(new ShardId(index, 0), new ShardAndIndexHeapUsage(shardHeap, indexHeap)),
             ShardAndIndexHeapUsage.ZERO,
-            emptyRoutingNodes()
+            routingNodes(nodeId)
         );
 
         simulator.simulateRemoveIndexFromNode(nodeId, index);
@@ -277,9 +363,10 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
     /** simulateAddIndexToNode is a no-op for nodes absent from the initial metrics map. */
     public void testSimulateAddIndexToNodeSkipsUnknownNodes() {
         var index = new Index("test-index", "_na_");
-        var simulator = newSimulator(Map.of(), Map.of(), ShardAndIndexHeapUsage.ZERO, emptyRoutingNodes());
+        var simulator = newSimulator(Map.of(), Map.of(), ShardAndIndexHeapUsage.ZERO, routingNodes());
 
-        simulator.simulateAddIndexToNode("unknown-node", index);
+        final var nodeId = "unknown-node";
+        simulator.simulateAddIndexToNode(nodeId, index);
 
         assertThat(simulator.getSimulatedHeapMetrics().size(), equalTo(0));
     }
@@ -287,9 +374,10 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
     /** simulateRemoveIndexFromNode is a no-op for nodes absent from the initial metrics map. */
     public void testSimulateRemoveIndexFromNodeSkipsUnknownNodes() {
         var index = new Index("test-index", "_na_");
-        var simulator = newSimulator(Map.of(), Map.of(), ShardAndIndexHeapUsage.ZERO, emptyRoutingNodes());
+        var simulator = newSimulator(Map.of(), Map.of(), ShardAndIndexHeapUsage.ZERO, routingNodes());
 
-        simulator.simulateRemoveIndexFromNode("unknown-node", index);
+        final var nodeId = "unknown-node";
+        simulator.simulateRemoveIndexFromNode(nodeId, index);
 
         assertThat(simulator.getSimulatedHeapMetrics().size(), equalTo(0));
     }
@@ -313,8 +401,8 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         return new NodeHeapMemoryShardMovementSimulator(initialMetrics, shardHeapUsages, defaultHeapUsage, routingNodes);
     }
 
-    private static RoutingNodes emptyRoutingNodes() {
-        return RoutingNodes.immutable(GlobalRoutingTable.EMPTY_ROUTING_TABLE, DiscoveryNodes.EMPTY_NODES);
+    private static RoutingNodes routingNodes(String... indexingNodes) {
+        return RoutingNodes.immutable(GlobalRoutingTable.EMPTY_ROUTING_TABLE, createDiscoveryNodes(indexingNodes));
     }
 
     /**
@@ -345,7 +433,7 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         }
         var routingTable = RoutingTable.builder().add(irtBuilder.build()).build();
         return ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(newNode(primaryNode)).add(newNode(otherNode)).build())
+            .nodes(createDiscoveryNodes(primaryNode, otherNode))
             .metadata(Metadata.builder().put(indexMetadata, false))
             .routingTable(routingTable)
             .build();
@@ -366,5 +454,20 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
             }
         }
         throw new AssertionError("no started shard with id " + shardNum + " on node " + nodeId);
+    }
+
+    private static DiscoveryNodes createDiscoveryNodes(String... indexingNodeIds) {
+        return createDiscoveryNodes(Set.of(indexingNodeIds), Set.of());
+    }
+
+    private static DiscoveryNodes createDiscoveryNodes(Set<String> indexingNodeIds, Set<String> searchNodeIds) {
+        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+        for (String nodeId : indexingNodeIds) {
+            builder.add(newNode(nodeId, Set.of(DiscoveryNodeRole.INDEX_ROLE)));
+        }
+        for (String nodeId : searchNodeIds) {
+            builder.add(newNode(nodeId, Set.of(DiscoveryNodeRole.SEARCH_ROLE)));
+        }
+        return builder.build();
     }
 }

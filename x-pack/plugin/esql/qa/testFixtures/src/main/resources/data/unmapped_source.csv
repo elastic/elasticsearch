@@ -1,0 +1,24 @@
+//   a            (untyped) — nested object form {"b":"..."} for id=1; scalar for id=13
+//   a.b:keyword  (typed dotted) — produces literal dotted key "a.b":"..." in _source for id=2
+//   deep         (untyped) — nested 4-level object for id=3
+//   deep.l1.l2.l3:keyword — literal dotted key in _source for id=4
+//   arr:keyword  — multivalue scalar array for id=5
+//   objarr       (untyped) — array of objects for ids 6 (same key) and 7 (sneaky differing keys)
+//   nest         (untyped) — 2-element array of objects each containing an inner array (id=8)
+//   nully        (untyped) — left empty for ids 9-11 and 12; the CSV loader cannot produce
+//                            {"nully":[]}, {"nully":null}, or {"nully":[null]} in _source,
+//                            so those rows are indexed without the nully field (same as id=12).
+id:keyword,a,a.b:keyword,deep,deep.l1.l2.l3:keyword,arr:keyword,objarr,nest,nully
+1,{"b":"v1"},,,,,,,
+2,,v2,,,,,,
+3,,,{"l1":{"l2":{"l3":"v3"}}},,,,,
+4,,,,v4,,,,
+5,,,,,[x,y],,,
+6,,,,,,[{"k":"p"},{"k":"q"}],,
+7,,,,,,[{"k":"r"},{"j":"s"}],,
+8,,,,,,,[{"inner":[{"leaf":"t"}]},{"inner":[{"leaf":"u"}]}],
+9,,,,,,,,
+10,,,,,,,,
+11,,,,,,,,
+12,,,,,,,,
+13,scalar13,,,,,,,

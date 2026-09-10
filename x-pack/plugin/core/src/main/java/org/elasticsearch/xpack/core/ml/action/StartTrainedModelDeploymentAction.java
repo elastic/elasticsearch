@@ -313,11 +313,14 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
-            // Packaged/default trained models use a leading "." by convention (e.g. ".elser_model_2"), and
-            // deployment_id defaults to model_id, so a single leading dot must be tolerated here the same way
-            // TrainedModelConfig does for model_id (see TrainedModelConfig#validate). Everything else still goes
-            // through MlStrings.isValidId.
+            // Packaged/default trained models use a leading "." by convention (e.g. ".elser_model_2"), and may
+            // carry a trailing "_SNAPSHOT" suffix (e.g. ".elser_model_2_SNAPSHOT"). deployment_id defaults to
+            // model_id, so both must be tolerated here the same way TrainedModelConfig does for model_id (see
+            // TrainedModelConfig#validate). Everything else still goes through MlStrings.isValidId.
             String idToValidate = deploymentId.startsWith(".") ? deploymentId.substring(1) : deploymentId;
+            if (idToValidate.endsWith("_SNAPSHOT")) {
+                idToValidate = idToValidate.substring(0, idToValidate.length() - "_SNAPSHOT".length());
+            }
             if (MlStrings.isValidId(idToValidate) == false) {
                 validationException.addValidationError(Messages.getMessage(Messages.INVALID_ID, DEPLOYMENT_ID, deploymentId));
             }

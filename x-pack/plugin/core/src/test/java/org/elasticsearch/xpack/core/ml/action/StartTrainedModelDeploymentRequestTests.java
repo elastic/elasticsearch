@@ -286,6 +286,15 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         assertThat(e, is(nullValue()));
     }
 
+    public void testValidate_GivenDeploymentIdIsPackagedModelIdWithSnapshotSuffix() {
+        Request request = createRandom();
+        request.setDeploymentId(".elser_model_2_SNAPSHOT");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
     public void testValidate_GivenDeploymentIdIsDefaultModelIdWithHyphens() {
         Request request = createRandom();
         request.setDeploymentId(".multilingual-e5-small");

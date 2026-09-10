@@ -340,8 +340,9 @@ public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
     protected long parseTimeBreakerEstimate() {
         long total = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + estimateValue(matchCriteria);
         if (rulesetIds != null) {
-            for (String id : rulesetIds)
-                total += id.length() * 2L + 32L;
+            for (String id : rulesetIds) {
+                total += id.length() * 2L + 64L;
+            }
         }
         return total;
     }

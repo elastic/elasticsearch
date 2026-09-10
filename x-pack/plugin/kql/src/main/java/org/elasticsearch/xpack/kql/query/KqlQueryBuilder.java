@@ -183,7 +183,7 @@ public class KqlQueryBuilder extends LeafQueryBuilder<KqlQueryBuilder> {
 
     @Override
     protected long parseTimeBreakerEstimate() {
-        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + query.length() * 2L;
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + query.length() * 2L + 64L;
     }
 
     @Override

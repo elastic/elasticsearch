@@ -230,17 +230,17 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     }
 
     public void testRulesetIdsBreakerEstimate() throws IOException {
-        // cost = BASELINE + estimateValue(matchCriteria) + id.length() * 2 + 32 (per rulesetId)
+        // cost = BASELINE + estimateValue(matchCriteria) + id.length() * 2 + 64 (per rulesetId)
         // matchCriteria = {"k": "v"}: 32 + 1*48 + (2+64) + (2+64) = 212
-        // rulesetId "r" (1 char): 1*2 + 32 = 34
-        // small total: 256 + 212 + 34 = 502; limit = 502 (equal → does not trip)
+        // rulesetId "r" (1 char): 1*2 + 64 = 66
+        // namedObject charges the organic MatchAll (256) before the RuleQueryBuilder itself
+        // small total: 256 (organic) + 256 (rule) + 212 (map) + 66 (id) = 790; limit = 790 (equal → does not trip)
         Map<String, Object> matchCriteria = Map.of("k", "v");
         long mapEstimate = 32L + 1 * 48L + "k".length() * 2L + 64L + "v".length() * 2L + 64L;
         String smallRulesetId = "r";
-        // namedObject charges the organic query (MatchAll = 256) before charging RuleQueryBuilder itself
         long organicCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
         long limit = organicCost + AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + mapEstimate + smallRulesetId.length() * 2L
-            + 32L;
+            + 64L;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {

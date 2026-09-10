@@ -283,8 +283,9 @@ public class SparseVectorQueryBuilder extends LeafQueryBuilder<SparseVectorQuery
             return total;
         }
         long total = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + queryVectors.size() * 8L;
-        for (WeightedToken t : queryVectors)
+        for (WeightedToken t : queryVectors) {
             total += t.token().length() * 2L + 80L;
+        }
         return total;
     }
 

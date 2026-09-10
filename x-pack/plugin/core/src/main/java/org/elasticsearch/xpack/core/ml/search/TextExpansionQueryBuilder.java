@@ -231,7 +231,7 @@ public class TextExpansionQueryBuilder extends LeafQueryBuilder<TextExpansionQue
 
     @Override
     protected long parseTimeBreakerEstimate() {
-        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + modelText.length() * 2L + modelId.length() * 2L;
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + modelText.length() * 2L + 64L + modelId.length() * 2L + 64L;
     }
 
     @Override

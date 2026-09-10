@@ -283,10 +283,10 @@ public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder>
     }
 
     public void testQueryBreakerEstimate() throws IOException {
-        // cost = BASELINE + query.length() * 2
-        // "hi" (2 chars): 256 + 4 = 260; limit = 260 (equal → does not trip)
+        // cost = BASELINE + query.length() * 2 + 64
+        // "hi" (2 chars): 256 + 4 + 64 = 324; limit = 324 (equal → does not trip)
         String smallQuery = "hi";
-        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + smallQuery.length() * 2L;
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + smallQuery.length() * 2L + 64L;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {

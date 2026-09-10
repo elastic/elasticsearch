@@ -106,9 +106,22 @@ public class RestFleetSearchAction extends BaseRestHandler {
         }
         // Note: close() is idempotent; if parseSearchRequest already closed source, this is a no-op.
 
-        return channel -> {
-            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(TransportSearchAction.TYPE, searchRequest, new RestRefCountedChunkedToXContentListener<>(channel));
+        return new RestChannelConsumer() {
+            private boolean dispatched = false;
+
+            @Override
+            public void accept(RestChannel channel) throws Exception {
+                dispatched = true;
+                RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+                cancelClient.execute(TransportSearchAction.TYPE, searchRequest, new RestRefCountedChunkedToXContentListener<>(channel));
+            }
+
+            @Override
+            public void close() {
+                if (dispatched == false && searchRequest.source() != null) {
+                    searchRequest.source().close();
+                }
+            }
         };
     }
 

@@ -3798,6 +3798,12 @@ public class EsqlCapabilities {
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support for the PromQL {@code sort_by_label} and {@code sort_by_label_desc} functions, which order an instant
+         * vector by label values in natural order.
+         */
+        PROMQL_SORT_BY_LABEL(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
          * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
          * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket

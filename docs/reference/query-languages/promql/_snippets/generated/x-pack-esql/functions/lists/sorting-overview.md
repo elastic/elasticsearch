@@ -3,6 +3,12 @@
 * [`sort`](/reference/query-languages/promql/functions/sorting.md#promql-fn-sort) {applies_to}`stack: ga 9.6`
   :::{include} ../brief-summary/sort.md
   :::
+* [`sort_by_label`](/reference/query-languages/promql/functions/sorting.md#promql-fn-sort_by_label) {applies_to}`stack: preview 9.6`
+  :::{include} ../brief-summary/sort_by_label.md
+  :::
+* [`sort_by_label_desc`](/reference/query-languages/promql/functions/sorting.md#promql-fn-sort_by_label_desc) {applies_to}`stack: preview 9.6`
+  :::{include} ../brief-summary/sort_by_label_desc.md
+  :::
 * [`sort_desc`](/reference/query-languages/promql/functions/sorting.md#promql-fn-sort_desc) {applies_to}`stack: ga 9.6`
   :::{include} ../brief-summary/sort_desc.md
   :::

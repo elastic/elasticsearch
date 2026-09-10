@@ -17,6 +17,19 @@ import static org.hamcrest.Matchers.equalTo;
 public class EsqlResolveFieldsActionTests extends ESTestCase {
 
     /**
+     * Every base the sweep runs, rather than one drawn at random. They differ from one another in the concrete target,
+     * wildcard and gatekeeper components, so dropping any of those three on the way through reds this test. A random
+     * draw would have exercised a given difference only on some seeds. All four carry the same cross-project mode,
+     * which is why the sweep varies that itself rather than leaning on the base to vary it.
+     */
+    private static final List<IndicesOptions> BASES = List.of(
+        IndicesOptions.DEFAULT,
+        IndicesOptions.strictExpandOpen(),
+        IndicesOptions.lenientExpandOpen(),
+        IndicesOptions.strictSingleIndexNoExpandForbidClosed()
+    );
+
+    /**
      * The receiving cluster refuses to resolve its own datasets even when the caller asked it to, which is what makes a
      * remote dataset invisible to a coordinator that predates this change and still sets the flag. Nothing else on the
      * request may move: the clear is reached after the security layer has already resolved indices under the incoming
@@ -25,8 +38,12 @@ public class EsqlResolveFieldsActionTests extends ESTestCase {
     public void testDatasetResolutionIsClearedWhateverTheCallerAsked() {
         for (IndicesOptions base : BASES) {
             for (boolean crossProject : new boolean[] { true, false }) {
-                for (boolean callerAsked : new boolean[] { true, false }) {
-                    run(base, crossProject, callerAsked);
+                for (boolean aliases : new boolean[] { true, false }) {
+                    for (boolean views : new boolean[] { true, false }) {
+                        for (boolean callerAsked : new boolean[] { true, false }) {
+                            run(base, crossProject, aliases, views, callerAsked);
+                        }
+                    }
                 }
             }
         }
@@ -34,9 +51,11 @@ public class EsqlResolveFieldsActionTests extends ESTestCase {
 
     /**
      * One cell of the sweep above: hand {@code clearDatasetResolution} a request whose options are {@code base} with
-     * the cross-project mode and the dataset flag set as given, and require that only that flag moved.
+     * every value it can vary set as given, and require that only the dataset flag moved. Every component is swept
+     * rather than pinned, including the two the caller might have expected to be constant: a clear that switched
+     * aliases or views on would agree with an expectation built from a request that already had them on.
      */
-    private static void run(IndicesOptions base, boolean crossProject, boolean callerAsked) {
+    private static void run(IndicesOptions base, boolean crossProject, boolean aliases, boolean views, boolean callerAsked) {
         var request = new FieldCapabilitiesRequest().indices("remote_employees");
         // Minted through the canonical constructors, never through IndicesOptions.Builder. The clear itself copies
         // through that builder, so an incoming value that had already been through it would arrive already missing
@@ -46,7 +65,7 @@ public class EsqlResolveFieldsActionTests extends ESTestCase {
             base.wildcardOptions(),
             base.gatekeeperOptions(),
             new IndicesOptions.CrossProjectModeOptions(crossProject),
-            new IndicesOptions.IndexAbstractionOptions(base.indexAbstractionOptions().resolveAliases(), true, callerAsked)
+            new IndicesOptions.IndexAbstractionOptions(aliases, views, callerAsked)
         );
         request.indicesOptions(incoming);
 
@@ -72,16 +91,4 @@ public class EsqlResolveFieldsActionTests extends ESTestCase {
         assertThat(request.indices(), equalTo(new String[] { "remote_employees" }));
     }
 
-    /**
-     * Every base the sweep runs, rather than one drawn at random. They differ from one another in the concrete target,
-     * wildcard and gatekeeper components, so dropping any of those three on the way through reds this test. A random
-     * draw would have exercised a given difference only on some seeds. All four carry the same cross-project mode,
-     * which is why the sweep varies that itself rather than leaning on the base to vary it.
-     */
-    private static final List<IndicesOptions> BASES = List.of(
-        IndicesOptions.DEFAULT,
-        IndicesOptions.strictExpandOpen(),
-        IndicesOptions.lenientExpandOpen(),
-        IndicesOptions.strictSingleIndexNoExpandForbidClosed()
-    );
 }

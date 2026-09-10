@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.async.SdkPublisher;
+import software.amazon.awssdk.http.SdkHttpResponse;
 import software.amazon.awssdk.retries.api.BackoffStrategy;
 import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
@@ -19,11 +21,15 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import com.carrotsearch.randomizedtesting.ThreadFilter;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -34,11 +40,15 @@ import org.reactivestreams.Subscription;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -54,7 +64,21 @@ import static org.mockito.Mockito.when;
 /**
  * Tests for S3StorageObject async read paths and dual-client wiring.
  */
+@ThreadLeakFilters(filters = { S3StorageObjectAsyncTests.DelaySchedulerThreadFilter.class })
 public class S3StorageObjectAsyncTests extends ESTestCase {
+
+    /**
+     * Suppresses the JDK's delay-scheduler daemon thread created by {@code CompletableFuture.delayedExecutor}.
+     * The thread name changed across JDK versions: before JDK 25 it was {@code "CompletableFutureDelayScheduler"}
+     * (a dedicated {@code ScheduledThreadPoolExecutor}); from JDK 25 it is {@code "ForkJoinPool.commonPool-delayScheduler"}
+     * (the common pool's built-in {@code DelayScheduler}). This project targets JDK 25, so only the latter name applies.
+     */
+    public static class DelaySchedulerThreadFilter implements ThreadFilter {
+        @Override
+        public boolean reject(Thread t) {
+            return t.getName().equals("ForkJoinPool.commonPool-delayScheduler");
+        }
+    }
 
     private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
 
@@ -442,6 +466,197 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         assertEquals("Standard strategy allows 3 attempts", 3, calls.get());
         assertThat(error.get(), instanceOf(IOException.class));
         assertThat(error.get().getMessage(), containsString("Failed to read object from"));
+    }
+
+    /**
+     * A throttling S3 response (429) carrying a {@code Retry-After} header must be retried, and
+     * the header value must be extracted and passed to the retry strategy as the suggested delay.
+     * This exercises the {@code retryAfterDelay} code path end-to-end.
+     */
+    @SuppressWarnings("unchecked")
+    public void testThrottlingWithRetryAfterHeaderIsRetried() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        GetObjectResponse response = GetObjectResponse.builder()
+            .contentRange("bytes 0-18/19")
+            .contentLength((long) PAYLOAD.length)
+            .lastModified(Instant.parse("2026-04-01T12:00:00Z"))
+            .build();
+
+        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
+            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = invocation.getArgument(1);
+            if (calls.incrementAndGet() == 1) {
+                // First attempt: throttled with a Retry-After: 1 header (1000 ms suggested delay).
+                S3Exception throttled = (S3Exception) S3Exception.builder()
+                    .statusCode(429)
+                    .message("Too Many Requests")
+                    .awsErrorDetails(
+                        AwsErrorDetails.builder()
+                            .sdkHttpResponse(SdkHttpResponse.builder().statusCode(429).appendHeader("Retry-After", "1").build())
+                            .build()
+                    )
+                    .build();
+                return failTransformer(transformer, throttled);
+            }
+            return completeTransformer(transformer, response, PAYLOAD);
+        });
+
+        // Use immediate backoff so the test does not actually sleep for the suggested delay.
+        RetryStrategy immediateBackoff = AwsRetryStrategy.standardRetryStrategy()
+            .toBuilder()
+            .throttlingBackoffStrategy(BackoffStrategy.retryImmediately())
+            .build();
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, immediateBackoff, BUCKET, KEY, PATH);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+        obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, new ActionListener<>() {
+            @Override
+            public void onResponse(DirectReadBuffer buffer) {
+                result.set(buffer);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                latch.countDown();
+            }
+        });
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertEquals("throttled request must be retried once", 2, calls.get());
+        try (DirectReadBuffer buf = result.get()) {
+            assertNotNull("read must succeed after retry", buf);
+        }
+    }
+
+    /**
+     * When {@link org.elasticsearch.core.Releasable#close} is called while a retry is waiting out
+     * its backoff delay, the listener must be notified immediately — not after the delay expires.
+     * Before the fix, the delay future was not stored, so cancel() was a no-op on the already-
+     * completed attempt future, and the listener was stranded until the backoff timer fired.
+     */
+    @SuppressWarnings("unchecked")
+    public void testCancelDuringBackoffNotifiesListenerPromptly() throws Exception {
+        // A long fixed delay so the timer cannot fire before we assert the listener was called.
+        RetryStrategy slowBackoff = AwsRetryStrategy.standardRetryStrategy()
+            .toBuilder()
+            .backoffStrategy(attempt -> Duration.ofSeconds(2))
+            .throttlingBackoffStrategy(attempt -> Duration.ofSeconds(2))
+            .build();
+
+        // Single retryable failure: triggers the backoff after attempt 1.
+        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
+            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = invocation.getArgument(1);
+            return failTransformer(transformer, new IOException("connection reset"));
+        });
+
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, slowBackoff, BUCKET, KEY, PATH);
+
+        CountDownLatch listenerCalled = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        Releasable cancel = obj.startReadBytesAsync(0, 10, FACTORY, Runnable::run, new ActionListener<>() {
+            @Override
+            public void onResponse(DirectReadBuffer buffer) {
+                fail("expected failure");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                error.set(e);
+                listenerCalled.countDown();
+            }
+        });
+
+        // Attempt 1 has failed and the retry is waiting in backoff.
+        // Cancel must complete the listener immediately, not after the delay.
+        cancel.close();
+
+        assertTrue("listener must be notified promptly on cancel, not after the backoff delay", listenerCalled.await(1, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(CancellationException.class));
+    }
+
+    /**
+     * When {@link org.elasticsearch.core.Releasable#close} is called while a {@code getObject}
+     * request is in flight, the listener must be notified once the SDK future is cancelled.
+     */
+    @SuppressWarnings("unchecked")
+    public void testCancelInFlightNotifiesListener() throws Exception {
+        CountDownLatch requestStarted = new CountDownLatch(1);
+
+        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
+            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = invocation.getArgument(1);
+            CompletableFuture<DirectReadBuffer> future = transformer.prepare();
+            requestStarted.countDown();
+            // Return without completing the future, simulating an in-flight request.
+            return future;
+        });
+
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+
+        CountDownLatch listenerCalled = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        Releasable cancel = obj.startReadBytesAsync(0, 10, FACTORY, Runnable::run, new ActionListener<>() {
+            @Override
+            public void onResponse(DirectReadBuffer buffer) {
+                fail("expected failure");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                error.set(e);
+                listenerCalled.countDown();
+            }
+        });
+
+        assertTrue("request must start", requestStarted.await(5, TimeUnit.SECONDS));
+
+        // Cancel while the getObject future is pending.
+        cancel.close();
+
+        // FutureUtils.cancel completes the future with CancellationException, which flows to the listener.
+        assertTrue("listener must be notified after in-flight cancel", listenerCalled.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(CancellationException.class));
+    }
+
+    /**
+     * If the user-supplied executor rejects the task when the backoff timer fires, the listener
+     * must be notified with the rejection error rather than being silently stranded.
+     */
+    @SuppressWarnings("unchecked")
+    public void testRejectedExecutorDuringBackoffNotifiesListener() throws Exception {
+        // Short delay so the timer fires quickly in the test.
+        RetryStrategy shortDelayStrategy = AwsRetryStrategy.standardRetryStrategy()
+            .toBuilder()
+            .backoffStrategy(attempt -> Duration.ofMillis(50))
+            .throttlingBackoffStrategy(attempt -> Duration.ofMillis(50))
+            .build();
+
+        // Always fail with a retryable IOException so attempt 1 triggers the backoff.
+        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
+            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = invocation.getArgument(1);
+            return failTransformer(transformer, new IOException("connection reset"));
+        });
+
+        // An executor that rejects every task — simulates a shut-down thread pool.
+        Executor rejectingExecutor = cmd -> { throw new RejectedExecutionException("executor shut down"); };
+
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, shortDelayStrategy, BUCKET, KEY, PATH);
+
+        CountDownLatch listenerCalled = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        // The initial attempt runs inline (initial delay = 0); after failure the 50 ms backoff is
+        // scheduled. When the timer fires, rejectionSafeExecutor catches the RejectedExecutionException
+        // and completes the listener rather than stranding it.
+        obj.readBytesAsync(0, 10, FACTORY, rejectingExecutor, ActionListener.wrap(buf -> fail("expected failure"), e -> {
+            error.set(e);
+            listenerCalled.countDown();
+        }));
+
+        assertTrue("listener must be notified on executor rejection", listenerCalled.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(Exception.class));
     }
 
     /**

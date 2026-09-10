@@ -56,6 +56,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.net.ssl.SSLException;
@@ -612,22 +613,71 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * returned by {@link #startReadBytesAsync} aborts the in-flight SDK future, and an attempt that
      * would start after cancellation (a retry waiting out its backoff) completes the listener
      * without issuing another request or consuming retry budget.
+     *
+     * <p>During backoff, the delay future is stored in {@code inFlight} and a cancel callback is
+     * armed. If {@link #cancel} fires before the timer expires, the callback completes the listener
+     * immediately instead of waiting for the delay. A CAS on {@code listenerDone} ensures the
+     * callback and the timer-fired path never both call the listener.
      */
     private static final class AsyncReadHandle {
         private volatile boolean cancelled;
-        private final AtomicReference<CompletableFuture<DirectReadBuffer>> inFlight = new AtomicReference<>();
+        /** Guards exclusive delivery of the final listener callback. */
+        private final AtomicBoolean listenerDone = new AtomicBoolean();
+        /** The in-flight SDK future (during an active attempt) or the delay future (during backoff). */
+        private final AtomicReference<CompletableFuture<?>> inFlight = new AtomicReference<>();
+        /** Set while waiting in backoff; cleared before the next attempt starts. */
+        private volatile Runnable cancelCallback;
 
-        void register(CompletableFuture<DirectReadBuffer> future) {
+        /**
+         * Transitions into the backoff phase: stores the delay future so {@link #cancel} can
+         * observe it, and arms the callback that completes the listener immediately if
+         * {@link #cancel} fires before the timer expires.
+         */
+        void enterBackoff(CompletableFuture<?> delayFuture, Runnable onCancelled) {
+            inFlight.set(delayFuture);
+            cancelCallback = onCancelled;
+            // cancel() may have been called between the attempt failing and enterBackoff.
+            if (cancelled) {
+                fireCancelCallback();
+            }
+        }
+
+        /** Called when the backoff timer has fired and the next attempt is about to start. */
+        void leaveBackoff() {
+            cancelCallback = null;
+        }
+
+        /**
+         * Registers the in-flight SDK future for the current attempt. If {@link #cancel} was already
+         * called, cancels the future immediately so the SDK layer sees the cancellation.
+         */
+        void register(CompletableFuture<?> future) {
             inFlight.set(future);
             if (cancelled) {
-                // cancel() may have run between getObject returning and this registration.
                 FutureUtils.cancel(future);
             }
         }
 
+        /**
+         * Claims the right to complete the listener. Returns {@code true} iff this call is the
+         * first; callers that receive {@code false} must not touch the listener.
+         */
+        boolean tryCompleteListener() {
+            return listenerDone.compareAndSet(false, true);
+        }
+
         void cancel() {
             cancelled = true;
+            fireCancelCallback();
             FutureUtils.cancel(inFlight.get());
+        }
+
+        private void fireCancelCallback() {
+            Runnable cb = cancelCallback;
+            if (cb != null && tryCompleteListener()) {
+                cancelCallback = null;
+                cb.run();
+            }
         }
 
         boolean isCancelled() {
@@ -658,10 +708,13 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         AsyncReadHandle handle
     ) {
         if (handle.isCancelled()) {
-            // The caller released the read (e.g. an aborted prefetch) while a retry was waiting out
-            // its backoff; complete the listener without issuing another request.
-            counters.addRequest(System.nanoTime() - startNanos, 0L);
-            listener.onFailure(mapReadFailure("Failed to read object from", new CancellationException("read cancelled")));
+            // The timer fired after cancel() was already called. If the cancel callback fired
+            // (backoff case), the listener was already notified and tryCompleteListener returns false.
+            // Otherwise (cancel between leaveBackoff and here), we notify now.
+            if (handle.tryCompleteListener()) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                listener.onFailure(mapReadFailure("Failed to read object from", new CancellationException("read cancelled")));
+            }
             return;
         }
         // Use a custom transformer instead of AsyncResponseTransformer.toBytes() so each chunk is
@@ -689,7 +742,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 return;
             }
 
-            asyncRetryStrategy.recordSuccess(RecordSuccessRequest.create(retryToken));
+            try {
+                asyncRetryStrategy.recordSuccess(RecordSuccessRequest.create(retryToken));
+            } catch (RuntimeException e) {
+                // recordSuccess() failing is not expected in practice, but close the buffer now to
+                // avoid a breaker-charge leak — deliverRead would have transferred ownership.
+                buffer.close();
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                listener.onFailure(mapReadFailure("Failed to read object from", e));
+                return;
+            }
 
             GetObjectResponse response = transformer.response();
             if (response != null) {
@@ -728,8 +790,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         if (handle.isCancelled()) {
             // Deliberate cancellation (the in-flight SDK future was aborted): terminal — do not
             // consume retry budget or schedule another attempt.
-            counters.addRequest(System.nanoTime() - startNanos, 0L);
-            listener.onFailure(mapReadFailure("Failed to read object from", unwrapCompletionWrappers(throwable)));
+            if (handle.tryCompleteListener()) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                listener.onFailure(mapReadFailure("Failed to read object from", unwrapCompletionWrappers(throwable)));
+            }
             return;
         }
         RefreshRetryTokenResponse refresh;
@@ -738,7 +802,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 RefreshRetryTokenRequest.builder()
                     .token(retryToken)
                     .failure(asSdkException(throwable))
-                    .suggestedDelay(Duration.ZERO)
+                    .suggestedDelay(retryAfterDelay(throwable))
                     .build()
             );
         } catch (Exception giveUp) {
@@ -781,16 +845,48 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         // Guard the executor hand-off: CompletableFuture's delayed executor swallows a rejection thrown
         // when the timer fires (it surfaces only in an ignored ScheduledFuture), which would strand the
         // listener. Wrapping the executor turns a rejection into a terminal failure instead.
+        // tryCompleteListener() prevents a double-notification if the cancel callback fires concurrently.
         Executor rejectionSafeExecutor = command -> {
             try {
                 executor.execute(command);
             } catch (Exception rejected) {
-                counters.addRequest(System.nanoTime() - startNanos, 0L);
-                listener.onFailure(mapReadFailure("Failed to read object from", rejected));
+                if (handle.tryCompleteListener()) {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    listener.onFailure(mapReadFailure("Failed to read object from", rejected));
+                }
             }
         };
-        CompletableFuture.delayedExecutor(delay.toMillis(), TimeUnit.MILLISECONDS, rejectionSafeExecutor)
-            .execute(() -> readAttempt(request, length, factory, executor, listener, retryToken, startNanos, handle));
+        // runAsync returns a future we can store in the handle so cancel() can observe the backoff
+        // phase. When cancel() fires before the timer, the cancel callback completes the listener
+        // immediately; leaveBackoff() then clears the callback so the timer-fired path (readAttempt's
+        // isCancelled check) sees tryCompleteListener() return false and skips the listener call.
+        CompletableFuture<Void> delayFuture = CompletableFuture.runAsync(() -> {
+            handle.leaveBackoff();
+            readAttempt(request, length, factory, executor, listener, retryToken, startNanos, handle);
+        }, CompletableFuture.delayedExecutor(delay.toMillis(), TimeUnit.MILLISECONDS, rejectionSafeExecutor));
+        handle.enterBackoff(delayFuture, () -> {
+            counters.addRequest(System.nanoTime() - startNanos, 0L);
+            listener.onFailure(mapReadFailure("Failed to read object from", new CancellationException("read cancelled")));
+        });
+    }
+
+    /**
+     * Extracts the Retry-After hint from a throttling S3 response, if present, so the retry
+     * strategy can respect server-side rate-limit hints rather than using only its own jitter.
+     */
+    private static Duration retryAfterDelay(Throwable throwable) {
+        Throwable raw = unwrapCompletionWrappers(throwable);
+        if (raw instanceof S3Exception s3 && ExternalUnavailableException.isThrottlingStatus(s3.statusCode())) {
+            if (s3.awsErrorDetails() != null && s3.awsErrorDetails().sdkHttpResponse() != null) {
+                long ms = ExternalUnavailableException.parseRetryAfterMs(
+                    s3.awsErrorDetails().sdkHttpResponse().firstMatchingHeader("Retry-After").orElse(null)
+                );
+                if (ms > 0) {
+                    return Duration.ofMillis(ms);
+                }
+            }
+        }
+        return Duration.ZERO;
     }
 
     /**

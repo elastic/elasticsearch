@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.kibana;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -62,10 +63,8 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
     // Registered alongside the ai_index: action to prove non-ai_index: actions are filtered out of the DLS query.
     private static final String SAVED_OBJECT_GET_ACTION = "saved_object:dashboard/get";
     private static final String ELASTIC_AI_INDEX = ".ai-index-idx-sml-data";
-
-    // The SML storage adapter creates a CONCRETE index "<name>-000001" and fronts it with an ALIAS
-    // named exactly ELASTIC_AI_INDEX. So ".ai-index-idx-sml-data" is never a concrete index in production.
-    private static final String ELASTIC_AI_INDEX_BACKING = ELASTIC_AI_INDEX + "-000001";
+    // Installed by the stack plugin's AiIndexTemplateRegistry; matches every `.ai-index-idx-*` index.
+    private static final String AI_INDEX_MANAGED_TEMPLATE = "ai-index-idx-managed";
 
     // Shared between the _search and ES|QL assertions: both engines must resolve each role's DLS
     // filter to exactly these sets.
@@ -122,7 +121,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         // 3. A user that holds the role.
         putUser(SML_USER, SML_USER_PASSWORD, AI_INDEX_READER_ROLE);
 
-        // 4. As admin, create the Elastic AI Index with explicit nested mappings and index the fixtures.
+        // 4. As admin, create the Elastic AI Index (mapped by the built-in template) and index the fixtures.
         createAiIndexWithDocs();
 
         // 5. The implicit grant surfaces through the get-role API, carrying the nested DLS query.
@@ -234,47 +233,32 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
     }
 
     private void createAiIndexWithDocs() throws Exception {
-        // Explicit mappings: the ai-index-idx-managed template already carries this exact permissions
-        // shape, but it is duplicated here so the test pins the shape the provider is written against
-        // rather than tracking the template. Dynamic mapping cannot substitute — it never produces
-        // `nested` for an array of objects, and a nested query against an `object` field throws rather
-        // than under-matching.
-        //
-        // The mapping lives on the CONCRETE index; the grant and every request name the ALIAS. That
-        // split is deliberate: it is the production arrangement, and it is what proves the nested
-        // DLS filter is applied to the backing index when the request is authorized via the alias.
-        final Request create = new Request("PUT", "/" + ELASTIC_AI_INDEX_BACKING);
-        create.setJsonEntity(Strings.format("""
-            {
-              "aliases": { "%s": { "is_write_index": true } },
-              "mappings": {
-                "properties": {
-                  "type": { "type": "keyword" },
-                  "permissions": {
-                    "type": "object",
-                    "properties": {
-                      "kibana": {
-                        "type": "object",
-                        "properties": {
-                          "privileges": {
-                            "type": "nested",
-                            "properties": {
-                              "name":  { "type": "keyword" },
-                              "space": { "type": "keyword" },
-                              "count": { "type": "long" }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
+        // Mappings come from the ai-index-idx-managed template and the test tracks the shipped `permissions`
+        // shape. The registry installs the template asynchronously after startup, so wait for
+        // it: without the template, dynamic mapping never produces `nested`.
+        assertBusy(() -> {
+            try {
+                assertOK(client().performRequest(new Request("GET", "/_index_template/" + AI_INDEX_MANAGED_TEMPLATE)));
+            } catch (ResponseException e) {
+                fail(e.getMessage());
             }
-            """, ELASTIC_AI_INDEX));
+        });
+
+        // Created bare, as Kibana does: no body, so every mapping on it comes from the template.
+        final Request create = new Request("PUT", "/" + ELASTIC_AI_INDEX);
         // Creating a dot-prefixed index emits a deprecation warning that is irrelevant to this test.
         create.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         assertOK(client().performRequest(create));
+
+        // Fail fast if the template stopped matching
+        final Map<String, Object> mapping = entityAsMap(client().performRequest(new Request("GET", "/" + ELASTIC_AI_INDEX + "/_mapping")));
+        assertThat(
+            "expected [" + AI_INDEX_MANAGED_TEMPLATE + "] to map permissions.kibana.privileges as nested",
+            new ObjectPath(mapping.get(ELASTIC_AI_INDEX)).evaluate(
+                "mappings.properties.permissions.properties.kibana.properties.privileges.type"
+            ),
+            equalTo("nested")
+        );
 
         // Documents deliberately carry no title/description/content: the template maps a semantic_text
         // sub-field on each of those, and populating one would require an inference-capable license.
@@ -434,7 +418,6 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("POST", "/" + ELASTIC_AI_INDEX + "/_refresh")));
     }
 
-    /** Writes through the alias, as the SML storage adapter does (its bulk sets require_alias). */
     private void indexDoc(String id, String body) throws Exception {
         final Request request = new Request("PUT", "/" + ELASTIC_AI_INDEX + "/_doc/" + id);
         request.setJsonEntity(body);

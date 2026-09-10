@@ -320,9 +320,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             // full isValidId charset here would break starting/re-deploying existing production inference
             // endpoints. deployment_id only needs to be safe as a single filesystem path component - it shapes
             // the isolated IPC directory path ($TMPDIR/ml-child-ipc/<deploymentId>/) - so only that narrower
-            // path-safety property is enforced here, mirroring MlStrings#isValidPathSafeId's contract. The same
-            // property is independently re-checked as defense-in-depth where the path is actually constructed
-            // (NamedPipeHelper#validateChildId in the ml plugin).
+            // path-safety property is enforced here, via MlStrings#isValidPathSafeId. That method is a
+            // platform-independent superset of the node-local check applied as defense-in-depth where the path
+            // is actually constructed (NamedPipeHelper#validateChildId in the ml plugin) - see its javadoc for
+            // why the two are not byte-identical.
             if (MlStrings.isValidPathSafeId(deploymentId) == false) {
                 validationException.addValidationError(Messages.getMessage(Messages.INVALID_PATH_SAFE_ID, DEPLOYMENT_ID, deploymentId));
             }

@@ -78,18 +78,19 @@ public final class MlStrings {
      * non-lowercase ids such as inference endpoint ids used verbatim as {@code deployment_id} remain valid),
      * only path-traversal / separator / NUL-byte safety.
      *
-     * This mirrors (rather than reuses) the predicate in {@code NamedPipeHelper#validateChildId} in the ml
-     * plugin: {@code core} cannot depend on {@code ml} (dependency runs the other way), and that method is
-     * private and applied as a defense-in-depth check at the point the path is actually constructed. Keep
-     * the two predicates in sync if either changes.
+     * This is related to, but deliberately not identical to, the predicate in {@code
+     * NamedPipeHelper#validateChildId} in the ml plugin: {@code core} cannot depend on {@code ml}
+     * (dependency runs the other way), and that method is private and applied as a defense-in-depth check
+     * at the point the path is actually constructed. The two are not a byte-identical mirror and are not
+     * meant to be kept in lockstep - see the divergence below.
      *
      * Deliberately diverges from {@code NamedPipeHelper#validateChildId} on one point: that method rejects
      * only the current platform's separator character (correct there, since it runs node-locally at the
      * point the filesystem path is actually built), whereas this method backs a cluster-wide request
      * validator ({@code StartTrainedModelDeploymentAction.Request#validate}) that may execute on any node,
      * so accept/reject cannot depend on which node's OS handles the request. This method therefore rejects
-     * both {@code /} and {@code \} unconditionally, which is a strict superset of what any single
-     * platform's separator check would reject - i.e. still a safe, if slightly more restrictive, mirror.
+     * both {@code /} and {@code \} unconditionally: a platform-independent superset of what any single
+     * node's separator check would reject on its own, not a mirror of it.
      *
      * @param id the id to check
      * @return {@code true} if {@code id} is non-null, non-empty, not {@code .} or {@code ..}, and contains

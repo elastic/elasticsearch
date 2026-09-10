@@ -468,6 +468,14 @@ public final class DatasetRewriter {
         Map<String, Object> merged = new HashMap<>();
         merged.putAll(dataset.settings());
         merged.keySet().removeAll(RemovedParquetDatasetSettings.KEYS);
+        // Legacy stored documents omit schema_resolution. Hydrate union_by_name on the query config
+        // only so those lakes keep extra columns / widening. Do not write cluster state.
+        if (merged.get(ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION) == null) {
+            merged.put(
+                ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION,
+                ExternalSourceResolver.effectivePersistedSchemaResolution(merged).configName()
+            );
+        }
         if (parent.settings().isEmpty() == false) {
             Map<String, Object> dsSettings = new HashMap<>();
             for (Map.Entry<String, DataSourceSetting> e : parent.settings()) {

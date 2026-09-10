@@ -687,9 +687,14 @@ public class GlobExpanderTests extends ESTestCase {
             GlobExpander.listingCacheDiscriminator(pattern, null, Map.of("schema_resolution", "union_by_name"))
         );
         assertEquals(
-            "FFW name+asc is the same listing order as UBN, so the keys match",
-            GlobExpander.listingCacheDiscriminator(pattern, null, ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "name")),
+            "omitted schema_resolution is effective FFW list+asc, same listing as explicit FFW with no knobs",
+            GlobExpander.listingCacheDiscriminator(pattern, null, ffw()),
             GlobExpander.listingCacheDiscriminator(pattern, null, Map.of())
+        );
+        assertNotEquals(
+            "omitted config must not share UBN's name-asc listing key",
+            GlobExpander.listingCacheDiscriminator(pattern, null, Map.of()),
+            GlobExpander.listingCacheDiscriminator(pattern, null, Map.of("schema_resolution", "union_by_name"))
         );
     }
 

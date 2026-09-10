@@ -119,8 +119,9 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
     /**
      * Two layers, in order. The dataset aggregate is keyed by the listing's file-set fingerprint, so
      * a listing that actually changed (add or mtime touch) must miss it, re-scan, and re-warm. The
-     * listing cache sits in front of that: default inferred UNION_BY_NAME reuses the listing for the
-     * TTL, so a mutation is invisible until the listing expires. This arm asserts both — TTL-hot
+     * listing cache sits in front of that. TestValidator omit-key hydrates {@code union_by_name};
+     * the listing is still reused for the TTL, so a mutation is invisible until the listing expires.
+     * Homogeneous files: {@code COUNT(*)} folds on either rail. This arm asserts both — TTL-hot
      * listing keeps the old count, then a listing miss (TTL expiry, simulated by dropping listing
      * entries only) sees the live set. Serving a new count while the listing is still cached, or a
      * stale count after it has expired, is the failure this exists to catch.

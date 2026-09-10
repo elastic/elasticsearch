@@ -2970,6 +2970,14 @@ public class EsqlCapabilities {
         EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK,
 
         /**
+         * Omitted {@code schema_resolution} on a new dataset PUT or {@code FROM EXTERNAL} query is
+         * {@code first_file_wins}. Cluster-state documents that predate the stored key still hydrate
+         * as {@code union_by_name}. Mixed-cluster csv-specs that assert the new default skip on older
+         * coordinators; explicit {@code union_by_name} tests must not gate on this capability.
+         */
+        EXTERNAL_DEFAULT_SCHEMA_RESOLUTION_FIRST_FILE_WINS,
+
+        /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
          */
         DATASET_IN_FROM_COMMAND,

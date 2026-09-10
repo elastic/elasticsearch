@@ -573,12 +573,17 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), containsString("first_file_wins"));
     }
 
-    public void testValidateDatasetFileSortByRejectedWhenSchemaResolutionOmitted() {
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_sort_by", "name"))
-        );
-        assertThat(e.getMessage(), containsString("first_file_wins"));
+    public void testValidateDatasetOmittedSchemaResolutionMaterializesFirstFileWins() {
+        Map<String, Object> first = validator.validateDataset(Map.of(), "s3://b/p", Map.of());
+        Map<String, Object> second = validator.validateDataset(Map.of(), "s3://b/p", Map.of());
+        assertEquals("first_file_wins", first.get("schema_resolution"));
+        assertEquals(first, second);
+    }
+
+    public void testValidateDatasetFileSortByAcceptedWhenSchemaResolutionOmitted() {
+        Map<String, Object> result = validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_sort_by", "name"));
+        assertEquals("first_file_wins", result.get("schema_resolution"));
+        assertEquals("name", result.get("file_sort_by"));
     }
 
     public void testValidateDatasetFileSortByAcceptedWithFirstFileWins() {

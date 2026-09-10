@@ -125,10 +125,13 @@ avg_salary:double | total:long
 48248.55          | 4824855
 ;
 
-// ===== UNION_BY_NAME (default) =====
+// ===== OMITTED schema_resolution (new PUT materializes first_file_wins) =====
+// Homogeneous files: rows match explicit FFW and UBN. Gate on the default-flip capability so mixed
+// clusters that still treat omit as union_by_name skip rather than disagree on listing/merge.
 
-ubnCount
+omittedCount
 required_capability: dataset_in_from_command
+required_capability: external_default_schema_resolution_first_file_wins
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -150,8 +153,9 @@ count:long
 100
 ;
 
-ubnFilterAndSort
+omittedFilterAndSort
 required_capability: dataset_in_from_command
+required_capability: external_default_schema_resolution_first_file_wins
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -166,9 +170,10 @@ emp_no:integer | first_name:keyword | salary:integer
 10007          | "Tzvetan"          | 74572
 ;
 
-ubnAggregateByGender
+omittedAggregateByGender
 required_capability: dataset_in_from_command
 required_capability: external_csv_empty_string_not_null
+required_capability: external_default_schema_resolution_first_file_wins
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -181,8 +186,9 @@ count:long | gender:keyword
 57         | "M"
 ;
 
-ubnSalaryStats
+omittedSalaryStats
 required_capability: dataset_in_from_command
+required_capability: external_default_schema_resolution_first_file_wins
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split

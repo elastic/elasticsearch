@@ -627,6 +627,23 @@ public class SchemaReconciliationTests extends ESTestCase {
 
     public void testParseSchemaResolutionEmpty() {
         assertThat(ExternalSourceResolver.parseSchemaResolution(Map.of()), equalTo(FormatReader.DEFAULT_SCHEMA_RESOLUTION));
+        assertThat(ExternalSourceResolver.effectiveSchemaResolution(Map.of()), equalTo(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+    }
+
+    public void testEffectivePersistedSchemaResolutionMissingKeyIsUnionByName() {
+        assertThat(ExternalSourceResolver.effectivePersistedSchemaResolution(null), equalTo(FormatReader.SchemaResolution.UNION_BY_NAME));
+        assertThat(
+            ExternalSourceResolver.effectivePersistedSchemaResolution(Map.of()),
+            equalTo(FormatReader.SchemaResolution.UNION_BY_NAME)
+        );
+        assertThat(
+            ExternalSourceResolver.effectivePersistedSchemaResolution(Map.of("format", "parquet")),
+            equalTo(FormatReader.SchemaResolution.UNION_BY_NAME)
+        );
+        assertThat(
+            ExternalSourceResolver.effectivePersistedSchemaResolution(Map.of("schema_resolution", "first_file_wins")),
+            equalTo(FormatReader.SchemaResolution.FIRST_FILE_WINS)
+        );
     }
 
     public void testParseSchemaResolutionFirstFileWins() {

@@ -352,9 +352,15 @@ public class ExternalSourceResolver {
      * telemetry. Best-effort: {@link ExternalSourceMetrics#recordDiscovery} self-guards, so an instrumentation
      * failure never fails resolution.
      */
-    private void recordDiscovery(FileList list, long startNanos, String scheme) {
+    private void recordDiscovery(FileList list, long startNanos, String scheme, Map<String, Object> config) {
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
-        metrics.recordDiscovery(durationMs, list.fileCount(), list.estimatedBytes(), scheme);
+        FormatReader.SchemaResolution strategy;
+        try {
+            strategy = parseSchemaResolution(config);
+        } catch (IllegalArgumentException e) {
+            strategy = FormatReader.DEFAULT_SCHEMA_RESOLUTION;
+        }
+        metrics.recordDiscovery(durationMs, list.fileCount(), list.estimatedBytes(), scheme, strategy);
     }
 
     /** Records one failed discovery/resolution attempt. Best-effort ({@link ExternalSourceMetrics#recordDiscoveryFailure} self-guards). */
@@ -1106,7 +1112,7 @@ public class ExternalSourceResolver {
             ? cachedListing(path, storagePath, provider, hints, config)
             : expandAndCompact(path, provider, hints, config, storagePath);
         GlobExpander.replayExclusionWarnings(listing);
-        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
+        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), config);
         return listing;
     }
 
@@ -2233,13 +2239,37 @@ public class ExternalSourceResolver {
         };
     }
 
+    /**
+     * Effective schema resolution for a query or {@code FROM EXTERNAL} config. An explicit
+     * {@code schema_resolution} key wins; otherwise {@link FormatReader#DEFAULT_SCHEMA_RESOLUTION}
+     * ({@code first_file_wins}).
+     */
+    public static FormatReader.SchemaResolution effectiveSchemaResolution(@Nullable Map<String, Object> config) {
+        return parseSchemaResolution(config, FormatReader.DEFAULT_SCHEMA_RESOLUTION);
+    }
+
+    /**
+     * Effective schema resolution for a stored dataset document. An explicit key wins; a cluster-state
+     * document that predates persisting the key hydrates as {@link FormatReader.SchemaResolution#UNION_BY_NAME}.
+     */
+    public static FormatReader.SchemaResolution effectivePersistedSchemaResolution(@Nullable Map<String, Object> datasetSettings) {
+        return parseSchemaResolution(datasetSettings, FormatReader.SchemaResolution.UNION_BY_NAME);
+    }
+
     static FormatReader.SchemaResolution parseSchemaResolution(@Nullable Map<String, Object> config) {
+        return effectiveSchemaResolution(config);
+    }
+
+    private static FormatReader.SchemaResolution parseSchemaResolution(
+        @Nullable Map<String, Object> config,
+        FormatReader.SchemaResolution whenMissing
+    ) {
         if (config == null) {
-            return FormatReader.DEFAULT_SCHEMA_RESOLUTION;
+            return whenMissing;
         }
         Object value = config.get(CONFIG_SCHEMA_RESOLUTION);
         if (value == null) {
-            return FormatReader.DEFAULT_SCHEMA_RESOLUTION;
+            return whenMissing;
         }
         return FormatReader.SchemaResolution.parse(value.toString());
     }
@@ -2898,7 +2928,7 @@ public class ExternalSourceResolver {
             listing = expandAndCompact(path, provider, hints, config, storagePath);
             GlobExpander.replayExclusionWarnings(listing);
         }
-        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
+        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), config);
         if (listing.fileCount() == 0) {
             throw new IllegalArgumentException("Glob pattern matched no files: " + path);
         }

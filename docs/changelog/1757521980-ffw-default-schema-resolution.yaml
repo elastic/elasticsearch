@@ -1,0 +1,4 @@
+area: ES|QL
+issues: []
+summary: "ES|QL|DS: default schema_resolution is first_file_wins; persist on PUT and hydrate legacy documents as union_by_name"
+type: enhancement

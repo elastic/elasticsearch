@@ -86,6 +86,11 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(tablePathString(out), equalTo("s3://logs/*.parquet"));
         assertThat(datasourceParamValue(out, "region"), equalTo("us-east-1"));
         assertThat(paramValue(out, "format"), equalTo("parquet"));
+        assertThat(
+            "legacy stored document without schema_resolution hydrates as union_by_name",
+            paramValue(out, ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION),
+            equalTo("union_by_name")
+        );
     }
 
     public void testRemovedParquetDatasetSettingsAreStrippedOnRewrite() {
@@ -110,6 +115,23 @@ public class DatasetRewriterTests extends ESTestCase {
         for (String key : RemovedParquetDatasetSettings.KEYS) {
             assertFalse(out.config().containsKey(key));
         }
+        assertThat(paramValue(out, ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION), equalTo("union_by_name"));
+    }
+
+    public void testStoredFirstFileWinsIsNotHydratedToUnionByName() {
+        DataSource parent = dataSource("s3_parent", Map.of("region", new DataSourceSetting("us-east-1", false)));
+        Dataset dataset = new Dataset(
+            "logs",
+            new DataSourceReference("s3_parent"),
+            "s3://logs/*.parquet",
+            null,
+            Map.of("format", "parquet", "schema_resolution", "first_file_wins")
+        );
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        LogicalPlan rewritten = rewrite(relationOf("logs"), project);
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        assertThat(paramValue(out, ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION), equalTo("first_file_wins"));
     }
 
     public void testDatasetSettingsOverrideParentOnKeyCollision() {

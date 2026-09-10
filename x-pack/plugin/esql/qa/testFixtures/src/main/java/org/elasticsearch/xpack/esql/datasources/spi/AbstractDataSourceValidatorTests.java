@@ -226,7 +226,10 @@ public abstract class AbstractDataSourceValidatorTests extends ESTestCase {
     }
 
     public void testValidateDatasetNullSettings() {
-        assertTrue(validator().validateDataset(Map.of(), sampleResource(), null).isEmpty());
+        Map<String, Object> first = validator().validateDataset(Map.of(), sampleResource(), null);
+        Map<String, Object> second = validator().validateDataset(Map.of(), sampleResource(), Map.of());
+        assertEquals("first_file_wins", first.get("schema_resolution"));
+        assertEquals(first, second);
     }
 
     public void testValidateDatasetWrongScheme() {

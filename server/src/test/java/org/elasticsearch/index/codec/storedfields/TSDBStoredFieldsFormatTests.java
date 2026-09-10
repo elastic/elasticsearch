@@ -13,7 +13,13 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
+import org.apache.lucene.codecs.lucene90.compressing.Lucene90CompressingStoredFieldsReader;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.tests.codecs.asserting.AssertingCodec;
 import org.apache.lucene.tests.index.BaseStoredFieldsFormatTestCase;
@@ -25,6 +31,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTests.runTestWithRandomDocs;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class TSDBStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase {
 
@@ -66,6 +73,23 @@ public class TSDBStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase 
                 }
             }
         });
+    }
+
+    /**
+     * A segment without a synthetic id keeps the reader type Lucene tests for when it selects a stored fields merge strategy.
+     */
+    public void testSegmentWithoutSyntheticIdIsBulkMergeable() throws Exception {
+        try (var directory = newDirectory(); var writer = new IndexWriter(directory, newIndexWriterConfig().setCodec(getCodec()))) {
+            var document = new Document();
+            document.add(new StringField(IdFieldMapper.NAME, "1", Field.Store.YES));
+            writer.addDocument(document);
+            // Read through the writer: reopening from the directory resolves the codec by name via SPI.
+            try (var reader = DirectoryReader.open(writer)) {
+                var fieldsReader = ((CodecReader) reader.leaves().getFirst().reader()).getFieldsReader();
+                assertThat(fieldsReader, instanceOf(Lucene90CompressingStoredFieldsReader.class));
+                assertThat(fieldsReader.getMergeInstance(), instanceOf(Lucene90CompressingStoredFieldsReader.class));
+            }
+        }
     }
 
     public void testSegmentsWithoutASyntheticIdReader() throws Exception {

@@ -403,7 +403,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return useArrayOrderBinaryDocValues;
         }
 
-        /** Which framing a doc-values query has to decode for this field. */
+        /**
+         * Which framing a doc-values query has to decode for this field. A match_only_text field is never routed to
+         * the ColumNAR codec, so {@link BinaryDocValuesFormat#COLUMNAR_PAYLOAD} is not among the answers.
+         */
         private BinaryDocValuesFormat binaryFormat() {
             return useArrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;
         }
@@ -1201,13 +1204,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    public boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // usesBinaryDocValues() requires doc_values to be enabled which means synthetic-source stored-fallback is unreachable.
         // Additionally, this excludes the low-cardinality SORTED_SET encoding.
-        // Copy_to/multi-fields have no equivalent in mapColumnBatch (no per-value dispatch to sub-mappers or other fields),
-        // so fields using them fall back to the row path.
-        // match_only_text has no ignore_above/null_value/normalizer
-        return fieldType().usesBinaryDocValues() && copyTo().copyToFields().isEmpty() && multiFields().iterator().hasNext() == false;
+        // copy_to has no equivalent in mapColumnBatch (no per-value dispatch to other fields), so fields using it fall back.
+        // match_only_text has no ignore_above/null_value/normalizer; multi-fields are handled by the base class.
+        return fieldType().usesBinaryDocValues() && copyTo().copyToFields().isEmpty();
     }
 
     // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
@@ -1224,7 +1226,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    public void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = indexed;
         final boolean emitDvs = docValuesParameters.enabled();
         if (emitTerms == false && emitDvs == false) {

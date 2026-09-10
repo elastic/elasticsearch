@@ -187,13 +187,28 @@ public class EsqlSession {
      * Abstracts away the underlying execution engine.
      */
     public interface PlanRunner {
+        /**
+         * Whether the plan's pages are the query's answer to the client ({@code OUTPUT}) or an
+         * internal intermediate result the session consumes to rewrite the main plan
+         * ({@code INTERMEDIATE}). Runners that stream results to the client must only stream
+         * {@code OUTPUT} plans; an {@code INTERMEDIATE} plan's pages must be returned in the
+         * {@link Result} instead.
+         */
+        enum Role {
+            OUTPUT,
+            INTERMEDIATE
+        }
+
         void run(
+            Role role,
             PhysicalPlan plan,
             Configuration configuration,
             FoldContext foldContext,
             PlanTimeProfile planTimeProfile,
             ActionListener<Result> listener
         );
+
+        default void columnMetadata(Map<NameId, Map<String, Object>> columnMetadata) {}
     }
 
     private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");
@@ -595,6 +610,7 @@ public class EsqlSession {
                                     QuerySettings.COLUMN_METADATA.get(finalConfiguration.resolvedSettings())
                                 )
                             );
+                            planRunner.columnMetadata(columnMetadata.get());
                             executeOptimizedPlan(
                                 request,
                                 executionInfo,
@@ -677,13 +693,17 @@ public class EsqlSession {
             ? createExplainListener(listener, optimizedPlan, planTimeProfile, configuration, planRunner)
             : listener;
 
+        PlanRunner executionRunner = explainContext != null
+            ? (role, plan, cfg, foldCtx, profile, l) -> planRunner.run(PlanRunner.Role.INTERMEDIATE, plan, cfg, foldCtx, profile, l)
+            : planRunner;
+
         // Always use the same execution path - executeSubPlans handles both simple queries and those with subplans
         executeSubPlans(
             optimizedPlan,
             configuration,
             foldContext,
             approximation,
-            planRunner,
+            executionRunner,
             executionInfo,
             request,
             physicalPlanOptimizer,
@@ -885,7 +905,7 @@ public class EsqlSession {
     ) {
         var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
         PhysicalPlan resultPlan = new LocalSourceExec(Source.EMPTY, Explain.OUTPUT_ATTRIBUTES, LocalSupplier.of(new Page(blocks)));
-        planRunner.run(resultPlan, configuration, foldContext, planTimeProfile, listener);
+        planRunner.run(PlanRunner.Role.OUTPUT, resultPlan, configuration, foldContext, planTimeProfile, listener);
     }
 
     private void executeSubPlans(
@@ -933,10 +953,17 @@ public class EsqlSession {
             collectPinnedReads(optimizedPlan, pinnedReads);
             // execute main plan. Wrap the listener so the coordinator reconciles any data-node-captured
             // source stats into ExternalSourceCacheService before delivering Result.
-            runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
-                reconcileCapturedSourceStats(result.completionInfo(), pinnedReads);
-                next.onResponse(result);
-            }));
+            runner.run(
+                PlanRunner.Role.OUTPUT,
+                physicalPlan,
+                configuration,
+                foldContext,
+                planTimeProfile,
+                listener.delegateFailureAndWrap((next, result) -> {
+                    reconcileCapturedSourceStats(result.completionInfo(), pinnedReads);
+                    next.onResponse(result);
+                })
+            );
         }
     }
 
@@ -1235,74 +1262,82 @@ public class EsqlSession {
 
         executionInfo.startSubPlans(subPlan.isSubqueryJoinSubPlan());
 
-        runner.run(physicalSubPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
-            // Approximation subplans (to get the sample probability) may approximate internally to estimate
-            // the result count. This does not affect whether the final result is approximate or not.
-            DriverCompletionInfo subPlanCompletionInfo = subPlan.isApproximationCalibration()
-                ? result.completionInfo().withoutApproximationApplied()
-                : result.completionInfo();
-            completionInfoAccumulator.accumulate(subPlanCompletionInfo);
-            try {
-                var releasingNext = ActionListener.runAfter(next, subPlan.cleanup);
-                LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
-                LOGGER.debug("New main plan after subplan execution:\n{}", newMainPlan);
+        runner.run(
+            PlanRunner.Role.INTERMEDIATE,
+            physicalSubPlan,
+            configuration,
+            foldContext,
+            planTimeProfile,
+            listener.delegateFailureAndWrap((next, result) -> {
+                // Approximation subplans (to get the sample probability) may approximate internally to estimate
+                // the result count. This does not affect whether the final result is approximate or not.
+                DriverCompletionInfo subPlanCompletionInfo = subPlan.isApproximationCalibration()
+                    ? result.completionInfo().withoutApproximationApplied()
+                    : result.completionInfo();
+                completionInfoAccumulator.accumulate(subPlanCompletionInfo);
+                try {
+                    var releasingNext = ActionListener.runAfter(next, subPlan.cleanup);
+                    LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
+                    LOGGER.debug("New main plan after subplan execution:\n{}", newMainPlan);
 
-                // look for the next inlinejoin plan
-                var newSubPlan = firstSubPlan(newMainPlan, configuration, approximation, subPlansResults);
-                LOGGER.debug("Next subplan: {}", newSubPlan != null ? newSubPlan.subPlan() : "null");
+                    // look for the next inlinejoin plan
+                    var newSubPlan = firstSubPlan(newMainPlan, configuration, approximation, subPlansResults);
+                    LOGGER.debug("Next subplan: {}", newSubPlan != null ? newSubPlan.subPlan() : "null");
 
-                if (newSubPlan == null) {
-                    executionInfo.finishSubPlans();
-                    collectPinnedReads(newMainPlan, pinnedReads);
-                    var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
-                    if (explainContext != null) {
-                        // Capture the post-substitution physical plan — the one that actually runs. For
-                        // InlineJoin and similar the plan is only meaningful after all subplans have resolved
-                        // StubRelations into real LocalRelation data, so this is the earliest correct point.
-                        recordExplainCoordinatorPlan(newPhysicalPlan);
+                    if (newSubPlan == null) {
+                        executionInfo.finishSubPlans();
+                        collectPinnedReads(newMainPlan, pinnedReads);
+                        var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
+                        if (explainContext != null) {
+                            // Capture the post-substitution physical plan — the one that actually runs. For
+                            // InlineJoin and similar the plan is only meaningful after all subplans have resolved
+                            // StubRelations into real LocalRelation data, so this is the earliest correct point.
+                            recordExplainCoordinatorPlan(newPhysicalPlan);
+                        }
+                        runner.run(
+                            PlanRunner.Role.OUTPUT,
+                            newPhysicalPlan,
+                            configuration,
+                            foldContext,
+                            planTimeProfile,
+                            releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
+                                completionInfoAccumulator.accumulate(finalResult.completionInfo());
+                                DriverCompletionInfo merged = completionInfoAccumulator.finish();
+                                reconcileCapturedSourceStats(merged, pinnedReads);
+                                EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
+                                finalListener.onResponse(
+                                    new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo, null)
+                                );
+                            })
+                        );
+                    } else {
+                        executeSubPlan(
+                            completionInfoAccumulator,
+                            pinnedReads,
+                            newSubPlan,
+                            configuration,
+                            foldContext,
+                            approximation,
+                            executionInfo,
+                            runner,
+                            request,
+                            subPlansResults,
+                            physicalPlanOptimizer,
+                            planTimeProfile,
+                            releasingNext
+                        );
                     }
-                    runner.run(
-                        newPhysicalPlan,
-                        configuration,
-                        foldContext,
-                        planTimeProfile,
-                        releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
-                            completionInfoAccumulator.accumulate(finalResult.completionInfo());
-                            DriverCompletionInfo merged = completionInfoAccumulator.finish();
-                            reconcileCapturedSourceStats(merged, pinnedReads);
-                            EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
-                            finalListener.onResponse(
-                                new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo, null)
-                            );
-                        })
-                    );
-                } else {
-                    executeSubPlan(
-                        completionInfoAccumulator,
-                        pinnedReads,
-                        newSubPlan,
-                        configuration,
-                        foldContext,
-                        approximation,
-                        executionInfo,
-                        runner,
-                        request,
-                        subPlansResults,
-                        physicalPlanOptimizer,
-                        planTimeProfile,
-                        releasingNext
-                    );
+                } catch (Exception e) {
+                    // safely release the blocks in case an exception occurs either before, but also after the "final" runner.run() forks
+                    // off
+                    // the current thread, but with the blocks still referenced
+                    subPlan.cleanup.run();
+                    throw e;
+                } finally {
+                    Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
                 }
-            } catch (Exception e) {
-                // safely release the blocks in case an exception occurs either before, but also after the "final" runner.run() forks
-                // off
-                // the current thread, but with the blocks still referenced
-                subPlan.cleanup.run();
-                throw e;
-            } finally {
-                Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
-            }
-        }));
+            })
+        );
     }
 
     private LocalRelation resultToPlan(Source planSource, Result result) {

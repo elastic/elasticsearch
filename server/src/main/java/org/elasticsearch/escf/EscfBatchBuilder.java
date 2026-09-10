@@ -200,9 +200,7 @@ public final class EscfBatchBuilder implements Releasable {
     /** Discards all uncommitted column builders, releasing their recycler-backed buffers. */
     @Override
     public void close() {
-        for (EscfColumnBuilder builder : builders) {
-            builder.discard();
-        }
+        Releasables.close(builders);
         builders.clear();
     }
 

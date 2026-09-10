@@ -430,12 +430,7 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
         };
     }
 
-    private static List<Page> buildSingleKeyPages(
-        BlockFactory blockFactory,
-        SingleKeyType keyType,
-        List<Object> keys,
-        List<Long> values
-    ) {
+    private static List<Page> buildSingleKeyPages(BlockFactory blockFactory, SingleKeyType keyType, List<Object> keys, List<Long> values) {
         List<Page> pages = new ArrayList<>();
         boolean success = false;
         try {

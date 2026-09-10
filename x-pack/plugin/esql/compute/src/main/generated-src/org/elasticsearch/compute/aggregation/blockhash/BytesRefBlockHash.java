@@ -290,7 +290,8 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
     }
 
     private record PartitionedHashKeysWithSeenNull(PartitionedHashTable.PartitionedHashKeys delegate, boolean seenNull)
-        implements PartitionedHashTable.PartitionedHashKeys {
+        implements
+            PartitionedHashTable.PartitionedHashKeys {
 
         @Override
         public int keysInPartition(int partition) {

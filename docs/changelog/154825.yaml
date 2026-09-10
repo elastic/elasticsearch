@@ -15,9 +15,7 @@ breaking:
     \ Unlike `model_id`, `deployment_id` is deliberately not restricted to `model_id`'s\
     \ lowercase-alphanumeric character set or its 64-character length limit, so that\
     \ existing inference endpoint ids used verbatim as `deployment_id` keep working.\
-    \ Previously no such validation was applied to `deployment_id`. Separately,\
-    \ `xpack.ml.trained_models.sandbox_enabled` now defaults to `false` for the staged\
-    \ 9.6 PyTorch inference sandboxing rollout."
+    \ Previously no such validation was applied to `deployment_id`."
   impact: "Calls to the start trained model deployment API with a `deployment_id`\
     \ (or a `model_id` used as the default `deployment_id`) that is empty, `.`, `..`,\
     \ or contains a path separator or NUL character will now be rejected with a\

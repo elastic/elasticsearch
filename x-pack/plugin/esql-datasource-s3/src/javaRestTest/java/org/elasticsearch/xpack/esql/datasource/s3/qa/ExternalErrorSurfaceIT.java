@@ -787,7 +787,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             "strict_mismatch_ds",
             "good_ds",
             s3(GOOD_CSV),
-            null,
+            Map.of("region", regionSupplier.get()),
             Map.of("dynamic", "false", "properties", Map.of("id", Map.of("type", "long"), "city", Map.of("type", "long")))
         );
         queryProbeExisting(

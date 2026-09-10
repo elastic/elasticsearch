@@ -31,7 +31,7 @@ public final class NodeHeapUsageCalculator {
      * Calculates heap usage for each stateless index or search routing node from the active shards in {@code clusterState}.
      * <p>
      * The stateless service reports shard-level heap inputs independent of the current routing. This method joins those inputs with the
-     * current routing view, counts index-level heap once per index per node, includes node-local postings in hosted-shards usage, and
+     * current routing table, counts index-level heap once per index per node, includes node-local postings in hosted-shards usage, and
      * applies the largest node-local postings value to every index node's total to preserve the existing conservative total-heap behavior.
      * Search nodes receive hosted-shards and non-shard components, but their total heap is intentionally left unmodeled as {@code 0}.
      */

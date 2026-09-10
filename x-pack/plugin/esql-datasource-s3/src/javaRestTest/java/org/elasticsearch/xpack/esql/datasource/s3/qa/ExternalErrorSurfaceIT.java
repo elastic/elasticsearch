@@ -256,7 +256,6 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("row with more fields than the header", 400),
         entry("declared column of an undeclarable type", 400),
         entry("unknown key inside the mappings block", 400),
-        entry("_id.path points at a column that is not declared", 400),
         entry("two declared columns resolving to one physical column", 400),
         entry("date format declared on a non-date column", 400),
         entry("strict declaration with no columns", 400),
@@ -327,7 +326,6 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("row with more fields than the header", "external_client_exception"),
         entry("declared column of an undeclarable type", "illegal_argument_exception"),
         entry("unknown key inside the mappings block", "x_content_parse_exception"),
-        entry("_id.path points at a column that is not declared", "illegal_argument_exception"),
         entry("two declared columns resolving to one physical column", "illegal_argument_exception"),
         entry("date format declared on a non-date column", "illegal_argument_exception"),
         entry("strict declaration with no columns", "illegal_argument_exception"),
@@ -735,18 +733,6 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             () -> putDatasetRaw(
                 "bad_mapping_key_ds",
                 "{\"data_source\":\"good_ds\",\"resource\":\"" + s3(GOOD_CSV) + "\",\"mappings\":{\"colums\":{}}}"
-            )
-        );
-        crudProbe(
-            "declared_mapping",
-            "_id.path points at a column that is not declared",
-            "name the missing column",
-            () -> putDataset(
-                "bad_idpath_ds",
-                "good_ds",
-                s3(GOOD_CSV),
-                null,
-                Map.of("dynamic", "false", "properties", Map.of("id", Map.of("type", "long")), "_id", Map.of("path", "nonexistent_column"))
             )
         );
         crudProbe(

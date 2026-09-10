@@ -93,9 +93,10 @@ public final class SyntheticColumns {
 
     /**
      * Names of every reader-synthesized internal channel. The producer pipeline injects these and
-     * projects them away again; nothing user-visible carries one. User data columns whose names happen to start with {@code _}
-     * (e.g. Spark's {@code _corrupt_record}, a user-supplied {@code _status}) are real data — a
-     * leading underscore on its own is not the filter; membership in this set is.
+     * projects them away again; nothing user-visible carries one. User data columns whose names
+     * happen to start with {@code _} (e.g. Spark's {@code _corrupt_record}, a user-supplied
+     * {@code _status}) are real data — a leading underscore on its own is not the filter;
+     * membership in this set is.
      */
     public static final Set<String> NAMES = BY_NAME.keySet();
 

@@ -111,7 +111,7 @@ setup:
             dynamic: "true"
             runtime: { }
 
-  # _id: refused on registration (a dataset answers METADATA _id as NULL), but still skipped when reading old state.
+  # _id: refused on registration (a dataset answers METADATA _id as NULL); skipped when reading old state.
   - do:
       catch: /unknown mappings field \[_id\]/
       esql.put_dataset:

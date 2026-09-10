@@ -244,13 +244,7 @@ public class VirtualColumnIteratorTests extends ESTestCase {
         long[] localPositions = { 0L, 7L, SourceExtractors.MAX_LOCAL_POSITION };
         int extractorId = 3;
 
-        VirtualColumnIterator it = new VirtualColumnIterator(
-            new SinglePageIterator(new Page(0)),
-            fullOutput,
-            partitionCols,
-            Map.of(),
-            blockFactory
-        );
+        VirtualColumnIterator it = new VirtualColumnIterator(emptyDelegate(), fullOutput, partitionCols, Map.of(), blockFactory);
 
         Page injected;
         try (LongBlock.Builder encoded = blockFactory.newLongBlockBuilder(localPositions.length)) {

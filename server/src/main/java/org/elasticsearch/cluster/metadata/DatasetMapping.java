@@ -98,12 +98,8 @@ public final class DatasetMapping implements Writeable {
 
     private static final String DYNAMIC = "dynamic";
     private static final String PROPERTIES = "properties";
-    /**
-     * Not a field this version has. Cluster state persisted by a 9.5 node carries an {@code _id} block, and the
-     * name is here only so {@link #parseStoredMappings} can skip it when that state is read back.
-     * <p>
-     * TODO: remove this and the tolerant entry point once no supported upgrade starts from a node that writes it.
-     */
+    /** Not a field this version has; {@link #parseStoredMappings} skips it in state a 9.5 node persisted. */
+    // TODO: remove this and the tolerant entry point once no supported upgrade starts from a node that writes it.
     private static final String UNSUPPORTED_ID_FIELD = "_id";
 
     @Nullable

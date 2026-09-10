@@ -75,10 +75,9 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
     }
 
     /**
-     * The per-row composed pair is reserved too: {@code {_id}} and {@code {_source}} placeholders
-     * must not reach {@code VirtualColumnIterator}'s name-keyed role dispatch (a bare {@code _id}
-     * partition column crashes on the missing {@code _rowPosition} channel; a bare {@code _source}
-     * silently substitutes synthesized JSON for the layout's value).
+     * {@code _id} and {@code _source} are reserved names, so {@code {_id}} and {@code {_source}}
+     * placeholders are renamed rather than surfaced bare: a dataset answers both as SQL NULL, and a
+     * partition column under either name would be shadowed by that answer.
      */
     public void testReservedPerRowNamesAreRenamedToo() {
         TemplatePartitionDetector detector = new TemplatePartitionDetector("{_id}/{_source}");

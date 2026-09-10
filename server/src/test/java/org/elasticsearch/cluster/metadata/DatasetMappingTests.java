@@ -102,7 +102,7 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
      * its contents unexamined, so the other two shapes cost nothing to tolerate and cover 9.5 having been laxer than
      * it looks. The rest of the block must survive, or an upgraded node cannot load its own gateway metadata.
      */
-    public void testStoredMappingsSkipUnsupportedIdBlock() {
+    public void testStoredMappingsSkipUnsupportedIdBlock() throws IOException {
         for (String idBlock : new String[] { "{\"path\":\"request_id\"}", "{\"type\":\"keyword\"}", "{}" }) {
             String json = "{\"dynamic\":\"true\",\"properties\":{\"request_id\":{\"type\":\"keyword\"}},\"_id\":" + idBlock + "}";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
@@ -110,8 +110,6 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
                 DatasetMapping.Mappings mappings = DatasetMapping.parseStoredMappings(parser);
                 assertEquals(DatasetMapping.Dynamic.TRUE, mappings.dynamic());
                 assertEquals(Set.of("request_id"), mappings.properties().keySet());
-            } catch (IOException e) {
-                throw new AssertionError(e);
             }
         }
     }

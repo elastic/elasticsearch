@@ -11,7 +11,6 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -123,7 +122,7 @@ public class NamedPipeHelper {
         if (childId.equals(".") || childId.equals("..")) {
             throw new IllegalArgumentException("childId must not be [.] or [..]: [" + childId + "]");
         }
-        if (childId.indexOf('/') >= 0 || childId.indexOf(File.separatorChar) >= 0) {
+        if (childId.indexOf('/') >= 0 || childId.indexOf(PathUtils.getDefaultFileSystem().getSeparator().charAt(0)) >= 0) {
             throw new IllegalArgumentException("childId must not contain a path separator: [" + childId + "]");
         }
         if (childId.indexOf('\u0000') >= 0) {

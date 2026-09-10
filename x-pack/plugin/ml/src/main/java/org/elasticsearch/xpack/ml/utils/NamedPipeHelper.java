@@ -77,6 +77,35 @@ public class NamedPipeHelper {
     }
 
     /**
+     * The prefix (including trailing separator) of the isolated per-child IPC directory used for a
+     * single native child process, e.g. a PyTorch inference process.
+     * <p>
+     * Unlike {@link #getDefaultPipeDirectoryPrefix}, Elasticsearch does not create this directory.
+     * The native controller process creates and owns it (as {@code 0700}, i.e. only readable/writable
+     * by the owning user) before the child process starts, and is responsible for removing it
+     * afterwards. Elasticsearch's only responsibility is to construct this same path string so that
+     * the {@code --input=}, {@code --output=}, {@code --restore=} and {@code --logPipe=} arguments
+     * passed to the child process agree with where the controller actually creates the named pipes.
+     * <p>
+     * The returned value MUST exactly match {@code $TMPDIR/ml-child-ipc/<childId>/} as constructed on
+     * the C++ side. If this logic changes here then the corresponding C++ controller code must also
+     * change.
+     * @param env The node environment, used to determine the base temporary directory.
+     * @param childId An identifier that is unique for the lifetime of the child process, used to keep
+     *                its IPC directory isolated from other children. Must already be validated as a
+     *                safe path component (no path separators, cannot resolve to a parent directory).
+     * @return The isolated child IPC directory prefix as a string.
+     */
+    public String getChildIpcDirectoryPrefix(Environment env, String childId) {
+        return env.tmpDir().toString()
+            + PathUtils.getDefaultFileSystem().getSeparator()
+            + "ml-child-ipc"
+            + PathUtils.getDefaultFileSystem().getSeparator()
+            + childId
+            + PathUtils.getDefaultFileSystem().getSeparator();
+    }
+
+    /**
      * Open a named pipe created elsewhere for input.
      *
      * @param path

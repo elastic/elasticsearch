@@ -311,6 +311,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
             assertThat(relocationCompletedOnSource.isDone(), is(false));
         } else {
             assertThat(safeGet(preFlush.waitIfOngoing()), is(false));
+            assertThat(safeGet(preFlush.result()).skippedDueToCollision(), is(true));
         }
 
         // Unblock gen2's commit: it commits, releases flushLock, and gen2 BCC upload begins.
@@ -320,14 +321,11 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
             safeAwait(secondUploadStarted);
             assertThat(relocationCompletedOnSource.isDone(), is(false));
         }
-        // waitIfOngoing=false: the pre-flush returned SKIPPED
         unblockSecondUpload.countDown();
 
         safeGet(relocationCompletedOnSource);
         if (threshold.equals(TimeValue.ZERO)) {
             assertThat(safeGet(preFlush.result()).skippedDueToCollision(), is(false));
-        } else {
-            assertThat(safeGet(preFlush.result()).skippedDueToCollision(), is(true));
         }
         ensureGreen(indexName);
     }
@@ -404,8 +402,8 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         }
 
         public static void resetAllLatches() {
-            unblockCommitLatch = null;
             commitStartedLatch = null;
+            unblockCommitLatch = null;
         }
 
         public static void resetFlushInterceptor() {

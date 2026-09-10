@@ -31,18 +31,28 @@ import static org.hamcrest.Matchers.nullValue;
  * directory used to pass {@code --input=}/{@code --output=}/{@code --restore=}/{@code --logPipe=}
  * paths to the PyTorch native process.
  *
- * <p><b>Important caveat for this test class as a whole:</b> the seccomp sandbox itself, the
- * {@code --disableSandbox} CLI flag, and the {@code $TMPDIR/ml-child-ipc/<deploymentId>/} directory
- * are all created/interpreted on the native (ml-cpp) side. The ml-cpp artifact bundled in this
- * checkout at the time these tests were written does not yet contain the paired controller-protocol
- * change (a separate, not-yet-integrated ml-cpp PR). {@code NativePyTorchProcessFactory#createProcess}
- * only requests the isolated child IPC directory when {@code sandbox_enabled} is {@code true} (see
- * {@code useIsolatedChildIpcDir=sandboxEnabled} there); with the setting left at its default of
- * {@code false}, PyTorch deployments use the legacy flat pipe naming that the bundled controller
- * already supports today, so those deployments are unaffected by the missing ml-cpp directory
- * support. Only test methods that explicitly flip {@code sandbox_enabled} to {@code true} exercise
- * the new isolated IPC layout and are therefore blocked on the paired ml-cpp artifact - see the
- * per-method javadoc below for which ones those are.
+ * <p><b>Important caveat for this test class as a whole:</b> EVERY code path exercised here is
+ * blocked on the paired, not-yet-integrated ml-cpp artifact (see
+ * https://github.com/elastic/ml-cpp/pull/3188), for two distinct reasons depending on the setting:
+ *
+ * <ul>
+ *   <li>{@code sandbox_enabled=false} (the default): {@code PyTorchBuilder#buildCommand} emits
+ *   {@code --disableSandbox} unconditionally on Linux (see {@code DISABLE_SANDBOX_ARG}, added
+ *   whenever {@code sandboxEnabled == false && isLinux}). The native controller bundled in this
+ *   checkout today has no parsing for that token at all - it forwards it verbatim to
+ *   {@code pytorch_inference}, which aborts on the unrecognized CLI option. This is the DEFAULT
+ *   path, and it is just as blocked as the explicit-enable path below, only for a different reason.</li>
+ *   <li>{@code sandbox_enabled=true}: {@code NativePyTorchProcessFactory#createProcess} additionally
+ *   requests the isolated {@code $TMPDIR/ml-child-ipc/<deploymentId>/} directory (see
+ *   {@code useIsolatedChildIpcDir=sandboxEnabled} there), which today's bundled controller does not
+ *   create.</li>
+ * </ul>
+ *
+ * <p>Because {@code verifyControllerProtocolVersion} (see {@code x-pack/plugin/ml/build.gradle})
+ * now hard-fails the build until a compatible ml-cpp artifact is bundled, none of the test methods
+ * in this class can actually run against this checkout today - the build itself will not assemble.
+ * The per-method javadoc below documents each method's specific blocking reason for when the paired
+ * artifact lands, not a claim of partial compatibility today.
  *
  * <p>Surfacing/countering the structured enforced-mode signal per the epic design doc {@code
  * §113} is tracked as a separate follow-up and is not implemented in this test class.
@@ -52,11 +62,15 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
     /**
      * With {@code xpack.ml.trained_models.sandbox_enabled} left at its (new, dark-launched) default of
      * {@code false}, {@code PyTorchBuilder} adds {@code --disableSandbox} to the child process command
-     * line on Linux (see {@code PyTorchBuilder#buildCommand}), and {@code NativePyTorchProcessFactory}
-     * does not request the isolated child IPC directory either, so this deployment uses exactly the
-     * pipe layout the bundled ml-cpp controller already supports today. This asserts that a deployment
-     * started under that default configuration reaches a healthy state and serves inference correctly.
+     * line on Linux (see {@code PyTorchBuilder#buildCommand}). The native controller bundled in this
+     * checkout does not recognize that token and aborts the child process on startup - so, contrary to
+     * an earlier version of this comment, this default path is NOT unaffected by the missing ml-cpp
+     * change; it is blocked on the paired ml-cpp artifact just like the explicit-enable path is, only
+     * because of an unrecognized CLI flag rather than the missing isolated-IPC-directory support. This
+     * asserts that, once that artifact is bundled, a deployment started under the default configuration
+     * reaches a healthy state and serves inference correctly.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/3188")
     public void testDefaultSandboxDisabledStartsAndInfersSuccessfully() throws IOException {
         String modelId = "sandbox_default_disabled";
         createPassThroughModel(modelId);
@@ -137,17 +151,18 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
     }
 
     /**
-     * Runs at the (default) {@code sandbox_enabled=false} setting, so per the class javadoc,
-     * {@code NativePyTorchProcessFactory} does not request the isolated {@code ml-child-ipc}
-     * directory here - these deployments use the legacy flat pipe naming, which already keys pipe
-     * names off {@code task.getDeploymentId()} today. This asserts that two concurrently-running
-     * deployments, each identified by their own deployment id, do not collide under that legacy
-     * naming.
+     * Runs at the (default) {@code sandbox_enabled=false} setting. Per the class javadoc, this path is
+     * blocked on the paired ml-cpp artifact too - the bundled controller aborts on the unrecognized
+     * {@code --disableSandbox} token before either deployment can even start, so today this test cannot
+     * pass any more than the explicit-enable tests can. Once the paired artifact lands, this asserts
+     * that two concurrently-running deployments, each identified by their own deployment id, do not
+     * collide under the (legacy, non-isolated) flat pipe naming that applies at this setting.
      *
      * <p>Limitation: the REST-only IT harness cannot list a node's {@code $TMPDIR} to assert pipe
      * paths directly, so this checks the functional proxy instead - two concurrent deployments both
      * starting healthy and serving correct, uncorrupted inference independently.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/3188")
     public void testChildIpcPathsIsolatedPerDeployment() throws Exception {
         String modelIdA = "sandbox_ipc_isolation_a";
         String modelIdB = "sandbox_ipc_isolation_b";

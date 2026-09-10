@@ -198,14 +198,14 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
      * requires the paired ml-cpp artifact with the new controller-protocol version bundled. That
      * artifact is not available in this checkout. Rather than a silently-passing no-op, this stub is
      * skipped with an explicit reason and, should it ever run without the paired artifact by mistake
-     * (e.g. the {@code @Ignore} annotation being dropped), fails loudly instead of asserting nothing.
+     * (e.g. the {@code @AwaitsFix} annotation being dropped), fails loudly instead of asserting nothing.
      */
-    @org.junit.Ignore("requires ml-cpp build with PR E controller-protocol-version>=1 bundled")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/3188")
     public void testEnforcedSandboxRejectsDisallowedFileAccess() {
         throw new UnsupportedOperationException(
             "testEnforcedSandboxRejectsDisallowedFileAccess requires a paired ml-cpp artifact with the "
                 + "Sandbox2 controller-protocol-version bundled; it is not implemented against the "
-                + "currently bundled native controller. Do not remove @Ignore without also implementing "
+                + "currently bundled native controller. Do not remove @AwaitsFix without also implementing "
                 + "real assertions here."
         );
     }

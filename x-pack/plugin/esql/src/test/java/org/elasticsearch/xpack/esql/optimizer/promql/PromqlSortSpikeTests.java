@@ -54,7 +54,7 @@ public class PromqlSortSpikeTests extends AbstractPromqlPlanOptimizerTests {
     }
 
     public void testSortDescInstantQueryDoesNotLeakSyntheticNanKey() {
-        assumeTrue("Requires PROMQL_SORT_DESC capability", EsqlCapabilities.Cap.PROMQL_SORT_DESC.isEnabled());
+        assumeTrue("Requires PROMQL_SORT capability", EsqlCapabilities.Cap.PROMQL_SORT.isEnabled());
         LogicalPlan optimized = planPromql(
             "PROMQL index=k8s time=\"2024-05-10T00:03:00.000Z\" value=(sort_desc(network.bytes_in)) | TS_COLLAPSE"
         );

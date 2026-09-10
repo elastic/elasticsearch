@@ -3793,14 +3793,9 @@ public class EsqlCapabilities {
         PROMQL_LABEL_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
-         * Support for the PromQL {@code sort()} function, which orders an instant vector by sample value ascending.
+         * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.
          */
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),
-
-        /**
-         * Support for the PromQL {@code sort_desc()} function, which orders an instant vector by sample value descending.
-         */
-        PROMQL_SORT_DESC(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over

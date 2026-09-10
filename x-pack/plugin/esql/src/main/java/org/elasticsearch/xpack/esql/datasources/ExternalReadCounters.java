@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * Accumulates wall-clock and CPU time for external data-source reads at the operator level.
@@ -49,7 +51,7 @@ public final class ExternalReadCounters {
     }
 
     /**
-     * Records time measured on the drain thread. Both wall and CPU deltas are unconditionally
+     * Records time measured on the current thread. Both wall and CPU deltas are unconditionally
      * accumulated.
      *
      * @param startNanos    value of {@code System.nanoTime()} before the measured work
@@ -87,6 +89,32 @@ public final class ExternalReadCounters {
         }
         if (startCpuNanos >= 0 && Thread.currentThread() != ownerThread) {
             readCpuNanosAcc.addAndGet(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+        }
+    }
+
+    /**
+     * Helper to call the code and meter the time spent.
+     */
+    public <T> T meteredOnThread(Supplier<T> runnable) {
+        long startNanos = System.nanoTime();
+        long startCpuNanos = ThreadCpuTimer.currentNanos();
+        try {
+            return runnable.get();
+        } finally {
+            recordOnThread(startNanos, startCpuNanos);
+        }
+    }
+
+    /**
+    * Helper to call the code and meter the time spent.
+    */
+    public <T, E extends Exception> T metered(CheckedSupplier<T, E> runnable) throws E {
+        long startNanos = System.nanoTime();
+        long startCpuNanos = ThreadCpuTimer.currentNanos();
+        try {
+            return runnable.get();
+        } finally {
+            record(startNanos, startCpuNanos);
         }
     }
 

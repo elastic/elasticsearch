@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
@@ -87,17 +86,11 @@ public final class ExternalSourceDrainUtils {
         buffer.readCounters().initOwnerThread();
         try {
             StorageRetryCancellation.runWithCancellation(readCancelled, () -> {
-                while (buffer.noMoreInputs() == false) {
-                    long startNanos = System.nanoTime(), startCpuNanos = ThreadCpuTimer.currentNanos();
-                    boolean more = pages.hasNext();
-                    buffer.readCounters().recordOnThread(startNanos, startCpuNanos);
-                    if (more == false) break;
+                while (buffer.noMoreInputs() == false && buffer.readCounters().meteredOnThread(pages::hasNext)) {
                     SubscribableListener<Void> space = buffer.waitForSpace();
                     if (space.isDone()) {
                         if (buffer.noMoreInputs()) break;
-                        long startNanos2 = System.nanoTime(), startCpuNanos2 = ThreadCpuTimer.currentNanos();
-                        Page page = pages.next();
-                        buffer.readCounters().recordOnThread(startNanos2, startCpuNanos2);
+                        Page page = buffer.readCounters().meteredOnThread(pages::next);
                         page.allowPassingToDifferentDriver();
                         buffer.addPage(page);
                     } else {

@@ -2407,9 +2407,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
                     .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                     .build();
-                long startNanos = System.nanoTime(), startCpuNanos = ThreadCpuTimer.currentNanos();
-                pages = fileReader.read(obj, ctx);
-                state.buffer.readCounters().record(startNanos, startCpuNanos);
+                pages = state.buffer.readCounters().metered(() -> fileReader.read(obj, ctx));
             }
             pages = applyRowPositionStrategy(fileReader, pages, perFileCols);
             pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
@@ -2558,9 +2556,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .informationalWarningSink(bufferedInformationalWarningSink(buffer))
                         .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                         .build();
-                    long startNanos = System.nanoTime(), startCpuNanos = ThreadCpuTimer.currentNanos();
-                    opened = reader.read(storageObject, ctx);
-                    buffer.readCounters().record(startNanos, startCpuNanos);
+                    opened = buffer.readCounters().metered(() -> reader.read(storageObject, ctx));
                 }
                 return opened;
             });

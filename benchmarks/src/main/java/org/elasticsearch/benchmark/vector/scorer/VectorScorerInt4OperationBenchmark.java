@@ -9,7 +9,7 @@
 package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -49,7 +49,7 @@ import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestU
 public class VectorScorerInt4OperationBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private int packedLen;

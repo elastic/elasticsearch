@@ -130,6 +130,12 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     }
 
     @Override
+    protected boolean fetchVectordbColumnarIndexModeSupported() throws IOException {
+        return super.fetchVectordbColumnarIndexModeSupported()
+            && clusterHasCapability(remoteClient(), "PUT", "/{index}", List.of(), List.of("vectordb_columnar_index_mode")).orElse(false);
+    }
+
+    @Override
     protected boolean fetchFlattenedDatatypeSortedKeysSupported() throws IOException {
         return super.fetchFlattenedDatatypeSortedKeysSupported()
             && clusterHasCapability(remoteClient(), "GET", "/_query", List.of(), List.of("FLATTENED_DATATYPE_SORTED_KEYS")).orElse(false);

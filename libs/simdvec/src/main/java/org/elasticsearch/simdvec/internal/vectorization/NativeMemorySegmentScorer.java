@@ -24,8 +24,8 @@ import java.lang.foreign.MemorySegment;
  * <p>Subclasses provide only the native dot-product function and bit-scale constants;
  * the scoring logic (quantize, bulk, corrections) is handled by template methods here.
  */
-abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer permits NativeD1Q1Scorer,
-    NativeD1Q4Scorer, NativeD2Q4Scorer, NativeD2Q4PackedScorer, NativeD4Q4Scorer, NativeD4Q4PackedScorer, NativeD7Q7Scorer {
+abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer permits
+    NativeD2Q4PackedScorer, NativeD4Q4PackedScorer, NativeD7Q7Scorer {
 
     protected static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 

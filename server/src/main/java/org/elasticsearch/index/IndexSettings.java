@@ -193,6 +193,20 @@ public final class IndexSettings {
     );
 
     /**
+     * The maximum number of characters a single {@code _analyze} request may produce while applying character
+     * filters. A character-filter chain (each filter's output feeds the next) can expand its input far beyond the
+     * original text; this setting bounds that expansion and rejects the request once the limit is exceeded. The
+     * default of 1M is well above any realistic analysis input.
+     */
+    public static final Setting<Integer> MAX_ANALYZE_CHAR_COUNT_SETTING = Setting.intSetting(
+        "index.analyze.max_char_count",
+        1000000,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
      * A setting describing the maximum number of characters that will be analyzed for a highlight request.
      * This setting is only applicable when highlighting is requested on a text that was indexed without
      * offsets or term vectors.
@@ -1325,6 +1339,23 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    /**
+     * Whether a dynamically mapped string that becomes a {@code text} field also gets an automatic {@code .keyword}
+     * multi-field. Only consulted when {@link #DYNAMIC_STRINGS_AUTO_TEXT} is enabled, since otherwise the string is
+     * mapped as a keyword to begin with.
+     * <p>
+     * Strict columnar modes default to {@code false}: the text field already has its own doc-values column there, which
+     * serves value retrieval, aggregations and sorting, so the keyword multi-field would store a second copy of every
+     * dynamic string. Exact, case-sensitive term filtering still requires mapping such a field explicitly.
+     */
+    public static final Setting<Boolean> DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD = Setting.boolSetting(
+        "index.mapping.dynamic_strings.auto_keyword_subfield",
+        settings -> Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar() == false),
+        value -> {},
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;
@@ -1392,6 +1423,7 @@ public final class IndexSettings {
     private volatile int maxDocvalueFields;
     private volatile int maxScriptFields;
     private volatile int maxTokenCount;
+    private volatile int maxAnalyzeCharCount;
     private volatile int maxNgramDiff;
     private volatile int maxShingleDiff;
     private volatile DenseVectorFieldMapper.FilterHeuristic hnswFilterHeuristic;
@@ -1418,6 +1450,7 @@ public final class IndexSettings {
     private volatile boolean skipIgnoredSourceWrite;
     private volatile boolean skipIgnoredSourceRead;
     private volatile boolean dynamicStringsAutoText;
+    private volatile boolean dynamicStringsAutoKeywordSubfield;
     private final SourceFieldMapper.Mode indexMappingSourceMode;
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
@@ -1604,6 +1637,7 @@ public final class IndexSettings {
         maxDocvalueFields = scopedSettings.get(MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
         maxScriptFields = scopedSettings.get(MAX_SCRIPT_FIELDS_SETTING);
         maxTokenCount = scopedSettings.get(MAX_TOKEN_COUNT_SETTING);
+        maxAnalyzeCharCount = scopedSettings.get(MAX_ANALYZE_CHAR_COUNT_SETTING);
         maxNgramDiff = scopedSettings.get(MAX_NGRAM_DIFF_SETTING);
         maxShingleDiff = scopedSettings.get(MAX_SHINGLE_DIFF_SETTING);
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
@@ -1696,6 +1730,7 @@ public final class IndexSettings {
         }
         disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS.get(settings);
         dynamicStringsAutoText = DYNAMIC_STRINGS_AUTO_TEXT.get(settings);
+        dynamicStringsAutoKeywordSubfield = DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD.get(settings);
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
             mergePolicyConfig::setCompoundFormatThreshold
@@ -1748,6 +1783,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_DOCVALUE_FIELDS_SEARCH_SETTING, this::setMaxDocvalueFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_SCRIPT_FIELDS_SETTING, this::setMaxScriptFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_TOKEN_COUNT_SETTING, this::setMaxTokenCount);
+        scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZE_CHAR_COUNT_SETTING, this::setMaxAnalyzeCharCount);
         scopedSettings.addSettingsUpdateConsumer(MAX_NGRAM_DIFF_SETTING, this::setMaxNgramDiff);
         scopedSettings.addSettingsUpdateConsumer(MAX_SHINGLE_DIFF_SETTING, this::setMaxShingleDiff);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
@@ -1796,6 +1832,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
         scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
         scopedSettings.addSettingsUpdateConsumer(DYNAMIC_STRINGS_AUTO_TEXT, this::setDynamicStringsAutoText);
+        scopedSettings.addSettingsUpdateConsumer(DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD, this::setDynamicStringsAutoKeywordSubfield);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -2138,6 +2175,15 @@ public final class IndexSettings {
 
     private void setMaxTokenCount(int maxTokenCount) {
         this.maxTokenCount = maxTokenCount;
+    }
+
+    /** Returns the {@code index.analyze.max_char_count} limit for this index. */
+    public int getMaxAnalyzeCharCount() {
+        return maxAnalyzeCharCount;
+    }
+
+    private void setMaxAnalyzeCharCount(int maxAnalyzeCharCount) {
+        this.maxAnalyzeCharCount = maxAnalyzeCharCount;
     }
 
     /**
@@ -2610,5 +2656,17 @@ public final class IndexSettings {
      */
     public boolean getDynamicStringsAutoText() {
         return dynamicStringsAutoText;
+    }
+
+    private void setDynamicStringsAutoKeywordSubfield(boolean enabled) {
+        this.dynamicStringsAutoKeywordSubfield = enabled;
+    }
+
+    /**
+     * Returns <code>true</code> if a dynamically mapped {@code text} field should get an automatic {@code .keyword}
+     * multi-field. Only meaningful when {@link #getDynamicStringsAutoText()} is enabled.
+     */
+    public boolean getDynamicStringsAutoKeywordSubfield() {
+        return dynamicStringsAutoKeywordSubfield;
     }
 }

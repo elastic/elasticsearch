@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -74,7 +73,6 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
     }
 
     public void testCacheMissWaitTimeHeader() throws InterruptedException {
-        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
         assertCacheMissWaitTimeHeader("cache-miss-header", true);
     }
 

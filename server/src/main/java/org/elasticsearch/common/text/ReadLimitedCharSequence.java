@@ -66,7 +66,7 @@ public class ReadLimitedCharSequence implements CharSequence {
 
     @Override
     public CharSequence subSequence(int start, int end) {
-        return new ReadLimitedCharSequence(wrapped.subSequence(start, end), readLimitFactor);
+        return wrapped.subSequence(start, end);
     }
 
     @Override

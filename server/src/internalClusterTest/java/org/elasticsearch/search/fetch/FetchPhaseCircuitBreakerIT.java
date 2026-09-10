@@ -531,7 +531,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     }
 
     public void testInnerHitsReleasesCircuitBreaker() throws Exception {
-        String dataNode = startDataNode("100mb", "1mb");
+        String dataNode = startDataNode("100mb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assertThat(internalCluster().size(), equalTo(2));
 
@@ -573,7 +573,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     }
 
     public void testRankFeaturePhaseReleasesCircuitBreaker() throws Exception {
-        String dataNode = startDataNode("100mb", "1mb");
+        String dataNode = startDataNode("100mb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assertThat(internalCluster().size(), equalTo(2));
 
@@ -620,16 +620,9 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     }
 
     private String startDataNode(String cbRequestLimit) {
-        return startDataNode(cbRequestLimit, null);
-    }
-
-    private String startDataNode(String cbRequestLimit, String memoryAccountingBufferSize) {
         Settings.Builder settings = Settings.builder()
             .put("indices.breaker.request.type", "memory")
             .put("indices.breaker.request.limit", cbRequestLimit);
-        if (memoryAccountingBufferSize != null) {
-            settings.put("search.memory_accounting_buffer_size", memoryAccountingBufferSize);
-        }
         return internalCluster().startNode(settings.build());
     }
 

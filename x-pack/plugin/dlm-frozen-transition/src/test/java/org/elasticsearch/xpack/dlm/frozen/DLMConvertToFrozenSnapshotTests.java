@@ -767,7 +767,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
     public static class TestDLMConvertToFrozenWithTimeout extends DLMConvertToFrozen {
 
         TestDLMConvertToFrozenWithTimeout(
-            org.elasticsearch.index.Index index,
+           Index index,
             ProjectId projectId,
             Client client,
             ClusterService clusterService,

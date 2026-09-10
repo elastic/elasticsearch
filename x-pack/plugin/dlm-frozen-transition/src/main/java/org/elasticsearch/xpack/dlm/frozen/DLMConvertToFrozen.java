@@ -582,7 +582,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     private boolean isCleanUpComplete(String forceMergeIndex) {
         // return false if original or clone indices still exist
         ProjectMetadata projectMetadata = getProjectState().metadata();
-        if (projectMetadata.hasIndex(index.getName())) {
+        if (projectMetadata.hasIndex(indexName)) {
             return false;
         }
         if (projectMetadata.indices().containsKey(forceMergeIndex)) {

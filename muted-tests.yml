@@ -504,3 +504,5 @@ tests:
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testOpenContextsAfterRejections
   issue: https://github.com/elastic/elasticsearch/issues/156244
+- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+  issue: https://github.com/elastic/elasticsearch/issues/158953

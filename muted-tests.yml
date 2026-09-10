@@ -376,9 +376,6 @@ tests:
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldSourceOnlyRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/155541
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
-  method: testLongLivedPitRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/155740
 - class: org.elasticsearch.gateway.GatewayServiceIT
   method: testSettingsAppliedBeforeReroute
   issue: https://github.com/elastic/elasticsearch/issues/155802
@@ -498,3 +495,8 @@ tests:
 - class: org.elasticsearch.common.logging.DeprecationLoggerTests
   method: testMultipleSlowLoggersUseSingleLog4jLogger
   issue: https://github.com/elastic/elasticsearch/issues/158695
+- class: org.elasticsearch.search.SearchWithRejectionsIT
+  method: testOpenContextsAfterRejections
+  issue: https://github.com/elastic/elasticsearch/issues/156244
+- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+  issue: https://github.com/elastic/elasticsearch/issues/158953

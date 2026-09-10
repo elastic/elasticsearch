@@ -228,7 +228,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // Per-field ignored source is produced only by field (non-metadata) mappers, none of which
         // support columnar parsing yet. postColumnarParse is therefore a no-op for the current
         // empty-doc-only columnar batch scope. When field mappers gain columnar support they will
@@ -395,7 +395,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     ) throws IOException {
         NameValue nameValue = SingularIgnoredSourceEncoding.decode(value);
         if (nameValue.hasValue() == false) {
-            return null;
+            // A void placeholder (written by DocumentParserContext#createCopyToContext) carries no user data; its sole purpose is to
+            // suppress the field's doc-values loader during synthetic source reconstruction so that copy_to-copied values do not appear
+            // in _source. Dropping it would remove the suppression and let the destination field be rebuilt from doc values, leaking the
+            // copied value. The placeholder is always safe to keep: it contains nothing that FLS should hide.
+            return value;
         }
 
         if (XContentDataHelper.isEncodedObject(nameValue.value()) == false) {

@@ -65,7 +65,7 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
  * Integration tests that validate ESQL's Parquet reader against ground-truth data generated at runtime
  * by parquet-mr's standard {@code GroupReadSupport} reader.
  * <p>
- * Each test downloads a parquet file from the
+ * Good-data tests download a parquet file from the
  * <a href="https://github.com/apache/parquet-testing">apache/parquet-testing</a> repository (pinned
  * to a specific commit), reads it with parquet-mr's row-oriented Group reader to produce ground truth,
  * then compares against the ESQL output from {@code EXTERNAL "<url>"}.
@@ -107,7 +107,7 @@ public class ParquetTestingIT extends ESRestTestCase {
      *       {@code nested_structs.rust.parquet}, {@code list_columns.parquet}, {@code nonnullable.impala.parquet},
      *       {@code nullable.impala.parquet}, {@code repeated_no_annotation.parquet},
      *       {@code repeated_primitive_no_list.parquet}, {@code incorrect_map_schema.parquet},
-     *       {@code old_list_structure.parquet}, {@code map_no_value.parquet})</li>
+     *       {@code map_no_value.parquet})</li>
      * </ul>
      */
     private static final List<String> GOOD_DATA_FILES = List.of(
@@ -166,6 +166,9 @@ public class ParquetTestingIT extends ESRestTestCase {
         "bad_data/PARQUET-1481.parquet"
     );
 
+    /** Valid files whose nested types must be rejected when a query attempts to use them. */
+    private static final List<String> UNSUPPORTED_DATA_FILES = List.of("data/old_list_structure.parquet");
+
     /**
      * Files where timestamp value comparison is skipped because INT96 timestamp
      * conversion is implementation-specific and ESQL may clamp or interpret extreme
@@ -175,11 +178,12 @@ public class ParquetTestingIT extends ESRestTestCase {
 
     /**
      * Bad data files that ESQL reads successfully (200 OK) -- the corruption is not
-     * detectable by or relevant to ESQL's reader.
+     * detectable by or relevant to ESQL's reader. {@code ARROW-GH-43605} is labeled
+     * "RLE bit-width 0" in parquet-testing; that encoding is valid (single-entry
+     * dictionary), not unreadable data.
      */
     private static final Set<String> BAD_DATA_READS_OK = Set.of(
         "bad_data/ARROW-GH-43605.parquet",
-        "bad_data/ARROW-GH-45185.parquet",
         "bad_data/ARROW-RS-GH-6229-LEVELS.parquet"
     );
 
@@ -223,10 +227,12 @@ public class ParquetTestingIT extends ESRestTestCase {
 
     private final String parquetFile;
     private final boolean isBadData;
+    private final boolean isUnsupportedData;
 
-    public ParquetTestingIT(String testName, String parquetFile, boolean isBadData) {
+    public ParquetTestingIT(String testName, String parquetFile, boolean isBadData, boolean isUnsupportedData) {
         this.parquetFile = parquetFile;
         this.isBadData = isBadData;
+        this.isUnsupportedData = isUnsupportedData;
     }
 
     @Override
@@ -239,11 +245,15 @@ public class ParquetTestingIT extends ESRestTestCase {
         List<Object[]> params = new ArrayList<>();
         for (String file : GOOD_DATA_FILES) {
             String name = file.replace("data/", "").replace(".parquet", "");
-            params.add(new Object[] { name, file, false });
+            params.add(new Object[] { name, file, false, false });
         }
         for (String file : BAD_DATA_FILES) {
             String name = "bad_" + file.replace("bad_data/", "").replace(".parquet", "");
-            params.add(new Object[] { name, file, true });
+            params.add(new Object[] { name, file, true, false });
+        }
+        for (String file : UNSUPPORTED_DATA_FILES) {
+            String name = "unsupported_" + file.replace("data/", "").replace(".parquet", "");
+            params.add(new Object[] { name, file, false, true });
         }
         return params;
     }
@@ -256,7 +266,9 @@ public class ParquetTestingIT extends ESRestTestCase {
         String dataset = DatasetRegistry.sanitizeDatasetName("pq_", parquetFile);
         DatasetRegistry.ensureDataset(client(), dataset, HTTP_DATA_SOURCE, url, null);
 
-        if (isBadData) {
+        if (isUnsupportedData) {
+            testUnsupportedData(dataset);
+        } else if (isBadData) {
             testBadData(dataset);
         } else {
             testGoodData(url, dataset);
@@ -387,6 +399,52 @@ public class ParquetTestingIT extends ESRestTestCase {
         assertTrue(
             "Bad data file " + parquetFile + " should produce a 4xx error but got " + status + ": " + ex.getMessage(),
             status >= 400 && status < 500
+        );
+        if ("bad_data/ARROW-GH-45185.parquet".equals(parquetFile)) {
+            assertTrue(ex.getMessage(), ex.getMessage().contains("ARROW-GH-45185.parquet"));
+            assertTrue(ex.getMessage(), ex.getMessage().contains("column [x]"));
+        }
+    }
+
+    private void testUnsupportedData(String dataset) throws Exception {
+        Map<String, Object> projection;
+        try {
+            projection = runEsqlSync(
+                requestObjectBuilder().query("FROM " + dataset + " | KEEP a | LIMIT 5"),
+                new AssertWarnings.NoWarnings(),
+                null
+            );
+        } catch (IOException e) {
+            throw skipIfTransientFailure(e, "projecting unsupported data");
+        }
+        @SuppressWarnings("unchecked")
+        List<Map<String, String>> columns = (List<Map<String, String>>) projection.get("columns");
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) projection.get("values");
+        assertEquals(1, columns.size());
+        assertEquals("a", columns.get(0).get("name"));
+        assertEquals("unsupported", columns.get(0).get("type"));
+        assertEquals(1, values.size());
+        assertEquals(1, values.get(0).size());
+        assertNull(values.get(0).get(0));
+
+        String query = "FROM " + dataset + " | EVAL count = MV_COUNT(a) | KEEP count | LIMIT 5";
+        logger.info("Testing unsupported data: {}", parquetFile);
+
+        ResponseException ex;
+        try {
+            runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
+            throw new AssertionError("Expected " + parquetFile + " to reject use of its nested list column, but the query succeeded");
+        } catch (ResponseException e) {
+            ex = skipIfTransientFailure(e, "testing unsupported data");
+        } catch (IOException e) {
+            throw skipIfTransientFailure(e, "testing unsupported data");
+        }
+        int status = ex.getResponse().getStatusLine().getStatusCode();
+        assertTrue("Expected a 4xx response but got " + status + ": " + ex.getMessage(), status >= 400 && status < 500);
+        assertTrue(
+            "Expected an unsupported-type diagnostic but got: " + ex.getMessage(),
+            ex.getMessage().contains("found value [a] type [unsupported]")
         );
     }
 

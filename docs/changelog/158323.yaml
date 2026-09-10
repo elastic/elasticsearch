@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158323
+summary: Don't join SEARCH on split discovery
+type: enhancement

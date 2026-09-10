@@ -18,8 +18,16 @@ import java.util.Map;
  */
 record EndpointRegion(String endpoint, String region) {
     static EndpointRegion of(Map<String, Object> config) {
-        String endpoint = config != null ? String.valueOf(config.getOrDefault("endpoint", "")) : "";
-        String region = config != null ? String.valueOf(config.getOrDefault("region", "")) : "";
+        if (config == null) return new EndpointRegion("", "");
+        // For dataset queries, connection params live in the _datasource sub-map rather than at the
+        // top level. Fall back to the sub-map when the top-level key is absent so this reader is safe
+        // even if the caller forgot to flatten the config via ExternalSourceResolver.storageConfig().
+        // The string literal "_datasource" matches ExternalSourceResolver.DATASOURCE_CONFIG_KEY but
+        // cannot reference it directly due to the package dependency direction.
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ds = (Map<String, Object>) config.get("_datasource");
+        String endpoint = String.valueOf(config.getOrDefault("endpoint", ds != null ? ds.getOrDefault("endpoint", "") : ""));
+        String region = String.valueOf(config.getOrDefault("region", ds != null ? ds.getOrDefault("region", "") : ""));
         return new EndpointRegion(endpoint, region);
     }
 }

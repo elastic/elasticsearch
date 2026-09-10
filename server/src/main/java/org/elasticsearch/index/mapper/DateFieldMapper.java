@@ -64,7 +64,6 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.RoundToLongsFromD
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -762,11 +761,11 @@ public final class DateFieldMapper extends FieldMapper {
                     if (indexType.hasPoints()) {
                         query = LongPoint.newRangeQuery(name(), l, u);
                         if (hasDocValues()) {
-                            Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
+                            Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                             query = new IndexOrDocValuesQuery(query, dvQuery);
                         }
                     } else {
-                        query = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
+                        query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                     }
                     if (hasDocValues() && context.indexSortedOnField(name())) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
@@ -879,11 +878,11 @@ public final class DateFieldMapper extends FieldMapper {
             if (indexType.hasPoints()) {
                 query = LongPoint.newRangeQuery(name(), l, u);
                 if (hasDocValues()) {
-                    Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                     query = new IndexOrDocValuesQuery(query, dvQuery);
                 }
             } else {
-                query = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
+                query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
             }
             if (hasDocValues() && context.indexSortedOnField(name())) {
                 query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
@@ -1263,7 +1262,7 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // Columnar support requires strict-columnar index mode or TIME_SERIES (for @timestamp),
         // and a doc-values date field. doc_values.multi_value and ignore_malformed are not
         // implemented by mapColumnBatch but are deliberately not rejected here — rejected at parse
@@ -1272,12 +1271,11 @@ public final class DateFieldMapper extends FieldMapper {
             && docValuesParameters.enabled()
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final EscfColumnData outData = switch (source.kind()) {
             case EscfColumnKind.STRING -> datesFromStrings(source);
             case EscfColumnKind.LONG -> datesFromLongs(source);

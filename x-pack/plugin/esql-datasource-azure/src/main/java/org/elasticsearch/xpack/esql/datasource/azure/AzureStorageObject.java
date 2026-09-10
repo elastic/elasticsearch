@@ -299,7 +299,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         int len = Math.toIntExact(length);
         final DirectReadBuffer drb;
         try {
-            drb = factory.allocate(len);
+            drb = factory.allocateWritableWindow(len);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -307,7 +307,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
 
         BlobRange range = new BlobRange(position, length);
         long startNanos = System.nanoTime();
-        final CompletableFuture<ByteBuffer> future;
+        final CompletableFuture<Void> future;
         try {
             future = blobAsyncClient.downloadWithResponse(range, null, null, false)
                 .flatMapMany(response -> response.getValue())
@@ -318,10 +318,9 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                     acc.put(chunk);
                     return acc;
                 })
-                .map(buffer -> {
-                    buffer.flip();
-                    return buffer;
-                })
+                .doOnNext(ByteBuffer::flip)
+                // Do not complete the SDK-retained future with an alias of drb's payload.
+                .then()
                 .toFuture();
         } catch (RuntimeException e) {
             // Assembly-time throw from Reactor operator construction. No request was issued,
@@ -330,7 +329,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             listener.onFailure(mapReadFailure("Failed to read bytes from", e));
             return;
         }
-        onReadComplete(future, (buffer, error) -> {
+        onReadComplete(future, (ignored, error) -> {
             if (error != null) {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
                 // Release eagerly on the failure path so the breaker charge does not outlive
@@ -346,6 +345,11 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public boolean supportsNativeAsync() {
+        return blobAsyncClient != null;
+    }
+
+    @Override
+    public boolean readBytesAsyncReleasesExecutor() {
         return blobAsyncClient != null;
     }
 

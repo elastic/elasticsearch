@@ -413,6 +413,18 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         }
 
         @Override
+        public synchronized void refresh() throws ResolverException {
+            // OpenSAML 5's AbstractReloadingMetadataResolver#refresh asserts nextRefresh != null in its finally block. That invariant
+            // no longer holds once destroy() has run (doDestroy() nulls nextRefresh), and refresh()'s own isDestroyed() early-return
+            // sits inside the try, so the finally still executes and the assert fires. Since destroy() and refresh() synchronize on
+            // this instance, checking under the monitor here means destroy() cannot interleave between this check and super.refresh().
+            if (isDestroyed()) {
+                return;
+            }
+            super.refresh();
+        }
+
+        @Override
         protected byte[] fetchMetadata() throws ResolverException {
             assert assertNotTransportThread("fetching SAML metadata from a URL");
             return super.fetchMetadata();
@@ -479,6 +491,16 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
 
         SamlFilesystemMetadataResolver(final java.io.File metadata) throws ResolverException {
             super(metadata);
+        }
+
+        @Override
+        public synchronized void refresh() throws ResolverException {
+            // See ThreadCheckingHTTPMetadataResolver#refresh: skip the base refresh() after destroy() to avoid its
+            // finally-block assert on the nulled nextRefresh; the shared instance monitor makes this check race-free.
+            if (isDestroyed()) {
+                return;
+            }
+            super.refresh();
         }
 
         @Override

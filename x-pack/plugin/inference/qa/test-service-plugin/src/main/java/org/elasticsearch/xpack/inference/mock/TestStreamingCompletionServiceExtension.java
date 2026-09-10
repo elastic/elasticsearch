@@ -37,7 +37,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.DequeUtils;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
@@ -55,7 +55,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Flow;
 
-import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResults.COMPLETION;
+import static org.elasticsearch.xpack.core.inference.results.CompletionResults.COMPLETION;
 
 public class TestStreamingCompletionServiceExtension implements InferenceServiceExtension {
     @Override
@@ -205,9 +205,9 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             );
         }
 
-        private StreamingChatCompletionResults makeChatCompletionResults(List<String> input) {
+        private StreamingCompletionResults makeChatCompletionResults(List<String> input) {
             var responseIter = input.stream().map(s -> s.toUpperCase(Locale.ROOT)).iterator();
-            return new StreamingChatCompletionResults(subscriber -> {
+            return new StreamingCompletionResults(subscriber -> {
                 subscriber.onSubscribe(new Flow.Subscription() {
                     @Override
                     public void request(long n) {

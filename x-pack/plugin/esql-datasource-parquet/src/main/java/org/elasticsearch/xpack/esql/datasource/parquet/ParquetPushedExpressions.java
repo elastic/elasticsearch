@@ -442,10 +442,10 @@ final class ParquetPushedExpressions {
         if (value == null && op.isOrdered()) {
             return null;
         }
-        // IS NULL / IS NOT NULL (null-valued EQ/NOT_EQ) over a list column (resolves to a LIST group,
-        // not a primitive) must decline: pushing notEq(column("v"), null) names a leaf-absent column
-        // that parquet-mr drops entirely. The null-mask evaluator that answers instead is multivalue-safe.
-        // esql-planning#1056.
+        // IS NULL / IS NOT NULL (null-valued EQ/NOT_EQ) over a list must decline: a 3-level LIST
+        // attribute is a group (resolver returns null); a 2-level repeated leaf is a primitive that
+        // parquet-mr still rejects (maxRepLevel > 0). resolveNestedPrimitive covers both.
+        // FilterExec's MV-safe evaluator answers instead. esql-planning#1056.
         if (value == null && resolveNestedPrimitive(schema, columnName) == null) {
             return null;
         }
@@ -672,9 +672,13 @@ final class ParquetPushedExpressions {
      * Resolves a (possibly dotted) {@code name} to the leaf {@link PrimitiveType} in {@code schema}.
      * Applies the same D2 precedence as the prior PR's projection-time flattener: a literal
      * top-level field named exactly {@code "a.b.c"} wins over the dotted-path traversal
-     * {@code a -> b -> c}. Returns {@code null} when the path is missing or lands on a group
-     * (e.g. an intermediate STRUCT, MAP, or LIST) rather than a primitive — predicate pushdown
-     * is only meaningful at primitive leaves.
+     * {@code a -> b -> c}. Returns {@code null} when the path is missing, lands on a group
+     * (e.g. an intermediate STRUCT, MAP, or LIST) rather than a primitive, or any type on the
+     * resolved path is {@link Type.Repetition#REPEATED}. parquet-mr FilterPredicates cannot
+     * target a repeated column ({@code maxRepLevel > 0}); a 2-level {@code repeated} leaf is a
+     * primitive, so the path-wide repetition check is required in addition to the group check.
+     * A 3-level LIST attribute is still a group and still returns {@code null}. Predicate
+     * pushdown is only meaningful at non-repeated primitive leaves.
      *
      * <p>This is the single dotted-path resolver used by {@link #isPhysicalDouble} and
      * {@link #buildDatetimePredicate} (and {@link #translateDatetimeIn}). Translation of the
@@ -687,8 +691,7 @@ final class ParquetPushedExpressions {
     @Nullable
     static PrimitiveType resolveNestedPrimitive(MessageType schema, String dottedName) {
         if (schema.containsField(dottedName)) {
-            Type leaf = schema.getType(dottedName);
-            return leaf.isPrimitive() ? leaf.asPrimitiveType() : null;
+            return pushablePrimitive(schema.getType(dottedName));
         }
         // Walk left-to-right, allowing literal-dot top-level prefixes to compose with nested
         // children — the exact-name fast path above already handled the no-dot case. Probe each
@@ -701,6 +704,7 @@ final class ParquetPushedExpressions {
             String topLevel = dottedName.substring(0, probeDot);
             if (schema.containsField(topLevel)) {
                 Type field = schema.getType(topLevel);
+                boolean repeatedOnPath = field.isRepetition(Type.Repetition.REPEATED);
                 for (int i = prefixLen; i < segments.length; i++) {
                     if (field.isPrimitive()) {
                         return null;
@@ -711,13 +715,30 @@ final class ParquetPushedExpressions {
                         break;
                     }
                     field = group.getType(segments[i]);
+                    repeatedOnPath |= field.isRepetition(Type.Repetition.REPEATED);
                 }
-                if (field != null && field.isPrimitive()) {
-                    return field.asPrimitiveType();
+                if (repeatedOnPath == false) {
+                    PrimitiveType primitive = pushablePrimitive(field);
+                    if (primitive != null) {
+                        return primitive;
+                    }
                 }
             }
             probeDot = dottedName.indexOf('.', probeDot + 1);
             prefixLen++;
+        }
+        return null;
+    }
+
+    /**
+     * A FilterPredicate host must be a non-{@link Type.Repetition#REPEATED} primitive. Groups
+     * (LIST/STRUCT/MAP) and repeated leaves both decline; the latter is parquet-mr's
+     * {@code maxRepLevel > 0} without needing a {@code ColumnDescriptor}.
+     */
+    @Nullable
+    private static PrimitiveType pushablePrimitive(Type type) {
+        if (type != null && type.isPrimitive() && type.isRepetition(Type.Repetition.REPEATED) == false) {
+            return type.asPrimitiveType();
         }
         return null;
     }
@@ -1391,9 +1412,10 @@ final class ParquetPushedExpressions {
     // top-level conjuncts the most recent evaluateFilter actually walked before either
     // short-circuiting on an empty mask or running to completion.
     // {@code lastEvaluateExpressionCalls} counts every entry to {@code evaluateExpression}
-    // — including recursive descents into nested And/Or — and resets at the start of each
-    // evaluateFilter. The pair lets tests distinguish the top-level loop's early exit from
-    // the nested-And short-circuit. Production code does not read these fields.
+    // and {@code evaluateNot} — including recursive descents into nested And/Or/Not — and
+    // resets at the start of each evaluateFilter. The pair lets tests distinguish the
+    // top-level loop's early exit from the nested-And short-circuit. Production code does
+    // not read these fields.
     private int lastExpressionsEvaluated;
     private int lastEvaluateExpressionCalls;
 
@@ -1516,39 +1538,7 @@ final class ParquetPushedExpressions {
             return null;
         }
         if (expr instanceof Not not) {
-            // NOT (LIKE-family) needs TVL: null rows must stay filtered out, so each LIKE-family
-            // child routes through a tvlNegate helper instead of the generic bitwise negate below.
-            // YES pushability of WildcardLike/Contains/EndsWith depends on this branch.
-            if (not.field() instanceof WildcardLike wl) {
-                Block block = namedBlock(wl.field(), blocks);
-                return block == null ? null : evaluateNotWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
-            }
-            if (not.field() instanceof StartsWith sw) {
-                Block block = namedBlock(sw.singleValueField(), blocks);
-                return block == null ? null : evaluateNotStartsWith(sw, block, rowCount, intermediateMask, dictCache);
-            }
-            if (not.field() instanceof Contains c) {
-                Block block = namedBlock(c.singleValueField(), blocks);
-                return block == null ? null : evaluateNotContains(c, block, rowCount, intermediateMask, dictCache);
-            }
-            if (not.field() instanceof EndsWith ew) {
-                Block block = namedBlock(ew.singleValueField(), blocks);
-                return block == null ? null : evaluateNotEndsWith(ew, block, rowCount, intermediateMask, dictCache);
-            }
-            WordMask inner = evaluateExpression(not.field(), blocks, rowCount, intermediateMask, dictCache);
-            if (inner != null) {
-                // For value predicates on a single column, MV positions were correctly set to bit 0
-                // by the inner evaluator. A plain negate() would flip them to bit 1 (survivors),
-                // causing unnecessary Parquet decoding for every MV row. The RECHECK safety net
-                // still corrects results, but tvlNegate avoids the decoding cost.
-                Block valueBlock = valueColumnBlockForNot(not.field(), blocks);
-                if (valueBlock != null) {
-                    return tvlNegate(inner, valueBlock, rowCount);
-                }
-                inner.negate();
-                return inner;
-            }
-            return null;
+            return evaluateNot(not.field(), blocks, rowCount, intermediateMask, dictCache);
         }
         if (expr instanceof StartsWith sw) {
             Block block = namedBlock(sw.singleValueField(), blocks);
@@ -1565,6 +1555,85 @@ final class ParquetPushedExpressions {
         if (expr instanceof WildcardLike wl) {
             Block block = namedBlock(wl.field(), blocks);
             return block == null ? null : evaluateWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
+        }
+        return null;
+    }
+
+    // Evaluates the inner of a Not. Compound inners are De Morgan'd so a partial (over-admitting)
+    // AND is never bitwise-negated; LIKE-family children keep their TVL helpers. Recurses on the
+    // existing children rather than allocating Not wrappers or calling And.negate()/Or.negate()
+    // (those rewrite Equals to NotEquals in the tree this evaluator walks).
+    // Not(And) must stay RECHECK: De Morgan is TVL-exact when both arms evaluate, but an arm
+    // unevaluable at runtime (e.g. Range over keyword) makes the whole mask null / all-survive,
+    // the same YES-unsafe hazard as Or.
+    private WordMask evaluateNot(
+        Expression inner,
+        Map<String, Block> blocks,
+        int rowCount,
+        @Nullable WordMask intermediateMask,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
+        lastEvaluateExpressionCalls++;
+        // NOT (LIKE-family) needs TVL: null rows must stay filtered out, so each LIKE-family
+        // child routes through a tvlNegate helper instead of the generic bitwise negate below.
+        // YES pushability of WildcardLike/Contains/EndsWith depends on this branch.
+        if (inner instanceof WildcardLike wl) {
+            Block block = namedBlock(wl.field(), blocks);
+            return block == null ? null : evaluateNotWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
+        }
+        if (inner instanceof StartsWith sw) {
+            Block block = namedBlock(sw.singleValueField(), blocks);
+            return block == null ? null : evaluateNotStartsWith(sw, block, rowCount, intermediateMask, dictCache);
+        }
+        if (inner instanceof Contains c) {
+            Block block = namedBlock(c.singleValueField(), blocks);
+            return block == null ? null : evaluateNotContains(c, block, rowCount, intermediateMask, dictCache);
+        }
+        if (inner instanceof EndsWith ew) {
+            Block block = namedBlock(ew.singleValueField(), blocks);
+            return block == null ? null : evaluateNotEndsWith(ew, block, rowCount, intermediateMask, dictCache);
+        }
+        if (inner instanceof And and) {
+            WordMask left = evaluateNot(and.left(), blocks, rowCount, intermediateMask, dictCache);
+            if (left == null) {
+                return null;
+            }
+            WordMask right = evaluateNot(and.right(), blocks, rowCount, intermediateMask, dictCache);
+            if (right != null) {
+                left.or(right);
+                return left;
+            }
+            return null;
+        }
+        if (inner instanceof Or or) {
+            WordMask left = evaluateNot(or.left(), blocks, rowCount, intermediateMask, dictCache);
+            if (left != null && left.isEmpty()) {
+                return left;
+            }
+            WordMask right = evaluateNot(or.right(), blocks, rowCount, intermediateMask, dictCache);
+            if (left != null && right != null) {
+                left.and(right);
+                return left;
+            }
+            return left != null ? left : right;
+        }
+        if (inner instanceof Not n) {
+            // Unwrap rather than negate a possibly over-admitting inner mask (e.g. Not(Or)
+            // with an unevaluable arm returns a superset; negating that under-admits).
+            return evaluateExpression(n.field(), blocks, rowCount, intermediateMask, dictCache);
+        }
+        WordMask mask = evaluateExpression(inner, blocks, rowCount, intermediateMask, dictCache);
+        if (mask != null) {
+            // For value predicates on a single column, MV positions were correctly set to bit 0
+            // by the inner evaluator. A plain negate() would flip them to bit 1 (survivors),
+            // causing unnecessary Parquet decoding for every MV row. The RECHECK safety net
+            // still corrects results, but tvlNegate avoids the decoding cost.
+            Block valueBlock = valueColumnBlockForNot(inner, blocks);
+            if (valueBlock != null) {
+                return tvlNegate(mask, valueBlock, rowCount);
+            }
+            mask.negate();
+            return mask;
         }
         return null;
     }
@@ -2152,7 +2221,7 @@ final class ParquetPushedExpressions {
      * is wrong for nulls: bit {@code 0} for "no match" is correctly flipped to bit {@code 1}, but
      * bit {@code 0} for "null" is also flipped to bit {@code 1} — and SQL TVL says
      * {@code NOT (NULL LIKE p)} is unknown and must not survive. The {@code Not(WildcardLike)}
-     * branch in {@link #evaluateExpression} routes through {@link #evaluateNotWildcardLike}, which
+     * branch in {@link #evaluateNot} routes through {@link #evaluateNotWildcardLike}, which
      * OR-s the explicit null mask before negating. <b>YES pushability for {@code NOT (col LIKE p)}
      * depends on that special case</b>, and on the gating in
      * {@link ParquetFilterPushdownSupport#isFullyEvaluable}, which only allows {@code YES} for

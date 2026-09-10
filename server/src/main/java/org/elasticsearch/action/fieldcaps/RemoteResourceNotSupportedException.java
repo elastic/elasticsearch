@@ -28,8 +28,8 @@ import java.util.stream.Collectors;
  * <p>
  * The dataset half is vestigial. It was carried when a dataset on another cluster failed a query too; a dataset is now
  * invisible across a cluster boundary, so nothing populates the list. The shape stays because changing what is on the
- * wire is not free and there is nothing to gain by it here; esql-planning#1801 takes the view rail the same way and is
- * where the class can go.
+ * wire is not free and there is nothing to gain by it here. It goes when a view stops failing across a cluster boundary
+ * as well, at which point this class and both per-kind exceptions have nothing left to report.
  */
 public class RemoteResourceNotSupportedException extends ElasticsearchException {
 

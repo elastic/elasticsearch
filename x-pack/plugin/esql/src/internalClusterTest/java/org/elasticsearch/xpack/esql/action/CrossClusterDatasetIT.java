@@ -214,6 +214,33 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
     }
 
     /**
+     * The cell no other wildcard test reaches: a pattern on a remote that cannot be skipped whose only match there is
+     * the dataset. With no index beside it to carry the result, this is where the change is furthest from the old
+     * behaviour, which failed the whole query naming the dataset. It resolves the way a pattern matching nothing
+     * anywhere resolves, and that control is what the outcome is compared against rather than a fixed expectation,
+     * since a wildcard and an exact name do not take the same branch when a remote resolves nothing.
+     */
+    public void testWildcardMatchingOnlyTheRemoteDatasetResolvesLikeAPatternMatchingNothing() {
+        assertThat(
+            outcomeShape(REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET + "*", REMOTE_DATASET),
+            equalTo(outcomeShape(REMOTE_CLUSTER_1 + ":" + NO_SUCH_NAME + "*", NO_SUCH_NAME))
+        );
+    }
+
+    /**
+     * The outcome of a query as a comparable string, whether it failed or succeeded, with the queried name replaced by
+     * a placeholder so two different names can be compared for having resolved the same way.
+     */
+    private String outcomeShape(String indexExpression, String nameToMask) {
+        try (var resp = runQuery("FROM " + indexExpression, null)) {
+            return "succeeded partial=" + resp.isPartial() + " rows=" + getValuesList(resp).size();
+        } catch (Exception e) {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            return cause.getClass().getName() + ": " + cause.getMessage().replace(nameToMask, "<name>");
+        }
+    }
+
+    /**
      * The exclusion the old rejection told authors to write still parses and still runs, now that the name it excludes
      * resolves to nothing. The spelling matters: {@code RemoteResourceNotSupportedException.exclusionsOf} builds
      * {@code <cluster>:-<name>}, so that is the form queries in the wild carry and the one that must not start failing.

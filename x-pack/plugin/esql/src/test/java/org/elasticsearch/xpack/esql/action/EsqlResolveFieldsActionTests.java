@@ -32,11 +32,16 @@ public class EsqlResolveFieldsActionTests extends ESTestCase {
 
             EsqlResolveFieldsAction.clearDatasetResolution(request);
 
-            // The whole options object is compared against the incoming one with only that flag flipped, rather than
-            // component by component, so a component added later is covered without anyone remembering to add it here.
+            // The expectation names the two sibling flags outright rather than copying them through the same builder
+            // the clear uses. Rebuilding it the same way would make both sides drop anything the copy constructor
+            // failed to carry, and the assertion would stay green on exactly the drift it is here to catch.
             var expected = IndicesOptions.builder(incoming)
                 .indexAbstractionOptions(
-                    IndicesOptions.IndexAbstractionOptions.builder(incoming.indexAbstractionOptions()).resolveDatasets(false)
+                    new IndicesOptions.IndexAbstractionOptions(
+                        incoming.indexAbstractionOptions().resolveAliases(),
+                        incoming.indexAbstractionOptions().resolveViews(),
+                        false
+                    )
                 )
                 .build();
             assertThat(request.indicesOptions(), equalTo(expected));

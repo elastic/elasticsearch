@@ -37,8 +37,9 @@ import java.util.Objects;
  *   <li>{@code PreAnalyzer} collects the pattern into the same linked-indices set {@link ViewShadowRelation}
  *       lands in, keyed by {@link #linkedIndexPattern()}.</li>
  *   <li>{@code EsqlSession.preAnalyzeLinkedIndices} issues a lenient flat field-caps request per pattern;
- *       a linked index of the same name resolves, a linked dataset/view fails on the detect rail. Results
- *       land in {@code AnalyzerContext.linkedResolution}, keyed by {@link #linkedIndexPattern()}.</li>
+ *       a linked index of the same name resolves, a linked view of the same name fails on the detect rail,
+ *       and a linked dataset of the same name is invisible and so resolves nothing. Results land in
+ *       {@code AnalyzerContext.linkedResolution}, keyed by {@link #linkedIndexPattern()}.</li>
  *   <li>The {@code ResolveDatasetShadow} analyzer rule (sibling of {@code ResolveViewShadow}) replaces the
  *       shadow with an {@code EsRelation} on a valid resolution that matched at least one linked index,
  *       else leaves it unresolved.</li>

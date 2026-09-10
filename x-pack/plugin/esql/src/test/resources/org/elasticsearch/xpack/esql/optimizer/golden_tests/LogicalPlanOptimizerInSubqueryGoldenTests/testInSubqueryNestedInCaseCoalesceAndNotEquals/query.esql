@@ -1,0 +1,2 @@
+FROM employees
+| WHERE COALESCE(CASE(emp_no IN (FROM employees | KEEP emp_no), "yes", null), "no") != "yes"

@@ -86,21 +86,23 @@ public final class SubstringEvaluator implements ExpressionEvaluator {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (strBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
               warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
               result.appendNull();
               continue position;
+        }
+        if (startBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
         }
         switch (startBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -108,10 +110,11 @@ public final class SubstringEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (lengthBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (lengthBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

@@ -88,6 +88,30 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(paramValue(out, "format"), equalTo("parquet"));
     }
 
+    public void testRemovedParquetDatasetSettingsAreStrippedOnRewrite() {
+        // Stored kill-switch keys from before they were removed must not reach config validation:
+        // mergeSettings strips them; the parent _datasource map is left alone.
+        DataSource parent = dataSource("s3_parent", Map.of("region", new DataSourceSetting("us-east-1", false)));
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        for (String key : RemovedParquetDatasetSettings.KEYS) {
+            settings.put(key, false);
+        }
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/*.parquet", null, settings);
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        LogicalPlan rewritten = rewrite(relationOf("logs"), project);
+
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        assertThat(tablePathString(out), equalTo("s3://logs/*.parquet"));
+        assertThat(datasourceParamValue(out, "region"), equalTo("us-east-1"));
+        assertThat(paramValue(out, "format"), equalTo("parquet"));
+        for (String key : RemovedParquetDatasetSettings.KEYS) {
+            assertFalse(out.config().containsKey(key));
+        }
+    }
+
     public void testDatasetSettingsOverrideParentOnKeyCollision() {
         DataSource parent = dataSource("s3_parent", Map.of("region", new DataSourceSetting("us-east-1", false)));
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of("region", "eu-west-2"));
@@ -566,7 +590,7 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     public void testWildcardAtUnionAllCapSucceeds() {
-        // UnionAll extends Fork which caps at 8 branches — the upper bound the rewriter can hand off.
+        // UnionAll extends MergePlan which caps at 8 branches — the upper bound the rewriter can hand off.
         // A wildcard expanding to exactly the cap proves the bucketing + UnionAll construction path
         // is bounded-time at the platform's largest supported shape.
         DataSource parent = dataSource("s3_parent", Map.of());
@@ -587,10 +611,10 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     public void testWildcardOverUnionAllCapRejectsWithUserFacingMessage() {
-        // A wildcard matching more than 8 datasets crosses Fork's 8-branch cap. The rewriter
+        // A wildcard matching more than 8 datasets crosses MergePlan's 8-branch cap. The rewriter
         // intercepts before constructing the UnionAll and throws a VerificationException with
         // user-facing framing — the user typed FROM <pattern>, not FORK, so the error references
-        // the pattern + the cap, not Fork's internal name.
+        // the pattern + the cap, not the internal union type name.
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
         for (int i = 0; i < 9; i++) {

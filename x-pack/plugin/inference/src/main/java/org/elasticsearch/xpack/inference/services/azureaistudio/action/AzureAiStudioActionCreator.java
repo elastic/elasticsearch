@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.action;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
@@ -19,11 +19,11 @@ import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseE
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioCompletionRequest;
 import org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioRerankRequest;
 import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankModel;
-import org.elasticsearch.xpack.inference.services.azureaistudio.response.AzureAiStudioChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.azureaistudio.response.AzureAiStudioCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.azureaistudio.response.AzureAiStudioEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.azureaistudio.response.AzureAiStudioRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.azureopenai.response.AzureMistralOpenAiExternalResponseHandler;
@@ -45,7 +45,7 @@ public class AzureAiStudioActionCreator implements AzureAiStudioActionVisitor {
 
     private static final ResponseHandler COMPLETION_HANDLER = new AzureMistralOpenAiExternalResponseHandler(
         "azure ai studio completion",
-        new AzureAiStudioChatCompletionResponseEntity(),
+        new AzureAiStudioCompletionResponseEntity(),
         ErrorMessageResponseEntity::fromResponse,
         true
     );
@@ -72,12 +72,8 @@ public class AzureAiStudioActionCreator implements AzureAiStudioActionVisitor {
             serviceComponents.threadPool(),
             overriddenModel,
             COMPLETION_HANDLER,
-            (chatCompletionInput) -> new AzureAiStudioChatCompletionRequest(
-                overriddenModel,
-                chatCompletionInput.getInputs(),
-                chatCompletionInput.stream()
-            ),
-            ChatCompletionInput.class
+            (completionInput) -> new AzureAiStudioCompletionRequest(overriddenModel, completionInput.getInputs(), completionInput.stream()),
+            CompletionInput.class
         );
         return new SenderExecutableAction(sender, requestManager, constructFailedToSendRequestMessage("Azure AI Studio completion"));
     }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.ccq;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -63,8 +64,15 @@ public class Clusters {
         if (remoteClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
             cluster.setting(localAllowedPathsSetting(remoteClusterVersion()), csvDataPath.toString());
         }
+        // The local data-source type is snapshot-on / release-off. A release BWC remote therefore rejects
+        // PUT type=local unless the flag is forced on; .feature() is a no-op on snapshots and on versions
+        // before the flag existed (9.5.0).
+        cluster.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL);
         if (knowsFederationSetting(remoteClusterVersion())) {
             cluster.setting(Federation.FEDERATION_ENABLED.getKey(), federationEnabled == null ? () -> "true" : federationEnabled);
+        }
+        if (remoteClusterSupportsInferenceTestService()) {
+            cluster.plugin("inference-service-test");
         }
         for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
             cluster.setting(entry.getKey(), entry.getValue());
@@ -258,20 +266,31 @@ public class Clusters {
         return local.before(remote) ? local : remote;
     }
 
+    /**
+     * Whether a cluster of this version can host the {@code inference-service-test} plugin. The plugin is built for
+     * the current version only, so installing it on a BWC node fails with "was built for Elasticsearch version X but
+     * version Y is running" and the node never starts. See
+     * <a href="https://github.com/elastic/elasticsearch/issues/115166">#115166</a>.
+     */
+    private static boolean supportsInferenceTestService(org.elasticsearch.Version version) {
+        return version.equals(org.elasticsearch.Version.CURRENT);
+    }
+
     public static boolean localClusterSupportsInferenceTestService() {
-        return isNewToOld();
+        return supportsInferenceTestService(localClusterVersion());
+    }
+
+    public static boolean remoteClusterSupportsInferenceTestService() {
+        return supportsInferenceTestService(remoteClusterVersion());
     }
 
     /**
-     * Returns true if the current task is a "newToOld" BWC test.
-     * Checks the tests.task system property to determine the task type.
+     * Whether both clusters can host the inference test service. Datasets whose mappings reference an inference
+     * endpoint by id - {@code semantic_text} above all - can be bulk-loaded into either cluster depending on
+     * {@code dataLocation}, so they need the endpoint to exist on both.
      */
-    private static boolean isNewToOld() {
-        String taskName = System.getProperty("tests.task");
-        if (taskName == null) {
-            return false;
-        }
-        return taskName.endsWith("#newToOld");
+    public static boolean bothClustersSupportInferenceTestService() {
+        return localClusterSupportsInferenceTestService() && remoteClusterSupportsInferenceTestService();
     }
 
     private static Version distributionVersion(String key) {

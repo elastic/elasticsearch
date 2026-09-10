@@ -123,6 +123,6 @@ public class EsqlStreamLogContextBuilderTests extends ESTestCase {
     }
 
     private static Result makeResult(EsqlExecutionInfo executionInfo) {
-        return new Result(List.of(), List.of(), Map.of(), EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, executionInfo);
+        return new Result(List.of(), List.of(), Map.of(), EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, executionInfo, null);
     }
 }

@@ -81,7 +81,7 @@ c:long
 //
 // SISTER FILE: external-multivalue.csv-spec at esql:qa:testFixtures carries the identical
 // employees query shapes WITHOUT the multi_value_syntax opt-in, for the non-CSV format ITs (Parquet,
-// ORC, NDJSON, Parquet-rs, ExternalDistributedSpecIT) which decode arrays natively. When
+// ORC, NDJSON, ExternalDistributedSpecIT) which decode arrays natively. When
 // adding / changing a query here, mirror it there (or vice versa).
 
 mvExpandFromSplit

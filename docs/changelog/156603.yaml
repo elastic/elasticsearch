@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 156603
-summary: Fix `BroadcastMessageAction` request serialization
-type: bug

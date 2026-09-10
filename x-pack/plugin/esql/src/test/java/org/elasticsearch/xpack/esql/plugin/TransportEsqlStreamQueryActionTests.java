@@ -349,8 +349,22 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
         assertFalse("executionInfo must start as non-partial", executionInfo.isPartial());
 
-        DriverCompletionInfo partialCompletion = new DriverCompletionInfo(0, 0, 0, 0, 0, 0, List.of(), List.of(), Map.of(), true, Set.of());
-        Result partialResult = new Result(List.of(), List.of(), Map.of(), EsqlTestUtils.TEST_CFG, partialCompletion, executionInfo);
+        DriverCompletionInfo partialCompletion = new DriverCompletionInfo(
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            List.of(),
+            List.of(),
+            Map.of(),
+            true,
+            false,
+            Set.of()
+        );
+        Result partialResult = new Result(List.of(), List.of(), Map.of(), EsqlTestUtils.TEST_CFG, partialCompletion, executionInfo, null);
         TransportEsqlStreamQueryAction.markPartialFromCompletionInfo(partialResult);
         assertTrue("is_partial must be true when completionInfo.partial() is true", executionInfo.isPartial());
     }
@@ -364,9 +378,11 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            0,
             List.of(),
             List.of(),
             Map.of(),
+            false,
             false,
             Set.of("eval failure: bad value")
         );
@@ -392,9 +408,11 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            0,
             List.of(),
             List.of(),
             Map.of(),
+            false,
             false,
             Set.of(sharedWarning)
         );
@@ -420,7 +438,8 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             Map.of(),
             EsqlTestUtils.TEST_CFG,
             DriverCompletionInfo.EMPTY,
-            executionInfo
+            executionInfo,
+            null
         );
         TransportEsqlStreamQueryAction.markPartialFromCompletionInfo(nonPartialResult);
         assertFalse("is_partial must remain false when completionInfo.partial() is false", executionInfo.isPartial());

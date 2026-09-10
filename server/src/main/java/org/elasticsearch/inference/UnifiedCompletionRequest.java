@@ -357,9 +357,11 @@ public record UnifiedCompletionRequest(
                     * RamUsageEstimator.NUM_BYTES_OBJECT_REF
             ) + tools().stream().mapToLong(Tool::ramBytesUsed).sum();
         var reasoningRamBytesUsed = reasoning() == null ? 0L : reasoning().ramBytesUsed();
+        var cacheControlRamBytesUsed = containsChatCompletionCacheControl() ? cacheControl().ramBytesUsed() : 0L;
+        var sessionIdRamBytesUsed = RamUsageEstimator.sizeOf(sessionId());
 
         return SHALLOW_SIZE + messagesRamBytesUsed + modelRamBytesUsed + toolChoicesRamBytesUsed + stopRamBytesUsed + toolsRamBytesUsed
-            + reasoningRamBytesUsed;
+            + reasoningRamBytesUsed + cacheControlRamBytesUsed + sessionIdRamBytesUsed;
     }
 
     private static ToolChoice parseToolChoice(XContentParser parser) throws IOException {

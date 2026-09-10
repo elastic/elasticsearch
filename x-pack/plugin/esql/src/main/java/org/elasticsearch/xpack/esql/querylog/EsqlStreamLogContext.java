@@ -90,7 +90,15 @@ class EsqlStreamLogContext extends EsqlLogContext {
     Optional<RollupCounters> getRollupCounters() {
         var ci = result.completionInfo();
         return Optional.of(
-            new RollupCounters(ci.documentsFound(), ci.valuesLoaded(), ci.rowsEmitted(), ci.bytesRead(), ci.readNanos(), ci.cpuNanos())
+            new RollupCounters(
+                ci.documentsFound(),
+                ci.valuesLoaded(),
+                ci.rowsEmitted(),
+                ci.bytesRead(),
+                ci.readNanos(),
+                ci.readCpuNanos(),
+                ci.cpuNanos()
+            )
         );
     }
 }

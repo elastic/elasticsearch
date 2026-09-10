@@ -696,7 +696,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             Set<FunctionSignatures.ConcreteSignature> filteredDeclared = filterUnderConstruction(declaredSignatures);
             Set<FunctionSignatures.ConcreteSignature> filteredTested = filterUnderConstruction(testedSignatures);
             assertSignaturesMatchTests(filteredDeclared, filteredTested);
-            for (FunctionSignatures.ConcreteSignature entry : filteredDeclared) {
+            // Collect @Param coverage from every declared overload, including those filtered
+            // above because an argument or return type is still under construction.
+            for (FunctionSignatures.ConcreteSignature entry : declaredSignatures) {
                 collectPositionalTypes(args, entry.argTypes(), typesFromSignature);
                 if (DataType.UNDER_CONSTRUCTION.contains(entry.returnType()) == false) {
                     returnFromSignature.add(entry.returnType().esNameIfPossible());

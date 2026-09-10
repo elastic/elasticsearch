@@ -12,12 +12,15 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -25,7 +28,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.MAX_ZOOM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.containsString;
 
 public class StGeotileTests extends SpatialGridFunctionTestCase {
@@ -45,18 +49,40 @@ public class StGeotileTests extends SpatialGridFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        addTestCaseSuppliers(suppliers, new DataType[] { GEO_POINT }, GEOTILE, StGeotileTests::valueOf, StGeotileTests::boundedValueOf);
+        addTestCaseSuppliers(
+            suppliers,
+            new DataType[] { GEO_POINT, GEO_SHAPE },
+            GEOTILE,
+            StGeotileTests::valueOf,
+            StGeotileTests::boundedValueOf
+        );
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
-    private static long valueOf(BytesRef wkb, int precision) {
-        return StGeotile.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb), precision);
+    private static Object valueOf(BytesRef wkb, int precision) {
+        Geometry geometry = GEO.wkbToGeometry(wkb);
+        if (geometry instanceof Point point) {
+            return StGeotile.unboundedGrid.calculateGridId(point, precision);
+        }
+        try {
+            return SpatialGridFunction.foldMultiValue(StGeotile.computeGeotileCells(wkb, precision, null));
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to compute geotile for geo_shape", e);
+        }
     }
 
-    private static Long boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox) {
-        StGeotile.GeoTileBoundedGrid bounds = new StGeotile.GeoTileBoundedGrid.Factory(precision, bbox).get(null);
-        long gridId = bounds.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb));
-        return gridId < 0 ? null : gridId;
+    private static Object boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox) {
+        Geometry geometry = GEO.wkbToGeometry(wkb);
+        if (geometry instanceof Point point) {
+            StGeotile.GeoTileBoundedGrid bounds = new StGeotile.GeoTileBoundedGrid.Factory(precision, bbox).get(null);
+            long gridId = bounds.calculateGridId(point);
+            return gridId < 0 ? null : gridId;
+        }
+        try {
+            return SpatialGridFunction.foldMultiValue(StGeotile.computeGeotileCells(wkb, precision, bbox));
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to compute geotile for geo_shape", e);
+        }
     }
 
     @Override

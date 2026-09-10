@@ -12,9 +12,12 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -70,6 +73,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
@@ -1140,6 +1144,131 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * A rejected breaker charge in {@code takeOrAllocateBuffer} must not leave {@code buffersAllocated}
+     * inflated. If the counter exceeds the number of successful charges, {@code close()} refunds more
+     * than was taken — driving the breaker's {@code used} negative and removing protection for the
+     * next request. Fix: claim the slot atomically and roll it back on the exception path.
+     */
+    public void testBreakerChargeIsRefundedExactlyOnRejection() throws Exception {
+        int chunkSize = 64;
+        // Trip on the very first allocation so the rejection path is always exercised. The @After
+        // allBreakersMemoryReleased() assertion then verifies that close() leaves used == 0.
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(0));
+
+        // Enough content to trigger multiple buffer allocations from the segmentator.
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 30; i++) {
+            sb.append("line-").append(i).append('\n');
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(chunkSize);
+            CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                new ByteArrayInputStream(bytes),
+                null,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                breaker
+            );
+            expectThrows(CircuitBreakingException.class, () -> {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            });
+            it.close();
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals("breaker net bytes must be 0 after close; a negative value means close() over-refunded", 0L, breaker.getUsed());
+    }
+
+    /**
+     * {@code close()} must be safe to call concurrently: no caller throws, and the breaker ends
+     * balanced rather than over-refunded.
+     * <p>
+     * Note this asserts the <em>property</em>, not the mechanism. The refund reads its tally with
+     * {@code buffersAllocated.getAndSet(0)}, so only one caller can ever observe a non-zero value —
+     * that alone makes a double refund impossible, and this test still passes if the {@code closed}
+     * CAS in {@code close()} is downgraded to a check-then-act (verified by reverting it). The CAS
+     * earns its keep by keeping the <em>rest</em> of the close body (queue drain, stream release,
+     * stats poisoning) single-shot; that is not what this test pins down.
+     */
+    public void testConcurrentCloseDoesNotDoubleRefund() throws Exception {
+        int chunkSize = 64;
+        // Generous enough never to trip: this test is about the refund path, not the charge path.
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+
+        String content = buildContent(10);
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(chunkSize);
+            CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                new ByteArrayInputStream(bytes),
+                null,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                breaker
+            );
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+
+            CountDownLatch start = new CountDownLatch(1);
+            CountDownLatch done = new CountDownLatch(2);
+            List<Throwable> errors = new CopyOnWriteArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                executor.execute(() -> {
+                    try {
+                        start.await();
+                        it.close();
+                    } catch (Throwable t) {
+                        // Throwable, not Exception: an over-refund makes LimitedBreaker's
+                        // addWithoutBreaking throw AssertionError, which must be reported here
+                        // rather than silently escaping to the executor's uncaught handler.
+                        errors.add(t);
+                    } finally {
+                        done.countDown();
+                    }
+                });
+            }
+            start.countDown();
+            assertTrue("concurrent closers did not finish in time", done.await(10, TimeUnit.SECONDS));
+            assertTrue("close() must not throw: " + errors, errors.isEmpty());
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals("concurrent close must not double-refund the breaker", 0L, breaker.getUsed());
+    }
+
     private static String buildContent(int lineCount) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lineCount; i++) {
@@ -1664,6 +1793,42 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 }
             }
             assertEquals(recordCount, totalRows);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    public void testAcceptReadCpuNanosCalledOnClose() throws Exception {
+        int lineCount = 100;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        AtomicLong capturedNanos = new AtomicLong(-1L);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader baseReader = new LineFormatReader(1024) {
+                @Override
+                public void acceptReadCpuNanos(long nanos) {
+                    capturedNanos.set(nanos);
+                }
+            };
+            try (
+                CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                    baseReader,
+                    stream,
+                    List.of("line"),
+                    50,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            }
+            // close() must have called acceptReadCpuNanos (initial value was -1)
+            assertTrue("acceptReadCpuNanos must be called on close", capturedNanos.get() >= 0);
         } finally {
             executor.shutdownNow();
         }

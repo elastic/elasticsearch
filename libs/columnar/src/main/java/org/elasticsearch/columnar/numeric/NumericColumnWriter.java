@@ -18,6 +18,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 import org.elasticsearch.columnar.substrate.ColumnIteratorWriter;
+import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.IOException;
 
@@ -30,12 +31,9 @@ import java.io.IOException;
  * both address tables — the per-block byte offsets and, when the column is multi-valued, the
  * per-document value addresses — are written through {@link MonotonicWriter} to temporary files. The
  * value-address table is written only when {@code numValues > numDocsWithField}; otherwise a
- * document's ordinal is its iterator rank.
+ * document's value address is its iterator rank.
  */
 public final class NumericColumnWriter {
-
-    /** Monotonic block shift for the offset tables. */
-    static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
 
     private NumericColumnWriter() {}
 
@@ -57,6 +55,7 @@ public final class NumericColumnWriter {
      * @param directory        directory used for the temporary table files
      * @param context          IO context for the temporary table files
      * @param data             data output (iterator, value blocks, and tables are appended)
+     * @param skipIndex        skip-index output (the skip region is appended)
      */
     public static NumericColumnMetadata write(
         int maxDoc,
@@ -68,7 +67,8 @@ public final class NumericColumnWriter {
         SkipIndexCodec skipCodec,
         Directory directory,
         IOContext context,
-        IndexOutput data
+        IndexOutput data,
+        IndexOutput skipIndex
     ) throws IOException {
         ColumnIteratorMetadata iterator = ColumnIteratorWriter.write(cursors.get(), numDocsWithField, maxDoc, data);
         if (numDocsWithField == 0) {
@@ -80,23 +80,11 @@ public final class NumericColumnWriter {
         long numBlocks = (numValues + blockSize - 1) / blockSize;
         long valuesOffset = data.getFilePointer();
 
-        MonotonicWriter blockOffsets = new MonotonicWriter(
-            directory,
-            context,
-            data.getName(),
-            numBlocks + 1L,
-            DIRECT_MONOTONIC_BLOCK_SHIFT
-        );
+        MonotonicWriter blockOffsets = new MonotonicWriter(directory, context, data.getName(), numBlocks + 1L);
         MonotonicWriter valueAddresses = null;
         try {
             if (multiValued) {
-                valueAddresses = new MonotonicWriter(
-                    directory,
-                    context,
-                    data.getName(),
-                    numDocsWithField + 1L,
-                    DIRECT_MONOTONIC_BLOCK_SHIFT
-                );
+                valueAddresses = new MonotonicWriter(directory, context, data.getName(), numDocsWithField + 1L);
             }
 
             NumericBlockEncoder encoder = new NumericBlockEncoder(pipeline, blockSize);
@@ -106,12 +94,12 @@ public final class NumericColumnWriter {
             int[] blockValueCount = new int[1];
             BlockBytesCodec.BlockEncoder blockEncoder = out -> encoder.encode(buffer, blockValueCount[0], out);
             int inBlock = 0;
-            long ordinal = 0;
+            long valueAddress = 0;
             SkipIndexCodec.Writer skip = skipCodec == null ? null : skipCodec.writer();
             NumericColumnValues values = cursors.get();
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                 if (multiValued) {
-                    valueAddresses.add(ordinal);
+                    valueAddresses.add(valueAddress);
                 }
                 int count = values.valueCount();
                 if (skip != null) {
@@ -126,7 +114,7 @@ public final class NumericColumnWriter {
                         skip.add(value);
                     }
                     buffer[inBlock++] = value;
-                    ordinal++;
+                    valueAddress++;
                     if (inBlock == blockSize) {
                         blockValueCount[0] = blockSize;
                         blockBytesCodec.write(blockEncoder, data);
@@ -141,16 +129,16 @@ public final class NumericColumnWriter {
                 blockBytesCodec.write(blockEncoder, data);
             }
             if (multiValued) {
-                valueAddresses.add(ordinal);
+                valueAddresses.add(valueAddress);
             }
             blockOffsets.add(data.getFilePointer() - valuesOffset);
 
             MonotonicWriter.Table blocks = blockOffsets.finish(data);
             MonotonicWriter.Table addresses = multiValued ? valueAddresses.finish(data) : MonotonicWriter.Table.NONE;
 
-            // The skip region is appended after the value blocks and tables: the writer buffered its
-            // bytes while being fed inline, so its recorded offset is the data pointer here.
-            NumericColumnMetadata.Skipper skipper = skip == null ? null : skip.finish(data);
+            // The writer buffered the skip bytes while being fed inline; they are flushed here, so the
+            // recorded offset is the skip-index file's pointer.
+            NumericColumnMetadata.Skipper skipper = skip == null ? null : skip.finish(skipIndex);
 
             return new NumericColumnMetadata(
                 iterator,

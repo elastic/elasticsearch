@@ -83,6 +83,14 @@ public @interface LibrarySpecification {
     String name() default "";
 
     /**
+     * When {@code true}, the library named by {@link #name()} is loaded with
+     * {@link System#loadLibrary(String)} — an OS-resolved system library, such as Windows
+     * {@code kernel32} — rather than from the Elasticsearch bundled platform directory via
+     * {@link LoaderHelper#loadLibrary}. Requires a non-empty {@link #name()}.
+     */
+    boolean system() default false;
+
+    /**
      * Platforms where this library is not available. When the current platform matches any entry,
      * {@link LibraryProvider#lookupLibrary(Class)} returns {@code null} for this library without
      * attempting a native load. An empty array (the default) means the library is available on

@@ -92,8 +92,14 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAc
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.CreateUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
@@ -169,6 +175,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -334,6 +341,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 LoggingAuditTrail.INCLUDE_EVENT_SETTINGS,
                 LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS,
                 LoggingAuditTrail.INCLUDE_REQUEST_BODY,
+                LoggingAuditTrail.MAX_REQUEST_BODY_SIZE,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_PRINCIPALS,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_REALMS,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_ROLES,
@@ -1568,34 +1576,32 @@ public class LoggingAuditTrailTests extends ESTestCase {
             tokenName
         );
 
-        auditTrail.accessGranted(
-            requestId,
-            authentication,
-            CreateServiceAccountTokenAction.NAME,
-            createServiceAccountTokenRequest,
-            authorizationInfo
-        );
-        List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
-        assertThat(output.size(), is(2));
-        String generatedCreateServiceAccountTokenAuditEventString = output.get(1);
+        for (String actionName : List.of(CreateServiceAccountTokenAction.NAME, CreateUserManagedServiceAccountTokenAction.NAME)) {
+            auditTrail.accessGranted(requestId, authentication, actionName, createServiceAccountTokenRequest, authorizationInfo);
+            List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+            assertThat(output.size(), is(2));
+            String generatedCreateServiceAccountTokenAuditEventString = output.get(1);
 
-        final String expectedCreateServiceAccountTokenAuditEventString = Strings.format("""
-            "create":{"service_token":{"namespace":"%s","service":"%s","name":"%s"}}""", namespace, serviceName, tokenName);
-        assertThat(generatedCreateServiceAccountTokenAuditEventString, containsString(expectedCreateServiceAccountTokenAuditEventString));
-        generatedCreateServiceAccountTokenAuditEventString = generatedCreateServiceAccountTokenAuditEventString.replace(
-            ", " + expectedCreateServiceAccountTokenAuditEventString,
-            ""
-        );
-        Map<String, String> checkedFields = new HashMap<>(commonFields);
-        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
-        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
-        checkedFields.put("type", "audit");
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
-        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "create_service_token");
-        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
-        assertMsg(generatedCreateServiceAccountTokenAuditEventString, checkedFields);
-        // clear log
-        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+            final String expectedCreateServiceAccountTokenAuditEventString = Strings.format("""
+                "create":{"service_token":{"namespace":"%s","service":"%s","name":"%s"}}""", namespace, serviceName, tokenName);
+            assertThat(
+                generatedCreateServiceAccountTokenAuditEventString,
+                containsString(expectedCreateServiceAccountTokenAuditEventString)
+            );
+            generatedCreateServiceAccountTokenAuditEventString = generatedCreateServiceAccountTokenAuditEventString.replace(
+                ", " + expectedCreateServiceAccountTokenAuditEventString,
+                ""
+            );
+            Map<String, String> checkedFields = new HashMap<>(commonFields);
+            checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+            checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+            checkedFields.put("type", "audit");
+            checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
+            checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "create_service_token");
+            checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+            assertMsg(generatedCreateServiceAccountTokenAuditEventString, checkedFields);
+            CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        }
 
         final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest = new DeleteServiceAccountTokenRequest(
             namespace,
@@ -1603,22 +1609,118 @@ public class LoggingAuditTrailTests extends ESTestCase {
             tokenName
         );
 
+        for (String actionName : List.of(DeleteServiceAccountTokenAction.NAME, DeleteUserManagedServiceAccountTokenAction.NAME)) {
+            auditTrail.accessGranted(requestId, authentication, actionName, deleteServiceAccountTokenRequest, authorizationInfo);
+            List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+            assertThat(output.size(), is(2));
+            String generatedDeleteServiceAccountTokenAuditEventString = output.get(1);
+
+            final String expectedDeleteServiceAccountTokenAuditEventString = Strings.format("""
+                "delete":{"service_token":{"namespace":"%s","service":"%s","name":"%s"}}""", namespace, serviceName, tokenName);
+            assertThat(
+                generatedDeleteServiceAccountTokenAuditEventString,
+                containsString(expectedDeleteServiceAccountTokenAuditEventString)
+            );
+            generatedDeleteServiceAccountTokenAuditEventString = generatedDeleteServiceAccountTokenAuditEventString.replace(
+                ", " + expectedDeleteServiceAccountTokenAuditEventString,
+                ""
+            );
+            Map<String, String> checkedFields = new HashMap<>(commonFields);
+            checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+            checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+            checkedFields.put("type", "audit");
+            checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
+            checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_service_token");
+            checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+            assertMsg(generatedDeleteServiceAccountTokenAuditEventString, checkedFields);
+            CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        }
+    }
+
+    public void testSecurityConfigChangeEventFormattingForUserManagedServiceAccount() {
+        final String requestId = randomRequestId();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+        final Authentication authentication = createAuthentication();
+
+        final String namespace = randomAlphaOfLengthBetween(3, 8);
+        final String serviceName = randomAlphaOfLengthBetween(3, 8);
+        final List<String> accountRoles = randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8));
+        final boolean enabled = randomBoolean();
+        final String expectedAccountRolesJson = accountRoles.stream()
+            .map(role -> "\"" + role + "\"")
+            .collect(Collectors.joining(",", "[", "]"));
+        final PutUserManagedServiceAccountRequest putUserManagedServiceAccountRequest = new PutUserManagedServiceAccountRequest(
+            namespace,
+            serviceName,
+            accountRoles,
+            enabled
+        );
+
         auditTrail.accessGranted(
             requestId,
             authentication,
-            DeleteServiceAccountTokenAction.NAME,
-            deleteServiceAccountTokenRequest,
+            PutUserManagedServiceAccountAction.NAME,
+            putUserManagedServiceAccountRequest,
+            authorizationInfo
+        );
+        List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedPutUserManagedServiceAccountAuditEventString = output.get(1);
+
+        final String expectedPutUserManagedServiceAccountAuditEventString = Strings.format(
+            """
+                "put":{"user_managed_service_account":{"namespace":"%s","service":"%s","roles":%s,"enabled":%s}}""",
+            namespace,
+            serviceName,
+            expectedAccountRolesJson,
+            enabled
+        );
+        assertThat(
+            generatedPutUserManagedServiceAccountAuditEventString,
+            containsString(expectedPutUserManagedServiceAccountAuditEventString)
+        );
+        generatedPutUserManagedServiceAccountAuditEventString = generatedPutUserManagedServiceAccountAuditEventString.replace(
+            ", " + expectedPutUserManagedServiceAccountAuditEventString,
+            ""
+        );
+        Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit");
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_user_managed_service_account");
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedPutUserManagedServiceAccountAuditEventString, checkedFields);
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        final boolean force = randomBoolean();
+        final DeleteUserManagedServiceAccountRequest deleteUserManagedServiceAccountRequest = new DeleteUserManagedServiceAccountRequest(
+            namespace,
+            serviceName,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL,
+            force
+        );
+
+        auditTrail.accessGranted(
+            requestId,
+            authentication,
+            DeleteUserManagedServiceAccountAction.NAME,
+            deleteUserManagedServiceAccountRequest,
             authorizationInfo
         );
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
-        String generatedDeleteServiceAccountTokenAuditEventString = output.get(1);
+        String generatedDeleteUserManagedServiceAccountAuditEventString = output.get(1);
 
-        final String expectedDeleteServiceAccountTokenAuditEventString = Strings.format("""
-            "delete":{"service_token":{"namespace":"%s","service":"%s","name":"%s"}}""", namespace, serviceName, tokenName);
-        assertThat(generatedDeleteServiceAccountTokenAuditEventString, containsString(expectedDeleteServiceAccountTokenAuditEventString));
-        generatedDeleteServiceAccountTokenAuditEventString = generatedDeleteServiceAccountTokenAuditEventString.replace(
-            ", " + expectedDeleteServiceAccountTokenAuditEventString,
+        final String expectedDeleteUserManagedServiceAccountAuditEventString = Strings.format("""
+            "delete":{"user_managed_service_account":{"namespace":"%s","service":"%s","force":%s}}""", namespace, serviceName, force);
+        assertThat(
+            generatedDeleteUserManagedServiceAccountAuditEventString,
+            containsString(expectedDeleteUserManagedServiceAccountAuditEventString)
+        );
+        generatedDeleteUserManagedServiceAccountAuditEventString = generatedDeleteUserManagedServiceAccountAuditEventString.replace(
+            ", " + expectedDeleteUserManagedServiceAccountAuditEventString,
             ""
         );
         checkedFields = new HashMap<>(commonFields);
@@ -1626,10 +1728,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
         checkedFields.put("type", "audit");
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
-        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_service_token");
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_user_managed_service_account");
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
-        assertMsg(generatedDeleteServiceAccountTokenAuditEventString, checkedFields);
-        // clear log
+        assertMsg(generatedDeleteUserManagedServiceAccountAuditEventString, checkedFields);
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
     }
 
@@ -2070,6 +2171,36 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertEmptyLog(logger);
     }
 
+    public void testCustomizerSeesUserFullNameAndEmail() throws Exception {
+        final User user = new User("u1", new String[] { "r1" }, "Ada Lovelace", "ada@example.com", Map.of(), true);
+        final Authentication authentication = AuthenticationTestHelper.builder().user(user).build(false);
+        final AtomicBoolean rewriteRan = new AtomicBoolean();
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public Message rewrite(AuditEventContext ctx, MapMessage<?, ?> entry) {
+                    assertThat(entry.get(LoggingAuditTrail.PRINCIPAL_FULL_NAME_FIELD_NAME), equalTo(user.fullName()));
+                    assertThat(entry.get(LoggingAuditTrail.PRINCIPAL_EMAIL_FIELD_NAME), equalTo(user.email()));
+                    rewriteRan.set(true);
+                    return entry;
+                }
+            }
+        );
+
+        auditTrail.accessGranted(
+            randomRequestId(),
+            authentication,
+            "_action",
+            new MockRequest(threadContext),
+            () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, user.roles())
+        );
+        assertTrue(rewriteRan.get());
+    }
+
     public void testCustomizerCanSuppressAuditEntry() throws Exception {
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
             settings,
@@ -2216,6 +2347,31 @@ public class LoggingAuditTrailTests extends ESTestCase {
         );
     }
 
+    public void testCustomizerDoesNotSeeFailedRealm() throws Exception {
+        // realm_authentication_failed is the realm that rejected the token, not the authenticating realm.
+        // A customizer that suppresses on that realm must not drop the event; the realm still appears on the log line.
+        final String realm = randomAlphaOfLengthBetween(1, 6);
+        final AuthenticationToken authToken = mockToken();
+        final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
+        final String requestId = randomRequestId();
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "realm_authentication_failed").build(),
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public boolean suppress(AuditEventContext ctx) {
+                    return realm.equals(ctx.realm());
+                }
+            }
+        );
+
+        auditTrail.authenticationFailed(requestId, realm, authToken, "_action", request);
+
+        assertThat(singleLogLine(logger), containsString("\"" + LoggingAuditTrail.REALM_FIELD_NAME + "\":\"" + realm + "\""));
+    }
+
     public void testSecurityConfigChangedEventSelection() {
         final String requestId = randomRequestId();
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
@@ -2244,7 +2400,20 @@ public class LoggingAuditTrailTests extends ESTestCase {
             new Tuple<>(InvalidateApiKeyAction.NAME, new InvalidateApiKeyRequest()),
             new Tuple<>(DeletePrivilegesAction.NAME, new DeletePrivilegesRequest()),
             new Tuple<>(CreateServiceAccountTokenAction.NAME, new CreateServiceAccountTokenRequest(namespace, serviceName, tokenName)),
+            new Tuple<>(
+                CreateUserManagedServiceAccountTokenAction.NAME,
+                new CreateServiceAccountTokenRequest(namespace, serviceName, tokenName)
+            ),
             new Tuple<>(DeleteServiceAccountTokenAction.NAME, new DeleteServiceAccountTokenRequest(namespace, serviceName, tokenName)),
+            new Tuple<>(
+                DeleteUserManagedServiceAccountTokenAction.NAME,
+                new DeleteServiceAccountTokenRequest(namespace, serviceName, tokenName)
+            ),
+            new Tuple<>(
+                PutUserManagedServiceAccountAction.NAME,
+                new PutUserManagedServiceAccountRequest(namespace, serviceName, List.of(randomAlphaOfLengthBetween(3, 8)), randomBoolean())
+            ),
+            new Tuple<>(DeleteUserManagedServiceAccountAction.NAME, new DeleteUserManagedServiceAccountRequest(namespace, serviceName)),
             new Tuple<>(ActivateProfileAction.NAME, new ActivateProfileRequest()),
             new Tuple<>(
                 UpdateProfileDataAction.NAME,
@@ -2888,6 +3057,69 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(logger, checkedFields);
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
         threadContext.stashContext();
+    }
+
+    /**
+     * With {@code emit_request_body} enabled, a protobuf body is emitted under {@code request.raw_body} (base64) rather than
+     * {@code request.body}, alongside its {@code Content-Type} and {@code Content-Encoding} (when present).
+     */
+    public void testAuthenticationSuccessRestWithProtobufBody() throws Exception {
+        final InetSocketAddress address = new InetSocketAddress(
+            forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1"),
+            randomIntBetween(9200, 9300)
+        );
+        final byte[] protobufBody = randomByteArrayOfLength(randomIntBetween(1, 64));
+        final boolean withContentEncoding = randomBoolean();
+        final String contentEncoding = withContentEncoding ? randomFrom("snappy", "gzip", "identity") : null;
+        final Builder builder = new Builder(NamedXContentRegistry.EMPTY);
+        builder.withContent(new BytesArray(protobufBody), null);
+        final Map<String, List<String>> headers = new HashMap<>();
+        headers.put("Content-Type", List.of("application/x-protobuf"));
+        if (contentEncoding != null) {
+            headers.put("Content-Encoding", List.of(contentEncoding));
+        }
+        builder.withHeaders(headers);
+        builder.withPath("_uri");
+        builder.withRemoteAddress(address);
+        builder.withMethod(RestRequest.Method.POST);
+        final RestRequest request = builder.build();
+        final Channel channel = mock(Channel.class);
+        when(channel.remoteAddress()).thenReturn(address);
+
+        final String requestId = AuditUtil.generateRequestId(threadContext);
+        final Authentication authentication = createAuthentication();
+        authentication.writeToContext(threadContext);
+        RemoteHostHeader.process(channel, threadContext);
+
+        updateLoggerSettings(
+            Settings.builder()
+                .put(this.settings)
+                .put("xpack.security.audit.logfile.events.include", "authentication_success")
+                .put("xpack.security.audit.logfile.events.emit_request_body", true)
+                .build()
+        );
+        auditTrail.authenticationSuccess(request);
+
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success");
+        checkedFields.put(LoggingAuditTrail.REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName());
+        checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+        checkedFields.put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
+        checkedFields.put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, "POST");
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
+        checkedFields.put(LoggingAuditTrail.RAW_REQUEST_BODY_FIELD_NAME, Base64.getEncoder().encodeToString(protobufBody));
+        checkedFields.put(LoggingAuditTrail.RAW_REQUEST_BODY_CONTENT_TYPE_FIELD_NAME, "application/x-protobuf");
+        // null value asserts the field is absent (i.e. no Content-Encoding header on the wire)
+        checkedFields.put(LoggingAuditTrail.RAW_REQUEST_BODY_CONTENT_ENCODING_FIELD_NAME, contentEncoding);
+        checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, null);
+        authentication(authentication, checkedFields);
+        opaqueId(threadContext, checkedFields);
+        traceId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedFields);
+        assertMsg(logger, checkedFields);
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
     }
 
     public void testAuthenticationSuccessTransport() throws Exception {

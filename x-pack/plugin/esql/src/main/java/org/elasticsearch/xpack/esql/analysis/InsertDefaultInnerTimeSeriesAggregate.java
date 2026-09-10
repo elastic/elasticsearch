@@ -125,12 +125,9 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                         FirstOverTime::new
                     )
                     : first;
-                // only transform the (first) field, not all children (such as inline filter or window)
                 case AggregateFunction af -> {
-                    // TODO(jan): transform all fields.
-                    // The query "TS k8s | STATS WEIGHTED_AVG(...)" is broken.
                     List<Expression> newFields = new ArrayList<>(af.fields());
-                    newFields.set(0, addDefaultInnerAggs(af.fields().getFirst(), timestamp, changed));
+                    newFields.replaceAll(field -> addDefaultInnerAggs(field, timestamp, changed));
                     yield af.withFields(newFields);
                 }
                 // avoid modifying filter conditions, just the delegate

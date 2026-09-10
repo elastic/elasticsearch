@@ -2278,7 +2278,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (existingDocValuesContext != null && existingDocValuesContext.fields() != null) {
                     docValueFields.addAll(existingDocValuesContext.fields());
                 }
-                context.docValuesContext(new FetchDocValuesContext(context.getSearchExecutionContext(), docValueFields));
+                context.docValuesContext(new FetchDocValuesContext(searchExecutionContext, docValueFields));
             }
         }
         if (source.highlighter() != null) {

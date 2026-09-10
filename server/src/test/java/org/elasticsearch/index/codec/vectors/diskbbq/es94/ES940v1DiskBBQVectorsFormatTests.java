@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorEncoding;
@@ -90,9 +89,7 @@ public class ES940v1DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCa
         var fieldInfo = r.getFieldInfos().fieldInfo(fieldName);
         if (r instanceof CodecReader codecReader) {
             KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
-            if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                knnVectorsReader = fieldsReader.getFieldReader(fieldName);
-            }
+            knnVectorsReader = knnVectorsReader.unwrapReaderForField(fieldName);
             var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
             long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
             assertThat(offHeap, aMapWithSize(3));

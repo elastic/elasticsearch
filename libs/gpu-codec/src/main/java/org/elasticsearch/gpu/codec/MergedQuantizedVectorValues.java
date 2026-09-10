@@ -21,7 +21,6 @@
 package org.elasticsearch.gpu.codec;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocIDMerger;
 import org.apache.lucene.index.FieldInfo;
@@ -132,9 +131,7 @@ class MergedQuantizedVectorValues extends LegacyQuantizedByteVectorValues {
     }
 
     private static QuantizedVectorsReader getQuantizedKnnVectorsReader(KnnVectorsReader vectorsReader, String fieldName) {
-        if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader candidateReader) {
-            vectorsReader = candidateReader.getFieldReader(fieldName);
-        }
+        vectorsReader = vectorsReader.unwrapReaderForField(fieldName);
         if (vectorsReader instanceof QuantizedVectorsReader reader) {
             return reader;
         }

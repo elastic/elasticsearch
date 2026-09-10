@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
@@ -252,9 +251,7 @@ public class IvfAutoCalibration {
 
         for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
             KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
-            if (reader instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
-                reader = perField.getFieldReader(fieldInfo.name);
-            }
+            reader = reader.unwrapReaderForField(fieldInfo.name);
             if (reader instanceof CalibrationAwareReader car) {
                 QuantEncoding enc = car.getQuantEncoding(fieldInfo);
                 if (Float.isNaN(car.getOversampleFactor(fieldInfo)) || enc == null) {

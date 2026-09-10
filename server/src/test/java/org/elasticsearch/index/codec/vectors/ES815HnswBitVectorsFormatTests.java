@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.index.CodecReader;
@@ -56,9 +55,7 @@ public class ES815HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestC
                 LeafReader r = getOnlyLeafReader(reader);
                 if (r instanceof CodecReader codecReader) {
                     KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
-                    if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                        knnVectorsReader = fieldsReader.getFieldReader("f");
-                    }
+                    knnVectorsReader = knnVectorsReader.unwrapReaderForField("f");
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
 

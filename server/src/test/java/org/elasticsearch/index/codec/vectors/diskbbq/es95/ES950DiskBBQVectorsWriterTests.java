@@ -10,7 +10,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq.es95;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.CodecReader;
@@ -84,9 +83,7 @@ public class ES950DiskBBQVectorsWriterTests extends ESTestCase {
                 assertEquals("expected a single segment", 1, reader.leaves().size());
                 LeafReader leafReader = reader.leaves().get(0).reader();
                 KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
-                if (vectorReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                    vectorReader = fieldsReader.getFieldReader("vector");
-                }
+                vectorReader = vectorReader.unwrapReaderForField("vector");
                 assertThat(vectorReader, instanceOf(ES950DiskBBQVectorsReader.class));
                 return ((ES950DiskBBQVectorsReader) vectorReader).readCentroidData("vector");
             }

@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipIndexType;
@@ -771,10 +770,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf);
         assertNotNull(segmentReader);
         KnnVectorsReader kvr = segmentReader.getVectorReader();
-        if (kvr instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
-            return perField.getFieldReader(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-        }
-        return kvr;
+        return kvr.unwrapReaderForField(ESNextRescoreOversampleTestFixture.FIELD_NAME);
     }
 
     private static SegmentInfo backgroundSegmentInfo(Directory dir) throws IOException {

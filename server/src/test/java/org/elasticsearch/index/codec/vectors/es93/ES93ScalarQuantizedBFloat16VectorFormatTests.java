@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.vectors.es93;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.CodecReader;
@@ -67,9 +66,7 @@ public class ES93ScalarQuantizedBFloat16VectorFormatTests extends BaseQuantizedB
                 LeafReader r = getOnlyLeafReader(reader);
                 if (r instanceof CodecReader codecReader) {
                     KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
-                    if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                        knnVectorsReader = fieldsReader.getFieldReader("f");
-                    }
+                    knnVectorsReader = knnVectorsReader.unwrapReaderForField("f");
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
                     assertThat(offHeap, aMapWithSize(2));

@@ -11,7 +11,6 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -93,10 +92,7 @@ public class MergeMemoryEstimator {
     }
 
     private static long estimateVectorFieldMemory(FieldInfo fieldInfo, SegmentCommitInfo segmentCommitInfo, SegmentReader segmentReader) {
-        KnnVectorsReader vectorsReader = segmentReader.getVectorReader();
-        if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader perFieldKnnVectorsFormat) {
-            vectorsReader = perFieldKnnVectorsFormat.getFieldReader(fieldInfo.getName());
-        }
+        KnnVectorsReader vectorsReader = segmentReader.getVectorReader().unwrapReaderForField(fieldInfo.getName());
 
         return getVectorFieldEstimation(fieldInfo, segmentCommitInfo, vectorsReader);
     }

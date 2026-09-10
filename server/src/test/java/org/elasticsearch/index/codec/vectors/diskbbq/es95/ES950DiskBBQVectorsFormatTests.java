@@ -12,7 +12,6 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -167,9 +166,7 @@ public class ES950DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
 
         if (r instanceof CodecReader codecReader) {
             KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
-            if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                knnVectorsReader = fieldsReader.getFieldReader(fieldName);
-            }
+            knnVectorsReader = knnVectorsReader.unwrapReaderForField(fieldName);
             var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
             long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
             assertThat(offHeap, aMapWithSize(3));
@@ -216,9 +213,7 @@ public class ES950DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                 LeafReader r = getOnlyLeafReader(reader);
                 if (r instanceof CodecReader codecReader) {
                     KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
-                    if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                        knnVectorsReader = fieldsReader.getFieldReader("f");
-                    }
+                    knnVectorsReader = knnVectorsReader.unwrapReaderForField("f");
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
                     assertThat(offHeap, aMapWithSize(3));

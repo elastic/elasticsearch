@@ -445,10 +445,7 @@ public abstract class Engine implements Closeable {
                     }
                 }
                 SegmentReader reader = Lucene.segmentReader(atomicReader);
-                var vectorsReader = reader.getVectorReader();
-                if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                    vectorsReader = fieldsReader.getFieldReader(info.name);
-                }
+                var vectorsReader = reader.getVectorReader().unwrapReaderForField(info.name);
                 Map<String, Long> offHeap = vectorsReader.getOffHeapByteSize(info);
                 offHeapStats.put(info.name, offHeap);
             }

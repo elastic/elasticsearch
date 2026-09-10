@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq.es95;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -660,9 +659,7 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
         try {
             for (int i = 0; i < numSegments; i++) {
                 KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
-                if (reader instanceof PerFieldKnnVectorsFormat.FieldsReader perFieldReader) {
-                    reader = perFieldReader.getFieldReader(fieldInfo.name);
-                }
+                reader = reader.unwrapReaderForField(fieldInfo.name);
                 if (reader instanceof IVFVectorsReader<?> ivfReader && mergeState.fieldInfos[i].fieldInfo(fieldInfo.name) != null) {
                     // Get segment size — use the appropriate vector values accessor based on encoding
                     if (fieldInfo.getVectorEncoding() == VectorEncoding.BYTE) {

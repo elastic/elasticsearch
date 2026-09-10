@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentReader;
@@ -80,9 +79,7 @@ public class IvfQueryConfigResolver {
             return mappingDefaults();
         }
         KnnVectorsReader vectorsReader = segmentReader.getVectorReader();
-        if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
-            vectorsReader = perField.getFieldReader(fieldInfo.name);
-        }
+        vectorsReader = vectorsReader.unwrapReaderForField(fieldInfo.name);
         if (vectorsReader instanceof CalibrationAwareReader calibrationAwareReader) {
             QuantEncoding quantEncoding = calibrationAwareReader.getQuantEncoding(fieldInfo);
             if (quantEncoding == null) {

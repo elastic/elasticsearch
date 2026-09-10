@@ -18,7 +18,6 @@ import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.HnswGraphProvider;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.CodecReader;
@@ -134,9 +133,7 @@ public class ES92GpuHnswWriteGraphTests extends ESTestCase {
     private static HnswGraph getGraph(DirectoryReader reader) throws IOException {
         CodecReader codecReader = (CodecReader) getOnlyLeafReader(reader);
         KnnVectorsReader knnReader = codecReader.getVectorReader();
-        while (knnReader instanceof PerFieldKnnVectorsFormat.FieldsReader perFieldReader) {
-            knnReader = perFieldReader.getFieldReader(FIELD);
-        }
+        knnReader = knnReader.unwrapReaderForField(FIELD);
         return ((HnswGraphProvider) knnReader).getGraph(FIELD);
     }
 

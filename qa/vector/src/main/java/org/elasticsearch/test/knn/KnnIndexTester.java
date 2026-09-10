@@ -16,7 +16,6 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
@@ -945,9 +944,7 @@ public class KnnIndexTester {
                 }
                 SegmentReader sr = Lucene.tryUnwrapSegmentReader(lr);
                 KnnVectorsReader vr = sr != null ? sr.getVectorReader() : null;
-                if (vr instanceof PerFieldKnnVectorsFormat.FieldsReader pfr) {
-                    vr = pfr.getFieldReader(KnnIndexer.VECTOR_FIELD);
-                }
+                vr = vr.unwrapReaderForField(KnnIndexer.VECTOR_FIELD);
                 if (vr instanceof CalibrationAwareReader car) {
                     QuantEncoding enc = car.getQuantEncoding(fi);
                     float oversample = car.getOversampleFactor(fi);

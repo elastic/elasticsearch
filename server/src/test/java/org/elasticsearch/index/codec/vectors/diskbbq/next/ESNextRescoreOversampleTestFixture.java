@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq.next;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -440,9 +439,7 @@ public final class ESNextRescoreOversampleTestFixture {
             return null;
         }
         KnnVectorsReader kvr = segmentReader.getVectorReader();
-        if (kvr instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
-            kvr = perField.getFieldReader(FIELD_NAME);
-        }
+        kvr = kvr.unwrapReaderForField(FIELD_NAME);
         if (kvr instanceof CalibrationAwareReader calibrationAwareReader) {
             return calibrationAwareReader;
         }

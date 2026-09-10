@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.CodecReader;
@@ -83,9 +82,7 @@ public class ESNextOversamplingMetaTests extends BaseKnnVectorsFormatTestCase {
 
         if (r instanceof CodecReader codecReader) {
             KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
-            if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                knnVectorsReader = fieldsReader.getFieldReader(fieldName);
-            }
+            knnVectorsReader = knnVectorsReader.unwrapReaderForField(fieldName);
             var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
             long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
             assertThat(offHeap, aMapWithSize(3));
@@ -108,9 +105,7 @@ public class ESNextOversamplingMetaTests extends BaseKnnVectorsFormatTestCase {
                 LeafReader leaf = getOnlyLeafReader(reader);
                 if (leaf instanceof CodecReader codecReader) {
                     KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
-                    if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                        knnVectorsReader = fieldsReader.getFieldReader("f");
-                    }
+                    knnVectorsReader = knnVectorsReader.unwrapReaderForField("f");
                     assertThat(knnVectorsReader, instanceOf(ESNextDiskBBQVectorsReader.class));
                     var esr = (ESNextDiskBBQVectorsReader) knnVectorsReader;
                     FieldInfo fi = leaf.getFieldInfos().fieldInfo("f");

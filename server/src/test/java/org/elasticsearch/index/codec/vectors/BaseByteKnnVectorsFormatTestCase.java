@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.index.CodecReader;
@@ -82,9 +81,7 @@ public abstract class BaseByteKnnVectorsFormatTestCase extends BaseKnnVectorsFor
         var fieldInfo = r.getFieldInfos().fieldInfo(fieldName);
         if (r instanceof CodecReader codecReader) {
             KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
-            if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                knnVectorsReader = fieldsReader.getFieldReader(fieldName);
-            }
+            knnVectorsReader = knnVectorsReader.unwrapReaderForField(fieldName);
             var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
             long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
             assertThat(offHeap.size(), equalTo(3));

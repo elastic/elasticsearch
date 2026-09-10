@@ -25,7 +25,6 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -258,9 +257,7 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseFlatQuantizedKnn
                 LeafReader r = getOnlyLeafReader(reader);
                 if (r instanceof CodecReader codecReader) {
                     KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
-                    if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                        knnVectorsReader = fieldsReader.getFieldReader("f");
-                    }
+                    knnVectorsReader = knnVectorsReader.unwrapReaderForField("f");
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
                     assertEquals(expectVecOffHeap ? 2 : 1, offHeap.size());

@@ -9,7 +9,6 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -116,18 +115,15 @@ public class IVFKnnByteVectorQuery extends AbstractIVFKnnVectorQuery {
         if (segmentReader == null) {
             return query;
         }
-        KnnVectorsReader fieldsReader = segmentReader.getVectorReader();
-        if (fieldsReader instanceof PerFieldKnnVectorsFormat.FieldsReader) {
-            KnnVectorsReader knnVectorsReader = ((PerFieldKnnVectorsFormat.FieldsReader) fieldsReader).getFieldReader(field);
-            if (knnVectorsReader instanceof VectorPreconditioner) {
-                FieldInfo fieldInfo = segmentReader.getFieldInfos().fieldInfo(field);
-                Preconditioner preconditioner = ((VectorPreconditioner) knnVectorsReader).getPreconditioner(fieldInfo);
-                if (preconditioner != null) {
-                    byte[] out = new byte[query.length];
-                    float[] scratch = new float[query.length];
-                    preconditioner.applyTransformToBytes(query, out, scratch);
-                    return out;
-                }
+        KnnVectorsReader knnVectorsReader = segmentReader.getVectorReader().unwrapReaderForField(field);
+        if (knnVectorsReader instanceof VectorPreconditioner) {
+            FieldInfo fieldInfo = segmentReader.getFieldInfos().fieldInfo(field);
+            Preconditioner preconditioner = ((VectorPreconditioner) knnVectorsReader).getPreconditioner(fieldInfo);
+            if (preconditioner != null) {
+                byte[] out = new byte[query.length];
+                float[] scratch = new float[query.length];
+                preconditioner.applyTransformToBytes(query, out, scratch);
+                return out;
             }
         }
         return query;

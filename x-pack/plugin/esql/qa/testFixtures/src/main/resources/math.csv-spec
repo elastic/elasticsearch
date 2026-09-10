@@ -805,6 +805,36 @@ ul:ul
 null
 ;
 
+roundIntOverflowAtNegativePrecision
+required_capability: fn_round_int_overflow_warns
+row n = round(2147483647, -1);
+
+warning:Line 1:9: evaluation of [round(2147483647, -1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.ArithmeticException: integer overflow
+
+n:integer
+null
+;
+
+roundIntOverflowNoFold
+required_capability: fn_round_int_overflow_warns
+row n = 2145000000 | eval n = round(n, -7);
+
+warning:Line 1:31: evaluation of [round(n, -7)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:31: java.lang.ArithmeticException: integer overflow
+
+n:integer
+null
+;
+
+roundIntNoOverflowAtEvenPrecision
+required_capability: fn_round_int_overflow_warns
+row n = round(2147483647, -2);
+
+n:integer
+2147483600
+;
+
 roundToInt
 required_capability: round_to
 ROW v = 1

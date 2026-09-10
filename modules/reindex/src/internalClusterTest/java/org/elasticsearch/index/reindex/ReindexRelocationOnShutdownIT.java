@@ -146,14 +146,14 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true), SOURCE);
         }
 
-        // Heavily throttle the request so that it can't complete before we shut the node down
-        final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
-            .setDestIndex(DEST)
-            .setRefresh(true)
-            .setShouldStoreResult(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(0.000001f);
-        request.getSearchRequest().source().size(1000);
+        final ReindexRequest request = configureIndexingBatchSizeAndRate(
+            new ReindexRequest().setSourceIndices(SOURCE)
+                .setDestIndex(DEST)
+                .setRefresh(true)
+                .setShouldStoreResult(true)
+                .setEligibleForRelocationOnShutdown(true),
+            numDocs
+        );
 
         // Start the reindexing task on the coordinating node
         final CountDownLatch listenerDone = new CountDownLatch(1);
@@ -270,7 +270,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
         ).get();
 
-        final int numDocs = randomIntBetween(10, 40);
+        final int numDocs = randomIntBetween(120, 200);
         indexRandom(
             true,
             false,
@@ -294,13 +294,14 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         );
         ensureGreen(TaskResultsService.TASK_INDEX);
 
-        final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
-            .setDestIndex(DEST)
-            .setRefresh(true)
-            .setShouldStoreResult(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(0.000001f);
-        request.getSearchRequest().source().size(1);
+        final ReindexRequest request = configureIndexingBatchSizeAndRate(
+            new ReindexRequest().setSourceIndices(SOURCE)
+                .setDestIndex(DEST)
+                .setRefresh(true)
+                .setShouldStoreResult(true)
+                .setEligibleForRelocationOnShutdown(true),
+            numDocs
+        );
 
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
@@ -392,7 +393,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         ensureStableCluster(3);
 
-        final int numDocs = randomIntBetween(10, 40);
+        final int numDocs = randomIntBetween(120, 200);
         createIndex(SOURCE);
         indexRandom(
             true,
@@ -404,12 +405,10 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         );
         assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
 
-        final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
-            .setDestIndex(DEST)
-            .setRefresh(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(0.000001f);
-        request.getSearchRequest().source().size(1);
+        final ReindexRequest request = configureIndexingBatchSizeAndRate(
+            new ReindexRequest().setSourceIndices(SOURCE).setDestIndex(DEST).setRefresh(true).setEligibleForRelocationOnShutdown(true),
+            numDocs
+        );
 
         // Start the reindexing task on the coordinating node
         final CountDownLatch listenerDone = new CountDownLatch(1);
@@ -436,6 +435,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         final ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
         shutdownPrepareService.prepareForShutdown();
+
         // Forcibly shutting the node before the reindexing task completes
         internalCluster().stopNode(coordNodeName);
 
@@ -471,7 +471,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         ensureStableCluster(3);
 
-        final int numDocs = randomIntBetween(10, 40);
+        final int numDocs = randomIntBetween(120, 200);
         createIndex(SOURCE);
         createIndex(DEST, indexSettings(1, 0).build());
         indexRandom(
@@ -484,12 +484,10 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         );
         assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
 
-        final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
-            .setDestIndex(DEST)
-            .setRefresh(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(0.000001f);
-        request.getSearchRequest().source().size(1);
+        final ReindexRequest request = configureIndexingBatchSizeAndRate(
+            new ReindexRequest().setSourceIndices(SOURCE).setDestIndex(DEST).setRefresh(true).setEligibleForRelocationOnShutdown(true),
+            numDocs
+        );
 
         // Start the reindexing task
         final CountDownLatch listenerDone = new CountDownLatch(1);
@@ -695,21 +693,19 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         ensureStableCluster(3);
 
-        final int numDocs = randomIntBetween(100, 120);
+        final int numDocs = randomIntBetween(120, 200);
         createIndex(SOURCE);
         indexRandom(true, SOURCE, numDocs);
         assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
 
-        // Reindex should take 30s, doing about 3 docs/s
-        final float requestsPerSecond = numDocs / 30.0f;
-        final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
-            .setDestIndex(DEST)
-            .setRefresh(true)
-            .setShouldStoreResult(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(requestsPerSecond);
-        // Batches of 1 should only delay ~300ms, meaning the relocation should start sooner
-        request.getSearchRequest().source().size(1);
+        final ReindexRequest request = configureIndexingBatchSizeAndRate(
+            new ReindexRequest().setSourceIndices(SOURCE)
+                .setDestIndex(DEST)
+                .setRefresh(true)
+                .setShouldStoreResult(true)
+                .setEligibleForRelocationOnShutdown(true),
+            numDocs
+        );
 
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
@@ -862,5 +858,24 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             }
             throw new AssertionError("no root reindex task found for rethrottle after relocation");
         }, 30, TimeUnit.SECONDS);
+    }
+
+    /// Configure a reindex request such that it sends regular small requests, but takes a long time
+    /// to complete. This ensures the task will be responsive to relocation requests, but will not
+    /// complete before timeouts expire.
+    ///
+    /// [ReindexRequest#setRequestsPerSecond(float)] actually refers to sub-requests, i.e., documents;
+    /// it's effectively how many documents we'll reindex per second.
+    ///
+    /// So if we configure a `numDocs / 60f` requests per second, we'll index all the documents in one minute
+    /// if we additionally configure the batch size to be `numDocs / 120`, we'll index all the documents in
+    /// one minute, sending a request every 500ms
+    private static ReindexRequest configureIndexingBatchSizeAndRate(ReindexRequest request, int numDocuments) {
+        assert numDocuments >= 120
+            : "We want to send a request every 500ms and we want the whole thing to take 60s, so we need at least 120 docs";
+        final float documentsPerSecond = numDocuments / 60f;
+        request.setRequestsPerSecond(documentsPerSecond);
+        request.getSearchRequest().source().size(Math.max(1, numDocuments / 120));
+        return request;
     }
 }

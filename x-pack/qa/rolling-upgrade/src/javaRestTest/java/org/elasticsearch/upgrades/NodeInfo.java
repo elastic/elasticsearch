@@ -10,6 +10,7 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.test.ParameterizedRollingUpgradeTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;

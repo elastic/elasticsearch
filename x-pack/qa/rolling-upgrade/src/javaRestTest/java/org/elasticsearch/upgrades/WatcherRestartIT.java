@@ -13,6 +13,8 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.junit.ClassRule;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -24,8 +26,16 @@ import static org.hamcrest.Matchers.not;
 
 public class WatcherRestartIT extends AbstractXpackRollingUpgradeTestCase {
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildCluster();
+
     public WatcherRestartIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     public void testWatcherRestart() throws Exception {

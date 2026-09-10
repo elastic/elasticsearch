@@ -1,0 +1,5 @@
+area: Analysis
+issues: []
+pr: 154480
+summary: Bound `min_hash` filter params to prevent OOM
+type: bug

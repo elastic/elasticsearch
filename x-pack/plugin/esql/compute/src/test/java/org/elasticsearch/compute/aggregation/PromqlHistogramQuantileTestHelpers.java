@@ -148,7 +148,8 @@ final class PromqlHistogramQuantileTestHelpers {
         Bucket previous = buckets.getFirst();
         for (int i = 1; i < buckets.size(); i++) {
             Bucket bucket = buckets.get(i);
-            if (bucket.upperBound() == previous.upperBound()) {
+            if (bucket.upperBound() == previous.upperBound()
+                || (Double.isNaN(bucket.upperBound()) && Double.isNaN(previous.upperBound()))) {
                 previous = new Bucket(previous.upperBound(), previous.count() + bucket.count());
             } else {
                 result.add(previous);

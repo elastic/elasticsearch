@@ -2511,14 +2511,23 @@ public class ExternalSourceResolver {
         if (substituted.isEmpty()) {
             return;
         }
-        // The read type is named in the summary and the declared one only per column: `noText` collapses to
-        // `keyword` and nothing else, so the consequences below hold for every substitution it can make, while
-        // the type a column was declared with is whatever that column says.
+        // Both type halves come from what was found rather than from a literal. The read side is `keyword` for
+        // every substitution `noText` can make, so the consequences below hold whatever was declared; the declared
+        // side is named so the line a user reads first carries the type they have to go and change.
+        Set<String> declaredTypes = new LinkedHashSet<>();
+        for (DeclaredSchemaResolver.Substitution s : substituted.values()) {
+            declaredTypes.add("[" + s.declared().typeName() + "]");
+        }
+        String withdrawn = declaredTypes.size() == 1
+            ? "the withdrawn " + declaredTypes.iterator().next() + " type"
+            : "the withdrawn types " + String.join(", ", declaredTypes);
         SkipWarnings warnings = new SkipWarnings(
-            "one or more columns are declared with a withdrawn type and are read as [keyword]; matching on them "
-                + "is no longer analyzed and scores 1.0 instead of by matched terms, and a MATCH or MATCH_PHRASE "
-                + "that passes options on one now fails verification. Re-declare those columns as [keyword], and "
-                + "apply TO_TEXT in the query where an analyzed column is wanted.",
+            "one or more columns are declared with "
+                + withdrawn
+                + " and are read as [keyword]; matching on them is no longer analyzed and scores 1.0 instead of "
+                + "by matched terms, and a MATCH or MATCH_PHRASE that passes options on one now fails "
+                + "verification. Re-declare those columns as [keyword], and apply TO_TEXT in the query where an "
+                + "analyzed column is wanted.",
             warningSink
         );
         for (DeclaredSchemaResolver.Substitution s : substituted.values()) {

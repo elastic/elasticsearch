@@ -235,7 +235,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         List<String> warnings = resolution.warnings();
         assertEquals("summary + one detail", 2, warnings.size());
-        assertThat(warnings.get(0), containsString("declared with a withdrawn type and are read as [keyword]"));
+        assertThat(warnings.get(0), containsString("declared with the withdrawn [text] type and are read as [keyword]"));
         assertThat(warnings.get(0), containsString("TO_TEXT"));
         // Both functions accept options on a runtime-search field only at type TEXT, so a query passing any fails
         // verification — an error the user would otherwise meet with no explanation.
@@ -263,9 +263,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A declared-mappings map that is present but empty is the no-declaration case, not a malformed one: the
-     * emitter returns before it walks anything, and the query resolves without a warning. The {@code null} arm of
-     * the same guard is what every resolve in this class that passes no declared mapping at all takes.
+     * Coverage for the emitter's empty-map fast path, which is defensive rather than observable: deleting both it
+     * and the no-substitutions return leaves this class green, because an empty map iterates zero times and
+     * {@code SkipWarnings} writes nothing until something is added. The guards match
+     * {@link ExternalSourceResolver#warnOnShadowedColumns}, so they stay; the outcome they produce is pinned by
+     * {@link #testNoWarningWhenNothingDeclaresText}.
      */
     public void testNoWarningWhenDeclaredMappingsIsEmpty() throws Exception {
         String file = "s3://bucket/data/file1.parquet";

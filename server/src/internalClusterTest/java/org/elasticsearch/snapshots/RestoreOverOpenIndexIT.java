@@ -906,6 +906,52 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
+     * This tests what happens when we restore over an open index whose destination was deleted, and its name is now absent. Before the
+     * cluster-state update is applied we expect it to be rejected rather than silently creating a new index. The caller resolved an exact
+     * identity to restore over, and if that index is gone, the precondition no longer holds, so we fail instead of diverging from the
+     * caller's intent by creating a fresh index with a different index UUID. A destination deleted and recreated under the same name is
+     * rejected by validateExistingOpenIndexForRestore on the index-UUID mismatch. This test covers the deleted-and-not-recreated case,
+     * where the name resolves to nothing.
+     */
+    public void testRestoreOverOpenIndexRejectedWhenDestinationWasDeleted() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        createRepositoryAndSnapshottedIndex();
+
+        // Resolve the exact restore target while the index still exists, then delete it, simulating a destination removed between the
+        // caller
+        // resolving its identity and this restore being applied.
+        final SnapshotInfo snapshotInfo = getSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
+        final Snapshot snapshot = new Snapshot(REPOSITORY_NAME, snapshotInfo.snapshotId());
+        final RestoreService.OpenIndexRestoreTarget target = openIndexTarget(INDEX_NAME);
+        assertAcked(indicesAdmin().prepareDelete(INDEX_NAME));
+
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+        restoreService().restoreSnapshotOverOpenIndices(
+            ProjectId.DEFAULT,
+            snapshot,
+            snapshotInfo,
+            TEST_REQUEST_TIMEOUT,
+            UUIDs.randomBase64UUID(),
+            List.of(target),
+            future
+        );
+        final SnapshotRestoreException e = expectThrows(SnapshotRestoreException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(e.getMessage(), containsString("no longer exists in the cluster state"));
+
+        assertThat(
+            "a restore over a deleted destination must be rejected, not silently create a new index",
+            internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+                .state()
+                .metadata()
+                .getProject(ProjectId.DEFAULT)
+                .index(INDEX_NAME),
+            nullValue()
+        );
+    }
+
+    /**
      * Resolves the {@link RestoreService.OpenIndexRestoreTarget} for a single open destination index: its exact current identity (name and
      * index UUID) plus the repository-side {@link IndexId} and {@link IndexMetadata} of the snapshot to restore it from.
      */

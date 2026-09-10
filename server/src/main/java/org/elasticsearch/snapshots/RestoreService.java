@@ -1968,6 +1968,16 @@ public final class RestoreService implements ClusterStateApplier {
                 // different paths depending on whether we are restoring to create a new index or restoring over an existing closed index
                 // that will be opened by the restore
                 if (currentIndexMetadata == null) {
+                    if (openIndexTargets.containsKey(renamedIndexName)) {
+                        // The caller resolved this destination as an existing open index to restore over, but it has since been deleted.
+                        // Reject rather than silently creating a new index, which would break the exact-identity contract (and the "same
+                        // index UUID" invariant) that restoring over an open index relies on. This mirrors the rejection
+                        // validateExistingOpenIndexForRestore applies when the index was instead deleted and recreated under the same name.
+                        throw new SnapshotRestoreException(
+                            snapshot,
+                            "cannot restore over index [" + renamedIndexName + "] because it no longer exists in the cluster state"
+                        );
+                    }
                     // Index doesn't exist - create it and start recovery
                     // Make sure that the index we are about to create has a valid name
                     ensureValidIndexName(

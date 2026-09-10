@@ -158,6 +158,13 @@ tasks.register("verifyControllerProtocolVersion") {
         "controller-protocol.version publication and is incompatible with this Elasticsearch build."
       )
     }
+    // Genuine OR-across-artifacts: a single artifact with a valid, sufficiently new marker is
+    // enough to pass, regardless of what any other resolved artifact contains (malformed marker,
+    // stale version, or - per the nodeps case above - no marker at all). Collect failure reasons
+    // from every checked artifact instead of throwing on the first one, so the eventual failure
+    // message (only emitted if NO artifact passes) is complete rather than a single hit.
+    def failureReasons = []
+    def foundPassingVersion = false
     matchesByZip.each { zipFile, matches ->
       matches.each { versionFile ->
         // Match line-by-line (each trimmed individually) rather than the whole trimmed file content,
@@ -173,20 +180,30 @@ tasks.register("verifyControllerProtocolVersion") {
           }
         }
         if (matcher == null) {
-          throw new GradleException(
+          failureReasons.add(
             "Native controller bundle '${zipFile.name}' has a malformed 'controller-protocol.version' file " +
             "(got '${versionFile.text.trim()}', expected a line matching 'controller-protocol-version=<int>')."
           )
+          return
         }
         def foundVersion = matcher.group(1).toInteger()
         if (foundVersion < REQUIRED_CONTROLLER_PROTOCOL_VERSION) {
-          throw new GradleException(
+          failureReasons.add(
             "Native controller bundle '${zipFile.name}' publishes controller-protocol version ${foundVersion}, " +
             "but this Elasticsearch build requires controller-protocol version >= " +
             "${REQUIRED_CONTROLLER_PROTOCOL_VERSION}. Upgrade the resolved ml-cpp artifact."
           )
+          return
         }
+        foundPassingVersion = true
       }
+    }
+    if (!foundPassingVersion) {
+      throw new GradleException(
+        "None of the resolved native controller bundles carry a valid, sufficiently new " +
+        "'controller-protocol.version' marker (required: controller-protocol-version >= " +
+        "${REQUIRED_CONTROLLER_PROTOCOL_VERSION}). Reasons:\n" + failureReasons.collect { "  - ${it}" }.join('\n')
+      )
     }
   }
 }

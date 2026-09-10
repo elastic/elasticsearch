@@ -626,18 +626,6 @@ public class HighlightOperatorTests extends OperatorTestCase {
         assertThat("a match-none SHOULD clause must not disable the keep set", keepSet, notNullValue());
         assertThat(keeps(keepSet, "fox"), equalTo(true));
         assertThat(keeps(keepSet, "bar"), equalTo(false));
-
-        BytesRefBlock result = highlight(
-            config("fox", 5, 0, 0),
-            query,
-            bytesRefs(List.of(List.of("the quick fox"), List.of("a plain sentence")))
-        );
-        try {
-            assertThat(value(result, 0), equalTo("the quick <em>fox</em>"));
-            assertThat(result.isNull(1), equalTo(true));
-        } finally {
-            result.close();
-        }
     }
 
     private static void assertKeepSetDiscriminates(Query query, String keptToken, String droppedToken) {

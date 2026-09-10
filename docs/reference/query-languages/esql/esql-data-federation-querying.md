@@ -76,6 +76,21 @@ FROM speedtest_data, network_incidents METADATA _index
 
 When sources have different schemas, columns that do not exist in a given source return `null` for rows from that source. Use `METADATA _index` to see which source each row came from. The `_index` column returns the dataset name for dataset rows and the index name for index rows.
 
+A `FROM` that names more than one dataset, or that mixes an index with a dataset, can sit under [`FORK`](/reference/query-languages/esql/commands/fork.md). Each `FORK` branch then reads that same typed source combination. The source-producer cap is independent of `FORK`'s branch count: eight branches can each contain eight producers.
+
+```esql
+FROM speedtest_data, network_incidents
+| FORK
+    (STATS events = COUNT(*))
+    (WHERE severity == "high" | STATS events = COUNT(*))
+| KEEP _fork, events
+| SORT _fork
+```
+
+Source-only view composition is eligible when a view expands to a nested multi-source `FROM` whose siblings are also bare sources. A view that still contains a user subquery, an explicit `UNION ALL`, or a processing pipeline next to that expansion is not treated as source expansion, and `FORK` rejects it.
+
+When cross-project search is enabled, a matching remote *index* with the same name as a local dataset or view can add a resolved producer. A remote *dataset* of the same name remains unsupported. Wildcards and matching namesakes can change the resolved producer count, so counting names written in the query is not a substitute for the resolved count.
+
 ## Use metadata columns
 
 [Metadata columns](/reference/query-languages/esql/esql-metadata-fields.md) are available using the `METADATA` directive:
@@ -128,7 +143,7 @@ The limitations below include operations that require structures available only 
 | `TS` (time series) | A time-series source must be an {{es}} index. | `TS command is not supported for datasets; dataset(s) requested: [...]` |
 | Search functions | Search functions work on datasets as runtime search functions, scanning values row by row without an inverted index. Availability varies by version and deployment type. Refer to the [availability table](#use-search-functions). | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
 | `KNN` | `KNN` requires a vector field from an index mapping, which a dataset does not have. | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
-| More than 8 sources resolved in one `FROM` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
+| More than 8 sources resolved in one `FROM` | A dataset-containing `FROM` supports at most eight resolved source producers. That cap is independent of `FORK`'s eight-branch limit and of `branch_parallel_degree`. The count is the resolved producers, not the names written in the query: several concrete index names share one index producer, while a matching namesake index is an extra producer. Query fewer sources together. | |
 | A column with conflicting types across sources | When you query a dataset together with other sources and the same column has types that cannot be reconciled, the query fails rather than returning mixed types. | `Column [<name>] has conflicting data types in subqueries` |
 | Document-level security (DLS) and field-level security (FLS) | A dataset's `read` grant cannot carry document- or field-level security. Queries where DLS or FLS applies to a dataset are rejected during authorization. The same check covers [{{esql}} views](esql-views.md). | `Datasets with document or field level security restrictions are not supported. Remove DLS/FLS restrictions from the affected datasets in the role definition, or exclude them from the request.` |
 | [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) | Datasets on a remote cluster cannot be queried. Only local datasets are supported. | `ES\|QL queries with remote datasets are not supported. Matched [...]` |

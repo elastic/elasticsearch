@@ -161,9 +161,9 @@ final class SourceOutcomeAccumulator {
                     .setFailedShards(failedShards);
             }
             if (finalizeStatus && cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                if (skippedFailure && hasResponse == false && partial == false) {
+                if (skippedFailure && hasResponse == false && partial == false && clusterRetainsFailures(cluster) == false) {
                     builder.setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED);
-                } else if (partial || failures.isEmpty() == false || skippedFailure) {
+                } else if (partial || failures.isEmpty() == false || skippedFailure || clusterRetainsFailures(cluster)) {
                     builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
                 } else {
                     builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
@@ -181,13 +181,23 @@ final class SourceOutcomeAccumulator {
                 }
                 // No producer recorded an outcome: LIMIT already filled the exchange, or the
                 // producer was unused. CCS SKIPPED means skip-unavailable, not already finished.
-                var builder = new EsqlExecutionInfo.Cluster.Builder(cluster).setTook(execInfo.queryProfile().total().timeSinceStarted())
-                    .setStatus(
-                        execInfo.isStopped() ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL
-                    );
+                var builder = new EsqlExecutionInfo.Cluster.Builder(cluster).setTook(
+                    cluster.getTook() != null ? cluster.getTook() : execInfo.queryProfile().total().timeSinceStarted()
+                ).setStatus(leftoverRunningStatus(execInfo, cluster));
                 return builder.build();
             });
         }
+    }
+
+    private static boolean clusterRetainsFailures(EsqlExecutionInfo.Cluster cluster) {
+        return (cluster.getFailedShards() != null && cluster.getFailedShards() > 0) || cluster.getFailures().isEmpty() == false;
+    }
+
+    private static EsqlExecutionInfo.Cluster.Status leftoverRunningStatus(EsqlExecutionInfo execInfo, EsqlExecutionInfo.Cluster cluster) {
+        if (execInfo.isStopped() || clusterRetainsFailures(cluster)) {
+            return EsqlExecutionInfo.Cluster.Status.PARTIAL;
+        }
+        return EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
     }
 
     private void record(SourceClusterKey key, IndexProducerOutcome outcome) {

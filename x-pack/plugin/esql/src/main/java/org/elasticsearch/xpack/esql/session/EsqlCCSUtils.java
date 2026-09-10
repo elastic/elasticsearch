@@ -478,7 +478,8 @@ public class EsqlCCSUtils {
             }
             Cluster cluster = executionInfo.getCluster(clusterAlias);
             if (cluster.getStatus() == Cluster.Status.RUNNING) {
-                Cluster.Status finalStatus = (Objects.requireNonNullElse(cluster.getFailedShards(), 0) > 0
+                Cluster.Status finalStatus = (executionInfo.isStopped()
+                    || Objects.requireNonNullElse(cluster.getFailedShards(), 0) > 0
                     || cluster.getFailures().isEmpty() == false) ? Cluster.Status.PARTIAL : Cluster.Status.SUCCESSFUL;
                 executionInfo.swapCluster(clusterAlias, (k, v) -> new Cluster.Builder(v).setStatus(finalStatus).build());
             }

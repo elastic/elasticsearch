@@ -31,11 +31,10 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.ArrayList;
@@ -239,65 +238,25 @@ public final class DatasetRewriter {
             }
             return rewriteOne(r, datasetMetadata, dataSourceMetadata, resolution, crossProjectEnabled);
         });
-        return flattenViewUnionAllWithSourceFanIn(rewritten);
+        return rewritten;
+    }
+
+    private static boolean isSpeculativeShadow(LogicalPlan plan) {
+        return plan instanceof DatasetShadowRelation || plan instanceof ViewShadowRelation;
     }
 
     /**
-     * A view whose body is already a multi-source {@code FROM} becomes a {@link SourceFanInUnionAll}
-     * child of a {@link ViewUnionAll} when composed with another source. Lift those children into one
-     * {@link SourceFanInUnionAll} so Mapper sees independently distributable producers. Only rewrite
-     * when every child is itself a source producer; a pipeline sibling stays a {@link ViewUnionAll}.
+     * Counts definite source producers, excluding speculative dataset and view shadows that still
+     * have to survive linked resolution.
      */
-    static LogicalPlan flattenViewUnionAllWithSourceFanIn(LogicalPlan plan) {
-        return plan.transformUp(ViewUnionAll.class, union -> {
-            boolean hasNestedFanIn = false;
-            for (LogicalPlan child : union.children()) {
-                LogicalPlan unwrapped = unwrapNamedSubquery(child);
-                if (isSourceProducer(unwrapped) == false) {
-                    return union;
-                }
-                if (unwrapped instanceof SourceFanInUnionAll) {
-                    hasNestedFanIn = true;
-                }
+    static int definiteProducerCount(List<LogicalPlan> leaves) {
+        int count = 0;
+        for (LogicalPlan leaf : leaves) {
+            if (isSpeculativeShadow(leaf) == false) {
+                count++;
             }
-            if (hasNestedFanIn == false) {
-                return union;
-            }
-            List<LogicalPlan> leaves = new ArrayList<>(union.children().size());
-            for (LogicalPlan child : union.children()) {
-                LogicalPlan unwrapped = unwrapNamedSubquery(child);
-                if (unwrapped instanceof SourceFanInUnionAll nested) {
-                    leaves.addAll(nested.children());
-                } else {
-                    leaves.add(unwrapped);
-                }
-            }
-            // Each nested fan-in passed the cap for its own FROM, but composing them produces one resolved
-            // source whose producer count is their sum, so it has to clear the cap again here.
-            if (SourceFanInUnionAll.exceedsMaxProducers(leaves.size())) {
-                throw new VerificationException(
-                    "FROM ["
-                        + union.sourceText()
-                        + "] resolved through view expansion to "
-                        + leaves.size()
-                        + " sources, exceeding the current limit of "
-                        + SourceFanInUnionAll.MAX_PRODUCERS
-                        + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
-                );
-            }
-            return unionForExpandedFrom(union.source(), leaves, union.output());
-        });
-    }
-
-    private static LogicalPlan unwrapNamedSubquery(LogicalPlan plan) {
-        return plan instanceof NamedSubquery named ? named.child() : plan;
-    }
-
-    private static boolean isSourceProducer(LogicalPlan plan) {
-        return plan instanceof SourceFanInUnionAll
-            || plan instanceof UnresolvedRelation
-            || plan instanceof UnresolvedExternalRelation
-            || plan instanceof DatasetShadowRelation;
+        }
+        return count;
     }
 
     private static LogicalPlan rewriteOne(

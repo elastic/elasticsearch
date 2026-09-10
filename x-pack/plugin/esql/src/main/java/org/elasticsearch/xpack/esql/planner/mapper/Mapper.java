@@ -187,55 +187,16 @@ public class Mapper {
             return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.FINAL, intermediate);
         }
 
-        if (unary instanceof Limit limit) {
-            mappedChild = addExchangeForFragment(limit, mappedChild);
-            return new LimitExec(limit.source(), mappedChild, limit.limit(), null);
-        }
-
-        if (unary instanceof LimitBy limitBy) {
-            mappedChild = addExchangeForFragment(limitBy, mappedChild);
-            return new LimitByExec(limitBy.source(), mappedChild, limitBy.limitPerGroup(), limitBy.groupings(), null);
-        }
-
-        if (unary instanceof TopN topN) {
-            mappedChild = addExchangeForFragment(topN, mappedChild);
-            var topNExec = new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
-
-            if (mappedChild instanceof ExchangeExec exchangeExec) {
-                // If the data nodes run a TopN, the TopN in the coordinator will receive already sorted data
-                boolean sortedInput = exchangeExec.child() instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof TopN;
-                return sortedInput ? topNExec.withSortedInput() : topNExec;
-            }
-
-            return topNExec;
-        }
-
-        if (unary instanceof TopNBy topNBy) {
-            mappedChild = addExchangeForFragment(topNBy, mappedChild);
-            var topNByExec = new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null);
-            if (mappedChild instanceof ExchangeExec) {
-                return topNByExec.withSortedOutput();
-            }
-            return topNByExec;
+        if (unary instanceof Limit || unary instanceof LimitBy || unary instanceof TopN || unary instanceof TopNBy) {
+            mappedChild = addExchangeForFragment(unary, mappedChild);
+            return mapPipelineBreaker(unary, mappedChild);
         }
 
         // MetricsInfo uses a two-phase approach like Aggregate: INITIAL on data nodes extracts
         // metric metadata from shards, FINAL on the coordinator merges rows from all data nodes.
-        if (unary instanceof MetricsInfo metricsInfo) {
-            mappedChild = addExchangeForFragment(metricsInfo, mappedChild);
-            return new MetricsInfoExec(
-                metricsInfo.source(),
-                mappedChild,
-                metricsInfo.output(),
-                metricsInfo.output(),
-                MetricsInfoExec.Mode.FINAL
-            );
-        }
-
-        // TsInfo: same two-phase pattern as MetricsInfo but per time-series granularity.
-        if (unary instanceof TsInfo tsInfo) {
-            mappedChild = addExchangeForFragment(tsInfo, mappedChild);
-            return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.FINAL);
+        if (unary instanceof MetricsInfo || unary instanceof TsInfo) {
+            mappedChild = addExchangeForFragment(unary, mappedChild);
+            return mapPipelineBreaker(unary, mappedChild);
         }
 
         //
@@ -275,48 +236,76 @@ public class Mapper {
             return MapperUtils.aggExec(aggregate, initialFanIn, AggregatorMode.FINAL, intermediate);
         }
 
-        if (unary instanceof Limit limit) {
-            SourceFanInExec limitedFanIn = fanIn.withProducers(mapUnaryToProducers(unary, fanIn), fanIn.output(), false);
-            return new LimitExec(limit.source(), limitedFanIn, limit.limit(), null);
-        }
-
-        if (unary instanceof LimitBy limitBy) {
-            SourceFanInExec limitedFanIn = fanIn.withProducers(mapUnaryToProducers(unary, fanIn), fanIn.output(), false);
-            return new LimitByExec(limitBy.source(), limitedFanIn, limitBy.limitPerGroup(), limitBy.groupings(), null);
-        }
-
-        if (unary instanceof TopN topN) {
-            SourceFanInExec topNFanIn = fanIn.withProducers(mapUnaryToProducers(unary, fanIn), fanIn.output(), false);
-            var topNExec = new TopNExec(topN.source(), topNFanIn, topN.order(), topN.limit(), null);
-            boolean sortedInput = topNFanIn.producers()
-                .stream()
-                .allMatch(producer -> producer instanceof FragmentExec fragment && fragment.fragment() instanceof TopN);
-            return sortedInput ? topNExec.withSortedInput() : topNExec;
-        }
-
-        if (unary instanceof TopNBy topNBy) {
-            SourceFanInExec topNFanIn = fanIn.withProducers(mapUnaryToProducers(unary, fanIn), fanIn.output(), false);
-            return new TopNByExec(topNBy.source(), topNFanIn, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null)
-                .withSortedOutput();
-        }
-
-        if (unary instanceof MetricsInfo metricsInfo) {
-            SourceFanInExec metricsFanIn = fanIn.withProducers(mapUnaryToProducers(unary, fanIn), metricsInfo.output(), false);
-            return new MetricsInfoExec(
-                metricsInfo.source(),
-                metricsFanIn,
-                metricsInfo.output(),
-                metricsInfo.output(),
-                MetricsInfoExec.Mode.FINAL
-            );
-        }
-
-        if (unary instanceof TsInfo tsInfo) {
-            SourceFanInExec tsInfoFanIn = fanIn.withProducers(mapUnaryToProducers(unary, fanIn), tsInfo.output(), false);
-            return new TsInfoExec(tsInfo.source(), tsInfoFanIn, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.FINAL);
+        if (unary instanceof Limit
+            || unary instanceof LimitBy
+            || unary instanceof TopN
+            || unary instanceof TopNBy
+            || unary instanceof MetricsInfo
+            || unary instanceof TsInfo) {
+            List<Attribute> output = fanInBreakerOutput(unary, fanIn);
+            SourceFanInExec prepared = fanIn.withProducers(mapUnaryToProducers(unary, fanIn), output, false);
+            return mapPipelineBreaker(unary, prepared);
         }
 
         return MapperUtils.mapUnary(unary, fanIn);
+    }
+
+    /**
+     * Shared final construction for pipeline breakers that sit above either an exchange or a
+     * source fan-in. Aggregate preparation stays on the two mapUnary paths because fan-in
+     * producers exchange native intermediate attributes while ordinary aggregates keep their
+     * SINGLE versus INITIAL/FINAL handling.
+     */
+    private static PhysicalPlan mapPipelineBreaker(UnaryPlan unary, PhysicalPlan input) {
+        if (unary instanceof Limit limit) {
+            return new LimitExec(limit.source(), input, limit.limit(), null);
+        }
+        if (unary instanceof LimitBy limitBy) {
+            return new LimitByExec(limitBy.source(), input, limitBy.limitPerGroup(), limitBy.groupings(), null);
+        }
+        if (unary instanceof TopN topN) {
+            var topNExec = new TopNExec(topN.source(), input, topN.order(), topN.limit(), null);
+            if (hasTopNSortedInput(input)) {
+                return topNExec.withSortedInput();
+            }
+            return topNExec;
+        }
+        if (unary instanceof TopNBy topNBy) {
+            var topNByExec = new TopNByExec(topNBy.source(), input, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null);
+            if (input instanceof ExchangeExec || input instanceof SourceFanInExec) {
+                return topNByExec.withSortedOutput();
+            }
+            return topNByExec;
+        }
+        if (unary instanceof MetricsInfo metricsInfo) {
+            return new MetricsInfoExec(metricsInfo.source(), input, metricsInfo.output(), metricsInfo.output(), MetricsInfoExec.Mode.FINAL);
+        }
+        if (unary instanceof TsInfo tsInfo) {
+            return new TsInfoExec(tsInfo.source(), input, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.FINAL);
+        }
+        return MapperUtils.mapUnary(unary, input);
+    }
+
+    private static boolean hasTopNSortedInput(PhysicalPlan input) {
+        if (input instanceof ExchangeExec exchangeExec) {
+            return exchangeExec.child() instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof TopN;
+        }
+        if (input instanceof SourceFanInExec fanIn) {
+            return fanIn.producers()
+                .stream()
+                .allMatch(producer -> producer instanceof FragmentExec fragment && fragment.fragment() instanceof TopN);
+        }
+        return false;
+    }
+
+    private static List<Attribute> fanInBreakerOutput(UnaryPlan unary, SourceFanInExec fanIn) {
+        if (unary instanceof MetricsInfo metricsInfo) {
+            return metricsInfo.output();
+        }
+        if (unary instanceof TsInfo tsInfo) {
+            return tsInfo.output();
+        }
+        return fanIn.output();
     }
 
     private List<PhysicalPlan> mapUnaryToProducers(UnaryPlan unary, SourceFanInExec fanIn) {

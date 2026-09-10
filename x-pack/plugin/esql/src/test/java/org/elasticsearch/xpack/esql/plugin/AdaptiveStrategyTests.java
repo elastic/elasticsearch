@@ -208,7 +208,7 @@ public class AdaptiveStrategyTests extends ESTestCase {
             createNodes(3),
             QueryPragmas.EMPTY,
             0,
-            100
+            8
         );
 
         ExternalDistributionPlan plan = strategy.planDistribution(context);
@@ -228,7 +228,7 @@ public class AdaptiveStrategyTests extends ESTestCase {
             createNodes(3),
             QueryPragmas.EMPTY,
             0,
-            100
+            8
         );
 
         assertFalse(strategy.planDistribution(context).distributed());
@@ -276,7 +276,7 @@ public class AdaptiveStrategyTests extends ESTestCase {
             createNodes(3),
             QueryPragmas.EMPTY,
             0,
-            100
+            8
         );
 
         assertFalse(strategy.planDistribution(context).distributed());

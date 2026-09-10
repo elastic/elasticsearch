@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.hasSize;
  */
 public class ManyDatasetsDistributeAcrossNodesIT extends AbstractExternalDataSourceIT {
 
-    private static final int DATASETS = 6;
+    private static final int DATASETS = 8;
     private static final int ROWS_PER_DATASET = 2;
 
     private final List<String> datasets = new ArrayList<>();
@@ -99,6 +99,28 @@ public class ManyDatasetsDistributeAcrossNodesIT extends AbstractExternalDataSou
             assertThat(rows, hasSize(1));
             assertThat(((Number) rows.getFirst().getFirst()).longValue(), equalTo((long) ROWS_PER_DATASET));
             assertThat(externalScanNodeNames(response), hasSize(1));
+        }
+    }
+
+    public void testEightForkBranchesOverEightProducers() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        registerSingleFileDatasets();
+        assertThat(datasets, hasSize(8));
+
+        StringBuilder query = new StringBuilder("FROM ").append(String.join(", ", datasets)).append("\n| FORK\n");
+        for (int i = 0; i < DATASETS; i++) {
+            query.append("    (WHERE name == \"ds").append(i).append("\" | STATS c = COUNT(*))\n");
+        }
+        query.append("| KEEP _fork, c\n| SORT _fork");
+
+        var request = syncEsqlQueryRequest(query.toString());
+        try (EsqlQueryResponse response = run(request, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(8));
+            for (int i = 0; i < DATASETS; i++) {
+                assertThat(rows.get(i).get(0).toString(), equalTo("fork" + (i + 1)));
+                assertThat(((Number) rows.get(i).get(1)).longValue(), equalTo((long) ROWS_PER_DATASET));
+            }
         }
     }
 }

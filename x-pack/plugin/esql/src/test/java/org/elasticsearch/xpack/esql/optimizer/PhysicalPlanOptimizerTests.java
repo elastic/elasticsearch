@@ -3858,6 +3858,67 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
+    public void testProjectAwayColumnsLeavesOrdinaryLookupJoinRelation() {
+        var rule = new ProjectAwayColumns();
+        Attribute leftKey = new ReferenceAttribute(Source.EMPTY, "language_code", DataType.INTEGER);
+        LocalSourceExec left = new LocalSourceExec(Source.EMPTY, List.of(leftKey), EmptyLocalSupplier.EMPTY);
+        EsField field = new EsField("language_code", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        var index = EsIndexGenerator.esIndex("languages_lookup", Map.of(field.getName(), field));
+        EsRelation lookupRelation = new EsRelation(
+            Source.EMPTY,
+            index.name(),
+            IndexMode.LOOKUP,
+            Map.of(),
+            Map.of(),
+            index.indexProperties(),
+            List.of(new FieldAttribute(Source.EMPTY, null, null, field.getName(), field))
+        );
+        FragmentExec right = new FragmentExec(lookupRelation);
+        LookupJoinExec join = new LookupJoinExec(
+            Source.EMPTY,
+            left,
+            right,
+            List.of(leftKey),
+            List.of(lookupRelation.output().get(0)),
+            List.of(),
+            null
+        );
+
+        LookupJoinExec planned = as(rule.apply(join), LookupJoinExec.class);
+        assertThat(as(planned.lookup(), FragmentExec.class).fragment(), instanceOf(EsRelation.class));
+    }
+
+    public void testProjectAwayColumnsLookupJoinInsideFanInProducerKeepsRightRelation() {
+        var rule = new ProjectAwayColumns();
+        Attribute leftKey = new ReferenceAttribute(Source.EMPTY, "language_code", DataType.INTEGER);
+        LocalSourceExec left = new LocalSourceExec(Source.EMPTY, List.of(leftKey), EmptyLocalSupplier.EMPTY);
+        EsField field = new EsField("language_code", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        var index = EsIndexGenerator.esIndex("languages_lookup", Map.of(field.getName(), field));
+        EsRelation lookupRelation = new EsRelation(
+            Source.EMPTY,
+            index.name(),
+            IndexMode.LOOKUP,
+            Map.of(),
+            Map.of(),
+            index.indexProperties(),
+            List.of(new FieldAttribute(Source.EMPTY, null, null, field.getName(), field))
+        );
+        LookupJoinExec producer = new LookupJoinExec(
+            Source.EMPTY,
+            left,
+            new FragmentExec(lookupRelation),
+            List.of(leftKey),
+            List.of(lookupRelation.output().get(0)),
+            List.of(),
+            null
+        );
+        SourceFanInExec fanIn = new SourceFanInExec(Source.EMPTY, List.of(producer), List.of(leftKey), false);
+
+        SourceFanInExec planned = as(rule.apply(fanIn), SourceFanInExec.class);
+        LookupJoinExec plannedJoin = as(planned.producers().get(0), LookupJoinExec.class);
+        assertThat(as(plannedJoin.lookup(), FragmentExec.class).fragment(), instanceOf(EsRelation.class));
+    }
+
     public void testEstimateRowSizeIsolatedAcrossForkBranches() {
         Attribute value = new ReferenceAttribute(Source.EMPTY, "value", DataType.KEYWORD);
         LocalSourceExec localSource = new LocalSourceExec(Source.EMPTY, List.of(value), EmptyLocalSupplier.EMPTY);

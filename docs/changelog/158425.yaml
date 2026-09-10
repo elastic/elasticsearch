@@ -1,0 +1,5 @@
+pr: 158425
+summary: Enable ES|QL FORK over multiple external datasets and mixed indexed and external sources
+area: ES|QL
+type: enhancement
+issues: []

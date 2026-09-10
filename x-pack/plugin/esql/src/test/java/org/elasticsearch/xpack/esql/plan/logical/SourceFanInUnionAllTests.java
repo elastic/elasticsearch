@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 
@@ -63,19 +64,60 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         assertThat(outer.replaceChildren(List.of(inner, third)).children(), equalTo(List.of(first, second, third)));
     }
 
+    public void testProvisionalKeepsNestedGroupsAndBranchKeys() {
+        LogicalPlan first = relation("first");
+        LogicalPlan second = relation("second");
+        LogicalPlan third = relation("third");
+        SourceFanInUnionAll inner = new SourceFanInUnionAll(Source.EMPTY, List.of(first, second), List.of());
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("inner", inner);
+        branches.put(null, third);
+        SourceFanInUnionAll provisional = SourceFanInUnionAll.provisional(Source.EMPTY, branches, List.of());
+
+        assertTrue(provisional.isProvisional());
+        assertThat(provisional.children(), equalTo(List.of(inner, third)));
+        assertThat(provisional.branchKeys(), equalTo(Arrays.asList("inner", null)));
+
+        LogicalPlan replaced = provisional.replaceChildren(List.of(inner, first));
+        assertThat(replaced, instanceOf(SourceFanInUnionAll.class));
+        SourceFanInUnionAll replacedFan = (SourceFanInUnionAll) replaced;
+        assertTrue(replacedFan.isProvisional());
+        assertThat(replacedFan.branchKeys(), equalTo(Arrays.asList("inner", null)));
+        assertThat(replacedFan.children(), equalTo(List.of(inner, first)));
+    }
+
+    public void testProvisionalAndFinalWithSameChildrenAreNotEqual() {
+        LogicalPlan first = relation("first");
+        LogicalPlan second = relation("second");
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("a", first);
+        branches.put("b", second);
+        SourceFanInUnionAll provisional = SourceFanInUnionAll.provisional(Source.EMPTY, branches, List.of());
+        SourceFanInUnionAll fin = new SourceFanInUnionAll(Source.EMPTY, List.of(first, second), List.of());
+
+        assertNotEquals(provisional, fin);
+        assertNotEquals(provisional.hashCode(), fin.hashCode());
+    }
+
     public void testWideFanInDoesNotUseForkBranchCap() {
-        List<LogicalPlan> children = relations(Fork.MAX_BRANCHES + 2);
+        SourceFanInUnionAll atCap = new SourceFanInUnionAll(Source.EMPTY, relations(SourceFanInUnionAll.MAX_PRODUCERS), List.of());
+        Failures atCapFailures = new Failures();
+        atCap.postAnalysisPlanVerification().accept(atCap, atCapFailures);
+        assertFalse(atCapFailures.toString(), atCapFailures.hasFailures());
 
-        SourceFanInUnionAll fanIn = new SourceFanInUnionAll(Source.EMPTY, children, List.of());
-        Failures fanInFailures = new Failures();
-        fanIn.postAnalysisPlanVerification().accept(fanIn, fanInFailures);
-        assertFalse(fanInFailures.toString(), fanInFailures.hasFailures());
+        SourceFanInUnionAll overCap = new SourceFanInUnionAll(Source.EMPTY, relations(SourceFanInUnionAll.MAX_PRODUCERS + 1), List.of());
+        Failures overCapFailures = new Failures();
+        overCap.postAnalysisPlanVerification().accept(overCap, overCapFailures);
+        assertTrue(overCapFailures.hasFailures());
+        assertThat(overCapFailures.toString(), containsString("FROM supports up to " + SourceFanInUnionAll.MAX_PRODUCERS + " sources"));
+        assertThat(overCapFailures.toString(), containsString("got: " + (SourceFanInUnionAll.MAX_PRODUCERS + 1)));
 
-        UnionAll union = new UnionAll(Source.EMPTY, children, List.of());
+        UnionAll union = new UnionAll(Source.EMPTY, relations(Fork.MAX_BRANCHES + 1), List.of());
         Failures unionFailures = new Failures();
         union.postAnalysisPlanVerification().accept(union, unionFailures);
         assertTrue(unionFailures.hasFailures());
-        assertThat(unionFailures.toString(), containsString("FORK supports up to"));
+        assertThat(unionFailures.toString(), containsString("FORK supports up to " + Fork.MAX_BRANCHES + " branches"));
+        assertThat(unionFailures.toString(), containsString("got: " + (Fork.MAX_BRANCHES + 1)));
     }
 
     public void testFanInIsBoundedByItsOwnProducerCap() {

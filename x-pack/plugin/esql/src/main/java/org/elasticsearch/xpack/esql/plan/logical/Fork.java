@@ -288,7 +288,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
             int size = fork.children().size();
             if (size == 0) {
                 failures.add(Failure.fail(fork, "{} requires at least one branch", fork.getClass().getSimpleName()));
-            } else if (fork instanceof SourceFanInUnionAll) {
+            } else if (fork instanceof SourceFanInUnionAll fanIn && fanIn.isProvisional() == false) {
                 if (SourceFanInUnionAll.exceedsMaxProducers(size)) {
                     failures.add(Failure.fail(fork, "FROM supports up to {} sources, got: {}", SourceFanInUnionAll.MAX_PRODUCERS, size));
                 }

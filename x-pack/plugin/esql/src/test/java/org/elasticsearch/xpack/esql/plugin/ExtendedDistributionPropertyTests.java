@@ -49,7 +49,7 @@ public class ExtendedDistributionPropertyTests extends ESTestCase {
         List<ExternalSplit> splits = createSizedSplits(splitCount);
         List<DiscoveryNode> nodes = createNodeList(nodeCount);
 
-        ExternalDistributionPlan plan = WeightedRoundRobinStrategy.assignByWeight(splits, nodes);
+        ExternalDistributionPlan plan = WeightedRoundRobinStrategy.assignByWeight(splits, nodes, 0);
 
         assertTrue(plan.distributed());
         Set<ExternalSplit> assigned = new HashSet<>();
@@ -69,7 +69,7 @@ public class ExtendedDistributionPropertyTests extends ESTestCase {
         List<ExternalSplit> splits = createSizedSplits(splitCount);
         List<DiscoveryNode> nodes = createNodeList(nodeCount);
 
-        ExternalDistributionPlan plan = WeightedRoundRobinStrategy.assignByWeight(splits, nodes);
+        ExternalDistributionPlan plan = WeightedRoundRobinStrategy.assignByWeight(splits, nodes, 0);
 
         long totalSize = 0;
         long maxNodeLoad = 0;
@@ -99,8 +99,8 @@ public class ExtendedDistributionPropertyTests extends ESTestCase {
         List<ExternalSplit> splits = createSizedSplits(splitCount);
         List<DiscoveryNode> nodes = createNodeList(nodeCount);
 
-        ExternalDistributionPlan plan1 = WeightedRoundRobinStrategy.assignByWeight(splits, nodes);
-        ExternalDistributionPlan plan2 = WeightedRoundRobinStrategy.assignByWeight(splits, nodes);
+        ExternalDistributionPlan plan1 = WeightedRoundRobinStrategy.assignByWeight(splits, nodes, 0);
+        ExternalDistributionPlan plan2 = WeightedRoundRobinStrategy.assignByWeight(splits, nodes, 0);
 
         assertEquals(plan1.nodeAssignments().keySet(), plan2.nodeAssignments().keySet());
         for (String nodeId : plan1.nodeAssignments().keySet()) {
@@ -120,7 +120,7 @@ public class ExtendedDistributionPropertyTests extends ESTestCase {
             splits.add(createSizedSplit(i, 1000));
         }
 
-        ExternalDistributionPlan plan = WeightedRoundRobinStrategy.assignByWeight(splits, nodes);
+        ExternalDistributionPlan plan = WeightedRoundRobinStrategy.assignByWeight(splits, nodes, 0);
 
         boolean largestFound = false;
         for (List<ExternalSplit> nodeSplits : plan.nodeAssignments().values()) {
@@ -181,7 +181,7 @@ public class ExtendedDistributionPropertyTests extends ESTestCase {
         List<DiscoveryNode> nodes = createNodeList(nodeCount);
 
         List<ExternalSplit> coalesced = SplitCoalescer.coalesce(original);
-        ExternalDistributionPlan plan = WeightedRoundRobinStrategy.assignByWeight(coalesced, nodes);
+        ExternalDistributionPlan plan = WeightedRoundRobinStrategy.assignByWeight(coalesced, nodes, 0);
 
         assertTrue(plan.distributed());
 
@@ -204,8 +204,8 @@ public class ExtendedDistributionPropertyTests extends ESTestCase {
         List<ExternalSplit> splits = createSizedSplits(splitCount);
         List<DiscoveryNode> nodes = createNodeList(nodeCount);
 
-        ExternalDistributionPlan rrPlan = RoundRobinStrategy.assignRoundRobin(splits, nodes);
-        ExternalDistributionPlan wrPlan = WeightedRoundRobinStrategy.assignByWeight(splits, nodes);
+        ExternalDistributionPlan rrPlan = RoundRobinStrategy.assignRoundRobin(splits, nodes, 0);
+        ExternalDistributionPlan wrPlan = WeightedRoundRobinStrategy.assignByWeight(splits, nodes, 0);
 
         int rrTotal = countAssigned(rrPlan);
         int wrTotal = countAssigned(wrPlan);

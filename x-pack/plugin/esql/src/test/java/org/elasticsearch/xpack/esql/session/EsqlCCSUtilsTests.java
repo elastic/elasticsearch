@@ -75,6 +75,60 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         assertTrue(EsqlCCSUtils.canAllowPartial(new IllegalStateException("shard failed")));
     }
 
+    public void testFinalizeSubPlanOnlyRemoteClustersMarksFailedShardsPartial() {
+        EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+        executionInfo.swapCluster(
+            REMOTE1_ALIAS,
+            (k, v) -> new EsqlExecutionInfo.Cluster(
+                REMOTE1_ALIAS,
+                REMOTE1_ALIAS,
+                "test",
+                true,
+                EsqlExecutionInfo.Cluster.Status.RUNNING,
+                4,
+                3,
+                0,
+                1,
+                List.of(),
+                null
+            )
+        );
+        executionInfo.swapCluster(
+            LOCAL_CLUSTER_ALIAS,
+            (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "local", false, EsqlExecutionInfo.Cluster.Status.RUNNING)
+        );
+
+        EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
+
+        assertThat(executionInfo.getCluster(REMOTE1_ALIAS).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+        assertThat(executionInfo.getCluster(LOCAL_CLUSTER_ALIAS).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+    }
+
+    public void testFinalizeSubPlanOnlyRemoteClustersMarksStoppedPartial() {
+        EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+        executionInfo.swapCluster(
+            REMOTE1_ALIAS,
+            (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "test", true, EsqlExecutionInfo.Cluster.Status.RUNNING)
+        );
+        executionInfo.markAsStopped();
+
+        EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
+
+        assertThat(executionInfo.getCluster(REMOTE1_ALIAS).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+    }
+
+    public void testFinalizeSubPlanOnlyRemoteClustersMarksCleanLeftoverSuccessful() {
+        EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+        executionInfo.swapCluster(
+            REMOTE1_ALIAS,
+            (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "test", true, EsqlExecutionInfo.Cluster.Status.RUNNING)
+        );
+
+        EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
+
+        assertThat(executionInfo.getCluster(REMOTE1_ALIAS).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+    }
+
     public void testCreateQualifiedLookupIndexExpressionFromAvailableClusters() {
 
         // no clusters marked as skipped

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -130,7 +131,14 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * just that single resolved subtree. (The other prune rules don't do this — they preserve
      * the wrapper. The collapse is a {@link ViewCompaction} semantic, not a {@link UnionAll} one.)
      */
-    private static LogicalPlan stripViewShadowRelations(LogicalPlan plan) {
+    static LogicalPlan stripViewShadowRelations(LogicalPlan plan) {
+        plan = plan.transformDown(SourceFanInUnionAll.class, fanIn -> {
+            LogicalPlan pruned = fanIn.pruneEmptyBranches(child -> child instanceof ViewShadowRelation);
+            if (pruned instanceof SourceFanInUnionAll remaining && remaining.children().size() == 1) {
+                return remaining.children().getFirst();
+            }
+            return pruned;
+        });
         return plan.transformDown(ViewUnionAll.class, vua -> {
             LogicalPlan pruned = vua.pruneEmptyBranches(child -> child instanceof ViewShadowRelation);
             if (pruned instanceof ViewUnionAll prunedVua && prunedVua.children().size() == 1) {
@@ -154,7 +162,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         plan = plan.transformDown(Subquery.class, sq -> sq.child() instanceof NamedSubquery n ? n : sq);
 
         plan = plan.transformDown(UnionAll.class, unionAll -> {
-            if (unionAll instanceof ViewUnionAll) {
+            if (unionAll instanceof ViewUnionAll || unionAll instanceof SourceFanInUnionAll) {
                 return unionAll;
             }
             boolean hasNamedSubqueries = unionAll.children().stream().anyMatch(c -> c instanceof NamedSubquery);

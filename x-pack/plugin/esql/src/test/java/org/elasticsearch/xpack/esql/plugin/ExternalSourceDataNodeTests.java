@@ -200,7 +200,7 @@ public class ExternalSourceDataNodeTests extends ESTestCase {
             builder.add(node);
         }
 
-        ExternalDistributionPlan plan = RoundRobinStrategy.assignRoundRobin(splits, nodes);
+        ExternalDistributionPlan plan = RoundRobinStrategy.assignRoundRobin(splits, nodes, 0);
 
         assertTrue(plan.distributed());
         assertEquals(3, plan.nodeAssignments().size());
@@ -216,7 +216,7 @@ public class ExternalSourceDataNodeTests extends ESTestCase {
             nodes.add(DiscoveryNodeUtils.builder("node-" + i).roles(Set.of(DATA_HOT_NODE_ROLE)).build());
         }
 
-        ExternalDistributionPlan plan = RoundRobinStrategy.assignRoundRobin(splits, nodes);
+        ExternalDistributionPlan plan = RoundRobinStrategy.assignRoundRobin(splits, nodes, 0);
 
         assertTrue(plan.distributed());
         int totalAssigned = 0;

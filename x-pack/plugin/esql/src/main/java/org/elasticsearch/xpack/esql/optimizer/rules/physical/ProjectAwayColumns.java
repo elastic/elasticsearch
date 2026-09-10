@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.SourceFanInExec;
@@ -44,14 +45,14 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
 
     @Override
     public PhysicalPlan apply(PhysicalPlan plan) {
-        return apply(plan, false);
+        return apply(plan, false, false);
     }
 
-    private PhysicalPlan apply(PhysicalPlan plan, boolean isForkBranch) {
-        return apply(plan, isForkBranch, plan.outputSet());
+    private PhysicalPlan apply(PhysicalPlan plan, boolean isForkBranch, boolean inProducer) {
+        return apply(plan, isForkBranch, plan.outputSet(), inProducer);
     }
 
-    private PhysicalPlan apply(PhysicalPlan plan, boolean isForkBranch, AttributeSet requiredAttributes) {
+    private PhysicalPlan apply(PhysicalPlan plan, boolean isForkBranch, AttributeSet requiredAttributes, boolean inProducer) {
         Holder<Boolean> keepTraversing = new Holder<>(TRUE);
         // Invariant: if we add a projection with these attributes after the current plan node, the plan remains valid
         // and the overall output will not change.
@@ -70,7 +71,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                 boolean changed = false;
 
                 for (var child : mergeExec.children()) {
-                    var newChild = apply(child, true);
+                    var newChild = apply(child, true, false);
 
                     if (newChild != child) {
                         changed = true;
@@ -104,7 +105,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                             producerRequired.add(producerOutput.get(i));
                         }
                     }
-                    return apply(producer, false, producerRequired.build());
+                    return apply(producer, false, producerRequired.build(), true);
                 }).toList();
                 List<Attribute> newOutput = new ArrayList<>();
                 for (Attribute commonAttribute : fanIn.output()) {
@@ -127,10 +128,24 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                 return fanIn.withProducers(newProducers, newOutput, fanIn.inBetweenAggs());
             }
 
-            // A fragment with no ExchangeExec above it is a fan-in producer, reached by the recursive apply()
-            // on each SourceFanInExec producer above. Everywhere else Mapper puts the fragment under an
-            // exchange, which stops traversal in the branch below before its child reaches this one.
+            if (currentPlanNode instanceof LookupJoinExec join) {
+                keepTraversing.set(FALSE);
+                AttributeSet required = requiredAttrBuilder.build();
+                PhysicalPlan newLeft = apply(join.left(), isForkBranch, required, inProducer);
+                PhysicalPlan newRight = apply(join.right(), isForkBranch, required, false);
+                if (newLeft == join.left() && newRight == join.right()) {
+                    return join;
+                }
+                return join.replaceChildren(newLeft, newRight);
+            }
+
+            // Project a bare fragment only when descending a source-fan-in producer. Ordinary plans can
+            // also carry a bare FragmentExec, for example the lookup-join right-hand side, and wrapping
+            // that relation in a Project breaks local planning.
             if (currentPlanNode instanceof FragmentExec fragmentExec) {
+                if (inProducer == false) {
+                    return currentPlanNode;
+                }
                 keepTraversing.set(FALSE);
                 return projectFragmentColumns(fragmentExec, requiredAttrBuilder, isForkBranch);
             }

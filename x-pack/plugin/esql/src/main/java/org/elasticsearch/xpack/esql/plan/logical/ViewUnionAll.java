@@ -22,7 +22,9 @@ import java.util.function.Predicate;
  * A {@link UnionAll} produced by view resolution, as opposed to user-written subqueries.
  * This type marker allows {@link org.elasticsearch.xpack.esql.view.ViewResolver} to distinguish
  * between unions it has already processed (view-produced) and unions from the parser (subqueries)
- * that may still contain unresolved view references.
+ * that may still contain unresolved view references. Compaction can also rewrite a user-written
+ * {@link UnionAll} that references a named view into this type; that remains a relational union,
+ * not source expansion.
  */
 public class ViewUnionAll extends UnionAll {
     private final LinkedHashMap<String, LogicalPlan> namedSubqueries = new LinkedHashMap<>();

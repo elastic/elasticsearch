@@ -11,10 +11,16 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 
 import java.util.BitSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -52,5 +58,56 @@ public class FeatureMetricTests extends ESTestCase {
         BitSet bitset = new BitSet();
         FeatureMetric.set(external, bitset);
         assertTrue("excluded plans must not set any telemetry bit", bitset.isEmpty());
+    }
+
+    public void testSourceFanInDoesNotSetForkBit() {
+        UnresolvedRelation first = relation("ds1");
+        UnresolvedRelation second = relation("ds2");
+        SourceFanInUnionAll fanIn = new SourceFanInUnionAll(Source.EMPTY, List.of(first, second), List.of());
+
+        BitSet bitset = new BitSet();
+        FeatureMetric.set(fanIn, bitset);
+        assertTrue(bitset.isEmpty());
+        assertFalse(bitset.get(FeatureMetric.FORK.ordinal()));
+    }
+
+    public void testOrdinaryForkSetsForkBit() {
+        Fork fork = new Fork(Source.EMPTY, List.of(relation("a"), relation("b")), List.of());
+        BitSet bitset = new BitSet();
+        FeatureMetric.set(fork, bitset);
+        assertTrue(bitset.get(FeatureMetric.FORK.ordinal()));
+    }
+
+    public void testPlainUnionAllSetsForkBit() {
+        UnionAll union = new UnionAll(Source.EMPTY, List.of(relation("a"), relation("b")), List.of());
+        BitSet bitset = new BitSet();
+        FeatureMetric.set(union, bitset);
+        assertTrue(bitset.get(FeatureMetric.FORK.ordinal()));
+    }
+
+    public void testViewUnionAllKeepsForkClassification() {
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("v1", relation("a"));
+        children.put("v2", relation("b"));
+        ViewUnionAll viewUnion = new ViewUnionAll(Source.EMPTY, children, List.of());
+
+        BitSet bitset = new BitSet();
+        FeatureMetric.set(viewUnion, bitset);
+        assertTrue(bitset.get(FeatureMetric.FORK.ordinal()));
+    }
+
+    public void testProvisionalSourceFanInKeepsForkClassification() {
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("v1", relation("a"));
+        children.put("v2", relation("b"));
+        SourceFanInUnionAll provisional = SourceFanInUnionAll.provisional(Source.EMPTY, children, List.of());
+
+        BitSet bitset = new BitSet();
+        FeatureMetric.set(provisional, bitset);
+        assertTrue(bitset.get(FeatureMetric.FORK.ordinal()));
+    }
+
+    private static UnresolvedRelation relation(String name) {
+        return new UnresolvedRelation(Source.EMPTY, new IndexPattern(Source.EMPTY, name), false, List.of(), IndexMode.STANDARD, null);
     }
 }

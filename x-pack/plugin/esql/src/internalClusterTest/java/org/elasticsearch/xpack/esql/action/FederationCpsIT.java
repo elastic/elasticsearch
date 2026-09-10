@@ -157,6 +157,7 @@ public class FederationCpsIT extends AbstractExternalDataSourceIT {
             | SORT _fork
             """;
         EsqlQueryRequest request = syncEsqlQueryRequest(query);
+        request.acceptedPragmaRisks(true);
         request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build()));
         try (var response = run(request, TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);

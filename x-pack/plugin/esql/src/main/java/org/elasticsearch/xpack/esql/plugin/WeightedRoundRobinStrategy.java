@@ -65,10 +65,6 @@ public final class WeightedRoundRobinStrategy implements ExternalDistributionStr
         return assignByWeight(splits, nodes, context.producerIndex());
     }
 
-    static ExternalDistributionPlan assignByWeight(List<ExternalSplit> splits, List<DiscoveryNode> nodes) {
-        return assignByWeight(splits, nodes, 0);
-    }
-
     /**
      * Packs splits largest-first onto the least-loaded node, resolving ties toward {@code rotation} rather than toward
      * the first node. Every node starts at zero load, so the largest split is always a tie: a fixed resolution sends the

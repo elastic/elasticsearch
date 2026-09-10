@@ -44,8 +44,8 @@ public class ExternalDistributionRotationTests extends ESTestCase {
 
     /**
      * The case the rotation exists for: one split per producer leaves round-robin no room to spread within a producer,
-     * so spreading can only come from where each producer starts. The unrotated overload is asserted alongside it,
-     * since it is what shows the whole load landing on a single node.
+     * so spreading can only come from where each producer starts. Assignment at rotation zero is asserted
+     * alongside it, since that is what shows the whole load landing on a single node.
      */
     public void testSingleSplitProducersSpreadAcrossNodes() {
         DiscoveryNodes nodes = createNodes(4);
@@ -78,15 +78,18 @@ public class ExternalDistributionRotationTests extends ESTestCase {
         assertEquals("two of four nodes idle without rotation", List.of(4, 4, 0, 0), List.copyOf(unrotated.values()));
     }
 
-    public void testRotationZeroMatchesUnrotatedOverload() {
+    public void testRotationZeroAssignsFromTheFirstNode() {
         List<ExternalSplit> splits = createSplits(7);
         var nodeList = eligible(createNodes(3));
 
-        assertEquals(RoundRobinStrategy.assignRoundRobin(splits, nodeList), RoundRobinStrategy.assignRoundRobin(splits, nodeList, 0));
-        assertEquals(
-            WeightedRoundRobinStrategy.assignByWeight(splits, nodeList),
-            WeightedRoundRobinStrategy.assignByWeight(splits, nodeList, 0)
-        );
+        ExternalDistributionPlan plan = RoundRobinStrategy.assignRoundRobin(splits, nodeList, 0);
+        List<String> nodeIds = List.copyOf(plan.nodeAssignments().keySet());
+        assertEquals(3, plan.nodeAssignments().get(nodeIds.get(0)).size());
+        assertEquals(2, plan.nodeAssignments().get(nodeIds.get(1)).size());
+        assertEquals(2, plan.nodeAssignments().get(nodeIds.get(2)).size());
+        assertEquals(List.of(splits.get(0), splits.get(3), splits.get(6)), plan.nodeAssignments().get(nodeIds.get(0)));
+        assertEquals(List.of(splits.get(1), splits.get(4)), plan.nodeAssignments().get(nodeIds.get(1)));
+        assertEquals(List.of(splits.get(2), splits.get(5)), plan.nodeAssignments().get(nodeIds.get(2)));
     }
 
     public void testRoundRobinStaysEvenForEveryRotation() {

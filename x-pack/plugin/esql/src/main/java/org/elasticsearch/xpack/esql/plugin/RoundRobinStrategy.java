@@ -50,10 +50,6 @@ public final class RoundRobinStrategy implements ExternalDistributionStrategy {
         return assignRoundRobin(splits, nodes, context.producerIndex());
     }
 
-    static ExternalDistributionPlan assignRoundRobin(List<ExternalSplit> splits, List<DiscoveryNode> nodes) {
-        return assignRoundRobin(splits, nodes, 0);
-    }
-
     /**
      * Assigns splits round-robin beginning at {@code rotation} rather than at the first node, so that callers planning
      * several producers independently can offset each one and spread their first splits instead of piling them onto one

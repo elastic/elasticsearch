@@ -136,7 +136,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @Override
     protected void createRepository(String repoName) {
-        final long blockSizeBytes = ByteSizeValue.ofKb(64L).getBytes() * randomIntBetween(1, 15);
+        final long blockSizeBytes = ByteSizeValue.ofKb(64L).getBytes() * randomIntBetween(5, 15);
         AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
@@ -147,8 +147,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                 Settings.builder()
                     .put("container", System.getProperty("test.azure.container"))
                     .put("base_path", System.getProperty("test.azure.base") + randomAlphaOfLength(8))
-                    .put("max_single_part_upload_size", ByteSizeValue.of(1, ByteSizeUnit.MB))
-                    .put("multipart_upload_part_size", ByteSizeValue.ofBytes(blockSizeBytes))
+                    .put(AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
+                    .put(AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(blockSizeBytes))
             )
             .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -310,6 +310,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                     .put("container", System.getProperty("test.azure.container"))
                     .put("base_path", System.getProperty("test.azure.base") + randomAlphaOfLength(8))
                     .put(AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
+                    .put(AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
                     .put(AzureRepository.Repository.DATA_ACCESS_TIER_SETTING.getKey(), dataAccessTier.toString())
                     .put(AzureRepository.Repository.METADATA_ACCESS_TIER_SETTING.getKey(), metadataAccessTier.toString())
             )

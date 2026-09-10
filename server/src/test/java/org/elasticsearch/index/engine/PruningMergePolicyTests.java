@@ -10,6 +10,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.apache.lucene.codecs.lucene90.compressing.Lucene90CompressingStoredFieldsReader;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -86,6 +87,7 @@ import static org.elasticsearch.index.mapper.IdFieldMapper.syntheticIdField;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -174,8 +176,14 @@ public class PruningMergePolicyTests extends ESTestCase {
                                         segmentInfos,
                                         newMergeContext()
                                     );
-                                    // don't wrap if there is nothing to do
-                                    assertSame(codecReader, forcedMerges.merges.get(0).wrapForMerge(codecReader));
+                                    var wrappedForMerge = forcedMerges.merges.get(0).wrapForMerge(codecReader);
+                                    if (pruneIdField) {
+                                        // an index that prunes its _id does so on every merge
+                                        assertNotSame(codecReader, wrappedForMerge);
+                                    } else {
+                                        // don't wrap if there is nothing to do
+                                        assertSame(codecReader, wrappedForMerge);
+                                    }
                                 }
                             }
                         }
@@ -646,9 +654,8 @@ public class PruningMergePolicyTests extends ESTestCase {
                         );
                         var forcedMerges = mp.findForcedDeletesMerges(Lucene.readSegmentInfos(reader.getIndexCommit()), newMergeContext());
                         var wrappedForMerge = forcedMerges.merges.get(0).wrapForMerge(codecReader);
-                        // Should Lucene90CompressingStoredFieldsReader or newer
-                        assertThat(wrappedForMerge.getFieldsReader(), not(instanceOf(TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class)));
-                        assertThat(wrappedForMerge.getFieldsReader(), not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
+                        // The reader Lucene tests for when it picks a stored fields merge strategy
+                        assertThat(wrappedForMerge.getFieldsReader(), instanceOf(Lucene90CompressingStoredFieldsReader.class));
                     }
 
                 }
@@ -704,9 +711,77 @@ public class PruningMergePolicyTests extends ESTestCase {
                 );
                 var forcedMerges = mp.findForcedDeletesMerges(Lucene.readSegmentInfos(reader.getIndexCommit()), newMergeContext());
                 var wrappedForMerge = forcedMerges.merges.get(0).wrapForMerge(codecReader);
-                assertThat(wrappedForMerge.getFieldsReader(), not(instanceOf(TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class)));
-                assertThat(wrappedForMerge.getFieldsReader(), not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
+                assertThat(wrappedForMerge.getFieldsReader(), instanceOf(Lucene90CompressingStoredFieldsReader.class));
             }
+        }
+    }
+
+    /** A time series merge drops the stored {@code _id} even with no recovery source to prune it alongside. */
+    public void testPrunesStoredIdWithoutRecoverySource() throws IOException {
+        try (var dir = indexWithStoredId(true)) {
+            assertThat(storedFieldNames(dir), not(hasItem(IdFieldMapper.NAME)));
+            // and on every merge after that
+            assertThat(isWrappedForMerge(dir, true), equalTo(true));
+        }
+        // a non-tsdb index keeps its _id and is never wrapped
+        try (var dir = indexWithStoredId(false)) {
+            assertThat(storedFieldNames(dir), hasItem(IdFieldMapper.NAME));
+            assertThat(isWrappedForMerge(dir, false), equalTo(false));
+        }
+    }
+
+    private static PruningMergePolicy noRecoverySourcePolicy(boolean tsdb) {
+        return new PruningMergePolicy(
+            SourceFieldMapper.RECOVERY_SOURCE_NAME,
+            SourceFieldMapper.RECOVERY_SOURCE_NAME,
+            tsdb,
+            false,
+            () -> Queries.ALL_DOCS_INSTANCE,
+            newLogMergePolicy(),
+            false
+        );
+    }
+
+    /** Indexes documents with a stored _id and no recovery source, then force merges them into one segment. */
+    private static Directory indexWithStoredId(boolean tsdb) throws IOException {
+        var dir = newDirectory();
+        dir.setCheckIndexOnClose(false);
+        var iwc = new IndexWriterConfig(null).setMergePolicy(noRecoverySourcePolicy(tsdb));
+        try (var writer = new IndexWriter(dir, iwc)) {
+            for (int i = 0; i < 20; i++) {
+                var doc = new Document();
+                doc.add(new StringField(IdFieldMapper.NAME, "id-" + i, Field.Store.YES));
+                doc.add(new StoredField("source", "hello world " + i));
+                writer.addDocument(doc);
+                if (i % 5 == 4) {
+                    writer.flush();
+                }
+            }
+            writer.forceMerge(1);
+            writer.commit();
+        }
+        return dir;
+    }
+
+    private static Set<String> storedFieldNames(Directory dir) throws IOException {
+        try (var reader = DirectoryReader.open(dir)) {
+            var names = new HashSet<String>();
+            for (var field : reader.storedFields().document(0).getFields()) {
+                names.add(field.name());
+            }
+            return names;
+        }
+    }
+
+    /** Whether a further merge of {@code dir}'s single segment would wrap the reader. */
+    private static boolean isWrappedForMerge(Directory dir, boolean tsdb) throws IOException {
+        try (var reader = DirectoryReader.open(dir)) {
+            var codecReader = (CodecReader) reader.leaves().getFirst().reader();
+            var merges = noRecoverySourcePolicy(tsdb).findForcedDeletesMerges(
+                Lucene.readSegmentInfos(reader.getIndexCommit()),
+                newMergeContext()
+            );
+            return merges.merges.get(0).wrapForMerge(codecReader) != codecReader;
         }
     }
 

@@ -10,8 +10,8 @@ breaking:
     \ is validated, using `MlStrings.isValidId` (a leading `.` and trailing `_SNAPSHOT`\
     \ are tolerated for packaged/default models, mirroring `model_id` validation). Previously\
     \ no such validation was applied to `deployment_id`."
-  impact: Calls to the start trained model deployment API with a `deployment_id` (or a `model_id`\
+  impact: "Calls to the start trained model deployment API with a `deployment_id` (or a `model_id`\
     \ used as the default `deployment_id`) that does not satisfy `MlStrings.isValidId` will now\
-    \ be rejected with a validation error instead of being accepted.
+    \ be rejected with a validation error instead of being accepted."
   notable: false
 issues: []

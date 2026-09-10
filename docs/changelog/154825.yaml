@@ -1,5 +1,6 @@
 pr: 154825
-summary: Add `xpack.ml.trained_models.sandbox_enabled` setting to control PyTorch inference sandboxing
+summary: Default `xpack.ml.trained_models.sandbox_enabled` to false for staged 9.6
+  PyTorch inference sandboxing rollout
 area: Machine Learning
 type: enhancement
 issues: []

@@ -189,10 +189,17 @@ public class DataStreamLifecycleErrorStore {
     }
 
     /**
-     * Get the total number of error entries in the store
+     * Get the total number of error entries in the store that refer to existing indices
      */
-    public int getTotalErrorEntries() {
-        return projectMap.values().stream().mapToInt(Map::size).sum();
+    public int getTotalErrorEntries(ClusterState clusterState) {
+        return projectMap.entrySet()
+            .stream()
+            .filter(entry -> clusterState.metadata().projects().containsKey(entry.getKey()))
+            .mapToInt(entry -> {
+                ProjectMetadata projectMetadata = clusterState.metadata().projects().get(entry.getKey());
+                return (int) entry.getValue().keySet().stream().filter(projectMetadata::hasIndex).count();
+            })
+            .sum();
     }
 
     /**

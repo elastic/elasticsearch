@@ -833,12 +833,12 @@ public class RestoreServiceTests extends ESTestCase {
     }
 
     /**
-     * This test shows that {@link RestoreService#restoreSnapshotOverOpenIndices} is not idempotent across completed restores. It protects against
-     * two in-flight restores at the same time only.It holds only while the first restore's {@link RestoreInProgress} entry exists. That
-     * entry is transient ({@code removeCompletedRestoresFromClusterState} removes it once the restore completes). And because restoring
-     * over an open index preserves the destination's index UUID, the exact-identity check still passes on a retry after the entry is gone.
-     * So a same-{@code restoreUUID} retry is <em>not</em> deduplicated once cleaned up. It starts a fresh restore and creates a new
-     * history UUID. Guaranteeing at-most-once across the full lifecycle is the caller's responsibility (see
+     * This test shows that {@link RestoreService#restoreSnapshotOverOpenIndices} is not idempotent across completed restores. It protects
+     * against two in-flight restores at the same time only.It holds only while the first restore's {@link RestoreInProgress} entry exists.
+     * That entry is transient ({@code removeCompletedRestoresFromClusterState} removes it once the restore completes). And because
+     * restoring over an open index preserves the destination's index UUID, the exact-identity check still passes on a retry after the entry
+     * is gone. So a same-{@code restoreUUID} retry is <em>not</em> deduplicated once cleaned up. It starts a fresh restore and creates a
+     * new history UUID. Guaranteeing at-most-once across the full lifecycle is the caller's responsibility (see
      * {@link RestoreService#restoreSnapshotOverOpenIndices}).
      */
     public void testRestoreOverOpenIndicesRetryAfterCompletionIsNotDeduplicated() throws Exception {

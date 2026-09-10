@@ -5628,7 +5628,15 @@ public class IndexShardTests extends IndexShardTestCase {
                 .build();
             return new InternalEngine(configWithWarmer);
         });
-        Thread recoveryThread = new Thread(() -> expectThrows(AlreadyClosedException.class, () -> recoverShardFromStore(shard)));
+        Thread recoveryThread = new Thread(() -> {
+            IndexShardClosedException indexShardClosedException = expectThrows(
+                IndexShardClosedException.class,
+                () -> recoverShardFromStore(shard)
+            );
+            Throwable[] suppressed = indexShardClosedException.getSuppressed();
+            assertThat(suppressed.length, equalTo(1));
+            assertThat(ExceptionsHelper.unwrap(suppressed[0], AlreadyClosedException.class), notNullValue());
+        });
         recoveryThread.start();
         try {
             warmerStarted.await();

@@ -92,16 +92,9 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
                 FieldCapabilitiesRequest remoteRequest,
                 ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
             ) {
-                // Views are asked for, datasets are not: a remote dataset is invisible to this query rather than an error,
-                // so a name that matches one there falls through to normal remote index resolution and resolves to nothing.
-                remoteRequest.indicesOptions(
-                    IndicesOptions.builder(remoteRequest.indicesOptions())
-                        .indexAbstractionOptions(
-                            IndicesOptions.IndexAbstractionOptions.builder(remoteRequest.indicesOptions().indexAbstractionOptions())
-                                .resolveViews(true)
-                        )
-                        .build()
-                );
+                // Neither kind of non-remotable abstraction is asked for: #157726 stopped asking a remote to resolve
+                // its views and this change stops asking it to resolve its datasets, so a name that matches either one
+                // there falls through to normal remote index resolution and resolves to nothing.
                 transportService.sendRequest(
                     conn,
                     RESOLVE_REMOTE_TYPE.name(),
@@ -140,12 +133,12 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
      * what stops field caps resolving it, and from there the name is just a name that matches nothing.
      * <p>
      * What the clear cannot undo is anything authorization already did under that flag. {@code
-     * ViewAndDatasetDlsFlsRequestInterceptor} runs earlier, and it applies to every request here rather than only to an
-     * older one, since it gates on {@code resolveViews() || resolveDatasets()} and views are always asked for. What
-     * keeps it quiet is upstream of it: with the option off, a dataset name does not survive index resolution, so the
-     * interceptor finds none to object to. An older coordinator's request was resolved under the flag, so the name is
-     * still there and a caller whose role carries document or field level security is refused, with the name reported
-     * in the failure's metadata rather than in its message. That closes once both ends are current.
+     * ViewAndDatasetDlsFlsRequestInterceptor} runs earlier and gates on {@code resolveViews() || resolveDatasets()}.
+     * A current coordinator asks for neither, so on a request from one the interceptor does not apply at all and there
+     * is nothing left for the clear to undo. An older coordinator asks for both, its request was resolved under them,
+     * and the dataset name is still sitting in {@code indices()} when the interceptor runs, so a caller whose role
+     * carries document or field level security is refused, with the name reported in the failure's metadata rather
+     * than in its message. That closes once both ends are current.
      */
     static void clearDatasetResolution(FieldCapabilitiesRequest fieldCapsRequest) {
         fieldCapsRequest.indicesOptions(
@@ -161,7 +154,8 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
     private ElasticsearchException validateNoRemoteViews(EsqlResolveFieldsRequest request) {
         // resolveViews is only set on a request from the originating cluster, so this detection runs only on a remote
         // cluster. A view is not remotable and a query that reaches one across a cluster boundary fails rather than
-        // silently reading less than it named.
+        // silently reading less than it named. Since #157726 no current coordinator asks, so what still reaches this is
+        // a coordinator on an older version running a cross-cluster query against this one.
         var abstractionOptions = request.indicesOptions().indexAbstractionOptions();
         List<String> remoteViews = abstractionOptions.resolveViews()
             ? qualify(

@@ -10,13 +10,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
-import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -33,7 +30,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.view.ViewResolutionService;
 
 import java.io.IOException;
@@ -58,9 +54,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
     private final TransportFieldCapabilitiesAction fieldCapsAction;
     private final ClusterService clusterService;
     private final ViewResolutionService viewResolutionService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ProjectResolver projectResolver;
-    private final boolean federationAvailable;
 
     @Inject
     public EsqlResolveFieldsAction(
@@ -76,20 +70,21 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         this.fieldCapsAction = fieldCapsAction;
         this.clusterService = clusterService;
         this.viewResolutionService = new ViewResolutionService(indexNameExpressionResolver);
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.projectResolver = projectResolver;
-        this.federationAvailable = Federation.isAvailable(clusterService.getSettings());
     }
 
     @Override
     protected void doExecute(Task task, EsqlResolveFieldsRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
-        var failure = validateNoRemoteUnavailableIndexAbstractions(request);
+        var failure = validateNoRemoteViews(request);
         if (failure != null) {
             listener.onFailure(failure);
             return;
         }
 
-        fieldCapsAction.executeRequest(task, request.fieldCapsRequest(), new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
+        FieldCapabilitiesRequest fieldCapsRequest = request.fieldCapsRequest();
+        clearDatasetResolution(fieldCapsRequest);
+
+        fieldCapsAction.executeRequest(task, fieldCapsRequest, new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
             @Override
             public void executeRemoteRequest(
                 TransportService transportService,
@@ -97,17 +92,9 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
                 FieldCapabilitiesRequest remoteRequest,
                 ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
             ) {
-                // A node without federation does not ask its remotes for datasets either, so a remote that has the feature on
-                // cannot make FROM <remote>:<name> fail here with an error naming datasets; the name falls through to normal
-                // remote index resolution instead.
-                remoteRequest.indicesOptions(
-                    IndicesOptions.builder(remoteRequest.indicesOptions())
-                        .indexAbstractionOptions(
-                            IndicesOptions.IndexAbstractionOptions.builder(remoteRequest.indicesOptions().indexAbstractionOptions())
-                                .resolveDatasets(federationAvailable)
-                        )
-                        .build()
-                );
+                // Neither kind of non-remotable abstraction is asked for: #157726 stopped asking a remote to resolve
+                // its views and this change stops asking it to resolve its datasets, so a name that matches either one
+                // there falls through to normal remote index resolution and resolves to nothing.
                 transportService.sendRequest(
                     conn,
                     RESOLVE_REMOTE_TYPE.name(),
@@ -134,11 +121,41 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         }, listener);
     }
 
-    private ElasticsearchException validateNoRemoteUnavailableIndexAbstractions(EsqlResolveFieldsRequest request) {
-        // resolveViews / resolveDatasets are only set on a request from the originating cluster, so this detection runs
-        // only on a remote cluster. Views and datasets are both non-remotable abstractions; detect both here and report
-        // them together, so a single remote that hosts both fails with one exception naming both rather than just the
-        // first kind checked.
+    /**
+     * Stops this cluster resolving its own datasets for the request, whatever the caller asked for.
+     * <p>
+     * A dataset is a registration on the cluster that holds it, read by that cluster's own query, so it must not
+     * resolve for a caller on another one. A coordinator that predates that rule can still ask for datasets here — a
+     * snapshot build with federation on, new enough for the option to survive the wire — and by
+     * the time this runs the security layer has already resolved the request under that flag ({@link
+     * EsqlResolveFieldsRequest} is an {@code IndicesRequest.Replaceable} and {@code IndicesAndAliasesResolver} reads
+     * {@code resolveDatasets}), so a dataset name can already be sitting in {@code indices()}. Clearing the option is
+     * what stops field caps resolving it, and from there the name is just a name that matches nothing.
+     * <p>
+     * What the clear cannot undo is anything authorization already did under that flag. {@code
+     * ViewAndDatasetDlsFlsRequestInterceptor} runs earlier and gates on {@code resolveViews() || resolveDatasets()}.
+     * A current coordinator asks for neither, so on a request from one the interceptor does not apply at all and there
+     * is nothing left for the clear to undo. An older coordinator asks for both, its request was resolved under them,
+     * and the dataset name is still sitting in {@code indices()} when the interceptor runs, so a caller whose role
+     * carries document or field level security is refused, with the name reported in the failure's metadata rather
+     * than in its message. That closes once both ends are current.
+     */
+    static void clearDatasetResolution(FieldCapabilitiesRequest fieldCapsRequest) {
+        fieldCapsRequest.indicesOptions(
+            IndicesOptions.builder(fieldCapsRequest.indicesOptions())
+                .indexAbstractionOptions(
+                    IndicesOptions.IndexAbstractionOptions.builder(fieldCapsRequest.indicesOptions().indexAbstractionOptions())
+                        .resolveDatasets(false)
+                )
+                .build()
+        );
+    }
+
+    private ElasticsearchException validateNoRemoteViews(EsqlResolveFieldsRequest request) {
+        // resolveViews is only set on a request from the originating cluster, so this detection runs only on a remote
+        // cluster. A view is not remotable and a query that reaches one across a cluster boundary fails rather than
+        // silently reading less than it named. Since #157726 no current coordinator asks, so what still reaches this is
+        // a coordinator on an older version running a cross-cluster query against this one.
         var abstractionOptions = request.indicesOptions().indexAbstractionOptions();
         List<String> remoteViews = abstractionOptions.resolveViews()
             ? qualify(
@@ -146,29 +163,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
                 getViews(request.indices(), request.indicesOptions(), request.getResolvedIndexExpressions())
             )
             : List.of();
-        // When federation is not available this node reports no datasets, so a FROM <remote:name> falls through to normal
-        // remote index resolution and the node is indistinguishable from one that never shipped the feature, rather than
-        // failing with a RemoteDatasetNotSupportedException that names pre-existing datasets still in cluster state.
-        List<String> remoteDatasets = abstractionOptions.resolveDatasets() && federationAvailable
-            ? qualify(request.fieldCapsRequest().clusterAlias(), getDatasets(request.indices(), request.indicesOptions()))
-            : List.of();
-        boolean hasRemoteViews = remoteViews.isEmpty() == false;
-        boolean hasRemoteDatasets = remoteDatasets.isEmpty() == false;
-
-        if (hasRemoteViews || hasRemoteDatasets) {
-            // A coordinator that asked for datasets (resolveDatasets) also understands the combined exception; an older,
-            // views-only coordinator only knows RemoteViewNotSupportedException, so a single-kind failure keeps using the
-            // per-kind exception it can deserialize.
-            if (hasRemoteViews && hasRemoteDatasets) {
-                return new RemoteResourceNotSupportedException(remoteViews, remoteDatasets);
-            } else if (hasRemoteViews) {
-                // This branch might still happen if older (9.5) cluster executes a CCS query against this newer cluster
-                return new RemoteViewNotSupportedException(remoteViews);
-            } else {
-                return new RemoteDatasetNotSupportedException(remoteDatasets);
-            }
-        }
-        return null;
+        return remoteViews.isEmpty() ? null : new RemoteViewNotSupportedException(remoteViews);
     }
 
     private Set<String> getViews(String[] indices, IndicesOptions indicesOptions, ResolvedIndexExpressions resolvedIndexExpressions) {
@@ -184,19 +179,4 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         return names.stream().sorted().map(name -> clusterAlias + ":" + name).toList();
     }
 
-    private Set<String> getDatasets(String[] indices, IndicesOptions indicesOptions) {
-        // Datasets resolve via IndexNameExpressionResolver, not the view service.
-        var projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
-        return Set.copyOf(indexNameExpressionResolver.datasets(projectMetadata, indicesOptions, new IndicesRequest() {
-            @Override
-            public String[] indices() {
-                return indices;
-            }
-
-            @Override
-            public IndicesOptions indicesOptions() {
-                return indicesOptions;
-            }
-        }));
-    }
 }

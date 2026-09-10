@@ -17,6 +17,8 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.store.DirectoryType;
+import org.elasticsearch.benchmark.vector.store.DirectoryFactory;
+import org.elasticsearch.core.SuppressForbidden;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -106,8 +108,8 @@ public abstract class VectorScorerBulkBenchmark {
     }
 
     void setup(VectorData vectorData, int numVectors) throws IOException {
-        path = Files.createTempDirectory("VectorBulkBenchmark");
-        dir = directoryType.newDirectory(path);
+        path = createScratchLuceneDirectory();
+        dir = DirectoryFactory.newDirectory(directoryType, path);
         vectorData.writeVectorData(dir);
 
         numVectorsToScore = vectorData.numVectorsToScore;
@@ -120,6 +122,11 @@ public abstract class VectorScorerBulkBenchmark {
         createScorers(in, vectorData);
 
         scorer.setScoringOrdinal(vectorData.targetOrd);
+    }
+
+    @SuppressForbidden(reason = "scratch directory for the Lucene Directory")
+    private static Path createScratchLuceneDirectory() throws IOException {
+        return Files.createTempDirectory("VectorBulkBenchmark");
     }
 
     abstract void createScorers(IndexInput in, VectorData vectorData) throws IOException;

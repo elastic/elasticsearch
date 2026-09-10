@@ -190,10 +190,10 @@ public final class DeclaredSchemaResolver {
 
     private static DataType resolveType(String column, String type) {
         DataType resolved = declaredTypeAsRead(type);
-        // PUT-time DeclaredSchemaValidator already rejects undeclarable types; this is the defensive backstop for a
-        // mapping that reached resolution another way (e.g. a hand-edited cluster state). Mirror the validator's
-        // whitelist exactly so the backstop is as strict — a known-but-non-declarable type (e.g. geo_point) is rejected
-        // here too, not just an unknown one.
+        // The validator's whitelist again, as a backstop for a mapping that reached resolution another way (a
+        // hand-edited cluster state, say). It tests the substituted type, so a stored `text` passes here as
+        // `keyword` even though PUT rejects it. Every other type outside the whitelist is rejected on both paths,
+        // a known one (`geo_point`) as much as an unknown name.
         if (resolved == DataType.UNSUPPORTED || DeclaredSchemaValidator.DECLARABLE_TYPES.contains(resolved) == false) {
             throw new IllegalArgumentException("declared type [" + type + "] for column [" + column + "] is not a declarable type");
         }

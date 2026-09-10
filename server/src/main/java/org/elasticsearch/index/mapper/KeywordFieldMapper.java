@@ -1673,6 +1673,17 @@ public final class KeywordFieldMapper extends FieldMapper {
         return b;
     }
 
+    private static void addOwnedBinaryColumn(
+        BatchMappingContext ctx,
+        EscfColumnBuilder builder,
+        int docCount,
+        String fieldName,
+        IndexableFieldType luceneFieldType
+    ) {
+        final EscfColumnData data = builder.finish(docCount);
+        ctx.addColumn(LuceneBinaryColumn.of(data, fieldName, luceneFieldType), data);
+    }
+
     @Override
     public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored();
@@ -1840,12 +1851,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             // a columnar field writes a payload for every shape and emits no counts column at all.
             // Each builder owns its buffers, so every finished column is registered for release with the batch.
             if (terms != null && terms.isEmpty() == false) {
-                final EscfColumnData termsData = terms.finish(docCount);
-                ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), fieldType), termsData);
+                addOwnedBinaryColumn(ctx, terms, docCount, fieldType().name(), fieldType);
             }
             if (binaryDvs != null && binaryDvs.isEmpty() == false) {
-                final EscfColumnData binaryDvData = binaryDvs.finish(docCount);
-                ctx.addColumn(LuceneBinaryColumn.of(binaryDvData, fieldType().name(), CustomDocValuesField.TYPE), binaryDvData);
+                addOwnedBinaryColumn(ctx, binaryDvs, docCount, fieldType().name(), CustomDocValuesField.TYPE);
             }
             // A columnar field's payload carries its own count, so it emits no companion column at all.
             if (columnar == false && dvCounts != null && dvCounts.isEmpty() == false) {
@@ -1854,8 +1863,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             if (emitFallback && fallback != null && fallback.isEmpty() == false) {
                 final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
-                final EscfColumnData fallbackData = fallback.finish(docCount);
-                ctx.addColumn(LuceneBinaryColumn.of(fallbackData, fallbackFieldName, CustomDocValuesField.TYPE), fallbackData);
+                addOwnedBinaryColumn(ctx, fallback, docCount, fallbackFieldName, CustomDocValuesField.TYPE);
                 final EscfColumnData fallbackCountData = fallbackCounts.finish(docCount);
                 ctx.addColumn(LuceneLongColumn.counts(fallbackCountData, fallbackFieldName), fallbackCountData);
             }
@@ -1883,7 +1891,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // `values` is created lazily when the zero-copy plan is abandoned mid-loop, so it cannot sit in the
         // try-with-resources header; the group releases whichever builders were actually created.
-        try (GroupedReleasables pending = new GroupedReleasables(3)) {
+        try (GroupedReleasables pending = new GroupedReleasables(4)) {
             EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && emitSharedColumn
                 ? pending.add(mergeStringColumn())
                 : null;
@@ -1974,8 +1982,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 // A columnar field's doc values are framed, so they are a column of their own rather than a second wrapper
                 // over the terms serialization. The type is the one ColumnarBinaryDocValuesField carries on the row path.
                 if (payloadDvs != null) {
-                    final EscfColumnData payloadData = payloadDvs.finish(docCount);
-                    ctx.addColumn(LuceneBinaryColumn.of(payloadData, fieldType().name(), CustomDocValuesField.TYPE), payloadData);
+                    addOwnedBinaryColumn(ctx, payloadDvs, docCount, fieldType().name(), CustomDocValuesField.TYPE);
                 }
             }
             // Synthetic-source fallback for ignore_above values: single BinaryDocValuesField (no counts),

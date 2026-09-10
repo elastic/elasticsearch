@@ -790,15 +790,17 @@ public class BooleanFieldMapper extends FieldMapper {
                 )
             );
         }
-        // Each converted column owns its buffers; register it once even though two field types may wrap it.
         EscfColumnData outData = booleansToLongs(source);
-        ctx.addResource(outData);
         if (fieldType().indexType().hasDocValuesSkipper()) {
             ctx.addColumn(
-                LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, LongColumn.NumericKind.INT)
+                LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, LongColumn.NumericKind.INT),
+                outData
             );
         } else {
-            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
+            ctx.addColumn(
+                LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT),
+                outData
+            );
         }
         if (indexed || stored) {
             EscfColumnData termsData = booleansToTerms(outData);

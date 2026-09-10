@@ -47,7 +47,8 @@ public class ColumnarOffsetsBuilderTests extends ESTestCase {
         final LuceneBinaryColumn column = ColumnarOffsetsBuilder.build(
             longArrayColumn(docs),
             OFFSETS_FIELD,
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            data -> {}
         );
         final String message = "input " + Arrays.deepToString(docs);
         assertNotNull(message, column);
@@ -79,7 +80,7 @@ public class ColumnarOffsetsBuilderTests extends ESTestCase {
     /** No document has enough slots to record, so no column may be added at all. */
     public void testLongAllSingleValuedReturnsNull() {
         final long[][] docs = { new long[] { 42L }, null, new long[0], new long[] { -1L } };
-        assertNull(ColumnarOffsetsBuilder.build(longArrayColumn(docs), OFFSETS_FIELD, BytesRefRecycler.NON_RECYCLING_INSTANCE));
+        assertNull(ColumnarOffsetsBuilder.build(longArrayColumn(docs), OFFSETS_FIELD, BytesRefRecycler.NON_RECYCLING_INSTANCE, data -> {}));
     }
 
     /** Repeated values share one ordinal, which is what makes the sidecar smaller than the source it replaces. */
@@ -88,7 +89,8 @@ public class ColumnarOffsetsBuilderTests extends ESTestCase {
         final LuceneBinaryColumn column = ColumnarOffsetsBuilder.build(
             longArrayColumn(docs),
             OFFSETS_FIELD,
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            data -> {}
         );
         // The sorted distinct values are [3, 7], so every 3 maps to ordinal 0 and every 7 to ordinal 1.
         assertArrayEquals(new int[] { 1, 0, 1, 0, 1 }, readOffsets(column, docs.length)[0]);
@@ -111,7 +113,8 @@ public class ColumnarOffsetsBuilderTests extends ESTestCase {
         final LuceneBinaryColumn column = ColumnarOffsetsBuilder.build(
             bytesArrayColumn(docs, randomBoolean()),
             OFFSETS_FIELD,
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            data -> {}
         );
         final String message = "input " + Arrays.deepToString(docs);
         assertNotNull(message, column);
@@ -146,7 +149,8 @@ public class ColumnarOffsetsBuilderTests extends ESTestCase {
         final LuceneBinaryColumn column = ColumnarOffsetsBuilder.build(
             bytesArrayColumn(docs, randomBoolean()),
             OFFSETS_FIELD,
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            data -> {}
         );
         // The sorted distinct values are ["", "a", "ab", "b"] — "ab" precedes "b" on the second byte.
         assertArrayEquals(new int[] { 0, 1, 2, 0, 3, 1 }, readOffsets(column, docs.length)[0]);
@@ -158,7 +162,8 @@ public class ColumnarOffsetsBuilderTests extends ESTestCase {
         final LuceneBinaryColumn column = ColumnarOffsetsBuilder.build(
             bytesArrayColumn(docs, randomBoolean()),
             OFFSETS_FIELD,
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            data -> {}
         );
         assertArrayEquals(new int[] { 0, 0, 0 }, readOffsets(column, docs.length)[0]);
     }
@@ -183,7 +188,8 @@ public class ColumnarOffsetsBuilderTests extends ESTestCase {
     private static EscfColumn longArrayColumn(long[][] docs) {
         final EscfColumnBuilder builder = new EscfColumnBuilder(
             EscfColumnBuilder.CollisionPolicy.MERGE,
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            data -> {}
         );
         builder.hintArray(EscfColumnKind.LONG);
         for (int doc = 0; doc < docs.length; doc++) {
@@ -242,7 +248,8 @@ public class ColumnarOffsetsBuilderTests extends ESTestCase {
     private static EscfColumn bytesArrayColumn(BytesRef[][] docs, boolean binaryElements) {
         final EscfColumnBuilder builder = new EscfColumnBuilder(
             EscfColumnBuilder.CollisionPolicy.MERGE,
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            data -> {}
         );
         builder.hintArray(binaryElements ? EscfColumnKind.BINARY : EscfColumnKind.STRING);
         for (int doc = 0; doc < docs.length; doc++) {

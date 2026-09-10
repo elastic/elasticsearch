@@ -90,6 +90,11 @@ public class NamedPipeHelper {
      * The returned value MUST exactly match {@code $TMPDIR/ml-child-ipc/<childId>/} as constructed on
      * the C++ side. If this logic changes here then the corresponding C++ controller code must also
      * change.
+     * <p>
+     * Linux only: unlike {@link #getDefaultPipeDirectoryPrefix}, this method does not special-case
+     * the Windows named-pipe namespace ({@code \\\\.\\pipe\\}). Callers must gate its use on
+     * {@code Constants.LINUX} themselves - the returned path is only usable where the native controller
+     * creates real filesystem FIFOs.
      * @param env The node environment, used to determine the base temporary directory.
      * @param childId An identifier that is unique for the lifetime of the child process, used to keep
      *                its IPC directory isolated from other children. Must already be validated as a

@@ -19,6 +19,7 @@ import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.benchmark.vector.store.DirectoryFactory;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
@@ -356,6 +357,7 @@ public class VectorScorerOSQBenchmark {
         this.sparseOffsetsCount = data.sparseOffsetsCount();
     }
 
+    @SuppressForbidden(reason = "scratch directory for the Lucene Directory")
     Path createTempDirectory(String name) throws IOException {
         tempDir = Files.createTempDirectory(name);
         return tempDir;

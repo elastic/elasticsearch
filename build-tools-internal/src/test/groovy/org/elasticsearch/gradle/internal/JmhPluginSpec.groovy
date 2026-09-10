@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal
 
 import org.elasticsearch.gradle.internal.info.BuildParameterService
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 import org.gradle.api.Project
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.plugins.JavaPlugin
@@ -139,5 +140,26 @@ class JmhPluginSpec extends Specification {
 
         then:
         impl.any { it instanceof ProjectDependency && ((ProjectDependency) it).path == ":test:framework" }
+    }
+
+    def "excludes JMH-generated classes from #taskName"() {
+        given:
+        // Stands in for the task ForbiddenApisPrecommitPlugin registers per source set, so the
+        // exclusion is asserted without pulling in the whole precommit chain.
+        def task = consumer.tasks.register(taskName, CheckForbiddenApisTask).get()
+
+        expect:
+        task.excludes.contains("**/jmh_generated/**")
+
+        where:
+        taskName << ["forbiddenApisBenchmark", "forbiddenApisBenchmarkTest"]
+    }
+
+    def "leaves forbidden-apis tasks for other source sets untouched"() {
+        given:
+        def task = consumer.tasks.register("forbiddenApisMain", CheckForbiddenApisTask).get()
+
+        expect:
+        task.excludes.isEmpty()
     }
 }

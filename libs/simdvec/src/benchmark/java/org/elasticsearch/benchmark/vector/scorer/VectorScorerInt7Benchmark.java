@@ -17,6 +17,7 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -35,6 +36,7 @@ import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
@@ -78,7 +80,7 @@ public class VectorScorerInt7Benchmark {
         numVectors = dims * bulkSize;
         scores = new float[bulkSize];
         binaryVectors = new byte[numVectors][dims];
-        dir = new MMapDirectory(Files.createTempDirectory("vectorData"));
+        dir = new MMapDirectory(createScratchLuceneDirectory());
         try (IndexOutput out = dir.createOutput("vectors", IOContext.DEFAULT)) {
             for (byte[] binaryVector : binaryVectors) {
                 for (int i = 0; i < dims; i++) {
@@ -110,6 +112,11 @@ public class VectorScorerInt7Benchmark {
 
         scratch = new byte[dims];
         scorer = ESVectorizationProvider.getInstance().getVectorScorerFactory().newES92Int7VectorsScorer(in, dims, bulkSize);
+    }
+
+    @SuppressForbidden(reason = "scratch directory for the Lucene Directory")
+    private static Path createScratchLuceneDirectory() throws IOException {
+        return Files.createTempDirectory("vectorData");
     }
 
     @TearDown

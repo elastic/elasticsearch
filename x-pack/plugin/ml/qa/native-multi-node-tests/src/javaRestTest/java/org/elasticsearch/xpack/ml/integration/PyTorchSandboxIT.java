@@ -81,10 +81,7 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
         startDeployment(modelId, AllocationStatus.State.STARTED);
         try {
             Response inference = infer("my words", modelId);
-            assertThat(
-                EntityUtils.toString(inference.getEntity()),
-                equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}")
-            );
+            assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}"));
 
             // Limitation: no REST/notification-visible signal distinguishes "started with seccomp
             // disabled" from "started with seccomp enforced", so this only asserts the functional outcome.
@@ -127,10 +124,7 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
 
             startDeployment(modelId, AllocationStatus.State.STARTED);
             Response inference = infer("my words", modelId);
-            assertThat(
-                EntityUtils.toString(inference.getEntity()),
-                equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}")
-            );
+            assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}"));
             stopDeployment(modelId);
         } finally {
             Request reset = new Request("PUT", "_cluster/settings");

@@ -34,6 +34,7 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
@@ -229,9 +230,13 @@ public abstract sealed class IndexRouting {
      */
     public void checkIndexSplitAllowed() {}
 
-    /// Returns a predicate that given the document id and a routing value
-    /// returns `true` if the document routes to the provided shard.
-    /// This API is specifically used by [ShardSplittingQuery].
+    /**
+     * Returns a predicate that, given the document id and a routing value,
+     * returns {@code true} if the document routes to the provided shard.
+     * This API is specifically used by {@link ShardSplittingQuery}.
+     * @param shardId the shard whose documents the predicate should match
+     * @return a predicate over (documentId, routingValue) pairs
+     */
     public abstract BiPredicate<String, String> shardMatcherForSplit(int shardId);
 
     /**

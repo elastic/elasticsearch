@@ -594,16 +594,18 @@ public class SubPlansExecutorTests extends ESTestCase {
     /**
      * Same STOP cascade as {@link #testFinishSessionEarlyUnblocksParkedNestedTree}, but with {@code branch_parallel_degree=1}
      * so five leaves are still queued (no sink handler, not a remote of any source) when {@code finishSessionEarly} runs.
-     * Those leaves are invisible to the first close. They must still complete when later {@code attach}es see
-     * {@code buffer.noMoreInputs()} on the already-finished parent source and finish the new sink immediately.
-     * Pre-fix / a broken attach would leave the query waiting on a leaf that never observes STOP.
+     * {@code executeLeaf} must release those queued leaves without calling {@code executePlan}: production STOP marks
+     * {@link EsqlExecutionInfo} stopped before {@code finishSessionEarly}, and starting a new plan after STOP can fail
+     * the query instead of returning partial results.
      */
     public void testFinishSessionEarlyUnblocksQueuedNestedLeaves() throws Exception {
         CountDownLatch parked = new CountDownLatch(3 + 1);
-        stubParkUntilExchangeCloses(parked);
+        AtomicInteger leafDispatches = new AtomicInteger();
+        stubParkUntilExchangeClosesOrCancelled(parked, null, leafDispatches);
 
         StartedQuery started = startQuery(nestedMerges(), new QueryPragmas(Settings.builder().put("branch_parallel_degree", 1).build()));
         assertTrue("root, both inner merges, and the one dispatched leaf must park", parked.await(10, TimeUnit.SECONDS));
+        assertEquals("only the first-wave leaf is dispatched before STOP", 1, leafDispatches.get());
         assertThat(exchangeService.sinkKeys(), hasSize(3)); // innerA sink, innerB sink, one leaf
         assertThat(
             "queued leaves must not have sink handlers yet",
@@ -611,13 +613,80 @@ public class SubPlansExecutorTests extends ESTestCase {
             not(hasItem("test-session/1/subplan-0.subplan-1"))
         );
 
+        started.execInfo.markAsStopped();
         PlainActionFuture<Boolean> stopped = new PlainActionFuture<>();
         exchangeService.finishSessionEarly(started.sessionId, stopped);
         assertTrue(stopped.get(10, TimeUnit.SECONDS));
 
         started.future.get(10, TimeUnit.SECONDS);
+        assertEquals("queued leaves must not call executePlan after STOP", 1, leafDispatches.get());
         assertFalse("STOP is a graceful finishEarly, not a failure", cancelled.get());
         assertBusy(() -> assertTrue("queued leaves must not leak handlers after STOP", exchangeFullyEmpty()));
+    }
+
+    /**
+     * Production STOP marks {@link EsqlExecutionInfo} stopped before {@code finishSessionEarly}. Same topology as
+     * {@link #testCancelAfterNestedLeafDispatched}: one leaf is in {@code executePlan}, the rest are queued. The
+     * queued leaves must be released without {@code executePlan}, and the query must succeed (unlike cancel).
+     */
+    public void testStopAfterNestedLeafDispatched() throws Exception {
+        CountDownLatch parked = new CountDownLatch(3 + 1);
+        AtomicInteger leafDispatches = new AtomicInteger();
+        stubParkUntilExchangeClosesOrCancelled(parked, null, leafDispatches);
+
+        StartedQuery started = startQuery(nestedMerges(), new QueryPragmas(Settings.builder().put("branch_parallel_degree", 1).build()));
+        assertTrue("root, both inner merges, and the one dispatched leaf must park", parked.await(10, TimeUnit.SECONDS));
+        assertEquals("only the first-wave leaf is dispatched before STOP", 1, leafDispatches.get());
+
+        started.execInfo.markAsStopped();
+        PlainActionFuture<Boolean> stopped = new PlainActionFuture<>();
+        exchangeService.finishSessionEarly(started.sessionId, stopped);
+        assertTrue(stopped.get(10, TimeUnit.SECONDS));
+
+        started.future.get(10, TimeUnit.SECONDS);
+        assertEquals("only the already-dispatched leaf called executePlan", 1, leafDispatches.get());
+        assertFalse("STOP is a graceful finishEarly, not a failure", cancelled.get());
+        assertBusy(() -> assertTrue("STOP must drain parked and queued work", exchangeFullyEmpty()));
+    }
+
+    /**
+     * The reviewer's failure mode: a queued {@code executePlan} after STOP throws. Pre-fix that failure was recorded
+     * on the merge listener and the query failed. After the skip, the second dispatch never happens and STOP succeeds.
+     */
+    public void testQueuedExecutePlanFailureAfterStopDoesNotFailQuery() throws Exception {
+        CountDownLatch parked = new CountDownLatch(3 + 1);
+        AtomicInteger leafDispatches = new AtomicInteger();
+        stubParkUntilExchangeCloses(parked);
+        doAnswer(inv -> {
+            if (leafDispatches.incrementAndGet() > 1) {
+                throw new RuntimeException("queued executePlan after STOP");
+            }
+            Supplier<ExchangeSink> sinkSupplier = inv.getArgument(9);
+            ActionListener<Result> listener = ActionListener.notifyOnce(inv.getArgument(8));
+            Configuration cfg = inv.getArgument(4);
+            sinkSupplier.get()
+                .addCompletionListener(
+                    ActionListener.running(
+                        () -> listener.onResponse(new Result(List.of(), List.of(), null, cfg, DriverCompletionInfo.EMPTY, null, null))
+                    )
+                );
+            parked.countDown();
+            return null;
+        }).when(computeService).executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+
+        StartedQuery started = startQuery(nestedMerges(), new QueryPragmas(Settings.builder().put("branch_parallel_degree", 1).build()));
+        assertTrue("root, both inner merges, and the one dispatched leaf must park", parked.await(10, TimeUnit.SECONDS));
+        assertEquals(1, leafDispatches.get());
+
+        started.execInfo.markAsStopped();
+        PlainActionFuture<Boolean> stopped = new PlainActionFuture<>();
+        exchangeService.finishSessionEarly(started.sessionId, stopped);
+        assertTrue(stopped.get(10, TimeUnit.SECONDS));
+
+        started.future.get(10, TimeUnit.SECONDS);
+        assertEquals("queued leaves must not call executePlan after STOP", 1, leafDispatches.get());
+        assertFalse("STOP must not become a query failure", cancelled.get());
+        assertBusy(() -> assertTrue(exchangeFullyEmpty()));
     }
 
     /**
@@ -1148,7 +1217,7 @@ public class SubPlansExecutorTests extends ESTestCase {
         onDone.run();
     }
 
-    private record StartedQuery(PlainActionFuture<Result> future, String sessionId, CancellableTask rootTask) {}
+    private record StartedQuery(PlainActionFuture<Result> future, String sessionId, CancellableTask rootTask, EsqlExecutionInfo execInfo) {}
 
     private StartedQuery startQuery(SubPlan.Merge topology, QueryPragmas pragmas) {
         return startQuery(topology, pragmas, null, new CancellableTask(1, "esql", "esql", "test", TaskId.EMPTY_TASK_ID, Map.of()));
@@ -1177,7 +1246,7 @@ public class SubPlansExecutorTests extends ESTestCase {
             execInfo,
             Map.of()
         ).execute(topology, planTimeProfile, future);
-        return new StartedQuery(future, sessionId, rootTask);
+        return new StartedQuery(future, sessionId, rootTask, execInfo);
     }
 
     private void buildAndExecute(SubPlan.Merge topology, ActionListener<Result> listener) {

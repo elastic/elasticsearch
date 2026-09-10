@@ -110,6 +110,35 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
             """, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 1).build());
     }
 
+    public void testTotalBranchCountDoesNotCountLookupJoinAsLeaf() {
+        String query = """
+            FROM test, (FROM test)
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            """;
+
+        planSubquery(query, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 2).build());
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(query, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 1).build())
+        );
+        assertThat(e.getMessage(), containsString("query resolved to 2 branches in total, exceeding the limit of 1"));
+    }
+
+    public void testTotalBranchCountDoesNotCountEnrichAsLeaf() {
+        String query = """
+            FROM test, (FROM test)
+            | ENRICH languages_idx ON first_name
+            """;
+
+        planSubquery(query, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 2).build());
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(query, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 1).build())
+        );
+        assertThat(e.getMessage(), containsString("query resolved to 2 branches in total, exceeding the limit of 1"));
+    }
+
     public void testTotalBranchCountWithViewAtOrBeyondLimit() {
         String query = "FROM view_0, view_1, test";
 

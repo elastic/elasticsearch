@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -25,6 +29,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -1721,6 +1726,42 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             assertThat(values.get(3), equalTo(List.of(1L, 6L, 6L, "ts-high-cpu")));
             assertCCSExecutionInfoDetails(resp.getExecutionInfo());
         }
+    }
+
+    /**
+     * A CPS view union whose strict branches all resolve to empty remote subqueries must collapse to an empty relation rather than leave a
+     * branchless {@code ViewUnionAll} that throws from {@code Fork.expressionsResolved()} during analysis.
+     */
+    public void testViewUnionAllWithAllEmptyRemoteBranches() {
+        String viewA = "missing_remote_view_a_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        String viewB = "missing_remote_view_b_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        try {
+            createViewOnCluster(LOCAL_CLUSTER, viewA, "FROM cluster-a:missing-view-a-*");
+            createViewOnCluster(LOCAL_CLUSTER, viewB, "FROM remote-b:missing-view-b-*");
+
+            try (EsqlQueryResponse response = runQuery("FROM missing_remote_view_* | STATS count = COUNT(*)", randomBoolean())) {
+                assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
+            }
+        } finally {
+            deleteViewOnCluster(viewA);
+            deleteViewOnCluster(viewB);
+        }
+    }
+
+    private void createViewOnCluster(String clusterAlias, String viewName, String query) {
+        assertAcked(
+            client(clusterAlias).execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, new View(viewName, query))
+            ).actionGet(30, TimeUnit.SECONDS)
+        );
+    }
+
+    private void deleteViewOnCluster(String viewName) {
+        client(LOCAL_CLUSTER).execute(
+            DeleteViewAction.INSTANCE,
+            new DeleteViewAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, new String[] { viewName })
+        ).actionGet(30, TimeUnit.SECONDS);
     }
 
     private void populateTimeSeriesIndex(String clusterAlias, String indexName) {

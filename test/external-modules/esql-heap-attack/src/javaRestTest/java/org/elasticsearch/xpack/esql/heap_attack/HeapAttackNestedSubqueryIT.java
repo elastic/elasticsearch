@@ -52,62 +52,47 @@ public class HeapAttackNestedSubqueryIT extends HeapAttackTestCase {
     }
 
     /**
-     * Fetches all 700 keyword fields from every leaf of the nested query. The request can circuit break while loading the keyword
-     * doc values into blocks, or later when the coordinating node reserves memory to fetch an intermediate page from a remote branch.
+     * Fetches all 700 keyword fields from every leaf of the nested query. The 27-leaf union keeps far more keyword values than the
+     * request breaker allows, so this must circuit-break while loading doc values or reserving memory for an intermediate page.
      */
     public void testManyRandomKeywordFieldsInNestedSubqueryIntermediateResults() throws IOException {
-        int docs = docs();
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, STRING_FIELD_700);
-        ListMatcher columns = matchesList();
-        for (int f = 0; f < STRING_FIELD_700; f++) {
-            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", "keyword"));
-        }
+        heapAttackIT.initManyBigFieldsIndex(docs(), "keyword", true, STRING_FIELD_700);
         try {
-            Map<?, ?> response = buildNestedSubqueries("manybigfields", serverlessExecuteBranchSequentially());
-            assertMap(response, matchesMap().entry("columns", columns));
+            Map<String, Object> response = buildNestedSubqueries("manybigfields", serverlessExecuteBranchSequentially());
+            fail("expected circuit_breaking_exception but query succeeded: " + response);
         } catch (ResponseException e) {
             verifyCircuitBreakingException(e);
         }
     }
 
     /**
-     * Sorts each leaf by one keyword field before returning all 700 keyword fields. The request can circuit break when the Top-N operator
-     * materializes its sorted rows, including while decoding keyword values into the result blocks.
+     * Sorts each leaf by one keyword field before returning all 700 keyword fields. The Top-N materialization of those rows must
+     * circuit-break.
      */
     public void testManyRandomKeywordFieldsInNestedSubqueryIntermediateResultsWithSortOneField() throws IOException {
-        int docs = docs();
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, STRING_FIELD_700);
-        ListMatcher columns = matchesList();
-        for (int f = 0; f < STRING_FIELD_700; f++) {
-            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", "keyword"));
-        }
+        heapAttackIT.initManyBigFieldsIndex(docs(), "keyword", true, STRING_FIELD_700);
         try {
-            Map<?, ?> response = buildNestedSubqueriesWithSort("manybigfields", "f000");
-            assertMap(response, matchesMap().entry("columns", columns));
+            Map<String, Object> response = buildNestedSubqueriesWithSort("manybigfields", "f000");
+            fail("expected circuit_breaking_exception but query succeeded: " + response);
         } catch (ResponseException e) {
             verifyCircuitBreakingException(e);
         }
     }
 
     /**
-     * Sorts each leaf by 11 keyword fields before returning all 700 keyword fields. Keeping the larger sort keys for all nested branches
-     * can trip the request breaker while the Top-N operator adds input rows.
+     * Sorts each leaf by 11 keyword fields before returning all 700 keyword fields. Keeping the larger sort keys for all nested
+     * branches must trip the request breaker while the Top-N operator adds input rows.
      */
     public void testManyRandomKeywordFieldsInNestedSubqueryIntermediateResultsWithSortManyFields() throws IOException {
-        int docs = docs();
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, STRING_FIELD_700);
+        heapAttackIT.initManyBigFieldsIndex(docs(), "keyword", true, STRING_FIELD_700);
         StringBuilder sortKeys = new StringBuilder();
         sortKeys.append("f000");
         for (int f = 1; f < 11; f++) {
             sortKeys.append(", f").append(String.format(Locale.ROOT, "%03d", f));
         }
-        ListMatcher columns = matchesList();
-        for (int f = 0; f < STRING_FIELD_700; f++) {
-            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", "keyword"));
-        }
         try {
-            Map<?, ?> response = buildNestedSubqueriesWithSort("manybigfields", sortKeys.toString());
-            assertMap(response, matchesMap().entry("columns", columns));
+            Map<String, Object> response = buildNestedSubqueriesWithSort("manybigfields", sortKeys.toString());
+            fail("expected circuit_breaking_exception but query succeeded: " + response);
         } catch (ResponseException e) {
             verifyCircuitBreakingException(e);
         }
@@ -131,7 +116,6 @@ public class HeapAttackNestedSubqueryIT extends HeapAttackTestCase {
         for (int f = 0; f < fields; f++) {
             columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", type));
         }
-        // results are returned from non-serverless environment, but CBE is expected in serverless
         try {
             Map<?, ?> response = buildNestedSubqueriesWithSort("manybigfields", sortKeys.toString());
             assertMap(response, matchesMap().entry("columns", columns));

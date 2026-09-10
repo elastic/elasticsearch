@@ -26,9 +26,11 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -314,6 +316,30 @@ public class ResolveViewShadowTests extends ESTestCase {
         var esRelation = as(unwrapProject(unionAll.children().getFirst()), EsRelation.class);
         assertEquals("v1", esRelation.indexPattern());
         assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    /**
+     * Reproduction: a {@link ViewUnionAll} whose every child is an unresolved {@link ViewShadowRelation} (CPS view resolution, every
+     * remote shadow misses). {@code ViewCompaction.stripViewShadowRelations} rebuilds a branchless {@code ViewUnionAll}; the next analyzer
+     * rule that calls {@code resolved()} then throws {@code NoSuchElementException} from {@code Fork.expressionsResolved}
+     * ({@code children().getFirst()}) instead of a verification failure ({@code "ViewUnionAll requires at least one branch"}).
+     */
+    public void testAllUnresolvedShadowsThrowFromExpressionsResolved() {
+        var analyzer = analyzer().buildAnalyzer();
+
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("v_a#shadow", new ViewShadowRelation(EMPTY, "v_a", LinkedIndexPattern.Kind.OPTIONAL, "v_a"));
+        children.put("v_b#shadow", new ViewShadowRelation(EMPTY, "v_b", LinkedIndexPattern.Kind.OPTIONAL, "v_b"));
+
+        NoSuchElementException e = expectThrows(
+            NoSuchElementException.class,
+            () -> analyzer.analyze(new ViewUnionAll(EMPTY, children, List.of()))
+        );
+        assertTrue(
+            "expected the throw from Fork.expressionsResolved, got: " + Arrays.toString(e.getStackTrace()),
+            Arrays.stream(e.getStackTrace())
+                .anyMatch(el -> el.getClassName().contains(".Fork") && el.getMethodName().equals("expressionsResolved"))
+        );
     }
 
     private static UnresolvedRelation strictUR(String pattern) {

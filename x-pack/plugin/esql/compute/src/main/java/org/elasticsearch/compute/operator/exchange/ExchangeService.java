@@ -514,7 +514,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * {@link #sinkKeys()} only cover sinks, so a test asserting on those alone would not notice a leaked source handler.
      */
     public Set<String> sourceKeys() {
-        return exchangeSources.keySet();
+        return Set.copyOf(exchangeSources.keySet());
     }
 
     @Override

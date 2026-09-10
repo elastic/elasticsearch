@@ -89,6 +89,17 @@ final class SubPlansExecutor {
     // Flat list of leaves populated during startMerge; dispatched after all merges are wired.
     private final List<ScheduledLeaf> scheduledLeaves = new ArrayList<>();
     private final AtomicInteger nextLeafIndex = new AtomicInteger();
+    /**
+     * Set when the root merge's {@code runCompute} succeeds after leaf dispatch has started. LIMIT and STOP
+     * {@code finishEarly} the coordinator source and complete that {@code runCompute} while leaves may still
+     * be queued; together with {@code EsqlExecutionInfo#isStopped}, {@link #executeLeaf} then skips them.
+     * <p>
+     * A real coordinator parks on the exchange and cannot succeed during {@link #startMerge}. Completing the
+     * root listener there (as unit-test stubs do) only means the merge segment was started, not that the
+     * query should stop dispatching leaves.
+     */
+    private final AtomicBoolean noMoreLeaves = new AtomicBoolean();
+    private final AtomicBoolean leafDispatchStarted = new AtomicBoolean();
 
     SubPlansExecutor(
         ComputeService computeService,
@@ -234,6 +245,7 @@ final class SubPlansExecutor {
         );
 
         // Phase 3: dispatch the initial wave; each worker self-refills its slot on completion.
+        leafDispatchStarted.set(true);
         int initial = Math.min(queryPragmas.branchParallelDegree(), scheduledLeaves.size());
         try {
             for (int i = 0; i < initial; i++) {
@@ -515,6 +527,18 @@ final class SubPlansExecutor {
             final List<ActionListener<DriverCompletionInfo>> childListeners = new ArrayList<>(mergeContext.children.size());
             try {
                 segmentListener = ActionListener.notifyOnce(computeListener.acquireCompute());
+                // LIMIT and STOP finishEarly the root source, which completes this runCompute. Set noMoreLeaves only on
+                // success: executeLeaf checks the flag before parentSink.finished, and a success-skip on a failing query
+                // would settle remaining leaves as success.
+                if (mergeContext.path == null) {
+                    var inner = segmentListener;
+                    segmentListener = ActionListener.wrap(info -> {
+                        if (leafDispatchStarted.get()) {
+                            noMoreLeaves.set(true);
+                        }
+                        inner.onResponse(info);
+                    }, inner::onFailure);
+                }
                 for (int i = 0; i < mergeContext.children.size(); i++) {
                     childListeners.add(ActionListener.notifyOnce(computeListener.acquireCompute()));
                 }
@@ -785,13 +809,23 @@ final class SubPlansExecutor {
         if (index >= scheduledLeaves.size()) {
             return;
         }
-        executeLeaf(scheduledLeaves.get(index), this::tryExecuteNextLeaf);
+        executeLeaf(scheduledLeaves.get(index));
     }
 
     /**
-     * Dispatches a single leaf to {@link ComputeService#executePlan}. If the root task has already been cancelled, or the leaf's
-     * merge segment already aborted it during phase 2, skips dispatch. On completion (success or failure), {@code onDone} is
-     * invoked so the caller can claim the next leaf.
+     * True once async STOP has marked the query stopped, or the root merge's {@code runCompute} has succeeded
+     * after leaf dispatch started (LIMIT or STOP {@code finishEarly}'d the coordinator source). Either signal
+     * means queued leaves must not start {@code executePlan}.
+     */
+    private boolean sessionAlreadyStopped() {
+        return execInfo.isStopped() || noMoreLeaves.get();
+    }
+
+    /**
+     * Dispatches a single leaf to {@link ComputeService#executePlan}. If the root task has already been cancelled, the session
+     * has already been stopped ({@code EsqlExecutionInfo#isStopped} or the root merge succeeded after LIMIT/STOP), or the leaf's
+     * merge segment already aborted it during phase 2, skips dispatch. On completion (success or failure), the next leaf is
+     * claimed and dispatched asynchronously.
      * <p>
      * The leaf's exchange sink is created here, via {@link ParentSink#attach}, not in phase 1: an idle registered sink handler
      * would be reaped by the exchange service's inactive-sink reaper while the leaf waits behind {@code branchParallelDegree}.
@@ -806,20 +840,25 @@ final class SubPlansExecutor {
      * through {@link #settleLeafAndRefill} rather than calling {@code finishLeaf} directly.
      *
      * @param scheduledLeaf the leaf to dispatch, containing its plan and parent sink
-     * @param onDone        callback invoked after the leaf finishes (used for self-refilling dispatch)
      */
-    private void executeLeaf(ScheduledLeaf scheduledLeaf, Runnable onDone) {
+    private void executeLeaf(ScheduledLeaf scheduledLeaf) {
         LeafContext leafContext = scheduledLeaf.leafContext;
         ParentSink parentSink = leafContext.parentSink;
         LOGGER.debug("dispatching leaf [{}]", leafContext.path);
-        Runnable onDoneOnce = new RunOnce(() -> submitOnDone(onDone));
+        Runnable onDoneOnce = new RunOnce(() -> submitOnDone(this::tryExecuteNextLeaf));
         // All paths (cancellation, skip, success, failure) use submitOnDone rather than calling onDone inline. If executePlan or
-        // notifyIfCancelled completes before returning, the listener fires on the current thread, and a direct onDone.run() would
-        // recurse through the entire remaining queue (tryExecuteNextLeaf → executeLeaf → … → onDone.run() → …), overflowing the
+        // notifyIfCancelled completes before returning, the listener fires on the current thread, and a direct refill would recurse
+        // through the entire remaining queue (tryExecuteNextLeaf → executeLeaf → … → tryExecuteNextLeaf() → …), overflowing the
         // stack when many leaves are queued.
         //
         // Every path settles the leaf through settleLeafAndRefill, which refills from a finally - see that method for why.
         if (rootTask.notifyIfCancelled(ActionListener.wrap(ignored -> {}, e -> settleLeafAndRefill(scheduledLeaf, null, e, onDoneOnce)))) {
+            return;
+        }
+        if (sessionAlreadyStopped()) {
+            // Async STOP and LIMIT complete the root runCompute without cancelling rootTask. Queued leaves must
+            // not call executePlan: a failure there would fail a query that should return partial results.
+            settleLeafAndRefill(scheduledLeaf, DriverCompletionInfo.EMPTY, null, onDoneOnce);
             return;
         }
         if (parentSink.finished.get()) {

@@ -307,18 +307,25 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public Object fold(FoldContext ctx) {
+        if (isTemporal(this) == false) {
+            return super.fold(ctx);
+        }
+        // Temporal types can't be managed by evaluators, we have to fold them manually.
+        // TODO manage warnings for MV condition (evaluators take care of that, here we don't have the components)
         // Walk nested CASE along the taken branch iteratively so a chain of
         // CASE(true, CASE(true, ...), ...) cannot overflow the stack.
-        // DATE_PERIOD/TIME_DURATION have no evaluator and used to recurse in this method.
-        // Other types recurse through EvaluatorMapper.fold -> child.fold, which overflows too.
-        // TODO manage warnings for MV condition (evaluators take care of that, here we don't have the components)
         Case current = this;
         Expression taken = takenBranch(ctx, current);
-        while (taken instanceof Case nested) {
+        while (taken instanceof Case nested && isTemporal(nested)) {
             current = nested;
             taken = takenBranch(ctx, current);
         }
         return taken.fold(ctx);
+    }
+
+    private static boolean isTemporal(Expression expression) {
+        DataType type = expression.dataType();
+        return type == DataType.DATE_PERIOD || type == DataType.TIME_DURATION;
     }
 
     private static Expression takenBranch(FoldContext ctx, Case current) {

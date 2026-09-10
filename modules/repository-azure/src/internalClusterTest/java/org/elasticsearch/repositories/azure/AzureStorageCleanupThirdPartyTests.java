@@ -136,7 +136,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @Override
     protected void createRepository(String repoName) {
-        final long blockSize = ByteSizeValue.ofKb(64L).getBytes() * randomIntBetween(1, 15);
+        final long blockSizeBytes = ByteSizeValue.ofKb(64L).getBytes() * randomIntBetween(1, 15);
         AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
@@ -148,7 +148,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                     .put("container", System.getProperty("test.azure.container"))
                     .put("base_path", System.getProperty("test.azure.base") + randomAlphaOfLength(8))
                     .put("max_single_part_upload_size", ByteSizeValue.of(1, ByteSizeUnit.MB))
-                    .put("multipart_upload_part_size", blockSize)
+                    .put("multipart_upload_part_size", ByteSizeValue.ofBytes(blockSizeBytes))
             )
             .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));

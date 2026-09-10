@@ -19,6 +19,7 @@ import com.tngtech.archunit.lang.ArchRule
 import com.tngtech.archunit.lang.ConditionEvents
 import com.tngtech.archunit.lang.SimpleConditionEvent
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractProjectBuilderPluginSpec
 import org.gradle.api.Plugin
 import org.gradle.api.Task
 import org.objectweb.asm.ClassReader
@@ -27,7 +28,6 @@ import org.objectweb.asm.Handle
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes
 import spock.lang.Shared
-import spock.lang.Specification
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 
@@ -36,13 +36,14 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
  * {@code build-tools-internal}.
  *
  * <p>Rather than measuring line coverage, these rules assert that every production
- * <em>plugin</em> and <em>task</em> is paired, by naming convention, with a dedicated test
- * class. This guards against new build logic landing without any test at all.
+ * <em>plugin</em> and <em>task</em> is paired with dedicated test coverage. This guards against
+ * new build logic landing without any test at all.
  *
  * <ul>
- *   <li><b>Plugins</b> ({@link Plugin} implementations) must have a {@code *FuncTest} that extends
- *       {@link AbstractGradleInternalPluginFuncTest}, exercising them against a real Gradle build
- *       via TestKit.</li>
+ *   <li><b>Plugins</b> ({@link Plugin} implementations) must have either a {@code *FuncTest}
+ *       that extends {@link AbstractGradleInternalPluginFuncTest}, exercising them against a real
+ *       Gradle build via TestKit, or a ProjectBuilder-backed unit test that extends
+ *       {@link AbstractProjectBuilderPluginSpec}.</li>
  *   <li><b>Tasks</b> ({@link Task} implementations) must have a corresponding test, either a
  *       unit test ({@code *Tests}/{@code *Test}/{@code *Spec}) or a {@code *FuncTest}/{@code *IT}.</li>
  * </ul>
@@ -53,14 +54,13 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
  * is intended to only ever shrink: the {@code allowlist contains no stale entries} test fails if
  * an entry no longer exists or has since gained a test, forcing the entry to be removed.
  *
- * <p><b>Class discovery.</b> Plugin and task subjects are imported from the runtime classpath
- * with ArchUnit, so the type hierarchy ({@code assignableTo Plugin/Task}) is resolved from real
- * bytecode. The set of existing test classes is gathered by scanning the {@code test} and
- * {@code integTest} source trees of this module directly — the {@code test} source set is not on
- * the integTest classpath, so a filesystem scan is the simplest self-contained way to index it.
- * No extra build wiring is required: everything needed lives under {@code src/integTest}.
+ * <p><b>Class discovery.</b> Production classes are imported from the compiled {@code main}
+ * output. Plugin test harnesses are discovered from the compiled {@code test} and
+ * {@code integTest} outputs that the dedicated {@code archunit} source set has on its classpath.
+ * Task coverage still uses a lightweight filesystem scan of the {@code test} and {@code integTest}
+ * source trees because those rules only need simple class-name matching.
  */
-class IntegTestCoverageArchUnitSpec extends Specification {
+class BuildLogicTestCoverageArchUnitSpec extends AbstractArchUnitSpec {
 
     /** Test class name suffixes accepted as coverage for a task. */
     private static final List<String> TEST_SUFFIXES = ["Tests", "Test", "Spec", "FuncTest", "IT"]
@@ -131,16 +131,12 @@ class IntegTestCoverageArchUnitSpec extends Specification {
         "org.elasticsearch.gradle.internal.transport.TransportVersionReferencesPlugin",
         "org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin",
 
-        // --- plugins without a *FuncTest but covered by unit tests (TODO: remove after IntegTestCoverageArchUnitSpec is updated)
-        "org.elasticsearch.gradle.internal.JmhPlugin",
-
         // --- plugins with a *FuncTest that cannot extend AbstractGradleInternalPluginFuncTest ---
         // These plugins require setup before they are applied (bwcVersions resolvable at apply
         // time, the java plugin applied first, or application in subprojects rather than the root),
         // which conflicts with the base's apply-on-setup behaviour. Their existing func tests keep
         // their original base class until the harness supports deferred/multi-project application.
         "org.elasticsearch.gradle.internal.InternalDistributionArchiveCheckPlugin",
-        "org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin",
         "org.elasticsearch.gradle.internal.doc.DocsTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin",
@@ -160,11 +156,13 @@ class IntegTestCoverageArchUnitSpec extends Specification {
         "org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask",
     ] as Set
 
-    /** Production + integTest classes, imported from the runtime classpath. */
+    /** Production classes imported from the compiled {@code main} output only. */
     @Shared
-    JavaClasses productionClasses = new ClassFileImporter()
-        .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
-        .importPackages("org.elasticsearch.gradle")
+    JavaClasses productionClasses = importProductionClasses()
+
+    /** Compiled {@code test} and {@code integTest} classes visible to the {@code archunit} task. */
+    @Shared
+    JavaClasses pluginTestClasses = importPluginTestClasses()
 
     /**
      * Simple names of every test class across the {@code test} and {@code integTest} source
@@ -179,11 +177,22 @@ class IntegTestCoverageArchUnitSpec extends Specification {
      * not only exists by name but is actually wired up against the internal-plugin func test harness.
      */
     @Shared
-    Set<String> pluginFuncTestNames = productionClasses
-        .findAll { it.isAssignableTo(AbstractGradleInternalPluginFuncTest) }
+    Set<String> pluginFuncTestNames = pluginTestClasses
+        .findAll { JavaClass c ->
+            c.isAssignableTo(AbstractGradleInternalPluginFuncTest)
+                && c.modifiers.contains(JavaModifier.ABSTRACT) == false
+                && topLevelName(c) == c.fullName
+        }
         .collect { it.simpleName } as Set
 
-    def "every Gradle plugin is covered by a FuncTest extending AbstractGradleInternalPluginFuncTest"() {
+    /**
+     * Plugins covered by a ProjectBuilder-backed unit test that extends
+     * {@link AbstractProjectBuilderPluginSpec}.
+     */
+    @Shared
+    Map<String, Set<String>> projectBuilderPluginTestsByPlugin = discoverProjectBuilderPluginTestsByPlugin()
+
+    def "every Gradle plugin is covered by either a FuncTest or a ProjectBuilder unit test"() {
         given:
         ArchRule rule = classes()
             .that().areAssignableTo(Plugin)
@@ -191,9 +200,11 @@ class IntegTestCoverageArchUnitSpec extends Specification {
             .and().areNotInterfaces()
             .and().doNotHaveModifier(JavaModifier.ABSTRACT)
             .and().resideOutsideOfPackage("org.elasticsearch.gradle.fixtures..")
-            .should(beCoveredByAPluginFuncTest())
-            .because("every Gradle plugin must be covered by a *FuncTest that extends "
-                + AbstractGradleInternalPluginFuncTest.name)
+            .should(beCoveredByAPluginTest())
+            .because("every Gradle plugin must be covered either by a *FuncTest that extends "
+                + AbstractGradleInternalPluginFuncTest.name
+                + " or by a ProjectBuilder-backed unit test that extends "
+                + AbstractProjectBuilderPluginSpec.name)
 
         expect:
         rule.check(productionClasses)
@@ -215,7 +226,7 @@ class IntegTestCoverageArchUnitSpec extends Specification {
 
     def "no new AbstractGradleInternalPluginFuncTest subclass disables configuration cache"() {
         given:
-        List<String> violations = productionClasses
+        List<String> violations = pluginTestClasses
             .findAll { JavaClass c ->
                 c.isAssignableTo(AbstractGradleInternalPluginFuncTest)
                 && c.modifiers.contains(JavaModifier.ABSTRACT) == false
@@ -231,7 +242,7 @@ class IntegTestCoverageArchUnitSpec extends Specification {
 
     def "the cc-incompatible baseline contains no stale entries"() {
         given:
-        Map<String, JavaClass> bySimpleName = productionClasses.collectEntries { [(it.simpleName): it] }
+        Map<String, JavaClass> bySimpleName = pluginTestClasses.collectEntries { [(it.simpleName): it] }
 
         when:
         List<String> stale = KNOWN_CC_INCOMPATIBLE.findAll { String name ->
@@ -260,35 +271,39 @@ class IntegTestCoverageArchUnitSpec extends Specification {
     }
 
     /**
-     * Whether a subject is covered: plugins need a {@code <Plugin>FuncTest} extending
-     * {@link AbstractGradleInternalPluginFuncTest}, every other subject (tasks) needs any test
-     * class matching {@link #TEST_SUFFIXES}.
+     * Whether a subject is covered: plugins need either a corresponding func test extending
+     * {@link AbstractGradleInternalPluginFuncTest} or a ProjectBuilder-backed unit test extending
+     * {@link AbstractProjectBuilderPluginSpec}; every other subject (tasks) needs any test class
+     * matching {@link #TEST_SUFFIXES}.
      */
     private boolean isCovered(JavaClass clazz) {
         if (clazz.isAssignableTo(Plugin)) {
             return pluginFuncTestNames.contains(clazz.simpleName + "FuncTest")
+                || projectBuilderPluginTestsByPlugin.containsKey(clazz.fullName)
         }
         return TEST_SUFFIXES.any { testClassNames.contains(clazz.simpleName + it) }
     }
 
     /**
-     * Builds a condition satisfied when a plugin {@code Foo} has a {@code FooFuncTest} that extends
-     * {@link AbstractGradleInternalPluginFuncTest}. Classes listed in {@link #KNOWN_UNCOVERED} are
-     * treated as an accepted baseline gap and never reported.
+     * Builds a condition satisfied when a plugin is covered either by the TestKit-based internal
+     * plugin harness or by a ProjectBuilder-backed unit spec. Classes listed in
+     * {@link #KNOWN_UNCOVERED} are treated as an accepted baseline gap and never reported.
      */
-    private ArchCondition<JavaClass> beCoveredByAPluginFuncTest() {
-        String base = AbstractGradleInternalPluginFuncTest.simpleName
-        return new ArchCondition<JavaClass>("be covered by a *FuncTest extending ${base}") {
+    private ArchCondition<JavaClass> beCoveredByAPluginTest() {
+        String funcBase = AbstractGradleInternalPluginFuncTest.simpleName
+        String unitBase = AbstractProjectBuilderPluginSpec.simpleName
+        return new ArchCondition<JavaClass>("be covered by a *FuncTest extending ${funcBase} or a ${unitBase}") {
             @Override
             void check(JavaClass item, ConditionEvents events) {
                 if (KNOWN_UNCOVERED.contains(item.fullName)) {
                     return // accepted baseline gap, see KNOWN_UNCOVERED
                 }
-                String expected = item.simpleName + "FuncTest"
-                if (pluginFuncTestNames.contains(expected) == false) {
+                String expectedFuncTest = item.simpleName + "FuncTest"
+                Set<String> projectBuilderTests = projectBuilderPluginTestsByPlugin[item.fullName] ?: [] as Set<String>
+                if (pluginFuncTestNames.contains(expectedFuncTest) == false && projectBuilderTests.isEmpty()) {
                     events.add(SimpleConditionEvent.violated(
                         item,
-                        "${item.fullName} has no ${expected} extending ${base}"
+                        "${item.fullName} has no ${expectedFuncTest} extending ${funcBase} and no ProjectBuilder unit test extending ${unitBase}"
                     ))
                 }
             }
@@ -318,6 +333,44 @@ class IntegTestCoverageArchUnitSpec extends Specification {
                 }
             }
         }
+    }
+
+    /**
+     * Imports compiled classes from the {@code test} and {@code integTest} source sets only.
+     * The dedicated {@code archunit} task adds both outputs to its classpath so these marker base
+     * classes and concrete plugin tests can be inspected directly.
+     */
+    private static JavaClasses importPluginTestClasses() {
+        return new ClassFileImporter()
+            .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
+            .withImportOption({ location ->
+                location.contains("/classes/java/test/")
+                    || location.contains("/classes/groovy/test/")
+                    || location.contains("/classes/java/integTest/")
+                    || location.contains("/classes/groovy/integTest/")
+            } as ImportOption)
+            .importPackages("org.elasticsearch.gradle")
+    }
+
+    private Map<String, Set<String>> discoverProjectBuilderPluginTestsByPlugin() {
+        Map<String, Set<String>> byPlugin = [:].withDefault { new LinkedHashSet<String>() }
+        pluginTestClasses.findAll { JavaClass c ->
+            c.isAssignableTo(AbstractProjectBuilderPluginSpec)
+                && c.modifiers.contains(JavaModifier.ABSTRACT) == false
+                && topLevelName(c) == c.fullName
+        }.each { JavaClass c ->
+            try {
+                Class<? extends AbstractProjectBuilderPluginSpec> specClass = (Class<? extends AbstractProjectBuilderPluginSpec>) Thread
+                    .currentThread()
+                    .contextClassLoader
+                    .loadClass(c.fullName)
+                AbstractProjectBuilderPluginSpec spec = specClass.getDeclaredConstructor().newInstance()
+                byPlugin[spec.pluginClassUnderTest.name].add(c.simpleName)
+            } catch (ReflectiveOperationException e) {
+                throw new AssertionError("Failed to inspect ProjectBuilder plugin test [${c.fullName}]", e)
+            }
+        }
+        return byPlugin.collectEntries { String pluginName, Set<String> tests -> [(pluginName): tests.asImmutable()] }
     }
 
     /**

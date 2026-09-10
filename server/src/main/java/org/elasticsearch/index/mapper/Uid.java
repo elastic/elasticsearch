@@ -13,20 +13,41 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Arrays;
 import java.util.Base64;
 
+/**
+ * The identity of a document: its user-visible {@code id}, an optional {@code slice} and the {@code term} indexed into
+ * {@code _id} that uniqueness, versioning, GET and delete resolve against.
+ * <p>
+ * Without slicing the term is simply {@link #encodeId(String) encodeId(id)} and {@link #slice()} is {@code null}, so
+ * {@code id} and the uid are one and the same. With slicing the term is the compound {@code encodeId(id + '#' + slice)},
+ * which keeps the same id unique per slice. Callers hold a {@link Uid} rather than juggling a raw {@code id} String and a
+ * {@code term} {@link BytesRef} separately.
+ */
 public final class Uid {
 
     public static final byte DELIMITER_BYTE = 0x23;
+    /** Separates the id from the slice in a compound term. Not a valid slice character, so it splits unambiguously. */
+    private static final char DELIMITER = (char) DELIMITER_BYTE;
 
     private static final int UTF8 = 0xff;
     private static final int NUMERIC = 0xfe;
     /** Escape byte prepended to base64-decoded IDs when the first byte is >= 0xfd */
     public static final int BASE64_ESCAPE = 0xfd;
 
-    private Uid() {}
+    private final String id;
+    @Nullable
+    private final String slice;
+    private final BytesRef term;
+
+    private Uid(String id, @Nullable String slice, BytesRef term) {
+        this.id = id;
+        this.slice = slice;
+        this.term = term;
+    }
 
     static boolean isURLBase64WithoutPadding(String id) {
         // We are not lenient about padding chars ('=') otherwise
@@ -198,5 +219,79 @@ public final class Uid {
             case UTF8 -> decodeUtf8Id(idBytes, offset, length);
             default -> decodeBase64Id(idBytes, offset, length);
         };
+    }
+
+    /** Encode the compound {@code id + '#' + slice} term used as the uid of a slice-scoped document. */
+    public static BytesRef encodeCompoundId(String id, String slice) {
+        if (slice.isEmpty()) {
+            // An empty slice would encode to encodeId(id + "#"), which is the slice-free search term - they must not collide.
+            throw new IllegalArgumentException("slice must not be empty for compound _id encoding");
+        }
+        return encodeId(id + DELIMITER + slice);
+    }
+
+    /** The uid of a plain (non-sliced) document: its term is {@link #encodeId(String)} and its slice is {@code null}. */
+    public static Uid of(String id) {
+        return new Uid(id, null, encodeId(id));
+    }
+
+    /** The uid of a slice-scoped document: its term is the compound {@code id#slice} encoding. */
+    public static Uid of(String id, String slice) {
+        return new Uid(id, slice, encodeCompoundId(id, slice));
+    }
+
+    /**
+     * Build the uid for a document, compound when {@code sliceEnabled}. A slice-enabled index requires the slice, which
+     * arrives as the routing value; a plain index must not carry one.
+     */
+    public static Uid create(boolean sliceEnabled, String id, @Nullable String slice) {
+        if (sliceEnabled) {
+            if (slice == null) {
+                throw new IllegalArgumentException("unable to create _id as slice is enabled but slice is null");
+            }
+            return of(id, slice);
+        }
+        return of(id);
+    }
+
+    /** Reconstruct the uid from its indexed/stored term, splitting off the slice when {@code sliceEnabled}. */
+    public static Uid fromTerm(BytesRef term, boolean sliceEnabled) {
+        if (sliceEnabled) {
+            String compound = decodeId(term.bytes, term.offset, term.length);
+            int i = compound.lastIndexOf(DELIMITER);
+            return new Uid(compound.substring(0, i), compound.substring(i + 1), term);
+        }
+        return new Uid(decodeId(term), null, term);
+    }
+
+    /** The user-visible id, with any slice stripped. */
+    public String id() {
+        return id;
+    }
+
+    /** The slice this uid is scoped to, or {@code null} when the index is not slice-enabled. */
+    @Nullable
+    public String slice() {
+        return slice;
+    }
+
+    /** The term indexed into {@code _id} that uniqueness, versioning, GET and delete resolve against. */
+    public BytesRef term() {
+        return term;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof Uid other && term.equals(other.term);
+    }
+
+    @Override
+    public int hashCode() {
+        return term.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return slice == null ? id : id + DELIMITER + slice;
     }
 }

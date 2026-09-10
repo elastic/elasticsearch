@@ -169,8 +169,8 @@ public abstract class PaginatedHitSource {
     );
 
     /**
-     * Called to release pagination resources (e.g. clear scroll context).
-     * For PIT-based pagination this is a no-op as the PIT is closed elsewhere.
+     * Called to release pagination resources held by this hit source. For scroll-based pagination this clears the
+     * scroll context. For PIT-based pagination this is a no-op as the PIT is closed elsewhere.
      *
      * @param onCompletion implementers must call this after completing the release whether they are
      *        successful or not
@@ -194,7 +194,7 @@ public abstract class PaginatedHitSource {
 
         /**
          * Called when done processing response to signal more data is needed.
-         * @param extraKeepAlive extra time to keep underlying scroll open.
+         * @param extraKeepAlive extra time to extend the search context keep-alive.
          */
         void done(TimeValue extraKeepAlive);
     }

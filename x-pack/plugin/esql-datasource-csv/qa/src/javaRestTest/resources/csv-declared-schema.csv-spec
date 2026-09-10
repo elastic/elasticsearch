@@ -1,0 +1,117 @@
+// Delimited-text spec: a dataset that DECLARES its schema instead of letting the read derive one.
+//
+// Loaded by the CSV *and* TSV suites -- a `csv-*` name does not mean CSV-only, since both formats go
+// through the same delimited reader. Cases that need a property only the CSV materialization has live in
+// csv-only-declared-dialect.csv-spec instead.
+//
+// A declaration rides the `dataset:` directive under the reserved `mappings` key, which DatasetRegistry lifts
+// out of the WITH JSON and sends as the PUT body's top-level `mappings` field -- settings validation rejects
+// unknown setting names, so a declaration cannot ride inside `settings`. Every other key in the WITH object
+// stays a format setting, so a case can cross a declaration with any format option.
+//
+// Do NOT add `required_capability: dataset_declared_schema`: that capability is advertised on
+// PUT /_query/dataset/{name}, not on POST /_query, and a csv-spec's required_capability lines resolve against
+// the query endpoint only -- the line would skip every case here forever. The harness checks the PUT-side
+// capability itself in AbstractExternalSourceSpecTestCase.
+//
+// employees_no_mv.csv has a TYPED, column-aligned header ("birth_date:date     ,emp_no:integer,...", 23
+// columns, 100 rows, emp_no 10001..10100). A declared `path` binds against the NAME HALF of that typed header
+// ("emp_no:integer" -> "emp_no"), the same derivation the undeclared read uses, so a declaration names the same
+// physical column. Dataset names encode their options: the same name always carries the same declaration.
+//
+// Every case here asserts a read that DIFFERS from an undeclared one. A declaration that merely restates the
+// file changes nothing by construction and is therefore not worth hand-writing.
+
+// A declaration and format settings must BOTH survive the split, so this case is discriminating on each
+// axis independently. header_row:false turns the typed header line into data row 0 and synthesizes
+// f0..f22 (column_prefix "f"), so `path: "f1"` names field 1, the emp_no column -- a headerless file's
+// column names ARE its positions, so the declaration self-binds without reading any header. Lose the
+// settings and the file is read WITH its header, f1 names nothing, and the column reads null; lose the
+// declaration and there is no `id` column at all.
+strictDeclaredSchemaCoexistsWithFormatSettings
+required_capability: dataset_in_from_command
+required_capability: external_csv_header_row_option
+required_capability: datasource_file_readers_no_text_type
+dataset: employees_declared_headerless: "{{employees_no_mv}}" WITH {"header_row": false, "column_prefix": "f", "mappings": {"dynamic": "false", "properties": {"id": {"type": "keyword", "path": "f1"}}}}
+
+FROM employees_declared_headerless
+| KEEP id
+| LIMIT 2
+;
+
+id:keyword
+"emp_no:integer"
+"10001"
+;
+
+// dynamic:true overlays the declaration on inference rather than replacing it: emp_no is retyped to LONG
+// while every undeclared column is still inferred. The pinned emp_no:long is what discriminates -- the
+// inferred type is integer.
+dynamicDeclaredSchemaOverlaysInferredColumns
+required_capability: dataset_in_from_command
+dataset: employees_declared_overlay: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "true", "properties": {"emp_no": {"type": "long", "path": "emp_no"}}}}
+
+FROM employees_declared_overlay
+| KEEP emp_no, first_name, salary
+| SORT emp_no
+| LIMIT 3;
+
+emp_no:long | first_name:keyword | salary:integer
+10001       | "Georgi"           | 57305
+10002       | "Bezalel"          | 56371
+10003       | "Parto"            | 61805
+;
+
+// Aggregates over a declared column, which the harness runs cold then warm automatically, so this asserts
+// the declaration is in force on the coordinator's cached per-file schema as well as on the cold scan --
+// the aggregate-metadata pushdown that serves COUNT/MIN/MAX from that cache is a second code path.
+strictDeclaredSchemaAggregatesColdAndWarm
+required_capability: dataset_in_from_command
+dataset: employees_declared_strict: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "name": {"type": "keyword", "path": "first_name"}}}}
+
+FROM employees_declared_strict
+| STATS rows = COUNT(*), lowest = MIN(id), highest = MAX(id);
+
+rows:long | lowest:long | highest:long
+100       | 10001       | 10100
+;
+
+// An explicit format setting sitting BESIDE a declaration in one WITH object. That coexistence is what this
+// pins -- the declaresSetting suppression path end to end: the harness injects "trim_spaces": true into every
+// csv/tsv directive that does not already set it, and must leave a directive that DOES set it untouched.
+//
+// It deliberately does NOT contrast with an untrimmed read. Injection re-adds the same value, so this case and
+// an identical one without the explicit key are configuration-identical; a pair would isolate nothing. The
+// discriminating untrimmed contrast is in csv-only-declared-dialect.csv-spec, which pins LENGTH 11 under
+// trim_spaces:false -- CSV-only because the TSV generator writes those padded fields unpadded.
+strictDeclaredSchemaCoexistsWithExplicitTrimSetting
+required_capability: dataset_in_from_command
+dataset: employees_declared_trimmed: "{{employees_no_mv}}" WITH {"trim_spaces": true, "mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "name": {"type": "keyword", "path": "first_name"}}}}
+
+FROM employees_declared_trimmed
+| SORT id
+| LIMIT 3;
+
+id:long | name:keyword
+10001   | "Georgi"
+10002   | "Bezalel"
+10003   | "Parto"
+;
+
+// A declared path naming a DOTTED physical column. On text and columnar formats a dotted header name is a literal
+// column name, so `languages.long` binds to that column directly. This is the case that is deliberately absent
+// from ndjson-declared-schema.csv-spec: there a dotted path becomes nested traversal, because the dotted-prefix
+// conflict check consults only the declaration and never the file.
+strictDeclaredSchemaBindsDottedPhysicalColumn
+required_capability: dataset_in_from_command
+dataset: employees_declared_dotted: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "langs": {"type": "long", "path": "languages.long"}}}}
+
+FROM employees_declared_dotted
+| SORT id
+| LIMIT 3;
+
+id:long | langs:long
+10001   | 2
+10002   | 5
+10003   | 4
+;

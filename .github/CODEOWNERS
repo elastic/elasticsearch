@@ -33,6 +33,9 @@ x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/KibanaAlertsIm
 x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/KibanaAlertsImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/response-ops
 x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/KibanaCasesImplicitPrivilegesProvider.java @elastic/kibana-security @elastic/kibana-cases
 x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/KibanaCasesImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/kibana-cases
+x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/ElasticAiIndexImplicitPrivilegesProvider.java @elastic/kibana-security @elastic/context-eng
+x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/ElasticAiIndexImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/context-eng
+x-pack/plugin/kibana/src/javaRestTest/java/org/elasticsearch/xpack/kibana/ElasticAiIndexImplicitPrivilegesIT.java @elastic/kibana-security @elastic/context-eng
 
 # APM Data index templates, etc.
 x-pack/plugin/apm-data/src/main/resources @elastic/obs-ds-intake-services

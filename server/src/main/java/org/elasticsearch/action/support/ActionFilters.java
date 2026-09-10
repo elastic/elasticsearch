@@ -18,6 +18,8 @@ import java.util.Set;
  */
 public class ActionFilters {
 
+    public static final ActionFilters EMPTY = new ActionFilters(Set.of());
+
     private final ActionFilter[] filters;
 
     public ActionFilters(Set<ActionFilter> actionFilters) {

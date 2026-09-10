@@ -34,6 +34,9 @@
 * [`TO_DOUBLE`](../../functions-operators/type-conversion-functions/to_double.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/to_double.md
   :::
+* [`TO_DOUBLE_RANGE`](../../functions-operators/type-conversion-functions/to_double_range.md) {applies_to}`stack: preview 9.6.0` {applies_to}`serverless: preview`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/to_double_range.md
+  :::
 * [`TO_EXPONENTIAL_HISTOGRAM`](../../functions-operators/type-conversion-functions/to_exponential_histogram.md) {applies_to}`stack: ga 9.4`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/to_exponential_histogram.md
   :::

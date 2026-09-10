@@ -124,15 +124,12 @@ public class RestCountAction extends BaseRestHandler {
     }
 
     /**
-     * Applies {@code routing} / {@code _slice} URL parameters. Matches {@link RestSearchAction#parseSearchRequest} slice handling.
+     * Applies {@code routing} / {@code slice} URL parameters. Matches {@link RestSearchAction#parseSearchRequest} slice handling.
      * package private for testing
      */
     static void applyRoutingOrSliceForCountRequest(RestRequest request, SearchRequest searchRequest) {
         final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
-        searchRequest.routing(parsedRouting.routing());
-        searchRequest.searchSlice(
-            parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
-        );
+        SliceIndexing.applySearchRoutingOrSlice(parsedRouting, searchRequest);
     }
 
 }

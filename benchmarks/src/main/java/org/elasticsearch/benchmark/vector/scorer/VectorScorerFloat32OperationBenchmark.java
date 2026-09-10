@@ -9,9 +9,8 @@
 package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -43,7 +42,7 @@ import java.util.concurrent.TimeUnit;
 public class VectorScorerFloat32OperationBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
@@ -111,8 +110,8 @@ public class VectorScorerFloat32OperationBenchmark {
     @Benchmark
     public float nativeWithNativeSeg() {
         return switch (function) {
-            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductF32(nativeSegA, nativeSegB, size);
-            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceF32(nativeSegA, nativeSegB, size);
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductF32(nativeSegA, nativeSegB, size);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceF32(nativeSegA, nativeSegB, size);
             default -> throw new IllegalArgumentException(function.toString());
         };
     }
@@ -120,11 +119,11 @@ public class VectorScorerFloat32OperationBenchmark {
     @Benchmark
     public float nativeWithHeapSeg() {
         return switch (function) {
-            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductF32(heapSegA, heapSegB, size);
-            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceF32(heapSegA, heapSegB, size);
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductF32(heapSegA, heapSegB, size);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceF32(heapSegA, heapSegB, size);
             default -> throw new IllegalArgumentException(function.toString());
         };
     }
 
-    static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
+    static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();
 }

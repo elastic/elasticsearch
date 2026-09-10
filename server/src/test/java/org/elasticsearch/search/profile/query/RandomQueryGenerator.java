@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.profile.query;
 
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.tests.util.English;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFloat;
@@ -29,30 +31,52 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween
 import static org.junit.Assert.assertTrue;
 
 public class RandomQueryGenerator {
+
+    /**
+     * Budget for the number of terminal queries a single generated query may contain.
+     */
+    private static final int MAX_TERMINAL_QUERIES = 50;
+
     public static QueryBuilder randomQueryBuilder(List<String> stringFields, List<String> numericFields, int numDocs, int depth) {
+        return randomQueryBuilder(stringFields, numericFields, numDocs, depth, new AtomicInteger(MAX_TERMINAL_QUERIES));
+    }
+
+    private static QueryBuilder randomQueryBuilder(
+        List<String> stringFields,
+        List<String> numericFields,
+        int numDocs,
+        int depth,
+        AtomicInteger budget
+    ) {
         assertTrue("Must supply at least one string field", stringFields.size() > 0);
         assertTrue("Must supply at least one numeric field", numericFields.size() > 0);
 
-        // If depth is exhausted, or 50% of the time return a terminal
+        // If depth is exhausted, the terminal budget is spent, or 50% of the time return a terminal
         // Helps limit ridiculously large compound queries
-        if (depth == 0 || randomBoolean()) {
-            return randomTerminalQuery(stringFields, numericFields, numDocs);
+        if (depth == 0 || budget.get() <= 1 || randomBoolean()) {
+            return randomTerminalQuery(stringFields, numericFields, numDocs, budget);
         }
 
         return switch (randomIntBetween(0, 5)) {
-            case 0 -> randomTerminalQuery(stringFields, numericFields, numDocs);
+            case 0 -> randomTerminalQuery(stringFields, numericFields, numDocs, budget);
             case 1 -> QueryBuilders.boolQuery()
-                .must(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1))
-                .filter(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1));
-            case 2 -> randomBoolQuery(stringFields, numericFields, numDocs, depth);
-            case 3 -> randomBoostingQuery(stringFields, numericFields, numDocs, depth);
-            case 4 -> randomConstantScoreQuery(stringFields, numericFields, numDocs, depth);
-            case 5 -> randomDisMaxQuery(stringFields, numericFields, numDocs, depth);
-            default -> randomTerminalQuery(stringFields, numericFields, numDocs);
+                .must(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1, budget))
+                .filter(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1, budget));
+            case 2 -> randomBoolQuery(stringFields, numericFields, numDocs, depth, budget);
+            case 3 -> randomBoostingQuery(stringFields, numericFields, numDocs, depth, budget);
+            case 4 -> randomConstantScoreQuery(stringFields, numericFields, numDocs, depth, budget);
+            case 5 -> randomDisMaxQuery(stringFields, numericFields, numDocs, depth, budget);
+            default -> randomTerminalQuery(stringFields, numericFields, numDocs, budget);
         };
     }
 
-    private static QueryBuilder randomTerminalQuery(List<String> stringFields, List<String> numericFields, int numDocs) {
+    private static QueryBuilder randomTerminalQuery(
+        List<String> stringFields,
+        List<String> numericFields,
+        int numDocs,
+        AtomicInteger budget
+    ) {
+        budget.decrementAndGet();
         return switch (randomIntBetween(0, 5)) {
             case 0 -> randomTermQuery(stringFields, numDocs);
             case 1 -> randomTermsQuery(stringFields, numDocs);
@@ -107,35 +131,53 @@ public class RandomQueryGenerator {
         return q;
     }
 
-    private static QueryBuilder randomBoolQuery(List<String> stringFields, List<String> numericFields, int numDocs, int depth) {
+    private static QueryBuilder randomBoolQuery(
+        List<String> stringFields,
+        List<String> numericFields,
+        int numDocs,
+        int depth,
+        AtomicInteger budget
+    ) {
         QueryBuilder q = QueryBuilders.boolQuery();
         int numClause = randomIntBetween(0, 5);
-        for (int i = 0; i < numClause; i++) {
-            ((BoolQueryBuilder) q).must(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1));
+        for (int i = 0; i < numClause && budget.get() > 0; i++) {
+            ((BoolQueryBuilder) q).must(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1, budget));
         }
 
         numClause = randomIntBetween(0, 5);
-        for (int i = 0; i < numClause; i++) {
-            ((BoolQueryBuilder) q).should(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1));
+        for (int i = 0; i < numClause && budget.get() > 0; i++) {
+            ((BoolQueryBuilder) q).should(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1, budget));
         }
 
         numClause = randomIntBetween(0, 5);
-        for (int i = 0; i < numClause; i++) {
-            ((BoolQueryBuilder) q).mustNot(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1));
+        for (int i = 0; i < numClause && budget.get() > 0; i++) {
+            ((BoolQueryBuilder) q).mustNot(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1, budget));
         }
 
         return q;
     }
 
-    private static QueryBuilder randomBoostingQuery(List<String> stringFields, List<String> numericFields, int numDocs, int depth) {
+    private static QueryBuilder randomBoostingQuery(
+        List<String> stringFields,
+        List<String> numericFields,
+        int numDocs,
+        int depth,
+        AtomicInteger budget
+    ) {
         return QueryBuilders.boostingQuery(
-            randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1),
-            randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1)
+            randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1, budget),
+            randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1, budget)
         ).boost(randomFloat()).negativeBoost(randomFloat());
     }
 
-    private static QueryBuilder randomConstantScoreQuery(List<String> stringFields, List<String> numericFields, int numDocs, int depth) {
-        return QueryBuilders.constantScoreQuery(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1));
+    private static QueryBuilder randomConstantScoreQuery(
+        List<String> stringFields,
+        List<String> numericFields,
+        int numDocs,
+        int depth,
+        AtomicInteger budget
+    ) {
+        return QueryBuilders.constantScoreQuery(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1, budget));
     }
 
     private static QueryBuilder randomFuzzyQuery(List<String> fields) {
@@ -157,12 +199,14 @@ public class RandomQueryGenerator {
             }
         }
 
+        // The request breaker charge for a fuzzy clause scales with maxExpansions, so an unbounded
+        // value makes a large generated query trip the breaker rather than exercise the profiler.
         if (randomBoolean()) {
-            ((FuzzyQueryBuilder) q).maxExpansions(Math.abs(randomInt()));
+            ((FuzzyQueryBuilder) q).maxExpansions(randomIntBetween(1, FuzzyQuery.defaultMaxExpansions));
         }
 
         if (randomBoolean()) {
-            ((FuzzyQueryBuilder) q).prefixLength(Math.abs(randomInt()));
+            ((FuzzyQueryBuilder) q).prefixLength(randomIntBetween(0, 3));
         }
 
         if (randomBoolean()) {
@@ -172,12 +216,18 @@ public class RandomQueryGenerator {
         return q;
     }
 
-    private static QueryBuilder randomDisMaxQuery(List<String> stringFields, List<String> numericFields, int numDocs, int depth) {
+    private static QueryBuilder randomDisMaxQuery(
+        List<String> stringFields,
+        List<String> numericFields,
+        int numDocs,
+        int depth,
+        AtomicInteger budget
+    ) {
         QueryBuilder q = QueryBuilders.disMaxQuery();
 
         int numClauses = randomIntBetween(1, 10);
-        for (int i = 0; i < numClauses; i++) {
-            ((DisMaxQueryBuilder) q).add(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1));
+        for (int i = 0; i < numClauses && budget.get() > 0; i++) {
+            ((DisMaxQueryBuilder) q).add(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1, budget));
         }
 
         if (randomBoolean()) {

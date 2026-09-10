@@ -30,6 +30,9 @@ public final class SyntheticIdField extends Field {
 
     private static final FieldType TYPE;
 
+    static final FieldType COLUMNAR_DV_ONLY_TYPE;
+    static final FieldType COLUMNAR_INDEXED_TYPE;
+
     static {
         TYPE = new FieldType();
         TYPE.putAttribute(ENABLED_ATTRIBUTE_KEY, ENABLED_ATTRIBUTE_VALUE);
@@ -48,6 +51,21 @@ public final class SyntheticIdField extends Field {
         TYPE.setStored(false);
         TYPE.setDocValuesType(DocValuesType.BINARY);
         TYPE.freeze();
+
+        COLUMNAR_DV_ONLY_TYPE = new FieldType();
+        COLUMNAR_DV_ONLY_TYPE.setDocValuesType(DocValuesType.BINARY);
+        COLUMNAR_DV_ONLY_TYPE.setIndexOptions(IndexOptions.NONE);
+        COLUMNAR_DV_ONLY_TYPE.freeze();
+
+        COLUMNAR_INDEXED_TYPE = new FieldType();
+        COLUMNAR_INDEXED_TYPE.putAttribute(ENABLED_ATTRIBUTE_KEY, ENABLED_ATTRIBUTE_VALUE);
+        COLUMNAR_INDEXED_TYPE.putAttribute(PerFieldPostingsFormat.PER_FIELD_FORMAT_KEY, TSDBSyntheticIdPostingsFormat.FORMAT_NAME);
+        COLUMNAR_INDEXED_TYPE.putAttribute(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY, TSDBSyntheticIdPostingsFormat.SUFFIX);
+        COLUMNAR_INDEXED_TYPE.setIndexOptions(IndexOptions.DOCS);
+        COLUMNAR_INDEXED_TYPE.setTokenized(true);
+        COLUMNAR_INDEXED_TYPE.setOmitNorms(true);
+        COLUMNAR_INDEXED_TYPE.setStored(false);
+        COLUMNAR_INDEXED_TYPE.freeze();
     }
 
     public SyntheticIdField(BytesRef bytes) {

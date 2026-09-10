@@ -10,15 +10,21 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Releasables;
-import org.elasticsearch.eirf.EirfEncoder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.simdjson.JsonDocumentParser;
+import org.elasticsearch.simdjson.JsonParsingException;
+import org.elasticsearch.simdjson.SimdJsonParserPool;
+import org.elasticsearch.simdjson.SimdJsonSupport;
 import org.elasticsearch.sourcebatch.LeafSink;
+import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceBatchEncoder;
-import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentParser;
@@ -27,8 +33,6 @@ import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -38,118 +42,194 @@ import java.util.List;
  * {@link EscfColumnKind#UNION}. Fixed primitive arrays are stored in a columnar list layout;
  * other arrays (heterogeneous, nested, object-bearing) are stored inline on a union column.
  *
- * <p>Implements {@link SourceBatchEncoder} so it can be swapped for {@link EirfEncoder} at the
- * coordinating layer. Single-partition convenience: {@link #encode(List, XContentType)}.
+ * <p>This class is the x-content frontend: it walks an {@link XContentParser}, populates an
+ * {@link EscfRowBuffer}, and delegates all column-building to the shared {@link EscfBatchBuilder}
+ * backend. Implements {@link SourceBatchEncoder}. Single-partition convenience:
+ * {@link #encode(List, XContentType)}.
+ *
+ * <p><strong>Parser dispatch:</strong>
+ * <ol>
+ *   <li>JSON, no larger than {@link JsonDocumentParser#maxDocumentBytes()}, and
+ *       {@link #isSimdEnabled()}: this thread's {@link JsonDocumentParser} (native SIMD stage 1 +
+ *       fused stage 2/walk). Falls back to Jackson on any failure.</li>
+ *   <li>Otherwise: Jackson stream parser.</li>
+ * </ol>
  */
 public final class EscfEncoder implements SourceBatchEncoder {
 
-    private static final int INITIAL_CAPACITY = 16;
-    private static final int INITIAL_PARTITION_CAPACITY = 4;
+    private static final Logger logger = LogManager.getLogger(EscfEncoder.class);
 
-    private final SourceSchema schema;
-    private final Recycler<BytesRef> recycler;
-    private Partition[] partitions;
+    /**
+     * Feature flag for the simdjson-backed ESCF JSON encode path. In snapshot builds it defaults
+     * to enabled; in release builds it defaults to disabled and can be turned on with
+     * {@code -Des.simdjson_escf_feature_flag_enabled=true}.
+     */
+    static final FeatureFlag SIMDJSON_ESCF_FEATURE_FLAG = new FeatureFlag("simdjson_escf");
 
-    private byte[] scratchType;
-    private long[] scratchNumeric;
-    private Object[] scratchVar;
-    private FixedBitSet columnsSet;
-    private boolean rowStaged;
-    private String[] cachedPath;
+    private final EscfBatchBuilder backend;
+
+    /**
+     * This thread's shared parser, or {@code null} when the SIMD path is unavailable or switched
+     * off. Resolved once here rather than per document; safe because an encoder is used only on the
+     * thread that created it (a bulk's coordinating pass is synchronous and single-threaded).
+     */
+    @Nullable
+    private final JsonDocumentParser docParser;
+
+    /**
+     * Staging area for sources that are not array-backed, allocated on first need. Owned by this
+     * encoder rather than shared per-thread, so its contents cannot be clobbered by another
+     * encoder running on the same thread.
+     */
+    private byte[] scratch;
 
     public EscfEncoder() {
-        this(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        this(BytesRefRecycler.NON_RECYCLING_INSTANCE, true);
     }
 
     public EscfEncoder(Recycler<BytesRef> recycler) {
-        this.recycler = recycler;
-        this.schema = new SourceSchema();
-        this.partitions = new Partition[INITIAL_PARTITION_CAPACITY];
-        this.scratchType = new byte[INITIAL_CAPACITY];
-        this.scratchNumeric = new long[INITIAL_CAPACITY];
-        this.scratchVar = new Object[INITIAL_CAPACITY];
-        this.columnsSet = new FixedBitSet(Math.max(INITIAL_CAPACITY, 64));
-        this.cachedPath = new String[INITIAL_CAPACITY];
+        this(recycler, true);
+    }
+
+    /**
+     * @param allowSimd pass {@code false} to force the Jackson path; used by tests and benchmarks
+     *                  to obtain a baseline for differential comparison
+     */
+    public EscfEncoder(Recycler<BytesRef> recycler, boolean allowSimd) {
+        this.backend = new EscfBatchBuilder(recycler);
+        this.docParser = allowSimd && isSimdEnabled() ? SimdJsonParserPool.getDefault().forCurrentThread() : null;
+    }
+
+    /**
+     * Whether the simdjson ESCF encode path may be used at all: the native library is loaded, the
+     * vector API is available, and {@link #SIMDJSON_ESCF_FEATURE_FLAG} is enabled.
+     */
+    static boolean isSimdEnabled() {
+        return SimdJsonSupport.isSupported() && SIMDJSON_ESCF_FEATURE_FLAG.isEnabled();
+    }
+
+    public void parseToScratch(BytesReference source, XContentType xContentType) throws IOException {
+        parseToScratch(source, xContentType, LeafSink.NO_OP);
     }
 
     @Override
     public void parseToScratch(BytesReference source, XContentType xContentType, LeafSink sink) throws IOException {
-        int columnCountBefore = schema.leafCount();
-        Arrays.fill(scratchType, 0, Math.min(columnCountBefore, scratchType.length), (byte) 0);
-        Arrays.fill(scratchVar, 0, Math.min(columnCountBefore, scratchVar.length), null);
-        columnsSet.clear();
-        try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, xContentType)) {
-            parser.allowDuplicateKeys(true);
-            parser.nextToken(); // START_OBJECT
-            flattenObject(parser, 0, parser.nextToken(), sink);
+        if (tryDirectWalkSingle(source, xContentType, sink)) {
+            return;
         }
-        rowStaged = true;
+        EscfRowBuffer row = backend.beginRow();
+        try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, xContentType)) {
+            if (xContentType == XContentType.JSON) {
+                parser.allowDuplicateKeys(true);
+            }
+            parser.nextToken(); // START_OBJECT
+            flattenObject(row, parser, parser.nextToken(), sink);
+        }
+        row.finishRow();
+    }
+
+    /**
+     * Attempts to parse a single document using the direct walker (SIMD stage 1 + fused walk).
+     * Returns true if successful, false if the document is ineligible or parsing failed
+     * (in which case the caller falls back to Jackson).
+     */
+    private boolean tryDirectWalkSingle(BytesReference source, XContentType xContentType, LeafSink sink) {
+        if (docParser == null || xContentType.canonical() != XContentType.JSON || source.length() > docParser.maxDocumentBytes()) {
+            return false;
+        }
+
+        byte[] buf;
+        int offset;
+        try {
+            if (source.hasArray()) {
+                buf = source.array();
+                offset = source.arrayOffset();
+            } else {
+                buf = copyToScratch(source);
+                offset = 0;
+            }
+        } catch (IOException e) {
+            return false;
+        }
+        int len = source.length();
+
+        try {
+            EscfRowBuffer row = backend.beginRow();
+            boolean rawTextMode = sink != LeafSink.NO_OP && sink.passRawText();
+            EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, rawTextMode);
+            docParser.parseDocument(buf, offset, len, handler);
+            row.finishRow();
+            return true;
+        } catch (JsonParsingException e) {
+            // The handler may have written part of the row already; the next beginRow() discards it.
+            logger.debug(() -> "Direct walk failed, falling back to Jackson: " + e.getMessage());
+            return false;
+        } catch (RuntimeException e) {
+            logger.warn("Unexpected direct walk failure, falling back to Jackson", e);
+            return false;
+        }
+    }
+
+    /**
+     * Copies a non-array-backed source into this encoder's scratch buffer for SIMD parsing.
+     * Array-backed sources (including bulk slices with a non-zero {@code arrayOffset()}) are used
+     * in place by the caller instead.
+     *
+     * <p>The returned scratch is only valid until the next call.
+     */
+    private byte[] copyToScratch(BytesReference source) throws IOException {
+        int len = source.length();
+        if (scratch == null) {
+            scratch = new byte[docParser.maxDocumentBytes()];
+        }
+        int pos = 0;
+        BytesRefIterator it = source.iterator();
+        for (BytesRef page = it.next(); page != null; page = it.next()) {
+            System.arraycopy(page.bytes, page.offset, scratch, pos, page.length);
+            pos += page.length;
+        }
+        assert pos == len : pos + " != " + len;
+        return scratch;
     }
 
     @Override
     public int commitScratchTo(int partitionKey) {
-        if (rowStaged == false) {
-            throw new IllegalStateException("commitScratchTo called without a staged row");
-        }
-        final Partition partition = getOrCreatePartition(partitionKey);
-        final int leafCount = schema.leafCount();
-        ensurePartitionBuilders(partition, leafCount);
-        for (int c = 0; c < leafCount; c++) {
-            appendScratchValue(partition.builders.get(c), c);
-        }
-        final int rowIndex = partition.docCount;
-        partition.docCount++;
-        rowStaged = false;
-        return rowIndex;
+        return backend.commit(partitionKey);
     }
 
     @Override
     public EscfBatch buildPartition(int partitionKey) {
-        final Partition partition = getOrCreatePartition(partitionKey);
-        final int leafCount = schema.leafCount();
-        ensurePartitionBuilders(partition, leafCount);
-        final EscfColumnData[] columns = new EscfColumnData[leafCount];
-        for (int c = 0; c < leafCount; c++) {
-            columns[c] = partition.builders.get(c).finish(partition.docCount);
-        }
-        // Each column owns its recycler-backed buffers (and, for ARRAY, its child's); close them all with the batch.
-        return new EscfBatch(schema, partition.docCount, columns, Releasables.wrap(columns));
+        return backend.buildPartition(partitionKey);
     }
 
     @Override
     public int docCount(int partitionKey) {
-        Partition partition = partitionKey < partitions.length ? partitions[partitionKey] : null;
-        return partition == null ? 0 : partition.docCount;
+        return backend.docCount(partitionKey);
     }
 
     @Override
     public boolean hasPartition(int partitionKey) {
-        return partitionKey < partitions.length && partitions[partitionKey] != null;
+        return backend.hasPartition(partitionKey);
     }
 
     @Override
     public String columnPath(int columnIndex) {
-        if (columnIndex >= cachedPath.length) {
-            cachedPath = Arrays.copyOf(cachedPath, Integer.highestOneBit(columnIndex) << 1);
-        }
-        String path = cachedPath[columnIndex];
-        if (path == null) {
-            path = schema.getFullPath(columnIndex);
-            cachedPath[columnIndex] = path;
-        }
-        return path;
+        return backend.columnPath(columnIndex);
     }
 
+    /**
+     * Releases the backend and publishes the field names this encoder learned, so other threads can
+     * reuse them. The parser itself is owned by the pool and outlives this encoder.
+     */
     @Override
     public void close() {
-        for (Partition partition : partitions) {
-            if (partition != null) {
-                for (EscfColumnBuilder builder : partition.builders) {
-                    builder.discard();
-                }
+        try {
+            if (docParser != null) {
+                docParser.publishFieldNames();
             }
+        } finally {
+            backend.close();
         }
-        Arrays.fill(partitions, null);
     }
 
     /** Convenience: encodes all {@code sources} into a single-partition batch. */
@@ -162,23 +242,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
         }
     }
 
-    private void appendScratchValue(EscfColumnBuilder builder, int columnIndex) {
-        final byte type = scratchType[columnIndex];
-        switch (type) {
-            case SourceValueType.ABSENT -> builder.addAbsent();
-            case SourceValueType.NULL -> builder.addNull();
-            case SourceValueType.TRUE -> builder.addBoolean(true);
-            case SourceValueType.FALSE -> builder.addBoolean(false);
-            case SourceValueType.INT, SourceValueType.LONG -> builder.addLong(scratchNumeric[columnIndex]);
-            case SourceValueType.FLOAT, SourceValueType.DOUBLE -> builder.addDouble(Double.longBitsToDouble(scratchNumeric[columnIndex]));
-            case SourceValueType.STRING -> builder.addString((XContentString.UTF8Bytes) scratchVar[columnIndex]);
-            case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> builder.addArray(type, (byte[]) scratchVar[columnIndex]);
-            case SourceValueType.KEY_VALUE -> builder.addKeyValue((byte[]) scratchVar[columnIndex]);
-            default -> throw new IllegalStateException("unexpected scratch EIRF type [" + SourceValueType.name(type) + "]");
-        }
-    }
-
-    private void flattenObject(XContentParser parser, int parentNonLeafIdx, XContentParser.Token firstToken, LeafSink sink)
+    private void flattenObject(EscfRowBuffer row, XContentParser parser, XContentParser.Token firstToken, LeafSink sink)
         throws IOException {
         XContentParser.Token token = firstToken;
         while (token != XContentParser.Token.END_OBJECT) {
@@ -193,44 +257,31 @@ public final class EscfEncoder implements SourceBatchEncoder {
                 // it stays distinguishable from an absent field; non-empty objects flatten recursively.
                 XContentParser.Token inner = parser.nextToken();
                 if (inner == XContentParser.Token.END_OBJECT) {
-                    int colIdx = schema.appendLeaf(fieldName, parentNonLeafIdx);
-                    ensureScratchCapacity(colIdx + 1);
-                    if (columnsSet.getAndSet(colIdx)) {
-                        throw new IllegalArgumentException("Duplicate field [" + fieldName + "]");
-                    }
-                    scratchType[colIdx] = SourceValueType.KEY_VALUE;
-                    scratchVar[colIdx] = BytesRef.EMPTY_BYTES;
+                    row.emptyObject(fieldName);
                 } else {
-                    int nonLeafIdx = schema.appendNonLeaf(fieldName, parentNonLeafIdx);
-                    flattenObject(parser, nonLeafIdx, inner, sink);
+                    row.startObject(fieldName);
+                    flattenObject(row, parser, inner, sink);
+                    row.endObject();
                 }
                 token = parser.nextToken();
                 continue;
-            }
-
-            int colIdx = schema.appendLeaf(fieldName, parentNonLeafIdx);
-            ensureScratchCapacity(colIdx + 1);
-            if (columnsSet.getAndSet(colIdx)) {
-                throw new IllegalArgumentException("Duplicate field [" + fieldName + "]");
             }
 
             final boolean firePathSink = sink != LeafSink.NO_OP;
             final boolean rawTextMode = firePathSink && sink.passRawText();
             switch (token) {
                 case START_ARRAY -> {
-                    EirfEncoder.PackedArray arr = EirfEncoder.packArray(parser);
-                    scratchType[colIdx] = arr.arrayType();
-                    scratchVar[colIdx] = arr.packed();
+                    SourceBatchEncodeHelper.PackedArray arr = SourceBatchEncodeHelper.packArray(parser);
+                    int colIdx = row.arrayField(fieldName, arr.arrayType(), arr.packed());
                     if (firePathSink) {
-                        sink.onArrayLeaf(colIdx, columnPath(colIdx));
+                        sink.onArrayLeaf(colIdx, backend.columnPath(colIdx));
                     }
                 }
                 case VALUE_STRING -> {
                     XContentString.UTF8Bytes str = parser.optimizedText().bytes();
-                    scratchType[colIdx] = SourceValueType.STRING;
-                    scratchVar[colIdx] = str;
+                    int colIdx = row.stringField(fieldName, str);
                     if (firePathSink) {
-                        sink.onTextPrimitive(colIdx, columnPath(colIdx), SourceValueType.STRING, str);
+                        sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), SourceValueType.STRING, str);
                     }
                 }
                 case VALUE_NUMBER -> {
@@ -239,32 +290,29 @@ public final class EscfEncoder implements SourceBatchEncoder {
                         case INT, LONG -> {
                             long val = parser.longValue();
                             byte type = (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) ? SourceValueType.INT : SourceValueType.LONG;
-                            scratchType[colIdx] = type;
-                            scratchNumeric[colIdx] = val;
+                            int colIdx = row.longField(fieldName, val);
                             if (rawTextMode) {
-                                sink.onTextPrimitive(colIdx, columnPath(colIdx), type, parser.optimizedText().bytes());
+                                sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, parser.optimizedText().bytes());
                             } else if (firePathSink) {
-                                sink.onLongPrimitive(colIdx, columnPath(colIdx), type, val);
+                                sink.onLongPrimitive(colIdx, backend.columnPath(colIdx), type, val);
                             }
                         }
                         case FLOAT, DOUBLE -> {
                             double val = parser.doubleValue();
                             float fval = (float) val;
                             byte type = ((double) fval == val) ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
-                            scratchType[colIdx] = type;
-                            scratchNumeric[colIdx] = Double.doubleToRawLongBits(val);
+                            int colIdx = row.doubleField(fieldName, val);
                             if (rawTextMode) {
-                                sink.onTextPrimitive(colIdx, columnPath(colIdx), type, parser.optimizedText().bytes());
+                                sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, parser.optimizedText().bytes());
                             } else if (firePathSink) {
-                                sink.onDoublePrimitive(colIdx, columnPath(colIdx), type, val);
+                                sink.onDoublePrimitive(colIdx, backend.columnPath(colIdx), type, val);
                             }
                         }
                         default -> {
                             XContentString.UTF8Bytes str = parser.optimizedText().bytes();
-                            scratchType[colIdx] = SourceValueType.STRING;
-                            scratchVar[colIdx] = str;
+                            int colIdx = row.stringField(fieldName, str);
                             if (firePathSink) {
-                                sink.onTextPrimitive(colIdx, columnPath(colIdx), SourceValueType.STRING, str);
+                                sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), SourceValueType.STRING, str);
                             }
                         }
                     }
@@ -272,62 +320,17 @@ public final class EscfEncoder implements SourceBatchEncoder {
                 case VALUE_BOOLEAN -> {
                     boolean v = parser.booleanValue();
                     byte type = v ? SourceValueType.TRUE : SourceValueType.FALSE;
-                    scratchType[colIdx] = type;
+                    int colIdx = row.booleanField(fieldName, v);
                     if (rawTextMode) {
-                        sink.onTextPrimitive(colIdx, columnPath(colIdx), type, parser.optimizedText().bytes());
+                        sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, parser.optimizedText().bytes());
                     } else if (firePathSink) {
-                        sink.onBooleanPrimitive(colIdx, columnPath(colIdx), v);
+                        sink.onBooleanPrimitive(colIdx, backend.columnPath(colIdx), v);
                     }
                 }
-                case VALUE_NULL -> scratchType[colIdx] = SourceValueType.NULL;
+                case VALUE_NULL -> row.nullField(fieldName);
                 default -> throw new IllegalStateException("Unexpected token: " + token);
             }
             token = parser.nextToken();
         }
-    }
-
-    private void ensureScratchCapacity(int size) {
-        if (size <= scratchType.length) {
-            return;
-        }
-        int cap = scratchType.length;
-        while (cap < size) {
-            cap <<= 1;
-        }
-        scratchType = Arrays.copyOf(scratchType, cap);
-        scratchNumeric = Arrays.copyOf(scratchNumeric, cap);
-        scratchVar = Arrays.copyOf(scratchVar, cap);
-        columnsSet = FixedBitSet.ensureCapacity(columnsSet, cap);
-    }
-
-    private Partition getOrCreatePartition(int partitionKey) {
-        if (partitionKey >= partitions.length) {
-            int newCap = partitions.length;
-            while (partitionKey >= newCap) {
-                newCap <<= 1;
-            }
-            partitions = Arrays.copyOf(partitions, newCap);
-        }
-        Partition partition = partitions[partitionKey];
-        if (partition == null) {
-            partition = new Partition();
-            partitions[partitionKey] = partition;
-        }
-        return partition;
-    }
-
-    private void ensurePartitionBuilders(Partition partition, int size) {
-        while (partition.builders.size() < size) {
-            EscfColumnBuilder builder = new EscfColumnBuilder(recycler);
-            for (int i = 0; i < partition.docCount; i++) {
-                builder.addAbsent();
-            }
-            partition.builders.add(builder);
-        }
-    }
-
-    private static final class Partition {
-        final List<EscfColumnBuilder> builders = new ArrayList<>(INITIAL_CAPACITY);
-        int docCount;
     }
 }

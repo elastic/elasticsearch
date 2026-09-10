@@ -29,8 +29,8 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -305,15 +305,15 @@ public final class DatasetRewriter {
 
         // Cap the real-read branches (datasets + the index branch) here, BEFORE the speculative shadows. A shadow
         // strips when its name has no remote namesake, so it must not consume the rewrite-time budget; a matched
-        // shadow is a real read bounded post-analysis by Fork.checkBranchCount.
-        if (Fork.exceedsMaxBranches(children.size())) {
+        // shadow is a real read bounded post-analysis by MergePlan.checkBranchCount.
+        if (MergePlan.exceedsMaxBranches(children.size())) {
             throw new VerificationException(
                 "FROM ["
                     + relation.indexPattern().indexPattern()
                     + "] resolved to "
                     + children.size()
                     + " branches, exceeding the current limit of "
-                    + Fork.MAX_BRANCHES
+                    + MergePlan.MAX_BRANCHES
                     + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
             );
         }
@@ -459,10 +459,15 @@ public final class DatasetRewriter {
      * embedding config in plan nodes (avoiding serialization of credential objects). A secret forwards
      * its raw value — an encrypted secret carries an {@code EncryptedData} the data-node decryption step
      * recognizes by type.
+     * <p>
+     * {@link RemovedParquetDatasetSettings} keys are dropped from the dataset map so a stored
+     * document from before those kill-switches were removed still plans; PUT and WITH reject them.
+     * The parent {@code _datasource} map is left untouched.
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();
         merged.putAll(dataset.settings());
+        merged.keySet().removeAll(RemovedParquetDatasetSettings.KEYS);
         if (parent.settings().isEmpty() == false) {
             Map<String, Object> dsSettings = new HashMap<>();
             for (Map.Entry<String, DataSourceSetting> e : parent.settings()) {

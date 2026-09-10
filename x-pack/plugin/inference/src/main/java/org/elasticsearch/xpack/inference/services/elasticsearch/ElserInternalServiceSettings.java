@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
@@ -23,8 +23,8 @@ public class ElserInternalServiceSettings extends ElasticsearchInternalServiceSe
 
     public static final String NAME = "elser_mlnode_service_settings";
 
-    public static MinimalServiceSettings minimalServiceSettings() {
-        return MinimalServiceSettings.sparseEmbedding(ElasticsearchInternalService.NAME);
+    public static EndpointClusterState endpointClusterState() {
+        return EndpointClusterState.sparseEmbedding(ElasticsearchInternalService.NAME);
     }
 
     public static ElserInternalServiceSettings defaultEndpointSettings(boolean useLinuxOptimizedModel) {

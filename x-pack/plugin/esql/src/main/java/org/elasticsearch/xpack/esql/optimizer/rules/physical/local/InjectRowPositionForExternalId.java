@@ -31,8 +31,7 @@ import java.util.List;
  * <p>
  * Every file reader materializes {@code _rowPosition}: Parquet (Java) and ORC emit a file-global
  * row index from footer/stripe metadata (Parquet-Java encodes an extractor id into the high bits
- * for the deferred-extraction path, which the composition path masks off); Parquet-RS splices an
- * all-null block so {@code _id} renders null per the disclosed carve-out; NDJSON and CSV both emit
+ * for the deferred-extraction path, which the composition path masks off); NDJSON and CSV both emit
  * a file-global byte anchor (CSV: the record's start byte; NDJSON: the parser position just past
  * the record's opening token — exact anchor is opaque, intrinsic position is the contract), so the
  * same physical record carries the same {@code _rowPosition} regardless of split layout.

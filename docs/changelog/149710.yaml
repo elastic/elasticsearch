@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 149710
-summary: '`FieldExtract` double-sided and single-sided range query pushdown'
-type: feature

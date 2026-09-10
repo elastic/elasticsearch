@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -51,7 +52,8 @@ public class QueryLoggingTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             new NoOpClient(threadPool),
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
         );
         assertThat(registry.getComposableTemplateConfigs(), anEmptyMap());
         assertThat(registry.getComponentTemplateConfigs(), anEmptyMap());
@@ -65,7 +67,8 @@ public class QueryLoggingTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             new NoOpClient(threadPool),
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
         );
         assertThat(registry.getComposableTemplateConfigs(), not(anEmptyMap()));
         assertThat(registry.getComponentTemplateConfigs(), not(anEmptyMap()));
@@ -79,7 +82,8 @@ public class QueryLoggingTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             new NoOpClient(threadPool),
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
         );
         ComponentTemplate mappingsTemplate = registry.getComponentTemplateConfigs()
             .get(QueryLoggingTemplateRegistry.QUERY_LOGGING_MAPPINGS_NAME);

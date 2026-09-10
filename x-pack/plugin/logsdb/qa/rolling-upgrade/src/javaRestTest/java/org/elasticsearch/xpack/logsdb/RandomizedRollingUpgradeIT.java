@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -48,10 +51,12 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+@TimeoutSuite(millis = TimeUnits.HOUR)
 public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCase {
 
     private record Document(String id, String body) {}
@@ -153,12 +158,27 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
                     Map.of("type", "keyword", "synthetic_source_keep", "all"),
                     (mapping) -> ESTestCase.randomAlphaOfLengthBetween(3, 8)
                 )
-            )
+            ),
+            builder -> {
+                // time_series rejected nested fields until #122224 (9.1.0+/8.19+). Indices in this test are
+                // created on the old cluster, so the mapping must be valid there; disable nested generation
+                // when the old cluster predates mapper.tsdb_nested_field_support.
+                if (oldClusterHasFeature(MapperFeatures.TSDB_NESTED_FIELD_SUPPORT) == false) {
+                    builder.withNestedFieldsLimit(0);
+                }
+            }
         );
     }
 
     private static DataGeneratorSpecification buildIndexModeSpec(List<PredefinedField> predefinedFields) {
-        return DataGeneratorSpecification.builder()
+        return buildIndexModeSpec(predefinedFields, builder -> {});
+    }
+
+    private static DataGeneratorSpecification buildIndexModeSpec(
+        List<PredefinedField> predefinedFields,
+        Consumer<DataGeneratorSpecification.Builder> customizer
+    ) {
+        var builder = DataGeneratorSpecification.builder()
             .withMaxObjectDepth(2)
             .withMaxFieldCountPerLevel(6)
             .withPredefinedFields(predefinedFields)
@@ -184,10 +204,16 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
                     }
                     return ESTestCase.randomBoolean();
                 }
+
+                @Override
+                protected boolean supportsOnFailure() {
+                    return oldClusterHasFeature(MapperFeatures.DOC_VALUES_ON_FAILURE);
+                }
             }))
             .withDataSourceHandlers(List.of(MultifieldAddonHandler.STRING_TYPE_HANDLER))
-            .withDataSourceHandlers(List.of(new ASCIIStringsHandler()))
-            .build();
+            .withDataSourceHandlers(List.of(new ASCIIStringsHandler()));
+        customizer.accept(builder);
+        return builder.build();
     }
 
     @Override

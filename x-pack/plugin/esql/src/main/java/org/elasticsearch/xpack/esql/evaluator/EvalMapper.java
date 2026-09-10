@@ -77,31 +77,45 @@ public final class EvalMapper {
         @Nullable AnalysisRegistry analysisRegistry
     ) {
         if (exp instanceof EvaluatorMapper m) {
-            return m.toEvaluator(new EvaluatorMapper.ToEvaluator() {
-                @Override
-                public ExpressionEvaluator.Factory apply(Expression expression) {
-                    return toEvaluator(foldCtx, expression, layout, shardContexts, analysisRegistry);
-                }
-
-                @Override
-                public FoldContext foldCtx() {
-                    return foldCtx;
-                }
-
-                @Override
-                public IndexedByShardId<? extends ShardContext> shardContexts() {
-                    return shardContexts;
-                }
-
-                @Override
-                public Analyzer getAnalyzer(String name) {
-                    return PlannerUtils.resolveAnalyzer(name, analysisRegistry);
-                }
-            });
+            return m.toEvaluator(toEvaluatorContext(foldCtx, layout, shardContexts, analysisRegistry));
         }
         if (exp instanceof Attribute attr) {
             return new LoadFromPageEvaluator.Factory(layout.get(attr.id()).channel());
         }
         throw new QlIllegalArgumentException("Unsupported expression [{}]", exp);
+    }
+
+    /**
+     * The {@link EvaluatorMapper.ToEvaluator} context that {@link #toEvaluator} hands to expressions, exposed
+     * for callers that need the context itself rather than an evaluator for a specific expression (e.g. building
+     * scorers through {@code ScoreMapper}).
+     */
+    public static EvaluatorMapper.ToEvaluator toEvaluatorContext(
+        FoldContext foldCtx,
+        Layout layout,
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        @Nullable AnalysisRegistry analysisRegistry
+    ) {
+        return new EvaluatorMapper.ToEvaluator() {
+            @Override
+            public ExpressionEvaluator.Factory apply(Expression expression) {
+                return toEvaluator(foldCtx, expression, layout, shardContexts, analysisRegistry);
+            }
+
+            @Override
+            public FoldContext foldCtx() {
+                return foldCtx;
+            }
+
+            @Override
+            public IndexedByShardId<? extends ShardContext> shardContexts() {
+                return shardContexts;
+            }
+
+            @Override
+            public Analyzer getAnalyzer(String name) {
+                return PlannerUtils.resolveAnalyzer(name, analysisRegistry);
+            }
+        };
     }
 }

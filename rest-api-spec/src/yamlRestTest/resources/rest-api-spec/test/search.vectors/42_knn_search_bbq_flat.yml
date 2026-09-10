@@ -465,6 +465,10 @@ setup:
         max_num_segments: 1
 
   - do:
+      indices.refresh:
+        index: bbq_flat_nested
+
+  - do:
       search:
         index: bbq_flat_nested
         body:

@@ -48,11 +48,17 @@ public class DatasetResolver {
     private final Client client;
     private final Executor executor;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final boolean federationAvailable;
 
-    public DatasetResolver(Client client, Executor executor, CrossProjectModeDecider crossProjectModeDecider) {
+    /**
+     * Federation availability is resolved once by the caller (see {@link Federation#isAvailable}) rather than per query:
+     * it is fixed for the lifetime of the node, since both of its levers are read at startup.
+     */
+    public DatasetResolver(Client client, Executor executor, CrossProjectModeDecider crossProjectModeDecider, boolean federationAvailable) {
         this.client = client;
         this.executor = executor;
         this.crossProjectModeDecider = crossProjectModeDecider;
+        this.federationAvailable = federationAvailable;
     }
 
     /**
@@ -60,28 +66,14 @@ public class DatasetResolver {
      * Authorization failures (DLS/FLS, and the {@code Unknown index} a rewrite raises for an explicit unauthorized
      * dataset) propagate as-is.
      *
-     * <p>When federation is suppressed (see {@link Federation}) the rewrite is skipped entirely: the plan is returned
+     * <p>When federation is not available (see {@link Federation}) the rewrite is skipped entirely: the plan is returned
      * untouched, so a {@code FROM <dataset>} name flows into normal index resolution and errors as {@code Unknown index},
      * exactly as a nonexistent index would. No dataset lookup and no {@link EsqlResolveDatasetAction} dispatch happen.
      */
     public void replaceDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
-        replaceDatasets(parsed, projectMetadata, listener, Federation.isAvailable());
-    }
-
-    /**
-     * Package-private overload that accepts the federation-enabled state as a parameter, allowing unit tests to exercise
-     * the kill-switch branch without relying on the {@code static final} field in {@link Federation}.
-     */
-    void replaceDatasets(
-        LogicalPlan parsed,
-        ProjectMetadata projectMetadata,
-        ActionListener<LogicalPlan> listener,
-        boolean federationEnabled
-    ) {
-        // Federation suppressed: do not attempt any dataset resolution, so the feature is indistinguishable from one
-        // that was never registered (the FROM <dataset> name resolves as an unknown index). The EsqlResolveDatasetAction
-        // is also unregistered in this mode, so dispatching it here would fail; skipping is both correct and required.
-        if (federationEnabled == false) {
+        // Federation not available: do not attempt any dataset resolution, so the feature is indistinguishable from one
+        // that was never registered (the FROM <dataset> name resolves as an unknown index).
+        if (federationAvailable == false) {
             listener.onResponse(parsed);
             return;
         }

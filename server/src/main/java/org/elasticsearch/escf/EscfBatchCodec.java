@@ -349,6 +349,9 @@ final class EscfBatchCodec {
         if (child.kind() == EscfColumnKind.STRING) {
             return CompositeBytesReference.of(kindByte, intArrayToRef(child.offsets()), child.data());
         }
+        // BINARY as an array child is var-width but decodeArrayChild treats every non-STRING child as
+        // fixed-width; a round-trip would corrupt the column. Fail loudly until the codec gap is closed.
+        assert child.kind() != EscfColumnKind.BINARY : "BINARY array child does not round-trip through the codec; see decodeArrayChild";
         return CompositeBytesReference.of(kindByte, child.data());
     }
 

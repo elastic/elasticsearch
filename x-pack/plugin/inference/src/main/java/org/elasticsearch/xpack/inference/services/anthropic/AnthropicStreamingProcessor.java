@@ -7,16 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
@@ -28,7 +28,7 @@ import java.util.Optional;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
-public class AnthropicStreamingProcessor extends DelegatingProcessor<Deque<ServerSentEvent>, StreamingChatCompletionResults.Results> {
+public class AnthropicStreamingProcessor extends DelegatingProcessor<Deque<ServerSentEvent>, StreamingCompletionResults.Results> {
     private static final Logger log = LogManager.getLogger(AnthropicStreamingProcessor.class);
     private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Anthropic chat completions response";
 
@@ -39,7 +39,7 @@ public class AnthropicStreamingProcessor extends DelegatingProcessor<Deque<Serve
             return;
         }
 
-        var results = new ArrayDeque<StreamingChatCompletionResults.Result>(item.size());
+        var results = new ArrayDeque<StreamingCompletionResults.Result>(item.size());
         for (var event : item) {
             if (event.hasData()) {
                 try (var outerParser = parser(event.data())) {
@@ -54,11 +54,11 @@ public class AnthropicStreamingProcessor extends DelegatingProcessor<Deque<Serve
         if (results.isEmpty()) {
             upstream().request(1);
         } else {
-            downstream().onNext(new StreamingChatCompletionResults.Results(results));
+            downstream().onNext(new StreamingCompletionResults.Results(results));
         }
     }
 
-    private void parseObjects(Deque<StreamingChatCompletionResults.Result> results, XContentParser outerParser) throws IOException {
+    private void parseObjects(Deque<StreamingCompletionResults.Result> results, XContentParser outerParser) throws IOException {
         // Loop over all root JSON objects in the event data. Per the SSE spec, successive
         // data: lines are joined with \n, so one event may legally carry multiple objects.
         while (outerParser.nextToken() != null) {
@@ -105,16 +105,16 @@ public class AnthropicStreamingProcessor extends DelegatingProcessor<Deque<Serve
         return new ElasticsearchStatusException(message, statusCode);
     }
 
-    private Optional<StreamingChatCompletionResults.Result> parseStartBlock(XContentParser parser) throws IOException {
+    private Optional<StreamingCompletionResults.Result> parseStartBlock(XContentParser parser) throws IOException {
         positionParserAtTokenAfterField(parser, "content_block", FAILED_TO_FIND_FIELD_TEMPLATE);
         var text = parseString(parser, "text");
-        return text.isBlank() ? Optional.empty() : Optional.of(new StreamingChatCompletionResults.Result(text));
+        return text.isBlank() ? Optional.empty() : Optional.of(new StreamingCompletionResults.Result(text));
     }
 
-    private Optional<StreamingChatCompletionResults.Result> parseMessage(XContentParser parser) throws IOException {
+    private Optional<StreamingCompletionResults.Result> parseMessage(XContentParser parser) throws IOException {
         positionParserAtTokenAfterField(parser, "delta", FAILED_TO_FIND_FIELD_TEMPLATE);
         var text = parseString(parser, "text");
-        return text.isBlank() ? Optional.empty() : Optional.of(new StreamingChatCompletionResults.Result(text));
+        return text.isBlank() ? Optional.empty() : Optional.of(new StreamingCompletionResults.Result(text));
     }
 
     private static XContentParser parser(String line) throws IOException {

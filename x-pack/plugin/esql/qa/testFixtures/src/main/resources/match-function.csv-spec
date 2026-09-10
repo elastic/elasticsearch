@@ -191,7 +191,7 @@ book_no:keyword
 ;
 
 matchWithFunctionPushedToLucene
-skip_flattened_rewrite: match_family_rejects_field_extract
+skip_flattened_rewrite: runtime_search_reorders_conjunct_warnings
 required_capability: match_function
 
 from hosts 
@@ -2046,4 +2046,622 @@ content:text
 This dog is really brown
 This is a brown dog
 This is a brown fox
+;
+
+matchOnRuntimeTextWithFuzziness
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox", "the lazy dog"])
+| MV_EXPAND content
+| WHERE match(content, "bron", {"fuzziness": "1"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithOperatorAnd
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox", "the lazy dog"])
+| MV_EXPAND content
+| WHERE match(content, "quick fox", {"operator": "AND"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithMinimumShouldMatch
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox", "the lazy dog", "the quick lazy cat"])
+| MV_EXPAND content
+| WHERE match(content, "quick lazy fox", {"minimum_should_match": "2"})
+| SORT content
+;
+
+content:text
+the quick brown fox
+the quick lazy cat
+;
+
+matchOnRuntimeTextWithZeroTermsQueryNone
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "", {"zero_terms_query": "none"})
+;
+
+content:text
+;
+
+matchOnRuntimeTextWithZeroTermsQueryAll
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox", "the lazy dog"])
+| MV_EXPAND content
+| WHERE match(content, "", {"zero_terms_query": "all"})
+| SORT content
+;
+
+content:text
+the lazy dog
+the quick brown fox
+;
+
+matchOnRuntimeTextWithPrefixLength
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "bron", {"fuzziness": "1", "prefix_length": "1"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithFuzzyTranspositionsEnabled
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "brwon", {"fuzziness": "1", "fuzzy_transpositions": "true"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithFuzzyTranspositionsDisabled
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "brwon", {"fuzziness": "1", "fuzzy_transpositions": "false"})
+;
+
+content:text
+;
+
+matchOnRuntimeTextWithMaxExpansions
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "bron", {"fuzziness": "1", "max_expansions": "10"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithFuzzyRewrite
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "bron", {"fuzziness": "1", "fuzzy_rewrite": "constant_score"})
+;
+
+content:text
+the quick brown fox
+;
+
+testRuntimeMatchWithIndexAndOptionsPrefixLength
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+from books
+| where match(title, "Rigns", {"fuzziness": 1, "prefix_length": 1})
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+2675            | The Lord of the Rings - Boxed Set
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+testRuntimeMatchWithIndexAndOptionsFuzzyTranspositionsEnabled
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+from books
+| eval new_title = to_text(concat("TITLE: ", title))
+| where match(new_title, "Rigns", {"fuzziness": 1, "fuzzy_transpositions": "true"})
+| keep book_no, new_title;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+2714            | TITLE: Return of the King Being the Third Part of The Lord of the Rings
+2675            | TITLE: The Lord of the Rings - Boxed Set
+4023            | TITLE: A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+testRuntimeMatchWithIndexAndFuzzyTranspositionsDisabled
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+from books
+| eval new_title = to_text(concat("TITLE: ", title))
+| where match(new_title, "Rigns", {"fuzziness": 1, "fuzzy_transpositions": "false"})
+| keep book_no, new_title;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+;
+
+testRuntimeMatchWithIndexAndOptionsMaxExpansions
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+from books
+| eval new_title = to_text(concat("TITLE: ", title))
+| where match(new_title, "Pings", {"fuzziness": 1, "max_expansions": 10})
+| keep book_no, new_title;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+2714            | TITLE: Return of the King Being the Third Part of The Lord of the Rings
+2675            | TITLE: The Lord of the Rings - Boxed Set
+4023            | TITLE: A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+testRuntimeMatchWithIndexAndOptionsFuzzyRewrite
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+from books
+| eval new_title = to_text(concat("TITLE: ", title))
+| where match(new_title, "Pings", {"fuzziness": 1, "fuzzy_rewrite": "constant_score"})
+| keep book_no, new_title;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+2714            | TITLE: Return of the King Being the Third Part of The Lord of the Rings
+2675            | TITLE: The Lord of the Rings - Boxed Set
+4023            | TITLE: A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+// The values analyzer of a runtime text column is declared through TO_TEXT's analyzer option; match's own
+// analyzer option covers the query string only and defaults to the values analyzer. This change shipped
+// with fn_to_text_analyzer, so that capability gates the query-only semantics too.
+
+matchOnRuntimeTextWithWhitespaceAnalyzer
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+
+// the whitespace analyzer, declared as the values analyzer, does not lowercase; the query analyzer defaults to it
+ROW content = to_text(["the Fox jumped", "the fox jumped"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| WHERE match(content, "Fox")
+;
+
+content:text
+the Fox jumped
+;
+
+matchOnRuntimeTextWithKeywordAnalyzer
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+
+// the keyword analyzer emits the whole value as a single token
+ROW content = to_text(["brown fox", "a brown fox"], {"analyzer": "keyword"})
+| MV_EXPAND content
+| WHERE match(content, "brown fox")
+;
+
+content:text
+brown fox
+;
+
+matchOnRuntimeTextWithEnglishAnalyzer
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+
+// the english analyzer stems both the values and (by default) the query: "running" matches "runs"
+ROW content = to_text(["he runs daily", "she walks daily"], {"analyzer": "english"})
+| MV_EXPAND content
+| WHERE match(content, "running")
+;
+
+content:text
+he runs daily
+;
+
+matchQueryAnalyzerAppliesToQueryStringOnly
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+
+// match's analyzer option keeps the query's "Fox" uppercase while the values stay standard-analyzed
+// (lowercased), so the case-mismatched query matches nothing
+ROW content = to_text(["the Fox jumped", "the fox jumped"])
+| MV_EXPAND content
+| WHERE match(content, "Fox", {"analyzer": "whitespace"})
+;
+
+content:text
+;
+
+matchQueryAnalyzerOverridesValuesAnalyzerQuerySide
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+
+// values keep their case under the declared whitespace analyzer; the standard query analyzer lowercases
+// "FOX", like search_analyzer overriding the query side on an indexed field
+ROW content = to_text(["fox jumped", "Fox jumped"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| WHERE match(content, "FOX", {"analyzer": "standard"})
+;
+
+content:text
+fox jumped
+;
+
+matchOnRuntimeTextWithAnalyzerAndOperator
+required_capability: match_function
+required_capability: fn_match_runtime_options
+required_capability: fn_to_text_analyzer
+
+ROW content = to_text(["Quick brown Fox", "quick brown fox", "Quick brown dog"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| WHERE match(content, "Quick Fox", {"operator": "AND"})
+;
+
+content:text
+Quick brown Fox
+;
+
+matchOnRuntimeTextWithIndexAndKeywordAnalyzer
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+
+FROM books
+| EVAL new_title = to_text(concat("TITLE: ", title), {"analyzer": "keyword"})
+| WHERE match(new_title, "TITLE: The Lord of the Rings - Boxed Set")
+| KEEP book_no, new_title
+;
+
+book_no:keyword | new_title:text
+2675            | TITLE: The Lord of the Rings - Boxed Set
+;
+
+matchOnRenamedRuntimeTextWithAnalyzer
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+
+// valuesAnalyzer carries through RENAME: the whitespace analyzer (case-sensitive) is still active after renaming
+ROW content = to_text(["the Fox jumped", "the fox jumped"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| RENAME content AS body
+| WHERE match(body, "Fox")
+;
+
+body:text
+the Fox jumped
+;
+
+matchOnRuntimeTextWithAnalyzerAndScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: fn_to_text_analyzer
+
+// keyword analyzer: the declared values analyzer is active on the scoring path — only the exact-string match scores
+FROM books METADATA _score
+| EVAL new_title = to_text(concat("TITLE: ", title), {"analyzer": "keyword"})
+| WHERE match(new_title, "TITLE: The Lord of the Rings - Boxed Set")
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+2675            | 1.0
+;
+
+matchOnRuntimeTextWithScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+
+// a runtime match scores one point per matched query term, not BM25: expressions have no index statistics
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien")
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 1.0
+2130            | 1.0
+2301            | 1.0
+;
+
+matchOnRuntimeTextMultipleTermsWithScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+
+// books matching both terms score 2.0, books matching one score 1.0
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| STATS max_score = max(_score), min_score = min(_score)
+;
+
+max_score:double | min_score:double
+2.0              | 1.0
+;
+
+matchOnRuntimeTextWithOptionsAndScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+
+// with operator AND both terms must match, and each matched term scores the boost
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings", {"operator": "AND", "boost": 1.5})
+| STATS max_score = max(_score), min_score = min(_score)
+;
+
+max_score:double | min_score:double
+3.0              | 3.0
+;
+
+matchOnRuntimeKeywordWithScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+
+// keyword expressions match by exact value equality and score 1.0
+FROM employees METADATA _score
+| EVAL full_name = CONCAT(first_name, " ", last_name)
+| WHERE match(full_name, "Anneke Preusig") OR match(full_name, "Berni Genin")
+| SORT emp_no
+| KEEP emp_no, _score
+;
+
+emp_no:integer | _score:double
+10006          | 1.0
+10014          | 1.0
+;
+
+matchOnRuntimeTextAndIndexedFieldWithScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+
+// the pushed-down side scores BM25 and the runtime side adds its term count: every matched row has a positive score
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien") OR match(title, "Brothers Karamazov")
+| EVAL scored = _score > 0.0
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, scored
+;
+
+book_no:keyword | scored:boolean
+1211            | true
+1463            | true
+1985            | true
+;
+
+matchAfterInlineStats
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| WHERE MATCH(author, "Faulkner")
+| KEEP book_no, max_year
+| SORT book_no
+;
+
+book_no:keyword | max_year:integer
+2378            | 2022
+2713            | 2022
+2847            | 2022
+2883            | 2022
+3293            | 2022
+3535            | 2022
+3870            | 2022
+4502            | 2022
+4724            | 2022
+4977            | 2022
+5119            | 2022
+5404            | 2022
+5578            | 2022
+6151            | 2022
+7381            | 2022
+8077            | 2022
+8423            | 2022
+9896            | 2022
+;
+
+matchAfterGroupedInlineStats
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year_for_publisher = MAX(year) BY publisher
+| WHERE MATCH(author, "Faulkner") AND max_year_for_publisher >= 2000
+| KEEP book_no, year, publisher, max_year_for_publisher
+| SORT book_no
+;
+
+book_no:keyword | year:integer | publisher:text               | max_year_for_publisher:integer
+2378            | 2002         | University of Illinois Press | 2002
+2713            | 1995         | Vintage                      | 2011
+2883            | 2005         | Vintage Books                | 2005
+3293            | 2004         | New Leaf Publishing Group    | 2004
+3535            | 2003         | Barrons Juveniles            | 2003
+4724            | 2011         | Vintage                      | 2011
+4977            | 2011         | Vintage                      | 2011
+5119            | 2011         | Vintage                      | 2011
+5404            | 2011         | Vintage                      | 2011
+5578            | 1991         | Vintage                      | 2011
+6151            | 2003         | Dutton Childrens Books       | 2003
+7381            | 2003         | Red Wheel/Weiser             | 2003
+8077            | 2011         | Vintage                      | 2011
+;
+
+notMatchAfterInlineStats
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| WHERE NOT MATCH(author, "Faulkner")
+| STATS count = COUNT(*) BY max_year
+;
+
+count:long | max_year:integer
+61         | 2022
+;
+
+matchNotPushableAfterInlineStats
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| WHERE MATCH(author, "Faulkner") OR LENGTH(title) < 5
+| KEEP book_no, max_year
+| SORT book_no
+;
+
+book_no:keyword | max_year:integer
+2378            | 2022
+2713            | 2022
+2847            | 2022
+2883            | 2022
+3293            | 2022
+3535            | 2022
+3870            | 2022
+4502            | 2022
+4724            | 2022
+4977            | 2022
+5119            | 2022
+5404            | 2022
+5578            | 2022
+6151            | 2022
+7381            | 2022
+8077            | 2022
+8423            | 2022
+9896            | 2022
+;
+
+matchAfterMultipleInlineStats
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| INLINE STATS min_year = MIN(year)
+| WHERE MATCH(author, "Faulkner")
+| KEEP book_no, max_year, min_year
+| SORT book_no
+;
+
+book_no:keyword | max_year:integer | min_year:integer
+2378            | 2022             | 1969
+2713            | 2022             | 1969
+2847            | 2022             | 1969
+2883            | 2022             | 1969
+3293            | 2022             | 1969
+3535            | 2022             | 1969
+3870            | 2022             | 1969
+4502            | 2022             | 1969
+4724            | 2022             | 1969
+4977            | 2022             | 1969
+5119            | 2022             | 1969
+5404            | 2022             | 1969
+5578            | 2022             | 1969
+6151            | 2022             | 1969
+7381            | 2022             | 1969
+8077            | 2022             | 1969
+8423            | 2022             | 1969
+9896            | 2022             | 1969
+;
+
+matchAfterInlineStatsWithAggregateExpression
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS next_year = MAX(year) + 1
+| WHERE MATCH(author, "Faulkner")
+| KEEP book_no, next_year
+| SORT book_no
+;
+
+book_no:keyword | next_year:integer
+2378            | 2023
+2713            | 2023
+2847            | 2023
+2883            | 2023
+3293            | 2023
+3535            | 2023
+3870            | 2023
+4502            | 2023
+4724            | 2023
+4977            | 2023
+5119            | 2023
+5404            | 2023
+5578            | 2023
+6151            | 2023
+7381            | 2023
+8077            | 2023
+8423            | 2023
+9896            | 2023
 ;

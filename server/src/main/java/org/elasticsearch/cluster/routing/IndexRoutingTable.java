@@ -387,35 +387,66 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
          * Initializes a new empty index, as if it was created from an API.
          */
         public Builder initializeAsNew(IndexMetadata indexMetadata) {
-            return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null), null);
+            return initializeEmpty(
+                indexMetadata,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY,
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
+                null
+            );
         }
 
         /**
          * Initializes an existing index.
          */
         public Builder initializeAsRecovery(IndexMetadata indexMetadata) {
-            return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null), null);
+            UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null);
+            return initializeEmpty(
+                indexMetadata,
+                unassignedInfo,
+                ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
+                ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
+                null
+            );
         }
 
         /**
          * Initializes a new index caused by dangling index imported.
          */
         public Builder initializeAsFromDangling(IndexMetadata indexMetadata) {
-            return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED, null), null);
+            return initializeEmpty(
+                indexMetadata,
+                new UnassignedInfo(UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED, null),
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
+                null
+            );
         }
 
         /**
          * Initializes a new empty index, as a result of opening a closed index.
          */
         public Builder initializeAsFromCloseToOpen(IndexMetadata indexMetadata, IndexRoutingTable indexRoutingTable) {
-            return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, null), indexRoutingTable);
+            return initializeEmpty(
+                indexMetadata,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, null),
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
+                indexRoutingTable
+            );
         }
 
         /**
          * Initializes a new empty index, as a result of closing an opened index.
          */
         public Builder initializeAsFromOpenToClose(IndexMetadata indexMetadata, IndexRoutingTable indexRoutingTable) {
-            return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, null), indexRoutingTable);
+            return initializeEmpty(
+                indexMetadata,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, null),
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
+                indexRoutingTable
+            );
         }
 
         /**
@@ -486,7 +517,8 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                                 primary,
                                 primary ? EmptyStoreRecoverySource.INSTANCE : PeerRecoverySource.INSTANCE,
                                 unassignedInfo,
-                                shardRoutingRoleStrategy.newRestoredRole(i)
+                                shardRoutingRoleStrategy.newRestoredRole(i),
+                                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
                             )
                         );
                     } else {
@@ -496,7 +528,8 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                                 primary,
                                 primary ? recoverySource : PeerRecoverySource.INSTANCE,
                                 withLastAllocatedNodeId(unassignedInfo, previousNodes, i),
-                                shardRoutingRoleStrategy.newRestoredRole(i)
+                                shardRoutingRoleStrategy.newRestoredRole(i),
+                                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
                             )
                         );
                     }
@@ -507,11 +540,13 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         }
 
         /**
-         * Initializes a new empty index, with an option to control if its from an API or not.
+         * Initializes a new empty index.
          */
         private Builder initializeEmpty(
             IndexMetadata indexMetadata,
             UnassignedInfo unassignedInfo,
+            ShardRouting.RecoveryPriority primaryRecoveryPriority,
+            ShardRouting.RecoveryPriority replicaRecoveryPriority,
             @Nullable IndexRoutingTable previousIndexRoutingTable
         ) {
             assert indexMetadata.getIndex().equals(index);
@@ -550,7 +585,8 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                             primary,
                             primary ? primaryRecoverySource : PeerRecoverySource.INSTANCE,
                             withLastAllocatedNodeId(shardUnassignedInfo, previousNodes, i),
-                            shardRoutingRoleStrategy.newEmptyRole(i)
+                            shardRoutingRoleStrategy.newEmptyRole(i),
+                            primary ? primaryRecoveryPriority : replicaRecoveryPriority
                         )
                     );
                 }
@@ -614,7 +650,8 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                         false,
                         PeerRecoverySource.INSTANCE,
                         new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null),
-                        role
+                        role,
+                        ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
                     )
                 );
             }

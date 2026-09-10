@@ -25,13 +25,13 @@ public class LocalFileAccessTests extends ESTestCase {
         LocalFileAccess access = LocalFileAccess.create(Settings.EMPTY);
         assertFalse("empty allowlist must be disabled", access.enabled());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> access.check(StoragePath.of("file:///etc/passwd")));
-        assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
+        assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
     }
 
     public void testDefaultDisabledRejectsFileUriStringOverload() {
         LocalFileAccess access = LocalFileAccess.create(Settings.EMPTY);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> access.check("file:///etc/passwd"));
-        assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
+        assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
     }
 
     public void testDefaultDisabledAllowsNonFileUri() {
@@ -51,7 +51,7 @@ public class LocalFileAccessTests extends ESTestCase {
 
     public void testPathUnderAllowedRootSucceeds() throws IOException {
         Path tmpDir = createTempDir();
-        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", tmpDir.toString()).build();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", tmpDir.toString()).build();
         LocalFileAccess access = LocalFileAccess.create(settings);
         assertTrue(access.enabled());
 
@@ -65,7 +65,7 @@ public class LocalFileAccessTests extends ESTestCase {
         Path allowed = createTempDir();
         Path outside = createTempDir();
 
-        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
         LocalFileAccess access = LocalFileAccess.create(settings);
 
         Path outsideFile = outside.resolve("secret.csv");
@@ -74,7 +74,7 @@ public class LocalFileAccessTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> access.check(StoragePath.of("file://" + outsideFile.toAbsolutePath()))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
+        assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
         assertThat(e.getMessage(), containsString(outsideFile.toAbsolutePath().toString()));
     }
 
@@ -82,7 +82,7 @@ public class LocalFileAccessTests extends ESTestCase {
         Path allowed = createTempDir();
         Path sibling = createTempDir();
 
-        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
         LocalFileAccess access = LocalFileAccess.create(settings);
 
         // Construct a path that uses .. to escape to the sibling directory
@@ -93,14 +93,14 @@ public class LocalFileAccessTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> access.check(StoragePath.of("file://" + traversal))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
+        assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
     }
 
     public void testMultipleAllowedRootsFirstRootMatches() throws IOException {
         Path root1 = createTempDir();
         Path root2 = createTempDir();
 
-        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", root1.toString(), root2.toString()).build();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", root1.toString(), root2.toString()).build();
         LocalFileAccess access = LocalFileAccess.create(settings);
 
         Path file1 = root1.resolve("a.csv");
@@ -113,7 +113,7 @@ public class LocalFileAccessTests extends ESTestCase {
         Path root1 = createTempDir();
         Path root2 = createTempDir();
 
-        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", root1.toString(), root2.toString()).build();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", root1.toString(), root2.toString()).build();
         LocalFileAccess access = LocalFileAccess.create(settings);
 
         Path file2 = root2.resolve("b.csv");
@@ -126,7 +126,7 @@ public class LocalFileAccessTests extends ESTestCase {
 
     public void testGlobUnderAllowedRootSucceeds() {
         Path allowed = createTempDir();
-        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
         LocalFileAccess access = LocalFileAccess.create(settings);
 
         // A glob location must validate its non-glob prefix directory, not the raw "*.parquet" path
@@ -138,7 +138,7 @@ public class LocalFileAccessTests extends ESTestCase {
     public void testGlobWhosePrefixEscapesRootRejected() {
         Path allowed = createTempDir();
         Path sibling = createTempDir();
-        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
         LocalFileAccess access = LocalFileAccess.create(settings);
 
         // The glob prefix resolves outside the allowed root via ".." — must be rejected, not crash.
@@ -147,7 +147,7 @@ public class LocalFileAccessTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> access.check(StoragePath.of("file://" + traversalGlob))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
+        assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
     }
 
     public void testGlobRejectedWhenDisabled() {
@@ -156,7 +156,77 @@ public class LocalFileAccessTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> access.check(StoragePath.of("file:///some/dir/*.parquet"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
+        assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
+    }
+
+    // --- Comma-separated multi-file listings ---
+
+    public void testCommaListingAllSegmentsUnderAllowedRootSucceeds() throws IOException {
+        Path allowed = createTempDir();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
+        LocalFileAccess access = LocalFileAccess.create(settings);
+
+        Path a = allowed.resolve("a.csv");
+        Path b = allowed.resolve("b.csv");
+        Files.createFile(a);
+        Files.createFile(b);
+        // A comma listing must be gated per segment, not parsed as a single filesystem path — the latter throws
+        // InvalidPathException on Windows on the second segment's drive-letter/scheme ':'. Both segments are allowed.
+        String listing = "file://" + a.toAbsolutePath() + ",file://" + b.toAbsolutePath();
+        access.check(StoragePath.of(listing));
+        access.check(listing);
+    }
+
+    public void testDuplicateListingUnderAllowedRootSucceeds() throws IOException {
+        Path allowed = createTempDir();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
+        LocalFileAccess access = LocalFileAccess.create(settings);
+
+        Path file = allowed.resolve("dupes.csv");
+        Files.createFile(file);
+        // The same file listed twice (mirrors the *ExternalReadConfigParityIT duplicate-listing tests): each identical
+        // segment is a valid single location, so the whole listing must pass.
+        String uri = "file://" + file.toAbsolutePath();
+        access.check(StoragePath.of(uri + "," + uri));
+    }
+
+    public void testCommaListingWithOneSegmentOutsideRootRejected() throws IOException {
+        Path allowed = createTempDir();
+        Path outside = createTempDir();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
+        LocalFileAccess access = LocalFileAccess.create(settings);
+
+        Path allowedFile = allowed.resolve("a.csv");
+        Path outsideFile = outside.resolve("secret.csv");
+        Files.createFile(allowedFile);
+        Files.createFile(outsideFile);
+        // Every listed file must be gated: a listing may not smuggle a file outside the allowlist alongside an allowed
+        // one. Validating only the whole (or first) string left this gap.
+        String listing = "file://" + allowedFile.toAbsolutePath() + ",file://" + outsideFile.toAbsolutePath();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> access.check(StoragePath.of(listing)));
+        assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
+        assertThat(e.getMessage(), containsString(outsideFile.toAbsolutePath().toString()));
+    }
+
+    public void testCommaListingMixingLiteralAndGlobUnderRootSucceeds() throws IOException {
+        Path allowed = createTempDir();
+        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
+        LocalFileAccess access = LocalFileAccess.create(settings);
+
+        Path literal = allowed.resolve("a.csv");
+        Files.createFile(literal);
+        // A glob segment is gated on its non-glob prefix (as for a lone glob), and a literal segment on itself.
+        String listing = "file://" + literal.toAbsolutePath() + ",file://" + allowed.toAbsolutePath() + "/data-*.csv";
+        access.check(StoragePath.of(listing));
+    }
+
+    public void testCommaListingRejectedWhenDisabled() {
+        LocalFileAccess access = LocalFileAccess.create(Settings.EMPTY);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> access.check(StoragePath.of("file:///some/a.csv,file:///some/b.csv"))
+        );
+        assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
     }
 
     // --- UNRESTRICTED sentinel ---

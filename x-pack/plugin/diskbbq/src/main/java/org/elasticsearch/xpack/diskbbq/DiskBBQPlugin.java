@@ -18,9 +18,11 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -85,7 +87,30 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         ? RoutingFieldMapper.NAME
                         : null;
                     IndexVersion indexVersionCreated = indexSettings.getIndexVersionCreated();
-                    if (Build.current().isSnapshot()) {
+                    boolean experimentalFeaturesEnabled = IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(
+                        indexSettings.getSettings()
+                    );
+                    if (Build.current().isSnapshot() && experimentalFeaturesEnabled) {
+                        if (diskbbq.getQuantizationType() == DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH) {
+                            var ashConfig = IvfSegmentConfig.AshConfig.of(
+                                diskbbq.getBits(),
+                                IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM,
+                                IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION
+                            );
+                            return new ESNextDiskASHVectorsFormat(
+                                ashConfig,
+                                clusterSize,
+                                ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                                elementType,
+                                onDiskRescore,
+                                mergingExecutorService,
+                                maxMergingWorkers,
+                                flatIndexThreshold,
+                                sliceField,
+                                IvfFlushConfigSource.empty(),
+                                IvfMergeConfigResolver.useCodecDefault()
+                            );
+                        }
                         IvfMergeConfigResolver mergeConfigResolver = diskbbq.autoCalibrate()
                             ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
                             : IvfMergeConfigResolver.useCodecDefault();

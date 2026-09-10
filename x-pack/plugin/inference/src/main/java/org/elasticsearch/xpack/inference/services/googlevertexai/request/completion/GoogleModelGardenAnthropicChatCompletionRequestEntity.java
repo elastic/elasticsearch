@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.completion.Goog
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MESSAGES_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEMPERATURE_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOP_P_FIELD;
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.MAX_TOKENS_FIELD;
@@ -63,7 +62,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ANTHROPIC_VERSION, VERTEX_2023_10_16);
-        builder.field(MESSAGES_FIELD, unifiedRequest.messages());
+        AnthropicToolUtils.writeMessages(builder, unifiedRequest.messages());
         if (unifiedRequest.temperature() != null) {
             builder.field(TEMPERATURE_FIELD, unifiedRequest.temperature());
         }

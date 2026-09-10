@@ -737,6 +737,7 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
                     }
                 }
                 perIterationCharges.clear();
+                clearPreChargedQueries();
             }
         };
 

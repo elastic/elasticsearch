@@ -9,18 +9,29 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
-public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryProfilerProvider {
+import java.io.IOException;
+import java.util.List;
+
+public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryProfilerProvider, PostFilterableKnnQuery {
     private final int kParam;
+    private final int numCandsParam;
     private long vectorOpsCount;
     private final boolean earlyTermination;
+    private final int[][] seedDocsPerLeaf;
+    private List<LeafReaderContext> leaves;
+    private TopDocs[] rawPerLeafResults;
 
     public ESKnnByteVectorQuery(String field, byte[] target, int k, int numCands, Query filter, KnnSearchStrategy strategy) {
         this(field, target, k, numCands, filter, strategy, false);
@@ -35,14 +46,35 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
         KnnSearchStrategy strategy,
         boolean earlyTermination
     ) {
+        this(field, target, k, numCands, filter, strategy, earlyTermination, null);
+    }
+
+    ESKnnByteVectorQuery(
+        String field,
+        byte[] target,
+        int k,
+        int numCands,
+        Query filter,
+        KnnSearchStrategy strategy,
+        boolean earlyTermination,
+        int[][] seedDocsPerLeaf
+    ) {
         super(field, target, numCands, filter, strategy);
         this.kParam = k;
+        this.numCandsParam = numCands;
         this.earlyTermination = earlyTermination;
+        this.seedDocsPerLeaf = seedDocsPerLeaf;
+    }
+
+    @Override
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        this.leaves = searcher.getIndexReader().leaves();
+        return super.rewrite(searcher);
     }
 
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
-        // if k param is set, we get only top k results from each shard
+        this.rawPerLeafResults = perLeafResults;
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
         vectorOpsCount = topK.totalHits.value();
         return topK;
@@ -53,7 +85,71 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
         queryProfiler.addVectorOpsCount(vectorOpsCount);
     }
 
-    public Integer kParam() {
+    @Override
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
+        Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
+        return new ESKnnByteVectorQuery(
+            field,
+            getTargetCopy(),
+            remainingK,
+            numCandsParam,
+            filter,
+            searchStrategy,
+            earlyTermination,
+            seedDocsPerLeaf
+        );
+    }
+
+    @Override
+    public Query createPostFilterDelegate(float filterSelectivity) {
+        var params = PostFilterableKnnQuery.computeOversampledParams(kParam, numCandsParam, filterSelectivity);
+        return new ESKnnByteVectorQuery(
+            field,
+            getTargetCopy(),
+            params.scaledK(),
+            params.scaledNumCands(),
+            null,
+            searchStrategy,
+            earlyTermination,
+            null
+        );
+    }
+
+    @Override
+    public ScoreDoc[][] getPostFilterCandidates() {
+        return rawPerLeafResults == null
+            ? new ScoreDoc[leaves.size()][]
+            : PostFilterableKnnQuery.buildPerLeafCandidates(rawPerLeafResults, leaves);
+    }
+
+    @Override
+    public int countTotalVectors(List<LeafReaderContext> leaves) throws IOException {
+        int totalVectors = 0;
+        for (LeafReaderContext leaf : leaves) {
+            ByteVectorValues fvv = leaf.reader().getByteVectorValues(field);
+            if (fvv != null) {
+                totalVectors += fvv.size();
+            }
+        }
+        return totalVectors;
+    }
+
+    @Override
+    public long totalVectorOps() {
+        return vectorOpsCount;
+    }
+
+    @Override
+    public int k() {
+        return kParam;
+    }
+
+    @Override
+    public int numCands() {
+        return numCandsParam;
+    }
+
+    public int kParam() {
         return kParam;
     }
 
@@ -63,7 +159,10 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
 
     @Override
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        KnnCollectorManager knnCollectorManager = super.getKnnCollectorManager(k, searcher);
-        return earlyTermination ? PatienceCollectorManager.wrap(knnCollectorManager) : knnCollectorManager;
+        KnnCollectorManager base = super.getKnnCollectorManager(k, searcher);
+        if (PostFilterableKnnQuery.hasSeeds(seedDocsPerLeaf)) {
+            base = new SeededRetryCollectorManager(base, seedDocsPerLeaf, field);
+        }
+        return earlyTermination ? PatienceCollectorManager.wrap(base) : base;
     }
 }

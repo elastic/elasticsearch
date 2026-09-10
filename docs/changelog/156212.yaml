@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 156212
+summary: Optimize `bitmap_terms` on sorted index
+type: enhancement

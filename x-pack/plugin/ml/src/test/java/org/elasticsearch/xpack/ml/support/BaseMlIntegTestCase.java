@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.support;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
@@ -126,7 +127,12 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     // The ML jobs can trigger many tasks that are not easily tracked. For this reason, here we list
     // all the tasks that should be excluded from the cleanup jobs because they are not related to the tests.
-    private static final Set<String> UNRELATED_TASKS = Set.of(TransportListTasksAction.TYPE.name(), HealthNode.TASK_NAME);
+    private static final Set<String> UNRELATED_TASKS = Set.of(
+        TransportListTasksAction.TYPE.name(),
+        HealthNode.TASK_NAME,
+        // Background yellow waits can exceed assertBusy's 10s default
+        TransportClusterHealthAction.TYPE.name()
+    );
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

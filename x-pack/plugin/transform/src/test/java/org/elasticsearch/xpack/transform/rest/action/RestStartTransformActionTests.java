@@ -22,6 +22,23 @@ public class RestStartTransformActionTests extends ESTestCase {
 
     private static final String ID = "id";
     private static final String FROM = "from";
+    private static final String INITIAL_DELAY = "initial_delay";
+
+    public void testInitialDelayValid() {
+        RestStartTransformAction handler = new RestStartTransformAction();
+        FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(
+            Map.of(ID, "my-id", INITIAL_DELAY, "5s")
+        ).build();
+        handler.prepareRequest(request, mock(NodeClient.class));
+    }
+
+    public void testInitialDelayInvalid() {
+        RestStartTransformAction handler = new RestStartTransformAction();
+        FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(
+            Map.of(ID, "my-id", INITIAL_DELAY, "not-a-time")
+        ).build();
+        expectThrows(IllegalArgumentException.class, () -> handler.prepareRequest(request, mock(NodeClient.class)));
+    }
 
     public void testFromValid() throws Exception {
         testFromValid(null);

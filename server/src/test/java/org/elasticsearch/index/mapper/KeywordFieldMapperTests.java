@@ -275,6 +275,21 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.BINARY, fieldType.docValuesType());
     }
 
+    public void testVectordbColumnarIndexingDefaults() throws Exception {
+        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createVectordbColumnarModeDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(1));
+        assertThat(doc.rootDoc().getFields("field").getFirst().fieldType().indexOptions(), equalTo(IndexOptions.NONE));
+        assertThat(doc.rootDoc().getFields("field").getFirst().fieldType().docValuesType(), equalTo(DocValuesType.BINARY));
+
+        mapper = createVectordbColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("index", true)));
+        doc = mapper.parse(source(b -> b.field("field", "value")));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(2));
+        assertTrue(doc.rootDoc().getFields("field").stream().anyMatch(field -> field.fieldType().indexOptions() == IndexOptions.DOCS));
+        assertTrue(doc.rootDoc().getFields("field").stream().anyMatch(field -> field.fieldType().docValuesType() == DocValuesType.BINARY));
+    }
+
     public void testHighCardinalityFieldType() throws Exception {
 
         XContentBuilder mapping = fieldMapping(b -> b.field("type", "keyword").field("index", true));
@@ -718,6 +733,22 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(keywordMapper.toString(), equalTo(expected));
     }
 
+    /**
+     * normalizer → FALLBACK synthetic source mode. When ignore_above also fires (Malformed result),
+     * FallbackPostMapper must commit the pre-capture so synthetic source can reconstruct the original value.
+     */
+    public void testNormalizerSyntheticSourceIgnoreAboveCommitsPrecapture() throws IOException {
+        MapperService mapperService = createSytheticSourceMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .field("normalizer", "lowercase")
+                    .field("normalizer_skip_store_original_value", false)
+                    .field("ignore_above", 5)
+            )
+        );
+        assertEquals("{\"field\":\"AbCDef\"}", syntheticSource(mapperService.documentMapper(), b -> b.field("field", "AbCDef")));
+    }
+
     public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
@@ -1060,6 +1091,26 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertScriptDocValues(mapperService, List.of("bar", "foo"), equalTo(List.of("bar", "foo")));
     }
 
+    public void testUsesMultivaluedBinaryDocValues() throws IOException {
+        Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        KeywordFieldMapper.KeywordFieldType columnarMultivalue = (KeywordFieldMapper.KeywordFieldType) createMapperService(
+            columnarSettings,
+            fieldMapping(b -> b.field("type", "keyword"))
+        ).fieldType("field");
+        assertTrue(columnarMultivalue.usesMultivaluedBinaryDocValues());
+
+        KeywordFieldMapper.KeywordFieldType columnarSingleValue = (KeywordFieldMapper.KeywordFieldType) createMapperService(
+            columnarSettings,
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
+        ).fieldType("field");
+        assertFalse(columnarSingleValue.usesMultivaluedBinaryDocValues());
+
+        KeywordFieldMapper.KeywordFieldType standardMultivalue = (KeywordFieldMapper.KeywordFieldType) createMapperService(
+            fieldMapping(b -> b.field("type", "keyword"))
+        ).fieldType("field");
+        assertFalse(standardMultivalue.usesMultivaluedBinaryDocValues());
+    }
+
     /**
      * Keyword high-cardinality doc values have used the SeparateCount format since 9.4.0. This test pins that contract for the
      * current index version.
@@ -1103,6 +1154,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsOnFailureParameter() {
         return true;
     }
 
@@ -1179,38 +1235,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(20))));
         assertThat(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())), equalTo(true));
-    }
-
-    /**
-     * null still counts as a value, so the second value is rejected.
-     */
-    public void testMultiValueFalseRejectsNullThenValue() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
-        );
-        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
-            b.startArray("field").nullValue().value(randomAlphanumericOfLength(5)).endArray();
-        })));
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
-        );
-    }
-
-    /**
-     * Mirror of {@link #testMultiValueFalseRejectsNullThenValue} with the order reversed: first value is non-null, second is null.
-     */
-    public void testMultiValueFalseRejectsValueThenNull() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
-        );
-        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
-            b.startArray("field").value(randomAlphanumericOfLength(5)).nullValue().endArray();
-        })));
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
-        );
     }
 
     public void testMultiValueFalseAcceptsSingleNull() throws IOException {

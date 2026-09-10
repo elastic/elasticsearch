@@ -145,24 +145,12 @@ public class TieredMergeStrategy<V> {
      * @param centroidData     per-segment centroid data (may contain nulls for segments without centroids)
      * @return a merge action ready to execute
      */
-    // TODO: CentroidData is not yet generic on main — it uses ClusteringFloatVectorValues internally.
-    // Once CentroidData is generified to CentroidData<V> (as part of the subsequent byte DiskBBQ reader work),
-    // this method signature should change to CentroidData<V>[] and the unchecked casts below can be removed.
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public MergeAction<V> selectAction(int[] segmentSizes, int[] segmentCentroids, IVFVectorsReader.CentroidData[] centroidData) {
-        if (ops != CentroidOps.FLOAT) {
-            throw new UnsupportedOperationException(
-                "selectAction with non-float CentroidOps requires generified CentroidData<V>; "
-                    + "this guard will be removed once CentroidData is parameterized by vector type"
-            );
-        }
+    public MergeAction<V> selectAction(int[] segmentSizes, int[] segmentCentroids, IVFVectorsReader.CentroidData<V>[] centroidData) {
         Strategy strategy = selectStrategy(segmentSizes, segmentCentroids);
         return switch (strategy) {
             case INSERTION -> {
                 int dominantIdx = findDominantSegment(segmentSizes);
-                // Safe when V=float[] since CentroidData.centroids() returns ClusteringFloatVectorValues.
-                // Will be type-safe once CentroidData is generified.
-                yield new Insertion<>((ClusteringVectorValues<V>) centroidData[dominantIdx].centroids());
+                yield new Insertion<>(centroidData[dominantIdx].centroids());
             }
             case CONCATENATION -> {
                 List<ClusteringVectorValues<V>> parts = new ArrayList<>();
@@ -170,10 +158,9 @@ public class TieredMergeStrategy<V> {
                 int totalSizes = 0;
                 int coveredVectorCount = 0;
                 for (int i = 0; i < centroidData.length; i++) {
-                    IVFVectorsReader.CentroidData data = centroidData[i];
+                    IVFVectorsReader.CentroidData<V> data = centroidData[i];
                     if (data != null) {
-                        // Same cast as above — safe for V=float[], type-safe once CentroidData is generified.
-                        parts.add((ClusteringVectorValues<V>) data.centroids());
+                        parts.add(data.centroids());
                         sizesParts.add(data.clusterSizes());
                         totalSizes += data.clusterSizes().length;
                         coveredVectorCount += segmentSizes[i];

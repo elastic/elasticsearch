@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 
 import java.util.Map;
 
-public class CohereCompletionModel extends CohereModel {
+public class CohereCompletionModel extends CohereModel<CohereCompletionServiceSettings> {
 
     public CohereCompletionModel(
         String modelId,
@@ -44,14 +44,8 @@ public class CohereCompletionModel extends CohereModel {
         super(
             modelConfigurations,
             modelSecrets,
-            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
             ((CohereCompletionServiceSettings) modelConfigurations.getServiceSettings()).commonSettings()
         );
-    }
-
-    @Override
-    public CohereCompletionServiceSettings getServiceSettings() {
-        return (CohereCompletionServiceSettings) super.getServiceSettings();
     }
 
     @Override

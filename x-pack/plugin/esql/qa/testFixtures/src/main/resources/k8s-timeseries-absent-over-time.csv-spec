@@ -421,3 +421,19 @@ false                   | three       | 2024-05-10T00:21:00.000Z
 false                   | two         | 2024-05-10T00:20:00.000Z
 true                    | one         | 2024-05-10T00:21:00.000Z
 ;
+
+absent_over_time_of_keyword_dimension
+required_capability: ts_command_v0
+TS k8s | STATS r = max(absent_over_time(pod)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
+
+r:boolean | cluster:keyword | time_bucket:datetime
+false     | prod            | 2024-05-10T00:00:00.000Z
+false     | qa              | 2024-05-10T00:00:00.000Z
+false     | staging         | 2024-05-10T00:00:00.000Z
+false     | prod            | 2024-05-10T00:10:00.000Z
+false     | qa              | 2024-05-10T00:10:00.000Z
+false     | staging         | 2024-05-10T00:10:00.000Z
+false     | prod            | 2024-05-10T00:20:00.000Z
+false     | qa              | 2024-05-10T00:20:00.000Z
+false     | staging         | 2024-05-10T00:20:00.000Z
+;

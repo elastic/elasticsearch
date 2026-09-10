@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157375
+summary: Reuse parquet page decompress buffers
+type: enhancement

@@ -28,6 +28,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -120,6 +121,36 @@ public abstract class ContinuousTestCase extends ESRestTestCase {
             logger.error("Search failed with an exception.", e);
             throw e;
         }
+    }
+
+    /**
+     * Raw histogram aggregations emit zero-doc_count buckets; composite group-by in transforms skips them.
+     */
+    protected Map<String, Object> nextNonEmptyAggregationBucket(Iterator<Map<String, Object>> bucketIterator, int iteration) {
+        assertTrue(
+            "source aggregation has fewer non-empty buckets than transform destination, iteration: " + iteration,
+            bucketIterator.hasNext()
+        );
+        Map<String, Object> bucket = bucketIterator.next();
+        while ((Integer) bucket.get("doc_count") == 0) {
+            assertTrue(
+                "source aggregation has fewer non-empty buckets than transform destination, iteration: " + iteration,
+                bucketIterator.hasNext()
+            );
+            bucket = bucketIterator.next();
+        }
+        return bucket;
+    }
+
+    protected void assertAggregationAndDestinationIteratorsExhausted(Iterator<?> sourceIterator, Iterator<?> destIterator, int iteration) {
+        assertFalse(
+            "source aggregation still has buckets not reflected in the transform destination, iteration: " + iteration,
+            sourceIterator.hasNext()
+        );
+        assertFalse(
+            "transform destination has documents not reflected in the source aggregation, iteration: " + iteration,
+            destIterator.hasNext()
+        );
     }
 
     private SyncConfig getSyncConfig() {

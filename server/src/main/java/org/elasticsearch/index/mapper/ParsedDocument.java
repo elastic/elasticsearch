@@ -123,10 +123,14 @@ public class ParsedDocument {
             document.add(field);
 
         } else if (useColumnarId) {
-            document.add(ProvidedIdFieldMapper.columnarIdField(id));
+            // When uid is provided (slice-enabled indices) the tombstone identity is the compound (slice, id) term, so store that
+            document.add(uid != null ? ProvidedIdFieldMapper.columnarIdField(uid) : ProvidedIdFieldMapper.columnarIdField(id));
         } else {
-            // Use standard _id field (indexed and stored, some indices also trim the stored field at some point)
-            document.add(IdFieldMapper.standardIdField(id));
+            if (uid != null) {
+                document.add(IdFieldMapper.standardIdField(uid, Field.Store.YES));
+            } else {
+                document.add(IdFieldMapper.standardIdField(id));
+            }
         }
         return new ParsedDocument(
             versionField,

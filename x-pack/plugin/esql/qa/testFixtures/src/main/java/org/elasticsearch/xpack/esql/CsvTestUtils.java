@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BlockUtils.BuilderWrapper;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
@@ -728,6 +729,7 @@ public final class CsvTestUtils {
         JSON(s -> s == null ? null : new BytesRef(s), BytesRef.class),
         // DATE_RANGE literals are parsed in UTC only; TODO: support other zones in CSV specs (similar to DATETIME).
         DATE_RANGE(s -> EsqlDataTypeConverter.parseDateRange(s, ZoneOffset.UTC), LongRangeBlockBuilder.LongRange.class),
+        DOUBLE_RANGE(EsqlDataTypeConverter::parseDoubleRange, DoubleRangeBlockBuilder.DoubleRange.class),
         VERSION(v -> new org.elasticsearch.xpack.versionfield.Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> s, Void.class),
         DATETIME(
@@ -761,6 +763,7 @@ public final class CsvTestUtils {
         TDIGEST(CsvTestUtils::parseTDigest, TDigestHolder.class),
         HISTOGRAM(CsvTestUtils::parseHistogram, BytesRef.class),
         FLATTENED(s -> s, String.class),
+        SOURCE(s -> s, String.class),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {
@@ -805,6 +808,8 @@ public final class CsvTestUtils {
             LOOKUP.put("V", VERSION);
 
             LOOKUP.put("DENSE_VECTOR", DENSE_VECTOR);
+
+            LOOKUP.put("_SOURCE", SOURCE);
         }
 
         private final Function<String, Object> converter;
@@ -863,6 +868,7 @@ public final class CsvTestUtils {
                 case EXPONENTIAL_HISTOGRAM -> EXPONENTIAL_HISTOGRAM;
                 case TDIGEST -> TDIGEST;
                 case LONG_RANGE -> DATE_RANGE;
+                case DOUBLE_RANGE -> DOUBLE_RANGE;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }
@@ -873,6 +879,7 @@ public final class CsvTestUtils {
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> actualType;
                 case HISTOGRAM -> HISTOGRAM;
                 case FLATTENED -> FLATTENED;
+                case SOURCE -> SOURCE;
                 default -> KEYWORD;
             };
         }

@@ -540,6 +540,11 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsOnFailureParameter() {
+        return true;
+    }
+
+    @Override
     protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
         return DocValuesType.SORTED_NUMERIC;
     }

@@ -1,0 +1,2 @@
+FROM (TS k8s-downsampled)
+| STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)

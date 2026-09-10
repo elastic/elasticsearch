@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
+import org.elasticsearch.xpack.core.security.authc.service.BuiltInServiceAccount;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -21,9 +22,9 @@ import java.util.stream.Stream;
 
 final class ElasticServiceAccounts {
 
-    static final String NAMESPACE = "elastic";
+    static final String NAMESPACE = ServiceAccountSettings.BUILTIN_NAMESPACE;
 
-    private static final ServiceAccount AUTO_OPS_ACCOUNT = new ElasticServiceAccount(
+    private static final BuiltInServiceAccount AUTO_OPS_ACCOUNT = new ElasticServiceAccount(
         "auto-ops",
         new RoleDescriptor(
             NAMESPACE + "/auto-ops",
@@ -42,7 +43,7 @@ final class ElasticServiceAccounts {
         )
     );
 
-    private static final ServiceAccount FLEET_ACCOUNT = new ElasticServiceAccount(
+    private static final BuiltInServiceAccount FLEET_ACCOUNT = new ElasticServiceAccount(
         "fleet-server",
         new RoleDescriptor(
             NAMESPACE + "/fleet-server",
@@ -67,6 +68,8 @@ final class ElasticServiceAccounts {
                     .privileges("write", "create_index", "auto_configure")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("profiling-*").privileges("read", "write").build(),
+                // Symbolizer uses delete-by-query with refresh enabled when cleaning stale queue documents.
+                RoleDescriptor.IndicesPrivileges.builder().indices(".profiling-sq-*").privileges("read", "write", "maintenance").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     // APM Server (and hence Fleet Server, which issues its API Keys) needs additional privileges
                     // for the non-sensitive "sampled traces" data stream:
@@ -152,6 +155,11 @@ final class ElasticServiceAccounts {
                     .application("kibana-*")
                     .resources("*")
                     .privileges("reserved_fleet-setup")
+                    .build(),
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("apm")
+                    .resources("*")
+                    .privileges("event:write")
                     .build() },
             null,
             null,
@@ -159,7 +167,7 @@ final class ElasticServiceAccounts {
             null
         )
     );
-    private static final ServiceAccount FLEET_REMOTE_ACCOUNT = new ElasticServiceAccount(
+    private static final BuiltInServiceAccount FLEET_REMOTE_ACCOUNT = new ElasticServiceAccount(
         "fleet-server-remote",
         new RoleDescriptor(
             NAMESPACE + "/fleet-server-remote",
@@ -184,12 +192,12 @@ final class ElasticServiceAccounts {
             null
         )
     );
-    private static final ServiceAccount KIBANA_SYSTEM_ACCOUNT = new ElasticServiceAccount(
+    private static final BuiltInServiceAccount KIBANA_SYSTEM_ACCOUNT = new ElasticServiceAccount(
         "kibana",
         ReservedRolesStore.kibanaSystemRoleDescriptor(NAMESPACE + "/kibana")
     );
 
-    static final Map<String, ServiceAccount> ACCOUNTS = Stream.of(
+    static final Map<String, BuiltInServiceAccount> ACCOUNTS = Stream.of(
         AUTO_OPS_ACCOUNT,
         FLEET_ACCOUNT,
         FLEET_REMOTE_ACCOUNT,
@@ -198,7 +206,7 @@ final class ElasticServiceAccounts {
 
     private ElasticServiceAccounts() {}
 
-    static class ElasticServiceAccount implements ServiceAccount {
+    static class ElasticServiceAccount implements BuiltInServiceAccount {
         private final ServiceAccountId id;
         private final RoleDescriptor roleDescriptor;
         private final User user;
@@ -220,7 +228,7 @@ final class ElasticServiceAccounts {
                 Strings.EMPTY_ARRAY,
                 "Service account - " + id,
                 null,
-                Map.of("_elastic_service_account", true),
+                Map.of(ServiceAccountSettings.BUILTIN_SERVICE_ACCOUNT_FIELD, true),
                 true
             );
         }

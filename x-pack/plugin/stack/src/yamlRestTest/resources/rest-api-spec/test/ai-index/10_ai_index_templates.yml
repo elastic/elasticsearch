@@ -1,0 +1,51 @@
+---
+setup:
+  # Wait for the AI index template registry to finish installing its templates.
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+"The base `ai-index-` prefix alone is not matched by either template, so no mappings are applied":
+  - do:
+      indices.create:
+        index: ai-index-foo
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_mapping:
+        index: ai-index-foo
+  - match: { ai-index-foo.mappings: { } }
+
+---
+"Creating a regular index matching the data stream pattern is rejected":
+  - do:
+      catch: /that creates data streams only/
+      indices.create:
+        index: ai-index-ds-foo
+
+---
+"Standard AI index picks up the managed template":
+  - do:
+      indices.create:
+        index: ai-index-idx-foo
+  - match: { acknowledged: true }
+
+  # Mappings from the ai-index@mappings component confirm the ai-index-idx template was applied.
+  - do:
+      indices.get_mapping:
+        index: ai-index-idx-foo
+  - match: { ai-index-idx-foo.mappings.properties.type.type: keyword }
+
+---
+"Data stream AI index is backed by the managed template":
+  - do:
+      indices.create_data_stream:
+        name: ai-index-ds-foo
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_data_stream:
+        name: ai-index-ds-foo
+  - match: { data_streams.0.name: ai-index-ds-foo }
+  - match: { data_streams.0.template: ai-index-ds }

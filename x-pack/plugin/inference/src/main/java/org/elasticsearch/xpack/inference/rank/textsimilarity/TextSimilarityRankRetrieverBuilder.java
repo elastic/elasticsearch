@@ -49,6 +49,9 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     );
     public static final NodeFeature TEXT_SIMILARITY_RERANKER_MINSCORE_FIX = new NodeFeature("text_similarity_reranker_minscore_fix");
     public static final NodeFeature TEXT_SIMILARITY_RERANKER_SNIPPETS = new NodeFeature("text_similarity_reranker_snippets");
+    public static final NodeFeature TEXT_SIMILARITY_RERANKER_EMPTY_RESULT_FIX = new NodeFeature(
+        "text_similarity_reranker_empty_result_fix"
+    );
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
@@ -303,6 +306,10 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
 
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
+        if (sourceBuilder.size() == 0) {
+            // Short-circuit when there are no candidate documents to return
+            return sourceBuilder;
+        }
         sourceBuilder.rankBuilder(
             new TextSimilarityRankBuilder(
                 field,

@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 155978
+summary: Name snapshots blocking index delete and close
+type: enhancement

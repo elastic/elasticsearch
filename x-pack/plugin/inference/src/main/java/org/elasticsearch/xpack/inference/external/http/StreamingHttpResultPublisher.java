@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
+import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpResponse;
 import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
@@ -15,6 +16,7 @@ import org.apache.http.nio.util.SimpleInputBuffer;
 import org.apache.http.protocol.HttpContext;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,6 +29,7 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 /**
@@ -51,17 +54,35 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
     private final AtomicBoolean isDone = new AtomicBoolean(false);
     private final AtomicBoolean subscriptionCanceled = new AtomicBoolean(false);
 
+    private volatile boolean responseFullyReceived = false;
+
     private final SimpleInputBuffer inputBuffer = new SimpleInputBuffer(4096);
     private final DataPublisher publisher;
     private final ApacheClientBackpressure backpressure;
+    private final String inferenceEntityId;
+    private final HttpSettings settings;
 
     private volatile Exception exception;
 
-    StreamingHttpResultPublisher(ThreadPool threadPool, HttpSettings settings, ActionListener<StreamingHttpResult> listener) {
+    StreamingHttpResultPublisher(
+        ThreadPool threadPool,
+        HttpSettings settings,
+        ActionListener<StreamingHttpResult> listener,
+        CircuitBreaker circuitBreaker,
+        String inferenceEntityId
+    ) {
+        this.inferenceEntityId = inferenceEntityId;
+        this.settings = settings;
+
         this.listener = ActionListener.notifyOnce(Objects.requireNonNull(listener));
 
         this.publisher = new DataPublisher(threadPool);
-        this.backpressure = new ApacheClientBackpressure(Objects.requireNonNull(settings));
+        this.backpressure = new ApacheClientBackpressure(
+            Objects.requireNonNull(settings),
+            Objects.requireNonNull(circuitBreaker),
+            Objects.requireNonNull(inferenceEntityId)
+        );
+
     }
 
     @Override
@@ -85,7 +106,26 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
             if (consumed > 0) {
                 var allBytes = new byte[consumed];
                 inputBuffer.read(allBytes);
-                backpressure.addBytesAndMaybePause(consumed, ioControl);
+                var paused = backpressure.addBytesAndMaybePause(consumed, ioControl);
+                // cancelUpstream() may have raced past the first subscriptionCanceled guard, so we've to recheck
+                if (subscriptionCanceled.get()) {
+                    backpressure.subtractBytesAndMaybeUnpause(consumed);
+                    return;
+                }
+
+                if (paused && publisher.hasSubscriber() == false) {
+                    var abandoned = new IllegalStateException(
+                        format(
+                            "Stream for inference id [%s] buffered [%s] without a consumer, aborting",
+                            inferenceEntityId,
+                            settings.getMaxResponseSize()
+                        )
+                    );
+                    exception = abandoned;
+                    publisher.onError(abandoned);
+                    return;
+                }
+
                 publisher.onNext(allBytes);
             }
         } catch (Exception e) {
@@ -100,18 +140,15 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
     }
 
     @Override
-    public void responseCompleted(HttpContext httpContext) {}
+    public void responseCompleted(HttpContext httpContext) {
+        responseFullyReceived = true;
+    }
 
     // called when Apache is failing the response
     @Override
     public void failed(Exception e) {
         if (this.isDone.compareAndSet(false, true)) {
-            if (listenerCalled.compareAndSet(false, true)) {
-                listener.onFailure(e);
-            } else {
-                exception = e;
-                publisher.onError(e);
-            }
+            failStream(e);
         }
     }
 
@@ -119,7 +156,28 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
     @Override
     public void close() {
         if (isDone.compareAndSet(false, true)) {
-            publisher.onComplete();
+            if (responseFullyReceived) {
+                publisher.onComplete();
+            } else if (exception == null) {
+                // The exchange was torn down (cancelled, aborted, or the connection closed) before Apache signaled
+                // responseCompleted, and consumeContent() did not already report a cause. Completing the stream here
+                // would silently truncate the response, so fail it instead.
+                failStream(
+                    new ConnectionClosedException(
+                        format("Stream for inference entity [%s] closed before the response was fully received", inferenceEntityId)
+                    )
+                );
+            }
+            // else: consumeContent() already set exception and forwarded it via publisher.onError(); don't overwrite.
+        }
+    }
+
+    private void failStream(Exception e) {
+        exception = e;
+        if (listenerCalled.compareAndSet(false, true)) {
+            listener.onFailure(e);
+        } else {
+            publisher.onError(e);
         }
     }
 
@@ -165,10 +223,16 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
 
         private void sendToSubscriber() {
             if (downstream == null) {
+                if (pendingError != null) {
+                    stopUpstream();
+                } else if (completed) {
+                    backpressure.releaseTrackedBytes();
+                }
                 return;
             }
             if (pendingRequests.get() > 0 && pendingError != null) {
                 pendingRequests.decrementAndGet();
+                cancelUpstream();
                 downstream.onError(pendingError);
                 return;
             }
@@ -178,10 +242,14 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
                 backpressure.subtractBytesAndMaybeUnpause(nextBytes.length);
                 downstream.onNext(nextBytes);
             }
-            if (pendingRequests.get() > 0 && contentQueue.isEmpty() && completed) {
+            if (pendingRequests.get() > 0 && completed && contentQueue.isEmpty()) {
                 pendingRequests.decrementAndGet();
                 downstream.onComplete();
             }
+        }
+
+        private boolean hasSubscriber() {
+            return downstream != null;
         }
 
         @Override
@@ -207,14 +275,21 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
 
                 @Override
                 public void cancel() {
-                    if (subscriptionCanceled.compareAndSet(false, true)) {
-                        // If the producer was paused for backpressure, Apache will never call consumeContent again, so the
-                        // subscriptionCanceled check there cannot fire. Shut the producer down here to release the leased connection.
-                        backpressure.shutdownProducer();
-                        taskRunner.cancel();
-                    }
+                    cancelUpstream();
                 }
             });
+        }
+
+        private void stopUpstream() {
+            if (subscriptionCanceled.compareAndSet(false, true)) {
+                backpressure.releaseTrackedBytes();
+                backpressure.shutdownProducer();
+            }
+        }
+
+        private void cancelUpstream() {
+            stopUpstream();
+            taskRunner.cancel();
         }
 
         @Override
@@ -257,17 +332,24 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         private final AtomicLong bytesInQueue = new AtomicLong(0);
         private final Object ioLock = new Object();
         private volatile IOControl savedIoControl;
+        private final CircuitBreaker circuitBreaker;
+        private final String inferenceEntityId;
         // true once shutdownProducer() is called
         private volatile boolean shutdown = false;
 
-        private ApacheClientBackpressure(HttpSettings settings) {
+        private ApacheClientBackpressure(HttpSettings settings, CircuitBreaker circuitBreaker, String inferenceEntityId) {
             this.settings = settings;
+            this.circuitBreaker = circuitBreaker;
+            this.inferenceEntityId = inferenceEntityId;
         }
 
-        private void addBytesAndMaybePause(long count, IOControl ioControl) {
+        private boolean addBytesAndMaybePause(long count, IOControl ioControl) {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(count, inferenceEntityId);
             if (bytesInQueue.addAndGet(count) >= settings.getMaxResponseSize().getBytes()) {
                 pauseProducer(ioControl);
+                return true;
             }
+            return false;
         }
 
         private void pauseProducer(IOControl ioControl) {
@@ -285,7 +367,14 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         }
 
         private void subtractBytesAndMaybeUnpause(long count) {
-            var currentBytesInQueue = bytesInQueue.updateAndGet(current -> Long.max(0, current - count));
+            // claim from the accumulator first, and only what is actually there — a concurrent releaseTrackedBytes()
+            // may already have returned these bytes to the breaker
+            var before = bytesInQueue.getAndUpdate(current -> Long.max(0, current - count));
+            var claimed = Long.min(count, before);
+            if (claimed > 0) {
+                circuitBreaker.addWithoutBreaking(-claimed);
+            }
+            var currentBytesInQueue = before - claimed;
             if (savedIoControl != null) {
                 var maxBytes = settings.getMaxResponseSize().getBytes() * 0.5;
                 if (currentBytesInQueue <= maxBytes) {
@@ -300,6 +389,13 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
                     savedIoControl.requestInput();
                     savedIoControl = null;
                 }
+            }
+        }
+
+        private void releaseTrackedBytes() {
+            var remaining = bytesInQueue.getAndSet(0);
+            if (remaining > 0) {
+                circuitBreaker.addWithoutBreaking(-remaining);
             }
         }
 

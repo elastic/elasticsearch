@@ -19,6 +19,7 @@ import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -61,6 +62,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
@@ -103,10 +105,8 @@ import static org.hamcrest.Matchers.is;
  * E.g. the field {@code main_byte} will occur another time in the index {@code main_byte_as_short} when we're testing a byte-short union
  * type.
  */
-// TODO: This suite creates a lot of indices. It should be sufficient to just create 1 main index with 1 field per relevant type and 1
-// lookup index with 1 field per relevant type; only union types require additional main indices so we can have the same field mapped to
-// different types.
 @ClusterScope(scope = SUITE, numClientNodes = 1, numDataNodes = 1)
+@SuiteScopeTestCase
 @LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS")
 public class LookupJoinTypesIT extends ESIntegTestCase {
     private static final String MAIN_INDEX_PREFIX = "main_";
@@ -143,6 +143,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private static final Map<Pair<String, BinaryComparisonOperation>, TestConfigs> testConfigurations = new HashMap<>();
+    private static final TestConfigs suiteTestConfigurations;
     static {
         List<BinaryComparisonOperation> operations = new ArrayList<>(List.of(BinaryComparisonOperation.values()));
         operations.add(null); // null means field-based join
@@ -255,6 +256,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                         || type == DENSE_VECTOR  // need special handling for loads at the moment
                         || type == EXPONENTIAL_HISTOGRAM
                         || type == DATE_RANGE // need special handling for loads at the moment
+                        || type == DOUBLE_RANGE // need special handling for loads at the moment
                         || type == FLATTENED // need special handling for loads at the moment
                         || type == TDIGEST
                         || type == HISTOGRAM
@@ -356,21 +358,15 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 }
             }
         }
-        // Make sure we have never added two configurations with the same lookup index name.
-        // This prevents accidentally adding the same test config to two different groups.
-        Set<String> knownTypes = new HashSet<>();
+        suiteTestConfigurations = new TestConfigs("all", null);
         for (TestConfigs configs : testConfigurations.values()) {
             for (TestConfig config : configs.configs.values()) {
-                if (knownTypes.contains(config.lookupIndexName())) {
-                    throw new IllegalArgumentException("Duplicate lookup index name: " + config.lookupIndexName());
+                TestConfig existing = suiteTestConfigurations.configs.putIfAbsent(config.lookupIndexName(), config);
+                if (existing != null && existing.lookupIndex().equals(config.lookupIndex()) == false) {
+                    throw new IllegalArgumentException("Conflicting lookup index mappings: " + config.lookupIndexName());
                 }
-                knownTypes.add(config.lookupIndexName());
             }
         }
-    }
-
-    static String stringForOperation(BinaryComparisonOperation operation) {
-        return operation == null ? "_field" : "_" + operation.name().toLowerCase(Locale.ROOT);
     }
 
     private static boolean existingIndex(
@@ -379,8 +375,14 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         DataType lookupType,
         BinaryComparisonOperation operation
     ) {
-        String indexName = LOOKUP_INDEX_PREFIX + mainType.esType() + "_" + lookupType.esType() + stringForOperation(operation);
-        return existing.stream().anyMatch(c -> c.exists(indexName));
+        String indexName = LOOKUP_INDEX_PREFIX + mainType.esType() + "_" + lookupType.esType();
+        return existing.stream().filter(c -> c.operation == operation).anyMatch(c -> c.exists(indexName));
+    }
+
+    @Override
+    public void setupSuiteScopeCluster() {
+        initIndexes(suiteTestConfigurations);
+        initData(suiteTestConfigurations);
     }
 
     /** This test generates documentation for the supported output types of the lookup join. */
@@ -446,8 +448,6 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     private void testLookupJoinTypes(String group, BinaryComparisonOperation operation) {
         TestConfigs configs = testConfigurations.get(new Pair<>(group, operation));
-        initIndexes(configs);
-        initData(configs);
         for (TestConfig config : configs.values()) {
             if ((isValidDataType(config.mainType()) && isValidDataType(config.lookupType())) == false) {
                 continue;
@@ -799,7 +799,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         default String lookupIndexName() {
-            return LOOKUP_INDEX_PREFIX + mainType().esType() + "_" + lookupType().esType() + stringForOperation(operation());
+            return LOOKUP_INDEX_PREFIX + mainType().esType() + "_" + lookupType().esType();
         }
 
         default TestMapping lookupIndex() {
@@ -919,17 +919,11 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         @Override
         public String lookupIndexName() {
             // Override so it doesn't clash with other lookup indices from non-union type tests.
-            return LOOKUP_INDEX_PREFIX
-                + mainType().esType()
-                + "_union_"
-                + otherMainType().esType()
-                + "_"
-                + lookupType().esType()
-                + stringForOperation(operation());
+            return LOOKUP_INDEX_PREFIX + mainType().esType() + "_union_" + otherMainType().esType() + "_" + lookupType().esType();
         }
 
         private String additionalIndexName() {
-            return mainFieldName() + "_as_" + otherMainType().typeName() + stringForOperation(operation());
+            return mainFieldName() + "_as_" + otherMainType().typeName();
         }
 
         @Override

@@ -9,6 +9,9 @@
 
 package org.elasticsearch.telemetry;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
@@ -23,6 +26,24 @@ public interface TelemetryProvider {
      * {@code elasticsearch.yml} or the cluster settings API.
      */
     String OTEL_TRACES_ENABLED_SYSTEM_PROPERTY = "telemetry.otel.traces.enabled";
+
+    /**
+     * Resolves the interval at which node and indices metrics are collected to use for {@code NodeMetrics} cached.
+     * <p>
+     * When the OTel SDK metrics export path is active (see {@link #OTEL_METRICS_ENABLED_SYSTEM_PROPERTY}), the interval
+     * tracks the SDK export interval ({@code telemetry.export.interval}, falling back to
+     * {@code telemetry.agent.metrics_interval} with a 60s default) so metrics are refreshed in step with exports.
+     * Otherwise, it uses the legacy APM agent interval ({@code telemetry.agent.metrics_interval}, defaulting to 10s).
+     */
+    static TimeValue getMetricsInterval(Settings settings) {
+        boolean otelMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false"));
+        return otelMetricsEnabled
+            ? settings.getAsTime(
+                "telemetry.export.interval",
+                settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(60))
+            )
+            : settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10));
+    }
 
     Tracer getTracer();
 

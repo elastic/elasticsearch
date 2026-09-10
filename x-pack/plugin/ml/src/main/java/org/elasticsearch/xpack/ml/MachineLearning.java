@@ -182,11 +182,13 @@ import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStatsNamedWriteablesProvider;
+import org.elasticsearch.xpack.core.ml.inference.IngestModelMemoryProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelCacheMetadata;
@@ -315,6 +317,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -331,6 +334,7 @@ import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClu
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.ml.inference.ingest.IngestModelMemoryService;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankRescorerBuilder;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankService;
@@ -462,6 +466,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -779,6 +784,47 @@ public class MachineLearning extends Plugin
         Setting.Property.NodeScope
     );
 
+    /** Matches {@link org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.OpenJobRetryableAction} normal backoff. */
+    private static final TimeValue JOB_OPEN_NORMAL_RETRY_INITIAL_DELAY = TimeValue.timeValueSeconds(5);
+    private static final TimeValue JOB_OPEN_NORMAL_RETRY_MAX_DELAY = TimeValue.timeValueMinutes(5);
+
+    /**
+     * Largest delay bound safe for {@link org.elasticsearch.action.support.RetryableAction} jitter scheduling.
+     */
+    private static final TimeValue CAPACITY_RETRY_JITTER_SAFE_MAX = TimeValue.timeValueMillis(2L * Integer.MAX_VALUE - 1L);
+
+    /**
+     * Backoff-bound floor for capacity-constrained failures in the AD job-open pipeline
+     * (scroll-context/circuit-breaker/thread-pool saturation). Longer than the default 5s so the search tier can
+     * drain before the revert delete is re-issued. Because {@code RetryableAction} sleeps on the previous bound for
+     * the failing attempt, this floor takes effect from the second capacity retry onward—the first capacity failure
+     * still waits the prior ~5s bound. Applied by
+     * {@link org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.OpenJobRetryableAction}.
+     * See elastic/elasticsearch#153260.
+     */
+    public static final Setting<TimeValue> JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY = Setting.timeSetting(
+        "xpack.ml.job_open_capacity_retry_initial_delay",
+        TimeValue.timeValueSeconds(30),
+        JOB_OPEN_NORMAL_RETRY_INITIAL_DELAY,
+        CAPACITY_RETRY_JITTER_SAFE_MAX,
+        new CapacityRetryInitialDelayValidator(),
+        Property.NodeScope
+    );
+
+    /**
+     * Maximum retry backoff bound for capacity-constrained failures in the AD job-open pipeline. Higher than the
+     * default 5m cap so repeated capacity failures back off further, letting scroll contexts expire between attempts.
+     * See elastic/elasticsearch#153260.
+     */
+    public static final Setting<TimeValue> JOB_OPEN_CAPACITY_RETRY_MAX_DELAY = Setting.timeSetting(
+        "xpack.ml.job_open_capacity_retry_max_delay",
+        TimeValue.timeValueMinutes(10),
+        JOB_OPEN_NORMAL_RETRY_MAX_DELAY,
+        CAPACITY_RETRY_JITTER_SAFE_MAX,
+        new CapacityRetryMaxDelayValidator(),
+        Property.NodeScope
+    );
+
     /**
      * Minimum number of consecutive search cycles a cross-cluster scope change must persist before being
      * confirmed. Lowering this value (together with {@link #CCS_STABILIZATION_FLOOR}) enables faster
@@ -808,6 +854,18 @@ public class MachineLearning extends Plugin
      * Interval between scans of {@code .ml-config} for config-derived ML gauges (CPS datafeed adoption metrics).
      */
     public static final Setting<TimeValue> CONFIG_METRICS_POLL_INTERVAL = MlConfigMetrics.POLL_INTERVAL;
+
+    /**
+     * Reserved operator escape hatch. When enabled (the default), user-initiated {@code project_routing} changes on a
+     * datafeed require the associated job to be closed and auto-retain the job's current model snapshot before the
+     * routing update is persisted. Disable only when snapshot retain is blocking legitimate scope updates.
+     */
+    public static final Setting<Boolean> REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE = Setting.boolSetting(
+        "xpack.ml.datafeed.require_rollback_snapshot_before_scope_change",
+        true,
+        Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
 
     /**
      * The time that has to pass after scaling up, before scaling down is allowed.
@@ -929,9 +987,12 @@ public class MachineLearning extends Plugin
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
             JOB_OPEN_RETRY_TIMEOUT,
+            JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY,
+            JOB_OPEN_CAPACITY_RETRY_MAX_DELAY,
             CCS_STABILIZATION_CYCLES,
             CCS_STABILIZATION_FLOOR,
             CONFIG_METRICS_POLL_INTERVAL,
+            REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE,
             DUMMY_ENTITY_MEMORY,
             DUMMY_ENTITY_PROCESSORS,
             SCALE_UP_COOLDOWN_TIME,
@@ -1073,7 +1134,8 @@ public class MachineLearning extends Plugin
             threadPool,
             client,
             canUseIlm,
-            xContentRegistry
+            xContentRegistry,
+            services.featureService()
         );
         registry.initialize();
 
@@ -1136,9 +1198,12 @@ public class MachineLearning extends Plugin
             jobConfigProvider,
             xContentRegistry,
             settings,
+            clusterService,
             client,
             machineLearningExtension.get(),
-            anomalyDetectionAuditor
+            anomalyDetectionAuditor,
+            anomalyDetectionAnnotationPersister,
+            jobResultsProvider
         );
 
         // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
@@ -1232,6 +1297,7 @@ public class MachineLearning extends Plugin
             indexNameExpressionResolver
         );
         this.autodetectProcessManager.set(autodetectProcessManager);
+        DatafeedSearchTelemetry datafeedSearchTelemetry = new DatafeedSearchTelemetry(telemetryProvider.getMeterRegistry());
         DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(
             client,
             xContentRegistry,
@@ -1241,7 +1307,8 @@ public class MachineLearning extends Plugin
             jobResultsPersister,
             settings,
             clusterService,
-            () -> machineLearningExtension.get().getCloudCredentialManager()
+            () -> machineLearningExtension.get().getCloudCredentialManager(),
+            datafeedSearchTelemetry
         );
         DatafeedContextProvider datafeedContextProvider = new DatafeedContextProvider(
             jobConfigProvider,
@@ -1290,6 +1357,10 @@ public class MachineLearning extends Plugin
             getLicenseState()
         );
         this.modelLoadingService.set(modelLoadingService);
+
+        final IngestModelMemoryService ingestModelMemoryService = new IngestModelMemoryService(trainedModelProvider, threadPool);
+        clusterService.addListener(ingestModelMemoryService);
+        IngestModelMemoryProvider.setInstance(ingestModelMemoryService);
 
         this.learningToRankService.set(
             new LearningToRankService(modelLoadingService, trainedModelProvider, services.scriptService(), services.xContentRegistry())
@@ -1478,7 +1549,8 @@ public class MachineLearning extends Plugin
             clusterService,
             threadPool,
             datafeedConfigProvider,
-            settings
+            settings,
+            xContentRegistry
         );
         return List.of(
             mlLifeCycleService,
@@ -1507,6 +1579,7 @@ public class MachineLearning extends Plugin
             dataFrameAnalyticsConfigProvider,
             nativeStorageProvider,
             modelLoadingService,
+            ingestModelMemoryService,
             trainedModelCacheMetadataService,
             trainedModelProvider,
             trainedModelAssignmentService,
@@ -1582,6 +1655,7 @@ public class MachineLearning extends Plugin
         restHandlers.add(new RestMlMemoryAction());
         restHandlers.add(new RestSetUpgradeModeAction());
         if (anomalyDetectionEnabled) {
+            final boolean mlCrossProjectSearchEnabled = DatafeedConfig.isCPSAllowed(restHandlersServices.crossProjectModeDecider());
             restHandlers.add(new RestGetJobsAction());
             restHandlers.add(new RestGetJobStatsAction());
             restHandlers.add(new RestPutJobAction());
@@ -1609,10 +1683,10 @@ public class MachineLearning extends Plugin
             restHandlers.add(new RestUpdateModelSnapshotAction());
             restHandlers.add(new RestGetDatafeedsAction());
             restHandlers.add(new RestGetDatafeedStatsAction());
-            restHandlers.add(new RestPutDatafeedAction());
-            restHandlers.add(new RestUpdateDatafeedAction());
+            restHandlers.add(new RestPutDatafeedAction(mlCrossProjectSearchEnabled));
+            restHandlers.add(new RestUpdateDatafeedAction(mlCrossProjectSearchEnabled));
             restHandlers.add(new RestDeleteDatafeedAction());
-            restHandlers.add(new RestPreviewDatafeedAction());
+            restHandlers.add(new RestPreviewDatafeedAction(mlCrossProjectSearchEnabled));
             restHandlers.add(new RestStartDatafeedAction());
             restHandlers.add(new RestStopDatafeedAction());
             restHandlers.add(new RestDeleteModelSnapshotAction());
@@ -2523,6 +2597,64 @@ public class MachineLearning extends Plugin
     public void signalShutdown(Collection<String> shutdownNodeIds) {
         if (enabled) {
             mlLifeCycleService.get().signalGracefulShutdown(shutdownNodeIds);
+        }
+    }
+
+    private static final class CapacityRetryInitialDelayValidator implements Setting.Validator<TimeValue> {
+
+        @Override
+        public void validate(TimeValue value) {}
+
+        @Override
+        public void validate(TimeValue initial, Map<Setting<?>, Object> settings) {
+            TimeValue max = (TimeValue) settings.get(JOB_OPEN_CAPACITY_RETRY_MAX_DELAY);
+            if (max != null && initial.compareTo(max) > 0) {
+                throw new IllegalArgumentException(
+                    "["
+                        + JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey()
+                        + "] ("
+                        + initial
+                        + ") must be less than or equal to ["
+                        + JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey()
+                        + "] ("
+                        + max
+                        + ")"
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return List.<Setting<?>>of(JOB_OPEN_CAPACITY_RETRY_MAX_DELAY).iterator();
+        }
+    }
+
+    private static final class CapacityRetryMaxDelayValidator implements Setting.Validator<TimeValue> {
+
+        @Override
+        public void validate(TimeValue value) {}
+
+        @Override
+        public void validate(TimeValue max, Map<Setting<?>, Object> settings) {
+            TimeValue initial = (TimeValue) settings.get(JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY);
+            if (initial != null && max.compareTo(initial) < 0) {
+                throw new IllegalArgumentException(
+                    "["
+                        + JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey()
+                        + "] ("
+                        + max
+                        + ") must be greater than or equal to ["
+                        + JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey()
+                        + "] ("
+                        + initial
+                        + ")"
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return List.<Setting<?>>of(JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY).iterator();
         }
     }
 }

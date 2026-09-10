@@ -10,9 +10,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -36,7 +38,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
-public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
+public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison>, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "NotEquals",
@@ -52,6 +54,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         Map.entry(DataType.DATETIME, NotEqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.DATE_NANOS, NotEqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.DATE_RANGE, NotEqualsLongRangeEvaluator.Factory::new),
+        Map.entry(DataType.DOUBLE_RANGE, NotEqualsDoubleRangeEvaluator.Factory::new),
         Map.entry(DataType.GEO_POINT, NotEqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.CARTESIAN_POINT, NotEqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.GEO_SHAPE, NotEqualsGeometriesEvaluator.Factory::new),
@@ -91,6 +94,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                 "date_range",
                 "dense_vector",
                 "double",
+                "double_range",
                 "exponential_histogram",
                 "flattened",
                 "geo_point",
@@ -120,6 +124,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                 "date_range",
                 "dense_vector",
                 "double",
+                "double_range",
                 "exponential_histogram",
                 "flattened",
                 "geo_point",
@@ -210,6 +215,11 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
 
     @Evaluator(extraName = "LongRange")
     static boolean processLongRange(LongRangeBlockBuilder.LongRange lhs, LongRangeBlockBuilder.LongRange rhs) {
+        return false == lhs.equals(rhs);
+    }
+
+    @Evaluator(extraName = "DoubleRange")
+    static boolean processDoubleRange(DoubleRangeBlockBuilder.DoubleRange lhs, DoubleRangeBlockBuilder.DoubleRange rhs) {
         return false == lhs.equals(rhs);
     }
 

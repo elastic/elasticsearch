@@ -10,6 +10,8 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
+import java.util.List;
+
 public interface TransportMessageListener {
 
     TransportMessageListener NOOP_LISTENER = new TransportMessageListener() {};
@@ -29,7 +31,7 @@ public interface TransportMessageListener {
      */
     default void onResponseSent(long requestId, String action) {}
 
-    /***
+    /**
      * Called for every failed action response after the response has been passed to the underlying network implementation.
      * @param requestId the request ID (unique per client)
      * @param action the request action
@@ -57,7 +59,19 @@ public interface TransportMessageListener {
      * Called for every response received
      * @param requestId the request id for this response
      * @param context the response context or null if the context was already processed ie. due to a timeout.
+     * @param networkMessageSize the size of the network message in bytes, or {@code -1} if not available
      */
     @SuppressWarnings("rawtypes")
-    default void onResponseReceived(long requestId, Transport.ResponseContext context) {}
+    default void onResponseReceived(long requestId, Transport.ResponseContext context, int networkMessageSize) {}
+
+    /**
+     * SPI for plugins to contribute {@link TransportMessageListener} instances.
+     */
+    interface Provider {
+
+        /**
+         * @return the {@link TransportMessageListener} instances to register on this node
+         */
+        List<TransportMessageListener> create();
+    }
 }

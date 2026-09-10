@@ -13,7 +13,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
-import org.elasticsearch.simdvec.IndexInputUtils;
+import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
 import java.io.IOException;
@@ -73,7 +73,7 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
         // are unpacked straight from the slice, and the corrections are read from its trailing bytes.
         long offset = (long) ord * vectorPitch;
         input.seek(offset);
-        return IndexInputUtils.withSlice(input, vectorPitch, scratch::getScratch, seg -> {
+        return IndexInputUtils.withSlice(input, vectorPitch, scratch, seg -> {
             unpackNibbles(seg);
             // The corrections trailer starts at byte offset packedDims within the record; read the
             // 3 floats + 1 int directly from the slice rather than materializing a short-lived sub-slice.

@@ -30,6 +30,7 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -219,6 +220,20 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                             isRunning
                         );
 
+                        // Nothing was persisted. On the CPS path the no-op check deliberately
+                        // ignores headers, so the caller's security headers can differ from what
+                        // is stored with no write having happened — there is nothing to push to a
+                        // running task and no auth state worth persisting. A non-CPS header-only
+                        // _update never lands here (isNoop includes headers, so it is
+                        // Status.UPDATED), which keeps the re-authorize-by-empty-update behaviour
+                        // intact. Gated on changesHeaders: when headers are also unchanged there
+                        // is nothing to skip, and the existing chain handles it correctly.
+                        if (updateResult.getStatus() == TransformUpdater.UpdateResult.Status.NONE
+                            && update.changesHeaders(originalConfig)) {
+                            afterCredentialCleanup.onResponse(new Response(updatedConfig));
+                            return;
+                        }
+
                         boolean updateChangesSettings = update.changesSettings(originalConfig);
                         boolean updateChangesHeaders = update.changesHeaders(originalConfig);
                         boolean updateChangesDestIndex = update.changesDestIndex(originalConfig);
@@ -290,7 +305,20 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             var originalProjectRouting = originalConfig.getSource().getProjectRouting();
             var updatedProjectRouting = updatedConfig.getSource().getProjectRouting();
 
-            if (originalProjectRouting == null) {
+            boolean migratedToUiam = originalConfig.getCredentialId() == null && updatedConfig.getCredentialId() != null;
+            if (migratedToUiam && originalProjectRouting == null && ProjectRoutingResolver.LOCAL_ONLY.equals(updatedProjectRouting)) {
+                auditor.info(
+                    updatedConfig.getId(),
+                    "project_routing defaulted to ["
+                        + ProjectRoutingResolver.LOCAL_ONLY
+                        + "] to preserve local search scope. Use the update API to change the scope."
+                );
+                logger.info(
+                    "[{}] project_routing defaulted to [{}] to preserve local search scope.",
+                    updatedConfig.getId(),
+                    updatedProjectRouting
+                );
+            } else if (originalProjectRouting == null) {
                 auditor.info(updatedConfig.getId(), format("project_routing has been set to [%s].", updatedProjectRouting));
                 logger.info("[{}] project_routing has been set to [{}].", updatedConfig.getId(), updatedProjectRouting);
             } else if (updatedProjectRouting == null) {

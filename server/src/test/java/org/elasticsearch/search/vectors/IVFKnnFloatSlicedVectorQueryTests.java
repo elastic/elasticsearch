@@ -42,11 +42,25 @@ import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQueryTestCase {
+public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQueryTestCase<float[]> {
 
     private static final String SLICE_FIELD = "_slice";
     private int numSlices;
     private BytesRef querySlice;
+
+    @Override
+    float[] vector(int... components) {
+        float[] v = new float[components.length];
+        for (int i = 0; i < components.length; i++) {
+            v[i] = components[i];
+        }
+        return v;
+    }
+
+    @Override
+    float[][] createVectorArray(int size) {
+        return new float[size][];
+    }
 
     @Override
     IVFKnnFloatVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio) {
@@ -83,7 +97,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
 
     public void testToString() throws IOException {
         try (
-            Directory indexStore = getIndexStore("field", new float[] { 0, 1 }, new float[] { 1, 2 }, new float[] { 0, 0 });
+            Directory indexStore = getIndexStore("field", vector(0, 1), vector(1, 2), vector(0, 0));
             IndexReader reader = DirectoryReader.open(indexStore)
         ) {
             AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new float[] { 0.0f, 1.0f }, 10);

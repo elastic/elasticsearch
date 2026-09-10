@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.foreign
 
+import org.elasticsearch.gradle.fixtures.AbstractProjectBuilderPluginSpec
 import org.gradle.api.Project
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.plugins.JavaLibraryPlugin
@@ -17,28 +18,34 @@ import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
-import org.gradle.testfixtures.ProjectBuilder
-import spock.lang.Specification
 
-class ForeignLibraryPluginSpec extends Specification {
+class ForeignLibraryPluginSpec extends AbstractProjectBuilderPluginSpec {
+
+    @Override
+    Class<ForeignLibraryPlugin> getPluginClassUnderTest() {
+        return ForeignLibraryPlugin
+    }
 
     Project consumer
     Project foreignLibraryProject
     Project processorProject
 
     def setup() {
-        def rootProject = ProjectBuilder.builder().withName("root").build()
-        def libsProject = ProjectBuilder.builder().withParent(rootProject).withName("libs").build()
-        foreignLibraryProject = ProjectBuilder.builder().withParent(libsProject).withName("foreign-library").build()
-        processorProject = ProjectBuilder.builder().withParent(foreignLibraryProject).withName("processor").build()
-        consumer = ProjectBuilder.builder().withParent(rootProject).withName("consumer").build()
+        def rootProject = buildProject("root")
+        def libsProject = buildProject("libs", rootProject)
+        foreignLibraryProject = buildProject("foreign-library", libsProject)
+        processorProject = buildProject("processor", foreignLibraryProject)
+        consumer = buildProject("consumer", rootProject)
 
         // Apply java-library to the stub libs so they expose the api/runtime configurations
         // that the consumer project resolves through.
         foreignLibraryProject.pluginManager.apply(JavaLibraryPlugin)
         processorProject.pluginManager.apply(JavaLibraryPlugin)
 
-        consumer.pluginManager.apply(ForeignLibraryPlugin)
+        applyPluginUnderTest(consumer)
+        // Applied after ForeignLibraryPlugin on purpose: java-test-fixtures creates its source set late.
+        // Registering in this order covers ForeignLibraryPlugin referencing a source sets that do not exist yet.
+        consumer.pluginManager.apply("java-test-fixtures")
     }
 
     def "applies java-library plugin"() {
@@ -115,6 +122,51 @@ class ForeignLibraryPluginSpec extends Specification {
 
         then:
         expected in main.output.dirs.files
+    }
+
+    def "registers a process-annotations task for the test and testFixtures source sets"() {
+        when:
+        def task = (JavaCompile) consumer.tasks.getByName(taskName)
+        def processor = consumer.configurations.getByName(ForeignLibraryPlugin.PROCESSOR_CONFIGURATION_NAME)
+
+        then:
+        // Sibling of main's output dir, never nested under it: nesting would pull the generated test
+        // classes into main's output.
+        task.destinationDirectory.get().asFile == new File(consumer.layout.buildDirectory.get().asFile, expectedDir)
+        "-proc:only" in task.options.compilerArgs
+        task.options.annotationProcessorPath == processor
+        // Same JDK 25 pinning as main: the processor uses java.lang.classfile.
+        task.sourceCompatibility == "25"
+        task.options.release.isPresent() == false
+
+        where:
+        taskName                                | expectedDir
+        "processTestForeignAnnotations"         | "generated-foreign-library-classes-test"
+        "processTestFixturesForeignAnnotations" | "generated-foreign-library-classes-testFixtures"
+    }
+
+    def "test source set outputs include their generated classes dir"() {
+        when:
+        def sourceSets = consumer.extensions.getByType(SourceSetContainer)
+        def expected = new File(consumer.layout.buildDirectory.get().asFile, expectedDir)
+
+        then:
+        expected in sourceSets.getByName(sourceSetName).output.dirs.files
+
+        where:
+        sourceSetName  | expectedDir
+        "test"         | "generated-foreign-library-classes-test"
+        "testFixtures" | "generated-foreign-library-classes-testFixtures"
+    }
+
+    def "only the main source set gets module-info augmentation"() {
+        when:
+        def augmentTasks = consumer.tasks.withType(AugmentForeignModuleInfoTask).collect { it.name }
+
+        then:
+        // Test source sets are non-modular and run on the classpath, so ServiceLoader finds the
+        // generated providers through the processor's META-INF/services file instead.
+        augmentTasks == [ForeignLibraryPlugin.AUGMENT_MODULE_INFO_TASK_NAME]
     }
 
     def "jar task depends on augmentForeignModuleInfo"() {

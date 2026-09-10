@@ -46,6 +46,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.xpack.stateless.EstimatedHeapSettings;
 
 import java.util.List;
 import java.util.Map;
@@ -630,7 +631,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
                 EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT
             )
         );
-        return new EstimatedHeapUsageAllocationDecider(clusterSettings);
+        return new EstimatedHeapUsageAllocationDecider(new EstimatedHeapSettings(clusterSettings), clusterSettings);
     }
 
     private static ShardRouting createShardRouting() {
@@ -639,7 +640,8 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             TestShardRouting.buildUnassignedInfo("auto generated for test"),
-            ShardRouting.Role.INDEX_ONLY
+            ShardRouting.Role.INDEX_ONLY,
+            TestShardRouting.buildRecoveryPriority(ShardRoutingState.UNASSIGNED, false)
         );
     }
 

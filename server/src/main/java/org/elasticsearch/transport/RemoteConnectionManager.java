@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -38,14 +39,24 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RemoteConnectionManager.class);
 
-    private final String clusterAlias;
+    private final RemoteConnectionInfo remoteConnectionInfo;
     private final RemoteClusterCredentialsManager credentialsManager;
     private final ConnectionManager delegate;
     private final AtomicLong counter = new AtomicLong();
     private volatile List<DiscoveryNode> connectedNodes = Collections.emptyList();
 
     RemoteConnectionManager(String clusterAlias, RemoteClusterCredentialsManager credentialsManager, ConnectionManager delegate) {
-        this.clusterAlias = clusterAlias;
+        this(clusterAlias, ProjectId.DEFAULT, ProjectId.DEFAULT, credentialsManager, delegate);
+    }
+
+    RemoteConnectionManager(
+        String clusterAlias,
+        ProjectId originProjectId,
+        ProjectId linkedProjectId,
+        RemoteClusterCredentialsManager credentialsManager,
+        ConnectionManager delegate
+    ) {
+        this.remoteConnectionInfo = new RemoteConnectionInfo(originProjectId, linkedProjectId, clusterAlias);
         this.credentialsManager = credentialsManager;
         this.delegate = delegate;
         this.delegate.addListener(new TransportConnectionListener() {
@@ -54,7 +65,7 @@ public class RemoteConnectionManager implements ConnectionManager {
                 addConnectedNode(node);
                 try {
                     // called when a node is successfully connected through a proxy connection
-                    maybeLogDeprecationWarning(wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, credentialsManager));
+                    maybeLogDeprecationWarning(wrapConnectionWithRemoteInfo(connection, remoteConnectionInfo, credentialsManager));
                 } catch (Exception e) {
                     logger.warn("Failed to log deprecation warning.", e);
                 }
@@ -69,6 +80,10 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     public RemoteClusterCredentialsManager getCredentialsManager() {
         return credentialsManager;
+    }
+
+    RemoteConnectionInfo getRemoteConnectionInfo() {
+        return remoteConnectionInfo;
     }
 
     /**
@@ -116,7 +131,7 @@ public class RemoteConnectionManager implements ConnectionManager {
             profile,
             listener.delegateFailureAndWrap(
                 (l, connection) -> l.onResponse(
-                    maybeLogDeprecationWarning(wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, credentialsManager))
+                    maybeLogDeprecationWarning(wrapConnectionWithRemoteInfo(connection, remoteConnectionInfo, credentialsManager))
                 )
             )
         );
@@ -182,7 +197,7 @@ public class RemoteConnectionManager implements ConnectionManager {
                 // Ignore. We will try the next one until all are exhausted.
             }
         }
-        throw new ConnectTransportException(null, "Unable to connect to [" + clusterAlias + "]");
+        throw new ConnectTransportException(null, "Unable to connect to [" + remoteConnectionInfo.linkedClusterAlias() + "]");
     }
 
     @Override
@@ -213,7 +228,7 @@ public class RemoteConnectionManager implements ConnectionManager {
      * @return a cluster alias if the connection target a node in the remote cluster, otherwise an empty result
      */
     public static Optional<String> resolveRemoteClusterAlias(Transport.Connection connection) {
-        return resolveRemoteClusterAliasWithCredentials(connection).map(RemoteClusterAliasWithCredentials::clusterAlias);
+        return resolveRemoteClusterProjectInfo(connection).map(RemoteConnectionInfo::linkedClusterAlias);
     }
 
     public record RemoteClusterAliasWithCredentials(String clusterAlias, @Nullable SecureString credentials) {
@@ -239,9 +254,25 @@ public class RemoteConnectionManager implements ConnectionManager {
         return Optional.empty();
     }
 
+    /**
+     * Resolves the cluster alias, origin project ID and linked project ID for a remote cluster connection.
+     * <p>
+     * Returns an empty {@link Optional} when the connection does not target a node in a remote cluster.
+     *
+     * @param connection the transport connection for which to resolve a linked project ID
+     * @return the remote cluster information if the connection targets a node in a remote cluster, otherwise an empty result
+     */
+    public static Optional<RemoteConnectionInfo> resolveRemoteClusterProjectInfo(Transport.Connection connection) {
+        Transport.Connection unwrapped = TransportService.unwrapConnection(connection);
+        if (unwrapped instanceof InternalRemoteConnection remoteConnection) {
+            return Optional.of(remoteConnection.remoteConnectionInfo);
+        }
+        return Optional.empty();
+    }
+
     private Transport.Connection getConnectionInternal(DiscoveryNode node) throws NodeNotConnectedException {
         Transport.Connection connection = delegate.getConnection(node);
-        return wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, credentialsManager);
+        return wrapConnectionWithRemoteInfo(connection, remoteConnectionInfo, credentialsManager);
     }
 
     private synchronized void addConnectedNode(DiscoveryNode addedNode) {
@@ -259,6 +290,19 @@ public class RemoteConnectionManager implements ConnectionManager {
         assert newConnectedNodes.size() == newSize : "Expected connection node count: " + newSize + ", Found: " + newConnectedNodes.size();
         this.connectedNodes = Collections.unmodifiableList(newConnectedNodes);
     }
+
+    /**
+     * The origin project ID, linked project ID, and the remote cluster alias for a remote connection.
+     * <p>
+     * The origin project ID may contain a {@link ProjectId#DEFAULT} value if the cluster is not a multi-project one.
+     * The linked project ID may contain a {@link ProjectId#DEFAULT} value in the case of connections that are not cross-project search
+     * (CPS) connections.
+     *
+     * @param originProjectId The projectId of the origin cluster. May be {@link ProjectId#DEFAULT}.
+     * @param linkedProjectId The projectId of the linked cluster. May be {@link ProjectId#DEFAULT}.
+     * @param linkedClusterAlias The linked cluster alias.
+     */
+    public record RemoteConnectionInfo(ProjectId originProjectId, ProjectId linkedProjectId, String linkedClusterAlias) {}
 
     static final class ProxyConnection implements Transport.Connection {
         private final Transport.Connection connection;
@@ -346,21 +390,25 @@ public class RemoteConnectionManager implements ConnectionManager {
 
         private static final Logger logger = LogManager.getLogger(InternalRemoteConnection.class);
         private final Transport.Connection connection;
-        private final String clusterAlias;
+        private final RemoteConnectionInfo remoteConnectionInfo;
         @Nullable
         private final SecureString clusterCredentials;
 
-        private InternalRemoteConnection(Transport.Connection connection, String clusterAlias, @Nullable SecureString clusterCredentials) {
+        private InternalRemoteConnection(
+            Transport.Connection connection,
+            RemoteConnectionInfo remoteConnectionInfo,
+            @Nullable SecureString clusterCredentials
+        ) {
             assert false == connection instanceof InternalRemoteConnection : "should not double wrap";
             assert false == connection instanceof ProxyConnection
                 : "proxy connection should wrap internal remote connection, not the other way around";
             this.connection = Objects.requireNonNull(connection);
-            this.clusterAlias = Objects.requireNonNull(clusterAlias);
+            this.remoteConnectionInfo = remoteConnectionInfo;
             this.clusterCredentials = clusterCredentials;
         }
 
-        public String getClusterAlias() {
-            return clusterAlias;
+        String getClusterAlias() {
+            return remoteConnectionInfo.linkedClusterAlias();
         }
 
         @Nullable
@@ -378,7 +426,11 @@ public class RemoteConnectionManager implements ConnectionManager {
             throws IOException, TransportException {
             final String effectiveAction;
             if (clusterCredentials != null && TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
-                logger.trace("sending remote cluster specific handshake to node [{}] of remote cluster [{}]", getNode(), clusterAlias);
+                logger.trace(
+                    "sending remote cluster specific handshake to node [{}] of remote cluster [{}]",
+                    getNode(),
+                    remoteConnectionInfo.linkedClusterAlias()
+                );
                 effectiveAction = REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
             } else {
                 effectiveAction = action;
@@ -442,11 +494,15 @@ public class RemoteConnectionManager implements ConnectionManager {
         }
     }
 
-    static InternalRemoteConnection wrapConnectionWithRemoteClusterInfo(
+    static InternalRemoteConnection wrapConnectionWithRemoteInfo(
         Transport.Connection connection,
-        String clusterAlias,
+        RemoteConnectionInfo remoteConnectionInfo,
         RemoteClusterCredentialsManager credentialsManager
     ) {
-        return new InternalRemoteConnection(connection, clusterAlias, credentialsManager.resolveCredentials(clusterAlias));
+        return new InternalRemoteConnection(
+            connection,
+            remoteConnectionInfo,
+            credentialsManager.resolveCredentials(remoteConnectionInfo.linkedClusterAlias())
+        );
     }
 }

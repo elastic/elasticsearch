@@ -292,6 +292,46 @@ public class AdjustableCapacityBlockingQueueTests extends ESTestCase {
         assertThat(queue.remainingCapacity(), is(2));
     }
 
+    public void testRemove_ReturnsTrueAndDecreasesSize_WhenItemIsInCurrentQueue() {
+        var queue = new AdjustableCapacityBlockingQueue<>(QUEUE_CREATOR, 1);
+        queue.offer(0);
+        assertThat(queue.size(), is(1));
+
+        assertThat(queue.remove(0), is(true));
+        assertThat(queue.size(), is(0));
+    }
+
+    public void testRemove_ReturnsTrueAndDecreasesSize_WhenItemIsInPrioritizedReadingQueue() throws InterruptedException {
+        var queue = new AdjustableCapacityBlockingQueue<>(QUEUE_CREATOR, 3);
+        queue.offer(0);
+        queue.offer(1);
+        queue.offer(2);
+        assertThat(queue.size(), is(3));
+
+        // Reducing capacity shifts item 0 (oldest) into the prioritized reading queue
+        queue.setCapacity(2);
+        assertThat(queue.size(), is(3));
+
+        assertThat(queue.remove(0), is(true));
+        assertThat(queue.size(), is(2));
+        assertThat(queue.take(), is(1));
+        assertThat(queue.take(), is(2));
+    }
+
+    public void testRemove_ReturnsFalse_WhenItemIsNotPresent() {
+        var queue = new AdjustableCapacityBlockingQueue<>(QUEUE_CREATOR, 1);
+
+        assertThat(queue.remove(0), is(false));
+    }
+
+    public void testRemove_ReturnsFalse_AfterItemWasAlreadyTaken() throws InterruptedException {
+        var queue = new AdjustableCapacityBlockingQueue<>(QUEUE_CREATOR, 1);
+        queue.offer(0);
+        assertThat(queue.take(), is(0));
+
+        assertThat(queue.remove(0), is(false));
+    }
+
     public static <E> AdjustableCapacityBlockingQueue.QueueCreator<E> mockQueueCreator(BlockingQueue<E> backingQueue) {
         return new AdjustableCapacityBlockingQueue.QueueCreator<>() {
             @Override

@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
@@ -176,9 +175,7 @@ public class Eval extends UnaryPlan
         fields.forEach(field -> {
             // check supported types
             DataType dataType = field.dataType();
-            if (DataType.isRepresentable(dataType) == false
-                && (Alias.unwrap(field) instanceof PackDimension == false)
-                && isNullSourceLiteral(field) == false) {
+            if (DataType.isRepresentable(dataType) == false && isNullSourceLiteral(field) == false) {
                 failures.add(
                     fail(
                         field,
@@ -192,8 +189,8 @@ public class Eval extends UnaryPlan
     }
 
     /**
-     * True for a {@code _source} column bound to a constant {@code null}. When a FORK/UnionAll branch is missing a column
-     * present in a sibling branch, {@code Analyzer.resolveFork} null-fills it with {@code new Literal(source, null, attrType)}
+     * True for a {@code _source} column bound to a constant {@code null}. When a {@link MergePlan} branch is missing a column
+     * present in a sibling branch, {@code Analyzer.resolveMergePlan} null-fills it with {@code new Literal(source, null, attrType)}
      * where {@code attrType} is the missing attribute's own {@code dataType}, and wraps the fill in a synthesized {@link Eval}.
      * The null-fill only rewrites {@code UNSUPPORTED} to {@code KEYWORD}, so a missing {@code _source} column (requested via
      * {@code METADATA _source}) yields a null literal of {@link DataType#SOURCE}. {@code DataType.SOURCE} is excluded from

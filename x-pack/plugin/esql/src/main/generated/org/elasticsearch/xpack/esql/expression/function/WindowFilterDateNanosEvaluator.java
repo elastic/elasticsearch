@@ -75,10 +75,11 @@ public final class WindowFilterDateNanosEvaluator implements ExpressionEvaluator
   public BooleanBlock eval(int positionCount, LongBlock timestampBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (timestampBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (timestampBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -115,7 +116,7 @@ public final class WindowFilterDateNanosEvaluator implements ExpressionEvaluator
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

@@ -1,0 +1,5 @@
+area: Store
+issues: []
+pr: 155945
+summary: Add a registryInstalled field for templates installed by the internal registries
+type: enhancement

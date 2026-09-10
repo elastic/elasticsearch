@@ -15,10 +15,12 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -214,6 +217,18 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         );
     }
 
+    public void testGroupByAllInstantSelectorOnlyMaterializesSeriesIdentity() {
+        var plan = planPromql("PROMQL index=k8s step=1m network.bytes_in", false);
+        var dimensions = plan.collect(TimeSeriesAggregate.class)
+            .stream()
+            .flatMap(aggregate -> aggregate.aggregates().stream())
+            .flatMap(aggregate -> aggregate.collect(DimensionValues.class).stream())
+            .map(DimensionValues::field)
+            .map(e -> e instanceof Attribute attribute ? attribute.name() : e.toString())
+            .toList();
+        assertThat(dimensions, equalTo(List.of(MetadataAttribute.TIMESERIES)));
+    }
+
     public void testGroupByAllInstantSelectorRate() {
         assertThat(
             outputColumns(planPromql("PROMQL index=k8s step=1m rate=(rate(network.total_bytes_in[1m]))")),
@@ -289,7 +304,7 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
                 "container_cpu_usage_seconds_total",
                 new EsField("container_cpu_usage_seconds_total", DataType.COUNTER_LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
             ),
-            Map.of("metrics", IndexMode.TIME_SERIES),
+            Map.of("metrics", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             Map.of(),
             Map.of()
         );
@@ -316,7 +331,7 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
                     EsField.TimeSeriesFieldType.METRIC
                 )
             ),
-            Map.of("histograms", IndexMode.TIME_SERIES),
+            Map.of("histograms", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             Map.of(),
             Map.of()
         );

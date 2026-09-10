@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -85,6 +86,13 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
         ) {
             return datasetSettings == null ? Map.of() : new HashMap<>(datasetSettings);
         }
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        // Both the local and the remote nodes need federation on: the remote reports its datasets during field
+        // resolution only when it is available there, and the local coordinator only asks when it is available here.
+        return Settings.builder().put(super.nodeSettings()).put(Federation.FEDERATION_ENABLED.getKey(), true).build();
     }
 
     @Override
@@ -202,7 +210,7 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
     }
 
     /**
-     * Dataset analog of {@link CrossClusterViewIT#testRemoteViewFailsOnOneCluster}: the dataset lives only on
+     * The dataset lives only on
      * cluster-a; a query spanning cluster-a (matching the dataset) and remote-b (matching only a plain index) FAILS,
      * and the rejection message names ONLY {@code cluster-a:remote_employees} — remote-b contributes no dataset to
      * the matched set.

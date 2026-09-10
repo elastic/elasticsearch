@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 
@@ -24,7 +25,8 @@ import java.io.IOException;
  * {@link SourceFieldMapper} (no-op and synthetic-recovery branches),
  * {@link VersionFieldMapper}, {@link SeqNoFieldMapper} ({@code POINTS_AND_DOC_VALUES},
  * {@code DOC_VALUES_ONLY}, {@code disable_sequence_numbers}),
- * and {@link RoutingFieldMapper} ({@code doc_values=true} and {@code doc_values=false}).
+ * {@link RoutingFieldMapper} ({@code doc_values=true} and {@code doc_values=false}),
+ * and {@link IgnoredFieldMapper} ({@code ignore_above}-driven ignored values).
  */
 public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
@@ -40,6 +42,13 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
 
     private static Settings syntheticSourceSettings() {
         return syntheticSourceSettingsBuilder().build();
+    }
+
+    private static Settings columnarSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .build();
     }
 
     /** {@code _routing doc_values=true}: routing lands in sorted doc values; no {@code _field_names} divergence. */
@@ -150,6 +159,47 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
             settings,
             batch("seq_no_disabled - single doc", 1L, doc("doc1", 100L, "{}")),
             batch("seq_no_disabled - batch", 2L, doc("batch-1", 101L, "{}"), doc("batch-2", 102L, "{}"))
+        );
+    }
+
+    /** Single doc where the keyword value exceeds {@code ignore_above}: {@code _ignored} and the fallback column are emitted. */
+    public void testSingleIgnoredField() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject("f").field("type", "keyword").field("ignore_above", 5).endObject()),
+            columnarSettings(),
+            batch("single ignored", 1L, doc("d1", 1L, "{\"f\":\"toolong\"}"))
+        );
+    }
+
+    /** Two docs where no values are ignored: the {@code _ignored} accumulator stays empty. */
+    public void testNoIgnoredFields() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject("f").field("type", "keyword").field("ignore_above", 5).endObject()),
+            columnarSettings(),
+            batch("no ignored", 1L, doc("d1", 1L, "{\"f\":\"ok\"}"), doc("d2", 2L, "{\"f\":\"fine\"}"))
+        );
+    }
+
+    /**
+     * Four docs with three keyword fields at {@code ignore_above=5}: per-doc ignored sets vary,
+     * one doc is absent entirely, and doc 4 has all three fields ignored — exercising value
+     * interning and the multi-valued {@code _ignored} array column.
+     */
+    public void testOverlappingAndMultiValued() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("field_a").field("type", "keyword").field("ignore_above", 5).endObject();
+            b.startObject("field_b").field("type", "keyword").field("ignore_above", 5).endObject();
+            b.startObject("field_c").field("type", "keyword").field("ignore_above", 5).endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "overlapping multi-valued",
+                1L,
+                doc("d1", 1L, "{\"field_a\":\"toolong1\",\"field_b\":\"toolong2\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"field_a\":\"toolong3\"}"),
+                doc("d4", 4L, "{\"field_b\":\"toolong4\",\"field_c\":\"toolong5\",\"field_a\":\"toolong6\"}")
+            )
         );
     }
 }

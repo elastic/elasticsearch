@@ -93,8 +93,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdown() throws Exception {
         if (testThreadPool != null) {
             testThreadPool.shutdown();
         }

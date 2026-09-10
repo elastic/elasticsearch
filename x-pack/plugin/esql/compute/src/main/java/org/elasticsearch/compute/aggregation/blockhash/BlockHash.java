@@ -80,6 +80,17 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     public abstract void add(Page page, GroupingAggregatorFunction.AddInput addInput);
 
     /**
+     * Like {@link #add(Page, GroupingAggregatorFunction.AddInput)}, but called when the number of
+     * distinct keys has reached the output limit. Existing keys must return their group id; new keys
+     * may return {@code null} (skip insertion) or a new group id — both are valid, and a key may
+     * return {@code null} in one call and a group id in a later one. Skipping new keys is an
+     * optimization for queries like {@code STATS … BY … | LIMIT N}. Defaults to {@link #add}.
+     */
+    public void addAfterLimitReached(Page page, GroupingAggregatorFunction.AddInput addInput) {
+        add(page, addInput);
+    }
+
+    /**
      * Lookup all values for the "group by" columns in the page to the hash and return an
      * {@link Iterator} of the values. The sum of {@link IntBlock#getPositionCount} for
      * all blocks returned by the iterator will equal {@link Page#getPositionCount} but
@@ -230,9 +241,9 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             var g1 = groups.get(0);
             var g2 = groups.get(1);
             if (g1.elementType == ElementType.LONG && g2.elementType == ElementType.INT) {
-                return new LongIntAdaptiveBlockHash(groups, blockFactory, emitBatchSize, false);
+                return new LongIntBlockHash(groups, blockFactory, emitBatchSize, false);
             } else if (g1.elementType == ElementType.INT && g2.elementType == ElementType.LONG) {
-                return new LongIntAdaptiveBlockHash(groups, blockFactory, emitBatchSize, true);
+                return new LongIntBlockHash(groups, blockFactory, emitBatchSize, true);
             }
             if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
                 return new LongBytesRefAdaptiveBlockHash(groups, blockFactory, emitBatchSize, false);
@@ -291,6 +302,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             case INT -> new IntBlockHash(channel, blockFactory);
             case LONG -> new LongBlockHash(channel, blockFactory);
             case DOUBLE -> new DoubleBlockHash(channel, blockFactory);
+            case DOUBLE_RANGE -> new DoubleRangeBlockHash(channel, blockFactory);
             case BYTES_REF -> new BytesRefBlockHash(channel, blockFactory);
             default -> throw new IllegalArgumentException("unsupported grouping element type [" + type + "]");
         };
@@ -316,5 +328,14 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      */
     public static long hashOrdToGroupNullReserved(long ord) {
         return hashOrdToGroup(ord) + 1;
+    }
+
+    /**
+     * Optionally hints to the blockhash to ensure the given capacity.
+     * The blockhash may ignore the hint or resize upfront as an optimization
+     * to avoid multiple resizes as the capacity is reached.
+     */
+    public void ensureCapacity(int size) {
+
     }
 }

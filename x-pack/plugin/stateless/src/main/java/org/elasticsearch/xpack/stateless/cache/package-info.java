@@ -36,20 +36,19 @@
 /// The list below documents, for each way a search node populates the cache, which timestamp is used and at what granularity. This is the
 /// current state and is expected to evolve.
 ///
-///   - BCC metadata reads (`readBatchedCompoundCommitUsingCache` and `readReferencedCompoundCommitsUsingCache` in
-///     [org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService]) are not handled yet: these regions are populated with
-///     [org.elasticsearch.blobcache.shared.SharedBlobCacheService#UNKNOWN_TIMESTAMP]. See the TODOs at the call sites in
-///     [org.elasticsearch.xpack.stateless.StatelessIndexEventListener] and
-///     [org.elasticsearch.xpack.stateless.engine.SearchEngine]. These are also the header reads for which the set-once timestamp
-///     is intended to be backfilled later.
+///   - BCC metadata reads, during both recovery and on new-commit notifications, BCCs are read to discover the referenced CCs and their
+///     file ranges. For time-based indices, the initial reads stamp the regions with
+///     [org.elasticsearch.blobcache.shared.SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP]. After reading and parsing the CCs,
+///     a timestamp is extracted from each CC and the most recent timestamp per BCC is used to backfill all the regions stamped
+///     {@code BACKFILL_IN_PROGRESS_TIMESTAMP}. CCs with no timestamp range resolve to minimal real timestamp.
 ///
-///   - Offline prewarming, driven by [org.elasticsearch.xpack.stateless.StatelessIndexEventListener] through
+///   - Offline prewarming, driven by [org.elasticsearch.xpack.stateless.StatelessSearchNodeRecoveryListener] through
 ///     [org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService#warmBlobOffsets], uses a single timestamp per blob,
 ///     applied uniformly to every warmed region of that blob (the whole range from the start of the blob to the computed end). The
 ///     per-blob value is the most recent known timestamp among the CCs referenced in that blob, so it can over-approximate the age of
 ///     older regions in the blob.
 ///
-///   - Recovery header warming, also driven by [org.elasticsearch.xpack.stateless.StatelessIndexEventListener] through
+///   - Recovery header warming, also driven by [org.elasticsearch.xpack.stateless.StatelessSearchNodeRecoveryListener] through
 ///     [org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService], resolves a single per-CC timestamp for each
 ///     Lucene file being fetched and applies to all regions covering that file. When several files share a region, the first file to
 ///     populate the region sets its timestamp.
@@ -57,7 +56,8 @@
 ///   - Prefetching, in [org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher#computeTimestampPerBlob], picks a single
 ///     timestamp per blob for the blobs being prefetched, both for the blob containing the new commit and for other referenced blobs.
 ///     Blob containing the new commit gets the timestamp of the new commit, and other referenced blobs get the most recent known
-///     timestamp among the CCs referenced in each blob.
+///     timestamp among the CCs referenced in each blob. Each blob is resolved once, preferring the triggering commit's timestamp when the
+///     blob's own timestamp is unknown before the terminal fallback value.
 ///
 ///   - On-demand search reads, served through [org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory] for regions that
 ///     were not prewarmed or that have been evicted, use the per-CC timestamp of the file being read.

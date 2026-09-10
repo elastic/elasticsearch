@@ -66,7 +66,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
 
     @Override
     protected QueryPragmas getPragmas() {
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
+        return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 1).build());
     }
 
     /**
@@ -141,7 +141,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
 
     /**
      * Exercises the quoted read path with in-node parse parallelism end-to-end. With
-     * {@code parsing_parallelism>1} the ~3 MB quoted file is parsed concurrently; a correct count under
+     * {@code external_parsing_parallelism>1} the ~3 MB quoted file is parsed concurrently; a correct count under
      * concurrent parsing is the regression signal: were segmentation not quote-aware, the concurrently
      * parsed chunks would miscount the multi-line rows. At least one external source operator must appear
      * in the profile.
@@ -155,7 +155,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
      */
     public void testStreamingBranchCountsCorrectlyWithParsingParallelism() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-        assumeTrue("parsing_parallelism pragma is snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_parsing_parallelism pragma is snapshot-only", Build.current().isSnapshot());
 
         Path csvFile = writeCsvFile();
         try {
@@ -167,7 +167,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
             // Explicit pragma: run(request, ...) does not apply getPragmas(), and the default parallelism is
             // allocatedProcessors (machine-dependent). Set it >1 so this deterministically exercises in-node
             // parse parallelism regardless of host core count.
-            request.pragmas(new QueryPragmas(Settings.builder().put("parsing_parallelism", between(2, 4)).build()));
+            request.pragmas(new QueryPragmas(Settings.builder().put("external_parsing_parallelism", between(2, 4)).build()));
             request.profile(true);
 
             try (var response = run(request, TimeValue.timeValueMinutes(5))) {
@@ -193,7 +193,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
 
     /**
      * Randomized end-to-end oracle: a fresh random quoted CSV per run, queried at a random
-     * {@code target_split_size}, {@code parsing_parallelism} and {@code error_mode}, so the split fan-out and
+     * {@code target_split_size}, {@code external_parsing_parallelism} and {@code error_mode}, so the split fan-out and
      * parse concurrency vary from run to run. Column {@code a} is the row index {@code 0..rows-1}, so the trio
      * {@code COUNT(*) == rows}, {@code MIN(a) == 0}, {@code MAX(a) == rows-1} is an exact oracle: any boundary
      * cut inside a quoted field (which carries embedded newlines, commas, doubled {@code ""} quotes, and mixed
@@ -205,7 +205,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
      */
     public void testRandomizedQuotedCsvCountsExactlyAcrossSplits() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-        assumeTrue("parsing_parallelism pragma is snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_parsing_parallelism pragma is snapshot-only", Build.current().isSnapshot());
 
         Path csvFile = createTempDir().resolve("random-quoted.csv");
         long rows = writeRandomQuotedCsv(csvFile);
@@ -219,7 +219,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
             int parallelism = between(1, 4);
             String errorMode = randomFrom((String) null, "fail_fast", "null_field", "skip_row");
             logger.info(
-                "randomized quoted CSV: rows={} target_split_size={} parsing_parallelism={} error_mode={}",
+                "randomized quoted CSV: rows={} target_split_size={} external_parsing_parallelism={} error_mode={}",
                 rows,
                 targetSplitSize,
                 parallelism,
@@ -236,7 +236,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
                 + "} | STATS c = COUNT(*), mn = MIN(a), mx = MAX(a)";
 
             var request = syncEsqlQueryRequest(query);
-            request.pragmas(new QueryPragmas(Settings.builder().put("parsing_parallelism", parallelism).build()));
+            request.pragmas(new QueryPragmas(Settings.builder().put("external_parsing_parallelism", parallelism).build()));
 
             try (var response = run(request, TimeValue.timeValueMinutes(5))) {
                 List<List<Object>> values = getValuesList(response);

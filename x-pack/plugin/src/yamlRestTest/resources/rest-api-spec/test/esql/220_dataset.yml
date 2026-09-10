@@ -111,16 +111,11 @@ setup:
             dynamic: "true"
             runtime: { }
 
-  # _id supports only [path].
-  - do:
-      catch: /unknown \[_id\] field \[type\]; only \[path\] is supported/
-      esql.put_dataset:
-        name: ds
-        body:
-          data_source: parent
-          resource: "s3://x/*.csv"
-          mappings:
-            _id: { type: keyword }
+  # NOTE: the `_id` block is deliberately NOT asserted here. A dataset answers no document identity, so
+  # `_id` is now just another unknown mappings field — but this suite also runs mixed-cluster, where the
+  # PUT may land on a 9.5 node that still parses an `_id` block, and the two versions answer different
+  # messages with no common prefix. It is covered where the version is known: DatasetMappingTests, whose
+  # testIdBlockRejected asserts "unknown mappings field [_id]" for both shapes of the block.
 
   # Field parameters outside {type, path, format} are rejected (index-mapping params we don't model).
   - do:

@@ -26,15 +26,13 @@ import java.util.TreeSet;
  * <ul>
  *   <li>every declared {@code type} resolves to a type the external readers can actually produce
  *       (the {@link #DECLARABLE_TYPES} whitelist — declaring {@code geo_point}/{@code version}/etc. is rejected
- *       until the readers grow them);</li>
- *   <li>under strict mode ({@code dynamic: false}) the {@code _id.path} column must be declared —
- *       nothing is inferred to satisfy it.</li>
+ *       until the readers grow them).</li>
  * </ul>
  *
  * <p>What is deliberately <b>not</b> checked here (deferred to first-query mapping resolution, because PUT does no
- * I/O and the files may not exist yet): that the {@code _id.path} column exists when it is inferred rather than declared; that
- * a declared {@code path}/type matches the physical file; per-format narrowing, should a format ever be unable to
- * read a declarable type — the producing format is authoritative at read time.
+ * I/O and the files may not exist yet): that a declared {@code path}/type matches the physical file; per-format
+ * narrowing, should a format ever be unable to read a declarable type — the producing format is authoritative at
+ * read time.
  */
 public final class DeclaredSchemaValidator {
 
@@ -80,8 +78,7 @@ public final class DeclaredSchemaValidator {
         if (mappings != null) {
             // Strict mode means "the declaration IS the schema" — with no declared columns there is no schema, and the
             // zero-column relation the resolver would build is not a queryable thing. Reject rather than let it fail
-            // downstream. (An _id.path-only strict block is not a legitimate shape either: strict already requires the
-            // id column to be declared.)
+            // downstream.
             if (mappings.dynamic() == DatasetMapping.Dynamic.FALSE && mappings.properties().isEmpty()) {
                 throw new IllegalArgumentException("[dynamic: false] requires at least one declared column under [properties]");
             }
@@ -102,9 +99,6 @@ public final class DeclaredSchemaValidator {
                     );
                 }
             }
-            requireNonBlank(mappings.idPath(), "[_id] path");
-            boolean strict = mappings.dynamic() == DatasetMapping.Dynamic.FALSE;
-            validateIdPath(mappings, strict);
         }
     }
 
@@ -145,19 +139,6 @@ public final class DeclaredSchemaValidator {
             DateFormatter.forPattern(format);
         } catch (Exception e) {
             throw new IllegalArgumentException("invalid [format] [" + format + "] on column [" + column + "]", e);
-        }
-    }
-
-    private static void validateIdPath(DatasetMapping.Mappings mappings, boolean strict) {
-        String column = mappings.idPath();
-        if (column == null) {
-            return;
-        }
-        DatasetFieldMapping declared = mappings.properties().get(column);
-        if (declared == null && strict) {
-            // Not declared: under strict mode there is nothing to infer it from, so it must be declared.
-            // Under non-strict mode it may come from inference — defer the existence check to first query.
-            throw new IllegalArgumentException("[_id] references column [" + column + "] which is not declared, and dynamic is [false]");
         }
     }
 

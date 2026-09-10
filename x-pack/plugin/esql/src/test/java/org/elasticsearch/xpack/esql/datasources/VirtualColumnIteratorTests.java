@@ -25,13 +25,13 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -213,195 +213,19 @@ public class VirtualColumnIteratorTests extends ESTestCase {
     }
 
     /**
-     * Regression: when the reader does not emit a {@code _rowPosition} column (CSV / NDJSON / ORC),
-     * the iterator must synthesize {@code _id} from a per-file running counter rather than reading a
-     * (non-existent) {@code _rowPosition} data block. The counter continues across pages of the
-     * same file.
+     * {@code _file.record_ref} is composed from the reader-emitted {@code _rowPosition} channel, which the
+     * optimizer injects whenever it is requested. When the slot is present but the channel is missing, the
+     * iterator fails loud rather than emitting wrong tokens.
      */
-    public void testIdRequiresRowPositionChannel() {
-        // The split-local counter fallback was removed: every file reader now emits the _rowPosition
-        // channel (the optimizer injects it for _id / _file.record_ref), and a split-local counter
-        // would break _id repeatability across split layouts. When _id is requested but the reader
-        // did not emit the channel, the iterator fails loud rather than synthesizing wrong ids.
-        List<Attribute> fullOutput = List.of(attr("data", DataType.INTEGER), partAttr(ExternalMetadataColumns.ID, DataType.KEYWORD));
-        Set<String> partitionCols = new LinkedHashSet<>(List.of(ExternalMetadataColumns.ID));
-        BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"), 1700000000000L);
+    public void testRecordRefRequiresRowPositionChannel() {
+        List<Attribute> fullOutput = List.of(attr("data", DataType.INTEGER), partAttr(FileMetadataColumns.RECORD_REF, DataType.LONG));
+        Set<String> partitionCols = new LinkedHashSet<>(List.of(FileMetadataColumns.RECORD_REF));
 
         Exception e = expectThrows(
-            org.elasticsearch.xpack.esql.core.QlIllegalArgumentException.class,
-            () -> new VirtualColumnIterator(emptyDelegate(), fullOutput, partitionCols, Map.of(), blockFactory, idPrefix)
+            QlIllegalArgumentException.class,
+            () -> new VirtualColumnIterator(emptyDelegate(), fullOutput, partitionCols, Map.of(), blockFactory)
         );
         assertThat(e.getMessage(), containsString("_rowPosition"));
-    }
-
-    /**
-     * A declared {@code _id.path} stamps {@code _id} from the named data column's value. The id column rides the data
-     * page as a normal data block (PruneColumns pins it into the reader projection); the iterator renders it to KEYWORD
-     * into the {@code _id} slot. Even when the id column is NOT part of the user's output projection, it is present in
-     * the data page here — the assertion checks the value is threaded row by row.
-     */
-    public void testIdFromColumnKeyword() {
-        List<Attribute> fullOutput = List.of(
-            attr("customer_id", DataType.KEYWORD),
-            attr("amount", DataType.INTEGER),
-            partAttr(ExternalMetadataColumns.ID, DataType.KEYWORD)
-        );
-        Set<String> partitionCols = new LinkedHashSet<>(List.of(ExternalMetadataColumns.ID));
-        BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"), 1700000000000L);
-
-        VirtualColumnIterator it = new VirtualColumnIterator(
-            emptyDelegate(),
-            fullOutput,
-            partitionCols,
-            Map.of(),
-            blockFactory,
-            idPrefix,
-            "customer_id"
-        );
-
-        try (BytesRefBlock.Builder custBuilder = blockFactory.newBytesRefBlockBuilder(3)) {
-            custBuilder.appendBytesRef(new BytesRef("c-1"));
-            custBuilder.appendBytesRef(new BytesRef("c-2"));
-            custBuilder.appendBytesRef(new BytesRef("c-3"));
-            BytesRefBlock custBlock = custBuilder.build();
-            IntBlock amountBlock = blockFactory.newConstantIntBlockWith(10, 3);
-            Page dataPage = new Page(3, new Block[] { custBlock, amountBlock });
-
-            Page result = it.inject(dataPage);
-
-            assertEquals(3, result.getPositionCount());
-            // fullOutput order: customer_id (0), amount (1), _id (2)
-            assertEquals(3, result.getBlockCount());
-            BytesRefBlock idResult = result.getBlock(2);
-            assertEquals("c-1", asString(idResult, 0));
-            assertEquals("c-2", asString(idResult, 1));
-            assertEquals("c-3", asString(idResult, 2));
-            // The id column itself is still emitted unchanged.
-            BytesRefBlock custResult = result.getBlock(0);
-            assertEquals("c-1", asString(custResult, 0));
-            result.releaseBlocks();
-        }
-    }
-
-    /** A declared {@code _id.path} column whose cell is null renders a null {@code _id} for that row. */
-    public void testIdFromColumnNullCellIsNullId() {
-        List<Attribute> fullOutput = List.of(attr("customer_id", DataType.KEYWORD), partAttr(ExternalMetadataColumns.ID, DataType.KEYWORD));
-        Set<String> partitionCols = new LinkedHashSet<>(List.of(ExternalMetadataColumns.ID));
-        BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"), 1700000000000L);
-
-        VirtualColumnIterator it = new VirtualColumnIterator(
-            emptyDelegate(),
-            fullOutput,
-            partitionCols,
-            Map.of(),
-            blockFactory,
-            idPrefix,
-            "customer_id"
-        );
-
-        try (BytesRefBlock.Builder custBuilder = blockFactory.newBytesRefBlockBuilder(2)) {
-            custBuilder.appendBytesRef(new BytesRef("c-1"));
-            custBuilder.appendNull();
-            BytesRefBlock custBlock = custBuilder.build();
-            Page dataPage = new Page(2, new Block[] { custBlock });
-
-            Page result = it.inject(dataPage);
-
-            BytesRefBlock idResult = result.getBlock(1);
-            assertEquals("c-1", asString(idResult, 0));
-            assertTrue(idResult.isNull(1));
-            result.releaseBlocks();
-        }
-    }
-
-    /**
-     * A LONG {@code _id.path} column renders {@code _id} as the {@code TO_STRING} form of the value, so the stamped
-     * {@code _id} reads identically to the column's own value.
-     */
-    public void testIdFromColumnLongRendersAsString() {
-        List<Attribute> fullOutput = List.of(attr("order_id", DataType.LONG), partAttr(ExternalMetadataColumns.ID, DataType.KEYWORD));
-        Set<String> partitionCols = new LinkedHashSet<>(List.of(ExternalMetadataColumns.ID));
-        BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"), 1700000000000L);
-
-        VirtualColumnIterator it = new VirtualColumnIterator(
-            emptyDelegate(),
-            fullOutput,
-            partitionCols,
-            Map.of(),
-            blockFactory,
-            idPrefix,
-            "order_id"
-        );
-
-        LongBlock orderBlock = blockFactory.newConstantLongBlockWith(42L, 2);
-        Page dataPage = new Page(2, new Block[] { orderBlock });
-
-        Page result = it.inject(dataPage);
-
-        BytesRefBlock idResult = result.getBlock(1);
-        assertEquals("42", asString(idResult, 0));
-        assertEquals("42", asString(idResult, 1));
-        result.releaseBlocks();
-    }
-
-    /** A multi-valued {@code _id.path} cell is rejected — {@code _id} must be a single scalar value per row. */
-    public void testIdFromColumnMultiValueRejected() {
-        List<Attribute> fullOutput = List.of(attr("customer_id", DataType.KEYWORD), partAttr(ExternalMetadataColumns.ID, DataType.KEYWORD));
-        Set<String> partitionCols = new LinkedHashSet<>(List.of(ExternalMetadataColumns.ID));
-        BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"), 1700000000000L);
-
-        VirtualColumnIterator it = new VirtualColumnIterator(
-            emptyDelegate(),
-            fullOutput,
-            partitionCols,
-            Map.of(),
-            blockFactory,
-            idPrefix,
-            "customer_id"
-        );
-
-        try (BytesRefBlock.Builder custBuilder = blockFactory.newBytesRefBlockBuilder(1)) {
-            custBuilder.beginPositionEntry();
-            custBuilder.appendBytesRef(new BytesRef("c-1"));
-            custBuilder.appendBytesRef(new BytesRef("c-2"));
-            custBuilder.endPositionEntry();
-            BytesRefBlock custBlock = custBuilder.build();
-            Page dataPage = new Page(1, new Block[] { custBlock });
-
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> it.inject(dataPage));
-            assertThat(e.getMessage(), containsString("customer_id"));
-            assertThat(e.getMessage(), containsString("multi-valued"));
-        }
-    }
-
-    /**
-     * When a declared {@code _id.path} column is absent from the file's projection (the UBN carve-out), {@code _id}
-     * renders as SQL NULL rather than throwing. Modeled by declaring an {@code idPath} that names no data column.
-     */
-    public void testIdFromColumnMissingColumnIsNullId() {
-        List<Attribute> fullOutput = List.of(attr("amount", DataType.INTEGER), partAttr(ExternalMetadataColumns.ID, DataType.KEYWORD));
-        Set<String> partitionCols = new LinkedHashSet<>(List.of(ExternalMetadataColumns.ID));
-        BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"), 1700000000000L);
-
-        VirtualColumnIterator it = new VirtualColumnIterator(
-            emptyDelegate(),
-            fullOutput,
-            partitionCols,
-            Map.of(),
-            blockFactory,
-            idPrefix,
-            "customer_id" // names no data column in fullOutput
-        );
-
-        IntBlock amountBlock = blockFactory.newConstantIntBlockWith(10, 2);
-        Page dataPage = new Page(2, new Block[] { amountBlock });
-
-        Page result = it.inject(dataPage);
-
-        BytesRefBlock idResult = result.getBlock(1);
-        assertTrue(idResult.isNull(0));
-        assertTrue(idResult.isNull(1));
-        result.releaseBlocks();
     }
 
     /**

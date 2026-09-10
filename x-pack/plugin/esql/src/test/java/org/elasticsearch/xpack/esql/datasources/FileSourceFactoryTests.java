@@ -8,17 +8,13 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
-import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
-import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -30,92 +26,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Regression tests for the wiring inside {@link FileSourceFactory#operatorFactory()}. The
- * single-file producer paths in {@link AsyncExternalSourceOperatorFactory} expose a
- * {@code lastModifiedMillis} builder setter that drives the synthesized {@code _version}
- * constant; the unit-level test in {@code AsyncExternalSourceOperatorFactoryMetadataMergeTests}
- * proves the merge behaviour when the value is set, but does <em>not</em> prove that the
- * production wiring in {@link FileSourceFactory#operatorFactory()} actually populates it from
- * the resolved {@link FileList}. Earlier the production chain dropped the setter call entirely
- * and {@code _version} silently rendered as SQL {@code NULL} on every single-file query. This
- * class pins the call at the factory boundary so future drift surfaces immediately.
+ * Regression tests for the wiring inside {@link FileSourceFactory#operatorFactory()}.
  */
 public class FileSourceFactoryTests extends ESTestCase {
-
-    public void testSingleFileWiresLastModifiedMillisFromFileList() {
-        long mtimeMillis = 1_700_000_000_000L;
-        FileSourceFactory fileSourceFactory = newFileSourceFactory();
-
-        StoragePath path = StoragePath.of("s3://bucket/data/single.parquet");
-        FileList fileList = GlobExpander.fileListOf(
-            List.of(new StorageEntry(path, 100, Instant.ofEpochMilli(mtimeMillis))),
-            "s3://bucket/data/single.parquet"
-        );
-
-        SourceOperator.SourceOperatorFactory built = fileSourceFactory.operatorFactory()
-            .create(SourceOperatorContext.builder().sourceType("file").path(path).executor(Runnable::run).fileList(fileList).build());
-        AsyncExternalSourceOperatorFactory factory = (AsyncExternalSourceOperatorFactory) built;
-        assertEquals(Long.valueOf(mtimeMillis), factory.lastModifiedMillis());
-    }
-
-    public void testMultiFileFirstEntryMtimeWins() {
-        long firstMtimeMillis = 1_700_000_000_000L;
-        long secondMtimeMillis = 1_800_000_000_000L;
-        FileSourceFactory fileSourceFactory = newFileSourceFactory();
-
-        StoragePath first = StoragePath.of("s3://bucket/data/a.parquet");
-        StoragePath second = StoragePath.of("s3://bucket/data/b.parquet");
-        FileList fileList = GlobExpander.fileListOf(
-            List.of(
-                new StorageEntry(first, 100, Instant.ofEpochMilli(firstMtimeMillis)),
-                new StorageEntry(second, 200, Instant.ofEpochMilli(secondMtimeMillis))
-            ),
-            "s3://bucket/data/*.parquet"
-        );
-
-        SourceOperator.SourceOperatorFactory built = fileSourceFactory.operatorFactory()
-            .create(SourceOperatorContext.builder().sourceType("file").path(first).executor(Runnable::run).fileList(fileList).build());
-        AsyncExternalSourceOperatorFactory factory = (AsyncExternalSourceOperatorFactory) built;
-        // The single-file fallback only fires when the multi-file path has no per-file mtime
-        // carrier; passing the first entry's mtime is harmless on the multi-file path (which
-        // reads mtime off each FileList entry directly and ignores the builder value) and is the
-        // simplest invariant to pin against drift.
-        assertEquals(Long.valueOf(firstMtimeMillis), factory.lastModifiedMillis());
-    }
-
-    public void testNullFileListYieldsNullMtime() {
-        FileSourceFactory fileSourceFactory = newFileSourceFactory();
-
-        StoragePath path = StoragePath.of("s3://bucket/data/single.parquet");
-        SourceOperator.SourceOperatorFactory built = fileSourceFactory.operatorFactory()
-            .create(SourceOperatorContext.builder().sourceType("file").path(path).executor(Runnable::run).build()
-            // No fileList — context.fileList() returns null.
-            );
-        AsyncExternalSourceOperatorFactory factory = (AsyncExternalSourceOperatorFactory) built;
-        assertNull(factory.lastModifiedMillis());
-    }
-
-    public void testEmptyFileListYieldsNullMtime() {
-        FileSourceFactory fileSourceFactory = newFileSourceFactory();
-
-        StoragePath path = StoragePath.of("s3://bucket/data/single.parquet");
-        SourceOperator.SourceOperatorFactory built = fileSourceFactory.operatorFactory()
-            .create(SourceOperatorContext.builder().sourceType("file").path(path).executor(Runnable::run).fileList(FileList.EMPTY).build());
-        AsyncExternalSourceOperatorFactory factory = (AsyncExternalSourceOperatorFactory) built;
-        assertNull(factory.lastModifiedMillis());
-    }
-
-    public void testUnresolvedFileListYieldsNullMtime() {
-        FileSourceFactory fileSourceFactory = newFileSourceFactory();
-
-        StoragePath path = StoragePath.of("s3://bucket/data/single.parquet");
-        SourceOperator.SourceOperatorFactory built = fileSourceFactory.operatorFactory()
-            .create(
-                SourceOperatorContext.builder().sourceType("file").path(path).executor(Runnable::run).fileList(FileList.UNRESOLVED).build()
-            );
-        AsyncExternalSourceOperatorFactory factory = (AsyncExternalSourceOperatorFactory) built;
-        assertNull(factory.lastModifiedMillis());
-    }
 
     /**
      * The config-aware {@code canHandle} lets the file factory claim an extensionless resource when the

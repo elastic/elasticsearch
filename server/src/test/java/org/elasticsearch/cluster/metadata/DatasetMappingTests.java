@@ -94,21 +94,21 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
         assertNull(DatasetMapping.assemble(null));
     }
 
-    public void testIdPathParsesAndDefaults() throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"dynamic\":\"true\",\"_id\":{\"path\":\"request_id\"}}")) {
-            parser.nextToken();
-            DatasetMapping.Mappings m = DatasetMapping.parseMappings(parser);
-            assertEquals("request_id", m.idPath());
-        }
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"dynamic\":\"true\"}")) {
-            parser.nextToken();
-            assertNull("absent _id leaves idPath unset", DatasetMapping.parseMappings(parser).idPath());
-        }
-        // Only [path] is supported under _id; other keys are rejected.
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"_id\":{\"type\":\"keyword\"}}")) {
-            parser.nextToken();
-            Exception e = expectThrows(Exception.class, () -> DatasetMapping.parseMappings(parser));
-            assertThat(e.getMessage(), containsString("_id"));
+    /**
+     * A dataset does not answer {@code METADATA _id} — a file holds no document identity — so an {@code _id}
+     * block is not a mappings field at all and is rejected the way any unknown field is.
+     */
+    public void testIdBlockRejected() {
+        for (String json : new String[] {
+            "{\"dynamic\":\"true\",\"_id\":{\"path\":\"request_id\"}}",
+            "{\"_id\":{\"type\":\"keyword\"}}" }) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+                parser.nextToken();
+                Exception e = expectThrows(Exception.class, () -> DatasetMapping.parseMappings(parser));
+                assertThat(e.getMessage(), containsString("unknown mappings field [_id]"));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
         }
     }
 

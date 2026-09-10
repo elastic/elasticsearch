@@ -80,7 +80,6 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
-import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -709,14 +708,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             var metadata = resolvedSource.metadata();
-            // Partition columns are path-derived and appear in the schema as plain ReferenceAttributes (indistinguishable
-            // from data columns by type), so pass their names explicitly: _id.path pointing at a partition column must be
-            // rejected loudly (the reader stamps _id per row from a data column, not from a path-derived constant).
-            PartitionMetadata partitionMetadata = resolvedSource.fileList() != null ? resolvedSource.fileList().partitionMetadata() : null;
-            Set<String> partitionColumnNames = partitionMetadata != null && partitionMetadata.isEmpty() == false
-                ? partitionMetadata.partitionColumns().keySet()
-                : Set.of();
-            MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema(), partitionColumnNames);
+            MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema());
             ExternalRelation relation = new ExternalRelation(
                 plan.source(),
                 tablePath,
@@ -746,18 +738,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * {@link MetadataAttribute#ATTRIBUTES_MAP} or
          * {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS} are bound
          * to an {@link ExternalMetadataAttribute} appended to the source's natural schema. Names
-         * registered in neither stay as {@code UnresolvedMetadataAttributeExpression} in the
-         * returned {@code unresolvedMetadata} list — the verifier picks them up via the relation's
-         * expression walk and fires its native {@code "Unresolved metadata pattern [...]"} error,
-         * matching the diagnostic indexed {@code FROM x METADATA _typo} produces. Names already
+         * registered in neither are returned as {@code UnresolvedMetadataAttributeExpression} in the
+         * {@code unresolvedMetadata} list — the verifier picks them up via the relation's expression
+         * walk and fires its native {@code "Unresolved metadata pattern [...]"} error, matching the
+         * diagnostic indexed {@code FROM x METADATA _typo} produces. That covers both an unknown name
+         * and a registered one a dataset cannot answer ({@code _id}, {@code _version}, {@code _source}). Names already
          * present in the source's natural schema are skipped (the source's own column takes
          * precedence).
          */
-        private static MetadataBindResult bindMetadataFields(
-            UnresolvedExternalRelation plan,
-            List<Attribute> baseSchema,
-            Set<String> partitionColumnNames
-        ) {
+        private static MetadataBindResult bindMetadataFields(UnresolvedExternalRelation plan, List<Attribute> baseSchema) {
             if (plan.metadataFields().isEmpty()) {
                 return new MetadataBindResult(baseSchema, List.of());
             }
@@ -775,54 +764,30 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (existing.contains(name)) {
                     continue;
                 }
-                // _id.path names the column the reader stamps _id from. If the dataset declares one but the resolved
-                // schema has no such DATA column — a typo, the files lost it, or it is a partition/virtual column the
-                // reader never materializes per row — reject the _id request loudly rather than returning silently-null
-                // ids. Fires only when _id is actually asked for — a bad _id.path on a query that never reads _id is
-                // moot, like any other unread column.
-                if (ExternalMetadataColumns.ID.equals(name)) {
-                    String idPath = declaredIdPath(plan);
-                    if (idPath != null) {
-                        Attribute idSource = null;
-                        for (Attribute a : baseSchema) {
-                            if (a.name().equals(idPath)) {
-                                idSource = a;
-                                break;
-                            }
-                        }
-                        if (idSource == null) {
-                            throw new IllegalArgumentException(
-                                "[_id] is declared to come from column ["
-                                    + idPath
-                                    + "] (mappings._id.path), but no such column exists in the dataset's schema"
-                            );
-                        }
-                        // A partition column is a path-derived constant surfaced as a plain ReferenceAttribute (not a
-                        // Virtual/ExternalMetadata attribute), so it slips the type checks above; the reader classifies
-                        // it in the partition branch and never stamps _id from it (silent null id). Reject it here.
-                        if (idSource instanceof VirtualAttribute
-                            || idSource instanceof ExternalMetadataAttribute
-                            || partitionColumnNames.contains(idPath)) {
-                            throw new IllegalArgumentException(
-                                "[_id] is declared to come from ["
-                                    + idPath
-                                    + "] (mappings._id.path), which is not a data column of the files; _id must come from a "
-                                    + "column the reader materializes per row"
-                            );
-                        }
-                    }
-                }
-                DataType type = MetadataAttribute.dataType(name);
+                // A dataset answers only the standard names in ExternalMetadataColumns.STANDARD_NAMES.
+                // _id, _version and _source are deliberately outside it: a file holds no document
+                // identity, version or stored source, so those names resolve the way an unknown name
+                // does rather than being answered with an invented value.
+                DataType type = ExternalMetadataColumns.STANDARD_NAMES.contains(name) ? MetadataAttribute.dataType(name) : null;
                 if (type == null) {
                     type = FileMetadataColumns.COLUMNS.get(name);
                 }
                 if (type == null) {
-                    // Unknown name — keep the unresolved expression so the verifier picks it up via
-                    // ExternalRelation#metadataFields() and fires its native unresolved-pattern error.
+                    // A name a dataset cannot answer. The verifier reports it through
+                    // ExternalRelation#metadataFields(), and only an UNRESOLVED expression carries a message
+                    // for that walk. A name outside MetadataAttribute.ATTRIBUTES_MAP already arrives as one,
+                    // but _id, _version and _source are registered there and so arrive resolved — forwarding
+                    // one of those would drop the name silently instead of rejecting it, so re-wrap them.
+                    // Everything else is forwarded as-is, which keeps _doc (injected by TS_INFO / METRICS_INFO
+                    // rather than typed by the user) on its existing pass-through path.
                     if (unresolved == null) {
                         unresolved = new ArrayList<>();
                     }
-                    unresolved.add(requested);
+                    unresolved.add(
+                        ExternalMetadataColumns.DOCUMENT_NAMES.contains(name)
+                            ? new UnresolvedMetadataAttributeExpression(requested.source(), name)
+                            : requested
+                    );
                     continue;
                 }
                 if (enriched == null) {
@@ -834,12 +799,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> resolvedSchema = enriched == null ? baseSchema : List.copyOf(enriched);
             List<? extends NamedExpression> unresolvedList = unresolved == null ? List.of() : List.copyOf(unresolved);
             return new MetadataBindResult(resolvedSchema, unresolvedList);
-        }
-
-        /** The declared {@code mappings._id.path}, or {@code null} when the dataset does not set {@code _id} from a column. */
-        private static String declaredIdPath(UnresolvedExternalRelation plan) {
-            var mapping = plan.mapping();
-            return mapping != null && mapping.mappings() != null ? mapping.mappings().idPath() : null;
         }
 
         private String extractTablePath(Expression tablePath) {

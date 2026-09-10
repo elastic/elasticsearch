@@ -224,7 +224,7 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
 
         // withDeferredExtraction is the operator factory's signal that this exec is paired with the
         // ExternalFieldExtractExec built below — _rowPosition presence alone is ambiguous, since
-        // InjectRowPositionForExternalId also injects it for plain _id composition.
+        // InjectRowPositionForRecordRef also injects it for plain _file.record_ref composition.
         ExternalSourceExec narrowedSource = externalSource.withAttributes(narrowedAttributes).withDeferredExtraction();
         // Rebuild the (TopN, …, ExternalSourceExec) spine with the narrowed source at the bottom.
         // Every intermediate node's children are unchanged except for the source-replacement at the

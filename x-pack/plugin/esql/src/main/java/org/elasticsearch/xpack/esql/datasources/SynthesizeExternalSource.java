@@ -24,7 +24,13 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Producer-side composition of the {@code _source} metadata column for external datasets.
+ * Producer-side composition of a JSON object per row from a page's bound data columns.
+ * <p>
+ * <b>Not reachable from a query today.</b> A dataset answers no {@code METADATA _source} — a file
+ * holds no stored source — so nothing on the read path calls {@link #composePage}. The composition
+ * is kept, and kept under test, for the next surface that needs a rendered row object. The rest of
+ * this Javadoc describes what it computes when called.
+ * <p>
  * For each row, the bound data columns ({@code <name, value>} pairs at that row's position) are
  * gathered into a {@link Map}, JSON-serialized via
  * {@link Source#fromMap(Map, XContentType)}, and emitted as a {@code BytesRef} of type
@@ -34,9 +40,8 @@ import java.util.Set;
  * produces for natively-stored indexed documents — a downstream consumer that already knows
  * how to parse {@code _source} (e.g. Kibana's row-detail view) works unchanged.
  * <p>
- * This is producer-side and per-row; callers project {@code _source} sparingly because the
- * cost is linear in the bound data column count and dominated by JSON serialization. The
- * upstream binding gates {@code _source} only on explicit {@code METADATA _source}.
+ * This is producer-side and per-row: the cost is linear in the bound data column count and
+ * dominated by JSON serialization, so a caller wiring it up should gate it on an explicit request.
  */
 public final class SynthesizeExternalSource {
 

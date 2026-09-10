@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ReplaceSampledStatsBySampleAndStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InjectRowPositionForExternalId;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InjectRowPositionForRecordRef;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertExternalFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource;
@@ -123,7 +123,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             // synthetic _rowPosition column so the producer pipeline can compose
             // the opaque (location, mtime, rowPosition) hash id per row. Idempotent and independent of deferred
             // extraction (no TopN/ColumnExtractorAware preconditions).
-            new InjectRowPositionForExternalId()
+            new InjectRowPositionForRecordRef()
         );
 
         return List.of(pushdown, substitutionRules, fieldExtraction);

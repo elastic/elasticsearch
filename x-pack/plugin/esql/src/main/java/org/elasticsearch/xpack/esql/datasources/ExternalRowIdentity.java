@@ -22,7 +22,16 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Per-page composition of the {@code _id} metadata column for external datasets. The composed
+ * Composition of an opaque per-row identity from a file location, its modification time and a
+ * record's position.
+ * <p>
+ * <b>Not reachable from a query today.</b> A dataset answers no {@code METADATA _id} — a file holds
+ * no document identity — so nothing on the read path calls {@link #composePage}; only
+ * {@link #LOCAL_POSITION_MASK} is still consumed, by {@code VirtualColumnIterator} when it renders
+ * {@code _file.record_ref}. The composition is kept, and kept under test, for the next surface that
+ * needs a stable opaque row key. The rest of this Javadoc describes what it computes when called.
+ * <p>
+ * The composed
  * value is opaque: {@code base64url(murmur3_128(location).h1 | mtime | rowPosition)} — 24
  * identity bytes rendered as a fixed {@value #RENDERED_LENGTH}-character URL-safe string. The
  * location (storage path) is hashed, never rendered: file URIs are an implementation detail of
@@ -37,8 +46,8 @@ import java.nio.charset.StandardCharsets;
  * The packed mtime is the identity salt: a file replaced in place under the same name produces
  * ids distinct from its predecessor's — without it, a consumer caching by {@code _id} would
  * silently conflate rows from two different file generations. {@code mtime == 0} is the
- * {@link FileList} convention for "storage layer reported none" and packs as zero; {@code _id}
- * stays well-formed and the honest unknown surfaces through {@code _version}'s null.
+ * {@link FileList} convention for "storage layer reported none" and packs as zero; the composed
+ * value stays well-formed, it simply carries no generation salt.
  * <p>
  * The row position is masked off the optional {@link ColumnExtractor#LOCAL_POSITION_BITS}-encoded
  * extractor id used by the deferred-extraction path before it enters the identity bytes, so the

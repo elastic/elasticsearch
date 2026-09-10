@@ -175,7 +175,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
             Map.of(),
             /* pushedFilter = */ null,
             /* estimatedRowSize = */ null
-        ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), null, Map.of(), declaredTypeColumns));
+        ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), declaredTypeColumns));
         return new FilterExec(SRC, source, new Equals(SRC, salary, intLiteral(100)));
     }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -23,11 +22,10 @@ import java.util.List;
 
 /**
  * Inject the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} into an
- * {@link ExternalSourceExec} whose bound output references the standard {@code _id} metadata column
- * or the {@code _file.record_ref} virtual column. The reader-emitted {@code _rowPosition} channel
- * carries each record's file-global, split-invariant position; the producer pipeline composes
- * {@code _id} as the opaque {@code (location, mtime, rowPosition)} hash per row and exposes the masked physical position
- * directly as {@code _file.record_ref} (see {@code ExternalRowIdentity} / {@code VirtualColumnIterator}).
+ * {@link ExternalSourceExec} whose bound output references the {@code _file.record_ref} virtual
+ * column. The reader-emitted {@code _rowPosition} channel carries each record's file-global,
+ * split-invariant position; the producer pipeline exposes the masked physical position directly as
+ * {@code _file.record_ref} (see {@code VirtualColumnIterator}).
  * <p>
  * Every file reader materializes {@code _rowPosition}: Parquet (Java) and ORC emit a file-global
  * row index from footer/stripe metadata (Parquet-Java encodes an extractor id into the high bits
@@ -45,7 +43,7 @@ import java.util.List;
  * No-ops when the source's output already contains a {@code _rowPosition} attribute (deferred
  * extraction got there first, or another query rewrote the plan twice). Idempotent.
  */
-public class InjectRowPositionForExternalId extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+public class InjectRowPositionForRecordRef extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     ExternalSourceExec,
     LocalPhysicalOptimizerContext> {
 
@@ -54,9 +52,6 @@ public class InjectRowPositionForExternalId extends PhysicalOptimizerRules.Param
         boolean positionRequested = false;
         boolean rowPositionPresent = false;
         for (Attribute a : source.output()) {
-            if (a instanceof ExternalMetadataAttribute && ExternalMetadataColumns.ID.equals(a.name())) {
-                positionRequested = true;
-            }
             if (a instanceof ExternalMetadataAttribute && FileMetadataColumns.RECORD_REF.equals(a.name())) {
                 positionRequested = true;
             }

@@ -98,7 +98,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
      */
     private final List<? extends NamedExpression> metadataFields;
     /**
-     * The declared mapping's read-instructions (logical&rarr;physical renames, {@code _id.path}), or
+     * The declared mapping's read-instructions (logical&rarr;physical renames, per-column date formats), or
      * {@link DeclaredReadSpec#NONE}. Threaded to {@link ExternalSourceExec} via {@link #toPhysicalExec} and consumed on
      * the data node (physicalization + {@code _id} stamping); rides the wire gated on {@code dataset_declared_schema}.
      */
@@ -267,7 +267,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     /**
-     * The declared mapping's read-instructions (renames, {@code _id.path}, per-column date formats), or {@link DeclaredReadSpec#NONE}.
+     * The declared mapping's read-instructions (renames, per-column date formats), or {@link DeclaredReadSpec#NONE}.
      * Carried to {@link ExternalSourceExec} via {@link #toPhysicalExec}.
      */
     public DeclaredReadSpec declaredReadSpec() {

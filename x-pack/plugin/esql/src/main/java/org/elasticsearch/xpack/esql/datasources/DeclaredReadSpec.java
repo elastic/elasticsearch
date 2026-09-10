@@ -28,9 +28,6 @@ import java.util.Set;
  *   <li>{@code renames} — the declared logical&rarr;physical column renames a {@code path} move produces. Consumed at
  *       the reader-facing boundary via {@link PhysicalNames} (projection + read schema physicalization) and by the
  *       pushdown planner rules. Empty when the mapping renames nothing.</li>
- *   <li>{@code idPath} — the declared {@code mappings._id.path} (a single logical column name), or {@code null}. When
- *       present the data node stamps {@code _id} from that column instead of the synthetic (file+row-position) identity
- *       ({@link VirtualColumnIterator}).</li>
  *   <li>{@code dateFormats} — per-column date parse-patterns, keyed by <b>logical</b> column name. The text readers
  *       parse that column's timestamps with the given pattern (via the ES {@code DateFormatter}) instead of the ISO
  *       default / file-level {@code datetime_format}. Physicalized to file-column names at the reader boundary
@@ -55,7 +52,6 @@ import java.util.Set;
  */
 public record DeclaredReadSpec(
     Map<String, String> renames,
-    @Nullable String idPath,
     Map<String, String> dateFormats,
     Set<String> declaredTypeColumns,
     SchemaProvenance provenance
@@ -72,7 +68,7 @@ public record DeclaredReadSpec(
     private static final TransportVersion DECLARED_READ_SPEC_PROVENANCE = TransportVersion.fromName("declared_read_spec_provenance");
 
     /** The empty spec — nothing declared. The default carried on every non-declared read. */
-    public static final DeclaredReadSpec NONE = new DeclaredReadSpec(Map.of(), null, Map.of(), Set.of(), SchemaProvenance.INFERRED);
+    public static final DeclaredReadSpec NONE = new DeclaredReadSpec(Map.of(), Map.of(), Set.of(), SchemaProvenance.INFERRED);
 
     public DeclaredReadSpec {
         renames = renames != null ? Map.copyOf(renames) : Map.of();
@@ -88,41 +84,35 @@ public record DeclaredReadSpec(
      */
     public static DeclaredReadSpec of(
         @Nullable Map<String, String> renames,
-        @Nullable String idPath,
         @Nullable Map<String, String> dateFormats,
         @Nullable Set<String> declaredTypeColumns,
         @Nullable SchemaProvenance provenance
     ) {
-        DeclaredReadSpec spec = new DeclaredReadSpec(renames, idPath, dateFormats, declaredTypeColumns, provenance);
+        DeclaredReadSpec spec = new DeclaredReadSpec(renames, dateFormats, declaredTypeColumns, provenance);
         return spec.isEmpty() ? NONE : spec;
     }
 
     /** Convenience for a spec over an inferred schema ({@link SchemaProvenance#INFERRED}). */
     public static DeclaredReadSpec of(
         @Nullable Map<String, String> renames,
-        @Nullable String idPath,
         @Nullable Map<String, String> dateFormats,
         @Nullable Set<String> declaredTypeColumns
     ) {
-        return of(renames, idPath, dateFormats, declaredTypeColumns, SchemaProvenance.INFERRED);
+        return of(renames, dateFormats, declaredTypeColumns, SchemaProvenance.INFERRED);
     }
 
     /** Convenience for a spec with no declared date formats and no declared column types. */
-    public static DeclaredReadSpec of(@Nullable Map<String, String> renames, @Nullable String idPath) {
-        return of(renames, idPath, Map.of(), Set.of(), SchemaProvenance.INFERRED);
+    public static DeclaredReadSpec of(@Nullable Map<String, String> renames) {
+        return of(renames, Map.of(), Set.of(), SchemaProvenance.INFERRED);
     }
 
     /**
-     * True when the mapping declared nothing for the data node to apply — no rename, {@code _id.path}, format, or type,
+     * True when the mapping declared nothing for the data node to apply — no rename, format, or type,
      * and {@link SchemaProvenance#INFERRED} provenance. A DECLARED provenance is itself an instruction, so it
      * keeps the spec from collapsing to {@link #NONE} (whose provenance is INFERRED) and being lost on the wire.
      */
     public boolean isEmpty() {
-        return renames.isEmpty()
-            && idPath == null
-            && dateFormats.isEmpty()
-            && declaredTypeColumns.isEmpty()
-            && provenance == SchemaProvenance.INFERRED;
+        return renames.isEmpty() && dateFormats.isEmpty() && declaredTypeColumns.isEmpty() && provenance == SchemaProvenance.INFERRED;
     }
 
     /**
@@ -152,7 +142,9 @@ public record DeclaredReadSpec(
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(renames, StreamOutput::writeString, StreamOutput::writeString);
-        out.writeOptionalString(idPath);
+        // Was the declared _id.path. A dataset no longer answers METADATA _id, so nothing produces or reads a value
+        // here, but dataset_declared_schema is present on 9.5 and the slot has to stay for a mixed-version peer.
+        out.writeOptionalString(null);
         out.writeMap(dateFormats, StreamOutput::writeString, StreamOutput::writeString);
         out.writeCollection(declaredTypeColumns, StreamOutput::writeString);
         if (out.getTransportVersion().supports(DECLARED_READ_SPEC_PROVENANCE)) {
@@ -162,12 +154,12 @@ public record DeclaredReadSpec(
 
     public static DeclaredReadSpec readFrom(StreamInput in) throws IOException {
         Map<String, String> renames = in.readMap(StreamInput::readString);
-        String idPath = in.readOptionalString();
+        in.readOptionalString(); // the retired _id.path slot; see writeTo
         Map<String, String> dateFormats = in.readMap(StreamInput::readString);
         Set<String> declaredTypeColumns = in.readCollectionAsSet(StreamInput::readString);
         SchemaProvenance provenance = in.getTransportVersion().supports(DECLARED_READ_SPEC_PROVENANCE)
             ? in.readEnum(SchemaProvenance.class)
             : SchemaProvenance.INFERRED;
-        return of(renames, idPath, dateFormats, declaredTypeColumns, provenance);
+        return of(renames, dateFormats, declaredTypeColumns, provenance);
     }
 }

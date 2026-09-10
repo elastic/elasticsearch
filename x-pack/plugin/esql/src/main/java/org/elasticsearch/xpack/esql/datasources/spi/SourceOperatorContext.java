@@ -448,7 +448,7 @@ public record SourceOperatorContext(
          * Whether the plan pairs this source with an {@code ExternalFieldExtractExec} consuming
          * deferred-encoded columns. The operator factory keys deferred extraction off this flag,
          * not off {@code _rowPosition} presence in the projection — the latter is also produced
-         * for plain {@code _id} composition with no extract operator downstream.
+         * for plain {@code _file.record_ref} composition with no extract operator downstream.
          */
         public Builder deferredExtraction(boolean deferredExtraction) {
             this.deferredExtraction = deferredExtraction;
@@ -466,9 +466,9 @@ public record SourceOperatorContext(
         }
 
         /**
-         * The declared mapping's read-instructions (renames, {@code _id.path}), or {@link DeclaredReadSpec#NONE}.
-         * Consumed by {@code FileSourceFactory}: renames physicalize reader-facing names, {@code _id.path} stamps
-         * {@code _id} from that column.
+         * The declared mapping's read-instructions (renames, per-column date formats), or {@link DeclaredReadSpec#NONE}.
+         * Consumed by {@code FileSourceFactory}: renames physicalize reader-facing names, date formats drive
+         * per-column date parsing.
          */
         public Builder declaredReadSpec(DeclaredReadSpec declaredReadSpec) {
             this.declaredReadSpec = declaredReadSpec;

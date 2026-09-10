@@ -27,7 +27,6 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
         for (int i = 0; i < count; i++) {
             renames.put(randomAlphaOfLength(4) + i, randomAlphaOfLength(5));
         }
-        String idPath = randomBoolean() ? randomAlphaOfLength(4) : null;
         Map<String, String> dateFormats = new HashMap<>();
         int formatCount = between(0, 2);
         for (int i = 0; i < formatCount; i++) {
@@ -39,7 +38,7 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
             declaredTypeColumns.add("col" + i);
         }
         SchemaProvenance provenance = randomFrom(SchemaProvenance.values());
-        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns, provenance);
+        return DeclaredReadSpec.of(renames, dateFormats, declaredTypeColumns, provenance);
     }
 
     @Override
@@ -55,31 +54,28 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
     @Override
     protected DeclaredReadSpec mutateInstance(DeclaredReadSpec instance) throws IOException {
         Map<String, String> renames = new HashMap<>(instance.renames());
-        String idPath = instance.idPath();
         Map<String, String> dateFormats = new HashMap<>(instance.dateFormats());
         Set<String> declaredTypeColumns = new HashSet<>(instance.declaredTypeColumns());
         SchemaProvenance provenance = instance.provenance();
-        switch (between(0, 4)) {
+        switch (between(0, 3)) {
             case 0 -> renames.put(randomAlphaOfLength(6), randomAlphaOfLength(6));
-            case 1 -> idPath = randomValueOtherThan(idPath, () -> randomBoolean() ? randomAlphaOfLength(5) : null);
-            case 2 -> dateFormats.put(randomAlphaOfLength(6), randomFrom("epoch_millis", "yyyy-MM-dd"));
-            case 3 -> declaredTypeColumns.add(randomAlphaOfLength(6));
+            case 1 -> dateFormats.put(randomAlphaOfLength(6), randomFrom("epoch_millis", "yyyy-MM-dd"));
+            case 2 -> declaredTypeColumns.add(randomAlphaOfLength(6));
             default -> provenance = provenance == SchemaProvenance.INFERRED ? SchemaProvenance.DECLARED : SchemaProvenance.INFERRED;
         }
-        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns, provenance);
+        return DeclaredReadSpec.of(renames, dateFormats, declaredTypeColumns, provenance);
     }
 
     public void testNoneIsEmpty() {
         assertTrue(DeclaredReadSpec.NONE.isEmpty());
-        assertTrue(DeclaredReadSpec.of(Map.of(), null).isEmpty());
-        assertSame(DeclaredReadSpec.NONE, DeclaredReadSpec.of(Map.of(), null));
-        assertFalse(DeclaredReadSpec.of(Map.of("a", "b"), null).isEmpty());
-        assertFalse(DeclaredReadSpec.of(Map.of(), "id").isEmpty());
-        assertFalse(DeclaredReadSpec.of(Map.of(), null, Map.of(), Set.of("age")).isEmpty());
+        assertTrue(DeclaredReadSpec.of(Map.of()).isEmpty());
+        assertSame(DeclaredReadSpec.NONE, DeclaredReadSpec.of(Map.of()));
+        assertFalse(DeclaredReadSpec.of(Map.of("a", "b")).isEmpty());
+        assertFalse(DeclaredReadSpec.of(Map.of(), Map.of(), Set.of("age")).isEmpty());
         // DECLARED provenance is itself an instruction: an otherwise-empty spec must NOT collapse to NONE, or the
         // "bind by name" signal would be silently dropped on the wire.
-        assertFalse(DeclaredReadSpec.of(Map.of(), null, Map.of(), Set.of(), SchemaProvenance.DECLARED).isEmpty());
-        assertTrue(DeclaredReadSpec.of(Map.of(), null, Map.of(), Set.of(), SchemaProvenance.INFERRED).isEmpty());
+        assertFalse(DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), SchemaProvenance.DECLARED).isEmpty());
+        assertTrue(DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), SchemaProvenance.INFERRED).isEmpty());
     }
 
     /**
@@ -90,7 +86,6 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
     public void testPreProvenanceVersionDegradesToInferred() throws IOException {
         DeclaredReadSpec declared = DeclaredReadSpec.of(
             Map.of("id", "emp_no"),
-            "id",
             Map.of("ts", "epoch_millis"),
             Set.of("id"),
             SchemaProvenance.DECLARED
@@ -100,7 +95,6 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
         DeclaredReadSpec downlevel = copyInstance(declared, preProvenance);
         assertEquals(SchemaProvenance.INFERRED, downlevel.provenance());
         assertEquals(declared.renames(), downlevel.renames());
-        assertEquals(declared.idPath(), downlevel.idPath());
         assertEquals(declared.dateFormats(), downlevel.dateFormats());
         assertEquals(declared.declaredTypeColumns(), downlevel.declaredTypeColumns());
     }

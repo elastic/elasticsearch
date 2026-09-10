@@ -74,23 +74,28 @@ public final class DatasetMapping implements Writeable {
      *                   whole schema).
      * @param properties per-column declarations keyed by logical name; order-preserving, may be empty (e.g.
      *                   {@code "mappings": { "dynamic": "false" }}).
-     * @param idPath     {@code _id.path}: the column the reader stamps {@code _id} from, or {@code null} when unset.
+     * @param idPath     always {@code null}. A dataset does not answer {@code METADATA _id}, so there is nothing for a
+     *                   declared identity column to feed and the {@code _id} mappings key is rejected on registration.
+     *                   The component survives only because it is on the wire; see the constructor below.
      */
     public record Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties, @Nullable String idPath) implements Writeable {
 
         public Mappings {
             Objects.requireNonNull(dynamic, "dynamic must not be null");
             properties = properties == null ? Map.of() : Collections.unmodifiableMap(properties);
+            // Normalised to null, including for a value read off the wire from an older node. Nothing reads it, and
+            // leaving one set would round-trip through toXContent into an _id block that parseMappings now rejects.
+            idPath = null;
         }
 
-        /** Convenience: a mappings block with no {@code _id.path}. */
+        /** Convenience: a mappings block, which never carries an {@code _id.path}. */
         public Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties) {
             this(dynamic, properties, null);
         }
 
         Mappings(StreamInput in) throws IOException {
-            // The whole DatasetMapping is gated by the dataset_declared_schema transport version (see Dataset), which is
-            // unreleased — so every field (incl. _id.path) ships in that one version; no separate gate.
+            // dataset_declared_schema is present on 9.5, so the optional string stays on the wire and is read and
+            // written unconditionally even though the value is always null now; dropping it would be a wire break.
             this(in.readEnum(Dynamic.class), in.readOrderedMap(StreamInput::readString, DatasetFieldMapping::new), in.readOptionalString());
         }
 
@@ -104,8 +109,6 @@ public final class DatasetMapping implements Writeable {
 
     private static final String DYNAMIC = "dynamic";
     private static final String PROPERTIES = "properties";
-    private static final String ID = "_id";
-    private static final String PATH = "path";
 
     @Nullable
     private final Mappings mappings;
@@ -125,21 +128,19 @@ public final class DatasetMapping implements Writeable {
 
     /**
      * Builds a {@link DatasetMapping} from the parsed {@code mappings} block, or {@code null} when it is absent (a
-     * dataset with no declared schema). Used by {@link Dataset#PARSER}. All declaration surfaces — column
-     * {@code properties} and the meta-field {@code _id} — live inside {@code mappings}, so a dataset that only sets,
-     * say, {@code _id.path} still needs a {@code mappings} wrapper.
+     * dataset with no declared schema). Used by {@link Dataset#PARSER}. Every declaration surface lives inside
+     * {@code mappings}, so a dataset that only sets, say, {@code dynamic} still needs a {@code mappings} wrapper.
      */
     @Nullable
     public static DatasetMapping assemble(@Nullable Mappings mappings) {
         return mappings == null ? null : new DatasetMapping(mappings);
     }
 
-    /** Parses the {@code mappings} object ({@code dynamic}, {@code properties}, {@code _id}). */
+    /** Parses the {@code mappings} object ({@code dynamic}, {@code properties}). */
     public static Mappings parseMappings(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         Dynamic dynamic = Dynamic.TRUE;
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        String idPath = null;
         String field = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -158,29 +159,14 @@ public final class DatasetMapping implements Writeable {
                         properties.put(name, DatasetFieldMapping.fromXContent(parser));
                     }
                 }
-            } else if (ID.equals(field)) {
-                // _id: { path: <column> } — the id-source column, a meta-field mirroring the index _id/alias path.
-                // Only [path] is supported (identity from a column); any other key is rejected.
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-                XContentParser.Token t;
-                while ((t = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (t == XContentParser.Token.FIELD_NAME) {
-                        String key = parser.currentName();
-                        if (PATH.equals(key) == false) {
-                            throw new IllegalArgumentException("unknown [_id] field [" + key + "]; only [path] is supported");
-                        }
-                    } else {
-                        idPath = parser.text();
-                    }
-                }
             } else {
                 throw new IllegalArgumentException("unknown mappings field [" + field + "]");
             }
         }
-        return new Mappings(dynamic, properties, idPath);
+        return new Mappings(dynamic, properties);
     }
 
-    /** Emits the {@code mappings} block (incl. the {@code _id} meta-field) into an open dataset object. */
+    /** Emits the {@code mappings} block into an open dataset object. */
     public void toXContentFragment(XContentBuilder builder) throws IOException {
         if (mappings != null) {
             builder.startObject("mappings");
@@ -192,9 +178,6 @@ public final class DatasetMapping implements Writeable {
                     e.getValue().toXContent(builder, null);
                 }
                 builder.endObject();
-            }
-            if (mappings.idPath() != null) {
-                builder.startObject(ID).field(PATH, mappings.idPath()).endObject();
             }
             builder.endObject();
         }

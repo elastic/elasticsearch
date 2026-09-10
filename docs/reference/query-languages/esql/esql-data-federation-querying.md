@@ -83,13 +83,14 @@ When sources have different schemas, columns that do not exist in a given source
 | Column | Returned for a dataset |
 |---|---|
 | `_index` | The dataset name. |
-| `_id` | A stable per-row identifier. |
-| `_version` | The source file's modification time as a `long` in epoch milliseconds, or null when storage reports no modification time. |
-| `_source` | The row as a JSON object. |
 | `_file.path`, `_file.name`, `_file.directory`, `_file.size`, `_file.modified` | The object each row was read from. |
 | `_score` | null |
 | `_ignored` | null |
 | `_index_mode`, `_tsid`, `_size` | null |
+
+`_id`, `_version` and `_source` are not available on a dataset. A file carries no document identity, no
+document version and no stored source, so naming one of them fails the query rather than returning an
+invented value.
 
 For example, this query returns file-level metadata for each matching row:
 

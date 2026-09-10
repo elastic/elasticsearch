@@ -150,7 +150,7 @@ After creating a dataset, you can check the field mappings that {{es}} inferred 
 
 By default, {{es}} infers a dataset's schema from its files. You can instead add an optional `mappings` block to the create or update request to control column names and types. Dataset mappings are currently available only through the API. The {{kib}} **Add dataset** flyout does not expose them.
 
-The following example declares the complete schema, renames the physical `event_time` column to `@timestamp`, supplies its date format, and uses `request_id` as the row's `_id`:
+The following example declares the complete schema, renames the physical `event_time` column to `@timestamp`, and supplies its date format:
 
 ```console
 PUT /_query/dataset/access_logs
@@ -168,9 +168,6 @@ PUT /_query/dataset/access_logs
       "request_id": { "type": "keyword" },
       "service": { "type": "keyword" },
       "status_code": { "type": "integer" }
-    },
-    "_id": {
-      "path": "request_id"
     }
   }
 }
@@ -181,7 +178,6 @@ The `mappings` block supports the following properties:
 - `properties`: Columns keyed by their logical name. Each column requires a `type`.
   - `path`: Optional physical column name. Use it to expose a file column under a different logical name, including renaming a timestamp column to `@timestamp`.
   - `format`: Optional date parsing pattern for a column with type `date`.
-- `_id.path`: Optional source column whose value becomes the row's `_id`.
 - `dynamic`: Controls undeclared columns. The default, `true`, overlays the declared columns on the inferred schema. Set it to `false` to treat the declaration as the complete schema, skip schema inference for text formats, and leave undeclared columns unavailable to queries.
 
 :::{note}

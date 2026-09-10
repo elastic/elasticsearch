@@ -6,9 +6,13 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
@@ -17,15 +21,14 @@ import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
+import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.anyOf;
@@ -35,7 +38,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
+public class MlMappingsUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
+
+    private static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
 
     private static final String JOB_ID = "ml-mappings-upgrade-job";
 
@@ -47,19 +52,35 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
         + NotificationsIndex.NOTIFICATIONS_INDEX_MAPPINGS_VERSION + MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
         + NotificationsIndex.NOTIFICATIONS_INDEX_TEMPLATE_VERSION;
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildCluster();
+
+    public MlMappingsUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
+
     @BeforeClass
     public static void maybeSkip() {
         assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
     }
 
-    @Override
-    protected Collection<String> templatesToWaitFor() {
-        // We shouldn't wait for ML templates during the upgrade - production won't
-        if (CLUSTER_TYPE != ClusterType.OLD) {
-            return super.templatesToWaitFor();
+    @Before
+    public void waitForMlTemplates() throws Exception {
+        // We shouldn't wait for ML templates during the upgrade - production won't.
+        // On the old cluster, wait for the ML index templates to be installed before running tests.
+        if (isOldCluster()) {
+            for (String templateName : XPackRestTestConstants.ML_POST_V7120_TEMPLATES) {
+                assertBusy(() -> {
+                    Request request = new Request("GET", "/_index_template/" + templateName);
+                    assertOK(client().performRequest(request));
+                });
+            }
         }
-        return Stream.concat(XPackRestTestConstants.ML_POST_V7120_TEMPLATES.stream(), super.templatesToWaitFor().stream())
-            .collect(Collectors.toSet());
     }
 
     /**
@@ -68,40 +89,37 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
      */
     public void testMappingsUpgrade() throws Exception {
 
-        switch (CLUSTER_TYPE) {
-            case OLD:
-                createAndOpenTestJob();
-                break;
-            case MIXED:
-                // We don't know whether the job is on an old or upgraded node, so cannot assert that the mappings have been upgraded
-                break;
-            case UPGRADED:
-                assertUpgradedResultsMappings();
-                assertUpgradedAnnotationsMappings();
-                closeAndReopenTestJob();
-                assertUpgradedConfigMappings();
-                assertMlLegacyTemplatesDeleted();
-                IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
-                assertNotificationsIndexAliasCreated();
-                assertBusy(
-                    () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
-                        client(),
-                        ".ml-anomalies-",
-                        ML_INDEX_TEMPLATE_VERSION,
-                        List.of(".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*", ".reindexed-v8-ml-anomalies-*")
-                    )
-                );
-                assertBusy(
-                    () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
-                        client(),
-                        ".ml-state",
-                        ML_INDEX_TEMPLATE_VERSION,
-                        Arrays.asList(AnomalyDetectorsIndex.jobStateIndexPatterns())
-                    )
-                );
-                break;
-            default:
-                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        if (isOldCluster()) {
+            createAndOpenTestJob();
+        }
+
+        // On mixed clusters, we don't know whether the job is on an old or upgraded node, so cannot assert that the mappings have been
+        // upgraded
+
+        if (isUpgradedCluster()) {
+            assertUpgradedResultsMappings();
+            assertUpgradedAnnotationsMappings();
+            closeAndReopenTestJob();
+            assertUpgradedConfigMappings();
+            assertMlLegacyTemplatesDeleted();
+            IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
+            assertNotificationsIndexAliasCreated();
+            assertBusy(
+                () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
+                    client(),
+                    ".ml-anomalies-",
+                    ML_INDEX_TEMPLATE_VERSION,
+                    List.of(".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*", ".reindexed-v8-ml-anomalies-*")
+                )
+            );
+            assertBusy(
+                () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
+                    client(),
+                    ".ml-state",
+                    ML_INDEX_TEMPLATE_VERSION,
+                    Arrays.asList(AnomalyDetectorsIndex.jobStateIndexPatterns())
+                )
+            );
         }
     }
 

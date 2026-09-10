@@ -20,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Unit + differential coverage for {@link CsvFormatReader#splitRecordFields}, the house record tokenizer
@@ -251,7 +252,8 @@ public class CsvRecordTokenizerTests extends ESTestCase {
 
     /** Jackson's withNullValue substitutes null for a field equal to nullValue; fold both arms to one token. */
     private static String normalizeNull(String value, CsvFormatOptions options) {
-        if (value == null || value.equals(options.nullValue())) {
+        // Objects.equals: nullValue is null when no null token is configured, and a raw field is never null.
+        if (value == null || Objects.equals(value, options.nullValue())) {
             return " NULL ";
         }
         return value;
@@ -283,7 +285,12 @@ public class CsvRecordTokenizerTests extends ESTestCase {
     }
 
     private static CsvSchema jacksonSchema(CsvFormatOptions opts) {
-        CsvSchema schema = CsvSchema.emptySchema().withColumnSeparator(opts.delimiter()).withNullValue(opts.nullValue());
+        // Mirrors newCsvSchema: only a configured null token is installed, so an unset one leaves an empty
+        // field as the empty-string token on both arms.
+        CsvSchema schema = CsvSchema.emptySchema().withColumnSeparator(opts.delimiter());
+        if (opts.nullValue() != null) {
+            schema = schema.withNullValue(opts.nullValue());
+        }
         if (opts.quoting() == false) {
             return schema.withoutQuoteChar();
         }
@@ -341,7 +348,7 @@ public class CsvRecordTokenizerTests extends ESTestCase {
             '"',
             esc,
             "//",
-            "",
+            null,
             StandardCharsets.UTF_8,
             null,
             CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,

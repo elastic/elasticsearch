@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -32,8 +33,10 @@ import java.util.Locale;
  *                           fields when {@link #quoting} is also on, otherwise to keep
  *                           escape + delimiter in one field and as a C-style value decode
  * @param commentPrefix      prefix for comment lines to skip (default: "//")
- * @param nullValue          token whose exact match reads as null (default: empty string, which installs
- *                           no null token, so an empty field is a present empty value rather than null)
+ * @param nullValue          token whose exact match reads as null, or {@code null} (the default) when no token is
+ *                           configured. The empty string is a legal token: naming it is how a user declares that a
+ *                           blank cell is null even on a declared string column, which is why absence is carried as
+ *                           {@code null} rather than as {@code ""} — the two must be distinguishable.
  * @param encoding           character encoding of the input (default: UTF-8)
  * @param datetimeFormatter  custom datetime parser compiled from the {@code datetime_format} option, or null for
  *                           ISO-8601/epoch. An ES {@link DateFormatter} — the same engine the per-column declared
@@ -71,7 +74,7 @@ public record CsvFormatOptions(
     char quoteChar,
     char escapeChar,
     String commentPrefix,
-    String nullValue,
+    @Nullable String nullValue,
     Charset encoding,
     DateFormatter datetimeFormatter,
     int maxFieldSize,
@@ -152,7 +155,7 @@ public record CsvFormatOptions(
         DEFAULT_QUOTE,
         DEFAULT_ESCAPE,
         "//",
-        "",
+        null, // nullValue: no null token configured (see the record javadoc)
         StandardCharsets.UTF_8,
         null,
         DEFAULT_MAX_FIELD_SIZE,
@@ -176,7 +179,7 @@ public record CsvFormatOptions(
         DEFAULT_QUOTE,
         DEFAULT_ESCAPE,
         "//",
-        "",
+        null, // nullValue: no null token configured (see the record javadoc)
         StandardCharsets.UTF_8,
         null,
         DEFAULT_MAX_FIELD_SIZE,
@@ -198,7 +201,7 @@ public record CsvFormatOptions(
         char quoteChar,
         char escapeChar,
         String commentPrefix,
-        String nullValue,
+        @Nullable String nullValue,
         Charset encoding,
         DateFormatter datetimeFormatter,
         int maxFieldSize,
@@ -243,6 +246,9 @@ public record CsvFormatOptions(
         if (columnPrefix == null) {
             throw new IllegalArgumentException("columnPrefix must not be null");
         }
+        // No such check for nullValue: null there is the "no null token configured" state, distinct from the
+        // empty string, which is a token a user may legitimately configure. See the record javadoc.
+
         // The ACTIVE special characters must be pairwise-distinct and none of them a line terminator:
         // each byte in the hot scan has exactly one meaning. Inactive characters (the quote when
         // quoting is off, the escape when escaping is off) are never consulted, so they are not

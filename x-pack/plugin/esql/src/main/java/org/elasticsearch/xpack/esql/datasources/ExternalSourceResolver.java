@@ -212,7 +212,9 @@ public class ExternalSourceResolver {
      * client response. Cleared at the start of each {@link #resolve} call; append-only in between.
      * <p>
      * These notices tell the user their values changed type. They get a channel of their own, bounded by the column
-     * count, so the listing channel below can never crowd them out.
+     * count, so the listing channel below can never crowd them out. The factories' config-validation warnings
+     * ({@code ExternalSourceFactory#validateConfig(String, Map, Consumer)}) are about the dataset's options, not its
+     * schema, and go to {@link #pendingMetadataWarnings} with the other per-path notices.
      */
     private final NoticeBuffer pendingSchemaWarnings = new NoticeBuffer();
 
@@ -506,6 +508,10 @@ public class ExternalSourceResolver {
         pendingSchemaWarnings.clear();
         pendingListingWarnings.clear();
         pendingMetadataWarnings.clear();
+
+        // Once per query, before the per-path recursion: one warning per column however many paths and files the
+        // resource expands to, and on the strict rail, which never reaches the non-strict overlay.
+        warnOnSubstitutedDeclaredTypes(declaredMappings, pendingSchemaWarnings::add);
 
         // Resolution runs on the caller-supplied executor (esql_worker in production, isolated from SEARCH so a wide
         // wildcard cannot starve regular ES searches). The initial dispatch performs the cheap synchronous prep (glob
@@ -2329,8 +2335,9 @@ public class ExternalSourceResolver {
             if (factory.canHandle(path, config)) {
                 // Validate outside the try block so a user config error (unknown key) propagates
                 // immediately rather than being swallowed as a factory failure and retried against
-                // the next factory in the registry.
-                factory.validateConfig(path, config);
+                // the next factory in the registry. Warnings are buffered, not emitted here: this
+                // runs on the metadata-read executor, whose ThreadContext never reaches the client.
+                factory.validateConfig(path, config, pendingMetadataWarnings::add);
                 try {
                     return factory.resolveMetadata(path, config);
                 } catch (Exception e) {
@@ -2448,7 +2455,7 @@ public class ExternalSourceResolver {
             resolveWithFactory(path, hint, config, candidates, index + 1, e, listener);
         });
         try {
-            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, next);
+            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, pendingMetadataWarnings::add, next);
         } catch (Exception e) {
             // A factory that throws synchronously from dispatch (before invoking the listener) must not abort the
             // whole resolve: fall through to the next candidate exactly as the async onFailure path does.
@@ -2599,6 +2606,66 @@ public class ExternalSourceResolver {
         Map<String, Object> stampedMetadata = new HashMap<>(schemaEnriched.sourceMetadata());
         stampedMetadata.put(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.copyOf(partitionNames));
         return replaceSourceMetadata(schemaEnriched, Map.copyOf(stampedMetadata));
+    }
+
+    /**
+     * Warns that a column declared {@code text} is read as {@code keyword} — see
+     * {@link DeclaredSchemaResolver#declaredTypeAsRead}, which substitutes rather than failing the query.
+     * <p>
+     * The bytes match, so the message is about matching: {@code MATCH}/{@code MATCH_PHRASE} do not analyze a
+     * {@code keyword} column, {@code MATCH} scores it a flat 1.0 rather than by matched terms, and either function
+     * rejects options on it, since both accept options on a runtime-search field only at type {@code TEXT}. The
+     * scoring one reorders results in silence and the options one needs the query edited, so all three are named.
+     * <p>
+     * {@code warningSink} rather than {@code HeaderWarning}: buffered onto {@link ExternalSourceResolution} (see
+     * {@link #pendingSchemaWarnings}) the message reaches the client through
+     * {@code TransportEsqlQueryAction#toResponse} whatever thread {@code resolve} ran on, which is the one route
+     * every warning here takes. This one runs synchronously above the {@link #metadataReadExecutor} dispatch, so
+     * the racy-context constraint on {@link #warnOnShadowedColumns} does not bind it.
+     */
+    private static void warnOnSubstitutedDeclaredTypes(
+        @Nullable Map<String, DatasetMapping> declaredMappings,
+        @Nullable Consumer<String> warningSink
+    ) {
+        if (declaredMappings == null || declaredMappings.isEmpty()) {
+            return;
+        }
+        // Keyed by resource path, so one dataset contributes an entry per path it expands to. Dedupe by logical
+        // column name: a column the user has to fix once is a column named once, and a column name is the only
+        // thing unambiguous from here — hence no dataset name in the message.
+        Map<String, DeclaredSchemaResolver.Substitution> substituted = new LinkedHashMap<>();
+        for (DatasetMapping mapping : declaredMappings.values()) {
+            for (DeclaredSchemaResolver.Substitution s : DeclaredSchemaResolver.substitutions(mapping)) {
+                substituted.putIfAbsent(s.column(), s);
+            }
+        }
+        if (substituted.isEmpty()) {
+            return;
+        }
+        // Both type halves come from what was found rather than from a literal. The read side is `keyword` for
+        // every substitution `noText` can make, so the consequences below hold whatever was declared; the declared
+        // side is named so the line a user reads first carries the type they have to go and change.
+        Set<String> declaredTypes = new LinkedHashSet<>();
+        for (DeclaredSchemaResolver.Substitution s : substituted.values()) {
+            declaredTypes.add("[" + s.declared().typeName() + "]");
+        }
+        String withdrawn = declaredTypes.size() == 1
+            ? "the withdrawn " + declaredTypes.iterator().next() + " type"
+            : "the withdrawn types " + String.join(", ", declaredTypes);
+        SkipWarnings warnings = new SkipWarnings(
+            "one or more columns are declared with "
+                + withdrawn
+                + " and are read as [keyword]; matching on them is no longer analyzed and scores 1.0 instead of "
+                + "by matched terms, and a MATCH or MATCH_PHRASE that passes options on one now fails "
+                + "verification. Re-declare those columns as [keyword], and apply TO_TEXT in the query where an "
+                + "analyzed column is wanted.",
+            warningSink
+        );
+        for (DeclaredSchemaResolver.Substitution s : substituted.values()) {
+            warnings.add(
+                "column [" + s.column() + "] is declared [" + s.declared().typeName() + "] and is read as [" + s.read().typeName() + "]"
+            );
+        }
     }
 
     /**
@@ -3123,7 +3190,9 @@ public class ExternalSourceResolver {
             if (inferredType == null) {
                 continue; // absence is handled by the overlay's own missing-column check
             }
-            DataType declaredType = DataType.fromNameOrAlias(e.getValue().type());
+            // Through the resolver, not DataType.fromNameOrAlias: a stored `text` reads as keyword, so it is the
+            // keyword pair that has to be coercible here.
+            DataType declaredType = DeclaredSchemaResolver.declaredTypeAsRead(e.getValue().type());
             boolean coercible = coercing ? DeclaredTypeCoercions.supports(inferredType, declaredType) : declaredType == inferredType;
             if (coercible == false) {
                 throw new IllegalArgumentException(

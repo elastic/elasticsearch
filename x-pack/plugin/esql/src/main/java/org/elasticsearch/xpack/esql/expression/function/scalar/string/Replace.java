@@ -161,7 +161,13 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
         if (regex == null || newStr == null) {
             return str;
         }
-        return safeReplace(str, Pattern.compile(regex.utf8ToString()), newStr);
+        String pattern = regex.utf8ToString();
+        try {
+            // Pattern.compile is outside safeReplace; catch compile-time overflow here.
+            return safeReplace(str, Pattern.compile(pattern), newStr);
+        } catch (StackOverflowError e) {
+            throw stackOverflowApplying(pattern);
+        }
     }
 
     /**
@@ -391,14 +397,18 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
         try {
             return doReplace(strBytesRef, regex, newStrBytesRef);
         } catch (StackOverflowError e) {
-            /*
-             * A bad regex on problematic data can trigger a StackOverflowError. Catch it here and
-             * rethrow as IllegalArgumentException so the evaluator turns it into a warning and a
-             * null result, instead of a fatal JVM error that kills the node. The input string is
-             * omitted from the message to avoid writing potentially sensitive data to logs.
-             */
-            throw new IllegalArgumentException("Caught a StackOverflowError while applying regex [" + regex.pattern() + "]");
+            throw stackOverflowApplying(regex.pattern());
         }
+    }
+
+    /**
+     * A bad regex on problematic data can trigger a {@link StackOverflowError}. Rethrow it as
+     * {@link IllegalArgumentException} so the evaluator turns it into a warning and a null result,
+     * instead of a fatal JVM error that kills the node. The input string is omitted from the
+     * message to avoid writing potentially sensitive data to logs.
+     */
+    private static IllegalArgumentException stackOverflowApplying(String pattern) {
+        return new IllegalArgumentException("Caught a StackOverflowError while applying regex [" + pattern + "]");
     }
 
     private static BytesRef doReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {

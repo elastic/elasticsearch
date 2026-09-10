@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
@@ -37,6 +38,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -50,6 +52,12 @@ import static org.hamcrest.Matchers.equalTo;
  * tests with large rows causes out of memory.
  */
 public class ReplaceStaticTests extends ESTestCase {
+
+    /**
+     * Stack size for catastrophic-regex evaluation. Small enough that {@code Matcher.find()}
+     * overflows independently of the test JVM {@code -Xss}, large enough for evaluator setup.
+     */
+    private static final long CATASTROPHIC_REGEX_STACK_SIZE = 256 * 1024;
 
     public void testLimit() {
         int textLength = (int) ScalarFunction.MAX_BYTES_REF_RESULT_SIZE / 10;
@@ -70,11 +78,14 @@ public class ReplaceStaticTests extends ESTestCase {
      * used to throw {@link StackOverflowError} from {@code Matcher.find()}, which
      * is a fatal JVM error and killed the node. It must be converted to
      * {@link IllegalArgumentException} so the evaluator can warn and return null.
+     * <p>
+     * Evaluation runs on a child thread with a fixed stack so the overflow does not
+     * depend on the test JVM's {@code -Xss}.
      */
     public void testCatastrophicRegexDoesNotThrowStackOverflowError() {
         String text = "a".repeat(4000);
         String regex = "(a|aa)+$";
-        assertNull(process(text, regex, "x"));
+        assertNull(processOnSmallStack(text, regex, "x"));
         assertDriverWarnings(
             "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
             "Line -1:-1: java.lang.IllegalArgumentException: Caught a StackOverflowError while applying regex [" + regex + "]"
@@ -89,7 +100,7 @@ public class ReplaceStaticTests extends ESTestCase {
     public void testCatastrophicConstantRegexDoesNotThrowStackOverflowError() {
         String text = "a".repeat(4000);
         String regex = "(a|aa)+$";
-        assertNull(processConstantRegex(text, regex, "x"));
+        assertNull(processConstantRegexOnSmallStack(text, regex, "x"));
         assertDriverWarnings(
             "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
             "Line -1:-1: java.lang.IllegalArgumentException: Caught a StackOverflowError while applying regex [" + regex + "]"
@@ -327,6 +338,59 @@ public class ReplaceStaticTests extends ESTestCase {
         ) {
             return block.isNull(0) ? null : ((BytesRef) BlockUtils.toJavaObject(block, 0)).utf8ToString();
         }
+    }
+
+    private String processOnSmallStack(String text, String regex, String newStr) {
+        try (
+            var eval = AbstractScalarFunctionTestCase.evaluator(
+                new Replace(
+                    Source.EMPTY,
+                    field("text", DataType.KEYWORD),
+                    field("regex", DataType.KEYWORD),
+                    field("newStr", DataType.KEYWORD)
+                )
+            ).get(driverContext())
+        ) {
+            return evalOnSmallStack(eval, row(List.of(new BytesRef(text), new BytesRef(regex), new BytesRef(newStr))));
+        }
+    }
+
+    private String processConstantRegexOnSmallStack(String text, String regex, String newStr) {
+        try (
+            var eval = AbstractScalarFunctionTestCase.evaluator(
+                new Replace(
+                    Source.EMPTY,
+                    field("text", DataType.KEYWORD),
+                    new Literal(Source.EMPTY, new BytesRef(regex), DataType.KEYWORD),
+                    field("newStr", DataType.KEYWORD)
+                )
+            ).get(driverContext())
+        ) {
+            return evalOnSmallStack(eval, row(List.of(new BytesRef(text), new BytesRef(newStr))));
+        }
+    }
+
+    private static String evalOnSmallStack(ExpressionEvaluator eval, Page page) {
+        AtomicReference<String> result = new AtomicReference<>();
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        Thread thread = new Thread(Thread.currentThread().getThreadGroup(), () -> {
+            try (Block block = eval.eval(page)) {
+                result.set(block.isNull(0) ? null : ((BytesRef) BlockUtils.toJavaObject(block, 0)).utf8ToString());
+            } catch (Throwable t) {
+                error.set(t);
+            }
+        }, "replace-catastrophic-regex", CATASTROPHIC_REGEX_STACK_SIZE);
+        thread.start();
+        try {
+            thread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("interrupted waiting for small-stack replace", e);
+        }
+        if (error.get() != null) {
+            throw new AssertionError(error.get());
+        }
+        return result.get();
     }
 
     /**

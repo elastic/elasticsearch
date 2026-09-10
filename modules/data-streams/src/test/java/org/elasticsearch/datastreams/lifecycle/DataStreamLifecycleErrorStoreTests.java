@@ -176,7 +176,24 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
         }
     }
 
-    public void testTotalErrorCount() {
+    public void testGetErrorsWithUnknownProject() {
+        Index index5 = new Index("test5", randomUUID());
+        ClusterState clusterState = getClusterStateWithIndices(Map.of(projectId, List.of(index5)));
+        IntStream.range(0, 5).forEach(i -> errorStore.recordError(projectId, index5, new NullPointerException("testing")));
+        ProjectId unknownProject = ProjectId.fromId("unknown-project-id");
+        Index unknownProjectIndex = new Index("unknown-index", randomUUID());
+        IntStream.range(0, 20)
+            .forEach(i -> errorStore.recordError(unknownProject, unknownProjectIndex, new NullPointerException("testing")));
+
+        {
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(clusterState, entry -> entry.retryCount() > 0, 100);
+            assertThat(entries.size(), is(1));
+            assertThat(entries.getFirst().indexName(), is(index5.getName()));
+            assertThat(entries.getFirst().projectId(), is(projectId));
+        }
+    }
+
+    public void testClearRecordedErrorsDeletedProjects() {
         ProjectId projectId1 = randomProjectIdOrDefault();
         ProjectId projectId2 = randomUniqueProjectId();
         Index index1 = new Index("index1", randomUUID());

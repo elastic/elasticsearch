@@ -145,7 +145,11 @@ public class DataStreamLifecycleErrorStore {
     public List<DslErrorInfo> getErrorsInfo(ClusterState clusterState, Predicate<ErrorEntry> errorEntryPredicate, int limit) {
         return projectMap.entrySet().stream().flatMap(projectToIndexError -> {
             ProjectId projectId = projectToIndexError.getKey();
-            ProjectMetadata projectMetadata = clusterState.metadata().getProject(projectId);
+            // Ensure the project exists in the cluster state, otherwise skip the errors
+            ProjectMetadata projectMetadata = clusterState.metadata().projects().get(projectId);
+            if (projectMetadata == null) {
+                return null;
+            }
             return projectToIndexError.getValue()
                 .entrySet()
                 .stream()
@@ -158,7 +162,7 @@ public class DataStreamLifecycleErrorStore {
                     )
                 );
         })
-            .filter(projectIndexAndError -> errorEntryPredicate.test(projectIndexAndError.v2()))
+            .filter(projectIndexAndError -> projectIndexAndError != null && errorEntryPredicate.test(projectIndexAndError.v2()))
             .sorted(Comparator.comparing(Tuple::v2))
             .limit(limit)
             .map(

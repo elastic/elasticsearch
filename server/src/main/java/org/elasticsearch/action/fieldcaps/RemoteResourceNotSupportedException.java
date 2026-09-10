@@ -28,8 +28,9 @@ import java.util.stream.Collectors;
  * <p>
  * The dataset half is vestigial. It was carried when a dataset on another cluster failed a query too; a dataset is now
  * invisible across a cluster boundary, so nothing populates the list. The shape stays because changing what is on the
- * wire is not free and there is nothing to gain by it here. The views half is what still has a producer: cross-project
- * search rejects a remote view, and so does a cluster asked to resolve views by a coordinator old enough to ask.
+ * wire is not free and there is nothing to gain by it here. The views half went the same way in #157726, on the
+ * cross-project rail as well as the cross-cluster one. What still reports a view is a cluster asked to resolve them by
+ * a coordinator old enough to ask, so both halves are now about an upgrade rather than about steady state.
  */
 public class RemoteResourceNotSupportedException extends ElasticsearchException {
 

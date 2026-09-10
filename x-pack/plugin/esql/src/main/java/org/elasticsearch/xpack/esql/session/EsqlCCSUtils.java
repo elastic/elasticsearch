@@ -223,8 +223,8 @@ public class EsqlCCSUtils {
      * <p>
      * The aggregate carries an empty dataset list: a dataset on another cluster is invisible rather than an error, so
      * nothing can put one here. Since #157726 this coordinator does not ask a remote to resolve its views either, so
-     * the views half is defensive on this path as well. Where a view still fails is cross-project search, which goes
-     * through {@code CrossProjectIndexResolutionValidator} rather than through here.
+     * the views half is defensive in the same way. What can still reach it is a remote answering a coordinator old
+     * enough to ask, which is the whole of what either half now reports.
      */
     static void checkForRemoteResourceErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
         List<String> views = new ArrayList<>();

@@ -219,15 +219,17 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
     // ─── Mixed view+index queries ────────────────────────────────────────────────
 
     /**
-     * When a query mixes a plain index branch and a view branch ({@code FROM index, view}), the request filter must
-     * reach both branches: applied as a Lucene query on the index branch, and as an ES|QL Filter above the view's
-     * output on the view branch.
+     * When a query names two views over different indices, the request filter must reach both view branches.
      *
      * <p>We give the two sources disjoint id ranges to make the provenance of each row decidable.
-     * Index: id 0..N-1. Passthrough view over the same index: ids appear from the view unchanged.
-     * A filter on {@code status=300} must select the same ids from both branches.
+     * Index: id 0..N-1. Second index: ids from 1000. A filter on {@code status=300} must select the matching ids from
+     * both branches.
+     *
+     * <p>For the genuinely mixed view + bare-index shape see
+     * {@link #testMixedViewAndBareIndexQueryAppliesFilterToBoth} — the two branch kinds take different filter paths
+     * there, which is what makes that case worth covering separately.
      */
-    public void testMixedViewAndIndexQueryAppliesFilterToBoth() {
+    public void testTwoViewBranchesAppliesFilterToBoth() {
         // Create a second index with disjoint ids (base 1000) so view and index rows are distinguishable.
         String idx2 = "vrf_idx2";
         assertAcked(
@@ -259,6 +261,107 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
                 actual,
                 containsInAnyOrder(java.util.stream.Stream.concat(expectedFromIdx.stream(), expectedFromIdx2.stream()).toArray())
             );
+        }
+    }
+
+    /**
+     * The genuinely mixed shape: {@code FROM view, index}. The two branches take different filter paths — the view
+     * branch gets an ES|QL {@code Filter} above its output and is exempted from the Lucene push-in, while the bare
+     * index branch gets the raw DSL pushed into its scan — and both must select the same rows their standalone
+     * queries would.
+     */
+    public void testMixedViewAndBareIndexQueryAppliesFilterToBoth() {
+        String idx3 = "vrf_idx3";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(idx3)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setMapping("id", "type=integer", "status", "type=integer", "region", "type=keyword")
+        );
+        final int BASE3 = 2000;
+        for (int i = 0; i < ROWS; i++) {
+            client().prepareIndex(idx3).setSource("id", BASE3 + i, "status", status(i), "region", region(i)).get();
+        }
+        client().admin().indices().prepareRefresh(idx3).get();
+
+        QueryBuilder filter = QueryBuilders.termQuery("status", 300);
+        List<Object> expectedFromView = ids(PASSTHROUGH_VIEW, filter);
+        List<Object> expectedFromIndex = ids(idx3, filter);
+        // View branch first, bare index second: one ViewUnionAll carrying one view branch and one bare-index branch.
+        EsqlQueryRequest req = syncEsqlQueryRequest("FROM " + PASSTHROUGH_VIEW + ", " + idx3 + " | KEEP id | SORT id ASC").filter(filter);
+        try (EsqlQueryResponse resp = run(req)) {
+            List<Object> actual = getValuesList(resp).stream().map(r -> r.get(0)).toList();
+            assertThat(
+                "the view branch and the bare-index branch must both be filtered, by different paths",
+                actual,
+                containsInAnyOrder(java.util.stream.Stream.concat(expectedFromView.stream(), expectedFromIndex.stream()).toArray())
+            );
+        }
+    }
+
+    // ─── Views whose body already branches ───────────────────────────────────────
+
+    /**
+     * A view whose body contains a subquery already branches, so it must not be given a boundary wrapper: nesting one
+     * {@code MergePlan} inside another is unexecutable. Before this was handled, adding a request filter to such a view
+     * turned a working query into a 400 ("Nested subqueries are not supported"), and bypassing that check only moved
+     * the failure to execution ("ExchangeSourceHandler wasn't provided").
+     *
+     * <p>Note {@code FROM a, b} is a single multi-pattern relation, not a branch point — only a subquery in the body
+     * creates one, which is why the two shapes behave differently here.
+     *
+     * <p>Such a view falls back to the pre-filter behaviour: the filter takes the index pushdown path. That is why the
+     * assertion below is on a <em>mapped</em> field, where pushdown and view-output filtering agree. A filter on a
+     * field the view computes still returns nothing for this shape — a known limitation, not covered here because it
+     * is the open question of whether to fail loudly instead.
+     */
+    public void testRequestFilterOnViewWhoseBodyContainsSubqueryDoesNotFail() {
+        String a = "vrf_branch_a";
+        String b = "vrf_branch_b";
+        for (String index : List.of(a, b)) {
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareCreate(index)
+                    .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                    .setMapping("id", "type=integer", "region", "type=keyword")
+            );
+        }
+        client().prepareIndex(a).setSource("id", 1, "region", "eu").get();
+        client().prepareIndex(a).setSource("id", 2, "region", "us").get();
+        client().prepareIndex(b).setSource("id", 3, "region", "eu").get();
+        client().prepareIndex(b).setSource("id", 4, "region", "us").get();
+        client().admin().indices().prepareRefresh(a, b).get();
+
+        // A trailing operator after the union is what forces the branch point to stay nested under any wrapper.
+        String view = "vrf_branching_view";
+        createView(view, "FROM " + a + ", (FROM " + b + ") | EVAL tag = region");
+
+        assertThat(ids(view, QueryBuilders.termQuery("region", "eu")), containsInAnyOrder(1, 3));
+    }
+
+    // ─── Views vs user-written subqueries ────────────────────────────────────────
+
+    /**
+     * A literal subquery branch is not a view branch: its filter goes down the ordinary Lucene path, while a sibling
+     * view branch gets the filter applied above its output. The two must not be conflated — that distinction is the
+     * whole point of tracking {@code viewBranchKeys} rather than treating any named branch as a view.
+     *
+     * <p>The stats view makes the difference observable: {@code cnt} exists only in the view's output, so it can only
+     * be filtered there, while the subquery branch is filtered on a real indexed field.
+     */
+    public void testLiteralSubqueryBranchIsFilteredAtSourceWhileViewBranchIsFilteredAtOutput() {
+        // region is a real field on the index (so the subquery branch can be filtered by Lucene) and also a grouping
+        // key the stats view emits, so one filter is meaningful on both branches.
+        QueryBuilder filter = QueryBuilders.termQuery("region", "eu");
+        EsqlQueryRequest req = syncEsqlQueryRequest(
+            "FROM " + STATS_VIEW + ", (FROM " + INDEX + " | STATS cnt = COUNT(*) BY region) | KEEP region | SORT region ASC"
+        ).filter(filter);
+        try (EsqlQueryResponse resp = run(req)) {
+            List<Object> regions = getValuesList(resp).stream().map(r -> r.get(0)).toList();
+            // One row from the view branch and one from the subquery branch, both narrowed to eu.
+            assertThat("both branches filtered to eu, by different paths", regions, containsInAnyOrder("eu", "eu"));
         }
     }
 

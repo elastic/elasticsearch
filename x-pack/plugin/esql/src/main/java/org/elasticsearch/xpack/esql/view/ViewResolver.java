@@ -636,7 +636,11 @@ public class ViewResolver {
                         viewQueries,
                         hasInSubquery,
                         depth + 1,
-                        preserveViewBoundaries,
+                        // Resolving a view's *body*: never preserve boundaries in here. The request filter applies to
+                        // this view's output, not to the outputs of views nested inside its definition — those are an
+                        // implementation detail of this view. Keeping their wrappers would block compaction for no
+                        // benefit, and nested wrappers are what produce unexecutable nested MergePlans.
+                        false,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
                             resolvedViews.put(view.name(), viewPlan);
@@ -663,12 +667,28 @@ public class ViewResolver {
                 // preserveViewBoundaries=true we must go through buildPlanFromBranches so that
                 // the single entry is properly tracked in viewBranchKeys and wrapped in a
                 // ViewUnionAll for ViewRequestFilterRewriter to find.
-                if (preserveViewBoundaries == false && subqueries.size() == 1) {
+                //
+                // The exception is a view whose body already branches (a subquery in its definition, which the parser
+                // turns into a UnionAll — note that a multi-pattern `FROM a, b` is a single relation, not a branch).
+                // Adding a wrapper around it would nest one MergePlan inside another, and the runtime cannot execute
+                // that: the coordinator has no exchange source for the inner merge, so it fails post-optimization
+                // verification ("Nested subqueries are not supported") or, if that check is bypassed, at execution with
+                // "ExchangeSourceHandler wasn't provided". Such a view keeps the pre-filter behaviour — no boundary
+                // marker, so its filter takes the index pushdown path. See ViewRequestFilterIT for the shape.
+                if (subqueries.size() == 1 && (preserveViewBoundaries == false || containsBranchPoint(subqueries.getFirst().plan()))) {
                     return subqueries.getFirst().plan();
                 }
                 return buildPlanFromBranches(unresolvedRelation, subqueries, depth, preserveViewBoundaries);
             }).addListener(listener);
         }));
+    }
+
+    /**
+     * Whether {@code plan} already contains a branch point ({@code Fork}/{@code UnionAll}/{@link ViewUnionAll}), which
+     * makes it unsafe to wrap in another one — the runtime cannot execute nested {@link MergePlan}s.
+     */
+    private static boolean containsBranchPoint(LogicalPlan plan) {
+        return plan.anyMatch(MergePlan.class::isInstance);
     }
 
     /**

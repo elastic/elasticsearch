@@ -130,51 +130,64 @@ public final class ViewRequestFilterRewriter {
             warnNotApplied(analyzed, "the cluster contains a node too old to evaluate the translated filter");
             return analyzed;
         }
-        // Target only the actual view branches of each ViewUnionAll in the plan. Bare-index and literal
-        // subquery branches are NOT view branches and are handled by the existing Lucene-scan request-filter
-        // path (or pass through unchanged). Use vua.isViewBranch(key) to distinguish: key != null is NOT
-        // sufficient because bare-index branches carry "main" and literal subqueries carry "unnamed_view_<hash>".
-        // Translation is fail-closed: an unsupported construct produces a 400.
-        LogicalPlan rewritten = analyzed.transformUp(ViewUnionAll.class, vua -> {
-            LinkedHashMap<String, LogicalPlan> newSubqueries = new LinkedHashMap<>();
-            boolean changed = false;
-            for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
-                String key = entry.getKey();
-                LogicalPlan child = entry.getValue();
-                if (vua.isViewBranch(key) == false) {
-                    // Bare-index or literal-subquery branch: the existing Lucene-scan filter path handles it.
-                    newSubqueries.put(key, child);
-                } else {
-                    // View subplan: apply the filter against the view's output schema. Fail-closed: any
-                    // unsupported construct is an error — the filter cannot be safely approximated on a view.
-                    QueryDslTranslator.TranslationResult result = translateFilter(child.output(), requestFilter, configuration);
-                    if (result.isComplete() == false) {
-                        throw new IllegalArgumentException(
-                            "The request filter uses a Query DSL construct not supported on views: ["
-                                + result.unsupported().get(0).construct()
-                                + "]"
-                        );
-                    }
-                    Expression condition = result.applied();
-                    if (condition == Literal.TRUE) {
-                        // match_all → no-op; leave this view unfiltered.
-                        newSubqueries.put(key, child);
-                    } else {
-                        newSubqueries.put(key, new Filter(child.source(), child, condition));
-                        changed = true;
-                    }
-                }
+        // Walk down and stop at the first ViewUnionAll on each path: the filter belongs on the output of the views the
+        // *query* names, and a view nested inside another view's definition is an implementation detail of the outer
+        // view, not a boundary the request filter addresses. Filtering an inner boundary too would apply the predicate
+        // before the outer view's own processing — the very mistake the Lucene push-in path makes — and for a field the
+        // outer view computes it would bind to NULL there and silently drop every row.
+        LogicalPlan rewritten = analyzed.transformDownSkipBranch((plan, skipBranch) -> {
+            if (plan instanceof ViewUnionAll vua) {
+                skipBranch.set(true);
+                return rewriteViewBranches(vua, requestFilter, configuration);
             }
-            if (changed == false) {
-                return vua;
-            }
-            // Output columns are unchanged: a Filter never adds columns. Preserve viewBranchKeys.
-            return new ViewUnionAll(vua.source(), newSubqueries, vua.viewBranchKeys(), vua.output());
+            return plan;
         });
         // The inserted Filter nodes and the spine rebuilt above them are at stage NEW; the plan was already
         // analyzed, so mark the whole tree analyzed to satisfy the pre-optimizer.
         rewritten.forEachDown(LogicalPlan.class, LogicalPlan::setAnalyzed);
         return rewritten;
+    }
+
+    /**
+     * Installs the filter above every actual view branch of {@code vua}, bound against that branch's output schema.
+     *
+     * <p>Bare-index and literal-subquery branches are left alone — they are not view branches and the existing
+     * Lucene-scan path handles them. {@link ViewUnionAll#isViewBranch(String)} is the test to use: {@code key != null}
+     * is not sufficient, because bare-index branches carry {@code "main"} and literal subqueries carry
+     * {@code "unnamed_view_<hash>"}. Translation is fail-closed: an unsupported construct produces a 400.
+     */
+    private static LogicalPlan rewriteViewBranches(ViewUnionAll vua, QueryBuilder requestFilter, Configuration configuration) {
+        LinkedHashMap<String, LogicalPlan> newSubqueries = new LinkedHashMap<>();
+        boolean changed = false;
+        for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
+            String key = entry.getKey();
+            LogicalPlan child = entry.getValue();
+            if (vua.isViewBranch(key) == false) {
+                newSubqueries.put(key, child);
+            } else {
+                QueryDslTranslator.TranslationResult result = translateFilter(child.output(), requestFilter, configuration);
+                if (result.isComplete() == false) {
+                    throw new IllegalArgumentException(
+                        "The request filter uses a Query DSL construct not supported on views: ["
+                            + result.unsupported().get(0).construct()
+                            + "]"
+                    );
+                }
+                Expression condition = result.applied();
+                if (condition == Literal.TRUE) {
+                    // match_all → no-op; leave this view unfiltered.
+                    newSubqueries.put(key, child);
+                } else {
+                    newSubqueries.put(key, new Filter(child.source(), child, condition));
+                    changed = true;
+                }
+            }
+        }
+        if (changed == false) {
+            return vua;
+        }
+        // Output columns are unchanged: a Filter never adds columns. Preserve viewBranchKeys.
+        return new ViewUnionAll(vua.source(), newSubqueries, vua.viewBranchKeys(), vua.output());
     }
 
     /**

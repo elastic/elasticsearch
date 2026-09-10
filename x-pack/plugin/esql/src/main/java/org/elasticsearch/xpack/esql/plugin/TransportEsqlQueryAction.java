@@ -444,7 +444,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         return qp != null && (qp.splitsScanned() > 0 || qp.externalWarmAggregates() > 0);
     }
 
-    private void collectMetrics(Result result) {
+    void collectMetrics(Result result) {
         // Currently, the metrics are only collected when the query has federated sources, since we are not planning
         // to do any per-query billing otherwise, so no point in collecting the metrics.
         if (metricsCollector.equals(QueryMetricsListener.NOOP) || hasExternalSources(result) == false) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -362,6 +363,40 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 // ensure that the _clusters metadata is present only if requested
                 assertClusterMetadataInResponse(resp, responseExpectMeta, 2);
             }
+
+        } finally {
+            clearSkipUnavailable(numClusters);
+        }
+    }
+
+    public void testStreamingRemoteOnlyCCSAgainstDisconnectedRemoteWithSkipUnavailableTrue() throws Exception {
+        int numClusters = 3;
+        setupClusters(numClusters);
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+
+        try {
+            cluster(REMOTE_CLUSTER_1).close();
+
+            EsqlQueryRequest source = EsqlQueryRequest.syncEsqlQueryRequest(
+                "FROM " + REMOTE_CLUSTER_1 + ":logs-* | " + randomStats() + " sum(v)"
+            );
+            StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
+            EsqlStreamQueryAction.StreamStart streamStart = StreamQueryTestUtils.executeStreamRequest(
+                client(LOCAL_CLUSTER),
+                source,
+                subscriber
+            );
+
+            assertThat(streamStart.columns(), hasSize(1));
+            assertThat(streamStart.columns().get(0).name(), equalTo("<no-fields>"));
+            assertThat(streamStart.columns().get(0).type(), equalTo(DataType.NULL));
+
+            assertThat("no rows expected for empty-result CCS stream", subscriber.rowCount.get(), equalTo(0));
+
+            PageStreamPublisher.StreamFooter footer = streamStart.publisher().footer();
+            assertNotNull("publisher footer must be set after the stream completes", footer);
+            assertThat(footer.status(), equalTo(200));
+            assertThat("is_partial must be true because the remote was skipped", footer.isPartial(), is(true));
 
         } finally {
             clearSkipUnavailable(numClusters);

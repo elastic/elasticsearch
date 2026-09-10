@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
@@ -64,6 +66,7 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -250,6 +253,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 PlanTimeProfile planTimeProfile,
                 ActionListener<Result> resultListener
             ) {
+                if (QuerySettings.UNMAPPED_FIELDS.get(configuration.resolvedSettings()).loadsAllUnmappedFields()) {
+                    throw new IllegalArgumentException("[unmapped_fields=LOAD_ALL] cannot be used with [streaming=true]");
+                }
                 if (role == PlanRunner.Role.INTERMEDIATE) {
                     computeService.execute(
                         sessionId,
@@ -275,21 +281,18 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 Consumer<boolean[]> startCompute = nullColumns -> {
                     try {
                         StreamingOutputExec streamingPlan = new StreamingOutputExec(plan, publisher);
-                        request.streamStartListener()
-                            .onResponse(
-                                new EsqlStreamQueryAction.StreamStart(
-                                    columns,
-                                    publisher,
-                                    nullColumns,
-                                    QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
-                                )
-                            );
-                        Exception startFailure = publisher.failure();
+                        Exception startFailure = startStream(
+                            request,
+                            publisher,
+                            streamStarted,
+                            columns,
+                            nullColumns,
+                            QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
+                        );
                         if (startFailure != null) {
                             resultListener.onFailure(startFailure);
                             return;
                         }
-                        streamStarted.set(true);
                         computeService.execute(
                             sessionId,
                             (CancellableTask) task,
@@ -364,21 +367,41 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(versionedResult -> {
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, null);
-                markPartialFromCompletionInfo(versionedResult.inner());
-                resultRef.set(versionedResult.inner());
+                Result result = versionedResult.inner();
+                markPartialFromCompletionInfo(result);
+                resultRef.set(result);
+                if (streamStarted.get() == false) {
+                    assert outputRunSeen.get() == false : "an OUTPUT plan ran but the stream was never started";
+                    List<ColumnInfoImpl> columns = buildColumns(result.schema(), result.attributeMetadata());
+                    Exception startFailure = startStream(
+                        request,
+                        publisher,
+                        streamStarted,
+                        columns,
+                        request.dropNullColumns() ? new boolean[columns.size()] : null,
+                        QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings())
+                    );
+                    if (startFailure != null) {
+                        listener.onFailure(startFailure);
+                        return;
+                    }
+                    publisher.registerProducer().finish();
+                }
+                assert streamStarted.get() : "the footer must not be delivered before the stream is started";
                 long tookMillis = executionInfo.overallTook() != null ? executionInfo.overallTook().millis() : 0L;
-                List<String> warnings = footerWarnings(threadPool.getThreadContext(), versionedResult.inner().completionInfo());
+                List<String> warnings = footerWarnings(threadPool.getThreadContext(), result.completionInfo());
                 publisher.completeWithFooter(
                     new PageStreamPublisher.StreamFooter(
                         200,
                         tookMillis,
                         executionInfo.isPartial(),
                         warnings,
-                        versionedResult.inner().completionInfo(),
+                        result.completionInfo(),
                         null
                     )
                 );
                 planExecutor.metrics().recordTook(tookMillis);
+                transportEsqlQueryAction.collectMetrics(result);
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }, ex -> {
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, ex);
@@ -401,7 +424,26 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         );
     }
 
+    private static Exception startStream(
+        EsqlStreamQueryRequest request,
+        PageStreamPublisher publisher,
+        AtomicBoolean streamStarted,
+        List<ColumnInfoImpl> columns,
+        boolean[] nullColumns,
+        ZoneId zoneId
+    ) {
+        request.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(columns, publisher, nullColumns, zoneId));
+        Exception startFailure = publisher.failure();
+        if (startFailure != null) {
+            return startFailure;
+        }
+        streamStarted.set(true);
+        return null;
+    }
+
     static List<ColumnInfoImpl> buildColumns(List<Attribute> output, Map<NameId, Map<String, Object>> columnMetadata) {
+        assert output.stream().noneMatch(a -> a instanceof UnmappedFieldsAttribute)
+            : UnmappedFieldsAttribute.ATTRIBUTE_NAME + " reached the stream header unexpanded: " + Expressions.names(output);
         return output.stream().map(c -> {
             List<String> originalTypes = null;
             if (c instanceof UnsupportedAttribute ua) {

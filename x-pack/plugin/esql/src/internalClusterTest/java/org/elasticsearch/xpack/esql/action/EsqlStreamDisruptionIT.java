@@ -33,6 +33,7 @@ import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -467,6 +468,85 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
         assertShardFailureMidStream(false);
     }
 
+    private String createAllShardsFailingIndex() {
+        String indexName = "all_shards_fail";
+        assertAcked(
+            prepareCreate(indexName).setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setMapping(
+                    Strings.format(
+                        "{\"runtime\":{\"fail_me\":{\"type\":\"long\",\"script\":{\"source\":\"\",\"lang\":\"%s\"}}}}",
+                        FailingFieldPlugin.FAILING_FIELD_LANG
+                    )
+                )
+        );
+        int docCount = between(5, 20);
+        List<IndexRequestBuilder> docs = new ArrayList<>(docCount);
+        for (int i = 0; i < docCount; i++) {
+            docs.add(client().prepareIndex(indexName).setSource(Map.of("x", i)));
+        }
+        indexRandom(true, docs);
+        ensureGreen(indexName);
+        return indexName;
+    }
+
+    private void assertAllShardsFailedUngroupedStats(boolean allowPartial) throws Exception {
+        String indexName = createAllShardsFailingIndex();
+        String query = "FROM " + indexName + " | STATS c = COUNT(fail_me)";
+
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query(query);
+        request.allowPartialResults(allowPartial);
+        if (allowPartial) {
+            long refCount;
+            try (EsqlQueryResponse resp = run(request)) {
+                EsqlExecutionInfo.Cluster localInfo = resp.getExecutionInfo().getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
+                assertThat("test premise: all shards must have failed", localInfo.getSuccessfulShards(), equalTo(0));
+                assertThat("test premise: at least one shard must have been targeted", localInfo.getFailedShards(), greaterThan(0));
+                assertTrue("non-streaming must report is_partial when every shard fails", resp.isPartial());
+                List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+                assertThat("non-streaming must return exactly one row (the aggregation output)", rows, hasSize(1));
+                refCount = ((Number) rows.get(0).get(0)).longValue();
+                assertThat("COUNT over all-failing shards must be 0", refCount, equalTo(0L));
+            }
+            StreamOutcome outcome = stream(streamBody(query), null, "batch_size=5", "allow_partial_results=true");
+            assertServerFullyCleanedUp();
+            assertStreamInvariants(outcome, true, 1);
+            assertThat("HTTP status must be 200", outcome.httpStatus(), equalTo(200));
+            assertThat(
+                "streaming must produce a success footer when allow_partial_results=true",
+                outcome.terminal(),
+                equalTo(Terminal.FOOTER)
+            );
+            assertTrue("streaming must report is_partial when every shard fails", outcome.isPartial());
+            List<List<Object>> streamRows = outcome.rows();
+            assertThat("streaming must return exactly one row", streamRows, hasSize(1));
+            assertThat(
+                "streaming row count must match non-streaming row count",
+                ((Number) streamRows.get(0).get(0)).longValue(),
+                equalTo(refCount)
+            );
+        } else {
+            expectThrows(Exception.class, () -> run(request).close());
+
+            StreamOutcome outcome = stream(streamBody(query), null, "batch_size=5", "allow_partial_results=false");
+            assertServerFullyCleanedUp();
+            assertStreamInvariants(outcome, false, 1);
+            assertThat(
+                "allow_partial_results=false must produce an error when all shards fail",
+                outcome.terminal(),
+                equalTo(Terminal.ERROR)
+            );
+        }
+    }
+
+    public void testAllShardsFailedUngroupedStatsMatchesNonStreaming() throws Exception {
+        assertAllShardsFailedUngroupedStats(true);
+    }
+
+    public void testAllShardsFailedUngroupedStatsWithoutPartialResults() throws Exception {
+        assertAllShardsFailedUngroupedStats(false);
+    }
+
     public void testNodeRestartMidStream() throws Exception {
         StreamOutcome outcome = streamPausingAt(
             1,
@@ -592,12 +672,10 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDropNullColumnsPartialFieldCapsFailureRetainsColumn() throws Exception {
-        List<String> dataNodeNames = new ArrayList<>();
-        for (String name : internalCluster().getNodeNames()) {
-            if (name.equals(coordinatingNode) == false) {
-                dataNodeNames.add(name);
-            }
-        }
+        // Ask the cluster state which nodes actually hold data. internalCluster() may include dedicated
+        // master-only nodes, and pinning index.routing.allocation.require._name to one of those makes the
+        // shard unallocatable, causing create-index to block until the ack timeout.
+        List<String> dataNodeNames = clusterService().state().nodes().getDataNodes().values().stream().map(DiscoveryNode::getName).toList();
         assumeTrue("test requires at least two data nodes", dataNodeNames.size() >= 2);
         String nodeA = dataNodeNames.get(0);
         String nodeB = dataNodeNames.get(1);

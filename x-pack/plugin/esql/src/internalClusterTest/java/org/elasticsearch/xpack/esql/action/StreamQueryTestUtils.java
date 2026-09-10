@@ -15,7 +15,9 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -27,25 +29,39 @@ public final class StreamQueryTestUtils {
 
     private StreamQueryTestUtils() {}
 
-    public static void executeStreamRequest(Client client, EsqlQueryRequest source, CountingStreamSubscriber subscriber) throws Exception {
+    public static EsqlStreamQueryAction.StreamStart executeStreamRequest(
+        Client client,
+        EsqlQueryRequest source,
+        CountingStreamSubscriber subscriber
+    ) throws Exception {
         int batchSize = ESTestCase.randomIntBetween(1, 10);
+        AtomicReference<EsqlStreamQueryAction.StreamStart> startRef = new AtomicReference<>();
         ActionFuture<ActionResponse.Empty> future = client.execute(
             EsqlStreamQueryAction.INSTANCE,
-            EsqlStreamQueryRequest.from(
-                source,
-                ActionListener.wrap(start -> start.publisher().subscribe(subscriber), subscriber.failure::set),
-                false,
-                batchSize
-            )
+            EsqlStreamQueryRequest.from(source, ActionListener.wrap(start -> {
+                startRef.set(start);
+                start.publisher().subscribe(subscriber);
+            }, subscriber.failure::set), false, batchSize)
         );
         future.actionGet(TimeValue.timeValueSeconds(60));
+        EsqlStreamQueryAction.StreamStart streamStart = startRef.get();
+        ESTestCase.assertNotNull(
+            "streamStartListener was never called — no HTTP response would have been sent for this query",
+            streamStart
+        );
+        ESTestCase.assertTrue(
+            "subscriber terminal signal (onComplete or onError) never fired — the stream was never terminated",
+            subscriber.completed.await(60, TimeUnit.SECONDS)
+        );
         subscriber.rethrowIfFailed();
+        return streamStart;
     }
 
     public static class CountingStreamSubscriber implements Flow.Subscriber<Page> {
 
         public final AtomicInteger rowCount = new AtomicInteger();
         public final AtomicReference<Throwable> failure = new AtomicReference<>();
+        public final CountDownLatch completed = new CountDownLatch(1);
         private volatile Flow.Subscription subscription;
 
         @Override
@@ -67,10 +83,13 @@ public final class StreamQueryTestUtils {
         @Override
         public void onError(Throwable throwable) {
             failure.set(throwable);
+            completed.countDown();
         }
 
         @Override
-        public void onComplete() {}
+        public void onComplete() {
+            completed.countDown();
+        }
 
         public void rethrowIfFailed() throws Exception {
             Throwable t = failure.get();

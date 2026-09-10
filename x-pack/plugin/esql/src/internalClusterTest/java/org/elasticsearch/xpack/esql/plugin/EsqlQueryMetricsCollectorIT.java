@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.action.AbstractExternalDataSourceIT;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
+import org.elasticsearch.xpack.esql.action.StreamQueryTestUtils;
 import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
@@ -134,6 +135,27 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         assertReadCpuNanos("ndjson");
         assertSplitDiscoveryCpuNanos("ndjson");
+    }
+
+    public void testMetricsCollectorStreamingNdJson() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("data.ndjson"), createNdjson(100));
+
+        registerDataset("metrics_streaming_ndjson_ds", dir.resolve("data.ndjson").toUri().toString(), Map.of());
+
+        var subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
+        StreamQueryTestUtils.executeStreamRequest(
+            client(),
+            syncEsqlQueryRequest("FROM metrics_streaming_ndjson_ds | LIMIT 200"),
+            subscriber
+        );
+        assertThat(subscriber.rowCount.get(), greaterThan(0));
+
+        assertReadCpuNanos("streaming-ndjson");
+        assertSplitDiscoveryCpuNanos("streaming-ndjson");
+        assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
     }
 
     /**

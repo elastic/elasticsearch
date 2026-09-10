@@ -87,6 +87,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     @Override
     public void onResponse(ActionResponse.Empty empty) {
         // Compute has finished; the footer was already delivered through publisher.completeWithFooter.
+        assert streamStarted : "the transport action completed successfully without ever initializing the stream";
     }
 
     private void initializeStream(EsqlStreamQueryAction.StreamStart streamStart) throws IOException {

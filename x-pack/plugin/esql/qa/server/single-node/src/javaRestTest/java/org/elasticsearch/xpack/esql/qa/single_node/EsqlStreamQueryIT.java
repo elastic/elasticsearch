@@ -42,6 +42,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.junit.Assume.assumeTrue;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EsqlStreamQueryIT extends ESRestTestCase {
@@ -334,6 +335,34 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertThat(re.getMessage(), containsString("include_execution_metadata"));
     }
 
+    public void testUnmappedFieldsLoadAllRejected() {
+        assumeTrue("LOAD_ALL requires a snapshot build", Build.current().isSnapshot());
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> EsqlStreamTestUtils.rawStream(
+                client(),
+                "{\"query\": \"SET unmapped_fields=\\\"LOAD_ALL\\\"; FROM stream-test | LIMIT 1\"}",
+                "streaming=true",
+                "format=ndjson"
+            )
+        );
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(re.getMessage(), containsString("LOAD_ALL"));
+        assertThat(re.getMessage(), containsString("streaming=true"));
+    }
+
+    public void testUnmappedFieldsLoadStillWorks() throws IOException {
+        Response response = EsqlStreamTestUtils.rawStream(
+            client(),
+            "{\"query\": \"SET unmapped_fields=\\\"LOAD\\\"; FROM stream-test | LIMIT 1\"}",
+            "streaming=true",
+            "format=ndjson"
+        );
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        List<Map<String, Object>> lines = parseNdjson(response);
+        assertThat("must have at least a header and a footer", lines.size(), greaterThan(1));
+    }
+
     public void testDelimiterRejected() {
         ResponseException re = expectThrows(
             ResponseException.class,
@@ -572,6 +601,47 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             {"date": "2025-05-31T23:00:00Z", "date_ns": "2025-05-31T23:00:00.000000000Z"}
             """);
         assertOK(client().performRequest(bulk));
+    }
+
+    public void testUnavailableRemoteOnlyQueryReturnsEmptyStream() throws IOException {
+        Request settingsRequest = new Request("PUT", "/_cluster/settings");
+        settingsRequest.setJsonEntity("""
+            {"persistent": {
+                "cluster.remote.unavailable_remote.seeds": ["127.0.0.1:9999"],
+                "cluster.remote.unavailable_remote.skip_unavailable": true
+            }}
+            """);
+        assertOK(client().performRequest(settingsRequest));
+        try {
+            List<Map<String, Object>> records = stream(streamBody("FROM unavailable_remote:logs-* | STATS sum(value)"));
+
+            assertThat("expected columns line + footer, got " + records.size() + " records", records, hasSize(2));
+
+            Map<String, Object> columnsLine = records.get(0);
+            assertThat(columnsLine, hasKey("columns"));
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> columns = (List<Map<String, Object>>) columnsLine.get("columns");
+            assertThat(columns, hasSize(1));
+            assertThat(columns.get(0).get("name"), equalTo("<no-fields>"));
+            assertThat(columns.get(0).get("type"), equalTo("null"));
+
+            Map<String, Object> footer = records.get(1);
+            assertThat(footer, hasKey("took"));
+            assertThat("footer must have status 200 for a successful empty CCS result", footer.get("status"), equalTo(200));
+            assertThat("is_partial must be true because the remote was skipped", footer.get("is_partial"), equalTo(true));
+            @SuppressWarnings("unchecked")
+            List<?> warnings = (List<?>) footer.get("warnings");
+            assertThat(warnings, empty());
+        } finally {
+            Request cleanup = new Request("PUT", "/_cluster/settings");
+            cleanup.setJsonEntity("""
+                {"persistent": {
+                    "cluster.remote.unavailable_remote.seeds": null,
+                    "cluster.remote.unavailable_remote.skip_unavailable": null
+                }}
+                """);
+            client().performRequest(cleanup);
+        }
     }
 
     private void initBucketIndex() throws IOException {

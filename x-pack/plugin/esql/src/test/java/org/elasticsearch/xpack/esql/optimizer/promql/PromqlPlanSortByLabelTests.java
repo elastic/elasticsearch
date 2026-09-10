@@ -62,9 +62,7 @@ public class PromqlPlanSortByLabelTests extends AbstractPromqlPlanOptimizerTests
     }
 
     public void testClosedHeaderSkipsSortLabels() {
-        LogicalPlan withSort = planPromql(
-            "PROMQL index=k8s step=1h result=(sort_by_label(avg by (cluster) (network.bytes_in), \"pod\"))"
-        );
+        LogicalPlan withSort = planPromql("PROMQL index=k8s step=1h result=(sort_by_label(avg by (cluster) (network.bytes_in), \"pod\"))");
         LogicalPlan without = planPromql("PROMQL index=k8s step=1h result=(avg by (cluster) (network.bytes_in))");
         assertEquals(outputColumns(without), outputColumns(withSort));
         assertThat(outputColumns(withSort), not(hasItem("pod")));

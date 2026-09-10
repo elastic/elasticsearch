@@ -54,7 +54,6 @@ class ProjectPathUsageArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin",
         "org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin",
         "org.elasticsearch.gradle.internal.esql.EsqlFunctionPlugin",
-        "org.elasticsearch.gradle.internal.foreign.ForeignLibraryPlugin",
         "org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin",

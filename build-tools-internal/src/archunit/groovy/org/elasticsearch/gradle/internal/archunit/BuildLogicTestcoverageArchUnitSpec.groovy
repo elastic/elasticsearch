@@ -138,7 +138,6 @@ class BuildLogicTestCoverageArchUnitSpec extends AbstractArchUnitSpec {
         // which conflicts with the base's apply-on-setup behaviour. Their existing func tests keep
         // their original base class until the harness supports deferred/multi-project application.
         "org.elasticsearch.gradle.internal.InternalDistributionArchiveCheckPlugin",
-        "org.elasticsearch.gradle.internal.doc.DocsTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin",
         "org.elasticsearch.gradle.internal.test.rest.compat.compat.LegacyYamlRestCompatTestPlugin",

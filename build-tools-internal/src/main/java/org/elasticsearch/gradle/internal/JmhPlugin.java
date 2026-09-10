@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
@@ -23,10 +24,14 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
+import static de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
@@ -40,6 +45,9 @@ public class JmhPlugin implements Plugin<Project> {
     public static final String BENCHMARK_TEST_SOURCE_SET = "benchmarkTest";
     public static final String BENCHMARK_TASK = "benchmark";
     public static final String BENCHMARK_TEST_TASK = "benchmarkTest";
+
+    /** Output package of JMH's {@code BenchmarkProcessor}, as a class-file path pattern. */
+    private static final String JMH_GENERATED_CLASSES = "**/jmh_generated/**";
 
     private static final String BENCHMARKS_COMMON_PROJECT = ":benchmarks:common";
     private static final String BENCHMARKS_PROCESSOR_PROJECT = ":benchmarks:processor";
@@ -70,6 +78,22 @@ public class JmhPlugin implements Plugin<Project> {
         wireDependencies(project, benchmark, benchmarkTest);
         registerRunnerTask(project, benchmark);
         registerCorrectnessTestTask(project, benchmarkTest);
+        excludeGeneratedClassesFromForbiddenApis(project, benchmark, benchmarkTest);
+    }
+
+    /**
+     * JMH's annotation processor emits classes that reach benchmark state fields through
+     * {@code Class#getDeclaredField} and {@code AccessibleObject#setAccessible}, both forbidden APIs.
+     */
+    private static void excludeGeneratedClassesFromForbiddenApis(Project project, SourceSet... sourceSets) {
+        Set<String> taskNames = Arrays.stream(sourceSets)
+            .map(sourceSet -> sourceSet.getTaskName(FORBIDDEN_APIS_TASK_NAME, null))
+            .collect(Collectors.toSet());
+        // A no-op where forbidden-apis is not applied, so the plugin stays usable on its own.
+        project.getTasks()
+            .withType(CheckForbiddenApisTask.class)
+            .matching(task -> taskNames.contains(task.getName()))
+            .configureEach(task -> task.exclude(JMH_GENERATED_CLASSES));
     }
 
     private static void wireDependencies(Project project, SourceSet benchmark, SourceSet benchmarkTest) {

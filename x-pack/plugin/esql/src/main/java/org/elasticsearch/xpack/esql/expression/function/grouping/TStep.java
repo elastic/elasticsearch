@@ -222,6 +222,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
             step,
             null,
             null,
+            null,
             configuration.withSetting(QuerySettings.TIME_ZONE, ZoneOffset.UTC),
             offsetToLong(ctx),
             Rounding.RoundingConvention.UP

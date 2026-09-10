@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -28,6 +30,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Unit tests for {@link AsyncExternalSourceBuffer} backpressure via {@link AsyncExternalSourceBuffer#waitForSpace()}.
@@ -283,16 +286,67 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         assertTrue("the page's blocks must be released, not leaked", block.isReleased());
     }
 
+    public void testOnFailurePreservesFirstFailureAndSuppressesLaterFailures() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        CircuitBreakingException first = new CircuitBreakingException("breaker", CircuitBreaker.Durability.TRANSIENT);
+        IllegalStateException late = new IllegalStateException("late");
+
+        buffer.onFailure(first);
+        buffer.onFailure(late);
+        buffer.onFailure(first);
+
+        assertSame(first, buffer.failure());
+        assertArrayEquals(new Throwable[] { late }, first.getSuppressed());
+    }
+
+    public void testConcurrentOnFailureSelectsExactlyOneFirstFailure() throws Exception {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        int failureCount = 10;
+        List<RuntimeException> reported = new ArrayList<>(failureCount);
+        CyclicBarrier start = new CyclicBarrier(failureCount);
+        AtomicReference<Throwable> threadFailure = new AtomicReference<>();
+        Thread[] reporters = new Thread[failureCount];
+
+        for (int i = 0; i < failureCount; i++) {
+            RuntimeException failure = new RuntimeException("failure-" + i);
+            reported.add(failure);
+            reporters[i] = new Thread(() -> {
+                try {
+                    start.await();
+                    buffer.onFailure(failure);
+                } catch (Throwable t) {
+                    threadFailure.compareAndSet(null, t);
+                }
+            }, "async-buffer-failure-" + i);
+            reporters[i].setDaemon(true);
+            reporters[i].start();
+        }
+        for (Thread reporter : reporters) {
+            reporter.join(TimeUnit.SECONDS.toMillis(10));
+            assertFalse("failure reporter should have exited", reporter.isAlive());
+        }
+        assertNull("failure reporter threw", threadFailure.get());
+
+        Throwable retained = buffer.failure();
+        assertTrue("the retained failure must be one of the reports", reported.contains(retained));
+        List<Throwable> suppressed = List.of(retained.getSuppressed());
+        assertEquals(failureCount - 1, suppressed.size());
+        for (RuntimeException failure : reported) {
+            long occurrences = suppressed.stream().filter(candidate -> candidate == failure).count();
+            assertEquals(failure == retained ? 0L : 1L, occurrences);
+        }
+    }
+
     public void testFormatReaderStatusGetterMatchesLastRecorded() {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         assertNull(buffer.formatReaderStatus());
 
-        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(3L, 0L, 0L));
-        assertEquals(new NdJsonReaderStatus(3L, 0L, 0L), buffer.formatReaderStatus());
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(3L, 0L, 0L, 0L));
+        assertEquals(new NdJsonReaderStatus(3L, 0L, 0L, 0L), buffer.formatReaderStatus());
 
         // Latest snapshot replaces (does not merge) the prior one.
-        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 17L, 0L));
-        assertEquals(new NdJsonReaderStatus(5L, 17L, 0L), buffer.formatReaderStatus());
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 17L, 0L, 0L));
+        assertEquals(new NdJsonReaderStatus(5L, 17L, 0L, 0L), buffer.formatReaderStatus());
 
         // Null clears the recorded snapshot.
         buffer.recordFormatReaderStatus(null);
@@ -343,10 +397,10 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
 
     public void testRecordInformationalWarningSharesQueueWithPartialResultsWarnings() {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
-        buffer.recordWarning("truncated at max_record_size");
+        buffer.recordWarning("truncated at external_max_record_size");
         buffer.recordInformationalWarning("null-filled row 3");
         assertTrue(buffer.isPartial());
-        assertEquals("truncated at max_record_size", buffer.pollWarning());
+        assertEquals("truncated at external_max_record_size", buffer.pollWarning());
         assertEquals("null-filled row 3", buffer.pollWarning());
         assertNull(buffer.pollWarning());
     }
@@ -359,10 +413,19 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
      * rather than a sequential loop, so the cap is exercised under genuine concurrent access to the
      * shared counter — matching how independent parse-worker threads actually drive
      * {@link AsyncExternalSourceBuffer#recordInformationalWarning} for one chunk/segment each. Regression
-     * coverage for the streaming per-chunk flood.
+     * coverage for the streaming per-chunk flood. Admission through the shared budget and insertion into
+     * the per-driver buffer are separate concurrent steps, so the contract does not assign the overflow
+     * marker a global position among accepted payload warnings.
      */
     public void testRecordInformationalWarningAppliesOneGlobalCapAcrossManyCallers() throws Exception {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        InformationalWarningBudget budget = new InformationalWarningBudget(SkipWarnings.MAX_ADDED_WARNINGS);
+        Consumer<String> recordWarning = warning -> {
+            String accepted = budget.accept(warning);
+            if (accepted != null) {
+                buffer.recordInformationalWarning(accepted);
+            }
+        };
         // One thread per chunk, as 50 independent SkipWarnings instances would drive this method
         // concurrently on the streaming-parallel path.
         int chunks = 50;
@@ -374,8 +437,8 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
             threads[c] = new Thread(() -> {
                 try {
                     barrier.await();
-                    buffer.recordInformationalWarning("chunk " + chunk + " summary");
-                    buffer.recordInformationalWarning("chunk " + chunk + " detail");
+                    recordWarning.accept("chunk " + chunk + " summary");
+                    recordWarning.accept("chunk " + chunk + " detail");
                 } catch (Throwable t) {
                     error.set(t);
                 }
@@ -397,13 +460,13 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
             drained.add(w);
         }
 
-        int maxInformationalWarnings = SkipWarnings.MAX_ADDED_WARNINGS + 2;
+        int maxInformationalWarnings = SkipWarnings.MAX_ADDED_WARNINGS + 1;
         assertEquals(
             "total lines must be bounded regardless of how many chunk threads raced to contribute",
             maxInformationalWarnings,
             drained.size()
         );
-        assertTrue("the last line must note suppression", drained.get(drained.size() - 1).contains("further reader warnings suppressed"));
+        assertEquals("exactly one line must note suppression", 1L, drained.stream().filter(SkipWarnings.overflowMessage()::equals).count());
         assertFalse(buffer.isPartial());
     }
 

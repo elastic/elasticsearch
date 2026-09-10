@@ -1,0 +1,5 @@
+area: Columnar
+issues: []
+pr: 155430
+summary: Extend `doc_values` index setting defaults to all object-form mappers
+type: bug

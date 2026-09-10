@@ -42,6 +42,10 @@ import java.util.stream.Collectors;
 /**
  * A shard-free {@link SearchExecutionContext} for runtime ES|QL columns. It exposes each column as an indexed text
  * field and provides the analyzer callers need when indexing values for the resulting query.
+ *
+ * <p>Exact field names outside the exposed columns cause {@link #getMatchingFieldNames} to throw an
+ * {@link IllegalArgumentException}. This lets callers reject queries that reference unavailable fields. Direct
+ * {@link #getFieldType} lookups return {@code null} for unmapped names, as required by the base contract.
  */
 public final class RuntimeSearchExecutionContext extends SearchExecutionContext {
 
@@ -70,7 +74,15 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
         for (String name : fieldNames) {
             fields.put(name, new TextFieldMapper.TextFieldType(name, true, false, tsi, false, false, null, Map.of(), false, false));
         }
-        IndexAnalyzers analyzers = IndexAnalyzers.of(Map.of(DEFAULT_ANALYZER_KEY, searchAnalyzer));
+        // The registry answers two questions with the one analyzer this synthetic context has:
+        // QueryStringQueryParser needs a "default" entry, and query builders carrying an explicit analyzer
+        // option (e.g. match with {"analyzer": "whitespace"}) validate the name against getIndexAnalyzers()
+        // before use, so the analyzer is registered under its own name as well.
+        IndexAnalyzers analyzers = IndexAnalyzers.of(
+            DEFAULT_ANALYZER_KEY.equals(searchAnalyzer.name())
+                ? Map.of(DEFAULT_ANALYZER_KEY, searchAnalyzer)
+                : Map.of(DEFAULT_ANALYZER_KEY, searchAnalyzer, searchAnalyzer.name(), searchAnalyzer)
+        );
         return new RuntimeSearchExecutionContext(fields, analyzers, searchAnalyzer);
     }
 
@@ -138,7 +150,11 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
     @Override
     public Set<String> getMatchingFieldNames(String pattern) {
         if (Regex.isSimpleMatchPattern(pattern) == false) {
-            return fields.containsKey(pattern) ? Set.of(pattern) : Set.of();
+            if (fields.containsKey(pattern)) {
+                return Set.of(pattern);
+            }
+            // Exact fields outside this context must fail instead of silently matching nothing.
+            throw new IllegalArgumentException("field [" + pattern + "] is not one of the searchable fields " + fields.keySet());
         }
         return fields.keySet().stream().filter(f -> Regex.simpleMatch(pattern, f)).collect(Collectors.toSet());
     }

@@ -52,7 +52,14 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         var state = buildSingleShardState("test-index", nodeA, nodeB);
         var routingNodes = state.mutableRoutingNodes();
         var startedShard = getSoleStartedShard(routingNodes, nodeA);
-        var relocationShards = routingNodes.relocateShard(startedShard, nodeB, 0, "test", RoutingChangesObserver.NOOP);
+        var relocationShards = routingNodes.relocateShard(
+            startedShard,
+            nodeB,
+            0,
+            "test",
+            RoutingChangesObserver.NOOP,
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
 
         long shardHeap = randomLongBetween(51, 100), indexHeap = randomLongBetween(31, 50);
         // nodeA initial heap values are less than the shard+index heap that will be removed
@@ -69,12 +76,12 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         var result = simulator.getSimulatedHeapMetrics();
         // nodeA: remove shardHeap + indexHeap > 82 delta; initial total=50 → max(0, 50 - shardHeap - indexHeap) = 0
         assertThat(result.get(nodeA).nodeHeapEstimates().totalHeapUsage(), equalTo(0L));
-        // nodeA: remove shardHeap; initial hosted=30 → max(0, 30 - shardHeap) = 0
+        // nodeA: remove shardHeap + indexHeap; initial hosted=30 → max(0, 30 - shardHeap - indexHeap) = 0
         assertThat(result.get(nodeA).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(0L));
-        // nodeB: add shardHeap + indexHeap = shardHeap + indexHeap; initial total=0 → shardHeap + indexHeap
+        // nodeB: add shardHeap + indexHeap; initial total=0 → shardHeap + indexHeap
         assertThat(result.get(nodeB).nodeHeapEstimates().totalHeapUsage(), equalTo(shardHeap + indexHeap));
-        // nodeB: add shardHeap; initial hosted=0 → shardHeap
-        assertThat(result.get(nodeB).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(shardHeap));
+        // nodeB: add shardHeap + indexHeap; initial hosted=0 → shardHeap + indexHeap
+        assertThat(result.get(nodeB).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(shardHeap + indexHeap));
     }
 
     /**
@@ -90,7 +97,14 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         var state = buildTwoShardState("test-index", nodeA, nodeB);
         var routingNodes = state.mutableRoutingNodes();
         var shard0 = getStartedShardById(routingNodes, nodeA, 0);
-        var relocationShards = routingNodes.relocateShard(shard0, nodeB, 0, "test", RoutingChangesObserver.NOOP);
+        var relocationShards = routingNodes.relocateShard(
+            shard0,
+            nodeB,
+            0,
+            "test",
+            RoutingChangesObserver.NOOP,
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
 
         long shardHeap = 100L, indexHeap = 50L;
         var initialMetrics = Map.of(
@@ -123,7 +137,14 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         var state = buildSingleShardState("test-index", nodeA, nodeB);
         var routingNodes = state.mutableRoutingNodes();
         var startedShard = getSoleStartedShard(routingNodes, nodeA);
-        var relocationShards = routingNodes.relocateShard(startedShard, nodeB, 0, "test", RoutingChangesObserver.NOOP);
+        var relocationShards = routingNodes.relocateShard(
+            startedShard,
+            nodeB,
+            0,
+            "test",
+            RoutingChangesObserver.NOOP,
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
 
         // Neither nodeA nor nodeB has initial metrics
         var simulator = newSimulator(
@@ -138,8 +159,8 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         assertThat(simulator.getSimulatedHeapMetrics().size(), equalTo(0));
     }
 
-    /** simulateAddIndexToNode increases totalHeapUsage by the index heap amount and does not affect hostedShardsHeapUsage. */
-    public void testSimulateAddIndexToNodeIncrementsTotalHeapOnly() {
+    /** simulateAddIndexToNode increases totalHeapUsage and hostedShardsHeapUsage by the index heap amount. */
+    public void testSimulateAddIndexToNodeIncrementsTotalAndHostedShardsHeap() {
         var nodeId = "node-0";
         long shardHeap = randomLongBetween(100, 150), indexHeap = randomLongBetween(30, 50);
         long initialTotal = randomLongBetween(500, 1000), initialHosted = randomLongBetween(300, 500);
@@ -156,11 +177,11 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
 
         var result = simulator.getSimulatedHeapMetrics();
         assertThat(result.get(nodeId).nodeHeapEstimates().totalHeapUsage(), equalTo(initialTotal + indexHeap));
-        assertThat(result.get(nodeId).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(initialHosted));
+        assertThat(result.get(nodeId).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(initialHosted + indexHeap));
     }
 
-    /** simulateRemoveIndexFromNode decreases totalHeapUsage by the index heap amount and does not affect hostedShardsHeapUsage. */
-    public void testSimulateRemoveIndexFromNodeDecrementsTotalHeapOnly() {
+    /** simulateRemoveIndexFromNode decreases totalHeapUsage and hostedShardsHeapUsage by the index heap amount. */
+    public void testSimulateRemoveIndexFromNodeDecrementsTotalAndHostedShardsHeap() {
         var nodeId = "node-0";
         long shardHeap = randomLongBetween(100, 150), indexHeap = randomLongBetween(30, 50);
         long initialTotal = randomLongBetween(500, 1000), initialHosted = randomLongBetween(300, 500);
@@ -177,7 +198,7 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
 
         var result = simulator.getSimulatedHeapMetrics();
         assertThat(result.get(nodeId).nodeHeapEstimates().totalHeapUsage(), equalTo(initialTotal - indexHeap));
-        assertThat(result.get(nodeId).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(initialHosted));
+        assertThat(result.get(nodeId).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(initialHosted - indexHeap));
     }
 
     /** simulateAddIndexToNode is a no-op for nodes absent from the initial metrics map. */

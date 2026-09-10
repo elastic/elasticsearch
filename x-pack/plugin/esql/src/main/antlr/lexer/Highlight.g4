@@ -10,4 +10,4 @@ lexer grammar Highlight;
 // HIGHLIGHT command
 //
 // HIGHLIGHT uses EXPRESSION_MODE so the query can be a string literal or a full-text expression.
-DEV_HIGHLIGHT : {this.isDevVersion()}? 'highlight' -> pushMode(EXPRESSION_MODE);
+HIGHLIGHT : 'highlight' -> pushMode(EXPRESSION_MODE);

@@ -23,7 +23,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.MergeMetrics;
-import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -94,7 +94,8 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
             // Use the DIRECT executor to be able to block blob store reads in the merge threads
             return new StatelessSharedBlobCacheService(
@@ -106,7 +107,7 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
                 StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
                 threadPool::relativeTimeInNanos,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                metricHolder
             ) {};
         }
 

@@ -104,6 +104,7 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
         @Param(
             name = "query",
             type = { "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Query string in KQL query string format."
         ) Expression queryString,
         @MapParam(

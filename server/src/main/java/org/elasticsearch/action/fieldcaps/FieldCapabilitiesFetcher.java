@@ -115,8 +115,16 @@ class FieldCapabilitiesFetcher {
             null
         );
         var indexMode = searchExecutionContext.getIndexSettings().getMode();
+        final int numberOfShards = searchExecutionContext.getIndexSettings().getNumberOfShards();
         if (searcher != null && canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext) == false) {
-            return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), null, Collections.emptyMap(), false, indexMode);
+            return new FieldCapabilitiesIndexResponse(
+                shardId.getIndexName(),
+                null,
+                Collections.emptyMap(),
+                false,
+                indexMode,
+                numberOfShards
+            );
         }
 
         final MappingMetadata mapping = indexService.getMetadata().mapping();
@@ -135,7 +143,14 @@ class FieldCapabilitiesFetcher {
             indexMappingHash = fieldPredicate.modifyHash(indexMappingHash);
             final Map<String, IndexFieldCapabilities> existing = indexMappingHashToResponses.get(indexMappingHash);
             if (existing != null) {
-                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, existing, true, indexMode);
+                return new FieldCapabilitiesIndexResponse(
+                    shardId.getIndexName(),
+                    indexMappingHash,
+                    existing,
+                    true,
+                    indexMode,
+                    numberOfShards
+                );
             }
         }
         task.ensureNotCancelled();
@@ -151,7 +166,7 @@ class FieldCapabilitiesFetcher {
         if (indexMappingHash != null) {
             indexMappingHashToResponses.put(indexMappingHash, responseMap);
         }
-        return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true, indexMode);
+        return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true, indexMode, numberOfShards);
     }
 
     static Map<String, IndexFieldCapabilities> retrieveFieldCaps(

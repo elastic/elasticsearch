@@ -1,7 +1,0 @@
-area: Recovery
-issues:
- - 151861
- - 151884
-pr: 154872
-summary: Fix double `sourceRecoveryCompleted` in relocation
-type: bug

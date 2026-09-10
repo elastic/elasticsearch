@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
@@ -90,13 +92,16 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
+import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
@@ -160,7 +165,9 @@ public class ApproximationSupportTests extends ESTestCase {
         WithinSeriesAggregate.class,
         AcrossSeriesAggregate.class,
         AcrossSeriesReduction.class,
+        HistogramFunctionCall.class,
         HistogramQuantile.class,
+        MetadataManipulationFunction.class,
         PlaceholderRelation.class,
         ScalarConversionFunction.class,
         ScalarFunction.class,
@@ -191,12 +198,14 @@ public class ApproximationSupportTests extends ESTestCase {
         InferencePlan.class,
         CompoundOutputEval.class,
         AbstractSubqueryJoin.class,
+        MergePlan.class,
 
         // These plans don't occur in a correct analyzed/optimzed query.
         AntiJoin.class,
         Dedup.class,
         Drop.class,
         FillNull.class,
+        InnerJoin.class,
         InlineStats.class,
         Keep.class,
         MarkJoin.class,
@@ -247,6 +256,7 @@ public class ApproximationSupportTests extends ESTestCase {
         // These multivalued aggs are not suitable for approximation.
         DimensionValues.class,
         Values.class,
+        PackDimsAgg.class,
 
         // Histograms are not suitable for approximation.
         HistogramMerge.class,

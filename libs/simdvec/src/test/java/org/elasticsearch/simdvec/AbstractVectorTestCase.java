@@ -45,8 +45,10 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         var arch = System.getProperty("os.arch");
         var osName = System.getProperty("os.name");
 
-        if ((arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))
-            || arch.equals("amd64") && osName.equals("Linux"))) {
+        // native support requires JDK 22+ (for heap segment support and native vec lib loading)
+        if (Runtime.version().feature() >= 22
+            && (arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))
+                || arch.equals("amd64") && osName.equals("Linux"))) {
             assertTrue(factory.usesNative());
         } else {
             // not an arch with native support, so shouldn't be native

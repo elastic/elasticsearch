@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xcontent.XContentType;
@@ -250,7 +251,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
      * @return a summary of the index state, or <code>null</code> if the index doesn't exist
      */
     static State calculateIndexState(ProjectState state, SystemIndexDescriptor descriptor) {
-        IndexMetadata indexMetadata = getSystemIndexMetadata(state, descriptor);
+        IndexMetadata indexMetadata = getSystemIndexMetadata(state.metadata(), descriptor);
 
         if (indexMetadata == null) {
             return null;
@@ -279,13 +280,19 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
         return new State(indexState, indexHealth, isIndexUpToDate, isMappingIsUpToDate);
     }
 
-    private static IndexMetadata getSystemIndexMetadata(ProjectState state, SystemIndexDescriptor descriptor) {
+    /**
+     * Resolves the metadata of the concrete index backing the descriptor's primary index. The primary
+     * index name might be an alias pointing to the concrete index after a system index migration
+     * (e.g. ".fleet-agents-7" → ".fleet-agents-7-reindexed-for-9"), in which case the metadata of the
+     * alias's write index is returned.
+     *
+     * @return the resolved index metadata, or {@code null} if the index does not exist
+     */
+    @Nullable
+    public static IndexMetadata getSystemIndexMetadata(ProjectMetadata projectMetadata, SystemIndexDescriptor descriptor) {
         String primaryIndexName = descriptor.getPrimaryIndex();
-        ProjectMetadata projectMetadata = state.metadata();
         IndexMetadata indexMetadata = projectMetadata.index(primaryIndexName);
         if (indexMetadata == null) {
-            // The primary index name might be an alias pointing to the concrete index
-            // (e.g. ".fleet-agents-7" → ".fleet-agents-7-reindexed-for-9").
             IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(primaryIndexName);
             if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
                 indexMetadata = projectMetadata.getIndexSafe(indexAbstraction.getWriteIndex());
@@ -298,7 +305,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
      * Checks whether an index's mappings are up-to-date. If an index is encountered that has
      * a version higher than Version.CURRENT, it is still considered up-to-date.
      */
-    private static boolean checkIndexMappingUpToDate(SystemIndexDescriptor descriptor, IndexMetadata indexMetadata) {
+    public static boolean checkIndexMappingUpToDate(SystemIndexDescriptor descriptor, IndexMetadata indexMetadata) {
         final MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata == null) {
             return false;

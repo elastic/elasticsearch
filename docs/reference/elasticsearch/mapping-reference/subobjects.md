@@ -114,7 +114,7 @@ Object fields of type `nested` don't work when wrapped by an object field that i
 
 It is generally recommended to define the properties of an object that is configured with `subobjects: false` with dotted field names (as shown in the first example). However, it is also possible to define these properties as sub-objects in the mappings. In that case, the mapping will be automatically flattened before it is stored. This makes it easier to re-use existing mappings without having to re-write them.
 
-In [columnar index modes](/reference/columnar/index.md), mappings are always auto-flattened regardless of the `subobjects` setting. Object parameters `enabled` and `dynamic` are tracked in `prefix_properties`. See [Auto flattening](/reference/columnar/index.md#auto-flattening) for an example.
+In [columnar index modes](/reference/elasticsearch/columnar/index.md), mappings are always auto-flattened regardless of the `subobjects` setting. Object parameters `enabled` and `dynamic` are tracked in `prefix_properties`. See [Auto flattening](/reference/elasticsearch/columnar/index.md#auto-flattening) for an example.
 
 Note that auto-flattening will not work when certain [mapping parameters](/reference/elasticsearch/mapping-reference/mapping-parameters.md) are set on object mappings that are defined under an object configured with `subobjects: false`:
 

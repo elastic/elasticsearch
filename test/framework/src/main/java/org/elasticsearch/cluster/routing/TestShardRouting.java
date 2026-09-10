@@ -265,7 +265,11 @@ public class TestShardRouting {
     }
 
     private static ShardRouting.RecoveryPriority buildRecoveryPriorityForUnassigned() {
-        return randomFrom(ShardRouting.RecoveryPriority.UNASSIGNED_EXISTING, ShardRouting.RecoveryPriority.UNASSIGNED_NEW);
+        return randomFrom(
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY,
+            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+        );
     }
 
     private static ShardRouting.RecoveryPriority buildRecoveryPriorityForRelocation() {

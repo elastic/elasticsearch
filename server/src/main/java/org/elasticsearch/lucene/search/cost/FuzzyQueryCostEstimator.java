@@ -32,10 +32,33 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
     /** Multiplier applied when the alphabet is wider than {@link #WIDE_ALPHABET_THRESHOLD}. */
     public static final long WIDE_ALPHABET_FACTOR = 2L;
 
+    /**
+     * Flat per-expanded-term add-on, charged once per {@code maxExpansions} regardless of
+     * {@code segmentCount}. Covers the fixed share of retained rewrite RAM (the rewritten
+     * {@code Query} object itself, plus each expansion's baseline {@link org.apache.lucene.index.TermStates}
+     * bookkeeping) that doesn't grow with the number of index segments a term appears in. See
+     * {@link #EXPANSION_BYTES_PER_SEGMENT_PER_TERM} for the part that does.
+     */
+    public static final long EXPANSION_BYTES_PER_TERM = 2500L;
+
+    /**
+     * Per-expanded-term, per-segment add-on, charged once per {@code maxExpansions · segmentCount}.
+     * {@code TermStates} retains one {@code TermState} per leaf a term matches, so its RAM grows
+     * roughly linearly with the number of index segments; {@code FuzzyQueryCostEstimatorBenchmark}
+     * measured this growth at ~84 bytes/segment/term (flat across 1-128 segments), and this constant
+     * keeps that measurement, plus margin, as a ceiling.
+     */
+    public static final long EXPANSION_BYTES_PER_SEGMENT_PER_TERM = 97L;
+
+    /** Maximum number of expansions charged per clause */
+    public static final int MAX_CHARGED_EXPANSIONS = 1024;
+
     private final int termByteLength;
     private final int distinctUtf8Bytes;
     private final int maxEdits;
     private final int prefixByteLength;
+    private final int maxExpansions;
+    private final int segmentCount;
 
     /**
      * @param termByteLength    UTF-8 byte length of the term. Must be {@code >= 0}.
@@ -45,8 +68,23 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
      * @param maxEdits          {@code [0, MAXIMUM_SUPPORTED_DISTANCE]}.
      * @param prefixByteLength  UTF-8 byte length of the common non-fuzzy prefix; clamped to
      *                          {@code termByteLength}. Must be {@code >= 0}.
+     * @param maxExpansions     maximum number of index terms this clause rewrites to; the
+     *                          downstream rewrite/expansion cost is bounded by it. Must be
+     *                          {@code > 0}.
+     * @param segmentCount      number of index segments each expanded term is charged against,
+     *                          driving the per-segment share of the expansion cost (see
+     *                          {@link #EXPANSION_BYTES_PER_SEGMENT_PER_TERM}). Callers without a
+     *                          live index (or targeting an unknown/future segment layout) should
+     *                          pass a conservative assumed value. Must be {@code >= 0}.
      */
-    public FuzzyQueryCostEstimator(int termByteLength, int distinctUtf8Bytes, int maxEdits, int prefixByteLength) {
+    public FuzzyQueryCostEstimator(
+        int termByteLength,
+        int distinctUtf8Bytes,
+        int maxEdits,
+        int prefixByteLength,
+        int maxExpansions,
+        int segmentCount
+    ) {
         if (termByteLength < 0) {
             throw new IllegalArgumentException("termByteLength must be >= 0, got: " + termByteLength);
         }
@@ -61,10 +99,18 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
         if (prefixByteLength < 0) {
             throw new IllegalArgumentException("prefixByteLength must be >= 0, got: " + prefixByteLength);
         }
+        if (maxExpansions <= 0) {
+            throw new IllegalArgumentException("maxExpansions must be > 0, got: " + maxExpansions);
+        }
+        if (segmentCount < 0) {
+            throw new IllegalArgumentException("segmentCount must be >= 0, got: " + segmentCount);
+        }
         this.termByteLength = termByteLength;
         this.distinctUtf8Bytes = distinctUtf8Bytes;
         this.maxEdits = maxEdits;
         this.prefixByteLength = prefixByteLength;
+        this.maxExpansions = maxExpansions;
+        this.segmentCount = segmentCount;
     }
 
     /**
@@ -78,7 +124,10 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
      *              + BYTES_PER_BYTE
      *                · effectiveBytes
      *                · (2 · maxEdits + 1)
-     *                · alphabetFactor,                                    otherwise
+     *                · alphabetFactor
+     *              + (EXPANSION_BYTES_PER_TERM
+     *                 + EXPANSION_BYTES_PER_SEGMENT_PER_TERM · segmentCount)
+     *                · maxExpansions,                                    otherwise
      *
      *     effectiveBytes = max(0, termByteLength - prefixByteLength)
      *     alphabetFactor = (distinctUtf8Bytes &gt; WIDE_ALPHABET_THRESHOLD) ? WIDE_ALPHABET_FACTOR : 1
@@ -98,6 +147,11 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
         long alphabetFactor = distinctUtf8Bytes > WIDE_ALPHABET_THRESHOLD ? WIDE_ALPHABET_FACTOR : 1L;
         long stateProxy = effectiveBytes * (2L * maxEdits + 1L);
         long dynamic = Math.multiplyExact(Math.multiplyExact(BYTES_PER_BYTE, stateProxy), alphabetFactor);
-        return Math.addExact(BASE_BYTES, dynamic);
+        long perTermBytes = Math.addExact(
+            EXPANSION_BYTES_PER_TERM,
+            Math.multiplyExact(EXPANSION_BYTES_PER_SEGMENT_PER_TERM, (long) segmentCount)
+        );
+        long expansion = Math.multiplyExact(perTermBytes, (long) maxExpansions);
+        return Math.addExact(Math.addExact(BASE_BYTES, dynamic), expansion);
     }
 }

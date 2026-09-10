@@ -1,0 +1,5 @@
+area: Engine
+issues: []
+pr: 156054
+summary: Add factor for max size of merge thread pool
+type: enhancement

@@ -65,16 +65,12 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     private void assertOverflowFails(LongStream values) {
         List<Page> results = new ArrayList<>();
         DriverContext driverContext = driverContext();
-        List<String> warnings = new ArrayList<>();
         try (
             Driver driver = TestDriverFactory.create(
                 driverContext,
                 new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values),
                 List.of(simple().get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {
-                    warnings.addAll(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()));
-                }
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
             new TestDriverRunner().numThreads(1).run(driver);
@@ -88,10 +84,10 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
         assertThat(results.get(0).getBlock(0).isNull(0), equalTo(true));
 
         assertThat(
-            warnings,
+            collectWarnings(driverContext),
             contains(
-                containsString("\"Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.\""),
-                containsString("\"Line 1:1: java.lang.ArithmeticException:")
+                containsString("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."),
+                containsString("Line 1:1: java.lang.ArithmeticException:")
             )
         );
     }

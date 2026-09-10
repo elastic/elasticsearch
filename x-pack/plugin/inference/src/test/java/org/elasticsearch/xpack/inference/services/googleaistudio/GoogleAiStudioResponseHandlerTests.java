@@ -26,8 +26,8 @@ import static org.mockito.Mockito.when;
 
 public class GoogleAiStudioResponseHandlerTests extends ESTestCase {
 
-    public void testHandleFailureStatusCode_ThrowsFor500_ShouldRetry() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(500, "id"));
+    public void testBuildFailureStatusCodeException_ReturnsFor500_ShouldRetry() {
+        var exception = callHandleFailureStatusCode(500, "id");
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -36,8 +36,8 @@ public class GoogleAiStudioResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor503_ShouldRetry() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(503, "id"));
+    public void testBuildFailureStatusCodeException_ReturnsFor503_ShouldRetry() {
+        var exception = callHandleFailureStatusCode(503, "id");
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -48,8 +48,8 @@ public class GoogleAiStudioResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor505_ShouldNotRetry() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(505, "id"));
+    public void testBuildFailureStatusCodeException_ReturnsFor505_ShouldNotRetry() {
+        var exception = callHandleFailureStatusCode(505, "id");
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -58,8 +58,8 @@ public class GoogleAiStudioResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor429_ShouldRetry() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(429, "id"));
+    public void testBuildFailureStatusCodeException_ReturnsFor429_ShouldRetry() {
+        var exception = callHandleFailureStatusCode(429, "id");
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -68,8 +68,8 @@ public class GoogleAiStudioResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor404_ShouldNotRetry() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(404, "id"));
+    public void testBuildFailureStatusCodeException_ReturnsFor404_ShouldNotRetry() {
+        var exception = callHandleFailureStatusCode(404, "id");
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -78,8 +78,8 @@ public class GoogleAiStudioResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.NOT_FOUND));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor403_ShouldNotRetry() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(403, "id"));
+    public void testBuildFailureStatusCodeException_ReturnsFor403_ShouldNotRetry() {
+        var exception = callHandleFailureStatusCode(403, "id");
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -88,8 +88,8 @@ public class GoogleAiStudioResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.FORBIDDEN));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor300_ShouldNotRetry() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(300, "id"));
+    public void testBuildFailureStatusCodeException_ReturnsFor300_ShouldNotRetry() {
+        var exception = callHandleFailureStatusCode(300, "id");
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -98,8 +98,8 @@ public class GoogleAiStudioResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor425_ShouldNotRetry() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(425, "id"));
+    public void testBuildFailureStatusCodeException_ReturnsFor425_ShouldNotRetry() {
+        var exception = callHandleFailureStatusCode(425, "id");
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -108,7 +108,7 @@ public class GoogleAiStudioResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    private static void callHandleFailureStatusCode(int statusCode, String modelId) {
+    private static RetryException callHandleFailureStatusCode(int statusCode, String modelId) {
         var statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(statusCode);
 
@@ -123,7 +123,7 @@ public class GoogleAiStudioResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, new byte[] {});
         var handler = new GoogleAiStudioResponseHandler("", (request, result) -> null);
 
-        handler.handleFailureStatusCode(mockRequest, httpResult);
+        return handler.buildFailureStatusCodeException(mockRequest, httpResult);
     }
 
 }

@@ -41,7 +41,7 @@ class SpatialExtentGeoShapeDocValuesAggregator extends SpatialExtentLongitudeWra
     }
 
     public static void combine(SpatialExtentStateWrappedLongitudeState current, @Position int p, IntBlock values) {
-        if (values.getValueCount(p) == 0) {
+        if (values.isNull(p)) {
             return;
         }
         current.add(p, values);

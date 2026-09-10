@@ -139,11 +139,20 @@ public class TDigestState implements Releasable, Accountable {
      * @return a TDigestState object
      */
     public static TDigestState createUsingParamsFrom(TDigestState state) {
-        state.breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create-using-params-from");
+        return createUsingParamsFrom(state, state.breaker);
+    }
+
+    /**
+     * Creates an empty {@link TDigestState} with the same parameters as {@code state}, charged to {@code breaker}.
+     * Use this when the original breaker is a {@code PreallocatedCircuitBreaker} that closes before the reduction phase runs
+     * on the coordinator. The input state is not modified.
+     */
+    public static TDigestState createUsingParamsFrom(TDigestState state, CircuitBreaker breaker) {
+        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create-using-params-from");
         try {
-            return new TDigestState(state.breaker, state.type, state.compression);
+            return new TDigestState(breaker, state.type, state.compression);
         } catch (Exception e) {
-            state.breaker.addWithoutBreaking(-SHALLOW_SIZE);
+            breaker.addWithoutBreaking(-SHALLOW_SIZE);
             throw e;
         }
     }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -30,9 +31,11 @@ import java.util.function.Function;
  *       <em>registered</em> on this node at all. It defaults to {@code true}, and an operator
  *       suppresses the feature by setting it to {@code false}. Cloud/GovCloud can set system
  *       properties on any deployment.</li>
- *   <li>the setting {@link #FEDERATION_ENABLED} decides whether a user has <em>enabled</em> the
- *       registered feature. It defaults to {@code false}, so federation is off until it is turned
- *       on in {@code elasticsearch.yml}.</li>
+ *   <li>the setting {@link #FEDERATION_ENABLED} decides whether the registered feature is
+ *       <em>enabled</em>. Its default follows the build: on in a snapshot build, so a development or
+ *       test deployment gets the feature without configuring anything, and off in a release build,
+ *       where turning it on is a deliberate act. A value in {@code elasticsearch.yml} wins over the
+ *       default either way.</li>
  * </ul>
  *
  * <p>The two levers are not symmetric. An unregistered feature has no settings at all: {@link #settings()}
@@ -77,7 +80,7 @@ import java.util.function.Function;
  * </ul>
  *
  * <p>Because any node can be the coordinating node for a query and any node can receive a data
- * source / dataset create request, both levers must be set on <em>all</em> nodes for a consistent
+ * source / dataset create request, both levers must agree across <em>all</em> nodes for a consistent
  * result.
  */
 public final class Federation {
@@ -87,15 +90,17 @@ public final class Federation {
     public static final String REGISTER_PROPERTY = "es.esql.register_federation_feature";
 
     /**
-     * Enables the ES|QL federation feature (external data sources and datasets) on this node. Defaults
-     * to {@code false}: federation is opt-in. The value is read from the node's settings rather than
-     * from cluster state and gates REST handler registration, so a change takes effect only after a
-     * restart. It is registered only when the feature is registered, so on a node where an operator set
-     * {@value #REGISTER_PROPERTY} to {@code false} this key is unknown and rejected at startup.
+     * Enables the ES|QL federation feature (external data sources and datasets) on this node. The default
+     * follows the build: a snapshot build has it on, so development and test deployments exercise the
+     * feature without configuring it, and a release build has it off. An explicit value wins over the
+     * default. The value is read from the node's settings rather than from cluster state and gates REST
+     * handler registration, so a change takes effect only after a restart. It is registered only when the
+     * feature is registered, so on a node where an operator set {@value #REGISTER_PROPERTY} to
+     * {@code false} this key is unknown and rejected at startup.
      */
     public static final Setting<Boolean> FEDERATION_ENABLED = Setting.boolSetting(
         "esql.federation.enabled",
-        false,
+        Build.current().isSnapshot(),
         Setting.Property.NodeScope
     );
 
@@ -151,7 +156,7 @@ public final class Federation {
 
     /**
      * Whether the federation feature is available on this node, which requires both that it is registered
-     * and that {@link #FEDERATION_ENABLED} is set. Takes the node settings rather than caching an
+     * and that {@link #FEDERATION_ENABLED} is on. Takes the node settings rather than caching an
      * effective value, because settings are per-node state and several nodes share one JVM in tests.
      */
     public static boolean isAvailable(Settings settings) {
@@ -171,10 +176,11 @@ public final class Federation {
 
     /**
      * Surfaces the effective state in the node log at startup so an operator can confirm both levers after a
-     * bounce. Only a state an operator asked for reaches {@code INFO}: federation being off is the default on
-     * every node, so that one is logged at {@code DEBUG} and confirming it takes raising the level for this
-     * class. An unregistered node cannot also have the setting on, because it does not accept the setting at
-     * all, so there is no combination to warn about.
+     * bounce. The states that change what the node does reach {@code INFO}: an enabled node serves external
+     * data sources, and an unregistered one has lost a whole configuration surface. A registered node with
+     * the setting off is inert, so it is logged at {@code DEBUG} and confirming it takes raising the level
+     * for this class. An unregistered node cannot also have the setting on, because it does not accept the
+     * setting at all, so there is no combination to warn about.
      */
     public static void logEffectiveState(Settings settings) {
         logEffectiveState(REGISTERED, FEDERATION_ENABLED.get(settings));

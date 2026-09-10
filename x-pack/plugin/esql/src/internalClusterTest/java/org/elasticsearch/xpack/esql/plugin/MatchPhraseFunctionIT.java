@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -414,7 +415,91 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testMatchPhraseAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match_phrase(content, "brown fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testMatchPhraseAfterGroupedInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id) BY id
+            | WHERE match_phrase(content, "brown fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testNotMatchPhraseAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE NOT match_phrase(content, "brown fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(2), List.of(3), List.of(4), List.of(5)));
+        }
+    }
+
+    public void testMatchPhraseNotPushableAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match_phrase(content, "brown fox") OR length(content) < 20
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
+        }
+    }
+
     public void testWhereFalseBeforeInlineStatsWithMatchPhrase() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | WHERE false
@@ -422,11 +507,16 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
             | WHERE match_phrase(content, "brown fox")
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after INLINE"));
+        try (var resp = run(query)) {
+            assertValues(resp.values(), List.of());
+        }
     }
 
     public void testWhereFalseWithEvalBeforeInlineStatsAndMatchPhrase() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | WHERE false
@@ -435,8 +525,9 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
             | WHERE match_phrase(content, "brown fox")
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after INLINE"));
+        try (var resp = run(query)) {
+            assertValues(resp.values(), List.of());
+        }
     }
 
     // ---- runtime match_phrase: searching text expressions that are not index-mapped fields ----
@@ -574,7 +665,6 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testSimpleWhereRuntimeMatchPhraseWithScore() {
-        // Runtime match_phrase does not contribute to the score, so matching rows keep a 0.0 score.
         var query = """
             FROM test METADATA _score
             | WHERE match_phrase(to_text(concat(content, " extra")), "brown fox")
@@ -585,7 +675,39 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
-            assertValues(resp.values(), List.of(List.of(1, 0.0), List.of(6, 0.0)));
+            // A runtime match_phrase scores the boost (1.0 by default) on match.
+            assertValues(resp.values(), List.of(List.of(1, 1.0), List.of(6, 1.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchPhraseWithBoostAndScore() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match_phrase(to_text(concat(content, " extra")), "brown fox", { "boost": 2.0 })
+            | KEEP id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 2.0), List.of(6, 2.0)));
+        }
+    }
+
+    public void testWhereRuntimeMatchPhraseKeywordWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL exact = concat(content, "")
+            | WHERE match_phrase(exact, "This is a brown fox")
+            | KEEP id, _score
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            // Keyword expressions match by exact value equality and score 1.0.
+            assertValues(resp.values(), List.of(List.of(1, 1.0)));
         }
     }
 
@@ -601,16 +723,98 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    public void testMatchPhraseRuntimeWithAnalyzerOptionThrowsError() {
+    public void testMatchPhraseRuntimeWithAnalyzerOption() {
+        // The whitespace values analyzer, declared through to_text, does not lowercase, and the query analyzer
+        // defaults to it: "Brown Fox" only matches the value that kept the capitals.
         var query = """
-            ROW content = to_text("a brown fox")
-            | WHERE match_phrase(content, "brown fox", {"analyzer": "standard"})
+            ROW content = to_text(["a Brown Fox runs", "a brown fox runs"], {"analyzer": "whitespace"})
+            | MV_EXPAND content
+            | WHERE match_phrase(content, "Brown Fox")
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content"));
+            assertValues(resp.values(), List.of(List.of("a Brown Fox runs")));
+        }
+    }
+
+    public void testMatchPhraseRuntimeAnalyzerOptionAppliesToQueryStringOnly() {
+        // match_phrase's analyzer option keeps the query's capitals while the values stay standard-analyzed
+        // (lowercased): the case-mismatched phrase matches nothing.
+        var query = """
+            ROW content = to_text(["a Brown Fox runs", "a brown fox runs"])
+            | MV_EXPAND content
+            | WHERE match_phrase(content, "Brown Fox", {"analyzer": "whitespace"})
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    public void testUnmappedWithAnalyzerOption() {
+        // The whitespace analyzer applies to the query string only, so the lowercase phrase "this is" matches the
+        // standard-analyzed (lowercased) values of ids 1 and 2 on both the mapped and the unmapped (loaded from
+        // _source) index.
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test, test_unmapped METADATA _index
+            | EVAL content = to_text(content)
+            | WHERE match_phrase(content, "this is", {"analyzer": "whitespace"})
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(
+                resp.values(),
+                List.of(List.of(1, "test"), List.of(1, "test_unmapped"), List.of(2, "test"), List.of(2, "test_unmapped"))
+            );
+        }
+    }
+
+    public void testPotentiallyUnmappedFieldWithAnalyzerOption() {
+        // Options are accepted on a potentially unmapped text field. On shards where the field is mapped the query
+        // keeps indexed-field semantics: the whitespace analyzer applies to the query only, so the lowercase phrase
+        // "this is" matches the standard-analyzed (lowercased) index tokens of ids 1 and 2. On the unmapped index
+        // the field loads as null without an explicit to_text cast, so it contributes no matches.
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test, test_unmapped METADATA _index
+            | WHERE match_phrase(content, "this is", {"analyzer": "whitespace"})
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(1, "test"), List.of(2, "test")));
+        }
+    }
+
+    public void testPotentiallyUnmappedKeywordFieldWithOptionsThrowsError() {
+        // Options work on a fully mapped keyword field (pushed down as a Lucene query), but the same query is
+        // rejected when the field is unmapped in one index, since it is then matched at runtime and the runtime
+        // keyword path is exact equality where options do not apply.
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test_keyword, test_unmapped
+            | WHERE match_phrase(content, "There is also a white cat", {"slop": 1})
             """;
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("The analyzer option is not supported for [MATCH_PHRASE] function call on non-index-mapped field [content]")
+            containsString("Options are not supported for [MATCH_PHRASE] function call on non-index-mapped, non-TEXT field [content]")
         );
+    }
+
+    public void testMatchPhraseRuntimeWithUnknownAnalyzerThrowsError() {
+        var query = """
+            ROW content = to_text("a brown fox")
+            | WHERE match_phrase(content, "brown fox", {"analyzer": "nonexistent"})
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[nonexistent] is not a registered analyzer"));
     }
 
     public void testMatchPhraseRuntimeWithInvalidOptionsThrowsError() {

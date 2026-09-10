@@ -122,7 +122,7 @@ public final class ShardCoreKeyMap {
      * Return the {@link ShardId} that holds the given segment, or {@code null}
      * if this segment is not tracked.
      */
-    public synchronized ShardId getShardId(Object coreKey) {
+    public ShardId getShardId(Object coreKey) {
         return coreKeyToShard.get(coreKey);
     }
 

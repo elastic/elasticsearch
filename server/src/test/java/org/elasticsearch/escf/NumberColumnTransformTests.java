@@ -18,6 +18,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -761,6 +763,107 @@ public class NumberColumnTransformTests extends ESTestCase {
         assertEquals(1L, readValues(out, 1)[0]);
     }
 
+    /** LONG string: large BigDecimal values truncate toward zero when coerce=true. */
+    public void testStringToLong_bigDecimal_coerceTrue_truncates() {
+        EscfColumnData src = stringColumnData("1234567890123456789.9", "-1234567890123456789.9");
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+            EscfColumn.from(src),
+            NumberType.LONG,
+            true,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
+        long[] vals = readValues(out, 2);
+        assertEquals(1234567890123456789L, vals[0]);
+        assertEquals(-1234567890123456789L, vals[1]);
+    }
+
+    /** INTEGER string: BigDecimal values truncate when coerce=true, matching parser.intValue. */
+    public void testStringToInteger_bigDecimal_coerceTrue_truncates() {
+        EscfColumnData src = stringColumnData("123.9", "-123.9");
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+            EscfColumn.from(src),
+            NumberType.INTEGER,
+            true,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
+        long[] vals = readValues(out, 2);
+        assertEquals(123L, vals[0]);
+        assertEquals(-123L, vals[1]);
+    }
+
+    public void testStringToLong_bigIntegerOutOfRange_throws() {
+        EscfColumnData src = stringColumnData("9223372036854775808");
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(
+                EscfColumn.from(src),
+                NumberType.LONG,
+                true,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
+            )
+        );
+        assertTrue("expected out-of-range message but got: " + ex.getMessage(), ex.getMessage().contains("out of range for a long"));
+    }
+
+    public void testStringToInteger_bigIntegerOutOfRange_throws() {
+        EscfColumnData src = stringColumnData("2147483648");
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(
+                EscfColumn.from(src),
+                NumberType.INTEGER,
+                true,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
+            )
+        );
+        assertTrue("expected out-of-range message but got: " + ex.getMessage(), ex.getMessage().contains("out of range for an integer"));
+    }
+
+    /** Empty strings with coerce=true and no null_value become absent values. */
+    public void testStringToLong_emptyString_coerceTrue_becomesAbsent() {
+        EscfColumnData src = stringColumnData("10", "", "30");
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+            EscfColumn.from(src),
+            NumberType.LONG,
+            true,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
+        long[] vals = readValues(out, 3);
+        assertEquals(10L, vals[0]);
+        assertEquals(Long.MIN_VALUE, vals[1]);
+        assertEquals(30L, vals[2]);
+    }
+
+    /** Empty strings with coerce=true use the mapper null_value when one is configured. */
+    public void testStringToLong_emptyString_coerceTrue_usesNullValue() {
+        EscfColumnData src = stringColumnData("10", "", "30");
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+            EscfColumn.from(src),
+            NumberType.LONG,
+            true,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            99L
+        );
+        long[] vals = readValues(out, 3);
+        assertEquals(10L, vals[0]);
+        assertEquals(99L, vals[1]);
+        assertEquals(30L, vals[2]);
+    }
+
+    public void testStringToLong_emptyString_coerceFalse_throws() {
+        EscfColumnData src = stringColumnData("");
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(
+                EscfColumn.from(src),
+                NumberType.LONG,
+                false,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
+            )
+        );
+        assertTrue("expected coerce message but got: " + ex.getMessage(), ex.getMessage().contains("Long value passed as String"));
+    }
+
     /** LONG string: decimal with coerce=false throws "has a decimal part". */
     public void testStringToLong_decimal_coerceFalse_throws() {
         EscfColumnData src = stringColumnData("1.9");
@@ -956,6 +1059,49 @@ public class NumberColumnTransformTests extends ESTestCase {
         assertArrayEquals(new long[] { NumericUtils.floatToSortableInt(0.5f) }, vals[1]);
     }
 
+    /** ARRAY-of-STRING: empty elements are dropped when coerce=true and no null_value is configured. */
+    public void testStringArray_emptyString_coerceTrue_compactsOffsets() {
+        EscfColumnData src = stringArrayColumnData(new String[] { "1", "", "3" }, new String[] { "", "" }, new String[] { "4" });
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+            EscfColumn.from(src),
+            NumberType.LONG,
+            true,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
+        long[][] vals = readArrayValues(out, 3);
+        assertArrayEquals(new long[] { 1L, 3L }, vals[0]);
+        assertNull(vals[1]);
+        assertArrayEquals(new long[] { 4L }, vals[2]);
+    }
+
+    /** ARRAY-of-STRING: empty elements use null_value when configured. */
+    public void testStringArray_emptyString_coerceTrue_usesNullValue() {
+        EscfColumnData src = stringArrayColumnData(new String[] { "1", "", "3" }, new String[] { "" });
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+            EscfColumn.from(src),
+            NumberType.LONG,
+            true,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            99L
+        );
+        long[][] vals = readArrayValues(out, 2);
+        assertArrayEquals(new long[] { 1L, 99L, 3L }, vals[0]);
+        assertArrayEquals(new long[] { 99L }, vals[1]);
+    }
+
+    /** ARRAY-of-STRING: BigDecimal elements truncate per element when coerce=true. */
+    public void testStringArray_bigDecimal_coerceTrue_truncates() {
+        EscfColumnData src = stringArrayColumnData(new String[] { "1.9", "-2.9" });
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+            EscfColumn.from(src),
+            NumberType.LONG,
+            true,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
+        long[][] vals = readArrayValues(out, 1);
+        assertArrayEquals(new long[] { 1L, -2L }, vals[0]);
+    }
+
     private static boolean isLongInRange(long l, NumberType type) {
         return switch (type) {
             case BYTE -> l >= Byte.MIN_VALUE && l <= Byte.MAX_VALUE;
@@ -976,5 +1122,66 @@ public class NumberColumnTransformTests extends ESTestCase {
             case FLOAT, DOUBLE -> true;
             case HALF_FLOAT -> Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort((float) d)));
         };
+    }
+
+    public void testLeakFree_longToFloat() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfBatch batch = encode("{\"f\": 5}", "{\"f\": -100}")) {
+            EscfColumn src = column(batch, "f");
+            EscfColumnData out = NumberColumnTransform.toSortableLongColumn(src, NumberType.FLOAT, false, recycler);
+            out.close();
+        }
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    public void testLeakFree_doubleToDouble() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfBatch batch = encode("{\"f\": 1.5}", "{\"f\": -2.25}")) {
+            EscfColumn src = column(batch, "f");
+            EscfColumnData out = NumberColumnTransform.toSortableLongColumn(src, NumberType.DOUBLE, false, recycler);
+            out.close();
+        }
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    public void testLeakFree_longToHalfFloat() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfBatch batch = encode("{\"f\": 0}", "{\"f\": 1}", "{\"f\": -1}")) {
+            EscfColumn src = column(batch, "f");
+            EscfColumnData out = NumberColumnTransform.toSortableLongColumn(src, NumberType.HALF_FLOAT, false, recycler);
+            out.close();
+        }
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    public void testLeakFree_exceptionPath_midBatch() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfBatch batch = encode("{\"f\": 1.0}", "{\"f\": 1.0E300}")) {
+            EscfColumn src = column(batch, "f");
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> NumberColumnTransform.toSortableLongColumn(src, NumberType.FLOAT, false, recycler)
+            );
+        }
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    public void testLeakFree_stringToLong() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        EscfColumnData src = stringColumnData("10", "20", "30");
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(EscfColumn.from(src), NumberType.LONG, true, recycler);
+        out.close();
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    public void testLeakFree_stringExceptionPath_midBatch() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        // "100" is valid; Long.MAX_VALUE + 1 overflows and throws mid-processing.
+        EscfColumnData src = stringColumnData("100", "9223372036854775808");
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(EscfColumn.from(src), NumberType.LONG, true, recycler)
+        );
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
     }
 }

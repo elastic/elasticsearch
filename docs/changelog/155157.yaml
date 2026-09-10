@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 147863
-pr: 155157
-summary: Fix `IndexNotFoundException` when view is explicitly included+excluded
-type: bug

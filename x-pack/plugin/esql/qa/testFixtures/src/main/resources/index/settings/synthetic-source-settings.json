@@ -1,0 +1,9 @@
+{
+  "index": {
+    "mapping": {
+      "source": {
+        "mode": "synthetic"
+      }
+    }
+  }
+}

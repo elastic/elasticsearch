@@ -72,6 +72,14 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
     // fields, numeric fields receiving text input). https://github.com/elastic/elasticsearch/issues/147610
     private static final Pattern FAILED_TO_CREATE_QUERY = Pattern.compile(".*failed to create query.*", Pattern.DOTALL);
 
+    // LIKE/RLIKE/STARTS_WITH/ENDS_WITH/CONTAINS (and full-text with fuzziness) can be pushed to Lucene against a keyed subfield
+    // of a flattened field, e.g. "size.raw" when one unioned index maps "size" as flattened. The flattened field type rejects
+    // wildcard/regexp/fuzzy on keyed subfields by design; ES|QL does not yet gate this pushdown (unlike the field_extract path).
+    private static final Pattern KEYED_FLATTENED_QUERY_UNSUPPORTED = Pattern.compile(
+        ".*queries are not currently supported on keyed \\[flattened\\] fields.*",
+        Pattern.DOTALL
+    );
+
     @Before
     public void setupRandomIndices() throws IOException {
         synchronized (GenerativeRandomMappingRestTest.class) {
@@ -232,6 +240,11 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
         // when the target field has an incompatible type or is not indexed in the random mapping.
         // https://github.com/elastic/elasticsearch/issues/147610
         if (query != null && isAllowedError(errorMessage, FAILED_TO_CREATE_QUERY) && queryContainsFullTextFunction(query)) {
+            return true;
+        }
+        // This message is produced only by the flattened field type, so match on it directly without a query guard; a guard on
+        // the pattern functions would miss the fuzzy variant that full-text functions can push to a keyed flattened subfield.
+        if (isAllowedError(errorMessage, KEYED_FLATTENED_QUERY_UNSUPPORTED)) {
             return true;
         }
         return false;

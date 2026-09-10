@@ -48,6 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -77,6 +78,8 @@ public class KeyRotationIT extends SecurityIntegTestCase {
         for (String nodeName : internalCluster().getNodeNames()) {
             internalCluster().getInstance(KeyRotationCoordinator.class, nodeName).close();
         }
+        var request = new EncryptionResetRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, true);
+        assertAcked(client().execute(TransportEncryptionResetAction.TYPE, request).actionGet());
         waitNoPendingTasksOnAll();
     }
 

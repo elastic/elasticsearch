@@ -15,6 +15,7 @@ import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.logs.SdkLoggerProvider;
 import io.opentelemetry.sdk.logs.export.BatchLogRecordProcessor;
+import io.opentelemetry.sdk.resources.Resource;
 
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
@@ -25,8 +26,12 @@ import org.elasticsearch.common.ssl.DefaultJdkTrustConfig;
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.common.ssl.PemTrustConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.telemetry.TelemetryLogEventFilter;
+import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
+import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -36,7 +41,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 import javax.net.ssl.KeyManager;
@@ -68,18 +75,49 @@ public class OtelSdkExportLogsSupplier implements Closeable {
     /** Logger name that {@code LoggingAuditTrail} (in :x-pack:plugin:security) uses. */
     private static final String AUDIT_LOGGER_NAME = "org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail";
 
-    private static final String OTEL_AUDIT_APPENDER_NAME = "audit_otel";
-    private static final String OTEL_QUERYLOG_APPENDER_NAME = "querylog_otel";
+    public static final String OTEL_AUDIT_APPENDER_NAME = "audit_otel";
+    public static final String OTEL_QUERYLOG_APPENDER_NAME = "querylog_otel";
 
     private final Settings settings;
     private final Path configDir;
+    private final Collection<TelemetryLoggingFilterProvider> filterProviders;
+    private final String serviceName;
     private volatile SdkLoggerProvider loggerProvider;
-    private final List<ElasticsearchOtelAppender> attachedAppenders = new ArrayList<>();
     private final List<Consumer<Configuration>> closeCallbacks = new ArrayList<>();
+    private final List<ElasticsearchOtelAppender> appenders = new ArrayList<>();
 
-    public OtelSdkExportLogsSupplier(Settings settings, Path configDir) {
+    public OtelSdkExportLogsSupplier(
+        Settings settings,
+        Path configDir,
+        Collection<TelemetryLoggingFilterProvider> filterProviders,
+        TelemetryLogResourceProvider logResourceProvider
+    ) {
         this.settings = settings;
         this.configDir = configDir;
+        this.filterProviders = filterProviders;
+        this.serviceName = logResourceProvider.serviceName();
+    }
+
+    // for tests
+    OtelSdkExportLogsSupplier(Settings settings, Path configDir) {
+        this(settings, configDir, List.of(), new TelemetryLogResourceProvider.Default());
+    }
+
+    @Nullable
+    private TelemetryLogEventFilter selectAppenderFilters(String appenderName) {
+        List<TelemetryLogEventFilter> filters = filterProviders.stream()
+            .map(p -> p.getLogFilter(appenderName))
+            .filter(Objects::nonNull)
+            .toList();
+        if (filters.isEmpty()) return null;
+        if (filters.size() == 1) return filters.getFirst();
+        return data -> {
+            for (TelemetryLogEventFilter f : filters) {
+                data = f.filter(data);
+                if (data == null) return null;
+            }
+            return data;
+        };
     }
 
     /**
@@ -114,12 +152,13 @@ public class OtelSdkExportLogsSupplier implements Closeable {
 
         ElasticsearchOtelAppender querylogAppender = new ElasticsearchOtelAppender(
             OTEL_QUERYLOG_APPENDER_NAME,
-            OpenTelemetrySdk.builder().setLoggerProvider(loggerProvider).build()
+            OpenTelemetrySdk.builder().setLoggerProvider(loggerProvider).build(),
+            selectAppenderFilters(OTEL_QUERYLOG_APPENDER_NAME)
         );
         querylogAppender.start();
         config.addAppender(querylogAppender);
         querylogConfig.addAppender(querylogAppender, null, null);
-        attachedAppenders.add(querylogAppender);
+        appenders.add(querylogAppender);
         closeCallbacks.add(c -> closeQuerylogAppender(c, querylogAppender));
     }
 
@@ -148,12 +187,13 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         // attributes (otherwise only the formatted body is captured).
         ElasticsearchOtelAppender appender = new ElasticsearchOtelAppender(
             OTEL_AUDIT_APPENDER_NAME,
-            OpenTelemetrySdk.builder().setLoggerProvider(loggerProvider).build()
+            OpenTelemetrySdk.builder().setLoggerProvider(loggerProvider).build(),
+            selectAppenderFilters(OTEL_AUDIT_APPENDER_NAME)
         );
         appender.start();
         config.addAppender(appender);
         auditLoggerConfig.addAppender(appender, null, null);
-        attachedAppenders.add(appender);
+        appenders.add(appender);
         closeCallbacks.add(c -> closeAuditAppender(c, appender));
     }
 
@@ -251,9 +291,13 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         }
         int maxQueueSize = OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE.get(settings);
         return SdkLoggerProvider.builder()
-            .setResource(OtelSdkResource.get(settings))
+            .setResource(logDeliveryResource(serviceName))
             .addLogRecordProcessor(BatchLogRecordProcessor.builder(exporterBuilder.build()).setMaxQueueSize(maxQueueSize).build())
             .build();
+    }
+
+    static Resource logDeliveryResource(String serviceName) {
+        return Resource.builder().put("service.name", serviceName).put("service.type", "elasticsearch").build();
     }
 
     /**
@@ -273,7 +317,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         logger.info("TLS cert files changed; reloading OTel logs export with new certificates");
         SdkLoggerProvider newProvider = buildProvider();
         var sdk = OpenTelemetrySdk.builder().setLoggerProvider(newProvider).build();
-        attachedAppenders.forEach(appender -> appender.setOpenTelemetry(sdk));
+        appenders.forEach(appender -> appender.setOpenTelemetry(sdk));
         SdkLoggerProvider oldProvider = loggerProvider;
         loggerProvider = newProvider;
         oldProvider.close();
@@ -317,6 +361,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         Configuration config = ctx.getConfiguration();
         closeCallbacks.forEach(cb -> cb.accept(config));
         closeCallbacks.clear();
+        appenders.clear();
         ctx.updateLoggers();
     }
 }

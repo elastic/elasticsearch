@@ -9,8 +9,15 @@
 
 package org.elasticsearch.gradle.testclusters;
 
-import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest;
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+import io.grpc.stub.StreamObserver;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
+import io.opentelemetry.proto.collector.metrics.v1.MetricsServiceGrpc;
+import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
+import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse;
+import io.opentelemetry.proto.collector.trace.v1.TraceServiceGrpc;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -66,6 +73,7 @@ public class MockApmServer {
     private final Pattern transactionExcludesFilter;
 
     private HttpServer instance;
+    private Server grpcInstance;
 
     public MockApmServer(String metricFilter, String transactionFilter, String transactionExcludesFilter) {
         this.metricFilter = createWildcardPattern(metricFilter);
@@ -95,12 +103,13 @@ public class MockApmServer {
         }
         InetSocketAddress addr = new InetSocketAddress("0.0.0.0", 0);
         HttpServer server = HttpServer.create(addr, 10);
-        server.createContext("/v1/metrics", new OtlpMetricsHandler());
-        server.createContext("/v1/logs", new OtlpLogsHandler());
         server.createContext("/", new RootHandler());
         server.start();
         instance = server;
         logger.lifecycle("MockApmServer started on port " + server.getAddress().getPort());
+
+        grpcInstance = ServerBuilder.forPort(0).addService(new GrpcMetricsService()).addService(new GrpcTraceService()).build().start();
+        logger.lifecycle("MockApmServer gRPC (OTLP metrics + traces) started on port " + grpcInstance.getPort());
     }
 
     public int getPort() {
@@ -108,6 +117,13 @@ public class MockApmServer {
             throw new IllegalStateException("MockApmServer not started");
         }
         return instance.getAddress().getPort();
+    }
+
+    public int getGrpcPort() {
+        if (grpcInstance == null) {
+            throw new IllegalStateException("MockApmServer not started");
+        }
+        return grpcInstance.getPort();
     }
 
     /**
@@ -118,6 +134,10 @@ public class MockApmServer {
             logger.lifecycle("stopping apm server");
             instance.stop(1);
             instance = null;
+        }
+        if (grpcInstance != null) {
+            grpcInstance.shutdownNow();
+            grpcInstance = null;
         }
     }
 
@@ -218,47 +238,43 @@ public class MockApmServer {
         }
     }
 
-    class OtlpLogsHandler implements HttpHandler {
+    class GrpcMetricsService extends MetricsServiceGrpc.MetricsServiceImplBase {
         @Override
-        public void handle(HttpExchange t) throws IOException {
-            byte[] bytes = t.getRequestBody().readAllBytes();
-            ExportLogsServiceRequest logs = ExportLogsServiceRequest.parseFrom(bytes);
-            for (var resourceLogs : logs.getResourceLogsList()) {
-                for (var scopeLogs : resourceLogs.getScopeLogsList()) {
-                    for (var record : scopeLogs.getLogRecordsList()) {
-                        logger.lifecycle("OTLP LogRecord:\n{}", record);
-                    }
-                }
+        public void export(ExportMetricsServiceRequest request, StreamObserver<ExportMetricsServiceResponse> responseObserver) {
+            try {
+                logOtlpMetrics(request);
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-
-            t.sendResponseHeaders(200, 0);
-            t.getResponseBody().close();
+            responseObserver.onNext(ExportMetricsServiceResponse.getDefaultInstance());
+            responseObserver.onCompleted();
         }
     }
 
-    class OtlpMetricsHandler implements HttpHandler {
-        @Override
-        public void handle(HttpExchange t) throws IOException {
-            byte[] bytes = t.getRequestBody().readAllBytes();
-            ExportMetricsServiceRequest metrics = ExportMetricsServiceRequest.parseFrom(bytes);
-            for (var resourceMetrics : metrics.getResourceMetricsList()) {
-                var samples = new ArrayList<String>();
-                for (var scopeMetrics : resourceMetrics.getScopeMetricsList()) {
-                    for (var metric : scopeMetrics.getMetricsList()) {
-                        String name = metric.getName();
-                        if (metricFilter != null && metricFilter.matcher(name).matches() == false) {
-                            continue;
-                        }
-                        samples.add(metric.toString());
+    private void logOtlpMetrics(ExportMetricsServiceRequest metrics) {
+        for (var resourceMetrics : metrics.getResourceMetricsList()) {
+            var samples = new ArrayList<String>();
+            for (var scopeMetrics : resourceMetrics.getScopeMetricsList()) {
+                for (var metric : scopeMetrics.getMetricsList()) {
+                    String name = metric.getName();
+                    if (metricFilter != null && metricFilter.matcher(name).matches() == false) {
+                        continue;
                     }
-                }
-                if (samples.isEmpty() == false) {
-                    logger.lifecycle("OTLP Metricset:\n{}", String.join("\n", samples));
+                    samples.add(metric.toString());
                 }
             }
+            if (samples.isEmpty() == false) {
+                logger.lifecycle("OTLP Metricset:\n{}", String.join("\n", samples));
+            }
+        }
+    }
 
-            t.sendResponseHeaders(200, 0);
-            t.getResponseBody().close();
+    class GrpcTraceService extends TraceServiceGrpc.TraceServiceImplBase {
+        @Override
+        public void export(ExportTraceServiceRequest request, StreamObserver<ExportTraceServiceResponse> responseObserver) {
+            logger.lifecycle("OTLP Spans:\n{}", request);
+            responseObserver.onNext(ExportTraceServiceResponse.getDefaultInstance());
+            responseObserver.onCompleted();
         }
     }
 }

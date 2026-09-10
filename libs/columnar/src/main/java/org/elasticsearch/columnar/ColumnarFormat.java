@@ -10,21 +10,12 @@
 package org.elasticsearch.columnar;
 
 /**
- * Format-wide identity and versioning constants for ColumNAR.
- *
- * <p>The version stamp is written into every ColumNAR file. Writers always emit {@link #VERSION_CURRENT};
- * readers accept any version in {@code [VERSION_START, VERSION_CURRENT]}.
+ * Format-wide identity constants for ColumNAR. Versioning constants live in {@link FormatVersion}.
  */
 public final class ColumnarFormat {
 
     /** Human-readable format name, used for the codec header and SPI registration. */
     public static final String NAME = "ColumNAR";
-
-    /** First on-disk version. Never reuse or renumber shipped versions. */
-    public static final int VERSION_START = 0;
-
-    /** Version written by the current code. Bump when the on-disk layout gains new behavior. */
-    public static final int VERSION_CURRENT = VERSION_START;
 
     private ColumnarFormat() {}
 }

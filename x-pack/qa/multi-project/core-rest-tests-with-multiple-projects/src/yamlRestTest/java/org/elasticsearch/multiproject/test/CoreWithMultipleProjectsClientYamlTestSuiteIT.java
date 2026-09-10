@@ -36,6 +36,7 @@ public class CoreWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProje
         .module("analysis-common")
         .module("health-shards-availability")
         .module("data-streams")
+        .module("dlm-frozen-transition")
         .module("test-multi-project")
         .module("lang-mustache")
         .module("parent-join")

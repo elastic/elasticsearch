@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 155800
+summary: Do not include internal `TaskCancelledException` in search response
+type: bug

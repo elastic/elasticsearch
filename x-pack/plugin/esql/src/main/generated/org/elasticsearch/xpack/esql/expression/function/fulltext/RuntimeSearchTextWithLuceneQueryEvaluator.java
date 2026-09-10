@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -37,6 +38,8 @@ public final class RuntimeSearchTextWithLuceneQueryEvaluator implements Expressi
 
   private final Query query;
 
+  private final MemoryIndex memoryIndex;
+
   private final BytesRef scratch;
 
   private final DriverContext driverContext;
@@ -44,11 +47,13 @@ public final class RuntimeSearchTextWithLuceneQueryEvaluator implements Expressi
   private Warnings warnings;
 
   public RuntimeSearchTextWithLuceneQueryEvaluator(Source source, ExpressionEvaluator fieldBlock,
-      Analyzer analyzer, Query query, BytesRef scratch, DriverContext driverContext) {
+      Analyzer analyzer, Query query, MemoryIndex memoryIndex, BytesRef scratch,
+      DriverContext driverContext) {
     this.source = source;
     this.fieldBlock = fieldBlock;
     this.analyzer = analyzer;
     this.query = query;
+    this.memoryIndex = memoryIndex;
     this.scratch = scratch;
     this.driverContext = driverContext;
   }
@@ -71,7 +76,7 @@ public final class RuntimeSearchTextWithLuceneQueryEvaluator implements Expressi
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(RuntimeSearch.processText(p, fieldBlockBlock, this.analyzer, this.query, this.scratch));
+          result.appendBoolean(RuntimeSearch.processText(p, fieldBlockBlock, this.analyzer, this.query, this.memoryIndex, this.scratch));
         } catch (IOException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -93,7 +98,7 @@ public final class RuntimeSearchTextWithLuceneQueryEvaluator implements Expressi
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
@@ -107,20 +112,24 @@ public final class RuntimeSearchTextWithLuceneQueryEvaluator implements Expressi
 
     private final Query query;
 
+    private final Function<DriverContext, MemoryIndex> memoryIndex;
+
     private final Function<DriverContext, BytesRef> scratch;
 
     public Factory(Source source, ExpressionEvaluator.Factory fieldBlock, Analyzer analyzer,
-        Query query, Function<DriverContext, BytesRef> scratch) {
+        Query query, Function<DriverContext, MemoryIndex> memoryIndex,
+        Function<DriverContext, BytesRef> scratch) {
       this.source = source;
       this.fieldBlock = fieldBlock;
       this.analyzer = analyzer;
       this.query = query;
+      this.memoryIndex = memoryIndex;
       this.scratch = scratch;
     }
 
     @Override
     public RuntimeSearchTextWithLuceneQueryEvaluator get(DriverContext context) {
-      return new RuntimeSearchTextWithLuceneQueryEvaluator(source, fieldBlock.get(context), analyzer, query, scratch.apply(context), context);
+      return new RuntimeSearchTextWithLuceneQueryEvaluator(source, fieldBlock.get(context), analyzer, query, memoryIndex.apply(context), scratch.apply(context), context);
     }
 
     @Override

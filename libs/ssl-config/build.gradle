@@ -17,7 +17,7 @@ dependencies {
   }
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "junit:junit:${versions.junit4}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 

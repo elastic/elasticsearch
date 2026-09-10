@@ -17,7 +17,10 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -88,7 +91,8 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
                     }
 
                     var histogramExpected = histogramAssertions.get(key);
-                    if (histogramExpected != null && sampleValue instanceof ReceivedTelemetry.HistogramSample(var counts)) {
+                    if (histogramExpected != null
+                        && sampleValue instanceof ReceivedTelemetry.HistogramSample(var ignoredMidpoints, var ignoredBounds, var counts)) {
                         int total = counts.stream().mapToInt(Integer::intValue).sum();
                         int remaining = histogramExpected - total;
                         // Pass once we have observed at least the expected number of counts. The retry loop below
@@ -126,6 +130,79 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
         }, TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
     }
 
+    public void testCustomBoundaryHistogram() throws Exception {
+        long[] recordedValues = new long[randomIntBetween(3, 10)];
+        for (int i = 0; i < recordedValues.length; i++) {
+            // Let's not cover the bucket midpoint reporting logic for underflow or overflow buckets
+            recordedValues[i] = randomLongBetween(
+                TestMeterUsages.CUSTOM_BOUNDARIES.get(0) + 1,
+                TestMeterUsages.CUSTOM_BOUNDARIES.get(TestMeterUsages.CUSTOM_BOUNDARIES.size() - 1)
+            );
+        }
+        // Assign each value to its OTel explicit-bucket index
+        Map<Integer, Integer> bucketCountMap = new TreeMap<>();
+        for (long v : recordedValues) {
+            for (int i = 0; i < TestMeterUsages.CUSTOM_BOUNDARIES.size(); i++) {
+                if (v <= TestMeterUsages.CUSTOM_BOUNDARIES.get(i)) {
+                    bucketCountMap.merge(i, 1, Integer::sum);
+                    break;
+                }
+            }
+        }
+        // APM agent path: non-zero (midpoint, count) pairs in bucket order
+        List<Double> expectedMidpoints = new ArrayList<>();
+        List<Integer> expectedCounts = new ArrayList<>();
+        for (var entry : bucketCountMap.entrySet()) {
+            var bucketIndex = entry.getKey();
+            double lower = TestMeterUsages.CUSTOM_BOUNDARIES.get(bucketIndex - 1);
+            double upper = TestMeterUsages.CUSTOM_BOUNDARIES.get(bucketIndex);
+            expectedMidpoints.add(lower + (upper - lower) / 2.0);
+            expectedCounts.add(entry.getValue());
+        }
+        // OTLP path: full bounds list + all bucket counts including zeros
+        List<Double> expectedBounds = TestMeterUsages.CUSTOM_BOUNDARIES.stream().map(Long::doubleValue).toList();
+        int numBuckets = TestMeterUsages.CUSTOM_BOUNDARIES.size() + 1;
+        List<Integer> expectedAllCounts = new ArrayList<>();
+        for (int i = 0; i < numBuckets; i++) {
+            expectedAllCounts.add(bucketCountMap.getOrDefault(i, 0));
+        }
+
+        CountDownLatch finished = new CountDownLatch(2);
+        apmServer().addMessageConsumer(msg -> {
+            if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m && "elasticsearch".equals(m.instrumentationScopeName())) {
+                for (String name : List.of(
+                    TestMeterUsages.CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME,
+                    TestMeterUsages.CUSTOM_BOUNDARIES_DOUBLE_HISTOGRAM_NAME
+                )) {
+                    var sample = m.samples().get(name);
+                    if (sample instanceof ReceivedTelemetry.HistogramSample(var midpoints, var bounds, var counts)) {
+                        if ((midpoints.equals(expectedMidpoints) && counts.equals(expectedCounts))
+                            || (bounds.equals(expectedBounds) && counts.equals(expectedAllCounts))) {
+                            logger.info("{} assertion PASSED (midpoints={}, counts={})", name, midpoints, counts);
+                            finished.countDown();
+                        }
+                    }
+                }
+            }
+        });
+
+        assertBusy(() -> {
+            for (long v : recordedValues) {
+                client().performRequest(
+                    new Request("GET", "/_use_apm_metrics?metric=" + TestMeterUsages.CUSTOM_BOUNDARIES_LONG_HISTOGRAM_NAME + "&value=" + v)
+                );
+                client().performRequest(
+                    new Request(
+                        "GET",
+                        "/_use_apm_metrics?metric=" + TestMeterUsages.CUSTOM_BOUNDARIES_DOUBLE_HISTOGRAM_NAME + "&value=" + v
+                    )
+                );
+            }
+            client().performRequest(new Request("GET", "/_flush_telemetry"));
+            assertTrue("Timeout waiting for custom boundary histogram assertion", finished.getCount() == 0);
+        }, TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
+    }
+
     public void testJvmMetrics() throws Exception {
         // Concurrent because the RecordingApmServer consumer thread mutates this map while the main thread reads it.
         Map<String, Predicate<Number>> valueAssertions = new ConcurrentHashMap<>(
@@ -133,7 +210,7 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
                 entry("system.cpu.total.norm.pct", n -> closeTo(0.0, 1.0).matches(n.doubleValue())),
                 entry("system.process.cpu.total.norm.pct", n -> closeTo(0.0, 1.0).matches(n.doubleValue())),
                 entry("system.memory.total", n -> greaterThan(0L).matches(n.longValue())),
-                entry("system.memory.actual.free", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("system.memory.actual.free", n -> greaterThan(0L).matches(n.longValue())),
                 entry("system.process.memory.size", n -> greaterThan(0L).matches(n.longValue())),
                 entry("jvm.memory.heap.used", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
                 entry("jvm.memory.heap.committed", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
@@ -142,7 +219,7 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
                 entry("jvm.memory.non_heap.committed", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
                 entry("jvm.gc.count", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
                 entry("jvm.gc.time", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
-                entry("jvm.gc.alloc", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("jvm.gc.alloc", n -> greaterThan(0L).matches(n.longValue())),
                 entry("jvm.thread.count", n -> greaterThanOrEqualTo(1L).matches(n.longValue())),
                 entry("jvm.fd.used", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
                 entry("jvm.fd.max", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),

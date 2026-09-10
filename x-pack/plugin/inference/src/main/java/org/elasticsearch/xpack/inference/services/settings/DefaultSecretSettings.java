@@ -19,6 +19,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -26,10 +27,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
-import static org.elasticsearch.inference.ModelSecrets.SECRET_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SECRET_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Contains secret settings that are common to all services.
@@ -119,7 +120,11 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
         out.writeSecureString(apiKey);
     }
 
-    public static SecureString extractOptionalApiKey(Map<String, Object> map, String scope, ValidationException validationException) {
+    public static SecureString extractOptionalApiKey(
+        Map<String, Object> map,
+        SettingsScope scope,
+        ValidationException validationException
+    ) {
         return extractOptionalSecureString(map, API_KEY, scope, validationException);
     }
 

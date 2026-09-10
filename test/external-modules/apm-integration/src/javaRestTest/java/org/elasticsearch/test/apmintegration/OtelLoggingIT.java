@@ -11,25 +11,23 @@ package org.elasticsearch.test.apmintegration;
 
 import io.opentelemetry.proto.common.v1.ArrayValue;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.junit.Before;
+import org.elasticsearch.test.otelfilter.TestOtelFilterPlugin;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
 import java.util.HexFormat;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -44,10 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
  * programmatically by {@code OtelSdkExportLogsSupplier}) → {@code SdkLoggerProvider} →
  * {@code OtlpGrpcLogRecordExporter} → gRPC recording server.
  */
-@ThreadLeakFilters(filters = { GrpcThreadsFilter.class })
 public class OtelLoggingIT extends AbstractTelemetryIT {
-
-    private static final Logger logger = LogManager.getLogger(OtelLoggingIT.class);
 
     private static final String API_USER = "api_user";
 
@@ -58,6 +53,7 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
         .distribution(DistributionType.DEFAULT)
         .module("test-apm-integration")
         .module("apm")
+        .module("test-otel-filter-plugin")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.audit.enabled", "true")
@@ -102,33 +98,18 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    @Before
-    void checkFIPS() {
-        assumeFalse("Disabled for FIPS mode: https://github.com/elastic/elasticsearch/issues/154330", inFipsJvm());
-    }
-
     public void testAuditEventArrivesAsOtlpLogRecord() throws Exception {
-        CountDownLatch arrived = new CountDownLatch(1);
-        AtomicReference<ReceivedTelemetry.ReceivedLog> firstAuditLog = new AtomicReference<>();
-
-        Consumer<ReceivedTelemetry> consumer = msg -> {
-            if (msg instanceof ReceivedTelemetry.ReceivedLog log) {
-                logger.debug("Received log: body=[{}] attributes={}", log.body(), log.attributes());
-                if (firstAuditLog.compareAndSet(null, log)) {
-                    arrived.countDown();
-                }
+        ReceivedTelemetry.ReceivedLog log = recordingApmServer.await(
+            ReceivedTelemetry.ReceivedLog.class,
+            l -> true,
+            TELEMETRY_TIMEOUT,
+            () -> {
+                // Authenticated request — should produce an authentication_success audit event.
+                client().performRequest(new Request("GET", "/_security/_authenticate"));
+                // Force a flush so the test doesn't race the BatchLogRecordProcessor's schedule.
+                client().performRequest(new Request("GET", "/_flush_telemetry"));
             }
-        };
-        recordingApmServer.addMessageConsumer(consumer);
-
-        // Authenticated request — should produce an authentication_success audit event.
-        client().performRequest(new Request("GET", "/_security/_authenticate"));
-        // Force a flush so the test doesn't race the BatchLogRecordProcessor's schedule.
-        client().performRequest(new Request("GET", "/_flush_telemetry"));
-
-        boolean got = arrived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
-        assertTrue("Timeout waiting for an OTLP log record from LoggingAuditTrail", got);
-        ReceivedTelemetry.ReceivedLog log = firstAuditLog.get();
+        );
         assertNotNull(log);
         assertNotNull(log.attributes());
         assertNotNull("audit log should carry event.action", log.attributes().get("event.action"));
@@ -144,39 +125,79 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
         assertNull("cluster.uuid must not be on OTel records", log.attributes().get("log4j.map_message.cluster.uuid"));
         assertNull("node.name must not be on OTel records", log.attributes().get("log4j.map_message.node.name"));
         assertNull("node.id must not be on OTel records", log.attributes().get("log4j.map_message.node.id"));
+        assertLogDeliveryResource();
     }
 
     public void testOtelLoggingOnSearch() throws Exception {
-        CountDownLatch arrived = new CountDownLatch(1);
-        AtomicReference<ReceivedTelemetry.ReceivedLog> queryLogMessage = new AtomicReference<>();
-
         createIndex("test_index");
 
-        Consumer<ReceivedTelemetry> consumer = msg -> {
-            if (msg instanceof ReceivedTelemetry.ReceivedLog log && log.scopeName().equals(QueryLogging.QUERY_LOGGER_NAME)) {
-                logger.debug("Received log: body=[{}] attributes={}", log.body(), log.attributes());
-                if (queryLogMessage.compareAndSet(null, log)) {
-                    arrived.countDown();
-                }
-            }
-        };
-        recordingApmServer.addMessageConsumer(consumer);
-        var search = new Request("GET", "/test_index/_search");
         var randomId = HexFormat.of().formatHex(randomByteArrayOfLength(16));
-        var traceId = "00-" + randomId + "-00f067aa0ba902b7-01";
-        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader(TRACE_PARENT_HTTP_HEADER, traceId).build();
-        search.setOptions(options);
-        client().performRequest(search);
-        // Force a flush so the test doesn't race the BatchLogRecordProcessor's schedule.
-        client().performRequest(new Request("GET", "/_flush_telemetry"));
-
-        boolean got = arrived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
-        assertTrue("Timeout waiting for an OTLP log record", got);
-        ReceivedTelemetry.ReceivedLog log = queryLogMessage.get();
+        ReceivedTelemetry.ReceivedLog log = recordingApmServer.await(
+            ReceivedTelemetry.ReceivedLog.class,
+            l -> l.scopeName().equals(QueryLogging.QUERY_LOGGER_NAME),
+            TELEMETRY_TIMEOUT,
+            () -> {
+                var search = new Request("GET", "/test_index/_search");
+                var traceId = "00-" + randomId + "-00f067aa0ba902b7-01";
+                RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader(TRACE_PARENT_HTTP_HEADER, traceId).build();
+                search.setOptions(options);
+                client().performRequest(search);
+                // Force a flush so the test doesn't race the BatchLogRecordProcessor's schedule.
+                client().performRequest(new Request("GET", "/_flush_telemetry"));
+            }
+        );
         assertNotNull(log);
         assertNotNull(log.attributes());
         assertThat(log.traceId().get(), equalTo(randomId));
         var indices = (ArrayValue) log.attributes().get(QueryLogging.QUERY_FIELD_INDICES);
         assertThat(indices.getValuesList().getFirst().getStringValue(), equalTo("test_index"));
+        assertLogDeliveryResource();
+    }
+
+    private void assertLogDeliveryResource() {
+        ReceivedTelemetry.ReceivedResource resource = apmServer().logResource();
+        assertNotNull("log export should carry a resource", resource);
+        assertThat(resource.attributes(), equalTo(Map.of("service.name", "elasticsearch", "service.type", "elasticsearch")));
+    }
+
+    /**
+     * Verifies that the plugin filter can drop querylog events: searches on
+     * {@value TestOtelFilterPlugin#DROP_INDEX_NAME} are suppressed, while a subsequent search
+     * on a normal index still flows through (proving the appender is still live).
+     */
+    public void testQuerylogFilterDropsEvents() throws Exception {
+        createIndex(TestOtelFilterPlugin.DROP_INDEX_NAME);
+        createIndex("filter_pass_index");
+
+        // Track whether a log for the drop index ever arrives.
+        AtomicBoolean dropIndexSeen = new AtomicBoolean(false);
+        CountDownLatch passIndexArrived = new CountDownLatch(1);
+        AtomicReference<ReceivedTelemetry.ReceivedLog> passLog = new AtomicReference<>();
+
+        Consumer<ReceivedTelemetry> consumer = msg -> {
+            if (msg instanceof ReceivedTelemetry.ReceivedLog log && log.scopeName().equals(QueryLogging.QUERY_LOGGER_NAME)) {
+                Object indicesAttr = log.attributes().get(QueryLogging.QUERY_FIELD_INDICES);
+                if (indicesAttr instanceof ArrayValue av
+                    && av.getValuesList().stream().anyMatch(v -> TestOtelFilterPlugin.DROP_INDEX_NAME.equals(v.getStringValue()))) {
+                    dropIndexSeen.set(true);
+                }
+                // A log with the marker field came from "filter_pass_index"
+                if (TestOtelFilterPlugin.MARKER_VALUE.equals(log.attributes().get(TestOtelFilterPlugin.MARKER_FIELD))) {
+                    if (passLog.compareAndSet(null, log)) {
+                        passIndexArrived.countDown();
+                    }
+                }
+            }
+        };
+        recordingApmServer.addMessageConsumer(consumer);
+
+        // Search the drop index first; its querylog event should be suppressed by the filter.
+        client().performRequest(new Request("GET", "/" + TestOtelFilterPlugin.DROP_INDEX_NAME + "/_search"));
+        // Then search the pass index; its record carries the marker and signals the flush reached the server.
+        client().performRequest(new Request("GET", "/filter_pass_index/_search"));
+        client().performRequest(new Request("GET", "/_flush_telemetry"));
+
+        assertTrue("Timeout waiting for pass-index querylog record", passIndexArrived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
+        assertFalse("Querylog record for drop index must be suppressed by the filter", dropIndexSeen.get());
     }
 }

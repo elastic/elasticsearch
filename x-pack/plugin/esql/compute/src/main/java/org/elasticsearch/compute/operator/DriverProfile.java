@@ -106,6 +106,7 @@ public record DriverProfile(
             b.field("rows_emitted", operators.stream().mapToLong(OperatorStatus::rowsEmitted).sum());
             b.field("bytes_read", operators.stream().mapToLong(OperatorStatus::bytesRead).sum());
             b.field("read_nanos", operators.stream().mapToLong(OperatorStatus::readNanos).sum());
+            b.field("read_cpu_nanos", operators.stream().mapToLong(OperatorStatus::readCpuNanos).sum());
             b.field("iterations", iterations);
             return b;
         }),

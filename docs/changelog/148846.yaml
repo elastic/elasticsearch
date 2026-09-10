@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 148846
-summary: "[ESQLDS - Parquet] Speed up allocations and remove array copies"
-type: enhancement

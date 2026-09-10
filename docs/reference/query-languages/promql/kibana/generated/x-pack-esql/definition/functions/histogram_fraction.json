@@ -1,0 +1,36 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "histogram",
+  "name" : "histogram_fraction",
+  "description" : "Returns the estimated fraction of observations of a native histogram that fall between the provided lower and upper values.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "lower",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Lower bound of the range."
+        },
+        {
+          "name" : "upper",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Upper bound of the range."
+        },
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "histogram_fraction(0, 0.2, increase(http_request_duration_seconds[1h]))"
+  ],
+  "snapshot_only" : false
+}

@@ -959,7 +959,7 @@ public class Reindexer {
     }
 
     /**
-     * Simple implementation of reindex using scrolling and bulk. There are tons
+     * Simple implementation of reindex using paginated search and bulk. There are tons
      * of optimizations that can be done on certain types of reindex requests
      * but this makes no attempt to do any of them so it can be as simple
      * possible.

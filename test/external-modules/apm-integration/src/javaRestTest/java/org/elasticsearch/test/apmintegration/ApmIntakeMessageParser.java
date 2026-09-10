@@ -112,6 +112,30 @@ public final class ApmIntakeMessageParser {
         }
         if (sample.containsKey("counts")) {
             Object c = sample.get("counts");
+            // APM agent message (with midpoints for non-zero counts only)
+            Object v = sample.get("values");
+            List<Double> midpoints = new ArrayList<>();
+            if (v instanceof List<?> vList) {
+                for (Object o : vList) {
+                    if (o instanceof Number n) {
+                        midpoints.add(n.doubleValue());
+                    } else {
+                        throw new IOException("metric sample values element is not a number");
+                    }
+                }
+            }
+            // OTel message (explicit bounds for all counts)
+            Object b = sample.get("bounds");
+            List<Double> bounds = new ArrayList<>();
+            if (b instanceof List<?> bList) {
+                for (Object o : bList) {
+                    if (o instanceof Number n) {
+                        bounds.add(n.doubleValue());
+                    } else {
+                        throw new IOException("metric sample bounds element is not a number");
+                    }
+                }
+            }
             if (c instanceof List<?> list) {
                 List<Integer> counts = new ArrayList<>();
                 for (Object o : list) {
@@ -121,7 +145,7 @@ public final class ApmIntakeMessageParser {
                         throw new IOException("metric sample counts element is not a number");
                     }
                 }
-                return new ReceivedTelemetry.HistogramSample(List.copyOf(counts));
+                return new ReceivedTelemetry.HistogramSample(List.copyOf(midpoints), List.copyOf(bounds), List.copyOf(counts));
             }
             throw new IOException("metric sample counts is not a list");
         }
@@ -173,7 +197,7 @@ public final class ApmIntakeMessageParser {
         String spanId = id != null ? id : "";
         String parentId = getString(transaction, "parent_id");
         Optional<String> parent = (parentId == null || parentId.isEmpty()) ? Optional.empty() : Optional.of(parentId);
-        Map<String, Object> attributes = flattenAttributes(transaction, TRANSACTION_DECODED_KEYS);
+        Map<String, Object> attributes = withRepresentativeCount(flattenAttributes(transaction, TRANSACTION_DECODED_KEYS));
         return new ReceivedTelemetry.ReceivedSpan(name, traceId, spanId, parent, attributes);
     }
 
@@ -194,8 +218,17 @@ public final class ApmIntakeMessageParser {
         if (parentId == null) {
             parentId = getString(span, "transaction_id");
         }
-        Map<String, Object> attributes = flattenAttributes(span, SPAN_DECODED_KEYS);
+        Map<String, Object> attributes = withRepresentativeCount(flattenAttributes(span, SPAN_DECODED_KEYS));
         return new ReceivedTelemetry.ReceivedSpan(name, traceId, id, Optional.ofNullable(parentId), attributes);
+    }
+
+    private static Map<String, Object> withRepresentativeCount(Map<String, Object> attributes) {
+        if (attributes.get("sample_rate") instanceof Number sampleRate) {
+            Map<String, Object> result = new LinkedHashMap<>(attributes);
+            result.put("representative_count", 1 / sampleRate.doubleValue());
+            return Collections.unmodifiableMap(result);
+        }
+        return attributes;
     }
 
     /**

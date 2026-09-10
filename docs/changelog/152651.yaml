@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 152651
-summary: "[ESQLDS] Add multi-key TopN pushdown for external sources"
-type: enhancement

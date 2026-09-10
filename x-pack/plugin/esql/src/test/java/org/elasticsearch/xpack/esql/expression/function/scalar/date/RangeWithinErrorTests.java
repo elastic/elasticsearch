@@ -20,8 +20,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Error tests for RANGE_WITHIN(value, range).
- * First argument must be date or date_range; second argument must be date_range.
+ * Error tests for {@code RANGE_WITHIN(value, range)}.
  */
 public class RangeWithinErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
@@ -37,6 +36,28 @@ public class RangeWithinErrorTests extends ErrorsForCasesWithoutExamplesTestCase
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, i) -> i == 0 ? "date or date_range" : "date_range"));
+        return equalTo(
+            typeErrorMessage(
+                true,
+                validPerPosition,
+                signature,
+                (v, i) -> i == 0 ? "date, date_range, double or double_range"
+                    : signature.get(0) == DataType.DOUBLE || signature.get(0) == DataType.DOUBLE_RANGE ? "double_range"
+                    : signature.get(0) == DataType.DATETIME || signature.get(0) == DataType.DATE_RANGE ? "date_range"
+                    : "date_range or double_range",
+                () -> {
+                    String expected = signature.get(0) == DataType.DOUBLE || signature.get(0) == DataType.DOUBLE_RANGE
+                        ? "double_range"
+                        : "date_range";
+                    return "second argument of ["
+                        + sourceForSignature(signature)
+                        + "] must be ["
+                        + expected
+                        + "], found value [] type ["
+                        + signature.get(1).typeName()
+                        + "]";
+                }
+            )
+        );
     }
 }

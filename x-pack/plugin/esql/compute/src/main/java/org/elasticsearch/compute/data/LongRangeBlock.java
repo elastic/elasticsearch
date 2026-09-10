@@ -95,6 +95,26 @@ public sealed interface LongRangeBlock extends Block permits LongRangeArrayBlock
     LongRangeBlockBuilder.LongRange getLongRange(int valueIndex, LongRangeBlockBuilder.LongRange scratch);
 
     /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+     * @param scratch the scratch range to use for this operation; must not be {@code value}
+     */
+    default boolean hasValue(int position, LongRangeBlockBuilder.LongRange value, LongRangeBlockBuilder.LongRange scratch) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        for (int index = startIndex; index < startIndex + count; index++) {
+            LongRangeBlockBuilder.LongRange range = getLongRange(index, scratch);
+            if (value.from() == range.from() && value.to() == range.to()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Builder for {@link LongRangeBlock}.
      */
     sealed interface Builder extends Block.Builder, BlockLoader.LongRangeBuilder permits LongRangeBlockBuilder {

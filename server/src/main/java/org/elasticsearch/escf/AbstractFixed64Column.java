@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.ByteUtils;
 
 import java.io.IOException;
@@ -32,7 +33,18 @@ abstract class AbstractFixed64Column extends EscfColumn {
     AbstractFixed64Column(int docCount, FixedBitSet validity, BytesReference data) {
         super(docCount, validity);
         assert assertDataValid(docCount, data);
-        this.data = data;
+        // We do not handle lifecycle here. Unwrap to reduce indirection.
+        this.data = ReleasableBytesReference.unwrap(data);
+    }
+
+    /**
+     * Returns a new dense {@link DenseLongValuesCursor} positioned before the first row of this
+     * column's window. The column must be fully present ({@link #validity} {@code == null}); call
+     * this only on dense columns (e.g. array children).
+     */
+    DenseLongValuesCursor longValuesCursor() {
+        assert validity == null : "values cursor is only valid for dense (fully-present) columns";
+        return new DenseLongValuesCursor(docCount, this);
     }
 
     /** The raw little-endian 8-byte slot for document {@code d}. */
@@ -70,31 +82,29 @@ abstract class AbstractFixed64Column extends EscfColumn {
     }
 
     private static final class LongCursor extends LongTupleCursor {
-        private final AbstractFixed64Column column;
+        private final PresentDocIterator present;
         private final DenseLongValuesCursor values;
-        private int row = -1;
+        private int lastRow = -1;
         private long currentValue;
 
         LongCursor(AbstractFixed64Column column) {
-            this.column = column;
+            this.present = column.presentDocs();
             this.values = new DenseLongValuesCursor(column.docCount, column);
         }
 
         @Override
         public int nextDoc() {
-            int toSkip = 0;
-            while (++row < column.docCount) {
-                if (column.isAbsent(row)) {
-                    toSkip++;
-                } else {
-                    if (toSkip > 0) {
-                        values.skip(toSkip);
-                    }
-                    currentValue = values.nextLong();
-                    return row;
-                }
+            int doc = present.nextDoc();
+            if (doc == DocIdSetIterator.NO_MORE_DOCS) {
+                return doc;
             }
-            return DocIdSetIterator.NO_MORE_DOCS;
+            int toSkip = doc - lastRow - 1;
+            if (toSkip > 0) {
+                values.skip(toSkip);
+            }
+            currentValue = values.nextLong();
+            lastRow = doc;
+            return doc;
         }
 
         @Override

@@ -480,4 +480,11 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         query.lenient(true);
         assertThat(query.toQuery(context), Matchers.instanceOf(MatchNoDocsQuery.class));
     }
+
+    public void testMultiMatchFuzzyCircuitBreakerTripsOnExpansionFloorForCheapClauses() {
+        assertCircuitBreakerTripsOnQueryConstruction(
+            "64kb",
+            () -> new MultiMatchQueryBuilder("abc", TEXT_FIELD_NAME, KEYWORD_FIELD_NAME).fuzziness(Fuzziness.ONE).prefixLength(3)
+        );
+    }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -54,6 +55,7 @@ public class MvLastTests extends AbstractMultivalueFunctionTestCase {
         if (EsqlCapabilities.Cap.MV_FIRST_LAST_DATE_RANGE.isEnabled()) {
             dateRanges(cases);
         }
+        doubleRanges(cases);
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases);
     }
 
@@ -74,6 +76,28 @@ public class MvLastTests extends AbstractMultivalueFunctionTestCase {
                 List.of(new TestCaseSupplier.TypedData(values, DataType.DATE_RANGE, "field").withAppliesTo(dateRangeAppliesTo)),
                 "MvLast[field=Attribute[channel=0]]",
                 DataType.DATE_RANGE,
+                equalTo(values.get(values.size() - 1))
+            );
+        }));
+    }
+
+    private static void doubleRanges(List<TestCaseSupplier> cases) {
+        FunctionAppliesTo appliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
+        cases.add(new TestCaseSupplier("mv_last(double_range)", List.of(DataType.DOUBLE_RANGE), () -> {
+            DoubleRangeBlockBuilder.DoubleRange value = TestCaseSupplier.randomDoubleRange();
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(List.of(value), DataType.DOUBLE_RANGE, "field").withAppliesTo(appliesTo)),
+                "MvLast[field=Attribute[channel=0]]",
+                DataType.DOUBLE_RANGE,
+                equalTo(value)
+            );
+        }));
+        cases.add(new TestCaseSupplier("mv_last(double_ranges)", List.of(DataType.DOUBLE_RANGE), () -> {
+            List<DoubleRangeBlockBuilder.DoubleRange> values = randomList(1, 10, TestCaseSupplier::randomDoubleRange);
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(values, DataType.DOUBLE_RANGE, "field").withAppliesTo(appliesTo)),
+                "MvLast[field=Attribute[channel=0]]",
+                DataType.DOUBLE_RANGE,
                 equalTo(values.get(values.size() - 1))
             );
         }));

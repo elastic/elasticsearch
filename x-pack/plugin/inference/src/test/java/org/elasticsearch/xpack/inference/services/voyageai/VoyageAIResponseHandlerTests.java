@@ -30,8 +30,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class VoyageAIResponseHandlerTests extends ESTestCase {
-    public void testHandleFailureStatusCode_ThrowsFor503() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(503, "id"));
+    public void testBuildFailureStatusCodeException_ReturnsFor503() {
+        var exception = callHandleFailureStatusCode(503, "id");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -40,8 +40,8 @@ public class VoyageAIResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor500_WithShouldRetryTrue() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(500, "id"));
+    public void testBuildFailureStatusCodeException_ReturnsFor500_WithShouldRetryTrue() {
+        var exception = callHandleFailureStatusCode(500, "id");
         assertTrue(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -50,8 +50,8 @@ public class VoyageAIResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor429_WithShouldRetryTrue() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(429, "id"));
+    public void testBuildFailureStatusCodeException_ReturnsFor429_WithShouldRetryTrue() {
+        var exception = callHandleFailureStatusCode(429, "id");
         assertTrue(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -60,8 +60,8 @@ public class VoyageAIResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor400() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(400, "id"));
+    public void testBuildFailureStatusCodeException_ReturnsFor400() {
+        var exception = callHandleFailureStatusCode(400, "id");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -70,11 +70,8 @@ public class VoyageAIResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor400_InputsTooLarge() {
-        var exception = expectThrows(
-            RetryException.class,
-            () -> callHandleFailureStatusCode(400, "\"input\" length 2049 is larger than the largest allowed size 2048", "id")
-        );
+    public void testBuildFailureStatusCodeException_ReturnsFor400_InputsTooLarge() {
+        var exception = callHandleFailureStatusCode(400, "\"input\" length 2049 is larger than the largest allowed size 2048", "id");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -83,8 +80,18 @@ public class VoyageAIResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor401() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(401, "inferenceEntityId"));
+    public void testBuildFailureStatusCodeException_ReturnsFor422() {
+        var exception = callHandleFailureStatusCode(422, "id");
+        assertFalse(exception.shouldRetry());
+        MatcherAssert.assertThat(
+            exception.getCause().getMessage(),
+            containsString("Received an input validation error response for request from inference entity id [id] status [422]")
+        );
+        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNPROCESSABLE_ENTITY));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor401() {
+        var exception = callHandleFailureStatusCode(401, "inferenceEntityId");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -95,18 +102,18 @@ public class VoyageAIResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNAUTHORIZED));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor402() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(402, "inferenceEntityId"));
+    public void testBuildFailureStatusCodeException_ReturnsFor402() {
+        var exception = callHandleFailureStatusCode(402, "inferenceEntityId");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(exception.getCause().getMessage(), containsString("Payment required"));
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.PAYMENT_REQUIRED));
     }
 
-    private static void callHandleFailureStatusCode(int statusCode, String modelId) {
-        callHandleFailureStatusCode(statusCode, null, modelId);
+    private static RetryException callHandleFailureStatusCode(int statusCode, String modelId) {
+        return callHandleFailureStatusCode(statusCode, null, modelId);
     }
 
-    private static void callHandleFailureStatusCode(int statusCode, @Nullable String errorMessage, String modelId) {
+    private static RetryException callHandleFailureStatusCode(int statusCode, @Nullable String errorMessage, String modelId) {
         var statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(statusCode);
 
@@ -129,6 +136,6 @@ public class VoyageAIResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, errorMessage == null ? new byte[] {} : responseJson.getBytes(StandardCharsets.UTF_8));
         var handler = new VoyageAIResponseHandler("", (request, result) -> null);
 
-        handler.handleFailureStatusCode(mockRequest, httpResult);
+        return handler.buildFailureStatusCodeException(mockRequest, httpResult);
     }
 }

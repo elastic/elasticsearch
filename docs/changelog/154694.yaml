@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 154694
-summary: Fix view+alias data deduplication in `ViewResolver`
-type: bug

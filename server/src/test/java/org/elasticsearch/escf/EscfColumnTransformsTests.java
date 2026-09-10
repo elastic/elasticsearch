@@ -37,7 +37,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
         EscfColumn col = EscfColumn.from(b.finish(3));
 
         assertEquals(EscfColumnKind.STRING, col.kind());
-        assertTuples(EscfColumnTransforms.utf8Cursor(col), tuple(0, "alpha"), tuple(1, "beta"), tuple(2, "gamma"));
+        assertTuples(EscfColumnTransforms.utf8Cursor(col, randomBoolean()), tuple(0, "alpha"), tuple(1, "beta"), tuple(2, "gamma"));
     }
 
     public void testStringColumn_absentRowsSkipped() {
@@ -47,7 +47,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
         b.addString(utf8("z"));
         EscfColumn col = EscfColumn.from(b.finish(3));
 
-        assertTuples(EscfColumnTransforms.utf8Cursor(col), tuple(0, "x"), tuple(2, "z"));
+        assertTuples(EscfColumnTransforms.utf8Cursor(col, randomBoolean()), tuple(0, "x"), tuple(2, "z"));
     }
 
     public void testLongColumn_canonicalToString() {
@@ -57,7 +57,12 @@ public class EscfColumnTransformsTests extends ESTestCase {
         b.addLong(Long.MAX_VALUE);
         EscfColumn col = EscfColumn.from(b.finish(3));
 
-        assertTuples(EscfColumnTransforms.utf8Cursor(col), tuple(0, "42"), tuple(1, "-1"), tuple(2, Long.toString(Long.MAX_VALUE)));
+        assertTuples(
+            EscfColumnTransforms.utf8Cursor(col, randomBoolean()),
+            tuple(0, "42"),
+            tuple(1, "-1"),
+            tuple(2, Long.toString(Long.MAX_VALUE))
+        );
     }
 
     public void testLongColumn_sparseDrains() {
@@ -68,7 +73,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
         b.addLong(20L);
         EscfColumn col = EscfColumn.from(b.finish(4));
 
-        assertTuples(EscfColumnTransforms.utf8Cursor(col), tuple(1, "10"), tuple(3, "20"));
+        assertTuples(EscfColumnTransforms.utf8Cursor(col, randomBoolean()), tuple(1, "10"), tuple(3, "20"));
     }
 
     public void testDoubleColumn_canonicalToString() {
@@ -77,7 +82,11 @@ public class EscfColumnTransformsTests extends ESTestCase {
         b.addDouble(-0.5);
         EscfColumn col = EscfColumn.from(b.finish(2));
 
-        assertTuples(EscfColumnTransforms.utf8Cursor(col), tuple(0, Double.toString(3.14)), tuple(1, Double.toString(-0.5)));
+        assertTuples(
+            EscfColumnTransforms.utf8Cursor(col, randomBoolean()),
+            tuple(0, Double.toString(3.14)),
+            tuple(1, Double.toString(-0.5))
+        );
     }
 
     public void testBoolColumn_trueAndFalse() {
@@ -87,7 +96,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
         b.addBoolean(true);
         EscfColumn col = EscfColumn.from(b.finish(3));
 
-        assertTuples(EscfColumnTransforms.utf8Cursor(col), tuple(0, "true"), tuple(1, "false"), tuple(2, "true"));
+        assertTuples(EscfColumnTransforms.utf8Cursor(col, randomBoolean()), tuple(0, "true"), tuple(1, "false"), tuple(2, "true"));
     }
 
     public void testNullInUnion_emitsNullValue() {
@@ -99,7 +108,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
 
         assertEquals(EscfColumnKind.UNION, col.kind());
         // Null rows emit a tuple with value() == null.
-        assertTuples(EscfColumnTransforms.utf8Cursor(col), nullTuple(0), tuple(1, "7"));
+        assertTuples(EscfColumnTransforms.utf8Cursor(col, randomBoolean()), nullTuple(0), tuple(1, "7"));
     }
 
     public void testAllAbsent_emitsNothing() {
@@ -108,7 +117,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
         b.addAbsent();
         EscfColumn col = EscfColumn.from(b.finish(2));
 
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, EscfColumnTransforms.utf8Cursor(col).nextDoc());
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, EscfColumnTransforms.utf8Cursor(col, randomBoolean()).nextDoc());
     }
 
     public void testLongArrayColumn_multipleElementsPerDoc() {
@@ -123,7 +132,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
         EscfArrayColumn array = new EscfArrayColumn(3, null, child, intsRef(new int[] { 0, 2, 3, 3 }));
 
         // Row 0 emits two tuples (both with doc-id 0); row 2 is empty → no tuple.
-        assertTuples(EscfColumnTransforms.utf8Cursor(array), tuple(0, "10"), tuple(0, "20"), tuple(1, "30"));
+        assertTuples(EscfColumnTransforms.utf8Cursor(array, randomBoolean()), tuple(0, "10"), tuple(0, "20"), tuple(1, "30"));
     }
 
     public void testStringArrayColumn() {
@@ -135,7 +144,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
         // 2 rows: row 0 → ["hello"], row 1 → ["world"]
         EscfArrayColumn array = new EscfArrayColumn(2, null, child, intsRef(new int[] { 0, 1, 2 }));
 
-        assertTuples(EscfColumnTransforms.utf8Cursor(array), tuple(0, "hello"), tuple(1, "world"));
+        assertTuples(EscfColumnTransforms.utf8Cursor(array, randomBoolean()), tuple(0, "hello"), tuple(1, "world"));
     }
 
     public void testEmptyArray_emitsNoTuples() {
@@ -145,7 +154,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
         EscfColumn child = EscfColumn.from(childBuilder.finish(1));
         EscfArrayColumn array = new EscfArrayColumn(1, null, child, intsRef(new int[] { 0, 0 }));
 
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, EscfColumnTransforms.utf8Cursor(array).nextDoc());
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, EscfColumnTransforms.utf8Cursor(array, randomBoolean()).nextDoc());
     }
 
     public void testMixedLongDoubleUnion() {
@@ -156,7 +165,12 @@ public class EscfColumnTransformsTests extends ESTestCase {
         EscfColumn col = EscfColumn.from(b.finish(3));
 
         assertEquals(EscfColumnKind.UNION, col.kind());
-        assertTuples(EscfColumnTransforms.utf8Cursor(col), tuple(0, "10"), tuple(1, Double.toString(3.14)), tuple(2, "20"));
+        assertTuples(
+            EscfColumnTransforms.utf8Cursor(col, randomBoolean()),
+            tuple(0, "10"),
+            tuple(1, Double.toString(3.14)),
+            tuple(2, "20")
+        );
     }
 
     // EscfColumnBuilder always writes LONG/DOUBLE type bytes for scalar UNION rows, never INT/FLOAT.
@@ -174,7 +188,11 @@ public class EscfColumnTransformsTests extends ESTestCase {
             EscfColumn col = columnByPath(batch, "f");
             assertEquals(EscfColumnKind.UNION, col.kind());
 
-            assertTuples(EscfColumnTransforms.utf8Cursor(col), tuple(0, Integer.toString(42)), tuple(0, Float.toString(1.5f)));
+            assertTuples(
+                EscfColumnTransforms.utf8Cursor(col, randomBoolean()),
+                tuple(0, Integer.toString(42)),
+                tuple(0, Float.toString(1.5f))
+            );
         }
     }
 
@@ -186,7 +204,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
             {"f":[[1,2],[3]]}""")) {
             EscfColumn col = columnByPath(batch, "f");
             assertTuples(
-                EscfColumnTransforms.utf8Cursor(col),
+                EscfColumnTransforms.utf8Cursor(col, randomBoolean()),
                 tuple(0, Integer.toString(1)),
                 tuple(0, Integer.toString(2)),
                 tuple(0, Integer.toString(3))
@@ -199,7 +217,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
         try (EscfBatch batch = encode("""
             {"f":["a",null]}""")) {
             EscfColumn col = columnByPath(batch, "f");
-            assertTuples(EscfColumnTransforms.utf8Cursor(col), tuple(0, "a"), nullTuple(0));
+            assertTuples(EscfColumnTransforms.utf8Cursor(col, randomBoolean()), tuple(0, "a"), nullTuple(0));
         }
     }
 
@@ -208,7 +226,7 @@ public class EscfColumnTransformsTests extends ESTestCase {
         EscfColumnData data = EscfColumnData.ofVarWidth(EscfColumnKind.BINARY, 1, null, offs, new BytesArray(new byte[] { 1, 2 }));
         EscfColumn col = EscfColumn.from(data);
 
-        ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(col);
+        ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(col, randomBoolean());
         expectThrows(UnsupportedOperationException.class, cursor::nextDoc);
     }
 

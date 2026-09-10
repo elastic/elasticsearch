@@ -20,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -110,6 +111,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      */
     private final transient List<BooleanSupplier> stopHooks = new CopyOnWriteArrayList<>();
 
+    // Project routing telemetry — coordinator-only, not serialized
+    private transient ProjectRoutingRequestInfo projectRoutingInfo;
+    private transient boolean hasLinkedProjects;
+
     private final EsqlQueryProfile queryProfile;
 
     /**
@@ -179,6 +184,21 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public IncludeExecutionMetadata includeExecutionMetadata() {
         return includeExecutionMetadata;
+    }
+
+    /** Stores routing metadata captured from the first field-caps round. */
+    public void setProjectRoutingInfo(@Nullable ProjectRoutingRequestInfo info, boolean hasLinkedProjects) {
+        this.projectRoutingInfo = info;
+        this.hasLinkedProjects = hasLinkedProjects;
+    }
+
+    @Nullable
+    public ProjectRoutingRequestInfo getProjectRoutingInfo() {
+        return projectRoutingInfo;
+    }
+
+    public boolean isHasLinkedProjects() {
+        return hasLinkedProjects;
     }
 
     /**
@@ -276,8 +296,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public Cluster swapCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
         return clusterInfo.compute(clusterAlias, (unused, oldCluster) -> {
             final Cluster newCluster = remappingFunction.apply(clusterAlias, oldCluster);
-            if (newCluster != null && isPartial == false) {
-                isPartial = newCluster.isPartial();
+            if (newCluster != null && newCluster.isPartial()) {
+                isPartial = true;
             }
             return newCluster;
         });
@@ -365,7 +385,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * Marks the overall result as partial directly, independent of the per-cluster status path used for
      * shard/node failures. This is required for pure external-source queries (e.g. {@code EXTERNAL "file://..."}),
      * which carry no {@code clusterInfo} entry to drive {@link #swapCluster} — so a lenient external read that
-     * drops data (e.g. a {@code max_record_size} truncation under a non-strict {@code error_mode}) has no cluster
+     * drops data (e.g. a {@code external_max_record_size} truncation under a non-strict {@code error_mode}) has no cluster
      * to flip. Sticky like the cluster-driven path: once partial, always partial.
      */
     public void markPartial() {

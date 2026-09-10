@@ -59,7 +59,8 @@ public class StatelessSigtermPlugin extends ShutdownPlugin {
             services.remoteTransportClient(),
             POLL_INTERVAL_SETTING.get(clusterService.getSettings()),
             TIMEOUT_SETTING.get(clusterService.getSettings()),
-            services.nodeEnvironment().nodeId()
+            services.nodeEnvironment().nodeId(),
+            new SigtermShutdownMetrics(services.telemetryProvider().getMeterRegistry())
         );
 
         NodeSeenService nodeSeenService = new NodeSeenService(clusterService);

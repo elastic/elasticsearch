@@ -31,7 +31,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -314,7 +314,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         // For ElasticInferenceServiceCompletionModel, convert ChatCompletionInput to UnifiedChatInput
         // since the request manager expects UnifiedChatInput
         final InferenceInputs finalInputs = (elasticInferenceServiceModel instanceof ElasticInferenceServiceCompletionModel
-            && inputs instanceof ChatCompletionInput) ? new UnifiedChatInput((ChatCompletionInput) inputs, USER_ROLE) : inputs;
+            && inputs instanceof CompletionInput) ? new UnifiedChatInput((CompletionInput) inputs, USER_ROLE) : inputs;
 
         actionCreator.create(
             elasticInferenceServiceModel,
@@ -338,7 +338,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
                 (ElasticInferenceServiceDenseEmbeddingsModel) model,
                 getCurrentTraceInfo(),
                 listener.delegateFailureAndWrap(
-                    (delegate, action) -> action.execute(new EmbeddingsInput(request::inputs, request.inputType()), timeout, delegate)
+                    (delegate, action) -> action.execute(new EmbeddingsInput(request.inputs(), request.inputType()), timeout, delegate)
                 )
             );
         } else {
@@ -403,7 +403,11 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
                 getCurrentTraceInfo(),
                 request.listener()
                     .delegateFailureAndWrap(
-                        (delegate, action) -> action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, delegate)
+                        (delegate, action) -> action.execute(
+                            new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                            timeout,
+                            delegate
+                        )
                     )
             );
         }

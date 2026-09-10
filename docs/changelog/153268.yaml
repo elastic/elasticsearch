@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 152997
-pr: 153268
-summary: Implicit cast based on widened type
-type: bug

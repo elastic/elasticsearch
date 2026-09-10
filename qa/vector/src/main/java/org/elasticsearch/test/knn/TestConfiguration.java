@@ -83,7 +83,9 @@ public record TestConfiguration(
     String directoryType,
     DatasetConfig datasetConfig,
     int numDeletedDocs,
-    long deleteSeed
+    long deleteSeed,
+    float projectedDimsFraction,
+    String quantizationType
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -132,6 +134,8 @@ public record TestConfiguration(
     static final ParseField DELETE_SEED_FIELD = new ParseField("delete_seed");
     static final ParseField EXACT_FIELD = new ParseField("exact");
     static final ParseField EXACT_QUANTIZED_FIELD = new ParseField("exact_quantized");
+    private static final ParseField PROJECTED_DIMS_FRACTION_FIELD = new ParseField("projected_dims_fraction");
+    private static final ParseField QUANTIZATION_TYPE_FIELD = new ParseField("quantization_type");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -214,6 +218,8 @@ public record TestConfiguration(
             EXACT_QUANTIZED_FIELD,
             ObjectParser.ValueType.VALUE_ARRAY
         );
+        PARSER.declareFloat(Builder::setProjectedDimsFraction, PROJECTED_DIMS_FRACTION_FIELD);
+        PARSER.declareString(Builder::setQuantizationType, QUANTIZATION_TYPE_FIELD);
     }
 
     public int numberOfSearchRuns() {
@@ -316,7 +322,9 @@ public record TestConfiguration(
             new ParameterHelp(
                 "directory_type",
                 "string",
-                "Directory type: default (mmap), frozen (searchable snapshot), or custom types registered by external wrappers."
+                "Directory type: default (mmap), frozen (searchable snapshot), stateless (stateless search-node read path), "
+                    + "stateless-index (stateless indexing-node read path; requires reindex=true and rebuilds its own index path "
+                    + "on every run), or custom types registered by external wrappers."
             )
         );
 
@@ -469,6 +477,8 @@ public record TestConfiguration(
         private long deleteSeed = 1751900822751L;
         private List<Boolean> exact = List.of(Boolean.FALSE);
         private List<Boolean> exactQuantized = List.of(Boolean.FALSE);
+        private float projectedDimsFraction = 0.5f;
+        private String quantizationType = "osq";
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -717,6 +727,14 @@ public record TestConfiguration(
         public Builder setExactQuantized(List<Boolean> exactQuantized) {
             this.exactQuantized = exactQuantized;
             return this;
+        }
+
+        public void setProjectedDimsFraction(float projectedDimsFraction) {
+            this.projectedDimsFraction = projectedDimsFraction;
+        }
+
+        public void setQuantizationType(String quantizationType) {
+            this.quantizationType = quantizationType;
         }
 
         /*
@@ -1015,7 +1033,9 @@ public record TestConfiguration(
                 directoryType,
                 datasetConfig,
                 numDeletedDocs,
-                deleteSeed
+                deleteSeed,
+                projectedDimsFraction,
+                quantizationType
             );
         }
 

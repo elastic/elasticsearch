@@ -41,6 +41,14 @@ James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 % TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 % TESTRESPONSE[non_json]
 
+## Prerequisites [esql-rest-prerequisites]
+
+To run an {{esql}} query with [`POST /_query`]({{es-apis}}operation/operation-esql-query) or [`POST /_query/async`]({{es-apis}}operation/operation-esql-async-query), you need the [`read`](/reference/elasticsearch/security-privileges.md#privileges-list-indices) index privilege on the indices, data streams, aliases, or views you query.
+
+The [`monitor_esql`](/reference/elasticsearch/security-privileges.md#privileges-list-cluster) cluster privilege is only for inspecting queries that are currently running.
+It doesn't grant the ability to run queries or to retrieve async results.
+
+
 ## Run the {{esql}} query API in Console [esql-kibana-console]
 
 We recommend using [Console](docs-content://explore-analyze/query-filter/tools/console.md) to run the {{esql}} query API, because of its rich autocomplete features.
@@ -418,7 +426,7 @@ These parameters can be named, positional, or anonymous:
 - **Anonymous** (`?`, `??`) are matched to params in the order they appear in the query.
 
 ::::{important}
-Don't mix parameter styles in the same query. For example, you cannot use named `?name` with positional `??1`. Choose one style and use it consistently across both value and identifier parameters.
+Don't mix parameter styles in the same query. For example, you cannot use named parameter `?name` with positional parameter `??1`. Choose one style and use it consistently across both value and identifier parameters.
 ::::
 
 ### Value parameters (`?`) [esql-rest-value-params]
@@ -438,6 +446,8 @@ We recommend using the [`??`](#esql-rest-identifier-params) syntax instead in 9.
 
 #### Example
 
+##### Named parameters
+
 ```console
 POST /_query
 {
@@ -452,8 +462,10 @@ POST /_query
 ```
 % TEST[setup:library]
 
-1. Named placeholders `?min_pages` and `?author` mark where values are substituted
+1. Named parameters `?min_pages` and `?author` mark where values are substituted
 2. Each object in `params` maps a name to its value
+
+##### Positional parameters
 
 You can also reference params by position:
 
@@ -471,8 +483,29 @@ POST /_query
 ```
 % TEST[setup:library]
 
-1. `?1` refers to the first param, `?2` to the second
+1. `?1` refers to the first param, `?2` to the second param
 2. Values are provided as a simple array, matched by position
+
+##### Anonymous parameters
+
+With anonymous parameters, each `?` consumes the next param in order:
+
+```console
+POST /_query
+{
+  "query": """
+    FROM library
+    | WHERE page_count > ? AND author == ? <1>
+    | KEEP author, name, page_count
+    | SORT page_count DESC
+  """,
+  "params": [300, "Frank Herbert"] <2>
+}
+```
+% TEST[setup:library]
+
+1. Each `?` is replaced by the next param in the array
+2. Values are provided as a simple array
 
 ### Identifier parameters (`??`) [esql-rest-identifier-params]
 
@@ -494,6 +527,8 @@ We recommend using this syntax instead of the original `?` syntax.
 
 #### Example
 
+##### Named parameters
+
 This query uses named identifier parameters for the aggregation function, field, and grouping:
 
 ```console
@@ -512,6 +547,8 @@ POST /_query?format=txt
 1. `??agg_fn` is inserted as the function name, `??field` and `??group_by` as field names
 2. Parameter values are substituted as identifiers, not quoted strings
 
+##### Positional parameters
+
 With positional parameters, placeholders reference params by their position in the array:
 
 ```console
@@ -529,6 +566,8 @@ POST /_query?format=txt
 
 1. `??1` is the first param (function name), `??2` second (field), `??3` third (group by field)
 2. Simple array of identifier names
+
+##### Anonymous parameters
 
 With anonymous parameters, each `??` consumes the next param in order:
 

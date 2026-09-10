@@ -582,18 +582,25 @@ public final class RestoreService implements ClusterStateApplier {
             existingDataStreamTargets = new ArrayList<>();
             final Set<String> dataStreamOwnedIndexNames = new HashSet<>();
             for (Map.Entry<String, DataStream> entry : dataStreamsToRestore.entrySet()) {
+                final DataStream snapshotDataStream = entry.getValue();
+                // Every data stream's backing/failure indices are handled as part of their data stream, so keep them out of the plain
+                // open-index pass below regardless of whether the data stream itself becomes a restore_over_existing target.
+                Stream.concat(snapshotDataStream.getIndices().stream(), snapshotDataStream.getFailureIndices().stream())
+                    .map(Index::getName)
+                    .forEach(dataStreamOwnedIndexNames::add);
+                // System data streams are restored only as part of a feature state, which deletes and recreates them itself, so they are
+                // never restore_over_existing destinations; skip them here to avoid deleting them twice in the same update.
+                if (snapshotDataStream.isSystem()) {
+                    continue;
+                }
                 final DataStream currentDataStream = currentProject.dataStreams().get(entry.getKey());
                 if (currentDataStream == null) {
                     continue;
                 }
-                final DataStream snapshotDataStream = entry.getValue();
                 final Map<String, DataStreamRestoreTarget.SnapshotIndex> snapshotIndices = new HashMap<>();
                 Stream.concat(snapshotDataStream.getIndices().stream(), snapshotDataStream.getFailureIndices().stream())
                     .map(Index::getName)
-                    .forEach(indexName -> {
-                        snapshotIndices.put(indexName, snapshotIndicesByName.get(indexName));
-                        dataStreamOwnedIndexNames.add(indexName);
-                    });
+                    .forEach(indexName -> snapshotIndices.put(indexName, snapshotIndicesByName.get(indexName)));
                 existingDataStreamTargets.add(new DataStreamRestoreTarget(currentDataStream, snapshotDataStream, snapshotIndices));
             }
 

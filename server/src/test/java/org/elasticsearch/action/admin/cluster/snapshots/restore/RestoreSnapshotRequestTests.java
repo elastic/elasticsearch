@@ -201,6 +201,32 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         assertThat(validation.getMessage(), containsString("restore_over_existing is not supported together with rename"));
     }
 
+    public void testRestoreOverExistingRejectedWithIncludeGlobalState() {
+        // restore_over_existing on its own is valid
+        assertNull(new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap").restoreOverExisting(true).validate());
+
+        // combined with include_global_state it must be rejected: the interaction with the snapshot's restored templates is unspecified
+        final ActionRequestValidationException validation = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap")
+            .restoreOverExisting(true)
+            .includeGlobalState(true)
+            .validate();
+        assertNotNull(validation);
+        assertThat(validation.getMessage(), containsString("restore_over_existing is not supported together with include_global_state"));
+    }
+
+    public void testRestoreOverExistingRejectedWithPartial() {
+        // restore_over_existing on its own is valid
+        assertNull(new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap").restoreOverExisting(true).validate());
+
+        // combined with partial it must be rejected: overwriting a live destination with a possibly-incomplete snapshot risks data loss
+        final ActionRequestValidationException validation = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap")
+            .restoreOverExisting(true)
+            .partial(true)
+            .validate();
+        assertNotNull(validation);
+        assertThat(validation.getMessage(), containsString("restore_over_existing is not supported together with partial"));
+    }
+
     private Map<String, Object> convertRequestToMap(RestoreSnapshotRequest request) throws IOException {
         XContentBuilder builder = request.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
         try (

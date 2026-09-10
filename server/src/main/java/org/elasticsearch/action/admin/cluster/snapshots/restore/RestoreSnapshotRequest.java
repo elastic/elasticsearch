@@ -183,6 +183,21 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 validationException
             );
         }
+        // Restoring over existing destinations and restoring the snapshot's global state (which includes the templates that govern data
+        // streams) have an unspecified interaction: the data-stream overwrite revalidates a destination against the currently-installed
+        // template while include_global_state would replace that template from the snapshot. There is no use case for combining them, so
+        // reject rather than commit to unclear semantics; the restriction can be relaxed later if a well-defined behavior is needed.
+        if (restoreOverExisting && includeGlobalState) {
+            validationException = addValidationError(
+                "restore_over_existing is not supported together with include_global_state",
+                validationException
+            );
+        }
+        // A partial restore may recreate an index or data stream with missing shards. Combined with restoring over an existing
+        // destination, that would delete complete live data and replace it with an incomplete copy, so reject the combination.
+        if (restoreOverExisting && partial) {
+            validationException = addValidationError("restore_over_existing is not supported together with partial", validationException);
+        }
         return validationException;
     }
 

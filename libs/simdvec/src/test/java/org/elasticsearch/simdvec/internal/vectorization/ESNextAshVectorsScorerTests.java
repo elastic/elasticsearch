@@ -177,6 +177,100 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
     }
 
     /**
+     * Tests that scoring a filtered subset of a block gives the same scores, at the same positions, as scoring
+     * the whole block, and still consumes the block in full.
+     */
+    public void testScoreBulkOffsets() throws Exception {
+        int nDims = randomIntBetween(2, 512);
+        // deliberately not a multiple of BULK_SIZE, so the final block is a tail
+        int numVectors = BULK_SIZE * randomIntBetween(1, 3) + randomIntBetween(1, BULK_SIZE - 1);
+        int planeBytes = BBQDotProduct.planeBytes(nDims);
+        int packedCodeBytes = bitsPerDim * planeBytes;
+
+        float[] queryTransformed = new float[nDims];
+        for (int j = 0; j < nDims; j++) {
+            queryTransformed[j] = (float) random().nextGaussian();
+        }
+        byte[] queryQuantized = queryBitsPerDim > 0 ? randomByteArrayOfLength(queryBitsPerDim * planeBytes) : null;
+
+        try (Directory dir = newParametrizedDirectory()) {
+            try (IndexOutput out = dir.createOutput("test_ash_offsets.bin", IOContext.DEFAULT)) {
+                for (int i = 0; i < numVectors; i++) {
+                    out.writeBytes(randomByteArrayOfLength(packedCodeBytes), 0, packedCodeBytes);
+                }
+                CodecUtil.writeFooter(out);
+            }
+
+            long dataLength = (long) packedCodeBytes * numVectors;
+            try (IndexInput in = dir.openInput("test_ash_offsets.bin", IOContext.DEFAULT)) {
+                for (var provider : List.of(defaultProvider(), panamaProvider(), nativeProvider())) {
+                    var factory = provider.getVectorScorerFactory();
+                    IndexInput bulkInput = in.clone();
+                    IndexInput offsetsInput = in.clone();
+                    if (queryBitsPerDim > 0) {
+                        assertOffsetsMatchBulk(
+                            factory.newESNextAshIntegerVectorsScorer(bulkInput, nDims, bitsPerDim, queryBitsPerDim),
+                            factory.newESNextAshIntegerVectorsScorer(offsetsInput, nDims, bitsPerDim, queryBitsPerDim),
+                            queryQuantized,
+                            numVectors
+                        );
+                    } else {
+                        assertOffsetsMatchBulk(
+                            factory.newESNextAshFloatVectorsScorer(bulkInput, nDims, bitsPerDim),
+                            factory.newESNextAshFloatVectorsScorer(offsetsInput, nDims, bitsPerDim),
+                            queryTransformed,
+                            numVectors
+                        );
+                    }
+                    assertEquals("scoreBulk did not consume the input " + describe(), dataLength, bulkInput.getFilePointer());
+                    assertEquals("scoreBulkOffsets did not consume the input " + describe(), dataLength, offsetsInput.getFilePointer());
+                }
+            }
+        }
+    }
+
+    /**
+     * Scores every block twice, whole and then filtered, and checks the filtered run agrees at the positions it was
+     * asked for. Comparing against the whole-block run rather than across tiers is what pins down that the score
+     * landing at index {@code i} is the score of vector {@code i}.
+     */
+    private <T> void assertOffsetsMatchBulk(AshScorer<T> bulkScorer, AshScorer<T> offsetsScorer, T query, int numVectors)
+        throws IOException {
+        int[] offsets = new int[BULK_SIZE];
+        float[] bulkScores = new float[BULK_SIZE];
+        float[] offsetsScores = new float[BULK_SIZE];
+
+        for (int base = 0; base < numVectors; base += BULK_SIZE) {
+            int blockSize = Math.min(BULK_SIZE, numVectors - base);
+            int offsetsCount = randomOffsets(offsets, blockSize);
+
+            bulkScorer.scoreBulk(query, blockSize, bulkScores);
+            Arrays.fill(offsetsScores, Float.NaN);
+            offsetsScorer.scoreBulkOffsets(query, offsets, offsetsCount, offsetsScores, blockSize);
+
+            // entries not listed in the offsets are unspecified, so only the requested ones are compared
+            for (int k = 0; k < offsetsCount; k++) {
+                int j = offsets[k];
+                assertEquals("vector " + (base + j) + " " + describe(), bulkScores[j], offsetsScores[j], 1e-3f);
+            }
+        }
+    }
+
+    /** Random ascending, non-empty subset of {@code [0, blockSize)}; callers skip the whole block rather than pass an empty set */
+    private int randomOffsets(int[] offsets, int blockSize) {
+        int count = 0;
+        for (int j = 0; j < blockSize; j++) {
+            if (randomBoolean()) {
+                offsets[count++] = j;
+            }
+        }
+        if (count == 0) {
+            offsets[count++] = randomIntBetween(0, blockSize - 1);
+        }
+        return count;
+    }
+
+    /**
      * Tests that the single-vector score() method produces the same result as scoreBulk() with blockSize=1.
      */
     public void testSingleScoreMatchesBulk() throws Exception {
@@ -239,22 +333,12 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
 
     private void assertScoresMatch(String label, float[] expected, float[] actual, int count, int baseOffset) {
         for (int j = 0; j < count; j++) {
-            assertEquals(
-                label
-                    + " mismatch at vector "
-                    + (baseOffset + j)
-                    + " (directoryType="
-                    + directoryType
-                    + ", D"
-                    + bitsPerDim
-                    + "Q"
-                    + queryBitsPerDim
-                    + ")",
-                expected[j],
-                actual[j],
-                1e-3f
-            );
+            assertEquals(label + " mismatch at vector " + (baseOffset + j) + " " + describe(), expected[j], actual[j], 1e-3f);
         }
+    }
+
+    private String describe() {
+        return "(directoryType=" + directoryType + ", D" + bitsPerDim + "Q" + queryBitsPerDim + ")";
     }
 
     private Directory newParametrizedDirectory() throws IOException {

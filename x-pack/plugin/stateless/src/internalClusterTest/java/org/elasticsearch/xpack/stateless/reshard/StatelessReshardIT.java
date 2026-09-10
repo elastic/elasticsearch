@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -61,6 +62,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.action.shard.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
@@ -102,6 +104,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardNotStartedException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexClosedException;
@@ -119,6 +123,7 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
@@ -206,7 +211,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assert.assertFalse;
 
 public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -3746,12 +3750,18 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
      * {@link IndexReshardingState.Split.TargetShardState#HANDOFF} in resharding metadata but before the target
      * primary is started in routing. Both force gateway recovery and verify the reshard completes with all
      * documents searchable. Post-handoff recovery does not copy blobs (CLONE already finished), so the target's
-     * {@link ShardStateAction#SHARD_STARTED_ACTION_NAME} notification to master is blocked to keep routing
+     * {@link ShardStateAction#SHARD_STARTED_ACTION_NAME} notification to master is suppressed to keep routing
      * {@code !started()} while metadata is {@code HANDOFF}.
+     * <p>
+     * The notification is suppressed by failing the send with a {@link ConnectTransportException} rather than
+     * blocking: a master-channel exception makes {@link ShardStateAction} re-register a
+     * {@link org.elasticsearch.cluster.ClusterStateObserver} retry, so no thread is ever parked inside the
+     * intercept. Blocking instead would park the cluster applier thread when the retry fires mid-publication,
+     * stalling the ack of the new master's first cluster state and deadlocking the restart.
      */
-    public void testTargetRecoversAfterMasterRestartDuringHandoff() throws RuntimeException {
+    public void testTargetRecoversAfterMasterRestartDuringHandoff() throws Exception {
         String masterNode = startMasterNodeForRestartTest();
-        String indexNode = startIndexNode();
+        startIndexNode();
         startSearchNodes(2);
         ensureStableCluster(4);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -3768,61 +3778,57 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         String targetIndexNode = startIndexNode();
         ensureStableCluster(5);
 
-        // Block the target's SHARD_STARTED notification so routing stays !started
-        // while resharding metadata is HANDOFF.
-        CountDownLatch allowShardStarted = new CountDownLatch(1);
+        AtomicBoolean suppressShardStarted = new AtomicBoolean(true);
+        AtomicBoolean restartCompleted = new AtomicBoolean(false);
+        AtomicBoolean shardStartedAfterRestart = new AtomicBoolean(false);
         MockTransportService targetTransport = MockTransportService.getInstance(targetIndexNode);
         targetTransport.addSendBehavior((connection, requestId, action, request, options) -> {
             if (ShardStateAction.SHARD_STARTED_ACTION_NAME.equals(action)) {
-                safeAwait(allowShardStarted);
+                if (suppressShardStarted.get()) {
+                    throw new ConnectTransportException(connection.getNode(), "suppressed until master restart completes");
+                }
+                assertTrue("SHARD_STARTED must only succeed after master restart completes", restartCompleted.get());
+                shardStartedAfterRestart.set(true);
             }
             connection.sendRequest(requestId, action, request, options);
         });
 
-        CountDownLatch masterRestartDone = new CountDownLatch(1);
-        Thread restartThread = new Thread(() -> {
-            try {
-                Index index = resolveIndex(indexName);
-                awaitClusterState(state -> {
-                    IndexMetadata im = indexMetadata(state, index);
-                    if (im.getReshardingMetadata() == null) {
-                        return false;
-                    }
-                    boolean handoff = im.getReshardingMetadata()
-                        .getSplit()
-                        .getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.HANDOFF;
-                    ShardRouting primary = state.routingTable().index(index).shard(1).primaryShard();
-                    // Shard could not have been started because of the block on SHARD_STARTED_ACTION_NAME above
-                    return handoff && primary.started() == false;
-                });
-                logger.info("--> restarting master during handoff before target started");
-                internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
-                    @Override
-                    public boolean validateClusterForming() {
-                        return false;
-                    }
-                });
-                allowShardStarted.countDown();
-                assertBusy(() -> ensureStableCluster(5));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            } finally {
-                allowShardStarted.countDown();
-                masterRestartDone.countDown();
-            }
-        }, "master-restart-during-handoff");
-        restartThread.start();
-
         try {
             client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName));
-            safeAwait(masterRestartDone);
+
+            Index index = resolveIndex(indexName);
+            awaitClusterState(state -> {
+                IndexMetadata im = indexMetadata(state, index);
+                if (im.getReshardingMetadata() == null) {
+                    return false;
+                }
+                boolean handoff = im.getReshardingMetadata()
+                    .getSplit()
+                    .getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.HANDOFF;
+                ShardRouting primary = state.routingTable().index(index).shard(1).primaryShard();
+                // Shard could not have been started because SHARD_STARTED_ACTION_NAME is suppressed above
+                return handoff && primary.started() == false;
+            });
+
+            internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
+                @Override
+                public boolean validateClusterForming() {
+                    return false;
+                }
+            });
+            // restartCompleted before suppressShardStarted: volatile write order gives the intercept
+            // a happens-before guarantee that restartCompleted == true when it sees suppressShardStarted == false.
+            restartCompleted.set(true);
+            suppressShardStarted.set(false);
+            assertBusy(() -> ensureStableCluster(5));
+
             waitForReshardCompletion(indexName);
             ensureGreen(indexName);
             refresh(indexName);
             assertHitCount(prepareSearchAll(indexName), numDocs);
+            assertTrue("SHARD_STARTED must succeed after restart completes", shardStartedAfterRestart.get());
         } finally {
             targetTransport.clearAllRules();
-            safeJoin(restartThread);
         }
     }
 
@@ -4102,6 +4108,80 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         var telemetryPlugin = getTelemetryPlugin(indexNode);
         assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_TARGET_RECOVERY_FAILURE_COUNT, telemetryPlugin), equalTo(1L));
         assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_TARGET_FAILURE_COUNT, telemetryPlugin), equalTo(0L));
+    }
+
+    public void testSourceShardNotStartedFailsRecovery() throws Exception {
+        String masterNode = startMasterOnlyNode();
+        String sourceNode = startIndexNode();
+        ensureStableCluster(2);
+
+        final String indexName = randomIndexName();
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+
+        // Keep the existing primary on sourceNode once the second index node joins
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+        );
+
+        // We don't care about the retries so use short start-split retry window to make test run faster
+        var shortStartSplitRetry = Settings.builder()
+            .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueMillis(100))
+            .build();
+        String targetNode = startIndexNode(shortStartSplitRetry);
+        ensureStableCluster(3);
+
+        final var index = resolveIndex(indexName);
+        final var sourceShardId = new ShardId(index, 0);
+        final var targetShardId = new ShardId(index, 1);
+
+        var failStartSplit = new AtomicBoolean(true);
+        var shardFailedReceived = new CountDownLatch(1);
+
+        // After start-split retries exhaust, recovery fails and the target reports shard-failed to master.
+        MockTransportService.getInstance(masterNode)
+            .addRequestHandlingBehavior(ShardStateAction.SHARD_FAILED_ACTION_NAME, (handler, request, channel, task) -> {
+                if (request instanceof FailedShardEntry failedShard
+                    && failedShard.getShardId().equals(targetShardId)
+                    && ExceptionsHelper.unwrap(failedShard.getFailure(), IndexShardNotStartedException.class) != null) {
+                    failStartSplit.set(false);
+                    shardFailedReceived.countDown();
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        MockTransportService.getInstance(sourceNode)
+            .addRequestHandlingBehavior(TransportReshardSplitAction.START_SPLIT_ACTION_NAME, (handler, request, channel, task) -> {
+                if (failStartSplit.get()) {
+                    channel.sendResponse(new IndexShardNotStartedException(sourceShardId, IndexShardState.RECOVERING));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+
+        // Safety guard that sourceNode is still responsible for receiving the START_SPLIT_ACTION_NAME request
+        var primaryNodeId = clusterService().state().routingTable().index(indexName).shard(0).primaryShard().currentNodeId();
+        assertThat(clusterService().state().nodes().get(primaryNodeId).getName(), equalTo(sourceNode));
+
+        client(sourceNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        // IndexShardNotStartedException is retried by SplitTargetService until START_SPLIT_RETRY_TIMEOUT,
+        // then FailedInRecovery fails StoreRecovery and the target sends shard-failed to master.
+        safeAwait(shardFailedReceived);
+        assertThat(
+            getTotalLongCounterValue(ReshardMetrics.RESHARD_TARGET_RECOVERY_FAILURE_COUNT, getTelemetryPlugin(targetNode)),
+            equalTo(1L)
+        );
+        assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_TARGET_FAILURE_COUNT, getTelemetryPlugin(targetNode)), equalTo(0L));
+
+        // Master fails the target and retries allocation; start-split now succeeds and reshard completes.
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        checkNumberOfShardsSetting(sourceNode, indexName, 2);
     }
 
     public void testSourceShardMonitoringSucceedsWhenTargetsAreAlreadyDone() throws InterruptedException, BrokenBarrierException {

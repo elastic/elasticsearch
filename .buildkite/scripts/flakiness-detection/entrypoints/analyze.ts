@@ -3,7 +3,7 @@ import { mkdirSync } from "fs";
 import { readdir, readFile, writeFile } from "fs/promises";
 import { join, resolve } from "path";
 
-import { analyzeReports } from "../analyzer/analyze.ts";
+import { analyzeReports } from "../analyzer/junit-reports-analyzer.ts";
 import { deriveOutcome } from "../analyzer/outcome.ts";
 import { renderMarkdown, severity } from "../analyzer/render.ts";
 import {
@@ -46,11 +46,11 @@ const OUTCOMES_ARTIFACT_FILE = "flakiness-outcomes.json";
 
 // Written by the generate step: targets the resolver could not re-run, each with
 // its reason (e.g. "requires-packaging-host"). Downloaded next to this script and
-// folded into the outcomes as `not_applicable`. Keep in sync with
-// FLAKINESS_SKIPPED_ARTIFACT in runners/buildkite.ts and entrypoints/pr.ts.
+// folded into the outcomes as `not_applicable`. Keep in sync with SKIPPED_FILE in entrypoints/generate.ts,
+// which writes it, and FLAKINESS_SKIPPED_ARTIFACT in runners/buildkite.ts, which uploads it.
 const SKIPPED_FILE = "flakiness-skipped.json";
 
-// Written by the pre-flight compile step only when compilation fails; folded in
+// Written by the compile phase of the orchestration step only when compilation fails; folded in
 // as a single `build_failed` outcome (the skipped batches produce none). Keep in
 // sync with FLAKINESS_PRECOMPILE_ARTIFACT in runners/buildkite.ts.
 const PRECOMPILE_FILE = "flakiness-precompile.json";
@@ -63,9 +63,6 @@ interface JobStatus {
   rc: number;
   durationSec: number;
 }
-
-// `taskPaths` also travels in the status file, but it is a classification input (scoping the skipped-task
-// check), not a payload field - so it is destructured off alongside the other signals, never spread.
 
 interface TaskStatusEntry {
   path: string;
@@ -87,8 +84,6 @@ interface TaskStatusEntry {
  *
  * Requires ALL of them rather than ANY: if even one requested task really ran, a zero-test outcome is not
  * explained by `onlyIf` and should stay a hang.
- *
- * Exported for testing.
  */
 export function allTargetTasksSkipped(taskPaths: string[], entries: TaskStatusEntry[]): boolean {
   if (taskPaths.length === 0 || entries.length === 0) {
@@ -280,7 +275,7 @@ export function notApplicablePayload(t: SkippedTest): FlakinessPayload {
   };
 }
 
-// Pure: does the pre-flight compile step's marker signal a build failure?
+// Pure: does the compile phase's marker signal a build failure?
 // `markerText` is the marker file's contents, or `null` when the file is absent.
 // Absent, unreadable, malformed, or any non-`build_failed` outcome all mean "no".
 export function isPrecompileFailure(markerText: string | null): boolean {
@@ -295,7 +290,7 @@ export function isPrecompileFailure(markerText: string | null): boolean {
   }
 }
 
-// True when the pre-flight compile step left a failure marker. A missing file
+// True when the compile phase left a failure marker. A missing file
 // (the gate passed or never ran) reads as `null` -> not failed.
 async function precompileFailed(): Promise<boolean> {
   let markerText: string | null = null;
@@ -370,7 +365,7 @@ async function run(): Promise<void> {
     console.log(`Recorded ${skipped.length} not_applicable (${reasons}).`);
   }
 
-  // If the pre-flight compile gate failed, the batches were skipped and produced
+  // If the compile phase failed, the batches were skipped and produced
   // no statuses; record a single `build_failed` so a non-compiling PR does not
   // read as zero problems.
   const buildFailed = await precompileFailed();

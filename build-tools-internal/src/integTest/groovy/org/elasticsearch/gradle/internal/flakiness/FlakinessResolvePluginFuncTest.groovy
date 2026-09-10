@@ -16,8 +16,7 @@ import org.gradle.testkit.runner.TaskOutcome
 import groovy.json.JsonSlurper
 
 /**
- * End-to-end functional test for the flakiness resolver's Gradle lifecycle, run with the <b>configuration
- * cache enabled</b> (the harness default - this test deliberately does not disable it).
+ * End-to-end functional test for the flakiness resolver's Gradle lifecycle
  *
  * <p>It proves the two properties the design rests on:
  * <ol>

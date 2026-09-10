@@ -15,7 +15,7 @@ const PLAN_FILE = "flakiness-plan.json";
 // Written here for the analyze step to fold in as `not_applicable`. Keep in sync with entrypoints/analyze.ts.
 const SKIPPED_FILE = "flakiness-skipped.json";
 // Written here on buildFailed so the analyze step records a single `build_failed`. Keep in sync with
-// entrypoints/analyze.ts and runners/buildkite.ts.
+// entrypoints/analyze.ts and FLAKINESS_PRECOMPILE_ARTIFACT in domain.ts.
 const PRECOMPILE_FILE = "flakiness-precompile.json";
 
 /**

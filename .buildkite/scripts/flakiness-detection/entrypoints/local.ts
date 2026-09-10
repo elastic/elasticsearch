@@ -5,15 +5,12 @@ import { resolve } from "path";
 import { explicitRefs } from "../detectors/explicit-list.ts";
 import { planCommandsToRunnable } from "../commands.ts";
 import { runLocally } from "../runners/local.ts";
-import { COMPILE_TASKS, type FlakinessPlan, type FlakinessRefsFile } from "../domain.ts";
-import { analyzeReports } from "../analyzer/analyze.ts";
+import { COMPILE_TASKS, FLAKINESS_TARGETS_DIR, type FlakinessPlan, type FlakinessRefsFile } from "../domain.ts";
+import { analyzeReports } from "../analyzer/junit-reports-analyzer.ts";
 import { renderMarkdown } from "../analyzer/render.ts";
 
 const REFS_FILE = "flakiness-refs.json";
 const PLAN_FILE = "flakiness-plan.json";
-// Where each project drops its share of the resolve answer. Keep in sync with
-// FlakinessProjectResolvePlugin.TARGETS_DIR on the Java side.
-const TARGETS_DIR = "build/flakiness/project-targets";
 const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
 
 export async function run(): Promise<void> {
@@ -42,16 +39,16 @@ export async function run(): Promise<void> {
   // Phase 2 (resolve): run the Java resolver locally. The task name is deliberately UNQUALIFIED - Gradle
   // runs it in every project that registered it and each project self-selects on whether it owns a ref
   // (see FlakinessProjectResolve). Requires the root build to apply
-  // `elasticsearch.internal-flakiness-resolve` (see JAVA_RESOLVER_NOTES.md). The configuration cache is left
+  // `elasticsearch.internal-flakiness-resolve`. The configuration cache is left
   // ON: the model travels through task inputs, so it survives the configuration/execution boundary.
-  rmSync(resolve(PROJECT_ROOT, TARGETS_DIR), { recursive: true, force: true });
+  rmSync(resolve(PROJECT_ROOT, FLAKINESS_TARGETS_DIR), { recursive: true, force: true });
   console.log(">>> ./gradlew -Pflakiness.resolve flakinessResolveProject");
   execSync("./gradlew -Pflakiness.resolve flakinessResolveProject", { cwd: PROJECT_ROOT, stdio: "inherit" });
 
   // Phase 3 (compile): compile every test source set in the repo, UNQUALIFIED, reading nothing back from
   // resolve - the scan needs the whole repo's bytecode to resolve cross-project class hierarchies. A compile
   // failure is the only build_failed signal (mirroring the CI compile step); bail early so we do not scan
-  // doomed output. Locally this is the slow phase on a cold build directory; there is no remote cache here.
+  // doomed output. No cache flags are passed, so this inherits whatever the developer has configured.
   const compileCmd = `./gradlew ${COMPILE_TASKS.join(" ")}`;
   console.log(`>>> ${compileCmd}`);
   try {

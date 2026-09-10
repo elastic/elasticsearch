@@ -16,10 +16,9 @@
 #   FLAKINESS_RESOLVE_INNER_TIMEOUT, FLAKINESS_COMPILE_INNER_TIMEOUT, FLAKINESS_SCAN_INNER_TIMEOUT
 #
 # The inner timeouts fire a grace period before Buildkite's outer timeout_in_minutes so this script gets to
-# classify the failure rather than being SIGKILLed by the agent. --foreground keeps each gradle CLI in this
-# script's process group; without it `timeout` setpgid()s its child, the CLI loses the controlling-TTY
-# plumbing the develocity scan plugin relies on, and the JVM hangs ~36min after BUILD SUCCESSFUL.
-# Diagnosed on build #2 of elasticsearch-flakiness-detection-manual.
+# classify the failure rather than being SIGKILLed by the agent. --foreground stops `timeout` putting each
+# gradle CLI in a fresh process group; without it the CLI prints BUILD SUCCESSFUL and then never exits, as
+# develocity's shutdown path stalls until the timeout fires. Diagnosed in #150209.
 
 for var in FLAKINESS_REFS_ARTIFACT FLAKINESS_PLAN_ARTIFACT FLAKINESS_PRECOMPILE_ARTIFACT \
            FLAKINESS_TARGETS_DIR FLAKINESS_TARGETS_ARCHIVE FLAKINESS_COMPILE_TASKS \

@@ -5,21 +5,15 @@
 # the soft_failed flag, so a soft_fail step that fails still shows a red check on the PR; exiting 0 and
 # annotating is the only way to report failures without turning the PR red.
 #
-# The command itself is not an argument. It arrives in FLAKINESS_CMD_<n>, indexed by
-# BUILDKITE_PARALLEL_JOB, because that is how Buildkite parallelism works: every parallel job runs the
-# same command string and distinguishes itself only by that variable. Reading it from stdin instead would
-# leave the wrapped command's stdin pointing at an exhausted stream, which is exactly the plumbing
-# --foreground exists to protect (see run_wrapped_command).
+# The command is not an argument. It arrives in FLAKINESS_CMD_<n>, indexed by BUILDKITE_PARALLEL_JOB.
+# `parallelism: N` makes N jobs from ONE step definition: all N run the identical command string and
+# differ only by that variable, so per-batch values have nowhere to live but env vars.
 #
 # Usage:
 #   never-fail.sh --context <step-key> --inner-timeout-minutes <m> [--kind <test-kind>]
 #
 # Passing --kind enables per-job outcome recording. The analyze step omits it: it wants the never-fail
 # behaviour but must not emit a batch outcome of its own.
-#
-# Layout comes from the pipeline-level env block, so these names stay owned by domain.ts:
-#   FLAKINESS_STATUS_DIR, FLAKINESS_JOB_STATUS_PREFIX, FLAKINESS_TASK_STATUS_PREFIX,
-#   FLAKINESS_TASK_STATUS_FILE
 #
 # Deliberately no `set -e`: the whole point is to observe a failing command's exit code rather than die
 # with it.
@@ -62,10 +56,10 @@ read_wrapped_command() {
   printf '%s\n' "${!cmd_var}" > "$WRAPPED_CMD_FILE"
 }
 
-# --foreground keeps the command in this script's process group. Without it `timeout` setpgid()s its
-# child, the gradle CLI loses the controlling-TTY plumbing the develocity scan plugin relies on, and the
-# CLI JVM hangs ~36min after BUILD SUCCESSFUL. Diagnosed on build #2 of
-# elasticsearch-flakiness-detection-manual.
+# --foreground stops `timeout` putting the command in a fresh process group. Without it the gradle CLI
+# prints BUILD SUCCESSFUL and then never exits: the develocity scan plugin's shutdown path stalls until
+# the inner timeout fires, ~36min per step. Diagnosed in #150209 by a four-variant matrix, which also
+# ruled out the gradle daemon (--no-daemon did not help).
 run_wrapped_command() {
   timeout --foreground --signal=TERM --kill-after=30s "${INNER_TIMEOUT_MINUTES}m" bash "$WRAPPED_CMD_FILE"
   rc=$?

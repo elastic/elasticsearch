@@ -88,8 +88,6 @@ public abstract class FlakinessResolveProjectTask extends DefaultTask {
 
     /**
      * Repo root, used to resolve repo-relative changed-file paths and for the class-ref filesystem probe.
-     * {@code @Internal} on purpose: the resolver touches arbitrary source files under it, so fingerprinting
-     * it as an input would hash the whole repo (JAVA_RESOLVER_NOTES.md P3).
      */
     @Internal
     public abstract DirectoryProperty getRepoRoot();

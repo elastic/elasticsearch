@@ -19,6 +19,8 @@
 # Topology: bootstrap → [orchestration (gradle agent) + generate (node agent)] → batch + analyze.
 steps:
   - label: "gather refs from FLAKINESS_CLASSES (bootstrap)"
+    # Not a test batch, so it stays out of the flakiness-detection: prefix (see the PR pipeline for why).
+    key: "flakiness-orchestration:bootstrap"
     command: |
       npm install -g bun@1.3.13
       bun .buildkite/scripts/flakiness-detection/entrypoints/manual.ts

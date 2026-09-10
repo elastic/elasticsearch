@@ -22,11 +22,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-/**
- * Unit tests for {@link CommandBuilder} - the Java port of the old TypeScript {@code commands.ts} batching +
- * per-kind command generation. Assert the target-neutral {@code __GRADLE__} marker, per-kind command shapes,
- * cap-batching, the dedupe/collapse/dedup-runners staging, and the {@code FLAKINESS_ITERS} override.
- */
 public class CommandBuilderTests {
 
     @Test

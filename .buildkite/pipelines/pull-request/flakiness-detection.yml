@@ -16,11 +16,16 @@ steps:
       # generate step reads the plan the orchestration step shipped and uploads the batch +
       # analyze steps. The single gradle agent for resolve/compile/scan is required: BK steps
       # have no shared workspace, so a separate scan step would not see compile's build/classes
-      # output (see JAVA_RESOLVER_NOTES.md). The resolver (build-tools-internal
-      # `flakinessResolveProject`/`flakinessScan`) owns all resolution and batch-command generation now;
-      # this step no longer classifies files, locates classes, or detects BWC.
+      # output. The resolver (build-tools-internal `flakinessResolveProject`/`flakinessScan`)
+      # owns all resolution and batch-command generation.
       # Topology: bootstrap → [orchestration (gradle agent) + generate (node agent)] → batch + analyze.
-      - label: "gather refs (bootstrap)"
+      - label: "Flakiness / bootstrap"
+        # Keyed under flakiness-orchestration:, never flakiness-detection: - an external metric predicate
+        # treats the latter prefix as a test batch, and this step runs no tests. Same reason as :run and
+        # :generate get that prefix in runners/buildkite.ts. Without a key at all the predicate cannot match
+        # it either, but then the obvious key for a later edit to reach for is flakiness-detection:bootstrap,
+        # matching the group name, which would silently start counting this step as a batch.
+        key: "flakiness-orchestration:bootstrap"
         command: |
           node .buildkite/scripts/flakiness-detection/entrypoints/pr.ts
         timeout_in_minutes: 10

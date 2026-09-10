@@ -21,11 +21,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- * Unit tests for the pure helpers that replaced the old root {@code flakinessMergeTargets} task: folding the
- * per-project resolve outputs back into one ordered target list, and unioning their class directories. The
- * end-to-end flow is exercised by {@code FlakinessResolvePluginFuncTest}.
- */
 public class FlakinessTargetsTests {
 
     /**

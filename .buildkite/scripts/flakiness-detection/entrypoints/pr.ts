@@ -7,7 +7,8 @@ import { uploadResolvePipeline } from "../runners/buildkite.ts";
 import { DEFAULT_AGENT_CONFIG, type FlakinessRef, type FlakinessRefsFile } from "../domain.ts";
 
 // The refs file the Java resolver reads (contract 1). Uploaded as a build artifact by the bootstrap step
-// so the resolve step can download it onto its fresh agent. Keep in sync with runners/buildkite.ts.
+// so the resolve step can download it onto its fresh agent. Keep in sync with FLAKINESS_REFS_ARTIFACT in
+// domain.ts, which is what the pipeline generator and orchestrate.sh both read.
 const REFS_FILE = "flakiness-refs.json";
 
 const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
@@ -54,9 +55,7 @@ export function mayBeTestSource(path: string): boolean {
   return /(^|\/)src\//.test(path);
 }
 
-// Gather `unmute` refs from the muted-tests.yml diff. Note there is no longer any repo-file listing or
-// class-file location here: turning a class name into a project/sourceSet/kind (and expanding an abstract
-// base) is the Java resolver's job now, which is why the old `git ls-files` scan is gone.
+// Gather `unmute` refs from the muted-tests.yml diff.
 function gatherUnmuteRefs(mergeBase: string, projectRoot: string): FlakinessRef[] {
   console.log(`  Reading muted-tests.yml at ${mergeBase}...`);
   let oldYaml = "";

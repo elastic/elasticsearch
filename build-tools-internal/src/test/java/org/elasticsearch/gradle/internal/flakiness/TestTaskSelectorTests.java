@@ -28,8 +28,8 @@ import static org.hamcrest.Matchers.nullValue;
  * Unit tests for the pure task-selection core: output-dir overlap matching, the disposition decision (bare
  * task / alternatives / nothing runnable), the deterministic newest-first cap, and the packaging-host policy.
  * All of it is Gradle-free, so no TestKit is involved; the lifecycle half (that the {@code enabled} /
- * {@code testClassesDirs} values fed in here are post-configuration ones) is proved by the real-build run
- * recorded in JAVA_RESOLVER_NOTES.md and by {@code FlakinessResolvePluginFuncTest}.
+ * {@code testClassesDirs} values fed in here are post-configuration ones) is proved by
+ * {@code FlakinessResolvePluginFuncTest}.
  */
 public class TestTaskSelectorTests {
 

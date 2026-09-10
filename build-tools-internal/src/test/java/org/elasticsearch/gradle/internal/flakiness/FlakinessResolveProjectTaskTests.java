@@ -21,11 +21,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- * Unit tests for the per-project source-set dispositions the task reports. The rest of the task is Gradle
- * wiring, covered by {@code FlakinessProjectResolvePluginFuncTest}; the disposition derivation is a pure
- * function of the captured model, so it is tested directly here.
- */
 public class FlakinessResolveProjectTaskTests {
 
     /**

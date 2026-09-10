@@ -51,14 +51,11 @@ const TASK_STATUS_FILE = "build/task-status.json";
 const CMD_VAR_PREFIX = "FLAKINESS_CMD_";
 const TASK_PATHS_VAR_PREFIX = "FLAKINESS_TASK_PATHS_";
 
-// The checked-in runner. Why the step must exit 0, why soft_fail is not an option, and what the per-job
-// status file carries are all documented in the script itself.
 const NEVER_FAIL_SCRIPT = ".buildkite/scripts/flakiness-detection/runners/never-fail.sh";
 
 /**
- * A short invocation of the checked-in never-fail runner. Everything the wrapper used to generate inline -
- * the timeout, the failure annotation, the OOM probe, the task-status copy, the per-job outcome - lives in
- * {@link NEVER_FAIL_SCRIPT} now, so this only computes the inner timeout and names the step.
+ * Runs command so that the Buildkite step ALWAYS exits 0. Why the step must exit 0, why soft_fail
+ * is not an option, and what the per-job status file carries are all documented in the script itself.
  *
  * The inner timeout has to beat Buildkite's outer `timeout_in_minutes`, which the agent enforces by
  * SIGKILLing the step: ours must win so the runner can still annotate and exit 0, otherwise the step ends
@@ -88,10 +85,10 @@ const FLAKINESS_STATUS_ARTIFACTS = `${STATUS_DIR_NAME}/*.json`;
 // Keep this filename in sync with entrypoints/analyze.ts.
 const FLAKINESS_OUTCOMES_ARTIFACT = "flakiness-outcomes.json";
 
-// Written by the bootstrap step (entrypoints/pr.ts) listing tests that could not
-// be re-run (BWC projects). Downloaded by the analyze step, which folds them into
-// the outcomes artifact as `not_applicable`. Keep in sync with entrypoints/pr.ts
-// and the bootstrap step's `artifact_paths` in pipelines/pull-request/flakiness-detection.yml.
+// Written by the generate step from the plan's `skip` entries, whatever their reason: a source set with
+// no enabled Test task, a packaging-host-only target, a class no Test task can address. Uploaded by that
+// same step's `artifact_paths` and downloaded by analyze, which folds each one in as `not_applicable`.
+// Keep in sync with SKIPPED_FILE in entrypoints/generate.ts and entrypoints/analyze.ts.
 const FLAKINESS_SKIPPED_ARTIFACT = "flakiness-skipped.json";
 
 // The pipeline topology and the reasoning behind its step split are described in README.md
@@ -113,9 +110,6 @@ const ORCHESTRATION_TIMEOUT_MINUTES =
 
 const GENERATE_ENTRYPOINT = "node .buildkite/scripts/flakiness-detection/entrypoints/generate.ts";
 
-// Fire each phase's inner gradle timeout a grace period before its budget so we can capture the exit code
-// (and write the buildFailed markers, for compile) before it runs long. `--foreground` keeps the gradle CLI
-// in the parent process group so its develocity scan plugin does not hang (see wrapNeverFail).
 /**
  * The timeout a runner script should apply, in minutes: far enough inside Buildkite's outer
  * `timeout_in_minutes` that the script wins the race and can still classify the failure. If the agent

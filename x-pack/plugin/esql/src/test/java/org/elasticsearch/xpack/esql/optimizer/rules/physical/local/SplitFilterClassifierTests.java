@@ -385,6 +385,38 @@ public class SplitFilterClassifierTests extends ESTestCase {
         assertEquals(MISS, classify(filter, STATS_30_50));
     }
 
+    public void testMixedDateLiteralOnDateNanosIsAmbiguous() {
+        long millis = 1_767_312_000_000L;
+        long nanos = 1_767_312_000_000_000_000L;
+        ReferenceAttribute ts = referenceAttribute("ts", DataType.DATE_NANOS);
+        SplitStats stats = colStats("ts", nanos, nanos, 1L, 0L);
+        Literal dateLit = new Literal(Source.EMPTY, millis, DataType.DATETIME);
+        assertEquals(AMBIGUOUS, classify(equalsOf(ts, dateLit), stats));
+        assertEquals(AMBIGUOUS, classify(lessThanOrEqualOf(ts, dateLit), stats));
+    }
+
+    public void testMatchingDateNanosLiteralStillMatches() {
+        long nanos = 1_767_312_000_000_000_000L;
+        ReferenceAttribute ts = referenceAttribute("ts", DataType.DATE_NANOS);
+        SplitStats stats = colStats("ts", nanos, nanos, 1L, 0L);
+        Literal nanosLit = new Literal(Source.EMPTY, nanos, DataType.DATE_NANOS);
+        assertEquals(MATCH, classify(equalsOf(ts, nanosLit), stats));
+        assertEquals(MATCH, classify(lessThanOrEqualOf(ts, nanosLit), stats));
+    }
+
+    public void testMixedIntegerLessThanDoubleIsAmbiguous() {
+        ReferenceAttribute id = referenceAttribute("id", DataType.INTEGER);
+        SplitStats stats = colStats("id", 5, 5, 1L, 0L);
+        assertEquals(AMBIGUOUS, classify(lessThanOf(id, of(5.5)), stats));
+    }
+
+    public void testMatchingIntegerLiteralStillMatches() {
+        ReferenceAttribute id = referenceAttribute("id", DataType.INTEGER);
+        SplitStats stats = colStats("id", 5, 5, 1L, 0L);
+        assertEquals(MATCH, classify(equalsOf(id, of(5)), stats));
+        assertEquals(MATCH, classify(lessThanOf(id, of(10)), stats));
+    }
+
     // --- compareValues ---
 
     public void testCompareValuesLongs() {

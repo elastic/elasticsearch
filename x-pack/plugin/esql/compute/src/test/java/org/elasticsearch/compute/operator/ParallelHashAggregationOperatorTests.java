@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -161,10 +162,16 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
         List<Page> outputPages = new ArrayList<>();
         final DriverStatus status;
         try (SourceOperator sourceOperator = new CannedSourceOperator(inputPages.iterator())) {
+            final Function<DriverContext, BlockHash> blockHashSupplier;
+            if (randomBoolean()) {
+                blockHashSupplier = dc -> BlockHash.build(groupSpecs, dc.blockFactory(), between(128, 1024), false);
+            } else {
+                blockHashSupplier = dc -> BlockHash.buildPackedValuesBlockHash(groupSpecs, dc.blockFactory(), between(128, 1024));
+            }
             HashAggregationOperator hashOperator = new HashAggregationOperator(
                 AggregatorMode.FINAL,
                 aggregatorFactories,
-                dc -> BlockHash.build(groupSpecs, dc.blockFactory(), between(128, 1024), false),
+                blockHashSupplier,
                 randomIntBetween(1, 1024),
                 randomDouble(),
                 randomIntBetween(128, 4096),

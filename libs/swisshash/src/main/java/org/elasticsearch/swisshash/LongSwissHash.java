@@ -824,8 +824,7 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
                 return;
             }
             final int newLength = ArrayUtil.oversize(minLength, Long.BYTES);
-            final long deltaBytes = (long) newLength * Long.BYTES;
-            breaker.addEstimateBytesAndMaybeBreak(deltaBytes, "LongSwissHash#partition");
+            breaker.addEstimateBytesAndMaybeBreak((long) newLength * Long.BYTES, "LongSwissHash#partition");
             partitionKeys[p] = Arrays.copyOf(sub, newLength);
             breaker.addWithoutBreaking(-(long) currentLength * Long.BYTES);
         }

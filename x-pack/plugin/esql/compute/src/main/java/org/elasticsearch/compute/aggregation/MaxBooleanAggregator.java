@@ -22,4 +22,8 @@ class MaxBooleanAggregator {
     public static boolean combine(boolean current, boolean v) {
         return current || v;
     }
+
+    public static void combine(BooleanArrayState state, int groupId, boolean v) {
+        state.max(groupId, v);
+    }
 }

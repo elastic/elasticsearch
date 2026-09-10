@@ -91,6 +91,18 @@ public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
                 // The _id is synthesized rather than stored, so only the reader materializing it has to go.
                 return unwrapSyntheticIdStoredFieldsReader(reader);
             }
+            if (pruneIdField) {
+                // A time series _id is recomputed from the _tsid and @timestamp, so a merge drops the stored one.
+                return new PruningFilterCodecReader(
+                    pruneStoredFieldName,
+                    pruneNumericDVFieldName,
+                    pruneIdField,
+                    pruneSeqNo,
+                    reader,
+                    null,
+                    useSyntheticId
+                );
+            }
             return reader; // early terminate - nothing to do here
         }
         IndexSearcher s = new IndexSearcher(reader);

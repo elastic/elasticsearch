@@ -85,8 +85,8 @@ public final class FlakinessTargets {
         for (BaseTarget t : targets) {
             String identity = t.yamlTest() != null ? t.yamlTest()
                 : t.fqcn() != null ? t.fqcn()
-                  : t.suitePath() != null ? t.suitePath()
-                    : "";
+                : t.suitePath() != null ? t.suitePath()
+                : "";
             seen.putIfAbsent(t.gradleProject() + "|" + t.kind() + "|" + identity, t);
         }
         return new ArrayList<>(seen.values());

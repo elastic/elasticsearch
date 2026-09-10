@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.flakiness;
 
 import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.PlanEntry;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;

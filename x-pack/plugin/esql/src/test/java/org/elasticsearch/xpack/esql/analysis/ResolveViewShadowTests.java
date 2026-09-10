@@ -336,9 +336,9 @@ public class ResolveViewShadowTests extends ESTestCase {
             () -> analyzer.analyze(new ViewUnionAll(EMPTY, children, List.of()))
         );
         assertTrue(
-            "expected the throw from Fork.expressionsResolved, got: " + Arrays.toString(e.getStackTrace()),
+            "expected the throw from MergePlan.expressionsResolved, got: " + Arrays.toString(e.getStackTrace()),
             Arrays.stream(e.getStackTrace())
-                .anyMatch(el -> el.getClassName().contains(".Fork") && el.getMethodName().equals("expressionsResolved"))
+                .anyMatch(el -> el.getClassName().contains(".MergePlan") && el.getMethodName().equals("expressionsResolved"))
         );
     }
 

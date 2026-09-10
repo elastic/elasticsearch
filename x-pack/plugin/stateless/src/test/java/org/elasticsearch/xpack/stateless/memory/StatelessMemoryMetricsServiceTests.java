@@ -182,7 +182,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
     }
 
     public void testEstimatedHeapUsageStatsUsesSingleShardMemoryMetricsSnapshot() {
-        final ClusterState clusterState = randomInitialSingleNodeClusterState(1);
+        final ClusterState clusterState = randomInitialSingleNodeClusterState(1, 1);
         final DiscoveryNode node0 = clusterState.nodes().get("node_0");
         final ShardId shardId = clusterState.getRoutingNodes().node(node0.getId()).iterator().next().shardId();
         service.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
@@ -696,25 +696,47 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         final NodeHeapEstimates masterEstimate = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
         final int totalIndices = clusterState.metadata().getTotalNumberOfIndices();
-        final NodeHeapEstimates localEstimate = service.estimateNodeHeapUsage(
-            clusterState.getRoutingNodes().node(node0.getId()),
+        final NodeHeapEstimates localEstimate = service.estimateNodeHeapUsage(totalIndices, 0L, 0L, shardMappingSizes);
+        assertThat(localEstimate, equalTo(masterEstimate));
+
+        final ShardId residentShardNotActiveInRouting = new ShardId(new Index("resident-only-index", "resident-only-uuid"), 0);
+        final ShardMappingSize residentShardMappingSize = new ShardMappingSize(
+            ByteSizeValue.ofKb(100).getBytes(),
+            10,
+            50,
+            ByteSizeValue.ofKb(500).getBytes(),
+            0L,
+            0L,
+            UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+            node0.getId()
+        );
+        final Map<ShardId, ShardMappingSize> shardMappingSizesWithExtraResidentShard = new HashMap<>(shardMappingSizes);
+        shardMappingSizesWithExtraResidentShard.put(residentShardNotActiveInRouting, residentShardMappingSize);
+        final NodeHeapEstimates estimateWithExtraResidentShard = service.estimateNodeHeapUsage(
             totalIndices,
             0L,
             0L,
-            shardMappingSizes
+            shardMappingSizesWithExtraResidentShard
         );
-        assertThat(localEstimate, equalTo(masterEstimate));
-        // The recovery gate may ask before the local node has a routing entry; in that case the local estimate is unavailable.
+        final var extraResidentShardEstimate = estimateHeapUsageExcludingPostings(
+            service,
+            StatelessMemoryMetricsService.ShardMemoryMetrics.fromShardMappingSize(residentShardMappingSize, System.nanoTime())
+        );
+        final long expectedExtraResidentShardUsage = extraResidentShardEstimate.shardHeapEstimate() + extraResidentShardEstimate
+            .indexHeapEstimate() + extraResidentShardEstimate.shardPostingsHeapEstimate();
         assertThat(
-            service.estimateNodeHeapUsage(null, totalIndices, 0L, 0L, shardMappingSizes),
-            equalTo(new NodeHeapEstimates(0L, 0L, 0L))
+            estimateWithExtraResidentShard.hostedShardsHeapUsage(),
+            equalTo(Math.addExact(localEstimate.hostedShardsHeapUsage(), expectedExtraResidentShardUsage))
+        );
+        assertThat(
+            estimateWithExtraResidentShard.totalHeapUsage(),
+            equalTo(Math.addExact(localEstimate.totalHeapUsage(), expectedExtraResidentShardUsage))
         );
 
         // The node-level signals are additive on the total only and do not leak into the hosted-shards estimate
         final long largeIndexingOpsHeap = randomLongBetween(1, 1_000_000);
         final long mergeMemoryEstimate = randomLongBetween(1, 1_000_000);
         final NodeHeapEstimates withNodeSignals = service.estimateNodeHeapUsage(
-            clusterState.getRoutingNodes().node(node0.getId()),
             totalIndices,
             largeIndexingOpsHeap,
             mergeMemoryEstimate,
@@ -725,6 +747,10 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
     }
 
     private ClusterState randomInitialSingleNodeClusterState(int numberOfIndices) {
+        return randomInitialSingleNodeClusterState(numberOfIndices, between(1, 3));
+    }
+
+    private ClusterState randomInitialSingleNodeClusterState(int numberOfIndices, int numberOfShards) {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(DiscoveryNodeUtils.create("node_0"))
             .localNodeId("node_0")
@@ -732,7 +758,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             .build();
         String[] indices = IntStream.range(0, numberOfIndices).mapToObj(i -> randomIdentifier()).toArray(String[]::new);
         Tuple<ProjectMetadata.Builder, RoutingTable.Builder> projectAndRt = ClusterStateCreationUtils
-            .projectWithAssignedPrimariesAndReplicas(ProjectId.DEFAULT, indices, between(1, 3), 0, discoveryNodes);
+            .projectWithAssignedPrimariesAndReplicas(ProjectId.DEFAULT, indices, numberOfShards, 0, discoveryNodes);
         return ClusterState.builder(new ClusterName("test"))
             .nodes(discoveryNodes)
             .routingTable(GlobalRoutingTable.builder().put(ProjectId.DEFAULT, projectAndRt.v2()).build())

@@ -18,8 +18,6 @@ import org.elasticsearch.cluster.ShardHeapUsageEstimates;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +27,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -261,27 +258,20 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     }
 
     /**
-     * Estimates the heap usage of a node hosting exactly the given shards.
+     * Estimates the heap usage of an indexing node with the given resident shard metrics.
      *
-     * @param routingNode               local routing node, or {@code null} if the local node does not have a routing entry yet
      * @param totalIndices              total indices in the cluster, per the caller's cluster-state view
      * @param largeIndexingOpsHeapBytes heap needed for recently rejected large indexing ops — not resident heap; local callers pass 0
      * @param mergeMemoryEstimateBytes  pending-merge heap estimate; a future supplier must stay at or below the master's value
-     * @param shardMappingSizes         the hosted shards' sizes
+     * @param shardMappingSizes         the resident shards' sizes
      * @return the node's estimated heap usage
      */
     public NodeHeapEstimates estimateNodeHeapUsage(
-        @Nullable RoutingNode routingNode,
         int totalIndices,
         long largeIndexingOpsHeapBytes,
         long mergeMemoryEstimateBytes,
         Map<ShardId, ShardMappingSize> shardMappingSizes
     ) {
-        if (routingNode == null) {
-            return new NodeHeapEstimates(0L, 0L, 0L);
-        }
-
-        assert routingNode.node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) : "This should only ever be called for indexing nodes";
         final long nowNanos = relativeTimeInNanos();
         final var shardHeapEstimator = createShardHeapEstimator(SelfReportedShardOverhead.DEFAULT);
         final Map<ShardId, ShardAndIndexHeapUsage> shardHeapUsages = shardMappingSizes.entrySet()
@@ -295,8 +285,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
                     )
                 )
             );
-        return NodeHeapUsageCalculator.calculateForRoutingNode(
-            routingNode,
+        return NodeHeapUsageCalculator.calculateForResidentShardIds(
+            shardMappingSizes.keySet(),
             calculateNonShardHeapUsage(getNodeBaseHeapEstimateInBytes(totalIndices), largeIndexingOpsHeapBytes, mergeMemoryEstimateBytes),
             new ShardHeapUsageEstimates(shardHeapUsages, ShardAndIndexHeapUsage.ZERO)
         );

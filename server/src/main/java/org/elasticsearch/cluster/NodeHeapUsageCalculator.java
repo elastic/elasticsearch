@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -70,20 +71,23 @@ public final class NodeHeapUsageCalculator {
     }
 
     /**
-     * Calculates heap usage for a single routing node.
+     * Calculates heap usage for one indexing node from resident shard IDs.
      * <p>
-     * This is used by local callers that need the same per-node component math as {@link #calculateForRoutingNodes} without computing a
-     * cluster-wide max postings value. Indexing nodes include their local postings in total heap; search nodes leave total and non-shard
-     * heap unmodeled.
+     * This is used by local callers, such as the recovery gate, whose source of truth is the set of shard metrics collected from resident
+     * shards on the local node. The local estimate includes every supplied shard ID, regardless of the shard's routing state, and uses
+     * local postings in the total heap estimate because there is no cluster-wide max postings value for this one-node calculation.
      */
-    public static NodeHeapEstimates calculateForRoutingNode(
-        RoutingNode routingNode,
+    public static NodeHeapEstimates calculateForResidentShardIds(
+        Set<ShardId> residentShardIds,
         long nonShardHeapUsage,
         ShardHeapUsageEstimates shardHeapUsageEstimates
     ) {
-        final var discoveryNode = routingNode.node();
-        final var nodeHeapUsageComponents = computeNodeHeapUsageComponents(routingNode, shardHeapUsageEstimates);
-        return nodeHeapEstimate(discoveryNode, nodeHeapUsageComponents, nonShardHeapUsage, nodeHeapUsageComponents.postingsHeapUsage);
+        final var nodeHeapUsageComponents = computeNodeHeapUsageComponents(residentShardIds, shardHeapUsageEstimates);
+        final long hostedShardsHeapUsage = Math.addExact(
+            nodeHeapUsageComponents.shardAndIndexHeapUsage,
+            nodeHeapUsageComponents.postingsHeapUsage
+        );
+        return new NodeHeapEstimates(Math.addExact(nonShardHeapUsage, hostedShardsHeapUsage), hostedShardsHeapUsage, nonShardHeapUsage);
     }
 
     private static boolean isIndexingNode(DiscoveryNode discoveryNode) {
@@ -114,15 +118,39 @@ public final class NodeHeapUsageCalculator {
         RoutingNode routingNode,
         ShardHeapUsageEstimates shardHeapUsageEstimates
     ) {
-        long shardHeapUsage = 0L;
-        long indexHeapUsage = 0L;
-        long postingsHeapUsage = 0L;
-        final Set<Index> seenIndices = new HashSet<>();
+        final var accumulator = new NodeHeapUsageComponentsAccumulator(shardHeapUsageEstimates);
         for (var shardRouting : routingNode) {
             if (shardRouting.active() == false) {
                 continue;
             }
-            final var shardId = shardRouting.shardId();
+            accumulator.add(shardRouting.shardId());
+        }
+        return accumulator.result();
+    }
+
+    private static NodeHeapUsageComponents computeNodeHeapUsageComponents(
+        Set<ShardId> shardIds,
+        ShardHeapUsageEstimates shardHeapUsageEstimates
+    ) {
+        final var accumulator = new NodeHeapUsageComponentsAccumulator(shardHeapUsageEstimates);
+        shardIds.forEach(accumulator::add);
+        return accumulator.result();
+    }
+
+    private record NodeHeapUsageComponents(long shardAndIndexHeapUsage, long postingsHeapUsage) {}
+
+    private static class NodeHeapUsageComponentsAccumulator {
+        private final ShardHeapUsageEstimates shardHeapUsageEstimates;
+        private final Set<Index> seenIndices = new HashSet<>();
+        private long shardHeapUsage;
+        private long indexHeapUsage;
+        private long postingsHeapUsage;
+
+        private NodeHeapUsageComponentsAccumulator(ShardHeapUsageEstimates shardHeapUsageEstimates) {
+            this.shardHeapUsageEstimates = shardHeapUsageEstimates;
+        }
+
+        private void add(ShardId shardId) {
             final var shardAndIndexHeapUsage = shardHeapUsageEstimates.getOrDefault(shardId);
             shardHeapUsage = Math.addExact(shardHeapUsage, shardAndIndexHeapUsage.shardHeapUsageBytes());
             postingsHeapUsage = Math.addExact(postingsHeapUsage, shardAndIndexHeapUsage.shardPostingsHeapUsageBytes());
@@ -130,10 +158,11 @@ public final class NodeHeapUsageCalculator {
                 indexHeapUsage = Math.addExact(indexHeapUsage, shardAndIndexHeapUsage.indexHeapUsageBytes());
             }
         }
-        return new NodeHeapUsageComponents(Math.addExact(shardHeapUsage, indexHeapUsage), postingsHeapUsage);
-    }
 
-    private record NodeHeapUsageComponents(long shardAndIndexHeapUsage, long postingsHeapUsage) {}
+        private NodeHeapUsageComponents result() {
+            return new NodeHeapUsageComponents(Math.addExact(shardHeapUsage, indexHeapUsage), postingsHeapUsage);
+        }
+    }
 
     /**
      * The estimated node heap usages and the max hosted postings heap usage included in index-node totals.

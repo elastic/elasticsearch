@@ -65,13 +65,9 @@ public class NodeHeapUsageCalculatorTests extends ESTestCase {
         final ShardId shard0 = new ShardId(index, 0);
         final ShardId shard1 = new ShardId(index, 1);
         var nonShardHeapUsage = 50L;
-        final ClusterState clusterState = clusterStateWithStartedShards(
-            Map.of("node", DiscoveryNodeRole.INDEX_ROLE),
-            Map.of(shard0, "node", shard1, "node")
-        );
 
-        final var result = NodeHeapUsageCalculator.calculateForRoutingNode(
-            clusterState.getRoutingNodes().node("node"),
+        final var result = NodeHeapUsageCalculator.calculateForResidentShardIds(
+            Set.of(shard0, shard1),
             nonShardHeapUsage,
             new ShardHeapUsageEstimates(
                 Map.of(shard0, new ShardAndIndexHeapUsage(10L, 100L, 5L), shard1, new ShardAndIndexHeapUsage(20L, 100L, 7L)),
@@ -84,6 +80,25 @@ public class NodeHeapUsageCalculatorTests extends ESTestCase {
         assertThat(result.totalHeapUsage(), equalTo(192L));
         assertThat(result.hostedShardsHeapUsage(), equalTo(142L));
         assertThat(result.nonShardHeapUsage(), equalTo(50L));
+    }
+
+    public void testRoutingNodeCalculationIgnoresInactiveShards() {
+        final ShardId shard = new ShardId(new Index("index", "uuid"), 0);
+        final long nonShardHeapUsage = 50L;
+        final ClusterState clusterState = clusterStateWithShards(
+            Map.of("node", DiscoveryNodeRole.INDEX_ROLE),
+            Map.of(shard, "node"),
+            ShardRoutingState.INITIALIZING
+        );
+
+        final var result = NodeHeapUsageCalculator.calculateForRoutingNodes(
+            clusterState,
+            nonShardHeapUsage,
+            new ShardHeapUsageEstimates(Map.of(shard, new ShardAndIndexHeapUsage(10L, 100L, 5L)), ShardAndIndexHeapUsage.ZERO)
+        );
+
+        assertThat(result.maxPostingsHeapUsage(), equalTo(0L));
+        assertThat(result.nodeHeapEstimates().get("node"), equalTo(new NodeHeapEstimates(nonShardHeapUsage, 0L, nonShardHeapUsage)));
     }
 
     public void testIndexHeapIsCountedOncePerIndexIdentity() {
@@ -177,6 +192,14 @@ public class NodeHeapUsageCalculatorTests extends ESTestCase {
         Map<String, DiscoveryNodeRole> nodeRoles,
         Map<ShardId, String> currentNodeByShard
     ) {
+        return clusterStateWithShards(nodeRoles, currentNodeByShard, ShardRoutingState.STARTED);
+    }
+
+    private static ClusterState clusterStateWithShards(
+        Map<String, DiscoveryNodeRole> nodeRoles,
+        Map<ShardId, String> currentNodeByShard,
+        ShardRoutingState shardRoutingState
+    ) {
         final var nodes = DiscoveryNodes.builder();
         nodeRoles.forEach((nodeId, role) -> nodes.add(DiscoveryNodeUtils.builder(nodeId).roles(Set.of(role)).build()));
 
@@ -193,7 +216,7 @@ public class NodeHeapUsageCalculatorTests extends ESTestCase {
         final var routingByIndex = new HashMap<Index, IndexRoutingTable.Builder>();
         currentNodeByShard.forEach(
             (shardId, nodeId) -> routingByIndex.computeIfAbsent(shardId.getIndex(), IndexRoutingTable::builder)
-                .addShard(newShardRouting(shardId, nodeId, true, ShardRoutingState.STARTED))
+                .addShard(newShardRouting(shardId, nodeId, true, shardRoutingState))
         );
         final var routingTable = RoutingTable.builder();
         routingByIndex.values().forEach(routingTable::add);

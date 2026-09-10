@@ -114,7 +114,7 @@ public enum Predicates {
 
     public static <T> Predicate<T> any(Collection<? extends Predicate<T>> predicates) {
         return value -> {
-            for (var p: predicates) {
+            for (var p : predicates) {
                 if (p.test(value)) {
                     return true;
                 }

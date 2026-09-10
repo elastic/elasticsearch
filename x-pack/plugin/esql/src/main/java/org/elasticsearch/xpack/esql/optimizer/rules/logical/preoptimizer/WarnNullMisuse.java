@@ -70,8 +70,7 @@ public class WarnNullMisuse implements LogicalPlanPreOptimizerRule {
     }
 
     private static boolean isNullComparison(Expression e) {
-        return (e instanceof Equals || e instanceof InsensitiveEquals)
-            && FoldNull.foldsToNull(e, WarnNullMisuse::isExplicitNullLiteral);
+        return (e instanceof Equals || e instanceof InsensitiveEquals) && FoldNull.foldsToNull(e, WarnNullMisuse::isExplicitNullLiteral);
     }
 
     private static boolean hasExplicitNullInList(In in) {

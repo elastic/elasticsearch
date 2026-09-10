@@ -248,9 +248,9 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         assertThat(e.getMessage(), containsString("Invalid deployment_id"));
     }
 
-    public void testValidate_GivenDeploymentIdContainsUppercase() {
+    public void testValidate_GivenDeploymentIdIsEmpty() {
         Request request = createRandom();
-        request.setDeploymentId("Deployment-1");
+        request.setDeploymentId("");
 
         ActionRequestValidationException e = request.validate();
 
@@ -258,14 +258,39 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         assertThat(e.getMessage(), containsString("Invalid deployment_id"));
     }
 
-    public void testValidate_GivenDeploymentIdContainsInvalidChars() {
+    public void testValidate_GivenDeploymentIdContainsNulByte() {
         Request request = createRandom();
-        request.setDeploymentId("deployment!1");
+        request.setDeploymentId("deployment\u0000id");
 
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
         assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
+    public void testValidate_GivenDeploymentIdIsMixedCaseInferenceEndpointId() {
+        // deployment_id is only required to be safe as a single filesystem path component (see
+        // MlStrings#isValidPathSafeId); it does not have to conform to MlStrings#isValidId's
+        // lowercase-alphanumeric charset. Inference endpoint ids - which are used verbatim as
+        // deployment_id by BaseElasticsearchInternalService - have no such charset restriction today,
+        // so an id like "My-ELSER" must keep working.
+        Request request = createRandom();
+        request.setDeploymentId("My-ELSER");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
+    public void testValidate_GivenDeploymentIdContainsCharsOutsideIsValidIdCharset() {
+        // "!" is not in MlStrings#isValidId's charset, but path-safety only cares about path
+        // traversal/separator/NUL-byte safety, so this must still be accepted.
+        Request request = createRandom();
+        request.setDeploymentId("deployment!1");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
     }
 
     public void testValidate_GivenDeploymentIdIsValid() {
@@ -302,22 +327,6 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(nullValue()));
-    }
-
-    public void testValidate_GivenDeploymentIdIsNonPackagedModelIdWithSnapshotSuffix() {
-        // Unlike the packaged/default-model case (".elser_model_2_SNAPSHOT" above), a non-dot-prefixed
-        // id must not have "_SNAPSHOT" silently stripped - it should be validated as-is, exactly like
-        // TrainedModelConfig treats an equivalent non-packaged model_id. "mymodel_SNAPSHOT" also fails
-        // MlStrings.isValidId on its own merits (uppercase characters aren't a valid id char), so this
-        // doubles as a regression test for the "_SNAPSHOT" strip no longer leaking outside the
-        // leading-dot branch.
-        Request request = createRandom();
-        request.setDeploymentId("mymodel_SNAPSHOT");
-
-        ActionRequestValidationException e = request.validate();
-
-        assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
     }
 
     public void testValidate_GivenDeploymentIdIsLeadingDotFollowedBySlash() {

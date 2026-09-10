@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.utils;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.PathUtils;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -66,6 +67,41 @@ public final class MlStrings {
 
     public static boolean isValidId(String id) {
         return id != null && VALID_ID_CHAR_PATTERN.matcher(id).matches() && Metadata.ALL.equals(id) == false;
+    }
+
+    /**
+     * Checks that {@code id} is safe to use as a single path component - i.e. that joining it onto a
+     * parent directory (as {@code NamedPipeHelper#getDefaultPipeDirectoryPrefix} does for the isolated
+     * ml-child-ipc directory, keyed on {@code deployment_id}) cannot escape that parent directory or
+     * otherwise inject something unexpected into the filesystem path.
+     *
+     * Deliberately narrower than {@link #isValidId}: it does not restrict the character set (so mixed-case,
+     * non-lowercase ids such as inference endpoint ids used verbatim as {@code deployment_id} remain valid),
+     * only path-traversal / separator / NUL-byte safety.
+     *
+     * This mirrors (rather than reuses) the predicate in {@code NamedPipeHelper#validateChildId} in the ml
+     * plugin: {@code core} cannot depend on {@code ml} (dependency runs the other way), and that method is
+     * private and applied as a defense-in-depth check at the point the path is actually constructed. Keep
+     * the two predicates in sync if either changes.
+     *
+     * @param id the id to check
+     * @return {@code true} if {@code id} is non-null, non-empty, not {@code .} or {@code ..}, and contains
+     * no path separator or NUL character
+     */
+    public static boolean isValidPathSafeId(String id) {
+        if (id == null || id.isEmpty()) {
+            return false;
+        }
+        if (id.equals(".") || id.equals("..")) {
+            return false;
+        }
+        if (id.indexOf('/') >= 0 || id.indexOf(PathUtils.getDefaultFileSystem().getSeparator().charAt(0)) >= 0) {
+            return false;
+        }
+        if (id.indexOf('\u0000') >= 0) {
+            return false;
+        }
+        return true;
     }
 
     /**

@@ -531,7 +531,7 @@ required_capability: promql_label_functions
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
 // Lexicographic order would put pod10 before pod2; natural order puts pod2 first.
-PROMQL index=prom-metrics-name time="2024-05-10T01:00:00.000Z" result=(sort_by_label(sum by (pod) (label_replace(label_replace(last_over_time(metrics.requests{pod=~"podA|podB"}[5m]), "pod", "pod10", "pod", "podB"), "pod", "pod2", "pod", "podA")), "pod"));
+PROMQL index=prom-metrics-name time="2024-05-10T01:00:00.000Z" result=(sort_by_label(sum by (pod) (label_replace(label_replace(last_over_time(metrics.requests{pod=~"pod[AB]"}[5m]), "pod", "pod10", "pod", "podB"), "pod", "pod2", "pod", "podA")), "pod"));
 
 result:double | step:datetime            | pod:keyword
 10.0          | 2024-05-10T01:00:00.000Z | pod2
@@ -546,7 +546,7 @@ required_capability: promql_label_functions
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
 
-PROMQL index=prom-metrics-name time="2024-05-10T01:00:00.000Z" result=(sort_by_label_desc(sum by (pod) (label_replace(label_replace(last_over_time(metrics.requests{pod=~"podA|podB"}[5m]), "pod", "pod10", "pod", "podB"), "pod", "pod2", "pod", "podA")), "pod"));
+PROMQL index=prom-metrics-name time="2024-05-10T01:00:00.000Z" result=(sort_by_label_desc(sum by (pod) (label_replace(label_replace(last_over_time(metrics.requests{pod=~"pod[AB]"}[5m]), "pod", "pod10", "pod", "podB"), "pod", "pod2", "pod", "podA")), "pod"));
 
 result:double | step:datetime            | pod:keyword
 20.0          | 2024-05-10T01:00:00.000Z | pod10

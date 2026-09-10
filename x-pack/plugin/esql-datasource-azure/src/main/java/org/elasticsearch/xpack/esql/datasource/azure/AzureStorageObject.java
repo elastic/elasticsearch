@@ -348,6 +348,11 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         return blobAsyncClient != null;
     }
 
+    @Override
+    public boolean readBytesAsyncReleasesExecutor() {
+        return blobAsyncClient != null;
+    }
+
     // TODO: wire retry counts via an Azure SDK HttpPipelinePolicy interceptor; SDK-internal
     // retries are not yet visible to counters.addRetry().
 

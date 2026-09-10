@@ -22,4 +22,8 @@ class MinIntAggregator {
     public static int combine(int current, int v) {
         return Math.min(current, v);
     }
+
+    public static void combine(IntArrayState state, int groupId, int v) {
+        state.min(groupId, v);
+    }
 }

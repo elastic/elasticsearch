@@ -102,7 +102,7 @@ public class DataStreamLifecycleHealthInfoPublisher {
                 UpdateHealthInfoCacheAction.INSTANCE,
                 new UpdateHealthInfoCacheAction.Request(
                     clusterService.localNode().getId(),
-                    new DataStreamLifecycleHealthInfo(errorEntriesToSignal, errorStore.getTotalErrorEntries())
+                    new DataStreamLifecycleHealthInfo(errorEntriesToSignal, errorStore.getTotalErrorEntries(clusterState))
                 ),
                 actionListener
             );

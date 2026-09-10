@@ -41,6 +41,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.ExceptionsHelper;
@@ -1094,12 +1095,17 @@ public class InternalEngine extends Engine {
         } else {
             // load from index
             assert incrementIndexVersionLookup();
-            final boolean loadSeqNo = engineConfig.getIndexSettings().sequenceNumbersDisabled() == false;
+            // On sequence-number-disabled indices, PruningMergePolicy removes the _seq_no doc value of a document once it is fully
+            // replicated (its seq_no drops below minRetainedSeqNo). Allow missing seq no so a pruned _seq_no is read as UNASSIGNED_SEQ_NO
+            // rather than failing: a pruned document is older than any op that can still reach this path, so the op is correctly
+            // OP_NEWER. A retained _seq_no (a document that is not yet fully replicated) is still read and compared, so out-of-order
+            // stale writes are correctly rejected instead of overwriting a newer document.
+            final boolean allowMissingSeqNo = engineConfig.getIndexSettings().sequenceNumbersDisabled();
             try (Searcher searcher = acquireSearcher("load_seq_no", SearcherScope.INTERNAL)) {
                 final DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(
                     searcher.getIndexReader(),
                     op.uid(),
-                    loadSeqNo
+                    allowMissingSeqNo
                 );
                 if (docAndSeqNo == null) {
                     status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
@@ -1472,18 +1478,52 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private static boolean isColumnBatchEligible(IndexingStrategy[] plans, IndexResult[] allResults, int subBatchIdx, int subBatchSize) {
+    /**
+     * Returns true if any doc in this sub-batch requires Lucene update or stale-op semantics, which
+     * the columnar {@code addBatch} path cannot express. The entire sub-batch must then fall back to
+     * the row path.
+     */
+    private static boolean requiresRowPath(IndexingStrategy[] plans, int subBatchSize) {
         for (int i = 0; i < subBatchSize; i++) {
-            if (allResults[subBatchIdx + i] != null) {
-                // early (e.g. preflight failure) result already set
-                return false;
-            }
             final IndexingStrategy plan = plans[i];
-            if (plan.indexIntoLucene == false || plan.useLuceneUpdateDocument || plan.addStaleOpToLucene) {
-                return false;
+            if (plan.useLuceneUpdateDocument || plan.addStaleOpToLucene) {
+                return true;
             }
         }
-        return true;
+        return false;
+    }
+
+    /**
+     * Builds a filter bitset that identifies which docs in this sub-batch should be written to
+     * Lucene via {@code addBatch}. Docs with preflight errors ({@code allResults[i] != null}) and
+     * no-op docs ({@code indexIntoLucene == false}) are excluded. Returns {@code null} when every
+     * doc is eligible and no filter is needed.
+     * <p>
+     * Must only be called when {@link #requiresRowPath} returns false.
+     */
+    // n.b. the discerning eye will notice that this very much echoes the implementation of EscfColumn.windowValidity
+    @Nullable
+    private static FixedBitSet buildColumnBatchFilter(
+        IndexingStrategy[] plans,
+        IndexResult[] allResults,
+        int subBatchIdx,
+        int subBatchSize
+    ) {
+        assert requiresRowPath(plans, subBatchSize) == false;
+        FixedBitSet filter = null; // assume we don't have to allocate by default
+        for (int i = 0; i < subBatchSize; i++) {
+            if (allResults[subBatchIdx + i] == null && plans[i].indexIntoLucene) {
+                if (filter != null) {
+                    filter.set(i);
+                }
+            } else {
+                if (filter == null) { // actually have to allocate
+                    filter = new FixedBitSet(subBatchSize);
+                    filter.set(0, i); // everything was implicitly included, but now we have to be explicit
+                }
+            }
+        }
+        return filter;
     }
 
     private void indexColumnSubBatch(
@@ -1498,6 +1538,9 @@ public class InternalEngine extends Engine {
         try {
             indexWriter.addBatch(colSlice.toColumnBatch());
             for (int i = 0; i < subBatchSize; i++) {
+                if (allResults[subBatchIdx + i] != null) {
+                    continue; // preflight error already set; don't overwrite
+                }
                 final IndexingStrategy plan = plans[i];
                 allResults[subBatchIdx + i] = new IndexResult(
                     plan.versionForIndexing,
@@ -1512,13 +1555,15 @@ public class InternalEngine extends Engine {
                 && indexWriter.getTragicException() == null
                 && treatDocumentFailureAsTragicError(subBatch.toIndexOp(0)) == false) {
                 for (int i = 0; i < subBatchSize; i++) {
-                    allResults[subBatchIdx + i] = new IndexResult(
-                        ex,
-                        Versions.MATCH_ANY,
-                        subBatch.primaryTerm(),
-                        assignedSeqNos[i],
-                        subBatch.id(i)
-                    );
+                    if (allResults[subBatchIdx + i] == null) {
+                        allResults[subBatchIdx + i] = new IndexResult(
+                            ex,
+                            Versions.MATCH_ANY,
+                            subBatch.primaryTerm(),
+                            assignedSeqNos[i],
+                            subBatch.id(i)
+                        );
+                    }
                 }
             } else {
                 throw ex;
@@ -1568,7 +1613,11 @@ public class InternalEngine extends Engine {
 
     private void processSubBatch(int subBatchIdx, int subBatchSize, EngineBatch engineBatch, IndexResult[] allResults) throws IOException {
         final IndexOperationBatch indexBatch = engineBatch.batch();
-        final IndexOperationBatch subBatch = indexBatch.slice(subBatchIdx, subBatchIdx + subBatchSize);
+        final IndexOperationBatch subBatch = indexBatch.slice(
+            subBatchIdx,
+            subBatchIdx + subBatchSize,
+            relativeTimeInNanosSupplier.getAsLong()
+        );
         final boolean fromTranslog = subBatch.origin().isFromTranslog();
         final IndexingStrategy[] plans = new IndexingStrategy[subBatchSize];
         // Tracks assigned sequence numbers; set in the seqNo-assignment loop below.
@@ -1655,13 +1704,30 @@ public class InternalEngine extends Engine {
                     colSlice.setVersion(i, plans[i].versionForIndexing);
                 }
             }
-            if (isColumnBatchEligible(plans, allResults, subBatchIdx, subBatchSize)) {
-                indexColumnSubBatch(colSlice, subBatch, plans, subBatchIdx, subBatchSize, assignedSeqNos, allResults);
-            } else {
-                // Sub-batch is not addBatch-eligible (e.g. contains retries, version-conflict updates,
-                // or stale ops). Build per-doc Lucene documents from the columns and route each op
-                // through the normal add/update/softUpdate helpers.
+            if (requiresRowPath(plans, subBatchSize)) {
+                // Sub-batch contains a doc needing update or stale-op semantics; fall back to per-doc row path.
                 indexColumnRowSubBatch(colSlice, subBatch, plans, subBatchIdx, subBatchSize, assignedSeqNos, allResults);
+            } else {
+                final FixedBitSet filter = buildColumnBatchFilter(plans, allResults, subBatchIdx, subBatchSize);
+                if (filter != null && filter.cardinality() == 0) {
+                    // Every doc is excluded (all have preflight errors or indexIntoLucene == false).
+                    // No Lucene write is needed; set any remaining results directly.
+                    for (int i = 0; i < subBatchSize; i++) {
+                        if (allResults[subBatchIdx + i] == null) {
+                            final IndexingStrategy plan = plans[i];
+                            allResults[subBatchIdx + i] = new IndexResult(
+                                plan.versionForIndexing,
+                                subBatch.primaryTerm(),
+                                assignedSeqNos[i],
+                                plan.currentNotFoundOrDeleted,
+                                subBatch.id(i)
+                            );
+                        }
+                    }
+                } else {
+                    final MappedColumns batchSlice = filter != null ? colSlice.withFilter(filter) : colSlice;
+                    indexColumnSubBatch(batchSlice, subBatch, plans, subBatchIdx, subBatchSize, assignedSeqNos, allResults);
+                }
             }
 
             // Translog
@@ -1728,8 +1794,6 @@ public class InternalEngine extends Engine {
                     localCheckpointTracker.markSeqNoAsPersisted(result.getSeqNo());
                 }
 
-                // subBatch.startTime() is the start time of the first sub-batch.
-                // The numerator below is the cumulative time which includes all sub batches before the current one
                 // TODO: Add a BatchResult which contains the item level results but has a top level took time
                 result.setTook((relativeTimeInNanosSupplier.getAsLong() - subBatch.startTime()) / subBatchSize);
                 result.freeze();

@@ -414,10 +414,11 @@ public class AnalyzerExternalTests extends ESTestCase {
     }
 
     /**
-     * Universal-rule binding: every standard metadata name a dataset can answer resolves to an
-     * {@link ExternalMetadataAttribute} of the registered type when listed in {@code METADATA} on an
-     * external dataset. {@code _id}, {@code _version} and {@code _source} are deliberately absent —
-     * see {@link #testDocumentMetadataDoesNotBindOnExternalDataset}.
+     * Universal-rule binding: every standard metadata name in
+     * {@link MetadataAttribute#ATTRIBUTES_MAP} resolves to an {@link ExternalMetadataAttribute} of
+     * the registered type when listed in {@code METADATA} on an external dataset. {@code _id},
+     * {@code _version} and {@code _source} bind like the rest and answer SQL NULL at execution
+     * (pinned in {@code AbstractExternalMetadataMatrixIT#testAllStandardMetadataColumnsPinned}).
      */
     public void testStandardMetadataBindsOnExternalDataset() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
@@ -425,8 +426,11 @@ public class AnalyzerExternalTests extends ESTestCase {
         // Names taken from MetadataAttribute.ATTRIBUTES_MAP — kept literal so the test fails noisily
         // if a name is renamed in the registry (and the registry is the contract under test).
         List<String> names = List.of(
+            "_id",
             MetadataAttribute.INDEX,
+            "_version",
             MetadataAttribute.SCORE,
+            "_source",
             "_ignored",
             "_index_mode",
             MetadataAttribute.TSID_FIELD,
@@ -443,24 +447,6 @@ public class AnalyzerExternalTests extends ESTestCase {
             assertThat("[" + name + "] binds to ExternalMetadataAttribute", attr, instanceOf(ExternalMetadataAttribute.class));
             DataType expected = MetadataAttribute.dataType(name);
             assertEquals("[" + name + "] type matches MetadataAttribute.ATTRIBUTES_MAP", expected, attr.dataType());
-        }
-    }
-
-    /**
-     * A file holds no document identity, no document version and no stored source, so a dataset does not
-     * answer {@code _id}, {@code _version} or {@code _source}. Each stops binding on an external relation and
-     * resolves the way an unknown metadata name does, rather than being answered with an invented value.
-     */
-    public void testDocumentMetadataDoesNotBindOnExternalDataset() {
-        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
-
-        for (String name : List.of("_id", "_version", "_source")) {
-            datasetError(
-                external(),
-                S3_PATH,
-                "FROM " + DATASET_NAME + " METADATA " + name,
-                containsString("Unresolved metadata pattern [" + name + "]")
-            );
         }
     }
 

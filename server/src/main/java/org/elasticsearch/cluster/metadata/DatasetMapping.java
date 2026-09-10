@@ -29,16 +29,14 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * A user-declared mapping attached to a {@link Dataset}. Entirely optional — a dataset with no
  * {@code DatasetMapping} resolves its schema by inference, exactly as before.
  *
- * <p>Currently this wraps a single {@code mappings} block ({@link Mappings}): a {@code dynamic} mode, per-column
- * {@code properties}, and the meta-field {@code _id} ({@code path}). The wrapper is retained (rather than inlining
- * {@code mappings} onto {@link Dataset}) so future top-level declaration keys have a home.
+ * <p>Currently this wraps a single {@code mappings} block ({@link Mappings}): a {@code dynamic} mode and per-column
+ * {@code properties}. The wrapper is retained (rather than inlining {@code mappings} onto {@link Dataset}) so future
+ * top-level declaration keys have a home.
  *
  * <p>There are <b>no role designations</b>. A time axis is just a column named {@code @timestamp}, declared as an
  * ordinary rename ({@code "@timestamp": {"type":"date","path":"ts"}}) and recognized by the stack by name — a
- * "move", not a designation. Setting {@code _id} from a column is likewise a meta-field
- * ({@code "_id": {"path": "col"}}) inside {@code mappings} — the ES meta-field shape, not a separate top-level role
- * — so it always rides a {@code mappings} wrapper. Whether the named column exists is validated in the ES|QL layer:
- * at put time when it is declared, otherwise at first query.
+ * "move", not a designation. Whether the named column exists is validated in the ES|QL layer: at put time when it
+ * is declared, otherwise at first query.
  *
  * <p>Like {@link DataSourceReference}, this has no standalone XContent: {@link Dataset#toXContent} emits the
  * {@code mappings} key and {@link Dataset#PARSER} reads it back, assembling this object via {@link #assemble}.
@@ -74,36 +72,28 @@ public final class DatasetMapping implements Writeable {
      *                   whole schema).
      * @param properties per-column declarations keyed by logical name; order-preserving, may be empty (e.g.
      *                   {@code "mappings": { "dynamic": "false" }}).
-     * @param idPath     always {@code null}. A dataset does not answer {@code METADATA _id}, so there is nothing for a
-     *                   declared identity column to feed and the {@code _id} mappings key is rejected on registration.
-     *                   The component survives only because it is on the wire; see the constructor below.
      */
-    public record Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties, @Nullable String idPath) implements Writeable {
+    public record Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties) implements Writeable {
 
         public Mappings {
             Objects.requireNonNull(dynamic, "dynamic must not be null");
             properties = properties == null ? Map.of() : Collections.unmodifiableMap(properties);
-            // Normalised to null, including for a value read off the wire or off disk from an older node. Nothing
-            // reads it, and toXContent no longer emits an _id block for it to travel in.
-            idPath = null;
-        }
-
-        /** Convenience: a mappings block, which never carries an {@code _id.path}. */
-        public Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties) {
-            this(dynamic, properties, null);
         }
 
         Mappings(StreamInput in) throws IOException {
-            // dataset_declared_schema is present on 9.5, so the optional string stays on the wire and is read and
-            // written unconditionally even though the value is always null now; dropping it would be a wire break.
-            this(in.readEnum(Dynamic.class), in.readOrderedMap(StreamInput::readString, DatasetFieldMapping::new), in.readOptionalString());
+            this(in.readEnum(Dynamic.class), in.readOrderedMap(StreamInput::readString, DatasetFieldMapping::new));
+            // The retired _id.path slot. dataset_declared_schema is present on 9.5, so the optional string stays on
+            // the wire and is read and written unconditionally; dropping it would be a wire break. A 9.5 peer can
+            // still put a path in it, and that value is discarded here — this version has no identity declaration
+            // and nothing downstream to give it to.
+            in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeEnum(dynamic);
             out.writeMap(properties, (o, v) -> v.writeTo(o));
-            out.writeOptionalString(idPath);
+            out.writeOptionalString(null); // the retired _id.path slot; see the stream constructor
         }
     }
 
@@ -145,7 +135,7 @@ public final class DatasetMapping implements Writeable {
     /**
      * Parses a user-supplied {@code mappings} object ({@code dynamic}, {@code properties}). A {@code _id} block is
      * a retired declaration and is refused here like any other field this version does not have — a dataset answers
-     * no {@code METADATA _id}, so accepting the declaration would take a column name and do nothing with it.
+     * {@code METADATA _id} as SQL NULL, so accepting the declaration would take a column name and do nothing with it.
      */
     public static Mappings parseMappings(XContentParser parser) throws IOException {
         return parseMappings(parser, false);

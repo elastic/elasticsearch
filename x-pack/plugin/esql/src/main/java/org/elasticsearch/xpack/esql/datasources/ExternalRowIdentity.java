@@ -25,11 +25,12 @@ import java.nio.charset.StandardCharsets;
  * Composition of an opaque per-row identity from a file location, its modification time and a
  * record's position.
  * <p>
- * <b>Not reachable from a query today.</b> A dataset answers no {@code METADATA _id} — a file holds
- * no document identity — so nothing on the read path calls {@link #composePage}; only
- * {@link #LOCAL_POSITION_MASK} is still consumed, by {@code VirtualColumnIterator} when it renders
- * {@code _file.record_ref}. The composition is kept, and kept under test, for the next surface that
- * needs a stable opaque row key. The rest of this Javadoc describes what it computes when called.
+ * <b>Not reachable from a query today.</b> A dataset answers {@code METADATA _id} as SQL NULL — a
+ * file holds no document identity, and composing one here would invent it — so nothing on the read
+ * path calls {@link #composePage}; only {@link #LOCAL_POSITION_MASK} is still consumed, by
+ * {@code VirtualColumnIterator} when it renders {@code _file.record_ref}. The composition is kept,
+ * and kept under test, for the next surface that needs a stable opaque row key. The rest of this
+ * Javadoc describes what it computes when called.
  * <p>
  * The composed
  * value is opaque: {@code base64url(murmur3_128(location).h1 | mtime | rowPosition)} — 24

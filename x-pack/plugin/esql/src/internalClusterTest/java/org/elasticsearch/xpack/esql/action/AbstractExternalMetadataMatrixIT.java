@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -18,7 +19,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -30,13 +30,15 @@ import static org.hamcrest.Matchers.nullValue;
  * Per-format matrix for the standard metadata columns surfaced on {@code FROM <external-dataset>}.
  *
  * <p>The wiring that surfaces {@code _index} (and the always-null set
- * {@code _score / _ignored / _index_mode / _tsid / _size}), plus the {@code _file.*} family, reaches
- * into the per-format <em>reader</em>, so a format-specific regression in any of those paths would
- * otherwise pass with only the CSV coverage in {@link FromDatasetIT}.
+ * {@code _id / _version / _source / _score / _ignored / _index_mode / _tsid / _size}), plus the
+ * {@code _file.*} family, reaches into the per-format <em>reader</em>, so a format-specific
+ * regression in any of those paths would otherwise pass with only the CSV coverage in
+ * {@link FromDatasetIT}.
  *
- * <p>{@code _id}, {@code _version} and {@code _source} are not in the matrix: a file holds no
- * document identity, no document version and no stored source, so a dataset does not answer them.
- * {@link #testDocumentMetadataIsRejected} pins that.
+ * <p>{@code _id}, {@code _version} and {@code _source} are in the always-null set because a file
+ * holds no document identity, no document version and no stored source. The column binds and every
+ * row is NULL — the honest answer, rather than an identifier, a timestamp or a document body
+ * composed at the reader.
  *
  * <p>This base owns the {@code @Test} bodies; each concrete subclass binds them to one format
  * by supplying {@link #format()}, {@link #formatPlugins()} and a {@link #writeFixture(Path)} that
@@ -58,8 +60,9 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
      * Row order in the file must be {@code emp_no} 1,2,3 so that, under {@code SORT emp_no}, the
      * file-local offsets {@code 0,1,2} line up with the sorted rows. The fixture carries three
      * columns: {@code emp_no} (int) 1,2,3; {@code first_name} (keyword) Alice,Bob,Carol; and
-     * {@code host_ip} (keyword) "10.0.0.1","10.0.0.2","10.0.0.3" — the latter a non-{@code emp_no}
-     * keyword column, so a typed KEYWORD-family render is exercised.
+     * {@code host_ip} (keyword) "10.0.0.1","10.0.0.2","10.0.0.3". No test here reads {@code host_ip};
+     * it keeps the fixture wider than the projections under test, so a reader that mis-associates a
+     * metadata column with a file column has a third column to get wrong.
      */
     protected abstract String writeFixture(Path dir) throws Exception;
 
@@ -102,21 +105,6 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
         }
     }
 
-    /**
-     * A file holds no document identity, no document version and no stored source, so a dataset does not
-     * answer {@code _id}, {@code _version} or {@code _source}: each is rejected the way an unknown
-     * metadata name is, rather than answered with an invented value.
-     */
-    public void testDocumentMetadataIsRejected() {
-        for (String name : List.of("_id", "_version", "_source")) {
-            Exception e = expectThrows(
-                Exception.class,
-                () -> run(syncEsqlQueryRequest("FROM employees METADATA " + name + " | LIMIT 10"), TIMEOUT).close()
-            );
-            assertThat(e.getMessage(), containsString("Unresolved metadata pattern [" + name + "]"));
-        }
-    }
-
     public void testFileMetadataColumnsOnFromDataset() throws Exception {
         // _file.* virtual columns must surface on FROM <dataset> when requested via METADATA, with
         // the same shapes as the legacy EXTERNAL command auto-attaches them: per-file constants
@@ -154,13 +142,17 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
     public void testAllStandardMetadataColumnsPinned() throws Exception {
         // Standing contract: every standard metadata name a dataset answers is accepted in one query,
         // returns a value or SQL NULL (never an error), and the value/null disposition is pinned.
-        // _index carries the dataset name; the remaining five have no external semantic and come back
+        // _index carries the dataset name; the remaining eight have no external semantic and come back
         // as NULL columns. _tier is snapshot-only — see testTierIsNullOnExternalRowsSnapshotOnly.
-        String query = "FROM employees METADATA _index, _ignored, _index_mode, _tsid, _size, _score | SORT emp_no | LIMIT 10";
+        String query = "FROM employees METADATA _index, _id, _version, _source, _ignored, _index_mode, _tsid, _size, _score "
+            + "| SORT emp_no | LIMIT 10";
 
         try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
             // METADATA surfaces every named standard column with no KEEP.
             int indexI = columnIndex(response.columns(), "_index");
+            int idI = columnIndex(response.columns(), "_id");
+            int versionI = columnIndex(response.columns(), "_version");
+            int sourceI = columnIndex(response.columns(), "_source");
             int ignoredI = columnIndex(response.columns(), "_ignored");
             int indexModeI = columnIndex(response.columns(), "_index_mode");
             int tsidI = columnIndex(response.columns(), "_tsid");
@@ -171,6 +163,10 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
                 assertThat("_index is the dataset name", row.get(indexI).toString(), equalTo("employees"));
+                // A file holds no document identity, no document version and no stored source.
+                assertThat("_id is null on external rows", row.get(idI), nullValue());
+                assertThat("_version is null on external rows", row.get(versionI), nullValue());
+                assertThat("_source is null on external rows", row.get(sourceI), nullValue());
                 assertThat("_ignored is null on external rows", row.get(ignoredI), nullValue());
                 assertThat("_index_mode is null on external rows", row.get(indexModeI), nullValue());
                 assertThat("_tsid is null on external rows", row.get(tsidI), nullValue());
@@ -187,10 +183,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
      * runs do not parse-fail on the unknown name.
      */
     public void testTierIsNullOnExternalRowsSnapshotOnly() throws Exception {
-        assumeTrue(
-            "_tier is registered only in snapshot builds",
-            org.elasticsearch.xpack.esql.core.expression.MetadataAttribute.dataType("_tier") != null
-        );
+        assumeTrue("_tier is registered only in snapshot builds", MetadataAttribute.dataType("_tier") != null);
 
         String query = "FROM employees METADATA _tier | SORT emp_no | LIMIT 10";
 

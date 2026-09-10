@@ -26,10 +26,11 @@ import java.util.Set;
 /**
  * Producer-side composition of a JSON object per row from a page's bound data columns.
  * <p>
- * <b>Not reachable from a query today.</b> A dataset answers no {@code METADATA _source} — a file
- * holds no stored source — so nothing on the read path calls {@link #composePage}. The composition
- * is kept, and kept under test, for the next surface that needs a rendered row object. The rest of
- * this Javadoc describes what it computes when called.
+ * <b>Not reachable from a query today.</b> A dataset answers {@code METADATA _source} as SQL NULL —
+ * a file holds no stored source, and rendering the read columns back into a JSON object here would
+ * pass off a reconstruction as the stored document — so nothing on the read path calls
+ * {@link #composePage}. The composition is kept, and kept under test, for the next surface that
+ * needs a rendered row object. The rest of this Javadoc describes what it computes when called.
  * <p>
  * For each row, the bound data columns ({@code <name, value>} pairs at that row's position) are
  * gathered into a {@link Map}, JSON-serialized via

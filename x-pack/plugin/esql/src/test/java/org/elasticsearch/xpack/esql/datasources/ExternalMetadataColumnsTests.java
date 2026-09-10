@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Unit tests for {@link ExternalMetadataColumns}, the per-file constant synthesizer for the
@@ -40,67 +38,34 @@ public class ExternalMetadataColumnsTests extends ESTestCase {
     }
 
     /**
-     * A file holds no document identity, no document version and no stored source, so a dataset does not
-     * answer those three names at all: they are absent from the bindable set and produce no per-file value.
+     * A file holds no document identity, no document version and no stored source. All three names still bind —
+     * so a query naming them is answered rather than rejected — and every row is SQL NULL, which is what the
+     * dataset actually knows. A value composed at the reader would be an invention.
      */
-    public void testIdentityVersionAndSourceAreNotBindable() {
+    public void testIdentityVersionAndSourceAnswerNull() {
+        Map<String, Object> constants = ExternalMetadataColumns.extractPerFileConstants("events");
         for (String name : List.of(ExternalMetadataColumns.ID, ExternalMetadataColumns.VERSION, ExternalMetadataColumns.SOURCE)) {
-            assertFalse(name + " must not be bindable on a dataset", ExternalMetadataColumns.STANDARD_NAMES.contains(name));
-            assertFalse(name + " must not be a per-file constant", ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(name));
-            assertFalse(
-                name + " must produce no per-file value",
-                ExternalMetadataColumns.extractPerFileConstants("events").containsKey(name)
-            );
+            assertTrue("[" + name + "] must be bindable", ExternalMetadataColumns.STANDARD_NAMES.contains(name));
+            assertTrue("[" + name + "] must carry a per-file entry", constants.containsKey(name));
+            assertNull("[" + name + "] must answer SQL NULL", constants.get(name));
         }
     }
 
     /**
-     * The three unbindable names stay reserved: a dataset cannot answer them, but a partition key must not be
-     * able to claim them either. {@code ReservedPartitionNames#isReserved} is the one consumer, so a Hive or
-     * template layout whose partition column is called {@code _id} is renamed under {@code _partition.}
-     * instead of shadowing a metadata name.
+     * Drift tripwire: every name the analyzer can bind on an external relation
+     * ({@code MetadataAttribute.ATTRIBUTES_MAP}) must be in the dedicated set. A new standard
+     * metadata name added to the analyzer registry without a matching entry here would bind on
+     * external datasets, escape the partition-rename guard, and then fail at runtime in the
+     * producer pipeline — this assertion turns that into a compile-adjacent test failure naming
+     * the missing entry.
      */
-    public void testIdentityVersionAndSourceStayReserved() {
-        assertTrue(ExternalMetadataColumns.RESERVED_NAMES.contains(ExternalMetadataColumns.ID));
-        assertTrue(ExternalMetadataColumns.RESERVED_NAMES.contains(ExternalMetadataColumns.VERSION));
-        assertTrue(ExternalMetadataColumns.RESERVED_NAMES.contains(ExternalMetadataColumns.SOURCE));
-    }
-
-    /**
-     * Drift tripwire: every name the analyzer knows ({@code MetadataAttribute.ATTRIBUTES_MAP}) must be
-     * reserved on an external relation. A new standard metadata name added to the analyzer registry
-     * without a matching entry here would let a dataset layout claim it — this assertion turns that
-     * into a test failure naming the missing entry.
-     */
-    public void testReservedNamesCoverEveryBindableMetadataName() {
+    public void testStandardNamesCoverEveryBindableMetadataName() {
         for (String name : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
             assertTrue(
-                "metadata name [" + name + "] is known to the analyzer but missing from RESERVED_NAMES",
-                ExternalMetadataColumns.RESERVED_NAMES.contains(name)
+                "metadata name [" + name + "] is bindable on external relations but missing from STANDARD_NAMES",
+                ExternalMetadataColumns.STANDARD_NAMES.contains(name)
             );
         }
-    }
-
-    /**
-     * Drift tripwire for the refusal itself. {@code isRegisteredButUnbindable} is what makes the analyzer
-     * re-wrap a resolved attribute so the verifier reports it, and a name that escapes it is dropped in
-     * silence rather than refused. Deriving it from the registry means a name added to
-     * {@code MetadataAttribute.ATTRIBUTES_MAP} tomorrow is refused without anyone editing this class; this
-     * pins that the derived set is exactly the three document names today, and that no bindable name is in
-     * it.
-     */
-    public void testRegisteredButUnbindableIsExactlyTheDocumentNames() {
-        Set<String> derived = MetadataAttribute.ATTRIBUTES_MAP.keySet()
-            .stream()
-            .filter(ExternalMetadataColumns::isRegisteredButUnbindable)
-            .collect(Collectors.toSet());
-        assertEquals(Set.of(ExternalMetadataColumns.ID, ExternalMetadataColumns.VERSION, ExternalMetadataColumns.SOURCE), derived);
-        for (String name : ExternalMetadataColumns.STANDARD_NAMES) {
-            assertFalse("bindable name [" + name + "] must not be refused", ExternalMetadataColumns.isRegisteredButUnbindable(name));
-        }
-        // _doc never enters the registry: InfoCommandPlanUtils injects it directly for TS_INFO / METRICS_INFO,
-        // and it must keep its pass-through rather than being reported as an unresolved pattern.
-        assertFalse(ExternalMetadataColumns.isRegisteredButUnbindable(MetadataAttribute.DOC));
     }
 
     /** Every bindable standard name is one the analyzer knows, and one the per-file synthesizer answers. */

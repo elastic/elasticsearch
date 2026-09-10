@@ -34,9 +34,9 @@ import java.util.Set;
  * while the standard names route through {@link MetadataAttribute#ATTRIBUTES_MAP}.
  * <p>
  * Every standard name a dataset can bind is a per-file constant; see
- * {@link #PER_FILE_CONSTANT_NAMES}. {@code _id}, {@code _version} and {@code _source} are not
- * among them: a file holds no such fact, so a dataset does not answer them at all. They stay in
- * {@link #RESERVED_NAMES} so a dataset layout cannot claim the names.
+ * {@link #PER_FILE_CONSTANT_NAMES}. {@code _id}, {@code _version} and {@code _source} are among
+ * them with a {@code null} value: a file holds no document identity, no document version and no
+ * stored source, so the honest answer is SQL NULL rather than a value the engine invented.
  */
 public final class ExternalMetadataColumns {
 
@@ -56,9 +56,9 @@ public final class ExternalMetadataColumns {
     /**
      * Names of standard metadata columns that are materialised by the producer-side
      * constant-block path (per-file values, including SQL {@code NULL} where unavailable).
-     * {@link #ID}, {@link #VERSION} and {@link #SOURCE} are not in this set and are not bindable
-     * on a dataset at all — a file carries no document identity, no document version and no
-     * stored source.
+     * {@link #ID}, {@link #VERSION} and {@link #SOURCE} are in the set with a {@code null} value:
+     * a file carries no document identity, no document version and no stored source, so the column
+     * binds and every row is NULL.
      */
     public static final Set<String> PER_FILE_CONSTANT_NAMES;
 
@@ -67,6 +67,9 @@ public final class ExternalMetadataColumns {
         // diagnostic / explain output is stable across runs.
         var names = new LinkedHashSet<String>();
         names.add(INDEX);
+        names.add(ID);
+        names.add(VERSION);
+        names.add(SOURCE);
         names.add(SCORE);
         names.add(IGNORED);
         names.add(INDEX_MODE);
@@ -98,32 +101,13 @@ public final class ExternalMetadataColumns {
     }
 
     /**
-     * Whether {@code name} is a standard metadata name that a dataset cannot answer: registered in
-     * {@link MetadataAttribute#ATTRIBUTES_MAP}, and so parsed into a RESOLVED attribute, but outside
-     * {@link #STANDARD_NAMES}. The analyzer has to refuse such a name explicitly — forwarding a resolved
-     * attribute onto the unresolved list drops it in silence.
-     * <p>
-     * Derived from the registry rather than listed, so a name added to {@code ATTRIBUTES_MAP} tomorrow
-     * without a dataset-side value is refused loudly instead of disappearing. Today it answers true for
-     * exactly {@code _id}, {@code _version} and {@code _source} — a file holds no document identity, no
-     * document version and no stored source. It answers false for {@code _doc}, which is not in the
-     * registry at all: {@code InfoCommandPlanUtils} injects that one directly for TS_INFO / METRICS_INFO,
-     * and it keeps its existing pass-through.
-     */
-    public static boolean isRegisteredButUnbindable(String name) {
-        return MetadataAttribute.isSupported(name) && STANDARD_NAMES.contains(name) == false;
-    }
-
-    /**
      * The dedicated metadata namespace for reservation/rename purposes: {@link #STANDARD_NAMES}
-     * plus every standard name that is not bindable on a dataset. Reservation is wider than
-     * binding on purpose and must not flip with build mode or flag state — a dataset layout
-     * claiming {@code _tier} is renamed to {@code _partition._tier} in EVERY build, even where
-     * {@code METADATA _tier} itself is not yet exposed, so a Hive dataset surfaces the same column
-     * names either way. {@code _id}, {@code _version} and {@code _source} are here for the same
-     * reason: a dataset cannot answer them, but a layout must not be able to claim the names.
-     * Use this set for namespace protection; use {@link #STANDARD_NAMES} for what a relation may
-     * actually bind.
+     * plus every standard name that is only gated for binding ({@code _tier}, {@code _slice}).
+     * Reservation is wider than binding on purpose and must not flip with build mode or flag state
+     * — a dataset layout claiming {@code _tier} is renamed to {@code _partition._tier} in EVERY
+     * build, even where {@code METADATA _tier} itself is not yet exposed, so a Hive dataset
+     * surfaces the same column names either way. Use this set for namespace protection; use
+     * {@link #STANDARD_NAMES} for what a relation may actually bind.
      */
     public static final Set<String> RESERVED_NAMES;
 
@@ -131,10 +115,6 @@ public final class ExternalMetadataColumns {
         var names = new LinkedHashSet<>(STANDARD_NAMES);
         names.add(DataTierFieldMapper.NAME); // unconditional: reservation is build-mode-independent
         names.add(SLICE); // unconditional: reservation is flag-state-independent
-        // Not bindable on a dataset, but reserved so a layout cannot claim the name.
-        names.add(ID);
-        names.add(VERSION);
-        names.add(SOURCE);
         RESERVED_NAMES = Collections.unmodifiableSet(names);
     }
 
@@ -166,7 +146,10 @@ public final class ExternalMetadataColumns {
     private static Object perFileValue(String name, @Nullable String datasetName) {
         return switch (name) {
             case INDEX -> datasetName != null ? new BytesRef(datasetName) : null;
-            case SCORE, IGNORED, INDEX_MODE, TSID, SIZE, DataTierFieldMapper.NAME, SLICE -> null;
+            // A file carries no document identity, no document version and no stored source, and no
+            // relevance score, per-row _ignored list, index mode, tsid or stored size either. Every one
+            // of these is SQL NULL rather than a value composed at the reader.
+            case ID, VERSION, SOURCE, SCORE, IGNORED, INDEX_MODE, TSID, SIZE, DataTierFieldMapper.NAME, SLICE -> null;
             default -> throw new AssertionError("Unhandled per-file constant name: " + name);
         };
     }

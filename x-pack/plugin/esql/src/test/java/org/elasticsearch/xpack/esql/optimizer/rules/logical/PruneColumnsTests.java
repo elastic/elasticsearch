@@ -2571,10 +2571,10 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(Expressions.names(prunedExt.output()), contains("col_a"));
     }
 
-    public void testExternalRelationKeepsAllDataColumnsWhenSourceConsumed() {
-        // When _source survives downstream, the synthesizer needs every file-resident data column
-        // at compose time — pruning them would render `{}`. Project only _source over (col_a,
-        // col_b, col_c, _source); pin must keep all four.
+    public void testExternalRelationPrunesDataColumnsWhenOnlySourceConsumed() {
+        // _source is a constant null block on a dataset — a file carries no stored source — so nothing
+        // is read from the file to answer it. Project only _source over (col_a, col_b, col_c, _source);
+        // the three data columns are pruned and the reader loads none of them.
         Attribute colA = extAttr("col_a", KEYWORD);
         Attribute colB = extAttr("col_b", LONG);
         Attribute colC = extAttr("col_c", INTEGER);
@@ -2586,13 +2586,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
         var project = as(result, Project.class);
         var prunedExt = as(project.child(), ExternalRelation.class);
-        assertThat(prunedExt.output(), hasSize(4));
-        assertThat(Expressions.names(prunedExt.output()), contains("col_a", "col_b", "col_c", "_source"));
+        assertThat(prunedExt.output(), hasSize(1));
+        assertThat(Expressions.names(prunedExt.output()), contains("_source"));
     }
 
     public void testExternalRelationStillPrunesWhenSourceBoundButUnused() {
-        // _source is bound but the user drops it without ever reading. Pin should NOT fire (no
-        // over-retention); _source itself is pruned along with col_b and col_c.
+        // _source is bound but the user drops it without ever reading; it is pruned along with col_b
+        // and col_c.
         Attribute colA = extAttr("col_a", KEYWORD);
         Attribute colB = extAttr("col_b", LONG);
         Attribute colC = extAttr("col_c", INTEGER);

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -95,27 +97,9 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
     }
 
     /**
-     * A dataset does not answer {@code METADATA _id} — a file holds no document identity — so an {@code _id}
-     * block is not a mappings field at all and is rejected the way any unknown field is.
-     */
-    public void testIdBlockRejected() {
-        for (String json : new String[] {
-            "{\"dynamic\":\"true\",\"_id\":{\"path\":\"request_id\"}}",
-            "{\"_id\":{\"type\":\"keyword\"}}" }) {
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-                parser.nextToken();
-                Exception e = expectThrows(Exception.class, () -> DatasetMapping.parseMappings(parser));
-                assertThat(e.getMessage(), containsString("unknown mappings field [_id]"));
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        }
-    }
-
-    /**
-     * The tolerant entry point used for persisted cluster state reads the retired {@code _id} block and drops it,
-     * whatever it contains. The strict entry point beside it still refuses the same document, so the API keeps
-     * telling a caller that the declaration is gone; only state already on disk gets the leniency.
+     * Cluster state persisted by a 9.5 node carries an {@code _id} block, in any of the shapes that node accepted.
+     * The entry point used for persisted state reads past it and returns the rest of the block intact, so an
+     * upgraded node can still load its own gateway metadata.
      */
     public void testStoredMappingsSkipRetiredIdBlock() {
         for (String idBlock : new String[] { "{\"path\":\"request_id\"}", "{\"type\":\"keyword\"}", "{}" }) {
@@ -125,16 +109,31 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
                 DatasetMapping.Mappings mappings = DatasetMapping.parseStoredMappings(parser);
                 assertEquals(DatasetMapping.Dynamic.TRUE, mappings.dynamic());
                 assertEquals(Set.of("request_id"), mappings.properties().keySet());
-                assertNull(mappings.idPath());
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-                parser.nextToken();
-                Exception e = expectThrows(Exception.class, () -> DatasetMapping.parseMappings(parser));
-                assertThat(e.getMessage(), containsString("unknown mappings field [_id]"));
-            } catch (IOException e) {
-                throw new AssertionError(e);
+        }
+    }
+
+    /**
+     * A 9.5 peer still writes a path into the retired {@code _id.path} slot. Reading it must consume the slot and
+     * throw the value away, leaving the rest of the block intact — a reader that skipped the read instead would
+     * leave the stream misaligned for whatever follows, and one that kept the value would revive a declaration this
+     * version has nothing to give to. Written here as raw stream bytes because no in-repo writer produces a non-null
+     * value any more.
+     */
+    public void testRetiredIdPathIsReadAndDiscarded() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeEnum(DatasetMapping.Dynamic.TRUE);
+            out.writeMap(Map.of("request_id", new DatasetFieldMapping("keyword", null)), (o, v) -> v.writeTo(o));
+            out.writeOptionalString("request_id");
+            out.writeString("trailing");
+
+            try (StreamInput in = out.bytes().streamInput()) {
+                DatasetMapping.Mappings mappings = new DatasetMapping.Mappings(in);
+                assertEquals(DatasetMapping.Dynamic.TRUE, mappings.dynamic());
+                assertEquals(Set.of("request_id"), mappings.properties().keySet());
+                assertEquals("trailing", in.readString());
             }
         }
     }

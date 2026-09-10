@@ -98,7 +98,6 @@ public class DatasetMetadataTests extends AbstractChunkedSerializingTestCase<Dat
             DatasetMapping.Mappings mappings = dataset.mapping().mappings();
             assertEquals(DatasetMapping.Dynamic.TRUE, mappings.dynamic());
             assertEquals(Set.of("request_id"), mappings.properties().keySet());
-            assertNull("the retired _id declaration is dropped, not carried", mappings.idPath());
         }
     }
 

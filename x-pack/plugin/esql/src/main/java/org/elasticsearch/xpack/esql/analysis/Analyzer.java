@@ -767,29 +767,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     continue;
                 }
                 // A dataset answers only the standard names in ExternalMetadataColumns.STANDARD_NAMES.
-                // _id, _version and _source are deliberately outside it: a file holds no document
-                // identity, version or stored source, so those names resolve the way an unknown name
-                // does rather than being answered with an invented value.
+                // _id, _version and _source are among them and every row is NULL: a file holds no
+                // document identity, version or stored source, so the column binds and answers
+                // nothing rather than being answered with a value composed at the reader.
                 DataType type = ExternalMetadataColumns.STANDARD_NAMES.contains(name) ? MetadataAttribute.dataType(name) : null;
                 if (type == null) {
                     type = FileMetadataColumns.COLUMNS.get(name);
                 }
                 if (type == null) {
-                    // A name a dataset cannot answer. The verifier reports it through
-                    // ExternalRelation#metadataFields(), and only an UNRESOLVED expression carries a message
-                    // for that walk. A name outside MetadataAttribute.ATTRIBUTES_MAP already arrives as one,
-                    // but a registered name arrives resolved — forwarding one of those would drop the name
-                    // silently instead of rejecting it, so re-wrap it. Everything else is forwarded as-is,
-                    // which keeps _doc (injected by TS_INFO / METRICS_INFO rather than typed by the user) on
-                    // its existing pass-through path.
+                    // A name a dataset does not answer. Forwarded as-is: an unknown name already arrives as an
+                    // UnresolvedMetadataAttributeExpression carrying the message the verifier reports through
+                    // ExternalRelation#metadataFields(), and forwarding also keeps _doc (injected by TS_INFO /
+                    // METRICS_INFO rather than typed by the user) on its existing pass-through path.
                     if (unresolved == null) {
                         unresolved = new ArrayList<>();
                     }
-                    unresolved.add(
-                        ExternalMetadataColumns.isRegisteredButUnbindable(name)
-                            ? new UnresolvedMetadataAttributeExpression(requested.source(), name)
-                            : requested
-                    );
+                    unresolved.add(requested);
                     continue;
                 }
                 if (enriched == null) {

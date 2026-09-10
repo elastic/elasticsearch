@@ -75,6 +75,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -5119,9 +5120,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // Standing contract: every metadata name a dataset can answer is accepted, returning a value or
         // SQL NULL, but never an error. _index carries the dataset name; the rest (no relevance scoring,
         // no per-row _ignored, etc.) come back as NULL columns. None may be dropped and none may crash
-        // the query. _id, _version and _source are not on this list — a file carries no document identity,
-        // no document version and no stored source, so they do not bind at all
-        // (testDocumentMetadataRejectedOnDataset).
+        // the query. _id, _version and _source belong to the NULL set too — a file carries no document
+        // identity, no document version and no stored source — and are pinned per format in
+        // AbstractExternalMetadataMatrixIT#testAllStandardMetadataColumnsPinned.
         registerDataSource("local_ds", Map.of());
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
@@ -5461,24 +5462,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * A dataset answers no document identity, no document version and no stored source: a file holds none of the
-     * three. {@code _id}, {@code _version} and {@code _source} therefore stop binding on an external relation and
-     * resolve the way any unknown metadata name does.
-     */
-    public void testDocumentMetadataRejectedOnDataset() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-
-        for (String name : List.of("_id", "_version", "_source")) {
-            Exception e = expectThrows(
-                Exception.class,
-                () -> run(syncEsqlQueryRequest("FROM employees METADATA " + name + " | KEEP emp_no | LIMIT 1"), TIMEOUT).close()
-            );
-            assertThat(e.getMessage(), containsString("Unresolved metadata pattern [" + name + "]"));
-        }
-    }
-
-    /**
      * The declared-schema face of the partition-detection settings defect. A declared column colliding with a path-derived
      * partition key is rejected ({@link #testNonStrictPartitionKeyCollisionRejected}), and on main
      * {@code partition_detection: none} could not avoid that rejection because the setting never reached the read
@@ -5713,7 +5696,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         while (cause != null && (cause.getMessage() == null || cause.getMessage().contains(fragment) == false)) {
             cause = cause.getCause();
         }
-        assertThat("error chain should contain message fragment [" + fragment + "]", cause, org.hamcrest.Matchers.notNullValue());
+        assertThat("error chain should contain message fragment [" + fragment + "]", cause, notNullValue());
     }
 
     private static PutViewAction.Request putViewRequest(String name, String query) {

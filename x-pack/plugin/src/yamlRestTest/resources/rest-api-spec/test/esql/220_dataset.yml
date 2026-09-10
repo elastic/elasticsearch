@@ -111,23 +111,6 @@ setup:
             dynamic: "true"
             runtime: { }
 
-  # An `_id` block: a dataset answers no document identity, so it is just another unknown mappings field.
-  # This suite also runs mixed-cluster, where the PUT may land on a 9.5 node that still parses an `_id`
-  # block and reports "unknown [_id] field [type]; only [path] is supported" instead. `catch` is a
-  # substring regex (DoSection matches with RegexMatcher, whose matchesSafely calls Matcher#find), so
-  # matching on the bracketed name alone holds against both messages. The full 9.6 text is pinned where
-  # the version is known, by DatasetMappingTests.testIdBlockRejected.
-  - do:
-      catch: /\[_id\]/
-      esql.put_dataset:
-        name: ds
-        body:
-          data_source: parent
-          resource: "s3://x/*.csv"
-          mappings:
-            dynamic: "true"
-            _id: { type: keyword }
-
   # Field parameters outside {type, path, format} are rejected (index-mapping params we don't model).
   - do:
       catch: /\[analyzer\]/

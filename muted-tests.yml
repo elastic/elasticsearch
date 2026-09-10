@@ -777,3 +777,5 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=search/351_point_in_time_slice/PIT open with slice scopes shards}
   issue: https://github.com/elastic/elasticsearch/issues/158909
+- class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/158911

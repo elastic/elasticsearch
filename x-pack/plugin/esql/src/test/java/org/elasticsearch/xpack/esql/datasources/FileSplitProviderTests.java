@@ -1050,11 +1050,15 @@ public class FileSplitProviderTests extends ESTestCase {
     public void testProbeConcurrencyIsClampedToBlobStoreConcurrency() {
         assertEquals(4, probeConcurrencyFor(Settings.builder().put("esql.external.max_concurrent_requests", 4).build()));
         int ceiling = FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY;
-        assertEquals(ceiling, probeConcurrencyFor(Settings.builder().put("esql.external.max_concurrent_requests", ceiling).build()));
-        assertEquals(
-            FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY,
-            probeConcurrencyFor(Settings.builder().put("esql.external.max_concurrent_requests", 200).build())
-        );
+        Settings atCeiling = Settings.builder().put("esql.external.max_concurrent_requests", ceiling).build();
+        int blobAtCeiling = ExternalSourceSettings.blobStoreConcurrency(atCeiling);
+        assertEquals(Math.min(ceiling, blobAtCeiling), probeConcurrencyFor(atCeiling));
+        Settings aboveCeiling = Settings.builder().put("esql.external.max_concurrent_requests", 200).build();
+        int blobAbove = ExternalSourceSettings.blobStoreConcurrency(aboveCeiling);
+        int expectedProbe = blobAbove > 0
+            ? Math.min(FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY, blobAbove)
+            : FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY;
+        assertEquals(expectedProbe, probeConcurrencyFor(aboveCeiling));
         assertEquals(
             "permit limiting disabled must not disable concurrency",
             FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY,
@@ -1137,7 +1141,12 @@ public class FileSplitProviderTests extends ESTestCase {
         boolean expectAbovePinningCap
     ) throws Exception {
         Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 32).build();
-        CountDownLatch started = new CountDownLatch(awaitStarted);
+        int concurrency = ExternalSourceSettings.blobStoreConcurrency(settings);
+        if (expectAbovePinningCap) {
+            assumeTrue("native Parquet s3 peak>16 needs a heap that allows more than 16 GET slots", concurrency > 16);
+        }
+        int waitFor = concurrency > 0 ? Math.min(awaitStarted, concurrency) : awaitStarted;
+        CountDownLatch started = new CountDownLatch(waitFor);
         CountDownLatch release = new CountDownLatch(1);
         AtomicInteger inFlight = new AtomicInteger();
         AtomicInteger peak = new AtomicInteger();
@@ -3929,6 +3938,48 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(100L, stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
     }
 
+    public void testRangeAwareSplitsConvertLongExtremaWhenReadSchemaIsPinnedToDouble() {
+        // 9007199254740993 is not an exact double; converting LONG->DOUBLE yields 9007199254740992.0.
+        // Using the pinned DOUBLE readSchema as the file type skips that convert and leaves the raw Long.
+        long notExactDouble = 9007199254740993L;
+        Map<String, Object> rawStats = new HashMap<>();
+        rawStats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1L);
+        rawStats.put(SourceStatisticsSerializer.columnMinKey("v"), notExactDouble);
+        rawStats.put(SourceStatisticsSerializer.columnMaxKey("v"), notExactDouble);
+
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
+        FileSplitProvider splitter = splitterFor(mockReader);
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.parquet"), 2000, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+
+        List<Attribute> pinned = List.of(new ReferenceAttribute(SRC, "v", DataType.DOUBLE));
+        ExternalSchema unified = new ExternalSchema(pinned);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(unified, null, null, Map.of("v", DataType.LONG))
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            unified,
+            unified,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            DeclaredReadSpec.NONE
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals(1, splits.size());
+        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
+        assertThat(stats.get(SourceStatisticsSerializer.columnMinKey("v")), instanceOf(Double.class));
+        assertEquals(9007199254740992.0, stats.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertEquals(9007199254740992.0, stats.get(SourceStatisticsSerializer.columnMaxKey("v")));
+    }
+
     public void testRangeAwareFallbackForEmptyRanges() {
         RangeAwareFormatReader mockReader = createMockRangeReader(List.<SplitRange>of());
 
@@ -4224,6 +4275,46 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(Boolean.TRUE, stats.get(SourceStatisticsSerializer.columnMinUnservableKey("price")));
         assertNull(stats.get(SourceStatisticsSerializer.columnValueCountKey("price")));
         assertEquals(100L, stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+    }
+
+    public void testRangeAwareSingleUnitSkipConvertsLongExtremaWhenReadSchemaIsPinnedToDouble() {
+        // Same convert as testRangeAwareSplitsConvertLongExtremaWhenReadSchemaIsPinnedToDouble, on the
+        // harvested single-unit path that goes through normalizeSplitStats instead of addRangeAwareSplits.
+        long notExactDouble = 9007199254740993L;
+        AtomicInteger discoverCalls = new AtomicInteger();
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(), discoverCalls);
+        FileSplitProvider splitter = splitterFor(mockReader);
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/small.parquet"), 500, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+
+        List<Attribute> pinned = List.of(new ReferenceAttribute(SRC, "v", DataType.DOUBLE));
+        ExternalSchema unified = new ExternalSchema(pinned);
+        SourceStatistics harvested = statsWithColumns(1L, 1, Map.of("v", columnStats(notExactDouble, notExactDouble, 1L)));
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(unified, null, harvested, Map.of("v", DataType.LONG))
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            unified,
+            unified,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            DeclaredReadSpec.NONE
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals("single-unit file must not re-discover ranges", 0, discoverCalls.get());
+        assertEquals(1, splits.size());
+        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
+        assertThat(stats.get(SourceStatisticsSerializer.columnMinKey("v")), instanceOf(Double.class));
+        assertEquals(9007199254740992.0, stats.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertEquals(9007199254740992.0, stats.get(SourceStatisticsSerializer.columnMaxKey("v")));
     }
 
     private static FileSplitProvider splitterFor(RangeAwareFormatReader reader) {
@@ -5230,6 +5321,107 @@ public class FileSplitProviderTests extends ESTestCase {
         StorageObject got = FileSplitProvider.storageObjectForSplit(storage, split);
         assertThat(got, instanceOf(RangeStorageObject.class));
         verify(storage).newObject(path);
+    }
+
+    public void testStorageObjectForSplit_partitionSizeAndMtimeSeedsFullFileObject() {
+        StoragePath path = StoragePath.of("file:///tmp/x.ndjson");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        long mtime = 1_700_000_000_000L;
+        Instant modified = Instant.ofEpochMilli(mtime);
+        when(storage.newObject(path, 2000L, modified)).thenReturn(delegate);
+        FileSplit split = new FileSplit(
+            "file",
+            path,
+            0,
+            512L,
+            ".ndjson",
+            Map.of(),
+            Map.of(FileMetadataColumns.SIZE, 2000L, FileMetadataColumns.MODIFIED, mtime)
+        );
+        StorageObject got = FileSplitProvider.storageObjectForSplit(storage, split);
+        assertThat(got, instanceOf(RangeStorageObject.class));
+        verify(storage).newObject(path, 2000L, modified);
+        verify(storage, never()).newObject(path, 512L, modified);
+        verify(storage, never()).newObject(eq(path), eq(512L));
+        verify(storage, never()).newObject(eq(path), eq(2000L));
+        verify(storage, never()).newObject(path);
+    }
+
+    public void testStorageObjectForSplit_partitionSizeIsFullFileNotSpan() {
+        StoragePath path = StoragePath.of("file:///tmp/x.ndjson");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        when(storage.newObject(path, 2000L)).thenReturn(delegate);
+        FileSplit split = new FileSplit("file", path, 10, 10L, ".ndjson", Map.of(), Map.of(FileMetadataColumns.SIZE, 2000L));
+        StorageObject got = FileSplitProvider.storageObjectForSplit(storage, split);
+        assertThat(got, instanceOf(RangeStorageObject.class));
+        RangeStorageObject range = (RangeStorageObject) got;
+        assertEquals(10, range.offset());
+        assertEquals(10L, range.length());
+        verify(storage).newObject(path, 2000L);
+        verify(storage, never()).newObject(eq(path), eq(10L));
+        verify(storage, never()).newObject(path);
+    }
+
+    public void testStorageObjectForSplit_zeroListedSizeIsKnownEmpty() {
+        StoragePath path = StoragePath.of("file:///tmp/empty.ndjson");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        when(storage.newObject(path, 0L)).thenReturn(delegate);
+        FileSplit split = new FileSplit("file", path, 0, 0L, ".ndjson", Map.of(), Map.of(FileMetadataColumns.SIZE, 0L));
+        FileSplitProvider.storageObjectForSplit(storage, split);
+        verify(storage).newObject(path, 0L);
+        verify(storage, never()).newObject(path);
+    }
+
+    public void testNewObjectForFile_returnsFullFileNotRangeWrapper() {
+        StoragePath path = StoragePath.of("file:///tmp/x.csv");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        when(storage.newObject(path, 2000L)).thenReturn(delegate);
+        FileSplit split = new FileSplit("file", path, 10, 10L, ".csv", Map.of(), Map.of(FileMetadataColumns.SIZE, 2000L));
+        StorageObject got = FileSplitProvider.newObjectForFile(storage, split);
+        assertSame(delegate, got);
+        verify(storage).newObject(path, 2000L);
+        verify(storage, never()).newObject(eq(path), eq(10L));
+        verify(storage, never()).newObject(path);
+    }
+
+    public void testStorageObjectForSplit_fileLengthKeySeedsWithoutPartitionSize() {
+        StoragePath path = StoragePath.of("file:///tmp/x.parquet");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        when(storage.newObject(path, 2000L)).thenReturn(delegate);
+        Map<String, Object> cfg = Map.of(FileSplitProvider.FILE_LENGTH_KEY, Long.toString(2000L));
+        FileSplit split = new FileSplit("file", path, 0, 512L, ".parquet", cfg, Map.of());
+        FileSplitProvider.storageObjectForSplit(storage, split);
+        verify(storage).newObject(path, 2000L);
+        verify(storage, never()).newObject(path);
+        verify(storage, never()).newObject(eq(path), eq(512L));
+    }
+
+    public void testNewObjectForFile_fileLengthKeyAndMtimeUsesThreeArg() {
+        StoragePath path = StoragePath.of("file:///tmp/x.parquet");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        long mtime = 1_700_000_000_000L;
+        Instant modified = Instant.ofEpochMilli(mtime);
+        when(storage.newObject(path, 2000L, modified)).thenReturn(delegate);
+        FileSplit split = new FileSplit(
+            "file",
+            path,
+            0,
+            512L,
+            ".parquet",
+            Map.of(FileSplitProvider.FILE_LENGTH_KEY, Long.toString(2000L)),
+            Map.of(FileMetadataColumns.MODIFIED, mtime)
+        );
+        StorageObject got = FileSplitProvider.newObjectForFile(storage, split);
+        assertSame(delegate, got);
+        verify(storage).newObject(path, 2000L, modified);
+        verify(storage, never()).newObject(eq(path), eq(2000L));
+        verify(storage, never()).newObject(path);
     }
 
     /**

@@ -79,14 +79,8 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Same fixture, with an explicit {@code partition_path}. This template names NO columns — the detector matches a
-     * path segment in full, so {@code year={year}} is not a placeholder. With no {@code partition_detection} the
-     * strategy is AUTO, which tries Hive first, so the dataset keeps the {@code year}/{@code month} columns it had
-     * before the setting reached the read path.
-     *
-     * <p>It previously asserted only that the query did not fail with "unknown option [partition_path]". An
-     * acceptance assertion cannot tell an applied template from an unapplied one, so it passed while the setting
-     * was unread. It now asserts the resulting columns.
+     * Same Hive-shaped fixture with a legal {@code partition_path}. Strategy is AUTO, so Hive runs first and
+     * the query still sees {@code year}, {@code month}, and the physical {@code id} column.
      */
     public void testPartitionPathValidatesAndParses() throws Exception {
         Path root = createTempDir().resolve("template_csv");
@@ -94,14 +88,12 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
 
         @SuppressWarnings("checkstyle:EmptyJavadoc") // checkstyle thinks this is Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.csv";
-        String dataset = registerDataset("template_csv", glob, Map.of("partition_path", "year={year}/month={month}/*.csv"));
+        String dataset = registerDataset("template_csv", glob, Map.of("partition_path", "{year}/{month}"));
         String query = "FROM " + dataset + " | LIMIT 1";
 
         try (var response = run(syncEsqlQueryRequest(query))) {
             List<String> columnNames = response.columns().stream().map(c -> c.name()).collect(Collectors.toList());
             assertThat("the data columns must still be read", columnNames, hasItem("id"));
-            // The template names no columns, so AUTO falls through to Hive detection -- the same columns this
-            // dataset produced before partition_path reached the read path.
             assertThat("the Hive-derived year must still appear", columnNames, hasItem("year"));
             assertThat("and the Hive-derived month", columnNames, hasItem("month"));
         }
@@ -345,6 +337,54 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
 
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP id, val"))) {
             assertThat(getValuesList(response).size(), is(2));
+        }
+    }
+
+    /**
+     * Dedicated schema file first, then a recursive glob. FFW omitted knobs keep declaration order so
+     * {@code my_schema.csv} is the donor; the glob files still contribute rows.
+     */
+    public void testSchemaFileThenGlobFirstFileWins() throws Exception {
+        Path root = createTempDir().resolve("schema_then_glob_csv");
+        writeCsv(root.resolve("my_schema.csv"), "id,extra\n");
+        writeCsv(root.resolve("events").resolve("2024").resolve("a.csv"), "id,extra\n1,alpha\n");
+        writeCsv(root.resolve("events").resolve("2024").resolve("z.csv"), "id,extra\n2,zeta\n");
+
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String uri = StoragePath.fileUri(root) + "/my_schema.csv," + StoragePath.fileUri(root) + "/events/**/*.csv";
+        String dataset = registerDataset("schema_then_glob_csv", uri, Map.of("schema_resolution", "first_file_wins"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP extra | WHERE extra IS NOT NULL | SORT extra"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), is(2));
+            assertThat(rows.get(0).get(0), is("alpha"));
+            assertThat(rows.get(1).get(0), is("zeta"));
+        }
+    }
+
+    /**
+     * Recursive glob first, schema file last, {@code list}+{@code desc}: the last named file is the FFW
+     * donor and the glob files still contribute rows.
+     */
+    public void testGlobThenSchemaFileListDescFirstFileWins() throws Exception {
+        Path root = createTempDir().resolve("glob_then_schema_csv");
+        writeCsv(root.resolve("my_schema.csv"), "id,extra\n");
+        writeCsv(root.resolve("events").resolve("2024").resolve("a.csv"), "id,extra\n1,alpha\n");
+        writeCsv(root.resolve("events").resolve("2024").resolve("z.csv"), "id,extra\n2,zeta\n");
+
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String uri = StoragePath.fileUri(root) + "/events/**/*.csv," + StoragePath.fileUri(root) + "/my_schema.csv";
+        String dataset = registerDataset(
+            "glob_then_schema_csv",
+            uri,
+            Map.of("schema_resolution", "first_file_wins", "file_sort_by", "list", "file_order", "desc")
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP extra | WHERE extra IS NOT NULL | SORT extra"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), is(2));
+            assertThat(rows.get(0).get(0), is("alpha"));
+            assertThat(rows.get(1).get(0), is("zeta"));
         }
     }
 

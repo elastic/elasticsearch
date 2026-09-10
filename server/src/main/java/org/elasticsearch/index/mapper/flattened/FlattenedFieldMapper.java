@@ -1832,7 +1832,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      * multi-fields — falls back to the row path.
      */
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // hasTerms()/hasRootDocValues assert the index=false, root-doc-values-free shape that strict columnar defaults to; the terms
         // and root channels have no columnar writer. mappedSubFields must be empty because those keys are indexed by their own
         // mappers, which the driver resolves as ordinary leaves rather than as part of this group.
@@ -1844,8 +1844,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             && mappedSubFields.isEmpty()
             && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
             && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false;
+            && copyTo().copyToFields().isEmpty();
     }
 
     @Override
@@ -1860,7 +1859,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      * ({@link #parseCreateField} returns early on {@code VALUE_NULL}; an empty object has no leaves to index).
      */
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         if (EscfColumnTransforms.allNullOrEmptyObject(source) == false) {
             throw new UnsupportedOperationException(
                 "mapColumnBatch: flattened field ["

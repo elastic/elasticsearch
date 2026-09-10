@@ -1630,7 +1630,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // TIME_SERIES is accepted by the mode gate, but every keyword field in a TSDB index resolves to
         // DocValuesDiskFormat.SORTED_SET (see Builder#diskFormat), which supportsColumnarDocValues() does
         // not accept yet — so TSDB keywords still fall back to the row path until SORTED_SET emission lands.
@@ -1638,7 +1638,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             && supportsColumnarDocValues()
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
             && normalizerName == null
             && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
     }
@@ -1686,7 +1685,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored();
         final boolean emitFallback = storeIgnoredValuesForSyntheticSource();
         final boolean emitDvs = fieldType().hasDocValues();

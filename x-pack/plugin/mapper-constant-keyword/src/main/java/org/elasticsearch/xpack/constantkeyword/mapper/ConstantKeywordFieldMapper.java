@@ -378,8 +378,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     private static final IndexableFieldType MARKER_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        return fieldType().value() != null && copyTo().copyToFields().isEmpty() && multiFields().iterator().hasNext() == false;
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        return fieldType().value() != null && copyTo().copyToFields().isEmpty();
     }
 
     /**
@@ -393,7 +393,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
      * canonicalization is accepted here but rejected by the row path; mismatches always fall back.
      */
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final BytesRef expected = new BytesRef(fieldType().value()); // non-null: gated by supportsColumnarParse
         try (EscfColumnBuilder markers = ctx.isSourceSynthetic() ? newMarkerColumn(ctx) : null) {
             final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);

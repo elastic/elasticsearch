@@ -267,6 +267,8 @@ final class BatchModeRouter implements Releasable {
         if (routedCount == 0) {
             return requestsByShard;
         }
+        // Count mismatch is a caller precondition violation (wrong batch attached), not a per-item
+        // routing failure, so we throw rather than routing through onItemFailure.
         if (routedCount != source.docCount()) {
             throw new IllegalStateException(
                 "pre-built batch ["

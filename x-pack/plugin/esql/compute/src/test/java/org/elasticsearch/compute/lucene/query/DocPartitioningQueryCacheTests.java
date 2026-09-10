@@ -12,6 +12,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -47,8 +49,10 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
 
@@ -163,15 +167,21 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
     }
 
     static class BlockingQuery extends Query {
+        final int id;
         final IntConsumer preVisit;
 
         BlockingQuery(IntConsumer preVisit) {
+            this(0, preVisit);
+        }
+
+        BlockingQuery(int id, IntConsumer preVisit) {
+            this.id = id;
             this.preVisit = preVisit;
         }
 
         @Override
         public String toString(String field) {
-            return "BlockingQuery";
+            return "BlockingQuery[" + id + "]";
         }
 
         @Override
@@ -186,12 +196,12 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
 
         @Override
         public boolean equals(Object other) {
-            return sameClassAs(other);
+            return sameClassAs(other) && id == ((BlockingQuery) other).id;
         }
 
         @Override
         public int hashCode() {
-            return 0;
+            return id;
         }
     }
 
@@ -402,5 +412,93 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
         public int hashCode() {
             return classHash();
         }
+    }
+
+    public void testManyWorkerAndClauses() throws Exception {
+        var dir = newDirectory();
+        final int numThreads = between(50, 150);
+        final int numDocs = numThreads * 100;
+        var writer = new IndexWriter(dir, new IndexWriterConfig());
+        for (int d = 0; d < numDocs; d++) {
+            writer.addDocument(new Document());
+        }
+        var reader = DirectoryReader.open(writer);
+        ShardId shard = new ShardId("index", "_na_", 0);
+        reader = ElasticsearchDirectoryReader.wrap(reader, shard);
+        writer.close();
+        var indicesQueryCache = new IndicesQueryCache(
+            Settings.builder().put(INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true).build()
+        );
+        var searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            indicesQueryCache,
+            TrivialQueryCachingPolicy.ALWAYS,
+            false
+        );
+        final int numClauses = between(5, 20);
+        Semaphore scoredDocs = new Semaphore(0);
+        CountDownLatch allowScoring = new CountDownLatch(1);
+        final int blockingDocId = randomIntBetween(10, 90);
+        IntConsumer parkOnBlockingDoc = docId -> {
+            scoredDocs.release();
+            if (docId == blockingDocId) {
+                safeAwait(allowScoring, TimeValue.THIRTY_SECONDS);
+            }
+        };
+        BooleanQuery.Builder query = new BooleanQuery.Builder();
+        for (int c = 0; c < numClauses; c++) {
+            query.add(new BlockingQuery(c, parkOnBlockingDoc), BooleanClause.Occur.FILTER);
+        }
+        LuceneSliceQueue queue = LuceneSliceQueue.create(
+            new IndexedByShardIdFromList<>(List.of(new LuceneSourceOperatorTests.MockShardContext(searcher, 0))),
+            c -> List.of(new LuceneSliceQueue.QueryAndTags(query.build(), List.of())),
+            DataPartitioning.DOC,
+            (ctx, q) -> LuceneSliceQueue.PartitioningStrategy.DOC,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
+            numThreads,
+            s -> ScoreMode.COMPLETE_NO_SCORES
+        );
+        LuceneSlice slice = queue.nextSlice(null);
+        LeafReaderContext leaf = slice.getLeaf(0).leafReaderContext();
+        Weight weight = slice.weight();
+        final Thread cachingThread = new Thread(() -> {
+            try {
+                BulkScorer bulkScorer = weight.bulkScorer(leaf);
+                bulkScorer.score(new CountCollector(), null, 0, 100);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        cachingThread.start();
+        safeAcquire(scoredDocs);
+        Thread[] threads = new Thread[numThreads];
+        CountDownLatch latch = new CountDownLatch(numThreads + 1);
+        for (int t = 0; t < numThreads; t++) {
+            final int minDoc = (t + 1) * 100;
+            Thread thread = new Thread(null, () -> {
+                latch.countDown();
+                safeAwait(latch, TimeValue.THIRTY_SECONDS);
+                try {
+                    for (int i = 0; i < 50; i++) {
+                        BulkScorer bulkScorer = weight.bulkScorer(leaf);
+                        bulkScorer.score(new CountCollector(), null, minDoc, minDoc + 100);
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+            threads[t] = thread;
+            thread.start();
+        }
+        latch.countDown();
+        allowScoring.countDown();
+        for (Thread thread : threads) {
+            thread.join(30_000);
+        }
+        cachingThread.join(30_000);
+        reader.close();
+        dir.close();
+        assertThat(indicesQueryCache.getStats(shard, () -> 0L).getCacheCount(), greaterThanOrEqualTo((long) numClauses));
     }
 }

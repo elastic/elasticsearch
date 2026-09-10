@@ -54,6 +54,7 @@ plugins {
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
   id 'com.gradleup.nmcp.aggregation'
+  id 'elasticsearch.dra-maven-aggregation'
 }
 
 version = VersionProperties.elasticsearch

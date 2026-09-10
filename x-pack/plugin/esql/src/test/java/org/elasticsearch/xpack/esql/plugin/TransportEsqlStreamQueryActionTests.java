@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -422,5 +424,67 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         );
         TransportEsqlStreamQueryAction.markPartialFromCompletionInfo(nonPartialResult);
         assertFalse("is_partial must remain false when completionInfo.partial() is false", executionInfo.isPartial());
+    }
+
+    public void testComputeNullColumnsDropsAbsentFieldsWhenProbeIsComplete() {
+        FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(new String[] { "a" }, Map.of("value", Map.of()), List.of());
+        String[] fieldNames = new String[] { "value", "sparse" };
+        boolean[] result = TransportEsqlStreamQueryAction.computeNullColumns(response, fieldNames);
+        assertFalse("'value' is present in the response and must not be dropped", result[0]);
+        assertTrue("'sparse' is absent with no failures and must be dropped", result[1]);
+    }
+
+    public void testComputeNullColumnsRetainsEverythingWhenAnIndexFailed() {
+        FieldCapabilitiesFailure failure = new FieldCapabilitiesFailure(
+            new String[] { "b" },
+            new IllegalStateException("injected failure")
+        );
+        FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(
+            new String[] { "a" },
+            Map.of("value", Map.of()),
+            List.of(failure)
+        );
+        String[] fieldNames = new String[] { "value", "only_in_b" };
+        boolean[] result = TransportEsqlStreamQueryAction.computeNullColumns(response, fieldNames);
+        assertFalse("'value' must not be dropped when the probe is incomplete", result[0]);
+        assertFalse("'only_in_b' must not be dropped — it may be populated in the failed index 'b'", result[1]);
+    }
+
+    public void testComputeNullColumnsRetainsEverythingWhenAllIndicesTimedOut() {
+        FieldCapabilitiesFailure failure = new FieldCapabilitiesFailure(
+            new String[] { "a", "b" },
+            new IllegalStateException(new java.util.concurrent.TimeoutException("timed out"))
+        );
+        FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(new String[] {}, Map.of(), List.of(failure));
+        String[] fieldNames = new String[] { "value", "sparse" };
+        boolean[] result = TransportEsqlStreamQueryAction.computeNullColumns(response, fieldNames);
+        assertFalse("no column may be dropped when the probe timed out for all indices", result[0]);
+        assertFalse("no column may be dropped when the probe timed out for all indices", result[1]);
+    }
+
+    public void testComputeNullColumnsAllEmptyWithNoFailures() {
+        FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(new String[] {}, Map.of(), List.of());
+        String[] fieldNames = new String[] { "value", "sparse" };
+        boolean[] result = TransportEsqlStreamQueryAction.computeNullColumns(response, fieldNames);
+        assertTrue("'value' must be dropped when there are no values and no failures", result[0]);
+        assertTrue("'sparse' must be dropped when there are no values and no failures", result[1]);
+    }
+
+    public void testComputeNullColumnsNullFieldNamesAreNeverDropped() {
+        FieldCapabilitiesResponse cleanResponse = new FieldCapabilitiesResponse(new String[] { "a" }, Map.of("value", Map.of()), List.of());
+        String[] fieldNames = new String[] { "value", null };
+        boolean[] cleanResult = TransportEsqlStreamQueryAction.computeNullColumns(cleanResponse, fieldNames);
+        assertFalse("index-backed 'value' must not be dropped when present", cleanResult[0]);
+        assertFalse("null fieldName must never be dropped on a clean probe", cleanResult[1]);
+
+        FieldCapabilitiesFailure failure = new FieldCapabilitiesFailure(new String[] { "b" }, new IllegalStateException("injected"));
+        FieldCapabilitiesResponse failedResponse = new FieldCapabilitiesResponse(
+            new String[] { "a" },
+            Map.of("value", Map.of()),
+            List.of(failure)
+        );
+        boolean[] failedResult = TransportEsqlStreamQueryAction.computeNullColumns(failedResponse, fieldNames);
+        assertFalse("no column must be dropped on an incomplete probe", failedResult[0]);
+        assertFalse("null fieldName must never be dropped on an incomplete probe", failedResult[1]);
     }
 }

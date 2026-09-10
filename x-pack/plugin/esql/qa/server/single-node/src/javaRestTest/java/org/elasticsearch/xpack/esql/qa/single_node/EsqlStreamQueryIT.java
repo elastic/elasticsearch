@@ -545,6 +545,35 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertStreamAgreesWithQuery(esql, true);
     }
 
+    public void testTimeZoneAgreesWithQueryEndpoint() throws IOException {
+        initTimeZoneIndex();
+        assertStreamAgreesWithQuery("SET time_zone=\"Europe/Paris\"; FROM stream-tz-test | SORT date | KEEP date, date_ns");
+    }
+
+    private void initTimeZoneIndex() throws IOException {
+        Request createIndex = new Request("PUT", "/stream-tz-test");
+        createIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "date":    { "type": "date" },
+                  "date_ns": { "type": "date_nanos" }
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(createIndex));
+
+        Request bulk = new Request("POST", "/_bulk?index=stream-tz-test&refresh=true");
+        bulk.setJsonEntity("""
+            {"index": {}}
+            {"date": "2025-05-31T01:00:00Z", "date_ns": "2025-05-31T01:00:00.000000000Z"}
+            {"index": {}}
+            {"date": "2025-05-31T23:00:00Z", "date_ns": "2025-05-31T23:00:00.000000000Z"}
+            """);
+        assertOK(client().performRequest(bulk));
+    }
+
     private void initBucketIndex() throws IOException {
         Request createIndex = new Request("PUT", "/stream-bucket-test");
         createIndex.setJsonEntity("""

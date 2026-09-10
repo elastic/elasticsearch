@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
@@ -58,6 +61,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
@@ -585,5 +589,81 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
             assertThat("stream delivered a row that is not in the index: " + row, key, in(expected));
             assertTrue("stream delivered a duplicate row — a page was double-delivered: " + row, seen.add(key));
         }
+    }
+
+    public void testDropNullColumnsPartialFieldCapsFailureRetainsColumn() throws Exception {
+        List<String> dataNodeNames = new ArrayList<>();
+        for (String name : internalCluster().getNodeNames()) {
+            if (name.equals(coordinatingNode) == false) {
+                dataNodeNames.add(name);
+            }
+        }
+        assumeTrue("test requires at least two data nodes", dataNodeNames.size() >= 2);
+        String nodeA = dataNodeNames.get(0);
+        String nodeB = dataNodeNames.get(1);
+
+        String idxA = "drop_null_a";
+        String idxB = "drop_null_b";
+        assertAcked(
+            prepareCreate(idxA).setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.routing.allocation.require._name", nodeA)
+            ).setMapping("value", "type=keyword", "sparse", "type=keyword")
+        );
+        assertAcked(
+            prepareCreate(idxB).setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.routing.allocation.require._name", nodeB)
+            ).setMapping("value", "type=keyword", "sparse", "type=keyword")
+        );
+        indexRandom(
+            true,
+            client().prepareIndex(idxA).setSource("value", "v1"),
+            client().prepareIndex(idxA).setSource("value", "v2"),
+            client().prepareIndex(idxB).setSource("value", "v3", "sparse", "s1"),
+            client().prepareIndex(idxB).setSource("value", "v4", "sparse", "s2")
+        );
+        ensureGreen(idxA, idxB);
+
+        String query = "FROM " + idxA + "," + idxB + " | KEEP value, sparse";
+
+        boolean[] control = streamDropNullColumns(query);
+        assertEquals("control probe must see two output columns", 2, control.length);
+        assertFalse("control: 'sparse' is populated in " + idxB + " and must not be dropped", control[1]);
+
+        MockTransportService.getInstance(nodeB)
+            .addRequestHandlingBehavior(TransportFieldCapabilitiesAction.ACTION_NODE_NAME, (handler, request, channel, task) -> {
+                if (request.getDescription().contains("includeEmptyFields[false]")) {
+                    channel.sendResponse(new IllegalStateException("injected probe failure for drop_null_columns test"));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+        try {
+            boolean[] withFailure = streamDropNullColumns(query);
+            assertFalse("partial field-caps failure must not drop 'sparse' — it may be populated in the failed index", withFailure[1]);
+        } finally {
+            MockTransportService.getInstance(nodeB).clearAllRules();
+        }
+    }
+
+    private boolean[] streamDropNullColumns(String query) throws Exception {
+        AtomicReference<boolean[]> nullColumnsRef = new AtomicReference<>();
+        StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
+        EsqlQueryRequest source = EsqlQueryRequest.syncEsqlQueryRequest(query);
+        ActionFuture<ActionResponse.Empty> future = client(coordinatingNode).execute(
+            EsqlStreamQueryAction.INSTANCE,
+            EsqlStreamQueryRequest.from(source, ActionListener.wrap(start -> {
+                nullColumnsRef.set(start.nullColumns());
+                start.publisher().subscribe(subscriber);
+            }, subscriber.failure::set), true, randomIntBetween(1, 10))
+        );
+        future.actionGet(TimeValue.timeValueSeconds(60));
+        subscriber.rethrowIfFailed();
+        return nullColumnsRef.get();
     }
 }

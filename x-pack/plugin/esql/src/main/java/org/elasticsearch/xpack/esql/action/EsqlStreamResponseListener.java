@@ -31,7 +31,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -73,6 +73,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private volatile PageStreamPublisher publisher;
     private volatile List<ColumnInfoImpl> columns;
     private volatile boolean[] nullColumns;
+    private volatile ZoneId zoneId;
     private final AtomicReference<Page> inFlightPage = new AtomicReference<>();
 
     public EsqlStreamResponseListener(RestChannel channel) {
@@ -92,6 +93,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         this.publisher = streamStart.publisher();
         this.columns = streamStart.columns();
         this.nullColumns = streamStart.nullColumns();
+        this.zoneId = streamStart.zoneId();
+        assert zoneId != null : "StreamStart must carry the resolved query time zone";
         NdjsonColumnsBodyPart columnsBodyPart = new NdjsonColumnsBodyPart(streamStart.columns(), streamStart.nullColumns());
         streamStart.publisher().subscribe(subscriber);
         channel.sendResponse(RestResponse.chunked(RestStatus.OK, columnsBodyPart, this::release));
@@ -189,7 +192,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
             }
             Page previous = inFlightPage.getAndSet(page);
             assert previous == null : "a page is already in flight; demand must be one page at a time";
-            next.onResponse(new NdjsonPageBodyPart(page, columns, nullColumns));
+            next.onResponse(new NdjsonPageBodyPart(page, columns, nullColumns, zoneId));
         }
 
         @Override
@@ -310,6 +313,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         private final Page page;
         private final List<ColumnInfoImpl> cols;
         private final boolean[] nullColumns;
+        private final ZoneId zoneId;
 
         // Resume state across encodeChunk calls.
         // target is the current chunk's output stream; set at the top of each encodeChunk and nulled
@@ -332,10 +336,11 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         private int nextRow = 0;                   // resume cursor into the page
         private boolean encoded = false;           // true only after the last row has been written
 
-        NdjsonPageBodyPart(Page page, List<ColumnInfoImpl> cols, boolean[] nullColumns) {
+        NdjsonPageBodyPart(Page page, List<ColumnInfoImpl> cols, boolean[] nullColumns, ZoneId zoneId) {
             this.page = page;
             this.cols = cols;
             this.nullColumns = nullColumns;
+            this.zoneId = zoneId;
         }
 
         @Override
@@ -369,7 +374,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                     converters = new PositionToXContent[colCount];
                     for (int c = 0; c < colCount; c++) {
                         if (nullColumns == null || nullColumns[c] == false) {
-                            converters[c] = PositionToXContent.positionToXContent(cols.get(c), page.getBlock(c), ZoneOffset.UTC, scratch);
+                            converters[c] = PositionToXContent.positionToXContent(cols.get(c), page.getBlock(c), zoneId, scratch);
                         }
                     }
                     builder = XContentFactory.jsonBuilder(out);

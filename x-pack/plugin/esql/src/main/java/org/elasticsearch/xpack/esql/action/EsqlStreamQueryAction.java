@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 
+import java.time.ZoneId;
 import java.util.List;
 
 /**
@@ -36,9 +37,10 @@ public class EsqlStreamQueryAction extends ActionType<ActionResponse.Empty> {
 
     /**
      * The out-of-band payload delivered to the REST layer once analysis is complete and compute
-     * is about to start. Carries the same three values that the old {@code Response} carried, but
-     * is signalled through {@link EsqlStreamQueryRequest#streamStartListener()} rather than through
-     * the transport action's response path.
+     * is about to start. Carries the schema, the page publisher, the null-column mask, and the
+     * resolved query time zone — all post-analysis facts signalled through
+     * {@link EsqlStreamQueryRequest#streamStartListener()} rather than through the transport
+     * action's response path.
      */
-    public record StreamStart(List<ColumnInfoImpl> columns, PageStreamPublisher publisher, boolean[] nullColumns) {}
+    public record StreamStart(List<ColumnInfoImpl> columns, PageStreamPublisher publisher, boolean[] nullColumns, ZoneId zoneId) {}
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.rest.AbstractRestChannel;
@@ -34,10 +35,13 @@ import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -339,7 +343,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         EarlyGetNextPartChannel channel = new EarlyGetNextPartChannel();
         EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
 
-        listener.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(simpleColumns(), publisher, null));
+        listener.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(simpleColumns(), publisher, null, ZoneOffset.UTC));
         assertThat(channel.okResponses, equalTo(1));
         assertThat(channel.errorResponses, equalTo(0));
         assertTrue("publisher should be unblocked after early demand", publisher.waitForWriting().listener().isDone());
@@ -357,7 +361,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         ThrowingOkChannel channel = new ThrowingOkChannel();
         EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
 
-        listener.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(simpleColumns(), publisher, null));
+        listener.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(simpleColumns(), publisher, null, ZoneOffset.UTC));
         assertTrue(
             "publisher gate must be open after a failed init so the driver is not stuck",
             publisher.waitForWriting().listener().isDone()
@@ -424,11 +428,15 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     }
 
     private Subscribed subscribe(List<ColumnInfoImpl> columns, boolean[] nullColumns, int pageSize) {
+        return subscribe(columns, nullColumns, pageSize, ZoneOffset.UTC);
+    }
+
+    private Subscribed subscribe(List<ColumnInfoImpl> columns, boolean[] nullColumns, int pageSize, ZoneId zoneId) {
         PageStreamPublisher publisher = new PageStreamPublisher(pageSize);
         PageStreamPublisher.Producer producer = publisher.registerProducer();
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
         EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
-        listener.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(columns, publisher, nullColumns));
+        listener.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(columns, publisher, nullColumns, zoneId));
         return new Subscribed(publisher, producer, channel, channel.capturedResponse(), listener);
     }
 
@@ -456,6 +464,44 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         } else {
             assertNotNull(error.get("reason"));
         }
+    }
+
+    public void testDatetimeValuesUseTheQueryTimeZone() throws IOException {
+        long epochMillis = 1748649600123L; // 2025-05-31T00:00:00.123Z
+        List<ColumnInfoImpl> columns = List.of(new ColumnInfoImpl("ts", DataType.DATETIME, null));
+        ZoneId paris = ZoneId.of("Europe/Paris");
+        Subscribed s = subscribe(columns, null, 1, paris);
+
+        LongBlock longBlock = blockFactory.newLongArrayVector(new long[] { epochMillis }, 1).asBlock();
+        Page page = new Page(longBlock);
+
+        List<Map<String, Object>> lines = drainStream(s.response(), s, List.of(page), 0L, List.of());
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) lines.get(1).get("values");
+        assertNotNull("values line must be present", rows);
+        assertThat(rows.size(), greaterThan(0));
+        assertThat("datetime must be formatted with the query time zone", rows.get(0).get(0), equalTo("2025-05-31T02:00:00.123+02:00"));
+    }
+
+    public void testDateNanosValuesUseTheQueryTimeZone() throws IOException {
+        long epochNanos = 1748649600123456789L; // 2025-05-31T00:00:00.123456789Z
+        List<ColumnInfoImpl> columns = List.of(new ColumnInfoImpl("ts", DataType.DATE_NANOS, null));
+        ZoneId paris = ZoneId.of("Europe/Paris");
+        Subscribed s = subscribe(columns, null, 1, paris);
+
+        LongBlock longBlock = blockFactory.newLongArrayVector(new long[] { epochNanos }, 1).asBlock();
+        Page page = new Page(longBlock);
+
+        List<Map<String, Object>> lines = drainStream(s.response(), s, List.of(page), 0L, List.of());
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) lines.get(1).get("values");
+        assertNotNull("values line must be present", rows);
+        assertThat(rows.size(), greaterThan(0));
+        assertThat(
+            "date_nanos must be formatted with the query time zone",
+            rows.get(0).get(0),
+            equalTo("2025-05-31T02:00:00.123456789+02:00")
+        );
     }
 
     private static List<ColumnInfoImpl> simpleColumns() {

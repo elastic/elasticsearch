@@ -11,7 +11,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
@@ -49,6 +51,7 @@ import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -62,6 +65,7 @@ import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -271,7 +275,15 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 Consumer<boolean[]> startCompute = nullColumns -> {
                     try {
                         StreamingOutputExec streamingPlan = new StreamingOutputExec(plan, publisher);
-                        request.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(columns, publisher, nullColumns));
+                        request.streamStartListener()
+                            .onResponse(
+                                new EsqlStreamQueryAction.StreamStart(
+                                    columns,
+                                    publisher,
+                                    nullColumns,
+                                    QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
+                                )
+                            );
                         Exception startFailure = publisher.failure();
                         if (startFailure != null) {
                             resultListener.onFailure(startFailure);
@@ -315,19 +327,14 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         fieldCapsRequest.indicesOptions(IndexResolver.DEFAULT_OPTIONS);
                         fieldCapsRequest.returnLocalAll(false);
                         fieldCapsRequest.filters("-nested");
-                        client.execute(TransportFieldCapabilitiesAction.TYPE, fieldCapsRequest, ActionListener.wrap(response -> {
-                            Set<String> nonEmptyFields = response.get().keySet();
-                            boolean[] nullColumns = new boolean[fieldNames.length];
-                            for (int i = 0; i < fieldNames.length; i++) {
-                                if (fieldNames[i] != null && nonEmptyFields.contains(fieldNames[i]) == false) {
-                                    nullColumns[i] = true;
-                                }
-                            }
-                            startCompute.accept(nullColumns);
-                        }, ex -> {
-                            logger.warn("drop_null_columns: failed to check for empty fields; all columns will be shown", ex);
-                            startCompute.accept(noColumnsDropped);
-                        }));
+                        client.execute(
+                            TransportFieldCapabilitiesAction.TYPE,
+                            fieldCapsRequest,
+                            ActionListener.wrap(response -> startCompute.accept(computeNullColumns(response, fieldNames)), ex -> {
+                                logger.warn("drop_null_columns: failed to check for empty fields; all columns will be shown", ex);
+                                startCompute.accept(noColumnsDropped);
+                            })
+                        );
                     }
                 } else {
                     startCompute.accept(null);
@@ -441,6 +448,47 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             frag -> frag.fragment().forEachDown(EsRelation.class, rel -> names.addAll(rel.concreteQualifiedIndices()))
         );
         return names;
+    }
+
+    /**
+     * Maps the {@code drop_null_columns} emptiness-probe response onto one "this column is empty
+     * index-wide" flag per output column.
+     *
+     * <p>The probe runs with {@code includeEmptyFields(false)}, so a field is reported only if it has
+     * values in at least one index that answered. A field_caps response is therefore only authoritative
+     * about emptiness when every targeted index answered. The coordinator invokes {@code onFailure}
+     * only when <em>every</em> index fails; a partial failure — and an all-index timeout, which yields
+     * no fields at all — arrives here instead as a successful response carrying a non-empty
+     * {@link FieldCapabilitiesResponse#getFailures()}. That is why this check cannot live in the
+     * listener's failure handler. Reading a field's absence from an incomplete map as "empty" would
+     * drop columns that are populated in exactly the index we could not reach, so an incomplete probe
+     * drops nothing, matching the total-failure fallback.
+     *
+     * @param response   the emptiness-probe {@link FieldCapabilitiesResponse}
+     * @param fieldNames one entry per output column: the underlying index field name, or {@code null}
+     *                   for columns not backed by an index field, which are never dropped
+     * @return one flag per output column, parallel to {@code fieldNames}; {@code true} means the column
+     *         may be trimmed. Never {@code null}.
+     */
+    static boolean[] computeNullColumns(FieldCapabilitiesResponse response, String[] fieldNames) {
+        boolean[] nullColumns = new boolean[fieldNames.length];
+        List<FieldCapabilitiesFailure> failures = response.getFailures();
+        if (failures.isEmpty() == false) {
+            logger.warn(
+                "drop_null_columns: empty-field check did not reach [{}] index(es), first failed {}; all columns will be shown",
+                response.getFailedIndicesCount(),
+                Arrays.toString(failures.get(0).getIndices()),
+                failures.get(0).getException()
+            );
+            return nullColumns;
+        }
+        Set<String> nonEmptyFields = response.get().keySet();
+        for (int i = 0; i < fieldNames.length; i++) {
+            if (fieldNames[i] != null && nonEmptyFields.contains(fieldNames[i]) == false) {
+                nullColumns[i] = true;
+            }
+        }
+        return nullColumns;
     }
 
     static void markPartialFromCompletionInfo(Result result) {

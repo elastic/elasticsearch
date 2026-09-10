@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
+import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -27,6 +28,11 @@ public class EvalGenerator implements CommandGenerator {
 
     public static final String EVAL = "eval";
     public static final String NEW_COLUMNS = "new_columns";
+    /**
+     * Set when {@link GenerativeFeature#IN_SUBQUERY} is enabled so {@link #validateOutput} can use the looser presence check.
+     * {@code validateOutput} does not receive {@link GenerationContext}.
+     */
+    public static final String IN_SUBQUERY_ENABLED = "inSubqueryEnabled";
     public static final CommandGenerator INSTANCE = new EvalGenerator();
 
     @Override
@@ -52,12 +58,15 @@ public class EvalGenerator implements CommandGenerator {
                     name = EsqlQueryGenerator.randomIdentifier();
                 }
             }
-            // Occasionally generate a null field (EVAL field = null) to test NULL data type handling
-            String expression;
-            if (randomIntBetween(0, 100) < 10) {
-                expression = "null";
-            } else {
-                expression = EsqlQueryGenerator.expression(usablePrevious.values().stream().toList(), true, previousCommands);
+            List<Column> usableColumns = usablePrevious.values().stream().toList();
+            String expression = EsqlQueryGenerator.maybeInSubqueryBooleanExpression(usableColumns, schema, executor, context);
+            if (expression == null) {
+                // Occasionally generate a null field (EVAL field = null) to test NULL data type handling
+                if (randomIntBetween(0, 100) < 10) {
+                    expression = "null";
+                } else {
+                    expression = EsqlQueryGenerator.expression(usableColumns, true, previousCommands);
+                }
             }
             if (i > 0) {
                 cmd.append(",");
@@ -76,7 +85,15 @@ public class EvalGenerator implements CommandGenerator {
             usablePrevious.remove(rawName);
         }
         String cmdString = cmd.toString();
-        return new CommandDescription(EVAL, this, cmdString, Map.ofEntries(Map.entry(NEW_COLUMNS, newColumns)));
+        return new CommandDescription(
+            EVAL,
+            this,
+            cmdString,
+            Map.ofEntries(
+                Map.entry(NEW_COLUMNS, newColumns),
+                Map.entry(IN_SUBQUERY_ENABLED, context.isFeatureEnabled(GenerativeFeature.IN_SUBQUERY))
+            )
+        );
     }
 
     @Override
@@ -91,19 +108,54 @@ public class EvalGenerator implements CommandGenerator {
     ) {
         List<String> expectedColumns = (List<String>) commandDescription.context().get(NEW_COLUMNS);
         List<String> resultColNames = columns.stream().map(Column::name).toList();
-        List<String> lastColumns = resultColNames.subList(resultColNames.size() - expectedColumns.size(), resultColNames.size());
-        if (isUnmappedFieldsEnabled(previousCommands) == false
-            && (columns.size() < expectedColumns.size() || lastColumns.equals(expectedColumns) == false)) {
-            return new ValidationResult(
-                false,
-                "Expecting the following as last columns ["
-                    + String.join(", ", expectedColumns)
-                    + "] but got ["
-                    + String.join(", ", resultColNames)
-                    + "]"
-            );
+        if (isUnmappedFieldsEnabled(previousCommands) == false) {
+            ValidationResult columnsResult = Boolean.TRUE.equals(commandDescription.context().get(IN_SUBQUERY_ENABLED))
+                ? validateInSubqueryEvalColumns(expectedColumns, resultColNames)
+                : validateBaselineEvalColumns(expectedColumns, resultColNames, columns.size());
+            if (columnsResult.success() == false) {
+                return columnsResult;
+            }
         }
 
         return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output);
+    }
+
+    /**
+     * Baseline check from main: assigned names must appear as the last columns, in assignment order. This assumes every assignment appends
+     * a column, which is false when EVAL overwrites an existing field.
+     */
+    private static ValidationResult validateBaselineEvalColumns(
+        List<String> expectedColumns,
+        List<String> resultColNames,
+        int columnCount
+    ) {
+        if (columnCount >= expectedColumns.size()) {
+            List<String> lastColumns = resultColNames.subList(resultColNames.size() - expectedColumns.size(), resultColNames.size());
+            if (lastColumns.equals(expectedColumns)) {
+                return VALIDATION_OK;
+            }
+        }
+        return new ValidationResult(
+            false,
+            "Expecting the following as last columns ["
+                + String.join(", ", expectedColumns)
+                + "] but got ["
+                + String.join(", ", resultColNames)
+                + "]"
+        );
+    }
+
+    /**
+     * IN subquery EVAL may overwrite an existing field (left in place) or leak synthetic mark columns, so only require that every assigned
+     * name is present.
+     */
+    private static ValidationResult validateInSubqueryEvalColumns(List<String> expectedColumns, List<String> resultColNames) {
+        if (resultColNames.containsAll(expectedColumns)) {
+            return VALIDATION_OK;
+        }
+        return new ValidationResult(
+            false,
+            "Expecting columns [" + String.join(", ", expectedColumns) + "] but got [" + String.join(", ", resultColNames) + "]"
+        );
     }
 }

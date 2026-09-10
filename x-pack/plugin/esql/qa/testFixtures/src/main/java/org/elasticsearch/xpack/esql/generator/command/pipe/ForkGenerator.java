@@ -61,7 +61,7 @@ public class ForkGenerator implements CommandGenerator {
 
         StringBuilder forkCmd = new StringBuilder(" | FORK ");
         for (int i = 0; i < branchCount; i++) {
-            var expr = WhereGenerator.randomExpression(randomIntBetween(1, 2), previousOutput, previousCommands);
+            var expr = WhereGenerator.randomExpression(randomIntBetween(1, 2), previousOutput, previousCommands, schema, executor, context);
             if (expr == null) {
                 expr = "true";
             }

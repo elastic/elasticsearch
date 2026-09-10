@@ -8,17 +8,31 @@
 package org.elasticsearch.xpack.esql.generator;
 
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Context threaded through the random query generator.
  */
 public final class GenerationContext {
 
+    /**
+     * Maximum nesting depth for IN subqueries.
+     */
+    public static final int MAX_IN_SUBQUERY_NESTING_DEPTH = 2;
+
     private final int subqueryDepth;
+    /**
+     * Shared mutable flag across the entire query tree. Set to {@code true} the first time an {@code IN (subquery)} predicate is
+     * successfully generated. When {@link GenerativeFeature#IN_SUBQUERY} is enabled, the probability gate in
+     * {@code maybeInSubqueryBooleanExpression} is bypassed until this flag is set, so the first suitable boolean-expression position
+     * attempts generation.
+     */
+    private final AtomicBoolean hasGeneratedInSubquery;
     private final Set<GenerativeFeature> features;
 
-    private GenerationContext(int subqueryDepth, Set<GenerativeFeature> features) {
+    private GenerationContext(int subqueryDepth, AtomicBoolean hasGeneratedInSubquery, Set<GenerativeFeature> features) {
         this.subqueryDepth = subqueryDepth;
+        this.hasGeneratedInSubquery = hasGeneratedInSubquery;
         this.features = features;
     }
 
@@ -26,7 +40,7 @@ public final class GenerationContext {
      * Root context for a top-level query with the given opt-in features.
      */
     public static GenerationContext root(Set<GenerativeFeature> features) {
-        return new GenerationContext(0, features);
+        return new GenerationContext(0, new AtomicBoolean(false), features);
     }
 
     /**
@@ -45,6 +59,20 @@ public final class GenerationContext {
     }
 
     /**
+     * Returns {@code true} if an {@code IN (subquery)} predicate has already been generated anywhere in this query tree.
+     */
+    public boolean hasGeneratedInSubquery() {
+        return hasGeneratedInSubquery.get();
+    }
+
+    /**
+     * Marks that an IN subquery has been generated. All derived contexts share the same flag.
+     */
+    public void setHasGeneratedInSubquery() {
+        hasGeneratedInSubquery.set(true);
+    }
+
+    /**
      * Returns {@code true} if the given feature is enabled in this context.
      */
     public boolean isFeatureEnabled(GenerativeFeature feature) {
@@ -52,9 +80,10 @@ public final class GenerationContext {
     }
 
     /**
-     * Returns a copy of this context with the given subquery nesting depth.
+     * Returns a copy of this context with the given subquery nesting depth. Shares the same
+     * {@code hasGeneratedInSubquery} reference so the flag spans the entire query tree.
      */
     public GenerationContext withSubqueryDepth(int subqueryDepth) {
-        return new GenerationContext(subqueryDepth, features);
+        return new GenerationContext(subqueryDepth, hasGeneratedInSubquery, features);
     }
 }

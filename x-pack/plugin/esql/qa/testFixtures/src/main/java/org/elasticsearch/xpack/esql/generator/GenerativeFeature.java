@@ -26,6 +26,13 @@ public enum GenerativeFeature {
     SUBQUERIES,
 
     /**
+     * Allow {@code field IN (subquery)} predicates to be produced in filters, EVAL expressions,
+     * and per-aggregate STATS/INLINE STATS WHERE clauses, including supported conditional, null-check,
+     * and equality wrappers.
+     */
+    IN_SUBQUERY,
+
+    /**
      * Always prepend {@code SET unmapped_fields="load"} and force unmapped
      * fields to be loaded as keyword fields.
      */

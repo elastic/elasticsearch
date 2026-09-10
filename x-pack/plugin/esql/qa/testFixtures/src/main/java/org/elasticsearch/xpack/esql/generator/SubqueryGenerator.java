@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.generator;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
@@ -33,10 +32,6 @@ public final class SubqueryGenerator {
 
     /**
      * Returns a parenthesized subquery and its output schema.
-     * Throws {@link AllowedGeneratorFailureException} if the inner pipeline failed with an allowed/known error
-     * (as judged by {@link QueryExecutor#isAllowedFailure}), so callers can detect and propagate the
-     * allowed-failure signal rather than silently swallowing it.
-     * Unexpected inner exceptions are rethrown as-is.
      */
     public static SubqueryResult build(GenerationContext outerContext, CommandGenerator.QuerySchema schema, QueryExecutor queryExecutor) {
         GenerationContext innerContext = outerContext.withSubqueryDepth(outerContext.subqueryDepth() + 1);
@@ -50,7 +45,7 @@ public final class SubqueryGenerator {
                 throw new AllowedGeneratorFailureException(last.query(), last.exception());
             }
             logger.warn(() -> "Subquery generation failed for inner query [" + last.query() + "]", last.exception());
-            throw ExceptionsHelper.convertToRuntime(last.exception());
+            throw new RuntimeException("Subquery generation failed for inner query [" + last.query() + "]", last.exception());
         }
         return new SubqueryResult("(" + last.query() + ")", inner.currentSchema());
     }

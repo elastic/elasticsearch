@@ -104,6 +104,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // This message is "expected" here, as predicting type conflicts has to be implemented first
             "has conflicting data types in subqueries"
         ),
+        GenerativeFeature.IN_SUBQUERY,
+        Set.of(
+            "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after",
+            "Invalid condition \\[.*]. \\[(?:KQL|QSTR|MATCH|MATCH_PHRASE)] (?:function|operator) can't be used with"
+        ),
         GenerativeFeature.UNMAPPED_FIELDS_LOAD,
         Set.of(
             // https://github.com/elastic/elasticsearch/issues/141995, https://github.com/elastic/elasticsearch/issues/141990
@@ -503,6 +508,29 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 }
             }
         }
+    }
+
+    /**
+     * Strips {@code $$in_subquery_mark$} synthetic columns from a {@link QueryExecuted}.
+     */
+    private static QueryExecuted stripInSubqueryMarkColumns(QueryExecuted qe) {
+        if (qe == null || qe.outputSchema() == null) {
+            return qe;
+        }
+        List<Integer> keepIndices = new ArrayList<>();
+        for (int i = 0; i < qe.outputSchema().size(); i++) {
+            if (qe.outputSchema().get(i).name().startsWith("$$in_subquery_mark$") == false) {
+                keepIndices.add(i);
+            }
+        }
+        if (keepIndices.size() == qe.outputSchema().size()) {
+            return qe;
+        }
+        List<Column> schema = keepIndices.stream().map(qe.outputSchema()::get).toList();
+        List<List<Object>> rows = qe.result() == null
+            ? null
+            : qe.result().stream().map(row -> keepIndices.stream().map(row::get).toList()).toList();
+        return new QueryExecuted(qe.query(), qe.depth(), schema, rows, qe.exception());
     }
 
     /**
@@ -1554,6 +1582,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // result validation (that expect columns added after them).
         if (result.query() != null && FromGenerator.hasApproximationSettings(result.query())) {
             result = stripApproximationColumns(result);
+        }
+        if (FORK_COMMAND_PATTERN.matcher(query).find()) {
+            result = stripInSubqueryMarkColumns(result);
         }
         return result;
     }

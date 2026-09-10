@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -24,25 +25,34 @@ public class WhereGenerator implements CommandGenerator {
     public static final String WHERE = "where";
     public static final CommandGenerator INSTANCE = new WhereGenerator();
 
-    public static String randomExpression(final int nConditions, List<Column> previousOutput, List<CommandDescription> previousCommands) {
+    public static String randomExpression(
+        int nConditions,
+        List<Column> previousOutput,
+        List<CommandDescription> previousCommands,
+        QuerySchema schema,
+        QueryExecutor executor,
+        GenerationContext context
+    ) {
         // TODO more complex conditions
-        var result = new StringBuilder();
-
+        List<String> exps = new ArrayList<>(nConditions);
         for (int i = 0; i < nConditions; i++) {
-            String exp = EsqlQueryGenerator.booleanExpression(previousOutput, previousCommands);
+            String exp = EsqlQueryGenerator.booleanExpression(previousOutput, previousCommands, schema, executor, context);
             if (exp == null) {
-                // Cannot generate expressions, just skip.
                 return null;
             }
+            exps.add(exp);
+        }
+
+        var result = new StringBuilder();
+        for (int i = 0; i < exps.size(); i++) {
             if (i > 0) {
                 result.append(randomBoolean() ? " AND " : " OR ");
             }
             if (randomBoolean()) {
                 result.append(" NOT ");
             }
-            result.append(exp);
+            result.append(exps.get(i));
         }
-
         return result.toString();
     }
 
@@ -54,7 +64,7 @@ public class WhereGenerator implements CommandGenerator {
         QueryExecutor executor,
         GenerationContext context
     ) {
-        String expression = randomExpression(randomIntBetween(1, 5), previousOutput, previousCommands);
+        String expression = randomExpression(randomIntBetween(1, 5), previousOutput, previousCommands, schema, executor, context);
         if (expression == null) {
             return EMPTY_DESCRIPTION;
         }

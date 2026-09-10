@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.RowGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.TimeSeriesGenerator;
+import org.elasticsearch.xpack.esql.generator.function.BooleanExpressionGenerator;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 
 import java.time.Instant;
@@ -72,6 +73,7 @@ import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.dateFunct
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.fullTextFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.greatestLeastFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.inExpression;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.inSubqueryExpression;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.ipPrefixFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.isNullExpression;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.likeExpression;
@@ -262,6 +264,46 @@ public class EsqlQueryGenerator {
                 yield funcExpr == null ? null : funcExpr + " " + mathCompareOperator() + " " + randomIntBetween(0, 20);
             }
         };
+    }
+
+    /**
+     * Context-aware overload that generates an {@code IN} subquery predicate when {@link GenerativeFeature#IN_SUBQUERY} is enabled. Until
+     * at least one IN subquery has been generated in this query tree, the first suitable boolean-expression position bypasses the
+     * probability gate. After the first one is generated, additional IN subqueries are produced approximately 20% of the time.
+     */
+    public static String booleanExpression(
+        List<Column> previousOutput,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        CommandGenerator.QuerySchema schema,
+        QueryExecutor executor,
+        GenerationContext context
+    ) {
+        String inSubquery = maybeInSubqueryBooleanExpression(previousOutput, schema, executor, context);
+        return inSubquery == null ? booleanExpression(previousOutput, previousCommands) : inSubquery;
+    }
+
+    /**
+     * Attempts to generate a context-aware IN-subquery boolean expression. The first suitable position in a query tree bypasses the
+     * probability gate; later positions generate another IN subquery approximately 20% of the time. Returns {@code null} when the feature
+     * is disabled, the nesting limit has been reached, the probability gate declines generation, or no compatible outer/inner column pair
+     * can be produced.
+     */
+    public static String maybeInSubqueryBooleanExpression(
+        List<Column> previousOutput,
+        CommandGenerator.QuerySchema schema,
+        QueryExecutor executor,
+        GenerationContext context
+    ) {
+        if (context.isFeatureEnabled(GenerativeFeature.IN_SUBQUERY)
+            && context.subqueryDepth() < GenerationContext.MAX_IN_SUBQUERY_NESTING_DEPTH
+            && (context.hasGeneratedInSubquery() == false || randomIntBetween(0, 4) == 0)) {
+            String expr = inSubqueryExpression(previousOutput, schema, executor, context);
+            if (expr != null) {
+                context.setHasGeneratedInSubquery();
+                return BooleanExpressionGenerator.randomlyWrapInSubqueryExpression(expr);
+            }
+        }
+        return null;
     }
 
     public static String mathCompareOperator() {

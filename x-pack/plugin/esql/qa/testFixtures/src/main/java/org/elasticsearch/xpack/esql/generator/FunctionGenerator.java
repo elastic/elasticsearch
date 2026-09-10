@@ -289,6 +289,19 @@ public class FunctionGenerator {
     }
 
     /**
+     * Generates an {@code IN} subquery expression: {@code outerField IN (subquery | KEEP compatibleColumn)}. Only meaningful when
+     * {@link GenerativeFeature#IN_SUBQUERY} is enabled and the generation context is below the configured IN-subquery nesting limit.
+     */
+    public static String inSubqueryExpression(
+        List<Column> columns,
+        CommandGenerator.QuerySchema schema,
+        QueryExecutor executor,
+        GenerationContext context
+    ) {
+        return BooleanExpressionGenerator.inSubqueryExpression(columns, schema, executor, context);
+    }
+
+    /**
      * Generates a LIKE expression.
      * May randomly use unmapped field names to test NULL data type handling.
      */

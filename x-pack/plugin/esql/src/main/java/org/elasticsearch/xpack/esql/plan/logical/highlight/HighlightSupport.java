@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -51,13 +52,11 @@ public final class HighlightSupport {
     /**
      * Returns whether a {@code WHERE} conjunct can be borrowed for highlighting. Positive full-text predicates and
      * boolean combinations of them are supported; negative and mixed full-text/non-full-text predicates are not.
-     * <p>
-     * Analyzer options are rejected because HIGHLIGHT's synthetic context only knows its own analyzer. Every accepted
-     * expression must also be supported by {@link org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders#build}.
-     * TODO: support analyzer options on borrowed predicates.
+     * Every accepted expression must also be supported by
+     * {@link org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders#build}.
      */
     public static boolean isSupportedImplicitPredicate(Expression expr) {
-        return hasBorrowableShape(expr) && expr.anyMatch(HighlightSupport::hasAnalyzerOption) == false;
+        return hasBorrowableShape(expr);
     }
 
     private static boolean hasBorrowableShape(Expression expr) {
@@ -71,32 +70,163 @@ public final class HighlightSupport {
         return expr instanceof Match || expr instanceof MatchPhrase || expr instanceof QueryString || expr instanceof Kql;
     }
 
-    /**
-     * Whether a full-text leaf carries an {@code analyzer} or {@code quote_analyzer} option.
-     */
-    private static boolean hasAnalyzerOption(Expression expr) {
-        Expression options = switch (expr) {
+    /** The leaf's {@code analyzer} option, or {@code null} if absent, not foldable, or unsupported on that leaf type. */
+    private static String analyzerNameOf(Expression fullTextLeaf) {
+        Expression options = switch (fullTextLeaf) {
             case Match match -> match.options();
             case MatchPhrase matchPhrase -> matchPhrase.options();
             case QueryString queryString -> queryString.options();
-            case Kql kql -> kql.options();
-            default -> null;
+            case Kql kql -> null;
+            default -> throw new IllegalStateException(
+                "analyzerNameOf: unexpected full-text leaf [" + fullTextLeaf.getClass().getSimpleName() + "]"
+            );
         };
-        return options instanceof MapExpression map
-            && (map.get(ANALYZER_FIELD.getPreferredName()) != null || map.get(QUOTE_ANALYZER_FIELD.getPreferredName()) != null);
+        return foldedOption(options, ANALYZER_FIELD.getPreferredName());
+    }
+
+    private static String quoteAnalyzerNameOf(Expression fullTextLeaf) {
+        if (fullTextLeaf instanceof QueryString queryString) {
+            return foldedOption(queryString.options(), QUOTE_ANALYZER_FIELD.getPreferredName());
+        }
+        return null;
+    }
+
+    private static String foldedOption(Expression options, String name) {
+        if (options instanceof MapExpression map) {
+            Expression value = map.get(name);
+            if (value != null && value.foldable()) {
+                return BytesRefs.toString(value.fold(FoldContext.small()));
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The one non-default analyzer every full-text leaf agrees on, or {@code null} if they disagree, name none, or
+     * all use {@code standard}. An unlabeled leaf counts as {@code standard}, so it disagrees with a labeled sibling
+     * instead of inheriting that sibling's analyzer.
+     */
+    public static String uniformAnalyzerOf(Expression query) {
+        Set<String> names = new LinkedHashSet<>();
+        query.forEachDown(FullTextFunction.class, leaf -> names.add(effectiveAnalyzerName(analyzerNameOf(leaf))));
+        if (names.size() != 1) {
+            return null;
+        }
+        String only = names.iterator().next();
+        return only.equals(HighlightQueryBuilders.DEFAULT_ANALYZER_NAME) ? null : only;
+    }
+
+    private static String effectiveAnalyzerName(String analyzerName) {
+        return analyzerName == null ? HighlightQueryBuilders.DEFAULT_ANALYZER_NAME : analyzerName;
+    }
+
+    /**
+     * {@code quote_analyzer} names from {@code QSTR} leaves, registered in the runtime context so they resolve even
+     * when they differ from the field's indexing analyzer.
+     */
+    public static Set<String> extraAnalyzerNamesOf(Expression query) {
+        Set<String> names = new LinkedHashSet<>();
+        query.forEachDown(FullTextFunction.class, leaf -> {
+            String quoteAnalyzer = quoteAnalyzerNameOf(leaf);
+            if (quoteAnalyzer != null) {
+                names.add(quoteAnalyzer);
+            }
+        });
+        return names;
+    }
+
+    /**
+     * Primary {@code analyzer} names from every full-text leaf, including leaves outside ON. Query builders validate
+     * the option before the (lenient) field lookup, so off-ON names still have to be registered.
+     */
+    public static Set<String> primaryAnalyzerNamesOf(Expression query) {
+        Set<String> names = new LinkedHashSet<>();
+        query.forEachDown(FullTextFunction.class, leaf -> {
+            String analyzer = analyzerNameOf(leaf);
+            if (analyzer != null) {
+                names.add(analyzer);
+            }
+        });
+        return names;
+    }
+
+    /**
+     * Highlight analyzer for each ON field: a leaf's {@code analyzer} wins for the field it names (or every ON field
+     * for {@code QSTR}/{@code KQL}); {@code commandAnalyzerName} (default {@code standard}) fills the rest. An
+     * unlabeled leaf does not pin the field to {@code standard}; it inherits the command default.
+     *
+     * @throws IllegalArgumentException if two leaves name different analyzers for the same field
+     */
+    public static Map<String, String> fieldAnalyzers(Expression query, @Nullable String commandAnalyzerName, List<String> onFields) {
+        List<String> fields = List.copyOf(onFields);
+        Map<String, Set<String>> assignedByField = new LinkedHashMap<>();
+        for (String field : fields) {
+            assignedByField.put(field, new LinkedHashSet<>());
+        }
+        query.forEachDown(FullTextFunction.class, leaf -> {
+            String analyzer = analyzerNameOf(leaf);
+            if (analyzer == null) {
+                return;
+            }
+            String single = leafFieldName(leaf);
+            if (single != null) {
+                Set<String> names = assignedByField.get(single);
+                if (names != null) {
+                    names.add(analyzer);
+                }
+            } else {
+                for (Set<String> names : assignedByField.values()) {
+                    names.add(analyzer);
+                }
+            }
+        });
+        String commandDefault = effectiveAnalyzerName(commandAnalyzerName);
+        Map<String, String> result = new LinkedHashMap<>();
+        for (String field : fields) {
+            Set<String> names = assignedByField.get(field);
+            if (names.isEmpty()) {
+                result.put(field, commandDefault);
+            } else if (names.size() == 1) {
+                result.put(field, names.iterator().next());
+            } else {
+                throw new IllegalArgumentException(
+                    "HIGHLIGHT field ["
+                        + field
+                        + "] would be highlighted with different analyzers "
+                        + names
+                        + " by different clauses of the query; use the same analyzer for every clause on that field"
+                );
+            }
+        }
+        return result;
+    }
+
+    private static String leafFieldName(Expression fullTextLeaf) {
+        return switch (fullTextLeaf) {
+            case Match match -> Expressions.name(match.field());
+            case MatchPhrase matchPhrase -> Expressions.name(matchPhrase.field());
+            case QueryString queryString -> null;
+            case Kql kql -> null;
+            default -> throw new IllegalStateException(
+                "leafFieldName: unexpected full-text leaf [" + fullTextLeaf.getClass().getSimpleName() + "]"
+            );
+        };
     }
 
     /**
      * Result of walking the doc-preserving chain above HIGHLIGHT to derive an implicit query from an upstream WHERE.
      *
-     * @param query           the borrowed query (an {@code OR} of the qualifying conjuncts), or {@code null} when none
-     *                        was found
-     * @param reasonIfMissing when {@code query} is {@code null}, a user-facing explanation of why nothing was borrowed
-     *                        for HIGHLIGHT's post-analysis verification to report; {@code null} when a query was found
+     * @param query             the borrowed query (an {@code OR} of the qualifying conjuncts), or {@code null} when
+     *                          none was found
+     * @param reasonIfMissing   when {@code query} is {@code null}, a user-facing explanation of why nothing was
+     *                          borrowed for HIGHLIGHT's post-analysis verification to report; {@code null} when a
+     *                          query was found
+     * @param analyzerName      shared non-default analyzer of the borrowed leaves, or {@code null}
      */
-    public record ImplicitQuery(@Nullable Expression query, @Nullable String reasonIfMissing) {
+    public record ImplicitQuery(@Nullable Expression query, @Nullable String reasonIfMissing, @Nullable String analyzerName) {
         public ImplicitQuery {
             assert (query == null) == (reasonIfMissing != null);
+            assert query != null || analyzerName == null;
         }
     }
 
@@ -106,23 +236,19 @@ public final class HighlightSupport {
      * <p>
      * Borrowed conjuncts are OR-ed because highlighting is display, not selection. Fields renamed or dropped after the
      * filter are kept in the query and become match-none during translation; tracking them by {@code NameId} would lose
-     * predicates across commands that replace attributes. Analyzer options on otherwise borrowable predicates fail the
-     * whole derivation rather than being silently ignored.
+     * predicates across commands that replace attributes.
      *
      * @param source HIGHLIGHT's source, used as the location of the combined query
      */
     public static ImplicitQuery collectImplicitQuery(LogicalPlan child, Source source) {
         List<Expression> predicates = new ArrayList<>();
         boolean sawUnborrowableFullText = false;
-        boolean sawAnalyzerOption = false;
         LogicalPlan current = child;
         while (current instanceof DocPreserving docPreserving) {
             if (current instanceof Filter filter) {
                 for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
                     if (isSupportedImplicitPredicate(conjunct)) {
                         predicates.add(conjunct);
-                    } else if (hasBorrowableShape(conjunct) && conjunct.anyMatch(HighlightSupport::hasAnalyzerOption)) {
-                        sawAnalyzerOption = true;
                     } else if (conjunct.anyMatch(e -> e instanceof FullTextFunction)) {
                         sawUnborrowableFullText = true;
                     }
@@ -132,18 +258,11 @@ public final class HighlightSupport {
         }
         LogicalPlan blockedBy = current.children().isEmpty() ? null : current;
 
-        // Do not partially borrow: a sibling MATCH without an analyzer would otherwise become the implicit query
-        // and silently drop the analyzer-bearing conjunct.
-        if (sawAnalyzerOption) {
-            return new ImplicitQuery(
-                null,
-                "HIGHLIGHT cannot borrow a WHERE condition that sets analyzer or quote_analyzer; add an explicit HIGHLIGHT query"
-            );
-        }
         if (predicates.isEmpty() == false) {
-            return new ImplicitQuery(Predicates.combineOrWithSource(predicates, source), null);
+            Expression combined = Predicates.combineOrWithSource(predicates, source);
+            return new ImplicitQuery(combined, null, uniformAnalyzerOf(combined));
         }
-        return new ImplicitQuery(null, missingQueryReason(sawUnborrowableFullText, blockedBy));
+        return new ImplicitQuery(null, missingQueryReason(sawUnborrowableFullText, blockedBy), null);
     }
 
     private static String missingQueryReason(boolean sawUnborrowableFullText, @Nullable LogicalPlan blockedBy) {

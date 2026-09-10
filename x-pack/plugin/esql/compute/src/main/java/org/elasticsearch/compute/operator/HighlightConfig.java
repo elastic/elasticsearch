@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.util.List;
 import java.util.Locale;
@@ -20,8 +20,8 @@ import java.util.Objects;
  * It contains two groups of values:
  * <ul>
  *     <li>user-facing highlight options resolved from {@code WITH { ... }}</li>
- *     <li>execution context ({@link Analyzer}, translated {@link Query}, and target field names) attached during
- *     planning via {@link #withExecutionContext(Analyzer, Query, List)}</li>
+ *     <li>execution context (per-field {@link NamedAnalyzer}s, translated {@link Query}, and target field names)
+ *     attached during planning via {@link #withExecutionContext(List, Query, List)}</li>
  * </ul>
  * Keeping this record in the compute module (rather than referencing the ES|QL planning-layer options type) keeps
  * operator wiring localized to the compute package.
@@ -38,11 +38,12 @@ import java.util.Objects;
  * @param locale             locale used by the break iterator (the {@code boundary_scanner_locale} option).
  * @param orderByScore       when {@code true} fragments are returned by descending score instead of document order
  *                           (the {@code order=score} option).
- * @param analyzerName       {@code analyzer} override from WITH, also shown in plan descriptions; {@code null} selects
- *                           the default analyzer.
+ * @param analyzerName       {@code analyzer} override from WITH, used to derive per-field analyzers when a field's
+ *                           borrowed leaves do not name one; {@code null} selects the default analyzer.
  * @param maxAnalyzedOffset  per-field analysis bound; a negative value means "use the default index setting" in the
  *                           current coordinator-side operator.
- * @param analyzer           analyzer used to build the per-row memory index and configure the unified highlighter.
+ * @param fieldAnalyzers     the analyzer each ON field is analyzed and searched with, aligned by index with
+ *                           {@code fieldNames}; each field may carry a different analyzer.
  * @param query              translated Lucene query used for matching and snippet extraction.
  * @param fieldNames         highlighted field names, in the same order as field evaluators.
  */
@@ -59,7 +60,7 @@ public record HighlightConfig(
     boolean orderByScore,
     String analyzerName,
     int maxAnalyzedOffset,
-    Analyzer analyzer,
+    List<NamedAnalyzer> fieldAnalyzers,
     Query query,
     List<String> fieldNames
 ) {
@@ -94,17 +95,18 @@ public record HighlightConfig(
             orderByScore,
             analyzerName,
             maxAnalyzedOffset,
-            null,
+            List.of(),
             null,
             List.of()
         );
     }
 
     public HighlightConfig {
+        fieldAnalyzers = List.copyOf(fieldAnalyzers);
         fieldNames = List.copyOf(fieldNames);
     }
 
-    public HighlightConfig withExecutionContext(Analyzer analyzer, Query query, List<String> fieldNames) {
+    public HighlightConfig withExecutionContext(List<NamedAnalyzer> fieldAnalyzers, Query query, List<String> fieldNames) {
         return new HighlightConfig(
             queryText,
             preTag,
@@ -118,14 +120,17 @@ public record HighlightConfig(
             orderByScore,
             analyzerName,
             maxAnalyzedOffset,
-            analyzer,
+            fieldAnalyzers,
             query,
             fieldNames
         );
     }
 
-    public Analyzer requiredAnalyzer() {
-        return Objects.requireNonNull(analyzer, "HIGHLIGHT analyzer must be set in execution context");
+    public List<NamedAnalyzer> requiredFieldAnalyzers() {
+        if (fieldAnalyzers.isEmpty()) {
+            throw new IllegalStateException("HIGHLIGHT field analyzers must be set in execution context");
+        }
+        return fieldAnalyzers;
     }
 
     public Query requiredQuery() {
@@ -154,9 +159,28 @@ public record HighlightConfig(
             + ", order_by_score="
             + orderByScore
             + ", analyzer="
-            + analyzerName
+            + describeAnalyzers()
             + ", max_analyzed_offset="
             + maxAnalyzedOffset;
+    }
+
+    /** One analyzer name, or {@code {field=analyzer, ...}} when fields differ. Falls back to {@link #analyzerName}. */
+    private String describeAnalyzers() {
+        if (fieldAnalyzers.isEmpty()) {
+            return String.valueOf(analyzerName);
+        }
+        List<String> names = fieldAnalyzers.stream().map(NamedAnalyzer::name).toList();
+        if (names.stream().distinct().count() == 1) {
+            return names.get(0);
+        }
+        StringBuilder sb = new StringBuilder("{");
+        for (int i = 0; i < fieldNames.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(fieldNames.get(i)).append('=').append(names.get(i));
+        }
+        return sb.append('}').toString();
     }
 
     @Override

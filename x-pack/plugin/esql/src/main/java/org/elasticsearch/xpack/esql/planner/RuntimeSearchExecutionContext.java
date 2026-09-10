@@ -91,10 +91,48 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
         // QueryStringQueryParser needs a "default" entry. Query builders carrying an explicit analyzer option
         // (e.g. match with {"analyzer": "whitespace"}) validate the name against getIndexAnalyzers(), so the
         // search analyzer is registered under its own name as well.
-        Map<String, NamedAnalyzer> analyzers = DEFAULT_ANALYZER_KEY.equals(searchAnalyzer.name())
-            ? Map.of(DEFAULT_ANALYZER_KEY, searchAnalyzer)
-            : Map.of(DEFAULT_ANALYZER_KEY, searchAnalyzer, searchAnalyzer.name(), searchAnalyzer);
+        Map<String, NamedAnalyzer> analyzers = new LinkedHashMap<>();
+        analyzers.put(DEFAULT_ANALYZER_KEY, searchAnalyzer);
+        if (DEFAULT_ANALYZER_KEY.equals(searchAnalyzer.name()) == false) {
+            analyzers.put(searchAnalyzer.name(), searchAnalyzer);
+        }
         return new RuntimeSearchExecutionContext(fields, IndexAnalyzers.of(analyzers), searchAnalyzer, lenientFields);
+    }
+
+    /**
+     * Per-field analyzers: each field's {@link TextSearchInfo} uses its own analyzer. {@code extraAnalyzers} are
+     * registered by name only ({@code quote_analyzer}, off-ON leaf analyzers); a name already used by a field is ignored.
+     *
+     * @param lenientFields see {@link #create(List, NamedAnalyzer, boolean)}
+     */
+    public static RuntimeSearchExecutionContext create(
+        Map<String, NamedAnalyzer> fieldAnalyzers,
+        Map<String, NamedAnalyzer> extraAnalyzers,
+        boolean lenientFields
+    ) {
+        Map<String, MappedFieldType> fields = new LinkedHashMap<>();
+        Map<String, NamedAnalyzer> analyzers = new LinkedHashMap<>();
+        NamedAnalyzer defaultAnalyzer = null;
+        for (Map.Entry<String, NamedAnalyzer> entry : fieldAnalyzers.entrySet()) {
+            NamedAnalyzer analyzer = entry.getValue();
+            if (defaultAnalyzer == null) {
+                defaultAnalyzer = analyzer;
+            }
+            TextSearchInfo tsi = new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, analyzer, analyzer);
+            fields.put(
+                entry.getKey(),
+                new TextFieldMapper.TextFieldType(entry.getKey(), true, false, tsi, false, false, null, Map.of(), false, false)
+            );
+            analyzers.putIfAbsent(analyzer.name(), analyzer);
+        }
+        // QueryStringQueryParser needs a "default" fallback; the first field's analyzer is as good as any.
+        if (defaultAnalyzer != null) {
+            analyzers.put(DEFAULT_ANALYZER_KEY, defaultAnalyzer);
+        }
+        for (Map.Entry<String, NamedAnalyzer> extra : extraAnalyzers.entrySet()) {
+            analyzers.putIfAbsent(extra.getKey(), extra.getValue());
+        }
+        return new RuntimeSearchExecutionContext(fields, IndexAnalyzers.of(analyzers), defaultAnalyzer, lenientFields);
     }
 
     private static IndexSettings syntheticIndexSettings() {

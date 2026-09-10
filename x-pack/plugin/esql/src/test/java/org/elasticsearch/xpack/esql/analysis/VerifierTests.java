@@ -4921,6 +4921,33 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testHighlightBareBorrowSynthesizesAnalyzerFromNullOptions() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT");
+    }
+
+    public void testHighlightAllowsWithAnalyzerDisagreeingWithBorrow() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).query(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT ON title WITH { \"analyzer\": \"keyword\" }"
+        );
+        supportsHighlightImplicit(fullText()).query(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT ON title WITH { \"analyzer\": \"whitespace\" }"
+        );
+    }
+
+    public void testHighlightDerivedAnalyzerNotFoundGetsTargetedMessage() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"my_custom_analyzer\"}) | HIGHLIGHT ON title",
+            allOf(
+                containsString("HIGHLIGHT auto-derived analyzer [my_custom_analyzer] from WHERE"),
+                containsString("Custom per-index analyzers cannot be used through HIGHLIGHT"),
+                not(containsString("[my_custom_analyzer] is not a registered analyzer"))
+            )
+        );
+    }
+
     public void testHighlightImplicitRejectedOnOlderTransportVersion() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         defaultAnalyzer().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT)
@@ -5013,6 +5040,14 @@ public class VerifierTests extends ESTestCase {
         supportsHighlight(fullText()).query(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title WITH { \"analyzer\": \"standard\" }"
         );
+        supportsHighlight(fullText()).query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title");
+        supportsHighlight(fullText()).query(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title WITH { \"analyzer\": \"keyword\" }"
+        );
+        supportsHighlight(fullText()).query(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) OR MATCH(body, \"bar\", {\"analyzer\": \"standard\"})"
+                + " ON title, body"
+        );
     }
 
     public void testHighlightAnalyzerOption() {
@@ -5063,14 +5098,9 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT category > 5 ON title",
             containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL) or a boolean combination of them")
         );
-        // A nested full-text function must use the same analyzer as HIGHLIGHT.
         supportsHighlight(fullText()).error(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title",
-            allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [whitespace] not found"))
-        );
-        supportsHighlight(fullText()).error(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title WITH { \"analyzer\": \"keyword\" }",
-            allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [whitespace] not found"))
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"not_a_real_analyzer\"}) ON title",
+            containsString("[not_a_real_analyzer] is not a registered analyzer")
         );
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\") ON body",

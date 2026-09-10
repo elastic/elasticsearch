@@ -20,9 +20,13 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
@@ -32,6 +36,7 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class HighlightSupportTests extends ESTestCase {
@@ -69,7 +74,13 @@ public class HighlightSupportTests extends ESTestCase {
             kql,
             new And(EMPTY, match, phrase),
             new Or(EMPTY, qstr, kql),
-            match("title", "fox", options("fuzziness", "AUTO"))
+            match("title", "fox", options("fuzziness", "AUTO")),
+            match("title", "fox", options("analyzer", "english")),
+            matchPhrase("body", "quick fox", options("analyzer", "english")),
+            queryString("fox", options("analyzer", "english")),
+            queryString("fox", options("quote_analyzer", "english")),
+            new Kql(EMPTY, of("title: fox"), options("analyzer", "english"), TEST_CFG),
+            new And(EMPTY, match, match("body", "fox", options("analyzer", "english")))
         )) {
             assertTrue(supported.toString(), HighlightSupport.isSupportedImplicitPredicate(supported));
         }
@@ -79,16 +90,165 @@ public class HighlightSupportTests extends ESTestCase {
             of("fox"),
             new And(EMPTY, match, new Not(EMPTY, phrase)),
             new Or(EMPTY, match, new Not(EMPTY, phrase)),
-            new Or(EMPTY, match, of("fox")),
-            match("title", "fox", options("analyzer", "english")),
-            matchPhrase("body", "quick fox", options("analyzer", "english")),
-            queryString("fox", options("analyzer", "english")),
-            queryString("fox", options("quote_analyzer", "english")),
-            new Kql(EMPTY, of("title: fox"), options("analyzer", "english"), TEST_CFG),
-            new And(EMPTY, match, match("body", "fox", options("analyzer", "english")))
+            new Or(EMPTY, match, of("fox"))
         )) {
             assertFalse(unsupported.toString(), HighlightSupport.isSupportedImplicitPredicate(unsupported));
         }
+    }
+
+    public void testUniformAnalyzerOfAgreesOnNonDefaultAnalyzer() {
+        Expression query = new And(
+            EMPTY,
+            match("title", "fox", options("analyzer", "english")),
+            matchPhrase("body", "fox", options("analyzer", "english"))
+        );
+        assertThat(HighlightSupport.uniformAnalyzerOf(query), equalTo("english"));
+    }
+
+    public void testUniformAnalyzerOfReturnsNullForStandard() {
+        Expression query = new And(EMPTY, match("title", "fox", null), match("body", "fox", options("analyzer", "standard")));
+        assertNull(HighlightSupport.uniformAnalyzerOf(query));
+    }
+
+    public void testUniformAnalyzerOfReturnsNullOnDisagreement() {
+        Expression query = new And(EMPTY, match("title", "fox", options("analyzer", "english")), match("body", "fox", null));
+        assertNull(HighlightSupport.uniformAnalyzerOf(query));
+    }
+
+    public void testUniformAnalyzerOfReturnsNullWithNoFullTextLeaf() {
+        assertNull(HighlightSupport.uniformAnalyzerOf(of("fox")));
+    }
+
+    public void testExtraAnalyzerNamesOfCollectsQuoteAnalyzers() {
+        Expression query = new Or(
+            EMPTY,
+            queryString("fox", options("quote_analyzer", "english")),
+            queryString("dog", options("quote_analyzer", "whitespace"))
+        );
+        assertThat(HighlightSupport.extraAnalyzerNamesOf(query), equalTo(Set.of("english", "whitespace")));
+    }
+
+    public void testExtraAnalyzerNamesOfEmptyWithoutQuoteAnalyzer() {
+        assertTrue(HighlightSupport.extraAnalyzerNamesOf(match("title", "fox", null)).isEmpty());
+    }
+
+    public void testCollectImplicitQueryDerivesSharedAnalyzer() {
+        Expression leaf = match("title", "fox", options("analyzer", "english"));
+        Filter filter = filter(leaf);
+
+        HighlightSupport.ImplicitQuery implicitQuery = HighlightSupport.collectImplicitQuery(filter, EMPTY);
+
+        assertThat(implicitQuery.query(), equalTo(leaf));
+        assertThat(implicitQuery.analyzerName(), equalTo("english"));
+    }
+
+    public void testCollectImplicitQueryBorrowsMixedAnalyzersAcrossDifferentFields() {
+        Expression leaf = new Or(
+            EMPTY,
+            match("title", "fox", options("analyzer", "english")),
+            match("body", "fox", options("analyzer", "whitespace"))
+        );
+        HighlightSupport.ImplicitQuery implicitQuery = HighlightSupport.collectImplicitQuery(filter(leaf), EMPTY);
+
+        assertThat(implicitQuery.query(), equalTo(leaf));
+        assertNull(implicitQuery.analyzerName());
+    }
+
+    public void testCollectImplicitQueryKeepsSingleExtraQuoteAnalyzer() {
+        Expression leaf = queryString("fox", options("analyzer", "english", "quote_analyzer", "whitespace"));
+        HighlightSupport.ImplicitQuery implicitQuery = HighlightSupport.collectImplicitQuery(filter(leaf), EMPTY);
+
+        assertThat(implicitQuery.query(), equalTo(leaf));
+        assertThat(implicitQuery.analyzerName(), equalTo("english"));
+        assertThat(HighlightSupport.extraAnalyzerNamesOf(leaf), equalTo(Set.of("whitespace")));
+    }
+
+    public void testCollectImplicitQueryBorrowsMultipleDistinctQuoteAnalyzers() {
+        Expression leaf = new Or(
+            EMPTY,
+            queryString("fox", options("quote_analyzer", "english")),
+            queryString("dog", options("quote_analyzer", "whitespace"))
+        );
+        HighlightSupport.ImplicitQuery implicitQuery = HighlightSupport.collectImplicitQuery(filter(leaf), EMPTY);
+
+        assertThat(implicitQuery.query(), equalTo(leaf));
+        assertNull(implicitQuery.analyzerName());
+        assertThat(HighlightSupport.extraAnalyzerNamesOf(leaf), equalTo(Set.of("english", "whitespace")));
+    }
+
+    public void testFieldAnalyzersAssignsEachLeafsFieldItsOwnAnalyzer() {
+        Expression query = new Or(
+            EMPTY,
+            match("title", "fox", options("analyzer", "english")),
+            match("body", "fox", options("analyzer", "whitespace"))
+        );
+        assertThat(
+            HighlightSupport.fieldAnalyzers(query, null, List.of("title", "body")),
+            equalTo(Map.of("title", "english", "body", "whitespace"))
+        );
+    }
+
+    public void testFieldAnalyzersUsesCommandDefaultForUntouchedFields() {
+        Expression query = match("title", "fox", options("analyzer", "english"));
+        assertThat(
+            HighlightSupport.fieldAnalyzers(query, "whitespace", List.of("title", "body")),
+            equalTo(Map.of("title", "english", "body", "whitespace"))
+        );
+        assertThat(
+            HighlightSupport.fieldAnalyzers(query, null, List.of("title", "body")),
+            equalTo(Map.of("title", "english", "body", "standard"))
+        );
+    }
+
+    public void testFieldAnalyzersUnlabeledLeafDefaultsToStandard() {
+        Expression query = match("title", "fox", null);
+        assertThat(HighlightSupport.fieldAnalyzers(query, null, List.of("title")), equalTo(Map.of("title", "standard")));
+    }
+
+    public void testFieldAnalyzersFieldLessLeafBroadcastsToEveryField() {
+        Expression query = queryString("fox", options("analyzer", "english"));
+        assertThat(
+            HighlightSupport.fieldAnalyzers(query, null, List.of("title", "body")),
+            equalTo(Map.of("title", "english", "body", "english"))
+        );
+    }
+
+    public void testFieldAnalyzersRejectsSameFieldTwoAnalyzers() {
+        Expression query = new Or(
+            EMPTY,
+            match("title", "fox", options("analyzer", "english")),
+            match("title", "dog", options("analyzer", "whitespace"))
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightSupport.fieldAnalyzers(query, null, List.of("title"))
+        );
+        assertThat(e.getMessage(), containsString("different analyzers"));
+    }
+
+    public void testFieldAnalyzersRejectsFieldLessLeafConflictingWithPerFieldAnalyzer() {
+        Expression query = new Or(
+            EMPTY,
+            match("title", "fox", options("analyzer", "whitespace")),
+            queryString("fox", options("analyzer", "english"))
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightSupport.fieldAnalyzers(query, null, List.of("title"))
+        );
+        assertThat(e.getMessage(), containsString("different analyzers"));
+    }
+
+    public void testFieldAnalyzersUnlabeledFieldLessLeafDoesNotConflict() {
+        Expression query = new Or(EMPTY, match("title", "fox", options("analyzer", "whitespace")), queryString("fox", null));
+        assertThat(HighlightSupport.fieldAnalyzers(query, null, List.of("title")), equalTo(Map.of("title", "whitespace")));
+    }
+
+    private static Filter filter(Expression condition) {
+        Attribute title = getFieldAttribute("title", TEXT);
+        Attribute body = getFieldAttribute("body", TEXT);
+        LogicalPlan relation = new LocalRelation(EMPTY, List.of(title, body), null);
+        return new Filter(EMPTY, relation, condition);
     }
 
     public void testAllHighlightableFieldsFiltersAndDeduplicates() {

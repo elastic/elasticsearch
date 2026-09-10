@@ -57,8 +57,8 @@ public class BitmapTermsQueryBuilderTests extends AbstractQueryTestCase<BitmapTe
         // INT_FIELD_NAME = "mapped_int" (10 chars), "aGk=" (4 chars):
         // 256 + 10*2+64 + 4*2+64 = 256 + 84 + 72 = 412
         String smallValue = "aGk=";
-        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + INT_FIELD_NAME.length() * 2L + 64L
-            + smallValue.length() * 2L + 64L;
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + INT_FIELD_NAME.length() * 2L + 64L + smallValue.length() * 2L
+            + 64L;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {

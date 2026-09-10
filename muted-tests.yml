@@ -774,3 +774,6 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=search/351_point_in_time_slice/PIT search respects slice scoping}
   issue: https://github.com/elastic/elasticsearch/issues/158908
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=search/351_point_in_time_slice/PIT open with slice scopes shards}
+  issue: https://github.com/elastic/elasticsearch/issues/158909

@@ -1670,6 +1670,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean shouldEnforceSingleValueBatch() {
+        return docValuesParameters().multiValue() == false;
+    }
+
+    @Override
     protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored();
         final boolean emitFallback = storeIgnoredValuesForSyntheticSource();
@@ -1873,7 +1878,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         final BytesRef nullValueBytes = fieldType().nullUtf8Value;
 
         int currentDoc = -1;
-        boolean valueSeenThisDoc = false;
         while (true) {
             final int nextDoc = cursor.nextDoc();
             if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
@@ -1881,7 +1885,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             if (nextDoc != currentDoc) {
                 currentDoc = nextDoc;
-                valueSeenThisDoc = false;
             }
             BytesRef binaryValue = cursor.value();
             if (binaryValue == null) {
@@ -1891,16 +1894,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                     continue;  // null without null_value -> absent (row-path parity)
                 }
             }
-
-            // TODO: Can move this validation earlier based on array type
-            if (valueSeenThisDoc) {
-                // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
-                // which raises the correct per-doc error (on_failure=FAIL).
-                throw new UnsupportedOperationException(
-                    "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
-                );
-            }
-            valueSeenThisDoc = true;
 
             if (fieldType().ignoreAbove().isIgnored(binaryValue)) {
                 ctx.addIgnoredFieldColumnar(currentDoc, fullPath());

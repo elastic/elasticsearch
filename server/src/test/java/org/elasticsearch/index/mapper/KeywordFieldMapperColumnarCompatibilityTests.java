@@ -731,6 +731,18 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
      * Two sub-fields of different types under one keyword parent, both fed from the same source column. Values stay strings so the
      * numeric sub-field sees a STRING column rather than a UNION one.
      */
+    public void testMultiValueViolationBailsOutOfColumnarPath() throws IOException {
+        // Two values for a multi_value=false field: mapColumnBatch must throw so that
+        // ShardBatchMapper falls back to the row path, which raises the correct
+        // on_failure=FAIL document-level error instead.
+        final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }));
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"a\",\"b\"]}"));
+    }
+
     public void testMixedTypeSubFields() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");

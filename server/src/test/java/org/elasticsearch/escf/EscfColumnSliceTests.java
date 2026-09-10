@@ -299,6 +299,33 @@ public class EscfColumnSliceTests extends ESTestCase {
         return new XContentString.UTF8Bytes(bytes, 0, bytes.length);
     }
 
+    public void testHasMultiValueDoc() {
+        // Scalar columns never have multi-value docs.
+        var scalar = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
+        scalar.addLong(1);
+        scalar.addLong(2);
+        assertFalse(EscfColumn.from(scalar.finish(2)).hasMultiValueDoc());
+
+        // Array column where every doc has at most one element: not a multi-value violation.
+        int[] singleOffsets = { 0, 1, 1, 2 }; // rows: [1 elem], [0 elem], [1 elem]
+        byte[] childBytes = new byte[2 * 8];
+        ByteUtils.writeLongLE(10L, childBytes, 0);
+        ByteUtils.writeLongLE(20L, childBytes, 8);
+        EscfColumnData childData = EscfColumnData.ofFixed64(EscfColumnKind.LONG, 2, null, new BytesArray(childBytes));
+        EscfColumnData colData = EscfColumnData.ofArray(3, null, singleOffsets, childData);
+        assertFalse(EscfColumn.from(colData).hasMultiValueDoc());
+
+        // Array column where one doc has two elements: multi-value violation.
+        int[] multiOffsets = { 0, 2, 3, 3 }; // rows: [2 elem], [1 elem], [0 elem]
+        byte[] childBytes2 = new byte[3 * 8];
+        ByteUtils.writeLongLE(1L, childBytes2, 0);
+        ByteUtils.writeLongLE(2L, childBytes2, 8);
+        ByteUtils.writeLongLE(3L, childBytes2, 16);
+        EscfColumnData childData2 = EscfColumnData.ofFixed64(EscfColumnKind.LONG, 3, null, new BytesArray(childBytes2));
+        EscfColumnData colData2 = EscfColumnData.ofArray(3, null, multiOffsets, childData2);
+        assertTrue(EscfColumn.from(colData2).hasMultiValueDoc());
+    }
+
     /** Asserts that a {@link BytesRef}'s effective bytes (respecting offset and length) match {@code expected}. */
     private static void assertBinaryEquals(byte[] expected, BytesRef ref) {
         assertEquals("binary length mismatch", expected.length, ref.length);

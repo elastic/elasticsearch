@@ -1226,6 +1226,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean shouldEnforceSingleValueBatch() {
+        return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
     public void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = indexed;
         final boolean emitDvs = docValuesParameters.enabled();
@@ -1329,7 +1334,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             : null;
 
         int currentDoc = -1;
-        boolean valueSeenThisDoc = false;
         while (true) {
             final int nextDoc = cursor.nextDoc();
             if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
@@ -1337,7 +1341,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
             if (nextDoc != currentDoc) {
                 currentDoc = nextDoc;
-                valueSeenThisDoc = false;
             }
             final BytesRef value = cursor.value();
             if (value == null) {
@@ -1346,14 +1349,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 continue;
             }
 
-            if (valueSeenThisDoc) {
-                // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
-                // which raises the correct per-doc error (on_failure=FAIL).
-                throw new UnsupportedOperationException(
-                    "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
-                );
-            }
-            valueSeenThisDoc = true;
             valuesProduced = true;
 
             if (values != null) {

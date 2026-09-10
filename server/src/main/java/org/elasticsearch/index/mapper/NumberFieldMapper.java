@@ -2877,14 +2877,18 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
-        // Neither doc_values.multi_value nor ignore_malformed is implemented by mapColumnBatch, but
-        // neither is rejected up front either: both only matter for documents the columnar path
-        // already refuses, and refusing late falls back to row path.
+        // ignore_malformed is not enforced by mapColumnBatch — it only matters for documents the
+        // columnar path already refuses, and refusing late falls back to the row path.
         return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && docValuesParameters.enabled()
             && indexTerms == false
             && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
+    }
+
+    @Override
+    protected boolean shouldEnforceSingleValueBatch() {
+        return docValuesParameters.multiValue() == false;
     }
 
     @Override

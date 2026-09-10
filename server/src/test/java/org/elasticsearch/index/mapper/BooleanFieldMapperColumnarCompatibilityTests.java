@@ -430,6 +430,17 @@ public class BooleanFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
+    public void testMultiValueViolationBailsOutOfColumnarPath() throws IOException {
+        // Two values for a multi_value=false field: mapColumnBatch must throw so that
+        // ShardBatchMapper falls back to the row path, which raises the correct
+        // on_failure=FAIL document-level error instead.
+        final var mapperService = createMapperService(
+            columnarSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", "boolean").endObject())
+        );
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[true,false]}"));
+    }
+
     public void testBooleanParentWithKeywordSubField() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "boolean");

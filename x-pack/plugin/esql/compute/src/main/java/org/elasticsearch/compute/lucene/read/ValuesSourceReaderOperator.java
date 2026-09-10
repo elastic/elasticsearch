@@ -315,6 +315,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     private int lastShard = -1;
     private int lastSegment = -1;
 
+    private int sourceLoaderShard = -1;
+    private Set<String> sourceLoaderPaths;
+    private SourceLoader sourceLoader;
+
     /**
      * The maximum raw byte size of _source observed so far. This persists across pages so
      * the pre-reservation for source parsing overhead can protect even the first (and only)
@@ -460,6 +464,16 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             sourceDocsLoaded++;
             sourceFieldReads += sourceBackedFieldCount;
         }
+    }
+
+    /** Reuses a source loader while the shard and requested source paths remain unchanged. */
+    SourceLoader sourceLoader(int shard, Set<String> sourcePaths) {
+        if (shard != sourceLoaderShard || sourcePaths.equals(sourceLoaderPaths) == false) {
+            sourceLoader = shardContexts.get(shard).newSourceLoader().apply(sourcePaths);
+            sourceLoaderShard = shard;
+            sourceLoaderPaths = sourcePaths;
+        }
+        return sourceLoader;
     }
 
     void positionFieldWork(int shard, int segment, int firstDoc) {

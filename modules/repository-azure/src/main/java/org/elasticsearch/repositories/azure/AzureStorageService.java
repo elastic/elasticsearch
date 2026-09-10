@@ -27,14 +27,11 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -49,43 +46,6 @@ import java.util.stream.Collectors;
 public class AzureStorageService {
     private static final Logger logger = LogManager.getLogger(AzureStorageService.class);
 
-    public static final ByteSizeValue MIN_CHUNK_SIZE = ByteSizeValue.ofBytes(1);
-
-    /**
-     * The maximum size of a BlockBlob block.
-     * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
-     */
-    public static final ByteSizeValue MAX_BLOCK_SIZE = ByteSizeValue.of(100, ByteSizeUnit.MB);
-
-    /**
-     * The maximum number of blocks.
-     * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
-     */
-    public static final long MAX_BLOCK_NUMBER = 50000;
-
-    /**
-     * Default block size for multi-block uploads. The Azure repository will use the Put block and Put block list APIs to split the
-     * stream into several part, each of block_size length, and will upload each part in its own request.
-     */
-    private static final ByteSizeValue DEFAULT_BLOCK_SIZE = ByteSizeValue.ofBytes(
-        Math.max(
-            ByteSizeUnit.MB.toBytes(5), // minimum value
-            Math.min(MAX_BLOCK_SIZE.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)
-        )
-    );
-
-    /**
-     * The maximum size of a Block Blob.
-     * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
-     */
-    public static final long MAX_BLOB_SIZE = MAX_BLOCK_NUMBER * DEFAULT_BLOCK_SIZE.getBytes();
-
-    /**
-     * Maximum allowed blob size in Azure blob store.
-     */
-    public static final ByteSizeValue MAX_CHUNK_SIZE = ByteSizeValue.ofBytes(MAX_BLOB_SIZE);
-
-    private static final long DEFAULT_UPLOAD_BLOCK_SIZE = DEFAULT_BLOCK_SIZE.getBytes();
     private final int multipartUploadMaxConcurrency;
 
     private final AzureClientProvider azureClientProvider;

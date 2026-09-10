@@ -159,6 +159,11 @@ public class CsvColumnarIT extends CsvIT {
         // Same reason, for the LOAD_ALL fixtures: all of these are dynamic:false and deliberately leave
         // everything but the mapped keys in _source / _ignored_source, which strict columnar drops at
         // ingest. synthetic_source_partial_mapping reuses mapping-partial_mapping_sample_data.json.
+        // Measured: un-excluding all seven adds 37 tests, of which 36 fail and 1 is already skipped,
+        // so not one test is recovered. The failures are the reason itself — the unmapped column is
+        // absent from the result rather than merely wrong. Unlike the airports entries above, the
+        // blast radius here is exactly the genuine-failure set, so dataset level is the right
+        // granularity. No need to re-measure.
         "unmapped_multi_stored_foo",
         "unmapped_multi_stored_bar",
         "unmapped_multi_synthetic",

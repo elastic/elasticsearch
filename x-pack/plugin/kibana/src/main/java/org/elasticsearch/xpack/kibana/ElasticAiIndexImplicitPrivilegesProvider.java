@@ -31,7 +31,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * Implicitly grants read access to the Elastic AI Index ({@code ai-index-idx-sml-data}) for
+ * Implicitly grants read access to the Elastic AI Index ({@code .ai-index-idx-sml-data}) for
  * users whose roles include a Kibana application privilege grant carrying at least one
  * {@code ai_index:} action.
  * <p>
@@ -50,7 +50,7 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
 
     static final String KIBANA_APPLICATION = "kibana-.kibana";
     // Index pattern mirrors the Kibana-side definition; keep in sync if it changes.
-    static final String ELASTIC_AI_INDEX = "ai-index-idx-sml-data";
+    static final String ELASTIC_AI_INDEX = ".ai-index-idx-sml-data";
     static final String RESOURCE_PREFIX = "space:";
     // Action namespace owned by Elastic AI Index; mirrors the Kibana-side AiIndexActions definition, keep in sync if it changes.
     static final String AI_INDEX_ACTION_PREFIX = "ai_index:";

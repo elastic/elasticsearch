@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -48,7 +49,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
-import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
@@ -146,26 +146,26 @@ public class FieldNameUtils {
         var canRemoveAliases = new Holder<>(true);
 
         var forEachDownProcessor = new Holder<BiConsumer<LogicalPlan, Holder<Boolean>>>();
-        Holder<LogicalPlan> lastSeenUnion = new Holder<>(null);
-        // Track if there are plans after a union that reduce columns to a known set (e.g., Project, Aggregate)
-        Holder<Boolean> reduceColumnsAfterUnion = new Holder<>(false);
+        Holder<LogicalPlan> lastSeenMerge = new Holder<>(null);
+        // Track if there are plans after a merge that reduce columns to a known set (e.g., Project, Aggregate)
+        Holder<Boolean> reduceColumnsAfterMerge = new Holder<>(false);
         forEachDownProcessor.set((LogicalPlan p, Holder<Boolean> breakEarly) -> {// go over each plan top-down
-            // Check if we see a column-reducing plan before encountering a UnionPlan
-            if (lastSeenUnion.get() == null && shouldCollectReferencedFields(p, inlinestatsAggs)) {
-                reduceColumnsAfterUnion.set(true);
+            // Check if we see a column-reducing plan before encountering a MergePlan
+            if (lastSeenMerge.get() == null && shouldCollectReferencedFields(p, inlinestatsAggs)) {
+                reduceColumnsAfterMerge.set(true);
             }
 
-            if (p instanceof UnionPlan unionPlan) {
-                lastSeenUnion.set(unionPlan);
+            if (p instanceof MergePlan mergePlan) {
+                lastSeenMerge.set(mergePlan);
 
                 // Early return from forEachDown. We will iterate over the children manually and end the recursion via forEachDown early.
-                var unionRefsResult = AttributeSet.builder();
-                unionRefsResult.addAll(referencesBuilder.get());
+                var mergeRefsResult = AttributeSet.builder();
+                mergeRefsResult.addAll(referencesBuilder.get());
                 var parentKeepRefs = AttributeSet.builder();
                 parentKeepRefs.addAll(keepRefs);
 
-                for (var branch : unionPlan.children()) {
-                    // Reset branch-specific state for each union branch
+                for (var branch : mergePlan.children()) {
+                    // Reset branch-specific state for each merge branch
                     currentBranchKeepRefs.set(AttributeSet.builder());
                     currentBranchKeepRefs.get().addAll(parentKeepRefs);
                     referencesBuilder.set(AttributeSet.builder());
@@ -173,20 +173,20 @@ public class FieldNameUtils {
                     var isNestedFork = branch.forEachDownMayReturnEarly(forEachDownProcessor.get());
 
                     // This assert is just for good measure. FORKs within FORKs is yet not supported.
-                    LogicalPlan lastUnion = lastSeenUnion.get();
-                    if (lastUnion != null && lastUnion != unionPlan && unionPlan instanceof Fork && lastUnion instanceof Fork) {
+                    LogicalPlan lastMerge = lastSeenMerge.get();
+                    if (lastMerge != null && lastMerge != mergePlan && mergePlan instanceof Fork && lastMerge instanceof Fork) {
                         // Nested FORKs are not supported. Fork after subquery (UnionAll) or nested subqueries can
                         // be flattened and supported by LogicalPlanOptimizer and ComputeService in the future, defer this assertion
                         // LogicalPlanOptimizer verifier. Add the check here to avoid assertion on subqueries nested with fork.
                         // TODO consider deferring the nested fork check to Analyzer verifier or LogicalPlanOptimizer verifier.
                         //
-                        // Note: lastUnion == unionPlan is excluded here because an AbstractSubqueryJoin handler inside a union branch saves
-                        // and restores lastSeenUnion (to preserve context across the subquery traversal), which transiently sets it
-                        // back to the current union — that is not a nested-fork signal.
+                        // Note: lastMerge == mergePlan is excluded here because an AbstractSubqueryJoin handler inside a merge branch saves
+                        // and restores lastSeenMerge (to preserve context across the subquery traversal), which transiently sets it
+                        // back to the current merge — that is not a nested-fork signal.
                         assert isNestedFork == false : "Nested FORKs are not yet supported";
                     }
 
-                    // Determine if this union branch requires all fields from the index (projectAll = true).
+                    // Determine if this merge branch requires all fields from the index (projectAll = true).
                     // This happens when a branch has no explicit field selection and no KEEP constraints.
                     //
                     // We trigger projectAll when ALL the following conditions are met:
@@ -205,19 +205,19 @@ public class FieldNameUtils {
                     if (currentBranchKeepRefs.get().isEmpty()
                         && (referencesBuilder.get().isEmpty()
                             || false == branch.anyMatch(branchPlan -> shouldCollectReferencedFields(branchPlan, inlinestatsAggs)))
-                        && false == reduceColumnsAfterUnion.get()) {
+                        && false == reduceColumnsAfterMerge.get()) {
                         projectAll.set(true);
                         // Return early, we'll be returning all references no matter what the remainder of the query is.
                         breakEarly.set(true);
                         return;
                     }
-                    unionRefsResult.addAll(referencesBuilder.get());
+                    mergeRefsResult.addAll(referencesBuilder.get());
                 }
 
-                unionRefsResult.removeIf(attr -> attr.name().equals(Fork.FORK_FIELD));
-                referencesBuilder.set(unionRefsResult);
+                mergeRefsResult.removeIf(attr -> attr.name().equals(Fork.FORK_FIELD));
+                referencesBuilder.set(mergeRefsResult);
 
-                // Return early, we've already explored all union branches.
+                // Return early, we've already explored all merge branches.
                 breakEarly.set(true);
                 return;
             } else if (p instanceof RegexExtract re) { // for Grok and Dissect
@@ -265,16 +265,16 @@ public class FieldNameUtils {
                 AttributeSet savedBranchKeepRefs = currentBranchKeepRefs.get().build();
                 AttributeSet savedDropWildcardRefs = dropWildcardRefs.build();
                 boolean savedCanRemoveAliases = canRemoveAliases.get();
-                LogicalPlan savedLastSeenUnion = lastSeenUnion.get();
-                boolean savedReduceColumnsAfterUnion = reduceColumnsAfterUnion.get();
+                LogicalPlan savedLastSeenMerge = lastSeenMerge.get();
+                boolean savedReduceColumnsAfterMerge = reduceColumnsAfterMerge.get();
 
                 referencesBuilder.set(AttributeSet.builder());
                 keepRefs.clear();
                 currentBranchKeepRefs.set(AttributeSet.builder());
                 dropWildcardRefs.clear();
                 canRemoveAliases.set(true);
-                lastSeenUnion.set(null);
-                reduceColumnsAfterUnion.set(false);
+                lastSeenMerge.set(null);
+                reduceColumnsAfterMerge.set(false);
 
                 sj.right().forEachDownMayReturnEarly(forEachDownProcessor.get());
 
@@ -291,8 +291,8 @@ public class FieldNameUtils {
                 dropWildcardRefs.clear();
                 dropWildcardRefs.addAll(savedDropWildcardRefs);
                 canRemoveAliases.set(savedCanRemoveAliases);
-                lastSeenUnion.set(savedLastSeenUnion);
-                reduceColumnsAfterUnion.set(savedReduceColumnsAfterUnion);
+                lastSeenMerge.set(savedLastSeenMerge);
+                reduceColumnsAfterMerge.set(savedReduceColumnsAfterMerge);
 
                 // Traverse the left child explicitly and break early, so the outer traversal does not descend into the children again and
                 // re-visit sj.right() with main-query state.
@@ -494,7 +494,7 @@ public class FieldNameUtils {
             || p instanceof Drop
             || p instanceof Eval
             || p instanceof Filter
-            || p instanceof UnionPlan
+            || p instanceof MergePlan
             || p instanceof InlineStats
             || p instanceof Keep
             || p instanceof Limit

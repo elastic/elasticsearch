@@ -25,12 +25,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
@@ -84,13 +84,13 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     case Project project -> pruneColumnsInProject(project, used, recheck);
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
                     case ExternalRelation ext -> pruneColumnsInExternalRelation(ext, used);
-                    case UnionPlan unionPlan -> {
-                        // Skip descending into the union subtree: pruneColumnsInUnionPlan handles Fork subplans
+                    case MergePlan mergePlan -> {
+                        // Skip descending into the merge subtree: pruneColumnsInMergePlan handles Fork subplans
                         // internally, while UnionAll is left untouched except for leaf unions. Using skipBranch
-                        // (instead of a sticky flag) ensures that pruning resumes for siblings outside the union, e.g.
+                        // (instead of a sticky flag) ensures that pruning resumes for siblings outside the merge, e.g.
                         // the right-hand side of an enclosing InlineJoin.
                         skipBranch.set(true);
-                        yield pruneColumnsInUnionPlan(unionPlan, used);
+                        yield pruneColumnsInMergePlan(mergePlan, used);
                     }
                     case RegexExtract re -> pruneUnusedRegexExtract(re, used, recheck);
                     case DenseVector dv -> pruneUnusedDenseVector(dv, used, recheck);
@@ -295,14 +295,14 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return ext.declaredReadSpec().idPath();
     }
 
-    // TODO: see ResolveUnmapped#patchUnionPlan comment
-    private static LogicalPlan pruneColumnsInUnionPlan(UnionPlan unionPlan, AttributeSet.Builder used) {
+    // TODO: see ResolveUnmapped#patchMergePlan comment
+    private static LogicalPlan pruneColumnsInMergePlan(MergePlan mergePlan, AttributeSet.Builder used) {
 
-        if (unionPlan instanceof UnionAll unionAll) {
+        if (mergePlan instanceof UnionAll unionAll) {
             if (PushDownUtils.isLeafUnionAll(unionAll) == false) {
                 // Subquery-shape UnionAll: each branch's Project is pruned by the transformDown
                 // traversal when it reaches the branch; skip here to avoid double-pruning.
-                return unionPlan;
+                return mergePlan;
             }
             // Direct-leaf UnionAll (heterogeneous FROM): prune ExternalRelation children so the
             // format reader only loads the columns actually needed. EsRelation children are left
@@ -319,35 +319,35 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             return changed ? unionAll.replaceChildren(newChildren) : unionAll;
         }
 
-        // prune the output attributes of the union based on usage from the rest of the plan
-        boolean unionOutputChanged = false;
+        // prune the output attributes of the merge based on usage from the rest of the plan
+        boolean mergeOutputChanged = false;
         AttributeSet.Builder builder = AttributeSet.builder();
-        // if any of the union outputs are used, keep them
+        // if any of the merge outputs are used, keep them
         // otherwise, prune them based on the rest of the plan's usage
-        for (var attr : unionPlan.output()) {
+        for (var attr : mergePlan.output()) {
             // we should also ensure to keep any synthetic attributes around as those could still be used for internal processing
             if (attr.synthetic() || used.contains(attr)) {
                 builder.add(attr);
             } else {
-                unionOutputChanged = true;
+                mergeOutputChanged = true;
             }
         }
-        var prunedUnionAttrs = unionOutputChanged ? builder.build().stream().toList() : unionPlan.output();
-        // now that we have the pruned union output attributes, we can proceed to apply pruning all children plan
-        var unionOutputNames = prunedUnionAttrs.stream().map(NamedExpression::name).collect(Collectors.toSet());
+        var prunedMergeAttrs = mergeOutputChanged ? builder.build().stream().toList() : mergePlan.output();
+        // now that we have the pruned merge output attributes, we can proceed to apply pruning all children plan
+        var mergeOutputNames = prunedMergeAttrs.stream().map(NamedExpression::name).collect(Collectors.toSet());
         boolean subPlanChanged = false;
         List<LogicalPlan> newChildren = new ArrayList<>();
-        for (var subPlan : unionPlan.children()) {
+        for (var subPlan : mergePlan.children()) {
             var usedAttrs = AttributeSet.builder();
             LogicalPlan newSubPlan;
             // if it's a local relation, just update the output attributes
             // and return early
             if (subPlan instanceof LocalRelation localRelation) {
-                var outputAttrs = localRelation.output().stream().filter(x -> unionOutputNames.contains(x.name())).toList();
+                var outputAttrs = localRelation.output().stream().filter(x -> mergeOutputNames.contains(x.name())).toList();
                 newSubPlan = new LocalRelation(localRelation.source(), outputAttrs, localRelation.supplier());
             } else {
                 // otherwise, we first prune the projections of the top-level Project of each subplan
-                subPlan.outputSet().stream().filter(x -> unionOutputNames.contains(x.name())).forEach(usedAttrs::add);
+                subPlan.outputSet().stream().filter(x -> mergeOutputNames.contains(x.name())).forEach(usedAttrs::add);
 
                 Holder<Boolean> projectVisited = new Holder<>(false);
                 newSubPlan = subPlan.transformDown(Project.class, p -> {
@@ -355,8 +355,8 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                         return p;
                     }
                     projectVisited.set(true);
-                    // filter projections based on union output attributes
-                    var prunedAttrs = p.projections().stream().filter(x -> unionOutputNames.contains(x.name())).toList();
+                    // filter projections based on merge output attributes
+                    var prunedAttrs = p.projections().stream().filter(x -> mergeOutputNames.contains(x.name())).toList();
                     return new Project(p.source(), p.child(), prunedAttrs);
                 });
                 newSubPlan = pruneColumns(newSubPlan, usedAttrs, false);
@@ -366,10 +366,10 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             }
             newChildren.add(newSubPlan);
         }
-        if (subPlanChanged || unionOutputChanged) {
-            unionPlan = unionPlan.replaceSubPlansAndOutput(newChildren, prunedUnionAttrs);
+        if (subPlanChanged || mergeOutputChanged) {
+            mergePlan = mergePlan.replaceSubPlansAndOutput(newChildren, prunedMergeAttrs);
         }
-        return unionPlan;
+        return mergePlan;
     }
 
     /**

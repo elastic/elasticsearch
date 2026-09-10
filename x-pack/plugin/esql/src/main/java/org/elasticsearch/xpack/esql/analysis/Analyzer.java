@@ -167,6 +167,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -176,7 +177,6 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -1214,7 +1214,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Drop d -> resolveDrop(d, context.unmappedResolution());
                 case Rename r -> resolveRename(r, context.unmappedResolution());
                 case Keep k -> resolveKeep(k, context.unmappedResolution());
-                case UnionPlan unionPlan -> resolveUnionPlan(unionPlan, context);
+                case MergePlan mergePlan -> resolveMergePlan(mergePlan, context);
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
@@ -1226,7 +1226,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Row row -> resolveRow(row);
                 case MMR mmr -> resolveMMR(mmr, childrenOutput);
                 case DenseVector e -> resolveDenseVector(e, childrenOutput);
-                default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                default -> resolveExpressions(plan, childrenOutput);
             };
 
             return resolved;
@@ -1782,33 +1782,33 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return translatable(expression, LucenePushdownPredicates.DEFAULT) != TranslationAware.Translatable.NO;
         }
 
-        private LogicalPlan resolveUnionPlan(UnionPlan unionPlan, AnalyzerContext context) {
+        private LogicalPlan resolveMergePlan(MergePlan mergePlan, AnalyzerContext context) {
             UnmappedResolution unmappedResolution = context.unmappedResolution();
             // we align the outputs of the sub plans such that they have the same columns
             boolean changed = false;
             List<LogicalPlan> newSubPlans = new ArrayList<>();
             // FORK branches share one source index, so align across them; subqueries/views (UnionAll) read independent
             // sources and are handled in ResolveUnmapped. See #142033.
-            Fork fork = unionPlan instanceof Fork f ? f : null;
+            Fork fork = mergePlan instanceof Fork f ? f : null;
             boolean alignUnmappedAcrossBranches = switch (unmappedResolution) {
                 case LOAD, NULLIFY, LOAD_ALL -> fork != null;
                 case DEFAULT -> false;
             };
-            List<Attribute> outputUnion = UnionPlan.outputUnion(unionPlan.children());
+            List<Attribute> outputUnion = MergePlan.outputUnion(mergePlan.children());
             // DROP of an unmapped field in a branch is a mention: the field is materialized in that branch's source but dropped from its
-            // output, so UnionPlan.outputUnion misses it. Surface it as a FORK column when a sibling branch can surface it (the dropping
+            // output, so MergePlan.outputUnion misses it. Surface it as a FORK column when a sibling branch can surface it (the dropping
             // branch then null-fills it). Skip it when no branch can surface it (e.g. dropped in every branch), else it would be null
             // everywhere and isn't a real column.
             if (alignUnmappedAcrossBranches && fork.children().stream().anyMatch(ResolveRefs::branchHasUnprojectedRelation)) {
-                addDroppedUnmappedFieldsMissingFromUnion(outputUnion, unmappedFieldsDroppedByProjection(fork));
+                addDroppedUnmappedFieldsMissingFromMerge(outputUnion, unmappedFieldsDroppedByProjection(fork));
             }
-            List<String> unionColumns = outputUnion.stream().map(Attribute::name).toList();
+            List<String> mergeColumns = outputUnion.stream().map(Attribute::name).toList();
             // FORK always copies a mention to siblings. LOAD_ALL subqueries do too; LOAD stays Decision A (sibling Eval-null).
             boolean alignMentionedUnmapped = alignUnmappedAcrossBranches
-                || (unionPlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields());
-            Set<String> unionMaterializedUnmappedFieldNames = alignMentionedUnmapped ? materializedUnmappedFieldNames(unionPlan) : Set.of();
+                || (mergePlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields());
+            Set<String> mergeMaterializedUnmappedFieldNames = alignMentionedUnmapped ? materializedUnmappedFieldNames(mergePlan) : Set.of();
 
-            for (LogicalPlan logicalPlan : unionPlan.children()) {
+            for (LogicalPlan logicalPlan : mergePlan.children()) {
                 Source source = logicalPlan.source();
 
                 // find the missing columns
@@ -1830,7 +1830,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     //
                     // This runs before the mention alignment below, whose guards it complements: that one hands out a bare keyword,
                     // which for a mapped attribute would discard the sibling's real type and leave the column with no common type.
-                    if (unionPlan instanceof UnionAll
+                    if (mergePlan instanceof UnionAll
                         && unmappedResolution.loadsAllUnmappedFields()
                         && branchCanSurfaceLoadedField(logicalPlan, attr.name())
                         && attr instanceof FieldAttribute fa
@@ -1863,7 +1863,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // source relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...) doesn't hide it.
                     // FORK: always. UnionAll: LOAD_ALL only (LOAD is Decision A).
                     if (alignMentionedUnmapped
-                        && unionMaterializedUnmappedFieldNames.contains(attr.name())
+                        && mergeMaterializedUnmappedFieldNames.contains(attr.name())
                         && branchCanSurfaceLoadedField(logicalPlan, attr.name())) {
                         toLoad.add(unmappedResolution.loadsUnmappedFields() ? unmappedKeyword(attr) : nullifyField(attr));
                         continue;
@@ -1880,7 +1880,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 List<FieldAttribute> nonLoadableReplacements = List.of();
-                if (unionPlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields()) {
+                if (mergePlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields()) {
                     nonLoadableReplacements = markExplicitlyLoadedUnmappedNonLoadable(logicalPlan, outputUnion, context.configuration());
                 }
 
@@ -1935,21 +1935,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // If the branch already has a Project on top, and the output of the branch is empty,
                 // don't add another Project with only NO_FIELDS on top of it,
                 // otherwise it will cause an infinite loop in the analyzer, this happens to subquery so far.
-                // unionColumns do not contain NO_FIELD because UnionPlan.outputUnion removes it.
+                // mergeColumns do not contain NO_FIELD because MergePlan.outputUnion removes it.
                 if (logicalPlan instanceof Project == false
-                    || (subPlanColumns.equals(unionColumns) == false
-                        && subqueryReferencingIndexWithEmptyMapping(unionPlan, logicalPlan, unionColumns) == false)) {
+                    || (subPlanColumns.equals(mergeColumns) == false
+                        && subqueryReferencingIndexWithEmptyMapping(mergePlan, logicalPlan, mergeColumns) == false)) {
                     changed = true;
                     List<Attribute> newOutput = new ArrayList<>();
-                    for (String attrName : unionColumns) {
+                    for (String attrName : mergeColumns) {
                         for (Attribute subAttr : logicalPlan.output()) {
                             if (attrName.equals(subAttr.name())) {
                                 newOutput.add(subAttr);
                             }
                         }
                     }
-                    if (unionColumns.isEmpty()) {
-                        // When unionColumns is empty (all branches only have no-fields), resolveKeep with empty
+                    if (mergeColumns.isEmpty()) {
+                        // When mergeColumns is empty (all branches only have no-fields), resolveKeep with empty
                         // projections would resolve to all child output including no-fields. Create a Project with
                         // empty output directly so the no-fields marker doesn't leak into the union branch output.
                         logicalPlan = new Project(logicalPlan.source(), logicalPlan, List.of());
@@ -1959,7 +1959,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         // virtual attribute in the alignment projection (e.g. EXTERNAL's shim-injected
                         // _file.* family) as "the user explicitly KEEP'd it", which planWithoutSyntheticAttributes
                         // then refuses to strip — leaking the columns to the output. The projections here are
-                        // already pre-resolved Attributes drawn from UnionPlan.outputUnion, so keepResolver would
+                        // already pre-resolved Attributes drawn from MergePlan.outputUnion, so keepResolver would
                         // be a no-op anyway (no wildcards, no UnresolvedNamePattern). A user-named KEEP _file.path
                         // upstream of the union still survives via its own Keep node in the branch's plan tree.
                         logicalPlan = new Project(logicalPlan.source(), logicalPlan, new ArrayList<>(newOutput));
@@ -1970,10 +1970,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             if (changed == false) {
-                return unionPlan;
+                return mergePlan;
             }
 
-            return unionPlan.replaceSubPlansAndOutput(newSubPlans, toReferenceAttributesPreservingIds(outputUnion, unionPlan.output()));
+            return mergePlan.replaceSubPlansAndOutput(newSubPlans, toReferenceAttributesPreservingIds(outputUnion, mergePlan.output()));
         }
 
         /*
@@ -2072,9 +2072,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * {@code load}, {@link MissingEsField} under {@code nullify}. Scans the relations, not branch outputs, so a referencing generating
          * command (EVAL/MV_EXPAND/...) can't hide the origin.
          */
-        private static Set<String> materializedUnmappedFieldNames(UnionPlan unionPlan) {
+        private static Set<String> materializedUnmappedFieldNames(MergePlan mergePlan) {
             Set<String> names = new HashSet<>();
-            for (LogicalPlan branch : unionPlan.children()) {
+            for (LogicalPlan branch : mergePlan.children()) {
                 branch.forEachDown(EsRelation.class, esr -> {
                     if (esr.indexMode() == IndexMode.LOOKUP) {
                         return;
@@ -2123,7 +2123,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * {@code _fork} discriminator, so a {@code DROP}-mentioned field lands where a {@code WHERE}/{@code KEEP}-mentioned one would and
          * {@code _fork} stays last.
          */
-        private static void addDroppedUnmappedFieldsMissingFromUnion(
+        private static void addDroppedUnmappedFieldsMissingFromMerge(
             List<Attribute> outputUnion,
             Map<String, FieldAttribute> droppedUnmappedFields
         ) {
@@ -2372,8 +2372,67 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(keys), aggregates), childrenOutput);
         }
 
+        /**
+         * Above this many child attributes, exact-name resolution builds a one-shot name index for the node
+         * instead of rescanning the whole output per reference, turning O(references * fields) into
+         * O(fields + references). Below it, the per-reference scan is cheaper than building the map.
+         */
+        static final int NAME_INDEX_THRESHOLD_DEFAULT = 128;
+        static volatile int nameIndexThreshold = NAME_INDEX_THRESHOLD_DEFAULT;
+
+        /**
+         * Test-only hook to force the exact-name resolution path regardless of output width: {@code 0} always uses
+         * the name index, {@link Integer#MAX_VALUE} always uses the linear scan. Callers MUST restore the default
+         * with {@link #resetNameIndexThreshold()} afterwards.
+         */
+        public static void setNameIndexThresholdForTests(int threshold) {
+            nameIndexThreshold = threshold;
+        }
+
+        public static void resetNameIndexThreshold() {
+            nameIndexThreshold = NAME_INDEX_THRESHOLD_DEFAULT;
+        }
+
+        // Resolve references for nodes without a dedicated resolver (WHERE, SORT, LIMIT, ...).
+        private LogicalPlan resolveExpressions(LogicalPlan plan, List<Attribute> childrenOutput) {
+            if (childrenOutput.size() <= nameIndexThreshold) {
+                return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            }
+            // Build the exact-name index lazily on first reference so ref-less wide nodes (e.g. LIMIT) don't pay for it.
+            Holder<Map<String, List<Attribute>>> nameIndex = new Holder<>();
+            return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> {
+                if (nameIndex.get() == null) {
+                    nameIndex.set(buildNameIndex(childrenOutput));
+                }
+                return maybeResolveAttribute(ua, nameIndex.get(), childrenOutput);
+            });
+        }
+
+        // Skips synthetic attributes to match the scanning resolver; duplicate names share a bucket so they stay ambiguous.
+        private static Map<String, List<Attribute>> buildNameIndex(List<Attribute> attrs) {
+            Map<String, List<Attribute>> index = new HashMap<>(attrs.size());
+            for (Attribute a : attrs) {
+                if (a.synthetic() == false) {
+                    index.computeIfAbsent(a.name(), k -> new ArrayList<>(1)).add(a);
+                }
+            }
+            return index;
+        }
+
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
             return maybeResolveAttribute(ua, childrenOutput, log);
+        }
+
+        private Attribute maybeResolveAttribute(
+            UnresolvedAttribute ua,
+            Map<String, List<Attribute>> nameIndex,
+            List<Attribute> childrenOutput
+        ) {
+            // if we already tried and failed to resolve this attribute, don't try again
+            if (ua.customMessage()) {
+                return ua;
+            }
+            return resolveAttribute(ua, nameIndex, childrenOutput, log);
         }
 
         private static Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
@@ -2389,8 +2448,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
+            return resolveAttribute(ua, null, childrenOutput, logger);
+        }
+
+        private static Attribute resolveAttribute(
+            UnresolvedAttribute ua,
+            Map<String, List<Attribute>> nameIndex,
+            List<Attribute> childrenOutput,
+            Logger logger
+        ) {
             Attribute resolved = ua;
-            List<Attribute> named = resolveAgainstList(ua, childrenOutput);
+            List<Attribute> named = nameIndex == null
+                ? resolveAgainstList(ua, childrenOutput)
+                : resolveAgainstList(ua, nameIndex, childrenOutput);
             // if resolved, return it; otherwise keep it in place to be resolved later
             if (named.size() == 1) {
                 resolved = named.get(0);
@@ -2559,6 +2629,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             // otherwise resolve them
             else {
+                // Build the exact-name index lazily and only for wide outputs; pattern/star projections don't use it.
+                boolean useIndex = childOutput.size() > nameIndexThreshold;
+                Holder<Map<String, List<Attribute>>> nameIndex = new Holder<>();
                 Map<NamedExpression, Integer> priorities = new LinkedHashMap<>();
                 for (var proj : projections) {
                     final List<Attribute> resolved;
@@ -2588,7 +2661,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         resolved = List.of(proj.toAttribute());
                         priority = 2;
                     } else if (proj instanceof UnresolvedAttribute ua) {
-                        resolved = resolveAgainstList(ua, childOutput);
+                        if (useIndex) {
+                            if (nameIndex.get() == null) {
+                                nameIndex.set(buildNameIndex(childOutput));
+                            }
+                            resolved = resolveAgainstList(ua, nameIndex.get(), childOutput);
+                        } else {
+                            resolved = resolveAgainstList(ua, childOutput);
+                        }
                         priority = 1;
                     } else if (proj.resolved()) {
                         resolved = List.of(proj.toAttribute());
@@ -2634,7 +2714,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // remove a data column without silently stripping previously-kept virtual columns.
             // Wildcard / default-output filtering is handled in keepResolver and
             // planWithoutSyntheticAttributes, not here.
-            List<NamedExpression> resolvedProjections = new ArrayList<>(childOutput);
+            //
+            // A LinkedHashSet keeps output order while giving O(1) removal, so dropping many columns
+            // is O(childOutput + removals) instead of a removeIf-per-removal O(removals × childOutput).
+            // childOutput attributes are unique by name id (same assumption keepResolver relies on when
+            // it keys `priorities` by attribute), so seeding the set does not collapse distinct columns.
+            // Only exact-name removals use the name index, built lazily on the first UnresolvedAttribute
+            // (for wide outputs); wildcard removals still scan, as they can match many attributes at once.
+            LinkedHashSet<NamedExpression> resolvedProjections = new LinkedHashSet<>(childOutput);
+            boolean useIndex = childOutput.size() > nameIndexThreshold;
+            Holder<Map<String, List<Attribute>>> nameIndex = new Holder<>();
 
             for (NamedExpression ne : removals) {
                 List<? extends NamedExpression> resolved;
@@ -2648,7 +2737,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         continue;
                     }
                 } else if (ne instanceof UnresolvedAttribute ua) {
-                    resolved = resolveAgainstList(ua, childOutput);
+                    if (useIndex) {
+                        if (nameIndex.get() == null) {
+                            nameIndex.set(buildNameIndex(childOutput));
+                        }
+                        resolved = resolveAgainstList(ua, nameIndex.get(), childOutput);
+                    } else {
+                        resolved = resolveAgainstList(ua, childOutput);
+                    }
                 } else {
                     resolved = singletonList(ne);
                 }
@@ -2656,9 +2752,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // the return list might contain either resolved elements or unresolved ones.
                 // if things are resolved, remove them - if not add them to the list to trip the Verifier;
                 // thus make sure to remove the intersection but add the unresolved difference (if any).
-                // so, remove things that are in common
-                Set<? extends NamedExpression> resolvedSet = new HashSet<>(resolved);
-                resolvedProjections.removeIf(resolvedSet::contains);
+                // removeAll(List) rescans matches per element only once resolvedProjections has shrunk to <= the
+                // match count (AbstractSet.removeAll); wrap just that case in a HashSet.
+                boolean wrapMatches = resolved.size() > 1 && resolvedProjections.size() <= resolved.size();
+                resolvedProjections.removeAll(wrapMatches ? new HashSet<>(resolved) : resolved);
                 // but add non-projected, unresolved extras to later trip the Verifier.
                 resolved.forEach(r -> {
                     if (r.resolved() == false && r instanceof UnsupportedAttribute == false) {
@@ -2667,7 +2764,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 });
             }
 
-            return resolvedProjections;
+            return new ArrayList<>(resolvedProjections);
         }
 
         private LogicalPlan resolveRename(Rename rename, UnmappedResolution unmappedResolution) {
@@ -2825,6 +2922,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
         var matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
+        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, ua::defaultUnresolvedMessage);
+    }
+
+    private static List<Attribute> resolveAgainstList(
+        UnresolvedAttribute ua,
+        Map<String, List<Attribute>> nameIndex,
+        Collection<Attribute> attrList
+    ) {
+        var matches = AnalyzerRules.maybeResolveAgainstList(ua, nameIndex, a -> Analyzer.handleSpecialFields(ua, a));
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, ua::defaultUnresolvedMessage);
     }
 
@@ -4089,7 +4195,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * The effective data type of a branch/output attribute when aligning the branches of a {@link UnionPlan}.
+     * The effective data type of a branch/output attribute when aligning the branches of a {@link MergePlan}.
      */
     private static DataType alignmentDataType(Attribute attr) {
         if (attr instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf && tcf.isSingleTypePotentiallyUnmapped()) {
@@ -4571,7 +4677,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<FieldAttribute> resolvedUnionFields,
             List<Attribute> output
         ) {
-            // UnionPlan adds a projection on top of each child plan during resolveUnionPlan, check this pattern before pushing down
+            // MergePlan adds a projection on top of each child plan during resolveMergePlan, check this pattern before pushing down
             // If the pattern doesn't match, something unexpected happened, just return the child as is
             if ((aliases.isEmpty() == false || resolvedUnionFields.isEmpty() == false) && child instanceof Project project) {
                 LogicalPlan childOfProject = project.child();

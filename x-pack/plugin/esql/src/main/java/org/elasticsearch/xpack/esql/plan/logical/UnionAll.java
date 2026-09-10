@@ -15,13 +15,15 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class UnionAll extends UnionPlan implements PostOptimizationPlanVerificationAware {
+public class UnionAll extends MergePlan implements PostOptimizationPlanVerificationAware {
 
     public UnionAll(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children, output);
@@ -45,6 +47,31 @@ public class UnionAll extends UnionPlan implements PostOptimizationPlanVerificat
     @Override
     public UnionAll replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
         return new UnionAll(source(), subPlans, output);
+    }
+
+    @Override
+    public UnionAll refreshOutput() {
+        return replaceSubPlansAndOutput(children(), refreshedOutput());
+    }
+
+    /**
+     * Override of {@link MergePlan#pruneEmptyBranches(Predicate)} that returns a {@link UnionAll}
+     * (rather than letting the base implementation produce whatever {@link #replaceChildren}
+     * would). Mirrors the base behaviour otherwise: single-survivor wrappers are preserved
+     * (callers that want to collapse to the lone child do so explicitly).
+     */
+    @Override
+    public LogicalPlan pruneEmptyBranches(Predicate<LogicalPlan> isEmpty) {
+        List<LogicalPlan> kept = new ArrayList<>(children().size());
+        for (LogicalPlan child : children()) {
+            if (isEmpty.test(child) == false) {
+                kept.add(child);
+            }
+        }
+        if (kept.size() == children().size()) {
+            return this;
+        }
+        return new UnionAll(source(), kept, output());
     }
 
     @Override
@@ -114,7 +141,7 @@ public class UnionAll extends UnionPlan implements PostOptimizationPlanVerificat
      */
     private static void checkNestedUnionAlls(LogicalPlan logicalPlan, Failures failures) {
         if (logicalPlan instanceof UnionAll unionAll) {
-            forEachUnionPlanSkippingSubqueries(unionAll, nested -> {
+            forEachMergePlanSkippingSubqueries(unionAll, nested -> {
                 if (unionAll == nested) {
                     return;
                 }

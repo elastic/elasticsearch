@@ -27,7 +27,7 @@ public class ViewUnionAllTests extends ESTestCase {
     public void testIsInstanceOfUnionAll() {
         ViewUnionAll viewUnion = new ViewUnionAll(Source.EMPTY, viewMap(), List.of());
         assertThat(viewUnion, instanceOf(UnionAll.class));
-        assertThat(viewUnion, instanceOf(UnionPlan.class));
+        assertThat(viewUnion, instanceOf(MergePlan.class));
     }
 
     public void testReplaceChildrenPreservesType() {
@@ -68,7 +68,7 @@ public class ViewUnionAllTests extends ESTestCase {
         LogicalPlan child = relation("index1");
         ViewUnionAll original = new ViewUnionAll(Source.EMPTY, viewMap(child), List.of());
 
-        UnionPlan refreshed = original.refreshOutput();
+        MergePlan refreshed = original.refreshOutput();
         assertThat(refreshed, instanceOf(ViewUnionAll.class));
         assertEquals(List.of(child), refreshed.children());
         assertThat(((ViewUnionAll) refreshed).namedSubqueries(), equalTo(Map.of("view_0", child)));

@@ -32,7 +32,7 @@ public class PushDownFiltersIntoFork extends OptimizerRules.OptimizerRule<Filter
         }
         Fork fork = (Fork) filter.child();
         // if none of the FORK branches benefits from pushing down a pipeline breaker, we can do an early return
-        if (fork.children().stream().anyMatch(PushDownUtils::shouldPushDownPipelineBreakerIntoUnionBranch) == false) {
+        if (fork.children().stream().anyMatch(PushDownUtils::shouldPushDownPipelineBreakerIntoMergeBranch) == false) {
             return filter;
         }
 

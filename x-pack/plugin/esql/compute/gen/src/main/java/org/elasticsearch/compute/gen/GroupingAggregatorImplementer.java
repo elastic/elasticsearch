@@ -87,6 +87,7 @@ public class GroupingAggregatorImplementer {
     private final List<TypeMirror> warnExceptions;
     private final ExecutableElement init;
     private final ExecutableElement combine;
+    private final boolean combineOnState;
     private final ExecutableElement prepareEvaluateIntermediate;
     private final ExecutableElement prepareEvaluateFinal;
     private final List<Parameter> createParameters;
@@ -128,6 +129,13 @@ public class GroupingAggregatorImplementer {
             requireName("combine"),
             combineArgs(aggState)
         );
+        this.combineOnState = aggState.declaredType().isPrimitive()
+            && optionalStaticMethod(
+                declarationType,
+                requireVoidType(),
+                requireName("combine"),
+                requireArgs(requireType(aggState.type()), requireType(TypeName.INT), requireAnyType("<aggregation input column type>"))
+            ) != null;
         this.prepareEvaluateIntermediate = optionalStaticMethod(
             declarationType,
             requireType(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION),
@@ -317,7 +325,9 @@ public class GroupingAggregatorImplementer {
         CodeBlock.Builder builder = CodeBlock.builder();
         if (aggState.declaredType().isPrimitive()) {
             builder.add(
-                "new $T(driverContext.bigArrays(), $T.$L($L))",
+                warnExceptions.isEmpty()
+                    ? "new $T(driverContext.bigArrays(), driverContext.breaker(), $T.$L($L))"
+                    : "new $T(driverContext.bigArrays(), $T.$L($L))",
                 aggState.type(),
                 declarationType,
                 init.getSimpleName(),
@@ -582,7 +592,7 @@ public class GroupingAggregatorImplementer {
         StringBuilder pattern = new StringBuilder();
         List<Object> params = new ArrayList<>();
 
-        if (returnType.isPrimitive()) {
+        if (returnType.isPrimitive() && combineOnState == false) {
             pattern.append("state.set(groupId, $T.combine(state.getOrDefault(groupId)");
             params.add(declarationType);
         } else {
@@ -604,7 +614,7 @@ public class GroupingAggregatorImplementer {
         if (positionParamIndex >= aggParams.size()) {
             pattern.append(", valuesPosition");
         }
-        if (returnType.isPrimitive()) {
+        if (returnType.isPrimitive() && combineOnState == false) {
             pattern.append(")");
         }
         pattern.append(")");
@@ -757,12 +767,21 @@ public class GroupingAggregatorImplementer {
                     warningsBlock(builder, () -> {
                         var name = intermediateState.get(0).name();
                         var vectorAccessor = vectorAccessorName(intermediateState.get(0).elementType());
-                        builder.addStatement(
-                            "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.$L(valuesPosition)))",
-                            declarationType,
-                            name,
-                            vectorAccessor
-                        );
+                        if (combineOnState) {
+                            builder.addStatement(
+                                "$T.combine(state, groupId, $L.$L(valuesPosition))",
+                                declarationType,
+                                name,
+                                vectorAccessor
+                            );
+                        } else {
+                            builder.addStatement(
+                                "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.$L(valuesPosition)))",
+                                declarationType,
+                                name,
+                                vectorAccessor
+                            );
+                        }
                     });
                     builder.endControlFlow();
                 } else {

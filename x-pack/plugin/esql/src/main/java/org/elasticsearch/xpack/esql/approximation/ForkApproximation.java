@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
@@ -44,10 +44,10 @@ public final class ForkApproximation implements ApproximationDriver {
     private boolean sourceCountDone;
 
     ForkApproximation(LogicalPlan logicalPlan, ApproximationVerifier.QueryProperties queryProperties, ApproximationSettings settings) {
-        List<Fork> forks = logicalPlan.collect(Fork.class);
-        assert forks.size() == 1;
+        List<MergePlan> mergePlans = logicalPlan.collect(MergePlan.class);
+        assert mergePlans.size() == 1;
         branches = new ArrayList<>();
-        for (LogicalPlan child : forks.getFirst().children()) {
+        for (LogicalPlan child : mergePlans.getFirst().children()) {
             ApproximationVerifier.QueryProperties branchProperties = queryProperties.forkBranchProperties().get(branches.size());
             branches.add(branchProperties != null ? new Approximation(child, branchProperties, settings) : null);
         }
@@ -119,7 +119,7 @@ public final class ForkApproximation implements ApproximationDriver {
         if (countBranches.isEmpty()) {
             return null;
         }
-        Fork forkPlan = new Fork(Source.EMPTY, countBranches, UnionPlan.outputUnion(countBranches));
+        Fork forkPlan = new Fork(Source.EMPTY, countBranches, MergePlan.outputUnion(countBranches));
         forkPlan.setOptimized();
         return forkPlan;
     }

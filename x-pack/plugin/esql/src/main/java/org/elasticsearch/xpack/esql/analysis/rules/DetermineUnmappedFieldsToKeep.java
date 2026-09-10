@@ -25,10 +25,10 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -55,14 +55,14 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  * that can never let an unmapped source field through—the rule leaves the plan untouched, so data nodes
  * never load {@code _source} for expansion.
  *
- * <p>{@link UnionPlan} is n-ary: each branch is stamped with its own pattern. Named unmapped mentions are aligned
+ * <p>{@link MergePlan} is n-ary: each branch is stamped with its own pattern. Named unmapped mentions are aligned
  * like {@code LOAD}: a mention in one branch is materialized in every sibling that can surface it, so that
  * name is excluded from {@code $$unmapped_fields}. Extra fields that a branch does not keep (literal
  * {@code KEEP}, {@code STATS}) are not loaded there; a null {@code $$unmapped_fields} is appended so the
  * coordinator can still expand extras from siblings.
  *
  * <p>Alignment {@link Project}s created during analysis snapshot their projections before this rule runs, so
- * the attribute is re-appended there and {@link UnionPlan#refreshOutput()} unions it for the coordinator.
+ * the attribute is re-appended there and {@link MergePlan#refreshOutput()} unions it for the coordinator.
  *
  * <p>The rule runs in the Finish Analysis batch <em>before</em> {@link ResolvedProjects}, so
  * {@link ResolvingProject} nodes — which carry the original wildcard patterns — are still present.
@@ -82,7 +82,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             return plan;
         }
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
-        boolean hasUnion = plan.anyMatch(p -> p instanceof UnionPlan);
+        boolean hasUnion = plan.anyMatch(p -> p instanceof MergePlan);
         // Exact KEEP/STATS above a union must not stamp or pass $$unmapped_fields through: alignment
         // Projects snapshot before this rule, and replaceChild on a ResolvingProject would re-append it.
         if (hasUnion && pattern.isNone()) {
@@ -93,7 +93,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         LogicalPlan result = hasUnion
             // Project pass before union finish keeps $$unmapped_fields on branch Projects. The pass after
             // picks it up on Projects above the union, whose child output only includes the column after refresh.
-            ? withUnmappedOnProjects.transformUp(UnionPlan.class, DetermineUnmappedFieldsToKeep::finishUnionUnmappedFields)
+            ? withUnmappedOnProjects.transformUp(MergePlan.class, DetermineUnmappedFieldsToKeep::finishMergeUnmappedFields)
                 .transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields)
             : withUnmappedOnProjects;
         if (carriesUnmappedFieldsAttribute(result)) {
@@ -106,8 +106,8 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * The plan with {@code leaves} standing in for the synthetic column, so asking it for its output re-runs every projection
      * against a relation shaped exactly as it would have been had those fields been mapped: {@code ResolvingProject#replaceChild}
      * re-invokes the real KEEP/DROP/RENAME resolvers, and EVAL and friends recompute their output on top.
-     * {@link UnionPlan} snapshots its output, so the leaves are spliced into that list in place of {@code $$unmapped_fields}.
-     * {@link UnionPlan#refreshOutput()} cannot do this: it mints new {@link org.elasticsearch.xpack.esql.core.expression.NameId}s,
+     * {@link MergePlan} snapshots its output, so the leaves are spliced into that list in place of {@code $$unmapped_fields}.
+     * {@link MergePlan#refreshOutput()} cannot do this: it mints new {@link org.elasticsearch.xpack.esql.core.expression.NameId}s,
      * and expansion matches discovered fields by id.
      */
     private static LogicalPlan withLeavesInPlaceOfSyntheticColumn(LogicalPlan annotated, List<Attribute> leaves) {
@@ -122,10 +122,10 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
                 }
             }
             return carriesSyntheticColumn ? esr.withAttributes(realAttributes).withAdditionalAttributes(leaves) : esr;
-        }).transformUp(UnionPlan.class, union -> replaceSyntheticColumnInUnionOutput(union, leaves));
+        }).transformUp(MergePlan.class, merge -> replaceSyntheticColumnInMergeOutput(merge, leaves));
     }
 
-    private static UnionPlan replaceSyntheticColumnInUnionOutput(UnionPlan union, List<Attribute> leaves) {
+    private static MergePlan replaceSyntheticColumnInMergeOutput(MergePlan union, List<Attribute> leaves) {
         List<Attribute> newOutput = new ArrayList<>(union.output().size() + leaves.size());
         boolean replaced = false;
         for (Attribute attr : union.output()) {
@@ -159,7 +159,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * RENAME's targets, ENRICH/LOOKUP JOIN fields) are all already columns of their own, so expanding a
      * source field of that name would collide with them.
      * <p>
-     * For {@link Join}, only the left side is recursed into. {@link UnionPlan} is treated as transparent (no include restriction beyond
+     * For {@link Join}, only the left side is recursed into. {@link MergePlan} is treated as transparent (no include restriction beyond
      * excluding its output names); branch-local {@code KEEP}/{@code DROP} patterns are applied in {@link #annotate} by recomputing
      * this for each child. Other non-unary plans fall back to {@link UnmappedFieldsPattern#ALL}; those queries are rejected by the
      * {@code Verifier}'s {@code LOAD_ALL} command allow-list.
@@ -186,7 +186,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * No {@link UnionPlan} in the plan: one pattern for the whole query, stamped onto every non-LOOKUP
+     * No {@link MergePlan} in the plan: one pattern for the whole query, stamped onto every non-LOOKUP
      * {@link EsRelation} in a single {@code transformUp}.
      */
     private static LogicalPlan stampAll(LogicalPlan plan) {
@@ -195,21 +195,21 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * Stamps {@link UnmappedFieldsAttribute} onto non-LOOKUP {@link EsRelation}s. {@link UnionPlan} is the
+     * Stamps {@link UnmappedFieldsAttribute} onto non-LOOKUP {@link EsRelation}s. {@link MergePlan} is the
      * other special case: each branch is annotated with its own pattern. Every other node is only
      * walked to reach those two; recursion stops at a union so a parent pattern cannot stamp through it.
      */
     private static LogicalPlan annotate(LogicalPlan plan, UnmappedFieldsPattern pattern) {
-        if (plan instanceof UnionPlan union) {
-            List<LogicalPlan> newChildren = new ArrayList<>(union.children().size());
-            for (LogicalPlan child : union.children()) {
+        if (plan instanceof MergePlan merge) {
+            List<LogicalPlan> newChildren = new ArrayList<>(merge.children().size());
+            for (LogicalPlan child : merge.children()) {
                 LogicalPlan annotated = annotate(child, computeUnmappedFieldsToKeep(child).intersect(pattern));
                 if (annotated instanceof Project project) {
                     annotated = passThroughUnmappedFields(project);
                 }
                 newChildren.add(annotated);
             }
-            return union.replaceChildren(newChildren);
+            return merge.replaceChildren(newChildren);
         }
         if (pattern.isNone()) {
             return plan;
@@ -217,7 +217,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (plan instanceof EsRelation esr) {
             return stamp(esr, pattern);
         }
-        if (plan.anyMatch(p -> p instanceof UnionPlan) == false) {
+        if (plan.anyMatch(p -> p instanceof MergePlan) == false) {
             return plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern));
         }
         return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());
@@ -272,7 +272,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * append a null column so union layouts match, then refresh union output so the coordinator sees the {@link UnmappedFieldsAttribute}
      * subtype. In other words, we only pad if at least one child has the attribute and at least one does not.
      */
-    private static LogicalPlan finishUnionUnmappedFields(UnionPlan union) {
+    private static LogicalPlan finishMergeUnmappedFields(MergePlan union) {
         if (union instanceof UnionAll unionAll) {
             return alignUnmappedFields(unionAll);
         }
@@ -286,7 +286,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             hasChildWithoutUnmappedFields |= hasUnmappedField == false;
             newChildren.add(hasUnmappedField ? child : padNullUnmappedFields(child));
         }
-        UnionPlan result = hasChildWithoutUnmappedFields && hasChildWithUnmappedFields ? union.replaceSubPlans(newChildren) : union;
+        MergePlan result = hasChildWithoutUnmappedFields && hasChildWithUnmappedFields ? union.replaceSubPlans(newChildren) : union;
         return hasChildWithUnmappedFields ? result.refreshOutput() : result;
     }
 
@@ -298,7 +298,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     /**
      * Null-fills {@code $$unmapped_fields} in branches that cannot surface it and rebuilds the
      * {@link UnionAll} output, appending the {@link UnmappedFieldsAttribute} after conversion.
-     * {@link UnionPlan#refreshOutput()} unions through the pre-annotation output snapshot, which
+     * {@link MergePlan#refreshOutput()} unions through the pre-annotation output snapshot, which
      * does not yet contain the attribute, so it would be dropped.
      */
     private static UnionAll alignUnmappedFields(UnionAll unionAll) {
@@ -315,7 +315,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         }
         UnionAll withChildren = childrenChanged ? unionAll.replaceSubPlans(newChildren) : unionAll;
         List<Attribute> withoutUnmapped = new ArrayList<>();
-        for (Attribute attr : UnionPlan.outputUnion(withChildren.children())) {
+        for (Attribute attr : MergePlan.outputUnion(withChildren.children())) {
             if (attr.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false) {
                 withoutUnmapped.add(attr);
             }

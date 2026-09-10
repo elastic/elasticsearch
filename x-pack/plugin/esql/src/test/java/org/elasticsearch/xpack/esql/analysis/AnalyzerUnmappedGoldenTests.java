@@ -770,7 +770,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     // Outer-only reference over a union of an index branch and a ROW branch: does_not_exist loads from _source into the employees
-    // EsRelation, while the ROW branch (can't load) is null-filled by resolveUnionPlan alignment. #142033
+    // EsRelation, while the ROW branch (can't load) is null-filled by resolveMergePlan alignment. #142033
     public void testSubqueryWithRowBranchOuterReference() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue("Requires ROW source subqueries", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
@@ -829,7 +829,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     // does_not_exist1 is referenced inside both language branches (loaded there, in-branch scope) and again in the outer WHERE (resolves
-    // via the union output); does_not_exist2 is outer-only and unmapped everywhere, so it is loaded from _source in all branches (#142033).
+    // via the merge output); does_not_exist2 is outer-only and unmapped everywhere, so it is loaded from _source in all branches (#142033).
     public void testSubquerysWithMainAndSameOptional() throws Exception {
         assumeTrue(
             "Requires subquery in FROM command support",

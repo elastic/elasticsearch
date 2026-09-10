@@ -59,7 +59,17 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         this(source, fragment, esFilter, estimatedRowSize, false);
     }
 
-    private FragmentExec(Source source, LogicalPlan fragment, QueryBuilder esFilter, int estimatedRowSize, boolean fromViewBranch) {
+    /**
+     * Full constructor, carrying every field including the coordinator-only {@link #fromViewBranch} marker. Use this when
+     * building a fragment whose marker value is already known — in particular when replacing an existing fragment, where
+     * the marker has to be copied rather than set (see {@code ProjectAwayColumns}). {@link #asFromViewBranch()} is a
+     * convenience for turning the marker on for an existing fragment, which makes it the natural fit as a method
+     * reference in a tree transform ({@code Mapper#mapFork}); it cannot express an arbitrary value.
+     * <p>
+     * This is also the constructor {@link #info()} mirrors, per the convention {@code EsqlNodeSubclassTests} enforces
+     * that a node's {@code info()} properties match its longest public constructor.
+     */
+    public FragmentExec(Source source, LogicalPlan fragment, QueryBuilder esFilter, int estimatedRowSize, boolean fromViewBranch) {
         super(source);
         this.fragment = fragment;
         this.esFilter = esFilter;
@@ -102,7 +112,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<FragmentExec> info() {
-        return NodeInfo.create(this, FragmentExec::new, fragment, esFilter, estimatedRowSize);
+        return NodeInfo.create(this, FragmentExec::new, fragment, esFilter, estimatedRowSize, fromViewBranch);
     }
 
     @Override
@@ -142,7 +152,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(fragment, esFilter, estimatedRowSize);
+        return Objects.hash(fragment, esFilter, estimatedRowSize, fromViewBranch);
     }
 
     @Override
@@ -158,7 +168,8 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         FragmentExec other = (FragmentExec) obj;
         return Objects.equals(fragment, other.fragment)
             && Objects.equals(esFilter, other.esFilter)
-            && Objects.equals(estimatedRowSize, other.estimatedRowSize);
+            && Objects.equals(estimatedRowSize, other.estimatedRowSize)
+            && fromViewBranch == other.fromViewBranch;
     }
 
     @Override

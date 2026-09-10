@@ -66,13 +66,20 @@ import static org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter.ES
  * would fragment the version history unnecessarily. Below that version the rewrite is skipped entirely — views are read
  * unfiltered (the pre-feature behavior) with a warning — rather than shipping a plan a peer cannot read.
  *
- * <p><b>Known limitation</b>: The existing Lucene-filter integration path ({@code PlannerUtils.integrateEsFilterIntoFragment})
- * applies the raw DSL request filter to <em>all</em> {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec}
- * nodes in the physical plan, including those that originate from source indices inside view subplans. For fields that
- * exist in the view's source index (e.g., GROUP BY keys on raw fields) this is semantically redundant but harmless. For
- * fields computed inside the view (e.g., via {@code EVAL}) that do not exist as mapped fields in the source index, the
- * Lucene query returns nothing, overriding the correct result that this rewriter produces. Eliminating this Lucene-path
- * application for view-internal relations is tracked as a follow-up improvement.
+ * <p>The raw DSL filter must <em>not</em> also reach the source scan inside a view subplan, or a filter on a field the view
+ * computes (via {@code EVAL}/{@code STATS}) would match no documents in the source index and override the correct result
+ * produced here. {@code Mapper#mapFork} therefore marks every
+ * {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec} under a view branch (see
+ * {@code FragmentExec#isFromViewBranch()}) and {@code PlannerUtils.integrateEsFilterIntoFragment} skips those fragments.
+ * That marker is coordinator-only state on a plan node, so it has to survive generic tree rebuilds: it is part of
+ * {@code FragmentExec}'s {@code NodeInfo} and its {@code equals}/{@code hashCode} for exactly that reason.
+ *
+ * <p>Because the filter is bound against the view's output schema, the fields it references must have been loaded from
+ * field-caps — and field-name pruning is computed from the query, which need not mention them (Kibana routinely filters on
+ * columns it discovered via {@code FROM my_view | LIMIT 0}, not on ones the query selects). Pre-analysis therefore adds the
+ * filter's own field references to the pruned set, via {@link QueryDslFieldNameExtractor} from
+ * {@code EsqlSession#resolveFieldNames}. Where those references cannot be enumerated — notably a {@code multi_match},
+ * whose fields are resolved against the source's complete field list — it falls back to requesting every field.
  */
 public final class ViewRequestFilterRewriter {
 

@@ -267,14 +267,20 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
     /**
      * A wildcard query is not in the supported DSL subset for views. The whole query must fail with a 400 naming the
      * construct — the supported term clause does not rescue it.
+     * <p>
+     * Uses a non-pass-through view deliberately. A pass-through view ({@code FROM index}) is collapsed to its source
+     * index during view compaction, because filtering the index and filtering the view's output are then the same
+     * operation — so its filter takes the ordinary Lucene-scan path and never reaches the fail-closed translation.
+     * Whether a pass-through view should nonetheless fail closed (giving up that optimization, but making every view
+     * reject unsupported DSL uniformly) is an open question, tracked separately.
      */
     public void testUnsupportedDslConstructOnViewFailsQuery() {
         QueryBuilder unsupported = QueryBuilders.boolQuery()
-            .must(QueryBuilders.termQuery("status", 200))
+            .must(QueryBuilders.termQuery("region", "eu"))
             .must(QueryBuilders.wildcardQuery("region", "e*"));
         Exception e = expectThrows(
             Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM " + PASSTHROUGH_VIEW + " | KEEP id").filter(unsupported))
+            () -> run(syncEsqlQueryRequest("FROM " + STATS_VIEW + " | KEEP region").filter(unsupported))
         );
         assertThat(e.getMessage(), containsString("[wildcard]"));
     }

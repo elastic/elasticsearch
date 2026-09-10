@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtracto
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.dsltranslate.QueryDslFieldNameExtractor;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -121,6 +122,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
@@ -1606,11 +1608,8 @@ public class EsqlSession {
         // in case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with
         // an older node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may
         // cause bugs.
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
-            parsed,
-            preAnalysis.enriches().isEmpty() == false,
-            unmappedResolution.loadsUnmappedFields()
-        ).withMinimumTransportVersion(localClusterMinimumVersion);
+        PreAnalysisResult result = resolveFieldNames(parsed, preAnalysis, unmappedResolution, requestFilter, configuration)
+            .withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
         // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer,
         // even when index resolution is retried without the filter (e.g. because the filter covers an empty time range).
@@ -1619,6 +1618,12 @@ public class EsqlSession {
             requestFilter,
             configuration::absoluteStartedTimeInMillis
         );
+        // Decided here, from the original request filter, for the same reason as timestampBounds above: index resolution may be
+        // retried without the filter, but the post-analysis steps that consume view boundaries
+        // ({@link ViewRequestFilterRewriter#rewrite} and {@link PlannerUtils#integrateEsFilterIntoFragment}) always run against
+        // {@code request.filter()}. Deriving this from the retry-scoped filter instead would collapse the boundaries the rewriter
+        // still needs, leaving the raw DSL to be pushed into the view's source scan.
+        boolean preserveViewBoundaries = requestFilter != null && ViewRequestFilterRewriter.REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled();
 
         resolveIndicesAndAnalyze(
             parsed,
@@ -1628,10 +1633,49 @@ public class EsqlSession {
             description,
             requestFilter,
             timestampBounds,
+            preserveViewBoundaries,
             preAnalysis,
             result,
             logicalPlanListener
         );
+    }
+
+    /**
+     * Field names to request from field-caps. Normally these are pruned to what the query actually references, but a request filter
+     * that will be applied to a <em>view's output</em> can reference fields the query never mentions: for
+     * {@code FROM my_view | KEEP id} with a filter on {@code region}, pruning leaves {@code region} out of the view branch's output,
+     * and {@link ViewRequestFilterRewriter} then binds it to {@code NULL} (reproducing Query DSL's missing-field leniency) so the
+     * filter silently matches nothing. The raw-index path does not have this problem because there the filter is evaluated by Lucene,
+     * which needs no ES|QL field resolution.
+     * <p>
+     * The filter's own field references are therefore added to the pruned set, keeping pruning effective for everything else. Only
+     * when those references cannot be enumerated (see {@link QueryDslFieldNameExtractor}) does this fall back to every field.
+     */
+    private static PreAnalysisResult resolveFieldNames(
+        LogicalPlan parsed,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        UnmappedResolution unmappedResolution,
+        @Nullable QueryBuilder requestFilter,
+        Configuration configuration
+    ) {
+        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
+            parsed,
+            preAnalysis.enriches().isEmpty() == false,
+            unmappedResolution.loadsUnmappedFields()
+        );
+        boolean filterAppliesToViewOutput = requestFilter != null
+            && ViewRequestFilterRewriter.REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled()
+            && parsed.anyMatch(p -> p instanceof ViewUnionAll vua && vua.viewBranchKeys().isEmpty() == false);
+        if (filterAppliesToViewOutput == false || IndexResolver.ALL_FIELDS.equals(result.fieldNames())) {
+            return result;
+        }
+        var referenced = QueryDslFieldNameExtractor.extract(requestFilter, configuration);
+        if (referenced.requiresAllFields()) {
+            return new PreAnalysisResult(IndexResolver.ALL_FIELDS, result.wildcardJoinIndices());
+        }
+        Set<String> fieldNames = new HashSet<>(result.fieldNames());
+        fieldNames.addAll(referenced.fieldNames());
+        return new PreAnalysisResult(fieldNames, result.wildcardJoinIndices());
     }
 
     private void resolveIndicesAndAnalyze(
@@ -1642,6 +1686,7 @@ public class EsqlSession {
         String description,
         QueryBuilder requestFilter,
         TimestampBounds timestampBounds,
+        boolean preserveViewBoundaries,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
@@ -1743,6 +1788,7 @@ public class EsqlSession {
                     description,
                     requestFilter,
                     timestampBounds,
+                    preserveViewBoundaries,
                     preAnalysis,
                     r,
                     l
@@ -2541,6 +2587,7 @@ public class EsqlSession {
         String description,
         QueryBuilder requestFilter,
         TimestampBounds timestampBounds,
+        boolean preserveViewBoundaries,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> listener
@@ -2566,7 +2613,7 @@ public class EsqlSession {
                 result,
                 executionInfo,
                 timestampBounds,
-                requestFilter != null && ViewRequestFilterRewriter.REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled()
+                preserveViewBoundaries
             );
             analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
@@ -2591,6 +2638,7 @@ public class EsqlSession {
                     "second attempt, without filter",
                     null,
                     timestampBounds,
+                    preserveViewBoundaries,
                     preAnalysis,
                     result,
                     listener

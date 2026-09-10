@@ -8,11 +8,17 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.datasources.DecompressionCodecRegistry;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractDataSourceValidatorTests;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +28,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
@@ -103,7 +111,40 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         "s3",
         S3Configuration::fromMap,
         Set.of("s3", "s3a", "s3n")
-    ).withFormatConfigKeyResolver(CSV_RESOLVER, Set.of(".gz"));
+    ).withFormatConfigKeyResolver(CSV_RESOLVER).withFormatReaderRegistry(csvGzipRegistry());
+
+    /**
+     * Registry the production validator uses for compound-extension inference. Mockito stub: only
+     * {@link FormatReader#formatName()}, {@link FormatReader#fileExtensions()}, and
+     * {@link FormatReader#supportsWholeFileCompression()} are consulted.
+     */
+    private static FormatReaderRegistry csvGzipRegistry() {
+        FormatReader csv = mock(FormatReader.class);
+        when(csv.formatName()).thenReturn("csv");
+        when(csv.fileExtensions()).thenReturn(List.of(".csv"));
+        when(csv.supportsWholeFileCompression()).thenReturn(true);
+        DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
+        codecs.register(new DecompressionCodec() {
+            @Override
+            public String name() {
+                return "gzip";
+            }
+
+            @Override
+            public List<String> extensions() {
+                return List.of(".gz");
+            }
+
+            @Override
+            public InputStream decompress(InputStream raw) {
+                return raw;
+            }
+        });
+        FormatReaderRegistry registry = new FormatReaderRegistry(codecs);
+        registry.registerLazy("csv", (s, bf) -> csv, Settings.EMPTY, null);
+        registry.registerExtension(".csv", "csv");
+        return registry;
+    }
 
     public void testValidateDatasourceWithCredentials() {
         var result = validator.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "secret", "region", "us-east-1"));
@@ -120,6 +161,14 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     public void testValidateDatasourceRejectsInvalidAuth() {
         expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("auth", "oauth2")));
+    }
+
+    public void testValidateDatasourceRejectsInvalidAddressingStyle() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "ftp_style"))
+        );
+        assertThat(e.getMessage(), containsString("Unsupported addressing_style value [ftp_style]"));
     }
 
     public void testValidateDatasourceAuthCaseInsensitive() {
@@ -592,9 +641,36 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     public void testValidateDatasetPartitionPath() {
         assertEquals(
-            "year=*/month=*",
-            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "year=*/month=*")).get("partition_path")
+            "{year}/{month}",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "{year}/{month}")).get("partition_path")
         );
+    }
+
+    public void testValidateDatasetRejectsPlaceholderlessPartitionPath() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "year={year}"))
+        );
+        assertThat(e.getMessage(), containsString("partition_path"));
+        assertThat(e.getMessage(), containsString("{name}"));
+    }
+
+    public void testValidateDatasetRejectsGlobShapedPartitionPath() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "{year}/{month}/*.csv"))
+        );
+        assertThat(e.getMessage(), containsString("partition_path"));
+        assertThat(e.getMessage(), containsString("*.csv"));
+    }
+
+    public void testValidateDatasetRejectsDuplicatePlaceholderPartitionPath() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "{year}/junk/{year}"))
+        );
+        assertThat(e.getMessage(), containsString("partition_path"));
+        assertThat(e.getMessage(), containsString("more than once"));
     }
 
     public void testValidateDatasetHivePartitioning() {
@@ -813,7 +889,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
                 containsString(
                     "known settings: [error_mode, file_exclusions, file_order, file_sort_by, format, hive_partitioning, "
                         + "max_error_ratio, max_errors, max_split_probes, partition_detection, partition_path, "
-                        + "schema_resolution, schema_sample_size, split_probe_window, target_split_size]"
+                        + "schema_resolution, split_probe_window, target_split_size]"
                 )
             )
         );
@@ -1041,7 +1117,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     /**
-     * The load-bearing rewrap-survival test: the S3 resource check must survive all three EsqlPlugin
+     * The load-bearing rewrap-survival test: the S3 resource check must survive all EsqlPlugin
      * withers. If the resourceCheck field is missing from any wither's private-constructor call, it is
      * silently dropped and ARN/MRAP resources pass validation after the re-wrap.
      */
@@ -1050,7 +1126,8 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             .withResourceCheck(S3ResourceCheck::validate)
             .withManagedIdentityEnabled(() -> false)
             .withFederatedIdentityEnabled(() -> false)
-            .withFormatConfigKeyResolver(CSV_RESOLVER, Set.of(".gz"));
+            .withFormatReaderRegistry(csvGzipRegistry())
+            .withFormatConfigKeyResolver(CSV_RESOLVER);
 
         var e = expectThrows(
             ValidationException.class,

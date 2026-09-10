@@ -96,6 +96,27 @@ public class OrcPushdownFiltersTests extends ESTestCase {
         assertTrue(OrcPushdownFilters.canConvert(eq("ts", DataType.DATETIME, 1700000000000L)));
     }
 
+    public void testCannotConvertDateNanosLiteralOnDateColumn() {
+        Equals expr = new Equals(SOURCE, field("ts", DataType.DATETIME), literal(1_700_000_000_000_000_000L, DataType.DATE_NANOS));
+        assertFalse(OrcPushdownFilters.canConvert(expr));
+    }
+
+    public void testCannotConvertIntegerLessThanDouble() {
+        LessThan expr = new LessThan(SOURCE, field("id", DataType.INTEGER), literal(5.5, DataType.DOUBLE));
+        assertFalse(OrcPushdownFilters.canConvert(expr));
+    }
+
+    public void testCannotConvertNestedMixedOrAnd() {
+        Expression mixed = new Equals(SOURCE, field("ts", DataType.DATETIME), literal(1_700_000_000_000_000_000L, DataType.DATE_NANOS));
+        Expression pushable = eq("age", DataType.INTEGER, 30);
+        Expression other = eq("score", DataType.DOUBLE, 9.5);
+        assertFalse(OrcPushdownFilters.canConvert(new Or(SOURCE, new And(SOURCE, mixed, pushable), other)));
+    }
+
+    public void testResolveTypeDateNanos() {
+        assertNull(OrcPushdownFilters.resolveType(DataType.DATE_NANOS));
+    }
+
     public void testCannotConvertUnsupportedType() {
         assertFalse(OrcPushdownFilters.canConvert(eq("data", DataType.UNSUPPORTED, "x")));
     }

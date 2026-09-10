@@ -1,0 +1,3 @@
+ExchangeSinkExec[[hire_date{f}#0, $$max_salary$max{r}#1, $$max_salary$seen{r}#2],false]
+\_AggregateExec[[hire_date{f}#0],[MAX(salary{f}#3,true[BOOLEAN],PT0S[TIME_DURATION]) AS max_salary#4, hire_date{f}#0],INTERMEDIATE,[hire_date{f}#0, $$max_salary$max{r}#5, $$max_salary$seen{r}#6],12]
+  \_ExchangeSourceExec[[hire_date{f}#0, $$max_salary$max{r}#1, $$max_salary$seen{r}#2],false]

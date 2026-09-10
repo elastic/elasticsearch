@@ -7,9 +7,14 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -31,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
 /**
@@ -59,6 +63,23 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
  * relations.
  */
 public class ResolveViewShadowTests extends ESTestCase {
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static List<Object[]> params() {
+        return List.of(new Object[] { "current", true }, new Object[] { "historical", false });
+    }
+
+    private final boolean pinCurrentVersion;
+
+    public ResolveViewShadowTests(@SuppressWarnings("unused") String name, boolean pinCurrentVersion) {
+        this.pinCurrentVersion = pinCurrentVersion;
+    }
+
+    /** Pins {@link TransportVersion#current()} for the {@code current} run so a version-gated plan change surfaces here. */
+    private TestAnalyzer analyzer() {
+        TestAnalyzer analyzer = EsqlTestUtils.analyzer();
+        return pinCurrentVersion ? analyzer.minimumTransportVersion(TransportVersion.current()) : analyzer;
+    }
 
     private static final Source EMPTY = Source.EMPTY;
     private static final String NO_LIMIT_WARNING = "No limit defined, adding default limit of [1000]";

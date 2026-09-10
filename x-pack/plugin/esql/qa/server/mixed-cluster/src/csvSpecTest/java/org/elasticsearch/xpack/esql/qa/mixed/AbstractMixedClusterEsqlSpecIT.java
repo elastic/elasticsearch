@@ -78,11 +78,13 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     private static CsvTestCase maybeOptionalWarnings(CsvTestCase testCase) {
-        // To make warnings optional for some version, uncomment this. Tests might also
-        // need changing, but that's fine.
-        // if (bwcVersion.before(Version.V_9_6_0)) {
-        // testCase.makeWarningsOptional();
-        // }
+        // Older nodes (pre-9.6) send evaluation warnings as RFC 7234 Warning response headers, which are
+        // dropped when execution switches threads, so the warning may not reach the coordinator's response
+        // (fixed on 9.6 by moving warnings into a wire field, elasticsearch#156617, not backported). Results
+        // are unaffected, so relax exact warning assertions to optional while an older node is in the cluster.
+        if (bwcVersion.before(Version.V_9_6_0)) {
+            testCase.makeWarningsOptional();
+        }
         return testCase;
     }
 

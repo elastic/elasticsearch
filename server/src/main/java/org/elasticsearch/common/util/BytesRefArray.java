@@ -288,6 +288,11 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         return lastOffset;
     }
 
+    /** Returns the fixed byte length of all entries, or {@code -1} if entry lengths vary. */
+    public int fixedLength() {
+        return fixedLength;
+    }
+
     @Override
     public void close() {
         decRef();

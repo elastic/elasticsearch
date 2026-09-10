@@ -635,6 +635,61 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * The route to an analyzed column over a dataset: declare the column keyword, convert in the query, and name the
+     * analyzer as an argument. This is what the rejection message points a user at, so it is pinned end to end.
+     */
+    public void testToTextOverDeclaredKeywordGivesAnAnalyzedColumn() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        Path docs = createTempDir().resolve("docs.csv");
+        Files.writeString(docs, String.join("\n", "id,msg", "1,The quick brown fox", "2,lazy dogs sleeping") + "\n");
+
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("integer", null));
+        properties.put("msg", new DatasetFieldMapping("keyword", null));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "docs_kw",
+                    "local_ds",
+                    docs.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties))
+                )
+            )
+        );
+
+        // Without the conversion the column is compared whole, so a two-term query matches nothing.
+        try (var response = run(syncEsqlQueryRequest("FROM docs_kw | WHERE MATCH(msg, \"quick fox\") | KEEP id"), TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+        // Converted, it is analyzed: both query terms hit the first row.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM docs_kw | EVAL t = TO_TEXT(msg) | WHERE MATCH(t, \"quick fox\") | KEEP id"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1))));
+        }
+        // The analyzer is an argument here; a dataset mapping has no field for one.
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM docs_kw | EVAL t = TO_TEXT(msg, {\"analyzer\": \"standard\"}) | WHERE MATCH(t, \"quick fox\") | KEEP id"
+                ),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1))));
+        }
+    }
+
     public void testStrictDeclaredNamesAbsentFromHeaderReadNull() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 

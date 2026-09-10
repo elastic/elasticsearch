@@ -219,6 +219,32 @@ setup:
 
 
 ---
+"source filtering is applied on top of synthetic vectors":
+  # rehydrating the vectors must not resurrect a source the request asked to drop
+  - do:
+      search:
+        index: test
+        body:
+          _source: false
+          sort: ["name"]
+
+  - match:      { hits.hits.0._id: "1" }
+  - not_exists:   hits.hits.0._source
+
+  # nor override an explicit exclude
+  - do:
+      search:
+        index: test
+        body:
+          _source:
+            exclude_vectors: false
+            excludes: [ "vector" ]
+          sort: ["name"]
+
+  - match:      { hits.hits.0._source.name: cow.jpg }
+  - not_exists:   hits.hits.0._source.vector
+
+---
 "Bulk partial update with synthetic vectors":
   - do:
       headers:

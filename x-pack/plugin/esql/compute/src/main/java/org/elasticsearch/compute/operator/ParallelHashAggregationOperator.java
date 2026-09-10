@@ -438,8 +438,14 @@ public final class ParallelHashAggregationOperator implements Operator {
 
         void processOnePage(Page page) {
             if (initialized == false) {
-                initialized = true;
-                op.blockHash.ensureCapacity(partitionKeysThreshold);
+                try {
+                    op.blockHash.ensureCapacity(partitionKeysThreshold);
+                    initialized = true;
+                } finally {
+                    if (initialized == false) {
+                        Releasables.close(page);
+                    }
+                }
             }
             op.addInput(page);
             if (op.blockHash.numKeys() >= partitionKeysThreshold) {

@@ -304,9 +304,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages = clusterInfoService.getClusterInfo().getEstimatedShardHeapUsages();
         assertNotNull(estimatedShardHeapUsages);
-
-        estimatedShardHeapUsages = clusterInfoService.getClusterInfo().getEstimatedShardHeapUsages();
-        assertNotNull(estimatedShardHeapUsages);
         assertEquals(estimatedShardHeapUsages.size(), numIndices * numShards);
         for (var entry : estimatedShardHeapUsages.entrySet()) {
             assertThat(entry.getValue().shardHeapUsageBytes(), greaterThanOrEqualTo(0L));

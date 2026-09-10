@@ -487,7 +487,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                             adjustNodesStats(nodesStatsResponse.getNodes()),
                             leastAvailableUsagesBuilder,
                             mostAvailableUsagesBuilder,
-                            maxHeapPerNodeBuilder
+                            maxHeapPerNodeBuilder,
+                            fetchFsStats
                         );
                         leastAvailableSpaceUsages = Map.copyOf(leastAvailableUsagesBuilder);
                         mostAvailableSpaceUsages = Map.copyOf(mostAvailableUsagesBuilder);
@@ -730,16 +731,19 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         List<NodeStats> nodeStatsArray,
         Map<String, DiskUsage> newLeastAvailableUsages,
         Map<String, DiskUsage> newMostAvailableUsages,
-        Map<String, ByteSizeValue> maxHeapPerNodeBuilder
+        Map<String, ByteSizeValue> maxHeapPerNodeBuilder,
+        boolean processFsStats
     ) {
         for (NodeStats nodeStats : nodeStatsArray) {
-            DiskUsage leastAvailableUsage = DiskUsage.findLeastAvailablePath(nodeStats);
-            if (leastAvailableUsage != null) {
-                newLeastAvailableUsages.put(nodeStats.getNode().getId(), leastAvailableUsage);
-            }
-            DiskUsage mostAvailableUsage = DiskUsage.findMostAvailable(nodeStats);
-            if (mostAvailableUsage != null) {
-                newMostAvailableUsages.put(nodeStats.getNode().getId(), mostAvailableUsage);
+            if (processFsStats) {
+                DiskUsage leastAvailableUsage = DiskUsage.findLeastAvailablePath(nodeStats);
+                if (leastAvailableUsage != null) {
+                    newLeastAvailableUsages.put(nodeStats.getNode().getId(), leastAvailableUsage);
+                }
+                DiskUsage mostAvailableUsage = DiskUsage.findMostAvailable(nodeStats);
+                if (mostAvailableUsage != null) {
+                    newMostAvailableUsages.put(nodeStats.getNode().getId(), mostAvailableUsage);
+                }
             }
             maxHeapPerNodeBuilder.put(nodeStats.getNode().getId(), nodeStats.getJvm().getMem().getHeapMax());
         }

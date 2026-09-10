@@ -130,45 +130,39 @@ public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegT
         String object = objPrefix + randomIdentifier();
         createIndex(nested, extraLeafMapping(true, extraMappedOnNested));
         createIndex(object, extraLeafMapping(false, extraMappedOnObject));
-        client().prepareBulk()
-            .add(prepareIndexJson(nested, "0", """
+        client().prepareBulk().add(prepareIndexJson(nested, "0", """
+            {
+              "id": "n00",
+              "item": [
                 {
-                  "id": "n00",
-                  "item": [
-                    {
-                      "value": 100,
-                      "extra": "from-nested-0"
-                    }
-                  ]
-                }"""))
-            .add(prepareIndexJson(nested, "1", """
+                  "value": 100,
+                  "extra": "from-nested-0"
+                }
+              ]
+            }""")).add(prepareIndexJson(nested, "1", """
+            {
+              "id": "n01",
+              "item": [
                 {
-                  "id": "n01",
-                  "item": [
-                    {
-                      "value": 101,
-                      "extra": "from-nested-1"
-                    }
-                  ]
-                }"""))
-            .add(prepareIndexJson(object, "0", """
-                {
-                  "id": "o00",
-                  "item": {
-                    "value": 1,
-                    "extra": "from-object-0"
-                  }
-                }"""))
-            .add(prepareIndexJson(object, "1", """
-                {
-                  "id": "o01",
-                  "item": {
-                    "value": 2,
-                    "extra": "from-object-1"
-                  }
-                }"""))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+                  "value": 101,
+                  "extra": "from-nested-1"
+                }
+              ]
+            }""")).add(prepareIndexJson(object, "0", """
+            {
+              "id": "o00",
+              "item": {
+                "value": 1,
+                "extra": "from-object-0"
+              }
+            }""")).add(prepareIndexJson(object, "1", """
+            {
+              "id": "o01",
+              "item": {
+                "value": 2,
+                "extra": "from-object-1"
+              }
+            }""")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         return new String[] { nested, object };
     }
 
@@ -191,10 +185,10 @@ public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegT
                 }
               }
             }""", nestedItem ? "\"type\": \"nested\"," : "", nestedItem ? "integer" : "long", extraMapped ? """
-                    ,
-                    "extra": {
-                      "type": "keyword"
-                    }""" : "");
+            ,
+            "extra": {
+              "type": "keyword"
+            }""" : "");
     }
 
     private String[] createUnsupportedExtraIndices(String hiddenPrefix, String otherPrefix, boolean mappedOnHidden, boolean mappedOnOther) {
@@ -202,55 +196,47 @@ public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegT
         String other = otherPrefix + randomIdentifier();
         createIndex(hidden, unsupportedExtraMapping(mappedOnHidden));
         createIndex(other, unsupportedExtraMapping(mappedOnOther));
-        client().prepareBulk()
-            .add(prepareIndexJson(hidden, "0", """
-                {
-                  "id": "n00",
-                  "extra": "192.168.0.0/24"
-                }"""))
-            .add(prepareIndexJson(hidden, "1", """
-                {
-                  "id": "n01",
-                  "extra": "192.168.1.0/24"
-                }"""))
-            .add(prepareIndexJson(other, "0", """
-                {
-                  "id": "o00",
-                  "extra": "10.0.0.0/8"
-                }"""))
-            .add(prepareIndexJson(other, "1", """
-                {
-                  "id": "o01",
-                  "extra": "10.1.0.0/16"
-                }"""))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        client().prepareBulk().add(prepareIndexJson(hidden, "0", """
+            {
+              "id": "n00",
+              "extra": "192.168.0.0/24"
+            }""")).add(prepareIndexJson(hidden, "1", """
+            {
+              "id": "n01",
+              "extra": "192.168.1.0/24"
+            }""")).add(prepareIndexJson(other, "0", """
+            {
+              "id": "o00",
+              "extra": "10.0.0.0/8"
+            }""")).add(prepareIndexJson(other, "1", """
+            {
+              "id": "o01",
+              "extra": "10.1.0.0/16"
+            }""")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         return new String[] { hidden, other };
     }
 
     private static String unsupportedExtraMapping(boolean extraMapped) {
-        return extraMapped
-            ? """
-                {
-                  "dynamic": false,
-                  "properties": {
-                    "id": {
-                      "type": "keyword"
-                    },
-                    "extra": {
-                      "type": "ip_range"
-                    }
-                  }
-                }"""
-            : """
-                {
-                  "dynamic": false,
-                  "properties": {
-                    "id": {
-                      "type": "keyword"
-                    }
-                  }
-                }""";
+        return extraMapped ? """
+            {
+              "dynamic": false,
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "extra": {
+                  "type": "ip_range"
+                }
+              }
+            }""" : """
+            {
+              "dynamic": false,
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                }
+              }
+            }""";
     }
 
     private Presence presence(String query, String field) {

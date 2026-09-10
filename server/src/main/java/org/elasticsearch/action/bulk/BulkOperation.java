@@ -63,7 +63,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -413,8 +412,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
         // Build per-shard source batches. For the inline-encoder path, batches are finalized here
         // (rows were accumulated during routing). For provided-batch mode the source is scattered here.
-        Map<ShardId, SourceBatch> shardBatches = router != null ? router.shardBatches() : Collections.emptyMap();
-
+        Map<ShardId, SourceBatch> shardBatches = router != null ? router.shardBatches() : Map.of();
         BatchModeRouter.validateBatchAlignment(requestsByShard, shardBatches);
 
         String nodeId = clusterService.localNode().getId();

@@ -7,114 +7,68 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
 
 /**
  * Accumulates wall-clock and CPU time for external data-source reads at the operator level.
  *
- * <p>Two measurement modes:
- * <ul>
- *   <li>{@link #recordOnThread} — for measurements taken on the <em>owner thread</em>
- *       (the drain thread / producerExecutor). Both wall and CPU are always accumulated.
- *   <li>{@link #record} — for measurements from any thread. Wall time is always
- *       accumulated when {@code startNanos >= 0}. CPU is accumulated only when the calling
- *       thread is not the owner thread, preventing double-counting when degenerate
- *       (inline/direct) executors collapse the open and drain phases onto one thread.
- *       Pass {@code startNanos = -1} to skip the wall contribution (parallel workers).
- * </ul>
- *
- * <p>The owner thread is established with {@link #initOwnerThread()} from the drain loop
- * before the first {@link #recordOnThread} call. {@link #initOwnerThread()} is called on
- * every drain-loop entry (including re-entries on potentially different pool threads), so
- * {@code ownerThread} always reflects the thread currently executing the drain.
- *
- * <p>Both methods accept start timestamps and compute the delta internally, so callers
- * only capture {@code System.nanoTime()} / {@code ThreadCpuTimer.currentNanos()} once.
  */
 public final class ExternalReadCounters {
 
-    private volatile Thread ownerThread;
+    /** A shared instance whose accumulated values are never read. Use where no counters are needed (tests, benchmarks). */
+    public static final ExternalReadCounters NOOP = new ExternalReadCounters();
+
     private final AtomicLong readNanosAcc = new AtomicLong();
     private final AtomicLong readCpuNanosAcc = new AtomicLong();
 
-    /**
-     * Establishes the current thread as the owner (drain) thread. Call at the start of every
-     * drain-loop entry, before the first {@link #recordOnThread} call in that entry. Safe to
-     * call multiple times — re-entries on different pool threads update the owner accordingly.
-     */
-    public void initOwnerThread() {
-        ownerThread = Thread.currentThread();
+    private final ThreadLocal<Boolean> samplingCpu = new ThreadLocal<>();
+
+    // for deserializations
+    public static ExternalReadCounters fromCounters(long readNanos, long readCpuNanos) {
+        ExternalReadCounters cnt = new ExternalReadCounters();
+        cnt.add(readNanos, readCpuNanos);
+        return cnt;
     }
 
-    /**
-     * Records time measured on the current thread. Both wall and CPU deltas are unconditionally
-     * accumulated.
-     *
-     * @param startNanos    value of {@code System.nanoTime()} before the measured work
-     * @param startCpuNanos value of {@code ThreadCpuTimer.currentNanos()} before the work;
-     *                      pass {@code -1} (unsupported) to skip CPU accumulation
-     */
-    public void recordOnThread(long startNanos, long startCpuNanos) {
-        assert Thread.currentThread() == ownerThread
-            : "recordOnThread called from " + Thread.currentThread() + " but owner is " + ownerThread;
-        readNanosAcc.addAndGet(System.nanoTime() - startNanos);
-        if (startCpuNanos >= 0) {
-            readCpuNanosAcc.addAndGet(ThreadCpuTimer.elapsedNanos(startCpuNanos));
-        }
+    public <E extends Exception> void meteredCpu(CheckedRunnable<E> work) throws E {
+        meteredCpu(() -> {
+            work.run();
+            return null;
+        });
     }
 
-    /**
-     * Records time from any thread context. Intended for the open phase (executor thread) and
-     * parallel worker threads (PPC/SPPC).
-     * <ul>
-     *   <li>Wall: added when {@code startNanos >= 0}; pass {@code -1} for parallel workers
-     *       that run concurrently with the drain loop (their wall is already implicit in the
-     *       drain thread's blocking wait).
-     *   <li>CPU: added only when the calling thread is not the owner thread. When they are
-     *       equal the drain's {@link #recordOnThread} already captured the CPU, avoiding
-     *       double-counting on degenerate (inline) executors.
-     * </ul>
-     *
-     * @param startNanos    start timestamp for wall, or {@code -1} to skip wall contribution
-     * @param startCpuNanos value of {@code ThreadCpuTimer.currentNanos()} before the work;
-     *                      pass {@code -1} (unsupported) to skip CPU accumulation
-     */
-    public void record(long startNanos, long startCpuNanos) {
-        if (startNanos >= 0) {
-            readNanosAcc.addAndGet(System.nanoTime() - startNanos);
-        }
-        if (startCpuNanos >= 0 && Thread.currentThread() != ownerThread) {
-            readCpuNanosAcc.addAndGet(ThreadCpuTimer.elapsedNanos(startCpuNanos));
-        }
+    public <E extends Exception> void meteredCpu(CheckedRunnable<E> work, boolean measureWallTime) throws E {
+        meteredCpu(() -> {
+            work.run();
+            return null;
+        }, measureWallTime);
     }
 
-    /**
-     * Helper to call the code and meter the time spent.
-     */
-    public <T> T meteredOnThread(Supplier<T> runnable) {
-        long startNanos = System.nanoTime();
+    public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work) throws E {
+        return meteredCpu(work, true);
+    }
+
+    public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work, boolean measureWallTime) throws E {
+        if (Boolean.TRUE.equals(samplingCpu.get())) {
+            return work.get();
+        }
         long startCpuNanos = ThreadCpuTimer.currentNanos();
-        try {
-            return runnable.get();
-        } finally {
-            recordOnThread(startNanos, startCpuNanos);
-        }
-    }
-
-    /**
-    * Helper to call the code and meter the time spent.
-    */
-    public <T, E extends Exception> T metered(CheckedSupplier<T, E> runnable) throws E {
         long startNanos = System.nanoTime();
-        long startCpuNanos = ThreadCpuTimer.currentNanos();
+        samplingCpu.set(Boolean.TRUE);
         try {
-            return runnable.get();
+            return work.get();
         } finally {
-            record(startNanos, startCpuNanos);
+            if (measureWallTime) {
+                readNanosAcc.addAndGet(System.nanoTime() - startNanos);
+            }
+            if (startCpuNanos >= 0) {
+                readCpuNanosAcc.addAndGet(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+            }
+            samplingCpu.remove();
         }
     }
 
@@ -126,7 +80,7 @@ public final class ExternalReadCounters {
         return readCpuNanosAcc.get();
     }
 
-    /** Directly adds to both accumulators. For use in tests only. */
+    /** Directly adds to both accumulators. For use in tests. */
     void add(long readNanos, long readCpuNanos) {
         readNanosAcc.addAndGet(readNanos);
         readCpuNanosAcc.addAndGet(readCpuNanos);

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
@@ -62,7 +63,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -1869,7 +1869,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private DrainResult drainHotPath(ProducerState state, ActionListener<Void> completionListener) {
         CloseableIterator<Page> pages = state.pages;
         AsyncExternalSourceBuffer buffer = state.buffer;
-        buffer.readCounters().initOwnerThread();
         while (true) {
             if (noFurtherCandidates()) {
                 return DrainResult.DONE;
@@ -1892,24 +1891,32 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (ready.isDone() == false) {
                 return parkUntilReady(ready, state, completionListener);
             }
-            long startNanos = System.nanoTime(), startCpuNanos = ThreadCpuTimer.currentNanos();
-            Page page = pages.tryAdvance();
-            if (page == null) {
-                // tryAdvance returned null: either EOF or the iterator is between chunks.
-                // Recheck waitForReady: not-done = more data coming, yield. Done = hasNext
-                // gives the definitive answer (won't block since isReadyNow was just true).
-                SubscribableListener<Void> recheck = pages.waitForReady();
-                if (recheck.isDone()) {
-                    if (pages.hasNext() == false) {
-                        buffer.readCounters().recordOnThread(startNanos, startCpuNanos);
-                        return DrainResult.EOF;
+
+            Holder<DrainResult> drainResultHolder = new Holder<>();
+            Page page = buffer.readCounters().meteredCpu(() -> {
+                Page tryPage = pages.tryAdvance();
+                if (tryPage == null) {
+                    // tryAdvance returned null: either EOF or the iterator is between chunks.
+                    // Recheck waitForReady: not-done = more data coming, yield. Done = hasNext
+                    // gives the definitive answer (won't block since isReadyNow was just true).
+                    SubscribableListener<Void> recheck = pages.waitForReady();
+                    if (recheck.isDone()) {
+                        if (pages.hasNext() == false) {
+                            drainResultHolder.set(DrainResult.EOF);
+                            return null;
+                        }
+                        tryPage = pages.next();
+                    } else {
+                        drainResultHolder.set(parkUntilReady(recheck, state, completionListener));
                     }
-                    page = pages.next();
-                } else {
-                    return parkUntilReady(recheck, state, completionListener);
                 }
+                return tryPage;
+            });
+            if (drainResultHolder.get() != null) {
+                return drainResultHolder.get();
             }
-            buffer.readCounters().recordOnThread(startNanos, startCpuNanos);
+            assert page != null : "page should not be null";
+
             // Check downstream space BEFORE committing the page to the buffer. The page is
             // already consumed from the iterator (tryAdvance/next popped it), so if we must
             // park on space we hold it in the listener closure and deliver it on resume.
@@ -2121,7 +2128,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 if (fileContext != null) {
                     rangeCtx.setFileContext(fileContext);
                 }
-                pages = rangeReader.readRange(fullObj, rangeCtx);
+                pages = state.buffer.readCounters().meteredCpu(() -> rangeReader.readRange(fullObj, rangeCtx));
                 state.lastRangeFilePath = fileSplit.path();
                 state.lastFileContext = rangeCtx.fileContext();
                 state.currentObject = fullObj;
@@ -2208,9 +2215,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
                         .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                         .build();
-                    long startNanos = System.nanoTime(), startCpuNanos = ThreadCpuTimer.currentNanos();
-                    pages = fileReader.read(obj, ctx);
-                    state.buffer.readCounters().record(startNanos, startCpuNanos);
+                    final var finalReader = fileReader;
+                    pages = state.buffer.readCounters().meteredCpu(() -> finalReader.read(obj, ctx));
                 }
                 if (compressedRowPosSlot >= 0) {
                     pages = new NullSpliceRowPositionStrategy(
@@ -2407,7 +2413,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
                     .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                     .build();
-                pages = state.buffer.readCounters().metered(() -> fileReader.read(obj, ctx));
+                pages = state.buffer.readCounters().meteredCpu(() -> fileReader.read(obj, ctx));
             }
             pages = applyRowPositionStrategy(fileReader, pages, perFileCols);
             pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
@@ -2498,7 +2504,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         FormatReader reader = readerWithDynamicThreshold(formatReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema));
         long wallStart = System.nanoTime();
         reader.readAsync(storageObject, ctx, executor, buffer.readCounters(), ActionListener.wrap(iterator -> {
-            buffer.readCounters().record(wallStart, -1L);
+            // record wall time async took
+            buffer.readCounters().add(System.nanoTime() - wallStart, 0L);
             CloseableIterator<Page> wrapped = applyRowPositionStrategy(reader, iterator, projectedColumns);
             consumePagesInBackground(wrapped, buffer, driverContext, storageObject, projectedColumns);
         }, e -> {
@@ -2556,7 +2563,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .informationalWarningSink(bufferedInformationalWarningSink(buffer))
                         .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                         .build();
-                    opened = buffer.readCounters().metered(() -> reader.read(storageObject, ctx));
+                    opened = buffer.readCounters().meteredCpu(() -> reader.read(storageObject, ctx));
                 }
                 return opened;
             });

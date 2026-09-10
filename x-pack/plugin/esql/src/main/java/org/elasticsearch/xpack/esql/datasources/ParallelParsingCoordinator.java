@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -424,7 +423,7 @@ public final class ParallelParsingCoordinator {
             splitIsFileFinal,
             metrics,
             null,
-            null
+            ExternalReadCounters.NOOP
         );
     }
 
@@ -459,7 +458,7 @@ public final class ParallelParsingCoordinator {
         boolean splitIsFileFinal,
         ExternalSourceMetrics metrics,
         @Nullable Consumer<String> warningSink,
-        @Nullable ExternalReadCounters readCounters
+        ExternalReadCounters readCounters
     ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
@@ -699,7 +698,6 @@ public final class ParallelParsingCoordinator {
          */
         @Nullable
         private final Consumer<String> warningSink;
-        @Nullable
         private final ExternalReadCounters readCounters;
 
         private final List<long[]> segments;
@@ -754,7 +752,7 @@ public final class ParallelParsingCoordinator {
             boolean splitIsFileFinal,
             ExternalSourceMetrics metrics,
             @Nullable Consumer<String> warningSink,
-            @Nullable ExternalReadCounters readCounters
+            ExternalReadCounters readCounters
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -911,7 +909,11 @@ public final class ParallelParsingCoordinator {
             // with the sink still bound; then the handle restores the previous binding. The reader stamps
             // stripe addressing itself, so the sink no longer carries a coverage.
             ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
-            long startCpuNanos = ThreadCpuTimer.currentNanos();
+            readCounters.meteredCpu(() -> pagesReadLoop(bound, segObj, ctx));
+        }
+
+        private void pagesReadLoop(ExternalStatsCapture.Handle bound, StorageObject segObj, FormatReadContext ctx) throws IOException,
+            InterruptedException {
             try (bound) {
                 try (CloseableIterator<Page> pages = reader.read(segObj, ctx)) {
                     while (pages.hasNext()) {
@@ -920,10 +922,6 @@ public final class ParallelParsingCoordinator {
                         }
                         enqueueOrRelease(pages.next());
                     }
-                }
-            } finally {
-                if (readCounters != null) {
-                    readCounters.record(-1L, startCpuNanos);
                 }
             }
         }

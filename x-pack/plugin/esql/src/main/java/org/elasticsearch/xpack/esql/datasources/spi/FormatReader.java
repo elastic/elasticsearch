@@ -172,17 +172,12 @@ public interface FormatReader extends Closeable {
         ActionListener<CloseableIterator<Page>> listener
     ) {
         executor.execute(() -> {
-            long startCpuNanos = ThreadCpuTimer.currentNanos();
-            CloseableIterator<Page> pages;
             try {
-                pages = read(object, context);
+                CloseableIterator<Page> pages = readCounters.meteredCpu(() -> read(object, context), false);
+                listener.onResponse(pages);
             } catch (Exception e) {
                 listener.onFailure(e);
-                return;
-            } finally {
-                readCounters.record(-1L, startCpuNanos);
             }
-            listener.onResponse(pages);
         });
     }
 

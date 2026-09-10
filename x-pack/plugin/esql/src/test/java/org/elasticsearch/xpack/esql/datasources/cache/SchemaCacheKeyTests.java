@@ -104,7 +104,7 @@ public class SchemaCacheKeyTests extends ESTestCase {
     }
 
     public void testDatasetAggregateKeyChangesWithRegion() {
-        // region is now a dataset-level key; two identical file sets accessed with different regions
+        // region is a dataset-level key; two identical file sets accessed with different regions
         // must not share the same aggregate cache entry.
         SchemaCacheKey usEast = SchemaCacheKey.forDatasetAggregate(
             PATTERN,
@@ -122,7 +122,7 @@ public class SchemaCacheKeyTests extends ESTestCase {
     }
 
     public void testPerFileKeyChangesWithRegion() {
-        // region is now a dataset-level key; the same file at the same mtime on different regions
+        // region is a dataset-level key; the same file at the same mtime on different regions
         // must not share a per-file schema cache entry.
         SchemaCacheKey usEast = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, "parquet", Map.of("region", "us-east-1"));
         SchemaCacheKey euWest = SchemaCacheKey.build("s3://bucket/file.parquet", 1000L, "parquet", Map.of("region", "eu-west-1"));

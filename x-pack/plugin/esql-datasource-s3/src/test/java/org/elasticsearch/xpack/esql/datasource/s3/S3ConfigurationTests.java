@@ -217,7 +217,7 @@ public class S3ConfigurationTests extends ESTestCase {
     }
 
     public void testFromQueryConfigConsumesRegion() {
-        // region is now a dataset-level key. fromQueryConfig must recognise it, include it in
+        // region is a dataset-level key. fromQueryConfig must recognise it, include it in
         // consumedKeys(), and surface it via region() — so the storage provider seeds the right
         // signing region for the S3 client.
         Map<String, Object> raw = new HashMap<>();

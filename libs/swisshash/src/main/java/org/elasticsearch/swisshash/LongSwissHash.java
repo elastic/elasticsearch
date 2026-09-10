@@ -251,11 +251,11 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
     }
 
     /**
-     * Returns the partition index by applying a second mixing pass to the 32-bit hash, producing bits that are
-     * uncorrelated with the control byte and slot index while incorporating all 64 bits of the key.
+     * Returns the partition index using a 64-bit mix of the key, which is independent of the 32-bit hash
+     * used for the control byte and slot index.
      */
     private static int partition(long key) {
-        return BitMixer.mix32(hash(key)) & PARTITION_MASK;
+        return (int) (BitMixer.mix64(key) & PARTITION_MASK);
     }
 
     @Override

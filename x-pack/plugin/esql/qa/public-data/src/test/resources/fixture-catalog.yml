@@ -1,0 +1,124 @@
+# Test fixture: a small, fully valid catalog exercising every model feature.
+version: 1
+corpora:
+  - id: fixture
+    title: Fixture corpus
+    registry_url: https://example.org/fixture
+    license: CC0
+    description: A tiny corpus for unit tests.
+    kind: workload
+    scale: small
+    quality: clean
+    workload: fixture-workload.csv-spec
+    variants:
+      - provider: s3
+        format: parquet
+        codec: snappy
+        layout: single_file
+        partitioning: none
+        region: eu-central-1
+        resource: "s3://example-bucket/data/fixture.parquet"
+        sub_resources:
+          left: "s3://example-bucket/data/fixture-left.parquet"
+          right: "s3://example-bucket/data/fixture-right.parquet"
+        data_source_settings:
+          auth: anonymous
+          region: eu-central-1
+        tags: [reference]
+        pin:
+          method: HEAD
+          verified_at: 2026-08-11T09:14:00Z
+          object_count: 1
+          total_bytes: 12345678
+          samples:
+            - key: "data/fixture.parquet"
+              etag: "abc123-4"
+              size: 12345678
+      - provider: s3
+        format: csv
+        codec: gzip
+        layout: uniform_shards
+        partitioning: none
+        region: eu-central-1
+        resource: "s3://example-bucket/shards/part_*.csv.gz"
+        sub_resources:
+          left: "s3://example-bucket/shards/part_0.csv.gz"
+          right: "s3://example-bucket/shards/part_[12].csv.gz"
+        data_source_settings:
+          auth: anonymous
+          region: eu-central-1
+        dataset_settings:
+          header_row: false
+        dataset_mappings:
+          dynamic: "false"
+          properties:
+            a:
+              type: integer
+            b:
+              type: keyword
+        query_subset: [q1_scan, q2_agg, q3_topn, q4_limit]
+        pin:
+          method: LIST
+          verified_at: 2026-08-11T09:14:00Z
+          object_count: 3
+          total_bytes: 300
+          samples:
+            - key: "shards/part_0.csv.gz"
+              etag: "e0"
+              size: 100
+            - key: "shards/part_2.csv.gz"
+              etag: "e2"
+              size: 100
+      - provider: https
+        format: parquet
+        codec: snappy
+        layout: single_file
+        partitioning: none
+        resource: "https://mirror.example.org/data/fixture.parquet"
+        tags: [backup]
+        notes: inert backup entry, not onboarded
+  - id: fixture-dirty
+    title: Fixture dirty corpus
+    registry_url: https://example.org/fixture
+    license: CC0
+    description: Deliberately wrong configurations over the fixture's pinned objects.
+    kind: failure-only
+    scale: small
+    quality: mislabeled
+    variants:
+      - provider: s3
+        format: csv
+        codec: uncompressed
+        layout: single_file
+        partitioning: none
+        region: eu-central-1
+        resource: "s3://example-bucket/data/fixture.parquet"
+        data_source_settings:
+          auth: anonymous
+          region: eu-central-1
+        pin:
+          method: HEAD
+          verified_at: 2026-08-11T09:14:00Z
+          object_count: 1
+          total_bytes: 12345678
+          samples:
+            - key: "data/fixture.parquet"
+              etag: "abc123-4"
+              size: 12345678
+        expect_failure:
+          status: 4xx
+          message_regex: "(?i)(parse|malformed|unexpected|invalid).*"
+          reason: "A Parquet object declared as CSV must be rejected cleanly, not read as garbage rows."
+gaps:
+  - id: providers-pending
+    reason: HTTPS is backup-only; GCS/Azure data-source definitions are not usable yet.
+    cells: [provider=https, provider=gcs, provider=azure]
+  - id: formats-pending
+    reason: TSV/NDJSON legs arrive with later fixture phases.
+    cells: [format=tsv, format=ndjson]
+  - id: codecs-pending
+    reason: uncompressed/zstd legs arrive with later fixture phases.
+    cells: [codec=uncompressed, codec=zstd]
+  - id: layouts-pending
+    reason: remaining layouts arrive with later fixture phases.
+    cells: [layout=skewed_shards, layout=many_small, layout=wide_single_row_group, layout=hive_partitioned, layout=nested_hive]

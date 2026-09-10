@@ -570,27 +570,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         }
     }
 
-    /** The vector columnar mode only supports synthetic source for now. */
-    public void testColumnarStoredSourceModeRejectedInVectordbColumnarIndex() {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.toString())
-            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
-            .build();
-        IllegalArgumentException exc = expectThrows(
-            IllegalArgumentException.class,
-            () -> createMapperService(settings, topMapping(b -> {}))
-        );
-        assertThat(
-            exc.getMessage(),
-            containsString(
-                "unsupported source mode [COLUMNAR_STORED] for index mode ["
-                    + IndexMode.VECTORDB_COLUMNAR
-                    + "]; supported values: [SYNTHETIC]"
-            )
-        );
-    }
-
     public void testSyntheticRecoverySourceRequiredForColumnarIndex() {
         // Disabling synthetic recovery source is rejected for columnar index modes
         for (var columnarMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {

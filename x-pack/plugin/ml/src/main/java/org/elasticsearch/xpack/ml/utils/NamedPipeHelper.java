@@ -11,6 +11,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -97,12 +98,37 @@ public class NamedPipeHelper {
      * @return The isolated child IPC directory prefix as a string.
      */
     public String getChildIpcDirectoryPrefix(Environment env, String childId) {
+        validateChildId(childId);
         return env.tmpDir().toString()
             + PathUtils.getDefaultFileSystem().getSeparator()
             + "ml-child-ipc"
             + PathUtils.getDefaultFileSystem().getSeparator()
             + childId
             + PathUtils.getDefaultFileSystem().getSeparator();
+    }
+
+    /**
+     * Defense-in-depth check applied at the point the isolated child IPC path is actually
+     * constructed, independent of whatever validation the caller has already performed (e.g.
+     * {@code StartTrainedModelDeploymentAction.Request#validate}). {@code childId} can originate
+     * from state that predates or bypasses that validation (persisted cluster state from before
+     * an upgrade, internal callers), so this must not rely solely on the caller. Uses
+     * {@link IllegalArgumentException} rather than {@code assert}, since assertions are disabled
+     * in production JVMs.
+     */
+    private static void validateChildId(String childId) {
+        if (childId == null || childId.isEmpty()) {
+            throw new IllegalArgumentException("childId must not be null or empty");
+        }
+        if (childId.equals(".") || childId.equals("..")) {
+            throw new IllegalArgumentException("childId must not be [.] or [..]: [" + childId + "]");
+        }
+        if (childId.indexOf('/') >= 0 || childId.indexOf(File.separatorChar) >= 0) {
+            throw new IllegalArgumentException("childId must not contain a path separator: [" + childId + "]");
+        }
+        if (childId.indexOf('\u0000') >= 0) {
+            throw new IllegalArgumentException("childId must not contain a NUL character: [" + childId + "]");
+        }
     }
 
     /**

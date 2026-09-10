@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.junit.After;
 
 import java.time.Duration;
@@ -379,30 +381,73 @@ public class CaseExtraTests extends ESTestCase {
     }
 
     /**
-     * Nested {@code CASE} of {@code DATE_PERIOD}/{@code TIME_DURATION} used to recurse in
-     * {@link Case#fold(FoldContext)} until the JVM threw {@link StackOverflowError}.
+     * Nested {@code CASE} used to recurse in {@link Case#fold(FoldContext)} (temporal types)
+     * or through {@link EvaluatorMapper#fold} (other types) until the JVM threw {@link StackOverflowError}.
      */
-    public void testDeeplyNestedTemporalAmountFoldDoesNotStackOverflow() {
+    public void testDeeplyNestedFoldDoesNotStackOverflow() {
         boolean nestInTrueBranch = randomBoolean();
-        DataType type = randomBoolean() ? DataType.DATE_PERIOD : DataType.TIME_DURATION;
-        Object expected = type == DataType.DATE_PERIOD ? Period.ofDays(1) : Duration.ofHours(1);
-        Literal expectedLit = new Literal(Source.EMPTY, expected, type);
-        Literal unusedLit = new Literal(Source.EMPTY, type == DataType.DATE_PERIOD ? Period.ofYears(1) : Duration.ofHours(2), type);
+        FoldedCaseValues values = randomFoldedCaseValues();
         Literal condition = new Literal(Source.EMPTY, nestInTrueBranch, DataType.BOOLEAN);
+        Expression nested = nestCases(10_000, values.expected, values.unused, condition, nestInTrueBranch);
+        assertTrue(nested.foldable());
+        assertThat(nested.fold(FoldContext.small()), equalTo(values.expected.value()));
+    }
 
-        Expression nested = expectedLit;
-        // Deep enough that recursive fold/foldable blows the test JVM stack (often 1–8MB).
-        int depth = 50_000;
-        for (int i = 0; i < depth; i++) {
+    /**
+     * Parser-depth nested {@code CASE} with mixed true/false branches and foldable
+     * non-literal conditions such as {@code 123 == 123}.
+     */
+    public void testNestedFoldAtMaxExpressionDepthWithMixedConditions() {
+        FoldedCaseValues values = randomFoldedCaseValues();
+        Expression nested = values.expected;
+        for (int i = 0; i < ExpressionBuilder.MAX_EXPRESSION_DEPTH; i++) {
+            boolean nestInTrueBranch = randomBoolean();
+            Expression condition = randomBoolean()
+                ? new Literal(Source.EMPTY, nestInTrueBranch, DataType.BOOLEAN)
+                : new Equals(
+                    Source.EMPTY,
+                    new Literal(Source.EMPTY, 123, DataType.INTEGER),
+                    new Literal(Source.EMPTY, nestInTrueBranch ? 123 : 0, DataType.INTEGER)
+                );
             Case c = nestInTrueBranch
-                ? new Case(Source.EMPTY, condition, List.of(nested, unusedLit))
-                : new Case(Source.EMPTY, condition, List.of(unusedLit, nested));
-            // Resolve types one level at a time so this test targets fold recursion, not type resolution.
+                ? new Case(Source.EMPTY, condition, List.of(nested, values.unused))
+                : new Case(Source.EMPTY, condition, List.of(values.unused, nested));
             c.dataType();
             nested = c;
         }
         assertTrue(nested.foldable());
-        assertThat(nested.fold(FoldContext.small()), equalTo(expected));
+        assertThat(nested.fold(FoldContext.small()), equalTo(values.expected.value()));
+    }
+
+    private record FoldedCaseValues(Literal expected, Literal unused) {}
+
+    private static FoldedCaseValues randomFoldedCaseValues() {
+        DataType type = randomFrom(DataType.INTEGER, DataType.DATE_PERIOD, DataType.TIME_DURATION);
+        return switch (type) {
+            case INTEGER -> new FoldedCaseValues(new Literal(Source.EMPTY, 1, type), new Literal(Source.EMPTY, 0, type));
+            case DATE_PERIOD -> new FoldedCaseValues(
+                new Literal(Source.EMPTY, Period.ofDays(1), type),
+                new Literal(Source.EMPTY, Period.ofYears(1), type)
+            );
+            case TIME_DURATION -> new FoldedCaseValues(
+                new Literal(Source.EMPTY, Duration.ofHours(1), type),
+                new Literal(Source.EMPTY, Duration.ofHours(2), type)
+            );
+            default -> throw new AssertionError("unexpected type " + type);
+        };
+    }
+
+    private static Expression nestCases(int depth, Expression leaf, Expression unused, Expression condition, boolean nestInTrueBranch) {
+        Expression nested = leaf;
+        for (int i = 0; i < depth; i++) {
+            Case c = nestInTrueBranch
+                ? new Case(Source.EMPTY, condition, List.of(nested, unused))
+                : new Case(Source.EMPTY, condition, List.of(unused, nested));
+            // Resolve types one level at a time so this test targets fold recursion, not type resolution.
+            c.dataType();
+            nested = c;
+        }
+        return nested;
     }
 
     private static Case caseExprWithTemporalAmount(boolean condition, Object trueValue, Object elseValue, DataType dataType) {

@@ -307,35 +307,27 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public Object fold(FoldContext ctx) {
-        DataType type = dataType();
-        if (type == DataType.DATE_PERIOD || type == DataType.TIME_DURATION) {
-            // These can't be managed by evaluators, we have to fold them manually.
-            // TODO manage warnings for MV condition (evaluators take care of that, here we don't have the components)
-            // Walk nested CASE along the taken branch iteratively so a chain of
-            // CASE(true, CASE(true, ...), ...) cannot overflow the stack.
-            Case current = this;
-            while (true) {
-                Expression taken = null;
-                for (Condition condition : current.conditions) {
-                    if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
-                        taken = condition.value;
-                        break;
-                    }
-                }
-                if (taken == null) {
-                    taken = current.elseValue;
-                }
-                if (taken instanceof Case nested) {
-                    DataType nestedType = nested.dataType();
-                    if (nestedType == DataType.DATE_PERIOD || nestedType == DataType.TIME_DURATION) {
-                        current = nested;
-                        continue;
-                    }
-                }
-                return taken.fold(ctx);
+        // Walk nested CASE along the taken branch iteratively so a chain of
+        // CASE(true, CASE(true, ...), ...) cannot overflow the stack.
+        // DATE_PERIOD/TIME_DURATION have no evaluator and used to recurse in this method.
+        // Other types recurse through EvaluatorMapper.fold -> child.fold, which overflows too.
+        // TODO manage warnings for MV condition (evaluators take care of that, here we don't have the components)
+        Case current = this;
+        Expression taken = takenBranch(ctx, current);
+        while (taken instanceof Case nested) {
+            current = nested;
+            taken = takenBranch(ctx, current);
+        }
+        return taken.fold(ctx);
+    }
+
+    private static Expression takenBranch(FoldContext ctx, Case current) {
+        for (Condition condition : current.conditions) {
+            if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
+                return condition.value;
             }
         }
-        return super.fold(ctx);
+        return current.elseValue;
     }
 
     /**

@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -281,6 +282,101 @@ public class BooleanFieldMapperColumnarCompatibilityTests extends AbstractColumn
                 doc(idB, ST_ROUTING, ST_TSID, 2L, "{\"@timestamp\":" + (ST_TS_A + 1000L) + "}"),
                 doc(idC, ST_ROUTING, ST_TSID, 3L, "{\"@timestamp\":" + (ST_TS_A + 2000L) + ",\"f\":false}")
             )
+        );
+    }
+
+    private static Settings tsdbDimensionSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim", FIELD)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
+            .build();
+    }
+
+    private static void dimensionMapping(XContentBuilder b) throws IOException {
+        b.startObject("@timestamp").field("type", "date").endObject();
+        b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+        b.startObject(FIELD).field("type", "boolean").field("time_series_dimension", true).endObject();
+    }
+
+    public void testTsdbDimensionTrueAndFalse() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        final String idB = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A + 1000L);
+        assertColumnarMatchesXContent(
+            mapping(BooleanFieldMapperColumnarCompatibilityTests::dimensionMapping),
+            tsdbDimensionSettings(),
+            batch(
+                "tsdb boolean dimension true/false",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":true}"),
+                doc(idB, ST_ROUTING, ST_TSID, 2L, "{\"@timestamp\":" + (ST_TS_A + 1000L) + ",\"f\":false}")
+            )
+        );
+    }
+
+    public void testTsdbDimensionAbsentDoc() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        final String idB = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A + 1000L);
+        assertColumnarMatchesXContent(
+            mapping(BooleanFieldMapperColumnarCompatibilityTests::dimensionMapping),
+            tsdbDimensionSettings(),
+            batch(
+                "tsdb boolean dimension absent doc",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":true}"),
+                doc(idB, ST_ROUTING, ST_TSID, 2L, "{\"@timestamp\":" + (ST_TS_A + 1000L) + "}")
+            )
+        );
+    }
+
+    public void testTsdbDimensionStringValues() throws IOException {
+        // Booleans arriving as JSON strings take the STRING arm of booleansToLongs; the dimension gate
+        // must not change how they are encoded.
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        final String idB = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A + 1000L);
+        assertColumnarMatchesXContent(
+            mapping(BooleanFieldMapperColumnarCompatibilityTests::dimensionMapping),
+            tsdbDimensionSettings(),
+            batch(
+                "tsdb boolean dimension string values",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":\"true\"}"),
+                doc(idB, ST_ROUTING, ST_TSID, 2L, "{\"@timestamp\":" + (ST_TS_A + 1000L) + ",\"f\":\"false\"}")
+            )
+        );
+    }
+
+    public void testColumnarDimension() throws IOException {
+        // Strict-columnar routing is never ExtractFromSource, so writeDimensionRouting is false and a
+        // dimension boolean behaves exactly like a plain one (no skipper: useTimeSeriesDocValuesSkippers
+        // returns false outside TSDB).
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "boolean").field("time_series_dimension", true).endObject()),
+            columnarSettings(),
+            batch("columnar boolean dimension", 1L, doc("d1", 1L, "{\"f\":true}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":false}"))
+        );
+    }
+
+    public void testDimensionRoutingPathIsNotColumnar() throws IOException {
+        // index.routing_path resolves to ForRoutingPath, whose extractDimensionsWhileMapping() is true, so
+        // the row path writes the dimension to the routing fields and the columnar path must refuse.
+        final Settings routingPathSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), FIELD)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
+            .build();
+        final MapperService mapperService = createMapperService(routingPathSettings, mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "boolean").field("time_series_dimension", true).endObject();
+        }));
+        final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+        assertFalse(
+            "a dimension whose routing is extracted while mapping must not be columnar",
+            mapper.supportsColumnarParse(mapperService.getIndexSettings())
         );
     }
 

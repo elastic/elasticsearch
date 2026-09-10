@@ -772,7 +772,7 @@ public class BooleanFieldMapper extends FieldMapper {
             && docValuesParameters.enabled()
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
-            && fieldType().isDimension() == false
+            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 

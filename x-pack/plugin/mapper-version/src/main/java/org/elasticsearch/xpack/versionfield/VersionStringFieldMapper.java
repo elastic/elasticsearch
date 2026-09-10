@@ -417,7 +417,10 @@ public class VersionStringFieldMapper extends FieldMapper {
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // version fields have no store/script/null_value/ignore_malformed/dimension parameters
         // and are always both indexed and doc-valued, so only copy_to needs gating.
-        return indexSettings.getMode().isStrictColumnar() && hasScript() == false && copyTo().copyToFields().isEmpty();
+        // TIME_SERIES is allowed as well: the emitted doc-values field is always plain
+        // SortedSetDocValuesField.TYPE (see mapColumnBatch and parseCreateField), with no
+        // doc-values-skipper variant, so the Lucene output does not vary with the index mode.
+        return (indexSettings.getMode().isStrictColumnar()|| indexSettings.getMode().isTsdb()) && hasScript() == false && copyTo().copyToFields().isEmpty();
     }
 
     /**

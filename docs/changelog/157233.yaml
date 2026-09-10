@@ -2,4 +2,4 @@ area: ES|QL
 issues: []
 pr: 157233
 summary: Change the output of METADATA paired with logical views
-type: enhancement
+type: "bug, enhancement"

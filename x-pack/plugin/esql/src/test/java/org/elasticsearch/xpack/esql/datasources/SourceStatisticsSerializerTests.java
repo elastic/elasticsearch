@@ -634,6 +634,52 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertEquals("max marked unservable", Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMaxUnservableKey("c")));
     }
 
+    public void testNormalizeStatsToReconciledLongToDoubleWidensExtrema() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.columnMinKey("v"), 10L);
+        stats.put(SourceStatisticsSerializer.columnMaxKey("v"), 9007199254740993L);
+        Map<String, DataType> fileTypes = Map.of("v", DataType.LONG);
+        Map<String, DataType> reconciled = Map.of("v", DataType.DOUBLE);
+        Map<String, Object> out = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, fileTypes, reconciled);
+        assertEquals(10.0, out.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertEquals(9007199254740992.0, out.get(SourceStatisticsSerializer.columnMaxKey("v")));
+    }
+
+    public void testNormalizeStatsToReconciledIntegerToDoubleWidensExtrema() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.columnMinKey("v"), 3);
+        stats.put(SourceStatisticsSerializer.columnMaxKey("v"), 9);
+        Map<String, DataType> fileTypes = Map.of("v", DataType.INTEGER);
+        Map<String, DataType> reconciled = Map.of("v", DataType.DOUBLE);
+        Map<String, Object> out = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, fileTypes, reconciled);
+        assertEquals(3.0, out.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertEquals(9.0, out.get(SourceStatisticsSerializer.columnMaxKey("v")));
+    }
+
+    public void testNormalizeStatsToReconciledUnsignedLongDoesNotWidenToDouble() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.columnMinKey("v"), 3L);
+        Map<String, DataType> fileTypes = Map.of("v", DataType.UNSIGNED_LONG);
+        Map<String, DataType> reconciled = Map.of("v", DataType.DOUBLE);
+        Map<String, Object> out = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, fileTypes, reconciled);
+        assertEquals(3L, out.get(SourceStatisticsSerializer.columnMinKey("v")));
+    }
+
+    public void testNormalizeThenMergeLongAndDoubleExtremaFolds() {
+        Map<String, Object> longStats = new HashMap<>();
+        longStats.put(SourceStatisticsSerializer.columnMinKey("v"), 9007199254740993L);
+        longStats.put(SourceStatisticsSerializer.columnMaxKey("v"), 9007199254740993L);
+        Map<String, Object> widened = SourceStatisticsSerializer.normalizeStatsToReconciled(
+            longStats,
+            Map.of("v", DataType.LONG),
+            Map.of("v", DataType.DOUBLE)
+        );
+        Object min = SplitStats.mergedMin(widened.get(SourceStatisticsSerializer.columnMinKey("v")), 1.5);
+        Object max = SplitStats.mergedMax(widened.get(SourceStatisticsSerializer.columnMaxKey("v")), 1.5);
+        assertEquals(1.5, min);
+        assertEquals(9007199254740992.0, max);
+    }
+
     public void testNormalizeStatsToReconciledNanosToMillisNarrowingMarksUnservable() {
         // Widening reconciliation never narrows DATE_NANOS to DATETIME, but if a file/reconciled pairing in that
         // direction ever reaches the normalizer, passing the epoch-nanos value through unchanged would serve it

@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTests {
+public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * {@snippet lang="text":
@@ -140,9 +140,9 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
 
     /**
      * Regression: a {@link ViewUnionAll} with an empty {@link LocalRelation} branch used to trip
-     * the {@code asSubqueryMap} assertion when this rule called {@code fork.replaceChildren} with
+     * the {@code asSubqueryMap} assertion when this rule called {@code replaceChildren} with
      * a shorter list — {@code ViewUnionAll}'s positional 1:1 invariant doesn't tolerate
-     * count changes. The fix routes the prune through {@code Fork.pruneEmptyBranches},
+     * count changes. The fix routes the prune through {@code MergePlan.pruneEmptyBranches},
      * polymorphically dispatched to {@code ViewUnionAll}'s name-aware override which preserves
      * the named-subqueries map for surviving children.
      * <p>
@@ -160,7 +160,7 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
         children.put("name_b", keptB);
         ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, List.of());
 
-        LogicalPlan result = new PruneEmptyForkBranches().apply(vua);
+        LogicalPlan result = new PruneEmptyMergeBranches().apply(vua);
 
         ViewUnionAll pruned = as(result, ViewUnionAll.class);
         assertEquals(2, pruned.children().size());
@@ -171,9 +171,9 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
 
     /**
      * All branches pruned: the prune primitive produces a zero-child wrapper. The verifier's
-     * {@code Fork.checkBranchCount} is responsible for surfacing this as a clear failure
+     * {@code MergePlan.checkBranchCount} is responsible for surfacing this as a clear failure
      * ({@code "ViewUnionAll requires at least one branch"}); rules that want to handle the
-     * all-empty case successfully (like {@link PruneEmptyForkBranches} replacing it with a
+     * all-empty case successfully (like {@link PruneEmptyMergeBranches} replacing it with a
      * {@code LocalRelation}) must short-circuit BEFORE delegating to {@code pruneEmptyBranches}.
      */
     public void testAllEmptyProducesZeroChildViewUnionAllForVerifierToCatch() {
@@ -185,7 +185,7 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
         children.put("name_b", b);
         ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, List.of());
 
-        // Bypass PruneEmptyForkBranches's all-empty pre-check by calling pruneEmptyBranches
+        // Bypass PruneEmptyMergeBranches's all-empty pre-check by calling pruneEmptyBranches
         // directly — this is the contract the analyzer's PruneEmptyUnionAllBranch and
         // ViewCompaction.stripViewShadowRelations rely on.
         LogicalPlan result = vua.pruneEmptyBranches(c -> c instanceof LocalRelation lr && lr.hasEmptySupplier());
@@ -196,7 +196,7 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
     }
 
     /**
-     * Single survivor: {@link PruneEmptyForkBranches} preserves the {@link ViewUnionAll} wrapper
+     * Single survivor: {@link PruneEmptyMergeBranches} preserves the {@link ViewUnionAll} wrapper
      * even when only one branch is left (the existing UnionAll-based tests in this file rely on
      * the same no-collapse semantics — single-survivor collapse lives in
      * {@code ViewCompaction.stripViewShadowRelations}, not in the prune primitive).
@@ -210,7 +210,7 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
         children.put("name_empty", emptyBranch);
         ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, List.of());
 
-        LogicalPlan result = new PruneEmptyForkBranches().apply(vua);
+        LogicalPlan result = new PruneEmptyMergeBranches().apply(vua);
 
         ViewUnionAll pruned = as(result, ViewUnionAll.class);
         assertEquals(1, pruned.children().size());

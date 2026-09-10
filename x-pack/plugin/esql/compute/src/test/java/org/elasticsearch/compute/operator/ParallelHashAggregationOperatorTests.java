@@ -11,20 +11,22 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
+import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
-import org.elasticsearch.compute.test.operator.blocksource.LongIntBlockSourceOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
@@ -32,9 +34,9 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.Executor;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -126,33 +128,52 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
         assertThat(operatorStatus.operator(), equalTo("ParallelHashAggregationOperator"));
     }
 
+    record Key(long longValue, int intValue) {}
+
+    record Row(Key key, long[] counts) {}
+
     DriverStatus runTest(
         int numValues,
         BlockFactory sourceBlockFactory,
         DriverContext driverContext,
         HashAggregationOperator.ParallelConfig parallelConfig
     ) {
-        List<Tuple<Long, Integer>> inputValues = new ArrayList<>(numValues);
+        int countAggregations = between(0, 4);
+        List<Row> inputRows = new ArrayList<>(numValues);
         for (int i = 0; i < numValues; i++) {
-            inputValues.add(Tuple.tuple(randomLongBetween(0, numValues * 2L), randomIntBetween(0, numValues * 2)));
+            long[] counts = new long[countAggregations];
+            for (int v = 0; v < countAggregations; v++) {
+                counts[v] = randomIntBetween(0, Integer.MAX_VALUE);
+            }
+            Key key = new Key(randomLongBetween(0, numValues * 2L), randomIntBetween(0, numValues * 2));
+            inputRows.add(new Row(key, counts));
         }
-        var specs = List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.INT));
+        List<GroupingAggregator.Factory> aggregatorFactories = new ArrayList<>(countAggregations);
+        for (int a = 0; a < countAggregations; a++) {
+            final int valueChannel = 2 + 2 * a;
+            aggregatorFactories.add(
+                CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(valueChannel, valueChannel + 1))
+            );
+        }
+        Map<Key, long[]> expected = expected(inputRows, countAggregations);
+        List<Page> inputPages = inputPages(sourceBlockFactory, inputRows, countAggregations);
+        var groupSpecs = List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.INT));
         List<Page> outputPages = new ArrayList<>();
         final DriverStatus status;
-        try {
+        try (SourceOperator sourceOperator = new CannedSourceOperator(inputPages.iterator())) {
             HashAggregationOperator hashOperator = new HashAggregationOperator(
-                AggregatorMode.SINGLE,
-                List.of(),
-                dc -> BlockHash.build(specs, dc.blockFactory(), between(128, 1024), false),
+                AggregatorMode.FINAL,
+                aggregatorFactories,
+                dc -> BlockHash.build(groupSpecs, dc.blockFactory(), between(128, 1024), false),
                 randomIntBetween(1, 1024),
                 randomDouble(),
                 randomIntBetween(128, 4096),
+                null,
                 null,
                 driverContext,
                 parallelConfig
             );
             try (
-                SourceOperator sourceOperator = new LongIntBlockSourceOperator(sourceBlockFactory, inputValues);
                 Driver d = TestDriverFactory.create(
                     driverContext,
                     sourceOperator,
@@ -165,21 +186,97 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
                 new TestDriverRunner().run(d);
                 status = d.status();
             }
-            Set<Tuple<Long, Integer>> expected = new HashSet<>(inputValues);
-            inputValues.clear();
-            Set<Tuple<Long, Integer>> actual = new HashSet<>();
+            Map<Key, long[]> actual = new HashMap<>();
             for (Page page : outputPages) {
+                assertThat(page.getBlockCount(), equalTo(2 + countAggregations));
                 LongBlock longBlock = page.getBlock(0);
                 IntBlock intBlock = page.getBlock(1);
                 for (int i = 0; i < page.getPositionCount(); i++) {
-                    assertTrue(actual.add(Tuple.tuple(longBlock.getLong(i), intBlock.getInt(i))));
+                    long[] counts = new long[countAggregations];
+                    for (int a = 0; a < countAggregations; a++) {
+                        counts[a] = ((LongBlock) page.getBlock(2 + a)).getLong(i);
+                    }
+                    assertNull(actual.put(new Key(longBlock.getLong(i), intBlock.getInt(i)), counts));
                 }
             }
-            assertThat(actual, equalTo(expected));
+            assertThat(actual.keySet(), equalTo(expected.keySet()));
+            for (Key k : actual.keySet()) {
+                assertArrayEquals(k.toString(), actual.get(k), expected.get(k));
+            }
         } finally {
             Releasables.close(outputPages);
         }
         return status;
+    }
+
+    static Map<Key, long[]> expected(List<Row> rows, int countAggregations) {
+        Map<Key, long[]> expected = new HashMap<>();
+        for (Row row : rows) {
+            expected.compute(row.key, (k, v) -> {
+                if (v == null) {
+                    return row.counts;
+                } else {
+                    long[] sum = new long[countAggregations];
+                    for (int i = 0; i < countAggregations; i++) {
+                        sum[i] = v[i] + row.counts[i];
+                    }
+                    return sum;
+                }
+            });
+        }
+        return expected;
+    }
+
+    static List<Page> inputPages(BlockFactory blockFactory, List<Row> rows, int countAggregations) {
+        List<Page> pages = new ArrayList<>();
+        boolean success = false;
+        try {
+            for (int start = 0; start < rows.size();) {
+                int end = Math.min(rows.size(), start + between(1, 1024));
+                pages.add(inputPage(blockFactory, rows.subList(start, end), countAggregations));
+                start = end;
+            }
+            success = true;
+            return pages;
+        } finally {
+            if (success == false) {
+                Releasables.close(pages);
+            }
+        }
+    }
+
+    static Page inputPage(BlockFactory blockFactory, List<Row> rows, int countAggregations) {
+        Block[] blocks = new Block[2 + countAggregations * 2];
+        List<LongBlock.Builder> countBuilders = new ArrayList<>(countAggregations);
+        boolean success = false;
+        try (
+            LongBlock.Builder longKeys = blockFactory.newLongBlockBuilder(rows.size());
+            IntBlock.Builder intKeys = blockFactory.newIntBlockBuilder(rows.size())
+        ) {
+            for (int a = 0; a < countAggregations; a++) {
+                countBuilders.add(blockFactory.newLongBlockBuilder(rows.size()));
+            }
+            for (Row row : rows) {
+                longKeys.appendLong(row.key.longValue);
+                intKeys.appendInt(row.key.intValue);
+                for (int a = 0; a < countAggregations; a++) {
+                    countBuilders.get(a).appendLong(row.counts[a]);
+                }
+            }
+            blocks[0] = longKeys.build();
+            blocks[1] = intKeys.build();
+            for (int a = 0; a < countAggregations; a++) {
+                blocks[2 + 2 * a] = countBuilders.get(a).build();
+                blocks[2 + 2 * a + 1] = blockFactory.newConstantBooleanBlockWith(true, rows.size());
+            }
+            success = true;
+            return new Page(blocks);
+        } finally {
+            Releasables.close(countBuilders);
+            if (success == false) {
+                Releasables.close(blocks);
+            }
+        }
     }
 
     @Before

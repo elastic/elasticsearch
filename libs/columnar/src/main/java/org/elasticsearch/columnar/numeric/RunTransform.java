@@ -23,8 +23,7 @@ import java.util.Arrays;
  *
  * <p>The runs are written to {@code params} as a length and a value apiece and the block is zeroed, which
  * the terminal packs at no width. How many there are is not written: they cover the block exactly, so the
- * lengths say where they end. They are read back beside the block they belong to, since the encoder lays
- * the params down immediately after it.
+ * lengths say where they end.
  */
 public final class RunTransform implements BlockTransform {
 
@@ -108,7 +107,6 @@ public final class RunTransform implements BlockTransform {
     public void decode(long[] block, int valueCount, MetadataReader params) throws IOException {
         int at = 0;
         long previous = 0;
-        // The runs cover the block exactly, so how many there are is what the lengths add up to.
         while (at < valueCount) {
             final int length = params.readVInt();
             final long value = previous + params.readZLong();

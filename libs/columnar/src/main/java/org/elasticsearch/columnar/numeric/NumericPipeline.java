@@ -46,17 +46,12 @@ public final class NumericPipeline {
 
     /**
      * Pipeline for a dictionary column's ordinals: the standard chain with {@link RunTransform} and
-     * {@link PatchedTransform} around it. Both earn their keep on ordinals and not on a field's own
-     * values. An ordinal stream repeats itself, because a column that gets a dictionary is one whose
-     * values recur, so runs are the common case rather than an accident; and its width is set by rare
-     * escapes, so one outlier in a block otherwise full of ordinal 1 widens every value in it unless
-     * the outliers are set aside. A numeric field carries neither property and pays for the stages on
-     * every block it decodes.
+     * {@link PatchedTransform} around it. An ordinal stream has both the shapes those stages look for,
+     * which a field's own values do not, and a field would pay to look for them on every block it decodes.
      *
      * <p>Run comes first, since a run is a property of the values as they arrive and delta would leave
      * nothing of it; Patched comes last, so it narrows what the terminal is about to pack. Stateless
-     * transforms are shared singletons; the terminal, Run and Patched own scratch buffers and must stay
-     * per-pipeline.
+     * transforms are shared singletons; the terminal, Run and Patched own scratch and stay per-pipeline.
      */
     public static NumericPipeline ordinalPipeline(int blockSize) {
         return new NumericPipeline(

@@ -22,10 +22,7 @@ import java.util.Arrays;
  * hold the same term names it with the lowest ordinal, and a value the dictionary does not hold takes the
  * highest, so one escaped document widens every value beside it.
  *
- * <p>A value set aside is packed as zero and written to {@code params}, which the encoder lays down
- * immediately after the packed block. A block is read whole into one buffer, so putting them back costs no
- * further read, and a block this leaves alone costs a read nothing at all: the encoder's fire bitmask says
- * so and {@link #decode} is never called.
+ * <p>A value set aside is packed as zero and written to {@code params}, and put back on the way out.
  */
 public final class PatchedTransform implements BlockTransform {
 
@@ -102,10 +99,9 @@ public final class PatchedTransform implements BlockTransform {
     }
 
     /**
-     * Whether {@code exceptions} of {@code valueCount} are few enough to be exceptional. What is worth
-     * setting aside is decided by the bytes it saves, which the search above weighs, so this is not a
-     * budget: it is the premise. Packing at the width a block's common case needs presumes there is a
-     * common case, and a block split into two populations of comparable size has none.
+     * Whether {@code exceptions} of {@code valueCount} are few enough to be exceptional. Not a budget, since
+     * the search above prices what is worth setting aside, but the premise: packing at the width a block's
+     * common case needs presumes it has one, and two populations of comparable size give it none.
      */
     private static boolean exceptional(int exceptions, int valueCount) {
         return exceptions * 2 < valueCount;
@@ -117,9 +113,9 @@ public final class PatchedTransform implements BlockTransform {
     }
 
     /**
-     * What one value set aside costs: its position in the block as a vint, and its own bytes as a vlong. The
-     * position is charged at the width the last one in the block would need, since which positions a width
-     * sets aside is not known while that width is still a candidate.
+     * What one value set aside costs: its position as a vint and its own bytes as a vlong. The position is
+     * charged at the width the block's last one would need, since which positions a candidate width sets
+     * aside is not known while it is still a candidate.
      */
     private static long exceptionBits(int width, int valueCount) {
         return (long) (vIntBytes(valueCount - 1) + (width + 6) / 7) * Byte.SIZE;

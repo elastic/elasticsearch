@@ -235,7 +235,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         List<String> warnings = resolution.warnings();
         assertEquals("summary + one detail", 2, warnings.size());
-        assertThat(warnings.get(0), containsString("withdrawn [text] type"));
+        assertThat(warnings.get(0), containsString("declared with a withdrawn type and are read as [keyword]"));
         assertThat(warnings.get(0), containsString("TO_TEXT"));
         // Both functions accept options on a runtime-search field only at type TEXT, so a query passing any fails
         // verification — an error the user would otherwise meet with no explanation.
@@ -243,6 +243,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // Match#toScorer routes only TEXT without options to the matched-term-weight scorer, so the same rows come
         // back ordered differently. Silent without this clause.
         assertThat(warnings.get(0), containsString("scores 1.0 instead of by matched terms"));
+        // The declared type is named per column rather than in the summary, so a second withdrawn type would be
+        // described with its own name instead of inheriting this one.
         assertThat(warnings.get(1), containsString("column [msg] is declared [text] and is read as [keyword]"));
     }
 
@@ -258,6 +260,24 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         assertThat(resolution.warnings(), empty());
+    }
+
+    /**
+     * A declared-mappings map that is present but empty is the no-declaration case, not a malformed one: the
+     * emitter returns before it walks anything, and the query resolves without a warning. The {@code null} arm of
+     * the same guard is what every resolve in this class that passes no declared mapping at all takes.
+     */
+    public void testNoWarningWhenDeclaredMappingsIsEmpty() throws Exception {
+        String file = "s3://bucket/data/file1.parquet";
+        ExternalSourceResolver resolver = createResolver(
+            Map.of(file, List.of(attr("msg", DataType.KEYWORD))),
+            Map.of(StoragePath.of(DECLARED_GLOB).patternPrefix().toString(), List.of(entry(file, 100)))
+        );
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(DECLARED_GLOB), Map.of(DECLARED_GLOB, new HashMap<>()), null, Map.of(), null, future);
+
+        assertThat(future.actionGet().warnings(), empty());
     }
 
     /** Resolves a one-file parquet glob under a declared mapping — the harness for the columnar declaration rejects. */

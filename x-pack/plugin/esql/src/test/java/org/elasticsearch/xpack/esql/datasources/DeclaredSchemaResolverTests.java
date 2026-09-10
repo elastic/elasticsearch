@@ -187,16 +187,32 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         assertThat(DeclaredSchemaResolver.declaredTypeAsRead("not_a_type"), equalTo(DataType.UNSUPPORTED));
     }
 
-    /** The columns a caller warns about are the ones whose read type differs from the declared one. */
-    public void testSubstitutedColumnsNamesOnlyRetypedColumns() {
+    /**
+     * Only the columns whose read type differs from the declared one, and each carrying both types so the caller
+     * describes the substitution it found rather than a hard-coded pair.
+     */
+    public void testSubstitutionsCarryTheColumnAndBothTypes() {
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
         props.put("a", new DatasetFieldMapping("keyword", null));
         props.put("msg", new DatasetFieldMapping("text", null));
         props.put("body", new DatasetFieldMapping("text", "body_raw"));
         props.put("n", new DatasetFieldMapping("long", null));
 
-        assertThat(DeclaredSchemaResolver.substitutedColumns(mapping(props)), equalTo(List.of("msg", "body")));
-        assertThat(DeclaredSchemaResolver.substitutedColumns(null), empty());
+        assertThat(
+            DeclaredSchemaResolver.substitutions(mapping(props)),
+            equalTo(
+                List.of(
+                    new DeclaredSchemaResolver.Substitution("msg", DataType.TEXT, DataType.KEYWORD),
+                    new DeclaredSchemaResolver.Substitution("body", DataType.TEXT, DataType.KEYWORD)
+                )
+            )
+        );
+        assertThat(DeclaredSchemaResolver.substitutions(null), empty());
+    }
+
+    /** A mapping with no properties block at all: the same empty answer as a null mapping, not a failure. */
+    public void testSubstitutionsEmptyWhenMappingHasNoMappingsBlock() {
+        assertThat(DeclaredSchemaResolver.substitutions(new DatasetMapping((Mappings) null)), empty());
     }
 
     public void testMoveConsumesPhysicalInPlace() {

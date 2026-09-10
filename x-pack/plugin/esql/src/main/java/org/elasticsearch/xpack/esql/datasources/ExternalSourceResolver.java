@@ -2502,22 +2502,29 @@ public class ExternalSourceResolver {
         // Keyed by resource path, so one dataset contributes an entry per path it expands to. Dedupe by logical
         // column name: a column the user has to fix once is a column named once, and a column name is the only
         // thing unambiguous from here — hence no dataset name in the message.
-        Set<String> columns = new LinkedHashSet<>();
+        Map<String, DeclaredSchemaResolver.Substitution> substituted = new LinkedHashMap<>();
         for (DatasetMapping mapping : declaredMappings.values()) {
-            columns.addAll(DeclaredSchemaResolver.substitutedColumns(mapping));
+            for (DeclaredSchemaResolver.Substitution s : DeclaredSchemaResolver.substitutions(mapping)) {
+                substituted.putIfAbsent(s.column(), s);
+            }
         }
-        if (columns.isEmpty()) {
+        if (substituted.isEmpty()) {
             return;
         }
+        // The read type is named in the summary and the declared one only per column: `noText` collapses to
+        // `keyword` and nothing else, so the consequences below hold for every substitution it can make, while
+        // the type a column was declared with is whatever that column says.
         SkipWarnings warnings = new SkipWarnings(
-            "one or more columns are declared with the withdrawn [text] type and are read as [keyword]; "
-                + "matching on them is no longer analyzed and scores 1.0 instead of by matched terms, and a MATCH "
-                + "or MATCH_PHRASE that passes options on one now fails verification. Re-declare those columns as "
-                + "[keyword], and apply TO_TEXT in the query where an analyzed column is wanted.",
+            "one or more columns are declared with a withdrawn type and are read as [keyword]; matching on them "
+                + "is no longer analyzed and scores 1.0 instead of by matched terms, and a MATCH or MATCH_PHRASE "
+                + "that passes options on one now fails verification. Re-declare those columns as [keyword], and "
+                + "apply TO_TEXT in the query where an analyzed column is wanted.",
             warningSink
         );
-        for (String column : columns) {
-            warnings.add("column [" + column + "] is declared [text] and is read as [keyword]");
+        for (DeclaredSchemaResolver.Substitution s : substituted.values()) {
+            warnings.add(
+                "column [" + s.column() + "] is declared [" + s.declared().typeName() + "] and is read as [" + s.read().typeName() + "]"
+            );
         }
     }
 

@@ -174,18 +174,18 @@ public final class DeclaredSchemaResolver {
     }
 
     /**
-     * The declared type as the read path sees it: {@link DataType#fromNameOrAlias}, except that a stored
-     * {@code text} reads as {@code keyword}. {@code text} is not declarable, but cluster state can still hold it,
-     * and the two decode identically — every reader's string arm is {@code case KEYWORD, TEXT}. Matching does
-     * differ, which {@code ExternalSourceResolver#warnOnSubstitutedDeclaredTypes} reports.
+     * The declared type as the read path sees it: {@link DataType#fromNameOrAlias} put through
+     * {@link DataType#noText}, the collapse the rest of ES|QL already applies to a string type. {@code text} is not
+     * declarable, but cluster state can still hold it, and the two decode identically — every reader's string arm
+     * is {@code case KEYWORD, TEXT}. Matching does differ, which
+     * {@code ExternalSourceResolver#warnOnSubstitutedDeclaredTypes} reports.
      * <p>
      * Every site that turns a stored declared type into an ES|QL type calls this. It applies no whitelist of its
      * own: {@link #resolveType} adds that, and the columnar type check must not have a whitelist error pre-empt
      * its own.
      */
     static DataType declaredTypeAsRead(String type) {
-        DataType resolved = DataType.fromNameOrAlias(type);
-        return resolved == DataType.TEXT ? DataType.KEYWORD : resolved;
+        return DataType.fromNameOrAlias(type).noText();
     }
 
     private static DataType resolveType(String column, String type) {
@@ -200,23 +200,28 @@ public final class DeclaredSchemaResolver {
         return resolved;
     }
 
+    /** A logical column whose {@code declared} type is not the {@code read} type the read path gives it. */
+    record Substitution(String column, DataType declared, DataType read) {}
+
     /**
-     * The logical columns of {@code mapping} the read path gives a different type from the declared one, in
-     * declaration order. Derived from {@link #declaredTypeAsRead} rather than naming a type, so a substituted
-     * column cannot be missed here or reported here and not substituted.
+     * The substitutions {@code mapping} carries, in declaration order. Derived from {@link #declaredTypeAsRead}
+     * rather than naming a type, so a substituted column cannot be missed here or reported here and not
+     * substituted, and it carries both types so a caller describes the one it found rather than a hard-coded pair.
      */
-    public static List<String> substitutedColumns(DatasetMapping mapping) {
+    static List<Substitution> substitutions(DatasetMapping mapping) {
         DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
         if (mappings == null) {
             return List.of();
         }
-        List<String> columns = new ArrayList<>();
+        List<Substitution> substitutions = new ArrayList<>();
         for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
-            String declared = e.getValue().type();
-            if (DataType.fromNameOrAlias(declared) != declaredTypeAsRead(declared)) {
-                columns.add(e.getKey());
+            String type = e.getValue().type();
+            DataType declared = DataType.fromNameOrAlias(type);
+            DataType read = declaredTypeAsRead(type);
+            if (declared != read) {
+                substitutions.add(new Substitution(e.getKey(), declared, read));
             }
         }
-        return columns;
+        return substitutions;
     }
 }

@@ -65,6 +65,10 @@ public final class DeclaredSchemaValidator {
         DataType.IP
     );
 
+    /** Appended when a column is declared {@code text}: the analyzer is an argument to {@code TO_TEXT}, not a mapping field. */
+    private static final String TEXT_ROUTE = "declare [keyword] and apply TO_TEXT in the query, with its [analyzer] option "
+        + "if the values need a non-standard analyzer";
+
     /**
      * The types a user may declare on a dataset mapping. Exposed so a format reader's tests can pin that the reader
      * actually builds every declarable type with the shape {@link
@@ -132,10 +136,6 @@ public final class DeclaredSchemaValidator {
             );
         }
     }
-
-    /** Appended when a column is declared {@code text}: the analyzer is an argument to {@code TO_TEXT}, not a mapping field. */
-    static final String TEXT_ROUTE = "declare [keyword] and apply TO_TEXT in the query, with its [analyzer] option "
-        + "if the values need a non-standard analyzer";
 
     /**
      * A declared {@code format} is a date-parse pattern, so it is only accepted on a column whose type resolves to

@@ -79,6 +79,33 @@ public interface PartitionedHashTable {
     }
 
     /**
+     * A {@link PartitionedHashKeys} wrapper that carries a {@code seenNull} flag alongside the delegate keys.
+     * <p>
+     * Block hashes that reserve ordinal 0 for null keys (e.g. {@code IntBlockHash}, {@code LongBlockHash},
+     * {@code BytesRefBlockHash}, {@code PackedValuesBlockHash}) track null visibility in a {@code boolean seenNull}
+     * field that lives outside the underlying hash table. This record captures that flag at split time so it can
+     * be OR-ed back into the receiving hash during {@code combinePartition}, ensuring nulls are not lost across the
+     * split/combine round-trip.
+     */
+    record PartitionedHashKeysWithSeenNull(PartitionedHashKeys delegate, boolean seenNull) implements PartitionedHashKeys {
+
+        @Override
+        public int keysInPartition(int partition) {
+            return delegate.keysInPartition(partition);
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            delegate.releasePartition(breaker, partition);
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            delegate.releaseAll(breaker);
+        }
+    }
+
+    /**
      * Callback invoked by {@link #splitPartition} whenever a partition has {@link #PARTITION_WRITE_BATCH} buffered entries,
      * so the caller can split per-key state (e.g. aggregation states) using the same partitioning. Partition {@code p}
      * receives {@code partitionCounts[p]} entries from this batch, to be written to its state at positions

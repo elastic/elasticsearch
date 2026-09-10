@@ -535,31 +535,14 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         bytesRefHash.clear();
     }
 
-    private record PartitionedHashKeysWithSeenNull(PartitionedHashKeys delegate, boolean seenNull) implements PartitionedHashKeys {
-        @Override
-        public int keysInPartition(int partition) {
-            return delegate.keysInPartition(partition);
-        }
-
-        @Override
-        public void releasePartition(CircuitBreaker breaker, int partition) {
-            delegate.releasePartition(breaker, partition);
-        }
-
-        @Override
-        public void releaseAll(CircuitBreaker breaker) {
-            delegate.releaseAll(breaker);
-        }
-    }
-
     @Override
     public PartitionedHashTable.PartitionedHashKeys splitPartition(
         CircuitBreaker breaker,
         PartitionedHashTable.PartitionSplitter partitionSplitter
     ) {
         if (bytesRefHash instanceof BytesRefSwissHash swiss) {
-            PartitionedHashKeys keys = swiss.splitPartition(breaker, partitionSplitter);
-            return new PartitionedHashKeysWithSeenNull(keys, seenNull);
+            PartitionedHashTable.PartitionedHashKeys keys = swiss.splitPartition(breaker, partitionSplitter);
+            return new PartitionedHashTable.PartitionedHashKeysWithSeenNull(keys, seenNull);
         }
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
     }
@@ -567,9 +550,9 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
     @Override
     public boolean combinePartition(PartitionedHashTable.PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
         if (bytesRefHash instanceof BytesRefSwissHash swiss) {
-            PartitionedHashKeysWithSeenNull withSeenNull = (PartitionedHashKeysWithSeenNull) keys;
-            seenNull |= withSeenNull.seenNull;
-            return swiss.combinePartition(withSeenNull.delegate, partitionIndex, resultIds);
+            PartitionedHashTable.PartitionedHashKeysWithSeenNull withSeenNull = (PartitionedHashTable.PartitionedHashKeysWithSeenNull) keys;
+            seenNull |= withSeenNull.seenNull();
+            return swiss.combinePartition(withSeenNull.delegate(), partitionIndex, resultIds);
         }
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
     }

@@ -28,7 +28,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class UnionAll extends Fork implements PostOptimizationPlanVerificationAware {
+public class UnionAll extends MergePlan implements PostOptimizationPlanVerificationAware {
 
     public UnionAll(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children, output);
@@ -60,7 +60,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
     }
 
     /**
-     * Override of {@link Fork#pruneEmptyBranches(Predicate)} that returns a {@link UnionAll}
+     * Override of {@link MergePlan#pruneEmptyBranches(Predicate)} that returns a {@link UnionAll}
      * (rather than letting the base implementation produce whatever {@link #replaceChildren}
      * would). Mirrors the base behaviour otherwise: this primitive preserves single-survivor
      * wrappers, which the logical optimizer's {@code FlattenNestedSubqueries} rule later removes
@@ -180,7 +180,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
      */
     private static void checkNestedUnionAlls(LogicalPlan logicalPlan, Failures failures) {
         if (logicalPlan instanceof UnionAll unionAll) {
-            Fork.forEachForkSkippingSubqueries(unionAll, nested -> {
+            forEachMergePlanSkippingSubqueries(unionAll, nested -> {
                 if (unionAll == nested || (nested instanceof UnionAll && nested instanceof ViewUnionAll == false)) {
                     return;
                 }

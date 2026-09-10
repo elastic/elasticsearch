@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateNullable;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneConstantSortKeysFromOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyAggregates;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyForkBranches;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyMergeBranches;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInChangePointBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInLimitBy;
@@ -59,7 +59,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFilterAndLim
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFiltersIntoFork;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownJoinPastProject;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownLimitAndOrderByIntoFork;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownLimitAndOrderByIntoMergePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushLimitToKnn;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
@@ -255,7 +255,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownAndCombineOrderBy(),
             new PushDownFilterAndLimitIntoUnionAll(),
             new PushAggregateThroughUnionAll(),
-            new PushDownLimitAndOrderByIntoFork(),
+            new PushDownLimitAndOrderByIntoMergePlan(),
             new PushDownFiltersIntoFork(),
             new PruneRedundantOrderBy(),
             new PruneRedundantSortClauses(),
@@ -263,7 +263,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneInlineJoinOnEmptyRightSide(),
             new HoistOrderByBeforeInlineJoin(),
             new PruneEmptyAggregates(),
-            new PruneEmptyForkBranches(),
+            new PruneEmptyMergeBranches(),
             new FlattenNestedSubqueries()
         );
     }

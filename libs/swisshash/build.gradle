@@ -47,4 +47,5 @@ tasks.named('benchmark').configure {
 
 tasks.withType(CheckForbiddenApisTask).configureEach {
   ignoreMissingClasses = true
+  replaceSignatureFiles 'jdk-signatures'
 }

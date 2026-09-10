@@ -719,7 +719,7 @@ public final class IndexOperationBatch {
                     if (startSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                         startSeqNo = seqNo(i);
                     }
-                    //  the assertion verifies the engine kept the range contiguous for this batch.
+                    // the assertion verifies the engine kept the range contiguous for this batch.
                     assert seqNo(i) == startSeqNo + replayable
                         : "batch seqNos are not contiguous: row ["
                             + i

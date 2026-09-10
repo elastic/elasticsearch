@@ -2886,7 +2886,7 @@ public class NumberFieldMapper extends FieldMapper {
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
-            && (dimension == false || writeDimensionRouting == false)
+            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 

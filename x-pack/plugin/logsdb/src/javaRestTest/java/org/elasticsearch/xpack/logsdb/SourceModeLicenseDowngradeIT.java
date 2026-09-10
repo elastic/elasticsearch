@@ -25,8 +25,7 @@ public class SourceModeLicenseDowngradeIT extends SourceModeLicenseChangeTestCas
     }
 
     /**
-     * Builds one TestCase for each strict-columnar index mode that has a source mode to fall back to. vectordb_columnar
-     * supports synthetic source only, so a downgrade rejects new indices rather than switching their source mode.
+     * Builds one TestCase for each strict-columnar index mode: all of them fall back to columnar_stored rather than stored.
      */
     private List<TestCase> columnarCases() {
         return List.of(
@@ -43,6 +42,13 @@ public class SourceModeLicenseDowngradeIT extends SourceModeLicenseChangeTestCas
                 SourceFieldMapper.Mode.SYNTHETIC,
                 SourceFieldMapper.Mode.COLUMNAR_STORED,
                 () -> isColumnarIndexModeSupported() == false
+            ),
+            new SourceModeTestCase(
+                "vectordb-columnar-test",
+                "vectordb_columnar",
+                SourceFieldMapper.Mode.SYNTHETIC,
+                SourceFieldMapper.Mode.COLUMNAR_STORED,
+                () -> isVectordbColumnarIndexModeSupported() == false
             )
         );
     }

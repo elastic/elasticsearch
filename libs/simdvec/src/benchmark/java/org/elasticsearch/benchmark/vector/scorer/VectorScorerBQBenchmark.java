@@ -16,7 +16,9 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.store.DirectoryType;
+import org.elasticsearch.benchmark.vector.store.DirectoryFactory;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
@@ -144,8 +146,8 @@ public class VectorScorerBQBenchmark {
     void setup(VectorData data) throws IOException {
         int indexVectorLengthInBytes = BQVectorUtils.discretize(dims, 64) / 8;
 
-        path = Files.createTempDirectory("VectorScorerBQBenchmark");
-        directory = directoryType.newDirectory(path);
+        path = createScratchLuceneDirectory();
+        directory = DirectoryFactory.newDirectory(directoryType, path);
 
         try (IndexOutput out = directory.createOutput("vectors", IOContext.DEFAULT)) {
             for (var indexData : data.indexVectors) {
@@ -167,6 +169,11 @@ public class VectorScorerBQBenchmark {
         };
         scratchScores = new float[NUM_VECTORS];
         sequentialNodes = IntStream.range(0, NUM_VECTORS).toArray();
+    }
+
+    @SuppressForbidden(reason = "scratch directory for the Lucene Directory")
+    private static Path createScratchLuceneDirectory() throws IOException {
+        return Files.createTempDirectory("VectorScorerBQBenchmark");
     }
 
     @TearDown

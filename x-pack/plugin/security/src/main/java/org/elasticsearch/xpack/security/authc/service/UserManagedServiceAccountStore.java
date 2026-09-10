@@ -251,11 +251,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         });
     }
 
-    private static BoolQueryBuilder accountsQuery(
-        @Nullable String namespace,
-        @Nullable String serviceName,
-        boolean allowExpensiveQueries
-    ) {
+    private static BoolQueryBuilder accountsQuery(@Nullable String namespace, @Nullable String serviceName, boolean allowExpensiveQueries) {
         final BoolQueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_DOC_TYPE));
         if (namespace != null && serviceName != null) {
             query.filter(QueryBuilders.termQuery("username", namespace + "/" + serviceName));

@@ -295,6 +295,94 @@ def "dra snapshot aggregation renames timestamped snapshot filenames and generat
     metadata.contains("<localCopy>true</localCopy>")
 }
 
+def "dra aggregation builds producers grafted onto zipAggregation from a plain source"() {
+    given:
+    // required for JarHell to work
+    subProject(":libs:some-public-lib") << """
+        plugins {
+            id 'elasticsearch.java'
+            id 'elasticsearch.publish'
+        }
+
+        group = 'org.acme'
+        version = '1.0-SNAPSHOT'
+    """
+
+    // Reproduce the real root build.gradle pattern: extra maven content is
+    // grafted onto zipAggregation from a *plain* `zipTree(<path>)` source that
+    // carries no builtBy, with the producing task wired via an explicit
+    // dependsOn on zipAggregation itself (in the real build this producer is an
+    // included-build task, :build-tools:zipElasticPublication). The DRA task
+    // deliberately does not depend on zipAggregation, so unless it propagates
+    // zipAggregation's own task dependencies the grafted content is missing /
+    // stale when the DRA task runs standalone.
+    buildFile << """
+        plugins {
+            id 'com.gradleup.nmcp.aggregation'
+            id 'elasticsearch.dra-maven-aggregation'
+        }
+
+        version = "1.0-SNAPSHOT"
+        group = 'org.acme'
+        description = "custom project description"
+        nmcpAggregation {
+          centralPortal {
+            username = 'acme'
+            password = 'acmepassword'
+            publishingType = "USER_MANAGED"
+          }
+          publishAllProjectsProbablyBreakingProjectIsolation()
+        }
+
+        // A stand-in for :build-tools:zipElasticPublication: produces a zip with
+        // maven-layout content that is grafted onto zipAggregation.
+        def graftedContent = layout.buildDirectory.dir("grafted-src")
+        def prepareGraftedContent = tasks.register("prepareGraftedContent") {
+          def out = graftedContent
+          outputs.dir(out)
+          doLast {
+            def f = out.get().file("org/acme/grafted-lib/1.0-SNAPSHOT/grafted-lib-1.0-SNAPSHOT.pom").asFile
+            f.parentFile.mkdirs()
+            f.text = '<project><groupId>org.acme</groupId><artifactId>grafted-lib</artifactId><version>1.0-SNAPSHOT</version></project>'
+            out.get().file("org/acme/grafted-lib/1.0-SNAPSHOT/grafted-lib-1.0-SNAPSHOT.jar").asFile.text = 'jar'
+          }
+        }
+        def zipGraftedContent = tasks.register("zipGraftedContent", Zip) {
+          archiveFileName.set("grafted.zip")
+          destinationDirectory.set(layout.buildDirectory.dir("grafted-zip"))
+          from prepareGraftedContent
+        }
+
+        tasks.named('zipAggregation').configure {
+          // Grafted from a plain path string — zipTree(String) carries no
+          // builtBy; the dependency lives only on zipAggregation itself.
+          dependsOn zipGraftedContent
+          from(zipTree("\${buildDir}/grafted-zip/grafted.zip"))
+        }
+    """
+
+    when:
+    def result = gradleRunner(':prepareDraSnapshotMavenAggregation').build()
+
+    then:
+    result.task(":prepareDraSnapshotMavenAggregation").outcome == TaskOutcome.SUCCESS
+    // The grafted producer must have run even though the DRA task does not
+    // depend on zipAggregation — its dependencies are propagated onto the DRA
+    // task so the plain-source graft is not dropped.
+    result.task(":zipGraftedContent").outcome == TaskOutcome.SUCCESS
+    // ...but the aggregation zip itself is still never built on the DRA path.
+    result.task(":zipAggregation") == null
+
+    def draDir = file("build/dra-maven-aggregation")
+    def draNames = []
+    draDir.eachFileRecurse(groovy.io.FileType.FILES) { draNames << draDir.toPath().relativize(it.toPath()).toString() }
+    // The grafted content lands in the DRA tree alongside the regular
+    // publications, proving the graft producer's output was available.
+    draNames.contains("org/acme/grafted-lib/1.0-SNAPSHOT/grafted-lib-1.0-SNAPSHOT.jar")
+    draNames.contains("org/acme/grafted-lib/1.0-SNAPSHOT/grafted-lib-1.0-SNAPSHOT.pom")
+    draNames.contains("org/acme/some-public-lib/1.0-SNAPSHOT/some-public-lib-1.0-SNAPSHOT.jar")
+}
+
 def "dra release aggregation is a plain sync without maven-metadata"() {
     given:
     // required for JarHell to work

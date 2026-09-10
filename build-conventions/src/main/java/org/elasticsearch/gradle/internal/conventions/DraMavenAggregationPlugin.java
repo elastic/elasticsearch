@@ -14,6 +14,8 @@ import org.gradle.api.Project;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.bundling.Zip;
 
+import java.util.concurrent.Callable;
+
 /**
  * Registers the {@code prepareDraSnapshotMavenAggregation} task, which produces a
  * DRA-shaped copy of the Central Portal aggregation zip built by
@@ -61,11 +63,25 @@ public class DraMavenAggregationPlugin implements Plugin<Project> {
                 //  - resolving named("zipAggregation") eagerly at apply() time
                 //    would couple this plugin to being applied *after*
                 //    nmcp.aggregation.
-                // getSource()'s FileTree already carries the build dependencies
-                // of the underlying publication tasks, so @InputFiles
-                // establishes the correct task ordering on its own.
                 task.getSource().from(
                     project.provider(() -> project.getTasks().named("zipAggregation", Zip.class).get().getSource())
+                );
+                // The nmcp-generated publication FileTrees carry their
+                // producing tasks' build dependencies, so @InputFiles orders
+                // those correctly on its own. But consumers may graft extra
+                // content onto zipAggregation from a *plain* source with no
+                // builtBy — e.g. `from(zipTree("some/output.zip"))` fed by an
+                // included-build task via an explicit dependsOn on
+                // zipAggregation. Reusing only getSource() would drop that
+                // dependency and let the DRA task run before (or in parallel
+                // with) the graft's producer, silently emitting an incomplete
+                // tree. Propagate zipAggregation's *own* task dependencies
+                // (which include every such producer) without depending on
+                // zipAggregation itself, so the zip is still never built on the
+                // DRA path. Deferred in a Callable so the named() lookup does
+                // not force nmcp.aggregation to be applied before this plugin.
+                task.dependsOn(
+                    (Callable<Object>) () -> project.getTasks().named("zipAggregation", Zip.class).get().getTaskDependencies()
                 );
                 task.getVersion().set(version);
                 task.getOutputDir().set(project.getLayout().getBuildDirectory().dir("dra-maven-aggregation"));

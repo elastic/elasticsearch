@@ -304,6 +304,22 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         assertThat(e, is(nullValue()));
     }
 
+    public void testValidate_GivenDeploymentIdIsNonPackagedModelIdWithSnapshotSuffix() {
+        // Unlike the packaged/default-model case (".elser_model_2_SNAPSHOT" above), a non-dot-prefixed
+        // id must not have "_SNAPSHOT" silently stripped - it should be validated as-is, exactly like
+        // TrainedModelConfig treats an equivalent non-packaged model_id. "mymodel_SNAPSHOT" also fails
+        // MlStrings.isValidId on its own merits (uppercase characters aren't a valid id char), so this
+        // doubles as a regression test for the "_SNAPSHOT" strip no longer leaking outside the
+        // leading-dot branch.
+        Request request = createRandom();
+        request.setDeploymentId("mymodel_SNAPSHOT");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
     public void testValidate_GivenDeploymentIdIsLeadingDotFollowedBySlash() {
         Request request = createRandom();
         request.setDeploymentId("./foo");

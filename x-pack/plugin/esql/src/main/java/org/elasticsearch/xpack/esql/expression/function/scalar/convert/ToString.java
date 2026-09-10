@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -61,6 +62,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -78,6 +80,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToStri
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.numericBooleanToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.tDigestToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
@@ -85,7 +88,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToString", ToString::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToString.class)
         .unaryConfig(ToString::new)
-        .capabilities("flattened")
+        .capabilities("flattened", "tdigest")
         .name("to_string", "to_str");
 
     private static final Map<DataType, BuildFactory> STATIC_EVALUATORS = Map.ofEntries(
@@ -111,6 +114,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(AGGREGATE_METRIC_DOUBLE, ToStringFromAggregateMetricDoubleEvaluator.Factory::new),
         Map.entry(HISTOGRAM, ToStringFromHistogramEvaluator.Factory::new),
         Map.entry(EXPONENTIAL_HISTOGRAM, ToStringFromExponentialHistogramEvaluator.Factory::new),
+        Map.entry(TDIGEST, ToStringFromTDigestEvaluator.Factory::new),
 
         // Evaluators dynamically created in #factories()
         Map.entry(DATETIME, (source, fieldEval) -> null),
@@ -156,6 +160,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                 "keyword",
                 "long",
                 "text",
+                "tdigest",
                 "unsigned_long",
                 "version",
                 "date_range",
@@ -319,6 +324,11 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     @ConvertEvaluator(extraName = "FromHistogram", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromHistogram(BytesRef histogram) {
         return new BytesRef(EsqlDataTypeConverter.histogramToString(histogram));
+    }
+
+    @ConvertEvaluator(extraName = "FromTDigest")
+    static BytesRef fromTDigest(TDigestHolder digest) {
+        return new BytesRef(tDigestToString(digest));
     }
 
     @ConvertEvaluator(extraName = "FromDateRange")

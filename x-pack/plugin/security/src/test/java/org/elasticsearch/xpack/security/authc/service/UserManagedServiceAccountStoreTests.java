@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
+import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -63,6 +64,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -72,6 +74,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -325,6 +328,21 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Role names must be at least"));
     }
 
+    public void testPutAccountRejectsMoreRolesThanAnAccountMayHold() {
+        final int max = Validation.UserManagedServiceAccounts.MAX_ROLES;
+        final List<String> tooMany = randomBoolean()
+            ? IntStream.range(0, max + 1).mapToObj(i -> "role-" + i).toList()
+            : Collections.nCopies(max + 1, "role-a");
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        store.putAccount(ACCOUNT_ID, tooMany, true, RefreshPolicy.NONE, future);
+
+        final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
+        assertThat(
+            e.validationErrors(),
+            contains("a service account may not have more than " + max + " roles, but [" + (max + 1) + "] were given")
+        );
+    }
+
     public void testPutAccountRequiresEveryNodeToSupportUserManagedServiceAccounts() {
         when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS))).thenReturn(false);
 
@@ -349,21 +367,22 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(clearedCacheKeys, contains(PRINCIPAL));
     }
 
-    public void testDeleteAccountReportsWhenThereWasNothingToDelete() {
+    public void testDeleteAccountClearsTheCacheEvenWhenThereWasNothingToDelete() {
         respondWithDeleteResult(false);
 
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         store.deleteAccount(ACCOUNT_ID, RefreshPolicy.IMMEDIATE, future);
         assertThat(future.actionGet(), is(false));
 
-        assertThat(clearedCacheKeys, empty());
+        assertThat(clearedCacheKeys, contains(PRINCIPAL));
     }
 
     public void testDeleteAccountFailsWhenTheCacheCannotBeCleared() {
         final ElasticsearchException failure = new ElasticsearchException("node unreachable");
+        final boolean found = randomBoolean();
         responseProvider.set((request, listener) -> {
             if (request instanceof DeleteRequest) {
-                listener.onResponse(deleteResponse(true));
+                listener.onResponse(deleteResponse(found));
             } else if (request instanceof ClearSecurityCacheRequest) {
                 listener.onFailure(failure);
             } else {

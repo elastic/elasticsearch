@@ -20,6 +20,7 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class SearchTemplateWithoutContentIT extends ESRestTestCase {
+    // Touched by the flakiness-detection CI drive. No behaviour change; see the PR description.
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("lang-mustache").build();

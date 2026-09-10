@@ -47,3 +47,5 @@ setup:
                     source: '_score'
 
     - match: { aggregations.max_score.value: 1.0 }
+
+# Touched by the flakiness-detection CI drive. No behaviour change; see the PR description.

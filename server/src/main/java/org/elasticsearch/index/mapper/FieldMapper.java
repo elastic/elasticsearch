@@ -245,11 +245,15 @@ public abstract class FieldMapper extends Mapper {
         if (hasScript() || copyTo().copyToFields().isEmpty() == false) {
             return false;
         }
-        if (indexSettings.getMode().isStrictColumnar() == false && indexSettings.getMode().isTsdb() == false) {
-            return false;
-        }
-        if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
-            return false;
+        // The mode and legacy-version gates are data-field concerns only: metadata mappers (_id, _seq_no,
+        // _routing, etc.) must support the columnar path in any index mode that the shard batch mapper runs.
+        if (isMetadataFieldMapper() == false) {
+            if (indexSettings.getMode().isStrictColumnar() == false && indexSettings.getMode().isTsdb() == false) {
+                return false;
+            }
+            if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
+                return false;
+            }
         }
         if (doSupportsColumnarParse(indexSettings) == false) {
             return false;
@@ -270,6 +274,15 @@ public abstract class FieldMapper extends Mapper {
     }
 
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        return false;
+    }
+
+    /**
+     * Returns {@code true} for metadata field mappers ({@link MetadataFieldMapper} subclasses),
+     * {@code false} for all user-defined data field mappers. Used by {@link #supportsColumnarParse}
+     * to skip the index-mode and legacy-version gates, which are data-field concerns only.
+     */
+    protected boolean isMetadataFieldMapper() {
         return false;
     }
 

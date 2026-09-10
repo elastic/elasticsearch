@@ -19,6 +19,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -40,6 +41,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.HighlightConfig;
 import org.elasticsearch.compute.operator.HighlightOperator;
 import org.elasticsearch.compute.operator.InsertEmptyBucketsOperator;
@@ -54,6 +56,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.PackDimsOperator;
+import org.elasticsearch.compute.operator.ParallelHashAggregationOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.SampleOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
@@ -359,6 +362,7 @@ public class LocalExecutionPlanner {
             settings,
             shardContexts,
             physicalOperationProviders.analysisRegistry(),
+            new Holder<>(),
             new Holder<>(),
             new Holder<>()
         );
@@ -687,7 +691,17 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
         var source = plan(aggregate.child(), context);
-        return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, context);
+        HashAggregationOperator.ParallelConfig parallelConfig = null;
+        if (parallelWorkerExecutor != null) {
+            parallelConfig = new HashAggregationOperator.ParallelConfig(
+                parallelWorkerExecutor,
+                Math.min(EsExecutors.allocatedProcessors(settings), ParallelHashAggregationOperator.MAX_WORKERS),
+                ParallelHashAggregationOperator.PAGE_PER_WORKER,
+                context.queryPragmas()
+                    .aggregationPartitioningCountThreshold(context.plannerSettings().aggregationPartitioningCountThreshold())
+            );
+        }
+        return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, parallelConfig, context);
     }
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
@@ -2433,6 +2447,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
+        context.lastVisitedLimit.set(limit);
         PhysicalOperation source = plan(limit.child(), context);
         return source.with(new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
     }
@@ -2678,6 +2693,7 @@ public class LocalExecutionPlanner {
         IndexedByShardId<? extends ShardContext> shardContexts,
         @Nullable AnalysisRegistry analysisRegistry,
         Holder<TopNExec> lastVisitedTopN,
+        Holder<LimitExec> lastVisitedLimit,
         Holder<LuceneMinCompetitiveTimestampTopN> luceneMinCompetitivePilot
     ) {
         void addDriverFactory(DriverFactory driverFactory) {

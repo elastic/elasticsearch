@@ -21,6 +21,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
@@ -255,7 +256,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
             batch,
             mapperService.mappingLookup(),
             mapperService.getIndexSettings(),
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
         );
 
         mapper.preColumnarParse(context);

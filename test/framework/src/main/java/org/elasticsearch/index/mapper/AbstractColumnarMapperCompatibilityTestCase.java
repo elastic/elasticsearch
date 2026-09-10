@@ -27,6 +27,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
@@ -114,7 +115,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             EngineTestCase.initFromRequests(requests),
             mappingLookup,
             indexSettings,
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
         );
         try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)) {
             final SourceSchema schema = escfBatch.schema();
@@ -180,7 +181,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             EngineTestCase.initFromRequests(requests),
             mappingLookup,
             indexSettings,
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
         );
 
         // Drive all supported metadata mappers through their columnar hooks, mirroring the

@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -341,7 +342,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
             batch,
             mapperService.mappingLookup(),
             mapperService.getIndexSettings(),
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
         );
 
         mapper.preColumnarParse(context);

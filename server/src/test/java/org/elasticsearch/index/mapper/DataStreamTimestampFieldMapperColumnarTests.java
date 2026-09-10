@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfLongColumn;
@@ -70,7 +71,7 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
             batch,
             mapperService.mappingLookup(),
             mapperService.getIndexSettings(),
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
         );
     }
 

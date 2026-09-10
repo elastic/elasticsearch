@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -1359,7 +1360,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             batch,
             mapperService.mappingLookup(),
             mapperService.getIndexSettings(),
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
         );
 
         mapper.preColumnarParse(context);

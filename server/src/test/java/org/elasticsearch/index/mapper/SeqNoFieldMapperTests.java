@@ -15,6 +15,8 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -57,7 +59,7 @@ public class SeqNoFieldMapperTests extends MetadataMapperTestCase {
             batch,
             mapperService.mappingLookup(),
             mapperService.getIndexSettings(),
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
         );
 
         mapper.postColumnarParse(context);

@@ -147,9 +147,7 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
             // -proc:only still parses every source file to find annotations. Sibling classes compiled
             // into the source set output are not on compileClasspath, so resolve them first.
             t.dependsOn(compileTask);
-            t.setClasspath(
-                sourceSet.getCompileClasspath().plus(project.files(compileTask.flatMap(JavaCompile::getDestinationDirectory)))
-            );
+            t.setClasspath(sourceSet.getCompileClasspath().plus(project.files(compileTask.flatMap(JavaCompile::getDestinationDirectory))));
         });
 
         return task;

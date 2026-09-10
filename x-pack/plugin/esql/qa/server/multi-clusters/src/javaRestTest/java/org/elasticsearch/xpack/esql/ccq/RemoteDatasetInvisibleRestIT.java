@@ -53,8 +53,9 @@ import static org.hamcrest.Matchers.not;
  *
  * <p>This module's backwards compatibility tasks run the whole source set with an older distribution on one side, so
  * each assertion picks its expectation from {@link EsqlCapabilities.Cap#REMOTE_DATASETS_ARE_INVISIBLE} rather than
- * assuming the new behaviour. That branch is the only place the mixed pair is exercised, and it is what a claim about
- * behaviour during an upgrade rests on.
+ * assuming the new behaviour. Every task running this suite puts the current version on at least one end, and either
+ * end is enough to hide the dataset, so the invisible arm is what actually runs everywhere. The other arm states what
+ * a doubly-old pair would do rather than being reachable from CI.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class RemoteDatasetInvisibleRestIT extends ESRestTestCase {
@@ -140,9 +141,7 @@ public class RemoteDatasetInvisibleRestIT extends ESRestTestCase {
      * Whether this pair of clusters hides the remote dataset, which decides which of the two behaviours above is the
      * correct one. Either end being new is enough: a coordinator on the new version never asks its remotes to resolve
      * datasets, and a remote on the new version clears the option whatever the caller asked. Only a pair that predates
-     * the change on both sides still fails the query naming the dataset. Under the BWC tasks in this module one side is
-     * an older distribution, so this is the branch that keeps the suite honest in both directions rather than asserting
-     * the new behaviour at a cluster that cannot produce it.
+     * the change on both sides still fails the query naming the dataset, which no task running this suite produces.
      */
     private boolean datasetsAreInvisible() throws IOException {
         if (hasInvisibilityCapability(client())) {

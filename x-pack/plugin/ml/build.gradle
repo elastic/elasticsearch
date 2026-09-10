@@ -134,12 +134,22 @@ tasks.register("verifyControllerProtocolVersion") {
         )
       }
       def versionFile = matches.iterator().next()
-      def line = versionFile.text.trim()
-      def matcher = line =~ /^controller-protocol-version=(\d+)$/
-      if (!matcher.matches()) {
+      // Match line-by-line (each trimmed individually) rather than the whole trimmed file content,
+      // so trailing blank lines, CRLF line endings, or an extra comment line the ml-cpp side might
+      // legitimately add don't trip the "malformed" check below.
+      def versionLinePattern = ~/^controller-protocol-version=(\d+)$/
+      def matcher = null
+      for (fileLine in versionFile.text.readLines()) {
+        def candidate = versionLinePattern.matcher(fileLine.trim())
+        if (candidate.matches()) {
+          matcher = candidate
+          break
+        }
+      }
+      if (matcher == null) {
         throw new GradleException(
           "Native controller bundle '${zipFile.name}' has a malformed 'controller-protocol.version' file " +
-          "(got '${line}', expected 'controller-protocol-version=<int>')."
+          "(got '${versionFile.text.trim()}', expected a line matching 'controller-protocol-version=<int>')."
         )
       }
       def foundVersion = matcher.group(1).toInteger()

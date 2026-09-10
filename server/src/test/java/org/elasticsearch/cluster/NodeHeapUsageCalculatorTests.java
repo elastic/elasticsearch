@@ -11,9 +11,12 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -83,6 +86,27 @@ public class NodeHeapUsageCalculatorTests extends ESTestCase {
         assertThat(result.nonShardHeapUsage(), equalTo(50L));
     }
 
+    public void testIndexHeapIsCountedOncePerIndexIdentity() {
+        final Index index1 = new Index("same-name", "uuid-1");
+        final Index index2 = new Index("same-name", "uuid-2");
+        final ShardId shard1 = new ShardId(index1, 0);
+        final ShardId shard2 = new ShardId(index2, 0);
+        final long nonShardHeapUsage = 50L;
+        final ClusterState clusterState = multiProjectClusterStateWithStartedShardsOnSameNode("node", shard1, shard2);
+
+        final var result = NodeHeapUsageCalculator.calculateForRoutingNodes(
+            clusterState,
+            nonShardHeapUsage,
+            new ShardHeapUsageEstimates(
+                Map.of(shard1, new ShardAndIndexHeapUsage(10L, 100L, 5L), shard2, new ShardAndIndexHeapUsage(20L, 100L, 7L)),
+                ShardAndIndexHeapUsage.ZERO
+            )
+        );
+
+        // These indices have the same name but different UUIDs, so they are separate Index identities and each incurs index heap.
+        assertThat(result.nodeHeapEstimates().get("node"), equalTo(new NodeHeapEstimates(292L, 242L, nonShardHeapUsage)));
+    }
+
     public void testTotalHeapCanBeLeftUnmodeledForSearchNodes() {
         final ShardId indexNodeShard = new ShardId(new Index("index-node-index", "index-node-uuid"), 0);
         final ShardId searchNodeShard = new ShardId(new Index("search-node-index", "search-node-uuid"), 0);
@@ -115,6 +139,23 @@ public class NodeHeapUsageCalculatorTests extends ESTestCase {
         assertThat(result.nodeHeapEstimates().get("search-node"), equalTo(new NodeHeapEstimates(0L, 1_220L, nonShardHeapUsage)));
     }
 
+    public void testDefaultShardHeapUsageIsUsedForShardWithoutMetrics() {
+        final ShardId shard = new ShardId(new Index("index", "uuid"), 0);
+        final long nonShardHeapUsage = 50L;
+        final ClusterState clusterState = clusterStateWithStartedShards(
+            Map.of("node", DiscoveryNodeRole.INDEX_ROLE),
+            Map.of(shard, "node")
+        );
+
+        final var result = NodeHeapUsageCalculator.calculateForRoutingNodes(
+            clusterState,
+            nonShardHeapUsage,
+            new ShardHeapUsageEstimates(Map.of(), new ShardAndIndexHeapUsage(10L, 100L, 5L))
+        );
+
+        assertThat(result.nodeHeapEstimates().get("node"), equalTo(new NodeHeapEstimates(165L, 115L, nonShardHeapUsage)));
+    }
+
     private static ClusterState clusterStateWithStartedShards(
         Map<String, DiscoveryNodeRole> nodeRoles,
         Map<ShardId, String> currentNodeByShard
@@ -140,5 +181,35 @@ public class NodeHeapUsageCalculatorTests extends ESTestCase {
         final var routingTable = RoutingTable.builder();
         routingByIndex.values().forEach(routingTable::add);
         return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routingTable).build();
+    }
+
+    private static ClusterState multiProjectClusterStateWithStartedShardsOnSameNode(String nodeId, ShardId shard1, ShardId shard2) {
+        final var project1 = projectMetadata(ProjectId.fromId("project-1"), shard1.getIndex());
+        final var project2 = projectMetadata(ProjectId.fromId("project-2"), shard2.getIndex());
+        final var nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder(nodeId).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build());
+        final var routingTable1 = RoutingTable.builder()
+            .add(IndexRoutingTable.builder(shard1.getIndex()).addShard(newShardRouting(shard1, nodeId, true, ShardRoutingState.STARTED)))
+            .build();
+        final var routingTable2 = RoutingTable.builder()
+            .add(IndexRoutingTable.builder(shard2.getIndex()).addShard(newShardRouting(shard2, nodeId, true, ShardRoutingState.STARTED)))
+            .build();
+
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(nodes)
+            .metadata(Metadata.builder().put(project1).put(project2).build())
+            .routingTable(GlobalRoutingTable.builder().put(project1.id(), routingTable1).put(project2.id(), routingTable2).build())
+            .build();
+    }
+
+    private static ProjectMetadata projectMetadata(ProjectId projectId, Index index) {
+        return ProjectMetadata.builder(projectId)
+            .put(
+                IndexMetadata.builder(index.getName())
+                    .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID()))
+                    .build(),
+                false
+            )
+            .build();
     }
 }

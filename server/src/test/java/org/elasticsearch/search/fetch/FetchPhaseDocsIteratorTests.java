@@ -35,7 +35,6 @@ import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.DirectoryMetricsTests;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -136,7 +135,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     }
 
     public void testMeasureAccumulatesNonStorePluggableMetricAcrossThreads() throws Exception {
-        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
         int docCount = randomIntBetween(20, 100);
         Directory directory = newDirectory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), directory);
@@ -186,7 +184,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     }
 
     public void testStreamingMeasureAccumulatesNonStorePluggableMetricAcrossChunks() throws Exception {
-        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
         LuceneDocs docs = createDocs(randomIntBetween(100, 300), false);
 
         CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));

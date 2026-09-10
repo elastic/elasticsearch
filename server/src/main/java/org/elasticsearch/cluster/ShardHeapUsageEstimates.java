@@ -31,4 +31,8 @@ public record ShardHeapUsageEstimates(
     public static ShardHeapUsageEstimates empty() {
         return new ShardHeapUsageEstimates(Map.of(), ShardAndIndexHeapUsage.ZERO);
     }
+
+    public ShardAndIndexHeapUsage getOrDefault(ShardId shardId) {
+        return perShard.getOrDefault(shardId, defaultForShardsWithoutMetrics);
+    }
 }

@@ -48,6 +48,10 @@ public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsa
         this(in.readLong(), in.readLong(), in.getTransportVersion().supports(EXPLICIT_HEAP_ESTIMATE_COMPONENTS) ? in.readLong() : 0L);
     }
 
+    public long shardHeapUsageIncludingPostingsBytes() {
+        return Math.addExact(shardHeapUsageBytes, shardPostingsHeapUsageBytes);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(EXPLICIT_HEAP_ESTIMATE_COMPONENTS)) {

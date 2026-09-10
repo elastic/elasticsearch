@@ -19,11 +19,12 @@ import java.io.IOException;
 /**
  * The estimated heap in use by a node
  *
- * @param totalHeapUsage The total estimated heap usage for nodes where a total-heap model is applicable. For search nodes,
- *                       this may be {@code 0} even when the component fields are non-zero. For instance, a search
- *                       node may report hosted-shards heap and non-shard heap without reporting a total.
- * @param hostedShardsHeapUsage The estimated heap usage attributable to hosted shards: shard heap, index heap, and node-local postings
- *                              heap.
+ * @param totalHeapUsage The total estimated heap usage, including things like index metadata, hosted shards, indexing infrastructure, etc.
+ *                       This is only produced by indexing nodes, the search tier doesn't model total heap usage so this will be 0 for them.
+ *                       Indexing nodes will always be > 0 because the total usage includes a floor of
+ *                       {@code StatelessMemoryMetricsService#WORKLOAD_MEMORY_OVERHEAD}.
+ * @param hostedShardsHeapUsage The estimated heap usage attributable to hosted shards only, this is populated for both indexing and
+ *                              search nodes.
  * @param nonShardHeapUsage The estimated heap usage that is not derived from the node's hosted shard allocation.
  */
 public record NodeHeapEstimates(long totalHeapUsage, long hostedShardsHeapUsage, long nonShardHeapUsage) implements Writeable {

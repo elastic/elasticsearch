@@ -90,10 +90,7 @@ class NodeHeapMemoryShardMovementSimulator {
         }
         var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(shardId, defaultShardHeapUsageForShardsWithoutMetrics);
         var numberOfShardsForIndex = routingNode.numberOfOwningShardsForIndex(shardId.getIndex());
-        final long shardAndPostingsUsage = Math.addExact(
-            shardAndIndexHeap.shardHeapUsageBytes(),
-            shardAndIndexHeap.shardPostingsHeapUsageBytes()
-        );
+        final long shardAndPostingsUsage = shardAndIndexHeap.shardHeapUsageIncludingPostingsBytes();
         long indexUsageDelta = 0;
         long shardUsageDelta = 0;
         switch (modification) {

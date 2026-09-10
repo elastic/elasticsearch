@@ -12,8 +12,8 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.index.Index;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -115,17 +115,16 @@ public final class NodeHeapUsageCalculator {
         long shardHeapUsage = 0L;
         long indexHeapUsage = 0L;
         long postingsHeapUsage = 0L;
-        final Set<String> seenIndices = new HashSet<>();
+        final Set<Index> seenIndices = new HashSet<>();
         for (var shardRouting : routingNode) {
             if (shardRouting.active() == false) {
                 continue;
             }
             final var shardId = shardRouting.shardId();
-            final var shardAndIndexHeapUsage = shardHeapUsageEstimates.perShard()
-                .getOrDefault(shardId, shardHeapUsageEstimates.defaultForShardsWithoutMetrics());
+            final var shardAndIndexHeapUsage = shardHeapUsageEstimates.getOrDefault(shardId);
             shardHeapUsage = Math.addExact(shardHeapUsage, shardAndIndexHeapUsage.shardHeapUsageBytes());
             postingsHeapUsage = Math.addExact(postingsHeapUsage, shardAndIndexHeapUsage.shardPostingsHeapUsageBytes());
-            if (seenIndices.add(shardId.getIndexName())) {
+            if (seenIndices.add(shardId.getIndex())) {
                 indexHeapUsage = Math.addExact(indexHeapUsage, shardAndIndexHeapUsage.indexHeapUsageBytes());
             }
         }

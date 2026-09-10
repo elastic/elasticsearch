@@ -18,6 +18,9 @@ import org.elasticsearch.cluster.ShardHeapUsageEstimates;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -283,6 +286,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         if (routingNode == null) {
             return new NodeHeapEstimates(0L, 0L, 0L);
         }
+
+        assert routingNode.node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) : "This should only ever be called for indexing nodes";
         final long nowNanos = relativeTimeInNanos();
         final var shardHeapEstimator = createShardHeapEstimator(SelfReportedShardOverhead.DEFAULT, PostingsInEstimate.EXCLUDE);
         final Map<ShardId, ShardAndIndexHeapUsage> shardHeapUsages = shardMappingSizes.entrySet()
@@ -985,5 +990,19 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         ENABLE,
         DISABLE,
         DEFAULT;
+    }
+
+    /**
+     * Recursive {@link Math#addExact(long, long)}, will throw if we overflow at any point
+     *
+     * @param longs The longs to add
+     * @return The sum of the longs
+     */
+    private static long addExact(long... longs) {
+        long total = 0;
+        for (long l : longs) {
+            total = Math.addExact(total, l);
+        }
+        return total;
     }
 }

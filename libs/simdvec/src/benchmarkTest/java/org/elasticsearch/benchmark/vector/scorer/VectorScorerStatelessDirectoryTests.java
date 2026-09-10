@@ -15,6 +15,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
+import org.elasticsearch.benchmark.vector.store.DirectoryFactory;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.simdvec.VectorSimilarityType;
@@ -56,7 +57,7 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
      * heap-copy fallback.
      */
     public void testLocalFileIsReadWithDirectAccess() throws IOException {
-        try (Directory dir = DirectoryType.STATELESS_INDEX_LOCAL.newDirectory(createTempDir())) {
+        try (Directory dir = DirectoryFactory.newDirectory(DirectoryType.STATELESS_INDEX_LOCAL, createTempDir())) {
             try (IndexOutput out = dir.createOutput("vector.data", IOContext.DEFAULT)) {
                 out.writeBytes(new byte[2 * SINGLE_READ_LENGTH], 2 * SINGLE_READ_LENGTH);
             }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.utils;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.core.PathUtils;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -84,6 +83,14 @@ public final class MlStrings {
      * private and applied as a defense-in-depth check at the point the path is actually constructed. Keep
      * the two predicates in sync if either changes.
      *
+     * Deliberately diverges from {@code NamedPipeHelper#validateChildId} on one point: that method rejects
+     * only the current platform's separator character (correct there, since it runs node-locally at the
+     * point the filesystem path is actually built), whereas this method backs a cluster-wide request
+     * validator ({@code StartTrainedModelDeploymentAction.Request#validate}) that may execute on any node,
+     * so accept/reject cannot depend on which node's OS handles the request. This method therefore rejects
+     * both {@code /} and {@code \} unconditionally, which is a strict superset of what any single
+     * platform's separator check would reject - i.e. still a safe, if slightly more restrictive, mirror.
+     *
      * @param id the id to check
      * @return {@code true} if {@code id} is non-null, non-empty, not {@code .} or {@code ..}, and contains
      * no path separator or NUL character
@@ -95,7 +102,7 @@ public final class MlStrings {
         if (id.equals(".") || id.equals("..")) {
             return false;
         }
-        if (id.indexOf('/') >= 0 || id.indexOf(PathUtils.getDefaultFileSystem().getSeparator().charAt(0)) >= 0) {
+        if (id.indexOf('/') >= 0 || id.indexOf('\\') >= 0) {
             return false;
         }
         if (id.indexOf('\u0000') >= 0) {

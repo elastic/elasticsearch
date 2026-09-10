@@ -326,6 +326,28 @@ public class EscfColumnSliceTests extends ESTestCase {
         assertTrue(EscfColumn.from(colData2).hasMultiValueDoc());
     }
 
+    public void testHasNullOrAbsentDoc() {
+        // Dense column with no nulls or absent docs: false.
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
+        b.addLong(1);
+        b.addLong(2);
+        assertFalse(EscfColumn.from(b.finish(2)).hasNullOrAbsentDoc());
+
+        // Non-dense column (absent doc present): true.
+        var b2 = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
+        b2.addLong(1);
+        b2.addAbsent();
+        b2.addLong(3);
+        assertTrue(EscfColumn.from(b2.finish(3)).hasNullOrAbsentDoc());
+
+        // Dense column with an explicit null doc: true.
+        var b3 = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
+        b3.addLong(1);
+        b3.addNull();
+        b3.addLong(3);
+        assertTrue(EscfColumn.from(b3.finish(3)).hasNullOrAbsentDoc());
+    }
+
     /** Asserts that a {@link BytesRef}'s effective bytes (respecting offset and length) match {@code expected}. */
     private static void assertBinaryEquals(byte[] expected, BytesRef ref) {
         assertEquals("binary length mismatch", expected.length, ref.length);

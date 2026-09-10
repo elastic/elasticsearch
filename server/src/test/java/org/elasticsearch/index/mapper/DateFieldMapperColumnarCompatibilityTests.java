@@ -407,6 +407,21 @@ public class DateFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
         );
     }
 
+    public void testNullabilityViolationBailsOutOfColumnarPath() throws IOException {
+        // A null value for a nullability=false field: mapColumnBatch must throw so that
+        // ShardBatchMapper falls back to the row path, which raises the correct
+        // on_failure=FAIL document-level error instead.
+        final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "date");
+            b.startObject("doc_values").field("nullability", false).endObject();
+            b.endObject();
+        }));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"2024-01-01T00:00:00.000Z\"}", "{\"f\":null}")
+        );
+    }
+
     public void testDateParentWithKeywordSubField() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "date");

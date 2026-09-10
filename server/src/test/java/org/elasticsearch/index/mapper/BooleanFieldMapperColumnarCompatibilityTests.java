@@ -441,6 +441,18 @@ public class BooleanFieldMapperColumnarCompatibilityTests extends AbstractColumn
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[true,false]}"));
     }
 
+    public void testNullabilityViolationBailsOutOfColumnarPath() throws IOException {
+        // A null value for a nullability=false field: mapColumnBatch must throw so that
+        // ShardBatchMapper falls back to the row path, which raises the correct
+        // on_failure=FAIL document-level error instead.
+        final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "boolean");
+            b.startObject("doc_values").field("nullability", false).endObject();
+            b.endObject();
+        }));
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":true}", "{\"f\":null}"));
+    }
+
     public void testBooleanParentWithKeywordSubField() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "boolean");

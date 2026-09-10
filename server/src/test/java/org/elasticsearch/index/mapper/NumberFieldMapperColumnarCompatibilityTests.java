@@ -592,6 +592,18 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[1,2]}"));
     }
 
+    public void testNullabilityViolationBailsOutOfColumnarPath() throws IOException {
+        // A null value for a nullability=false field: mapColumnBatch must throw so that
+        // ShardBatchMapper falls back to the row path, which raises the correct
+        // on_failure=FAIL document-level error instead.
+        final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "long");
+            b.startObject("doc_values").field("nullability", false).endObject();
+            b.endObject();
+        }));
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":1}", "{\"f\":null}"));
+    }
+
     public void testLongParentWithKeywordSubField() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "long");

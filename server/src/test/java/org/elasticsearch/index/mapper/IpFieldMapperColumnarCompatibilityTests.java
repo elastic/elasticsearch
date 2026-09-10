@@ -385,6 +385,21 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"1.1.1.1\",\"2.2.2.2\"]}"));
     }
 
+    public void testNullabilityViolationBailsOutOfColumnarPath() throws IOException {
+        // A null value for a nullability=false field: mapColumnBatch must throw so that
+        // ShardBatchMapper falls back to the row path, which raises the correct
+        // on_failure=FAIL document-level error instead.
+        final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "ip");
+            b.startObject("doc_values").field("nullability", false).endObject();
+            b.endObject();
+        }));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"1.1.1.1\"}", "{\"f\":null}")
+        );
+    }
+
     public void testIpParentWithKeywordSubField() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "ip");

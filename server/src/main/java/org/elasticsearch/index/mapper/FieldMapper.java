@@ -291,13 +291,17 @@ public abstract class FieldMapper extends Mapper {
                 "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value per document"
             );
         }
+        if (isNullable() == false && source.hasNullOrAbsentDoc()) {
+            throw new UnsupportedOperationException(
+                "mapColumnBatch: nullability=false field [" + fullPath() + "] has a null or absent value"
+            );
+        }
         doMapColumnBatch(ctx, source);
         for (FieldMapper subMapper : builderParams.multiFields) {
             subMapper.mapColumnBatch(ctx, source);
         }
     }
 
-    // TODO: See FieldMapper#parse. Nullability enforcement (nullability=false) is not yet handled here.
     protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         throw new UnsupportedOperationException(
             "mapColumnBatch not implemented for mapper [" + typeName() + "] on field [" + fullPath() + "]"

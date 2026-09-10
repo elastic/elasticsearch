@@ -179,10 +179,14 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.settings.GetSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.stats.GetSecurityStatsAction;
@@ -283,10 +287,14 @@ import org.elasticsearch.xpack.security.action.saml.TransportSamlLogoutAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlSpMetadataAction;
 import org.elasticsearch.xpack.security.action.service.TransportCreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.security.action.service.TransportCreateUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.action.service.TransportDeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.security.action.service.TransportDeleteUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.security.action.service.TransportDeleteUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.security.action.service.TransportPutUserManagedServiceAccountAction;
 import org.elasticsearch.xpack.security.action.settings.TransportGetSecuritySettingsAction;
 import org.elasticsearch.xpack.security.action.settings.TransportReloadRemoteClusterCredentialsAction;
 import org.elasticsearch.xpack.security.action.settings.TransportUpdateSecuritySettingsAction;
@@ -322,6 +330,7 @@ import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountTok
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthActions;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
@@ -411,8 +420,10 @@ import org.elasticsearch.xpack.security.rest.action.saml.RestSamlSpMetadataActio
 import org.elasticsearch.xpack.security.rest.action.service.RestClearServiceAccountTokenStoreCacheAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestCreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestDeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.security.rest.action.service.RestDeleteUserManagedServiceAccountAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.security.rest.action.service.RestPutUserManagedServiceAccountAction;
 import org.elasticsearch.xpack.security.rest.action.settings.RestGetSecuritySettingsAction;
 import org.elasticsearch.xpack.security.rest.action.settings.RestUpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.security.rest.action.stats.RestSecurityStatsAction;
@@ -920,6 +931,8 @@ public class Security extends Plugin
             components,
             cacheInvalidatorRegistry,
             extensionComponents,
+            clusterService,
+            featureService,
             () -> new IndexServiceAccountTokenStore(
                 settings,
                 threadPool,
@@ -1408,6 +1421,8 @@ public class Security extends Plugin
         List<Object> components,
         CacheInvalidatorRegistry cacheInvalidatorRegistry,
         SecurityExtension.SecurityComponents extensionComponents,
+        ClusterService clusterService,
+        FeatureService featureService,
         Supplier<IndexServiceAccountTokenStore> indexServiceAccountTokenStoreSupplier,
         Supplier<FileServiceAccountTokenStore> fileServiceAccountTokenStoreSupplier
     ) {
@@ -1441,7 +1456,33 @@ public class Security extends Plugin
             components.add(new PluginComponentBinding<>(NodeLocalServiceAccountTokenStore.class, fileServiceAccountTokenStore));
             components.add(fileServiceAccountTokenStore);
             components.add(indexServiceAccountTokenStore);
-            cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
+
+            // Neither the account documents nor the caches over them carry a project dimension, so a multi-project
+            // cluster is left without the store and its account APIs report the feature as unavailable. Such a cluster
+            // ordinarily replaces the token store through SecurityExtension#getServiceAccountTokenStore and so never
+            // reaches this branch; the guard covers one left on the default wiring.
+            final UserManagedServiceAccountStore userManagedServiceAccountStore;
+            final Set<String> serviceAccountCacheNames;
+            if (extensionComponents.projectResolver().supportsMultipleProjects()) {
+                userManagedServiceAccountStore = null;
+                serviceAccountCacheNames = Set.of("file_service_account_token", "index_service_account_token");
+            } else {
+                userManagedServiceAccountStore = new UserManagedServiceAccountStore(
+                    settings,
+                    client.get(),
+                    systemIndices.getMainIndexManager(),
+                    clusterService,
+                    featureService,
+                    cacheInvalidatorRegistry
+                );
+                components.add(userManagedServiceAccountStore);
+                serviceAccountCacheNames = Set.of(
+                    "file_service_account_token",
+                    "index_service_account_token",
+                    UserManagedServiceAccountStore.CACHE_NAME
+                );
+            }
+            cacheInvalidatorRegistry.registerAlias("service", serviceAccountCacheNames);
 
             return new ServiceAccountService(
                 client.get(),
@@ -1450,7 +1491,7 @@ public class Security extends Plugin
                     client.get().threadPool().getThreadContext()
                 ),
                 indexServiceAccountTokenStore,
-                null
+                userManagedServiceAccountStore
             );
         }
         // Completely handover service account token management to the extension if provided,
@@ -1684,6 +1725,8 @@ public class Security extends Plugin
         settingsList.add(CachingServiceAccountTokenStore.CACHE_TTL_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_HASH_ALGO_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
+        settingsList.add(UserManagedServiceAccountStore.CACHE_TTL_SETTING);
+        settingsList.add(UserManagedServiceAccountStore.CACHE_MAX_ACCOUNTS_SETTING);
         settingsList.add(SimpleRole.CACHE_SIZE_SETTING);
         settingsList.add(NativeRoleMappingStore.LAST_LOAD_CACHE_ENABLED_SETTING);
         settingsList.addAll(remoteClusterSecurityExtensionProvider.getSettings());
@@ -1832,6 +1875,16 @@ public class Security extends Plugin
             new ActionHandler(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
             new ActionHandler(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
             new ActionHandler(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
+            new ActionHandler(PutUserManagedServiceAccountAction.INSTANCE, TransportPutUserManagedServiceAccountAction.class),
+            new ActionHandler(DeleteUserManagedServiceAccountAction.INSTANCE, TransportDeleteUserManagedServiceAccountAction.class),
+            new ActionHandler(
+                CreateUserManagedServiceAccountTokenAction.INSTANCE,
+                TransportCreateUserManagedServiceAccountTokenAction.class
+            ),
+            new ActionHandler(
+                DeleteUserManagedServiceAccountTokenAction.INSTANCE,
+                TransportDeleteUserManagedServiceAccountTokenAction.class
+            ),
             new ActionHandler(GetServiceAccountCredentialsAction.INSTANCE, TransportGetServiceAccountCredentialsAction.class),
             new ActionHandler(GetServiceAccountNodesCredentialsAction.INSTANCE, TransportGetServiceAccountNodesCredentialsAction.class),
             new ActionHandler(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class),
@@ -1871,6 +1924,7 @@ public class Security extends Plugin
             return emptyList();
         }
         Settings settings = restHandlersServices.settings();
+        final boolean userManagedServiceAccountsAvailable = restHandlersServices.projectResolver().supportsMultipleProjects() == false;
         return Stream.<RestHandler>of(
             new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
             new RestClearRealmCacheAction(settings, getLicenseState()),
@@ -1929,6 +1983,8 @@ public class Security extends Plugin
             new RestDelegatePkiAuthenticationAction(settings, getLicenseState()),
             new RestCreateServiceAccountTokenAction(settings, getLicenseState()),
             new RestDeleteServiceAccountTokenAction(settings, getLicenseState()),
+            new RestPutUserManagedServiceAccountAction(settings, getLicenseState(), userManagedServiceAccountsAvailable),
+            new RestDeleteUserManagedServiceAccountAction(settings, getLicenseState(), userManagedServiceAccountsAvailable),
             new RestGetServiceAccountCredentialsAction(settings, getLicenseState()),
             new RestGetServiceAccountAction(settings, getLicenseState()),
             new RestKibanaEnrollAction(settings, getLicenseState()),

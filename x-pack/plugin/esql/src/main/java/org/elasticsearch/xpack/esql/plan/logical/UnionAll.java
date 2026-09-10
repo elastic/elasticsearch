@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -27,7 +28,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class UnionAll extends Fork implements PostOptimizationPlanVerificationAware {
+public class UnionAll extends MergePlan implements PostOptimizationPlanVerificationAware {
 
     public UnionAll(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children, output);
@@ -59,7 +60,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
     }
 
     /**
-     * Override of {@link Fork#pruneEmptyBranches(Predicate)} that returns a {@link UnionAll}
+     * Override of {@link MergePlan#pruneEmptyBranches(Predicate)} that returns a {@link UnionAll}
      * (rather than letting the base implementation produce whatever {@link #replaceChildren}
      * would). Mirrors the base behaviour otherwise: this primitive preserves single-survivor
      * wrappers, which the logical optimizer's {@code FlattenNestedSubqueries} rule later removes
@@ -179,7 +180,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
      */
     private static void checkNestedUnionAlls(LogicalPlan logicalPlan, Failures failures) {
         if (logicalPlan instanceof UnionAll unionAll) {
-            Fork.forEachForkSkippingSubqueries(unionAll, nested -> {
+            forEachMergePlanSkippingSubqueries(unionAll, nested -> {
                 if (unionAll == nested || (nested instanceof UnionAll && nested instanceof ViewUnionAll == false)) {
                     return;
                 }
@@ -271,16 +272,17 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
 
     /**
      * Summarizes the unions under {@code plan}. A subtree with no union is one producer leaf. Otherwise its leaf count is the sum of
-     * its children's leaves. Its depth is the longest child depth, plus one when {@code plan} is itself a union. The right side of an
-     * {@link AbstractSubqueryJoin} is excluded because it is an independently executed query. The first and deepest unions provide distinct
-     * failure locations when both limits are exceeded.
+     * its children's leaves. Its depth is the longest child depth, plus one when {@code plan} is itself a union. The right side of a
+     * {@link Join} is excluded: a {@code LOOKUP JOIN} (and {@code INLINE STATS}) lookup/stub is not a union producer leaf, and the right
+     * side of an {@link AbstractSubqueryJoin} is an independently executed query counted via {@link #checkInSubqueryLimits}. The first
+     * and deepest unions provide distinct failure locations when both limits are exceeded.
      */
     private static UnionStats unionStats(LogicalPlan plan) {
         UnionAll first = plan instanceof UnionAll unionAll ? unionAll : null;
         UnionAll deepest = first;
         int leaves = 0;
         int depth = 0;
-        List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin subqueryJoin ? List.of(subqueryJoin.left()) : plan.children();
+        List<LogicalPlan> children = plan instanceof Join join ? List.of(join.left()) : plan.children();
         for (LogicalPlan child : children) {
             UnionStats childStats = unionStats(child);
             if (first == null) {

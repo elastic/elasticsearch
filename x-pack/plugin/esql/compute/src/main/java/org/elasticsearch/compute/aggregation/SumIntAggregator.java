@@ -26,4 +26,12 @@ class SumIntAggregator {
     public static long combine(long current, long v) {
         return Math.addExact(current, v);
     }
+
+    public static void combine(LongArrayState state, int groupId, int v) {
+        state.addExact(groupId, v);
+    }
+
+    public static void combine(LongArrayState state, int groupId, long v) {
+        state.addExact(groupId, v);
+    }
 }

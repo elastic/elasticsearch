@@ -1,0 +1,5 @@
+area: CRUD
+issues: []
+pr: 158870
+summary: Fix replica divergence on sequence numbers disabled indices
+type: bug

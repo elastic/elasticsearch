@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -439,11 +440,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
                 }
             }
             for (Expression expr : node.expressions()) {
-                expr.forEachUp(UnresolvedAttribute.class, ua -> {
-                    if (childOutputNames.contains(ua.name()) == false) {
-                        sink.accept(ua);
-                    }
-                });
+                collectUnresolvedFromExpression(expr, childOutputNames, Set.of(), sink);
             }
         }
     }
@@ -456,6 +453,36 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         for (Attribute lf : join.config().leftFields()) {
             if (lf instanceof UnresolvedAttribute ua && leftOutputNames.contains(ua.name()) == false) {
                 sink.accept(ua);
+            }
+        }
+    }
+
+    /**
+     * Lambda-aware expression traversal that collects {@link UnresolvedAttribute}s not covered by
+     * {@code childOutputNames} or by {@code boundParamNames} (lambda parameters in scope). When a
+     * {@link Lambda} is encountered, its parameter names are added to {@code boundParamNames} and
+     * only the body is traversed — the parameter slots are declarations, not field references, and
+     * must not be treated as unmapped-field candidates.
+     */
+    private static void collectUnresolvedFromExpression(
+        Expression expr,
+        Set<String> childOutputNames,
+        Set<String> boundParamNames,
+        Consumer<UnresolvedAttribute> sink
+    ) {
+        if (expr instanceof Lambda lambda) {
+            Set<String> innerBound = new HashSet<>(boundParamNames);
+            for (Attribute param : lambda.parameters()) {
+                innerBound.add(param.name());
+            }
+            collectUnresolvedFromExpression(lambda.body(), childOutputNames, innerBound, sink);
+        } else if (expr instanceof UnresolvedAttribute ua) {
+            if (childOutputNames.contains(ua.name()) == false && boundParamNames.contains(ua.name()) == false) {
+                sink.accept(ua);
+            }
+        } else {
+            for (Expression child : expr.children()) {
+                collectUnresolvedFromExpression(child, childOutputNames, boundParamNames, sink);
             }
         }
     }

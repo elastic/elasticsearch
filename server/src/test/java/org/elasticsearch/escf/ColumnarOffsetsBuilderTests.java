@@ -188,8 +188,7 @@ public class ColumnarOffsetsBuilderTests extends ESTestCase {
     private static EscfColumn longArrayColumn(long[][] docs) {
         final EscfColumnBuilder builder = new EscfColumnBuilder(
             EscfColumnBuilder.CollisionPolicy.MERGE,
-            BytesRefRecycler.NON_RECYCLING_INSTANCE,
-            data -> {}
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
         );
         builder.hintArray(EscfColumnKind.LONG);
         for (int doc = 0; doc < docs.length; doc++) {
@@ -248,8 +247,7 @@ public class ColumnarOffsetsBuilderTests extends ESTestCase {
     private static EscfColumn bytesArrayColumn(BytesRef[][] docs, boolean binaryElements) {
         final EscfColumnBuilder builder = new EscfColumnBuilder(
             EscfColumnBuilder.CollisionPolicy.MERGE,
-            BytesRefRecycler.NON_RECYCLING_INSTANCE,
-            data -> {}
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
         );
         builder.hintArray(binaryElements ? EscfColumnKind.BINARY : EscfColumnKind.STRING);
         for (int doc = 0; doc < docs.length; doc++) {

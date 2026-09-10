@@ -25,6 +25,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
@@ -141,7 +142,7 @@ public class VectorIOBenchmark {
                 Document doc = new Document();
                 for (int docID = 0; docID < numVectors; docID++) {
                     if (docID % 1_000_000 == 0) {
-                        System.out.println(new Date() + " Indexing " + docID + "/" + numVectors);
+                        printProgress(docID, numVectors);
                     }
                     doc.clear();
                     doc.add(
@@ -156,6 +157,11 @@ public class VectorIOBenchmark {
 
         this.executor = Executors.newFixedThreadPool(readThreads);
         this.queryVector = VectorTestUtils.randomFloatVector(random, dims);
+    }
+
+    @SuppressForbidden(reason = "progress output while building the index")
+    private static void printProgress(int docID, int numVectors) {
+        System.out.println(new Date() + " Indexing " + docID + "/" + numVectors);
     }
 
     @TearDown

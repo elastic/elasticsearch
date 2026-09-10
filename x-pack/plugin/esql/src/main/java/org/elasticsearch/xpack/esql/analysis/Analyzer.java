@@ -605,7 +605,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * dataset's name, treat it as if the user wrote a remote index reference at this position" lookup.
      * {@code EsqlSession.preAnalyzeLinkedIndices} populates {@code linkedResolution}, keyed by the shadow's
      * {@link DatasetShadowRelation#linkedIndexPattern()} (dataset name + applicable exclusions). A linked
-     * dataset/view of the same name has already failed the query on the detect rail before this rule runs;
+     * view of the same name has already failed the query on the detect rail before this rule runs; a linked
+     * dataset of the same name is invisible and resolves nothing, leaving the shadow to be stripped below;
      * a linked index of the same name produces a valid resolution here. This rule:
      * <ul>
      *   <li>If a valid {@link IndexResolution} that matched at least one linked index is present

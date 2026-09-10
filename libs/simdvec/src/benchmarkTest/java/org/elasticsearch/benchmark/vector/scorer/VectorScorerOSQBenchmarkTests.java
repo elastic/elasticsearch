@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.simdvec.ES940OSQVectorsScorer.QuantEncoding;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
@@ -26,13 +27,13 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
 
     private final float deltaPercent = 0.1f;
     private final int dims;
-    private final VectorScorerOSQBenchmark.QuantConfig quantConfig;
+    private final QuantEncoding quantConfig;
     private final DirectoryType directoryType;
     private final VectorSimilarityFunction similarityFunction;
 
     public VectorScorerOSQBenchmarkTests(
         int dims,
-        VectorScorerOSQBenchmark.QuantConfig quantConfig,
+        QuantEncoding quantConfig,
         DirectoryType directoryType,
         VectorSimilarityFunction similarityFunction
     ) {
@@ -130,9 +131,9 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
     }
 
     /**
-     * Runs the bulk and per-vector variants of a filtered scoring benchmark across all {@link VectorScorerOSQBenchmark.VectorImplementation}s
-     * on the same input data, asserting per-implementation that the two paths agree at the selected offsets within each
-     * {@link VectorScorerOSQBenchmark#BULK_SIZE} chunk, and that all implementations agree with each other.
+     * Runs the bulk and per-vector variants of a filtered scoring benchmark across all
+     * {@link VectorScorerOSQBenchmark.VectorImplementation}s on the same input data, asserting per-implementation that the two paths agree
+     * at the selected offsets within each {@link VectorScorerOSQBenchmark#BULK_SIZE} chunk, and that all implementations agree.
      *
      * <p>Non-selected scratch slots hold implementation-defined leftover values that differ between scoring paths and are intentionally
      * ignored.

@@ -67,7 +67,7 @@ class GlobalBuildInfoPluginSpec extends AbstractProjectBuilderPluginSpec {
         bwcVersions.unreleased.toSet() == ["9.1.0", "9.0.3", "8.19.1", "8.18.2"].collect { Version.fromString(it) }.toSet()
     }
 
-    def "offline mode falls back to workspace branches.json when configured location is an http(s) URL"() {
+    def "offline mode still uses configured http(s) branches location when a workspace branches.json exists"() {
         given:
         project.getGradle().getStartParameter().setOffline(true)
 
@@ -86,15 +86,15 @@ class GlobalBuildInfoPluginSpec extends AbstractProjectBuilderPluginSpec {
 
         when:
         project.objects.newInstance(getPluginClassUnderTest()).apply(project)
-        BuildParameterExtension ext = project.extensions.getByType(BuildParameterExtension)
-        BwcVersions bwcVersions = ext.bwcVersions
+        project.extensions.getByType(BuildParameterExtension).bwcVersions
 
         then:
-        bwcVersions != null
-        bwcVersions.unreleased.toSet() == ["9.1.0", "9.0.3"].collect { Version.fromString(it) }.toSet()
+        def ex = thrown(UncheckedIOException)
+        ex.message == "Failed to download branches.json from: https://example.invalid/branches.json"
+        ex.cause instanceof java.net.UnknownHostException
     }
 
-    def "offline mode fails with clear error when configured location is an http(s) URL and workspace branches.json is missing"() {
+    def "offline mode reports download failure when configured location is an http(s) URL and workspace branches.json is missing"() {
         given:
         project.getGradle().getStartParameter().setOffline(true)
 
@@ -108,10 +108,9 @@ class GlobalBuildInfoPluginSpec extends AbstractProjectBuilderPluginSpec {
         project.extensions.getByType(BuildParameterExtension).bwcVersions
 
         then:
-        def ex = thrown(org.gradle.api.GradleException)
-        ex.message.contains("offline mode")
-        ex.message.contains("branches.json")
-        ex.message.contains("org.elasticsearch.build.branches-file-location")
+        def ex = thrown(UncheckedIOException)
+        ex.message == "Failed to download branches.json from: https://example.invalid/branches.json"
+        ex.cause instanceof java.net.UnknownHostException
     }
 
     String branchesJson(List<DevelopmentBranch> branches) {

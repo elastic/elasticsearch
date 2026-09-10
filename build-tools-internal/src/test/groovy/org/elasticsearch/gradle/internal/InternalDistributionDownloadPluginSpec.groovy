@@ -66,13 +66,13 @@ class InternalDistributionDownloadPluginSpec extends AbstractProjectBuilderPlugi
 
         then:
         consumer.plugins.hasPlugin(DistributionDownloadPlugin)
-        registrations == ["local-build", "bwc", "detached"]
+        registrations == ["local-build", "bwc"]
     }
 
     @Unroll
     def "#resolutionName resolution maps archive distro #version to #expectedPath[#expectedConfiguration]"() {
         given:
-        ElasticsearchDistribution distribution = archiveDistribution("testDistro", version, detachedVersion)
+        ElasticsearchDistribution distribution = archiveDistribution("testDistro", version)
         DistributionResolution resolution = DistributionDownloadPlugin.getRegistrationsContainer(consumer).find { it.name == resolutionName }
 
         when:
@@ -83,22 +83,15 @@ class InternalDistributionDownloadPluginSpec extends AbstractProjectBuilderPlugi
         dependency.targetConfiguration == expectedConfiguration
 
         where:
-        resolutionName | version                         | detachedVersion | expectedPath                        | expectedConfiguration
-        "local-build" | VersionProperties.elasticsearch | false           | ":distribution:archives:linux-tar" | "default"
-        "bwc"         | "9.0.3"                       | false           | ":distribution:bwc:minor1"         | "expanded-linux-tar"
-        "detached"    | "9.2.0"                       | true            | ":distribution:bwc:main"           | "expanded-linux-tar"
+        resolutionName | version                         | expectedPath                        | expectedConfiguration
+        "local-build" | VersionProperties.elasticsearch | ":distribution:archives:linux-tar" | "default"
+        "bwc"         | "9.0.3"                       | ":distribution:bwc:minor1"         | "expanded-linux-tar"
     }
 
     @Unroll
     def "local-build resolution maps current #type package bundledJdk=#bundledJdk to #expectedPath[default]"() {
         given:
-        ElasticsearchDistribution distribution = packageDistribution(
-            "testDistro",
-            VersionProperties.elasticsearch,
-            false,
-            type,
-            bundledJdk
-        )
+        ElasticsearchDistribution distribution = packageDistribution("testDistro", VersionProperties.elasticsearch, type, bundledJdk)
         DistributionResolution resolution = DistributionDownloadPlugin.getRegistrationsContainer(consumer).find { it.name == "local-build" }
 
         when:
@@ -119,7 +112,7 @@ class InternalDistributionDownloadPluginSpec extends AbstractProjectBuilderPlugi
     @Unroll
     def "bwc resolution maps package #version #type to #expectedPath[#expectedConfiguration]"() {
         given:
-        ElasticsearchDistribution distribution = packageDistribution("testDistro", version, false, type, true)
+        ElasticsearchDistribution distribution = packageDistribution("testDistro", version, type, true)
         DistributionResolution resolution = DistributionDownloadPlugin.getRegistrationsContainer(consumer).find { it.name == "bwc" }
 
         when:
@@ -135,21 +128,15 @@ class InternalDistributionDownloadPluginSpec extends AbstractProjectBuilderPlugi
         "9.0.3" | InternalElasticsearchDistributionTypes.DEB || ":distribution:bwc:minor1" | "deb"
     }
 
-    private ElasticsearchDistribution archiveDistribution(String name, String version, boolean detachedVersion) {
-        return distribution(name, version, detachedVersion, ElasticsearchDistributionTypes.ARCHIVE, true) {
+    private ElasticsearchDistribution archiveDistribution(String name, String version) {
+        return distribution(name, version, ElasticsearchDistributionTypes.ARCHIVE, true) {
             it.platform = ElasticsearchDistribution.Platform.LINUX
             it.architecture = Architecture.X64
         }
     }
 
-    private ElasticsearchDistribution packageDistribution(
-        String name,
-        String version,
-        boolean detachedVersion,
-        ElasticsearchDistributionType type,
-        boolean bundledJdk
-    ) {
-        return distribution(name, version, detachedVersion, type, bundledJdk) {
+    private ElasticsearchDistribution packageDistribution(String name, String version, ElasticsearchDistributionType type, boolean bundledJdk) {
+        return distribution(name, version, type, bundledJdk) {
             it.architecture = Architecture.X64
         }
     }
@@ -157,7 +144,6 @@ class InternalDistributionDownloadPluginSpec extends AbstractProjectBuilderPlugi
     private ElasticsearchDistribution distribution(
         String name,
         String version,
-        boolean detachedVersion,
         ElasticsearchDistributionType type,
         boolean bundledJdk,
         Closure<?> configure = {}
@@ -165,7 +151,6 @@ class InternalDistributionDownloadPluginSpec extends AbstractProjectBuilderPlugi
         return DistributionDownloadPlugin.getContainer(consumer).create(name) {
             it.version = version
             it.type = type
-            it.detachedVersion = detachedVersion
             it.bundledJdk = bundledJdk
             configure.call(it)
         }.maybeFreeze()
@@ -176,7 +161,8 @@ class InternalDistributionDownloadPluginSpec extends AbstractProjectBuilderPlugi
         new File(workspace, ".ci/dockerOnLinuxExclusions").text = ""
 
         writeBuildToolsVersionProperties(workspace)
-        new File(workspace, "branches.json").text = """
+        File branchesJson = new File(workspace, "branches.json")
+        branchesJson.text = """
             {
               "branches": [
                 { "branch": "main", "version": "9.1.0" },
@@ -185,6 +171,8 @@ class InternalDistributionDownloadPluginSpec extends AbstractProjectBuilderPlugi
               ]
             }
         """
+        new File(workspace, "gradle.properties").text =
+            "org.elasticsearch.build.branches-file-location=${branchesJson.absolutePath.replace('\\', '/')}\n"
 
         writeVersionJava(workspace)
     }

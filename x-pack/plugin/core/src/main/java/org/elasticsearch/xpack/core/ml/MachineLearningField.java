@@ -85,15 +85,15 @@ public final class MachineLearningField {
     /**
      * Controls whether the ML controller launches the {@code pytorch_inference}
      * process inside the Sandbox2 security sandbox. This setting implements a
-     * staged 9.6 dark launch: the default is {@code false} so that the
-     * Elasticsearch build and compatible ml-cpp artifact ship dormant (sandbox
-     * disabled). Operators can opt in by setting this to {@code true} once their
-     * deployment has been qualified. Note that {@code true} is not supported for
-     * on-prem deployments until a later stage of the rollout plan.
-     * When {@code false}, the process falls back to the legacy in-process seccomp
-     * system call filter. Disabling the sandbox reduces process and filesystem
-     * isolation for untrusted models; only disable when sandboxing is
-     * operationally impossible.
+     * staged 9.6 dark launch: the default is {@code false}, so sandboxing is
+     * disabled out of the box and the process falls back to the legacy
+     * in-process seccomp system call filter, which gives {@code pytorch_inference}
+     * less process and filesystem isolation for untrusted models than the
+     * sandbox provides. That trade-off applies to the shipped default state, not
+     * to some exceptional opt-out - understand it before changing this setting
+     * either way. Operators can opt in by setting this to {@code true} once their
+     * deployment has been qualified; note that {@code true} is not yet supported
+     * for on-prem deployments until a later stage of the rollout plan.
      */
     public static final Setting<Boolean> SANDBOX_ENABLED = Setting.boolSetting(
         "xpack.ml.trained_models.sandbox_enabled",

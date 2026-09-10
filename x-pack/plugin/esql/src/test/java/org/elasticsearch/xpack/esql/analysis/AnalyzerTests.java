@@ -6472,8 +6472,8 @@ public class AnalyzerTests extends ESTestCase {
             """));
 
         Or query = as(highlight.query(), Or.class);
-        assertThat(query.left(), instanceOf(Match.class));
-        assertThat(query.right(), instanceOf(Match.class));
+        assertThat(Expressions.name(as(query.left(), Match.class).field()), equalTo("last_name"));
+        assertThat(Expressions.name(as(query.right(), Match.class).field()), equalTo("first_name"));
     }
 
     public void testHighlightCollectsOnlyPositiveFullTextConjuncts() {
@@ -6578,13 +6578,8 @@ public class AnalyzerTests extends ESTestCase {
         assertTrue(highlight.implicitQuery());
     }
 
-    /**
-     * A WHERE MATCH (or other full-text function) that sets analyzer or quote_analyzer cannot be borrowed: HIGHLIGHT
-     * has a single analyzer and cannot apply the WHERE-side option correctly. Sibling conjuncts without an analyzer
-     * are not borrowed either, so the analyzer-bearing MATCH is not silently dropped.
-     * TODO: support WHERE-side analyzer/quote_analyzer on an implicit HIGHLIGHT query.
-     */
-    public void testHighlightRejectsAnalyzerOnBorrowedMatch() {
+    /** Analyzer options reject borrowable predicates but do not affect predicates HIGHLIGHT ignores. */
+    public void testHighlightHandlesAnalyzerOnWherePredicates() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         var analyzerNotSupported = allOf(
             containsString("cannot borrow a WHERE condition that sets analyzer"),
@@ -6598,30 +6593,32 @@ public class AnalyzerTests extends ESTestCase {
             "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"standard\"}) AND MATCH(last_name, \"y\") | HIGHLIGHT",
             analyzerNotSupported
         );
-    }
-
-    public void testHighlightImplicitQueryPassesDocLevelCommands() {
-        assumeHighlightImplicitQueryAndFieldsEnabled();
-        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+        supportsHighlight(basic()).error("""
             FROM test
             | WHERE MATCH(first_name, "x")
-            | EVAL copy = first_name
-            | KEEP first_name, last_name, copy
-            | SORT first_name
-            | LIMIT 10
-            | DISSECT copy "%{part}"
+            | WHERE MATCH(last_name, "y", {"analyzer": "standard"})
+            | HIGHLIGHT ON first_name
+            """, analyzerNotSupported);
+
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x") AND NOT MATCH(last_name, "y", {"analyzer": "standard"})
             | HIGHLIGHT ON first_name
             """));
-
         assertThat(highlight.query(), instanceOf(Match.class));
         assertTrue(highlight.implicitQuery());
     }
 
-    public void testHighlightImplicitQueryPassesRowPreservingCommands() {
+    public void testHighlightImplicitQueryPassesDocPreservingCommands() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         Highlight highlight = soleHighlight(supportsHighlight(basicWithEnrich()).query("""
             FROM test
             | WHERE MATCH(first_name, "x")
+            | EVAL copy = first_name
+            | KEEP first_name, last_name, languages, copy
+            | SORT first_name
+            | LIMIT 10
+            | DISSECT copy "%{part}"
             | EVAL x = to_string(languages)
             | ENRICH languages ON x
             | SAMPLE 0.5

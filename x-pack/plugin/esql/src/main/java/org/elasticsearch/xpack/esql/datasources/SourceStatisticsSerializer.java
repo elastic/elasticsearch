@@ -283,10 +283,11 @@ public final class SourceStatisticsSerializer {
 
     /**
      * Poisons a column's {@code min}/{@code max} in-place: drops the extremum values and writes the unservable
-     * markers so the column safe-misses to a scan. Count stats (row/null/value counts) are left intact. Used when
-     * the extremum cannot be trusted: a declared retype, a text pin, a text FIRST_FILE_WINS column whose
-     * file type the anchor cannot represent, or an {@code UNSIGNED_LONG} planner type folding a signed
-     * integer harvest.
+     * markers so MIN/MAX safe-miss to a scan. Count stats (row/null/value counts) are left intact. Used when
+     * the extremum cannot be trusted: a declared retype, a text pin, or an {@code UNSIGNED_LONG} planner
+     * type folding a signed integer harvest. Callers that also cannot trust counts (text FIRST_FILE_WINS
+     * unrepresentable, a failed unsigned encode, a declared narrowing the scan would still coerce) drop
+     * the count keys after this method.
      */
     public static void poisonColumnExtrema(Map<String, Object> statsMap, String columnName) {
         statsMap.remove(columnMinKey(columnName));
@@ -331,9 +332,18 @@ public final class SourceStatisticsSerializer {
      * Rewrites each named column's min/max from a raw signed harvest into the {@code UNSIGNED_LONG}
      * in-memory domain ({@link DeclaredTypeCoercions#coerceToUnsignedLong}). A value that cannot be
      * coerced poisons that column's extrema so MIN/MAX scan. One map copy. {@code statsMap} is not
-     * mutated.
+     * mutated. Counts stay on the per-file map so a footer merge does not treat the file as
+     * all-null; the caller drops merged counts for any column named in {@code failedColumns}.
      */
     public static Map<String, Object> encodeColumnExtremaAsUnsignedLong(Map<String, Object> statsMap, Collection<String> columnNames) {
+        return encodeColumnExtremaAsUnsignedLong(statsMap, columnNames, null);
+    }
+
+    static Map<String, Object> encodeColumnExtremaAsUnsignedLong(
+        Map<String, Object> statsMap,
+        Collection<String> columnNames,
+        @Nullable Set<String> failedColumns
+    ) {
         if (statsMap == null || statsMap.isEmpty() || columnNames == null || columnNames.isEmpty()) {
             return statsMap;
         }
@@ -350,6 +360,9 @@ public final class SourceStatisticsSerializer {
                 }
             } catch (IllegalArgumentException e) {
                 poisonColumnExtrema(out, columnName);
+                if (failedColumns != null) {
+                    failedColumns.add(columnName);
+                }
             }
         }
         return out;

@@ -3362,10 +3362,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 && DeclaredTypeCoercions.supports(actualInFile, attr.dataType());
             if (plannerTypeCompatibleWithFileDerivedType(attr.dataType(), actualInFile) == false && declaredCoercible == false) {
                 if (skipWarnings == null) {
-                    skipWarnings = new SkipWarnings(
-                        SkipWarnings.incompatiblePlannerTypeFileSummary("Parquet file", fileLocation),
-                        warningSink
-                    );
+                    skipWarnings = new SkipWarnings(SkipWarnings.incompatiblePlannerTypeFileSummary("parquet", fileLocation), warningSink);
                 }
                 skipWarnings.add(
                     SkipWarnings.incompatiblePlannerTypeColumnMessage(attr.name(), fileLocation, actualInFile, attr.dataType())

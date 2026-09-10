@@ -99,6 +99,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -528,6 +529,115 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertThat(warnings.isEmpty(), equalTo(false));
         assertThat(warnings.toString(), containsString("incompatible with planner type"));
         assertThat(warnings.toString(), containsString("part-b.parquet"));
+        assertThat(warnings, hasItem(SkipWarnings.incompatiblePlannerTypeFileSummary("parquet", "file:///part-b.parquet")));
+    }
+
+    public void testFfwFooterAggregateSafeMissesDeclaredCoercibleColumn() {
+        List<String> warnings = new ArrayList<>();
+        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
+            List.of(
+                fileWithColumn("file:///part-a.parquet", DataType.INTEGER, 1L, 2L),
+                fileWithColumn("file:///part-b.parquet", DataType.LONG, -10L, 20L)
+            ),
+            true,
+            warnings::add,
+            Set.of("x")
+        );
+        assertNotNull(agg);
+        assertNull(agg.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        assertThat(warnings, equalTo(List.of()));
+    }
+
+    public void testPhysicalDeclaredTypeColumnsUseFileNamesForPathRename() {
+        DatasetMapping renamed = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("y", new DatasetFieldMapping("integer", "x")))
+        );
+        assertEquals(Set.of("x"), ExternalSourceResolver.physicalDeclaredTypeColumnsOf(renamed));
+
+        DatasetMapping sameName = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("x", new DatasetFieldMapping("integer", null)))
+        );
+        assertEquals(Set.of("x"), ExternalSourceResolver.physicalDeclaredTypeColumnsOf(sameName));
+        assertEquals(Set.of(), ExternalSourceResolver.physicalDeclaredTypeColumnsOf(null));
+
+        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
+            List.of(
+                fileWithColumn("file:///part-a.parquet", DataType.INTEGER, 1L, 2L),
+                fileWithColumn("file:///part-b.parquet", DataType.LONG, -10L, 20L)
+            ),
+            true,
+            null,
+            ExternalSourceResolver.physicalDeclaredTypeColumnsOf(renamed)
+        );
+        assertNotNull(agg);
+        assertNull(agg.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+    }
+
+    public void testFfwFooterAggregatePoisonsUnsignedExtremaUnderDoubleAnchor() {
+        long encoded1 = DeclaredTypeCoercions.coerceToUnsignedLong(1L);
+        long encoded2 = DeclaredTypeCoercions.coerceToUnsignedLong(2L);
+        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
+            List.of(
+                fileWithAllNullColumn("file:///part-a.parquet", DataType.DOUBLE),
+                fileWithColumn("file:///part-b.parquet", DataType.UNSIGNED_LONG, encoded1, encoded2)
+            ),
+            true
+        );
+        assertNotNull(agg);
+        assertNull(agg.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertEquals(2L, ((Number) agg.get(SourceStatisticsSerializer.columnValueCountKey("x"))).longValue());
+        assertEquals(2L, ((Number) agg.get(SourceStatisticsSerializer.columnNullCountKey("x"))).longValue());
+        assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+    }
+
+    public void testFfwFooterAggregateDropsCountsWhenUnsignedEncodeFails() {
+        long encoded1 = DeclaredTypeCoercions.coerceToUnsignedLong(1L);
+        long encoded2 = DeclaredTypeCoercions.coerceToUnsignedLong(2L);
+        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
+            List.of(
+                fileWithColumn("file:///part-a.parquet", DataType.UNSIGNED_LONG, encoded1, encoded2),
+                fileWithColumn("file:///part-b.parquet", DataType.LONG, -10L, 200L)
+            ),
+            true
+        );
+        assertNotNull(agg);
+        assertNull(agg.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+    }
+
+    public void testFfwTextAggregateDropsCountsWhenExtremaLeavePlannerDomain() {
+        long encoded1 = DeclaredTypeCoercions.coerceToUnsignedLong(1L);
+        long encoded2 = DeclaredTypeCoercions.coerceToUnsignedLong(2L);
+        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
+            List.of(
+                fileWithColumn("file:///part-a.csv", DataType.UNSIGNED_LONG, encoded1, encoded2),
+                fileWithColumn("file:///part-b.csv", DataType.LONG, 0L, 200L)
+            ),
+            false
+        );
+        assertNotNull(agg);
+        assertNull(agg.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
     public void testResolveTimeWarningsShareOneBudget() throws Exception {
@@ -558,9 +668,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, warnings.size());
         assertThat(warnings.get(warnings.size() - 1), equalTo(SkipWarnings.overflowMessage()));
         assertThat(warnings.toString(), containsString("incompatible with planner type"));
-        // finishFirstFileWins emits the Hive shadow pair after the footer fold. A per-fold budget
-        // would still admit those two; the resolve-wide budget is already full, so they do not appear.
-        assertThat(warnings.toString(), not(containsString("shadowed by same-named Hive partition keys")));
+        // Hive-partition shadows are recorded before the footer fold so a many-file type clash
+        // cannot starve them. The pair still shares the resolve-wide budget with the fold.
+        assertThat(warnings.toString(), containsString("shadowed by same-named Hive partition keys"));
     }
 
     /**
@@ -3981,6 +4091,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         stats.put(SourceStatisticsSerializer.columnMaxKey("x"), max);
         stats.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
         stats.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+        return new SimpleSourceMetadata(List.of(attr("x", type)), "parquet", location, null, null, stats, null);
+    }
+
+    private static SourceMetadata fileWithAllNullColumn(String location, DataType type) {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        stats.put(SourceStatisticsSerializer.columnValueCountKey("x"), 0L);
+        stats.put(SourceStatisticsSerializer.columnNullCountKey("x"), 2L);
         return new SimpleSourceMetadata(List.of(attr("x", type)), "parquet", location, null, null, stats, null);
     }
 

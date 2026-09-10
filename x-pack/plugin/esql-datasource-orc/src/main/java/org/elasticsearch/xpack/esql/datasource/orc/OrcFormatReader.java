@@ -1529,10 +1529,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     || (declaredTypeColumns.contains(attr.name()) && DeclaredTypeCoercions.supports(actualInFile, planner));
                 if (compatible == false) {
                     if (skipWarnings == null) {
-                        skipWarnings = new SkipWarnings(
-                            SkipWarnings.incompatiblePlannerTypeFileSummary("ORC file", fileLocation),
-                            warningSink
-                        );
+                        skipWarnings = new SkipWarnings(SkipWarnings.incompatiblePlannerTypeFileSummary("orc", fileLocation), warningSink);
                     }
                     skipWarnings.add(SkipWarnings.incompatiblePlannerTypeColumnMessage(attr.name(), fileLocation, actualInFile, planner));
                     LOGGER.warn(

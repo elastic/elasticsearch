@@ -205,7 +205,7 @@ public class ExternalSourceResolver {
     /**
      * Warning messages collected during one {@link #resolve} call: Hive-partition shadow columns
      * (see {@link #warnOnShadowedColumns}) and FIRST_FILE_WINS footer columns rewritten as all-null.
-     * That work runs on {@link #metadataReadExecutor} — a real thread pool in production, so a direct
+     * That work runs on {@link #metadataReadExecutor}, a real thread pool in production, so a direct
      * {@code HeaderWarning.addWarning} call from inside it would land on that executor thread's
      * {@link ThreadContext} rather than the originating request's, and never reach the client.
      * Messages are instead buffered here and attached to the {@link ExternalSourceResolution} completed by
@@ -806,7 +806,15 @@ public class ExternalSourceResolver {
             ListingHint anchorHint = new ListingHint(listing.size(0), anchorMtime);
             final FileList finalListing = listing;
             ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
-                anchorMetadata -> completeFirstFileWins(anchorMetadata, finalListing, config, requiresStats, cacheable, listener),
+                anchorMetadata -> completeFirstFileWins(
+                    anchorMetadata,
+                    finalListing,
+                    config,
+                    declaredMapping,
+                    requiresStats,
+                    cacheable,
+                    listener
+                ),
                 listener::onFailure
             );
             if (cacheable) {
@@ -835,6 +843,7 @@ public class ExternalSourceResolver {
         ExternalSourceMetadata anchorMetadata,
         FileList listing,
         Map<String, Object> config,
+        @Nullable DatasetMapping declaredMapping,
         boolean requiresStats,
         boolean cacheable,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
@@ -866,6 +875,16 @@ public class ExternalSourceResolver {
                 // into the async aggregation so text-format multi-file merges force a re-scan instead of serving
                 // a subset COUNT/MIN/MAX (see foldsAbsentColumnAsImplicitNull / SourceStatisticsSerializer).
                 boolean implicitNulls = foldsAbsentColumnAsImplicitNull(base.sourceType());
+                Set<String> declaredTypeColumns = physicalDeclaredTypeColumnsOf(declaredMapping);
+                // Hive-partition shadows are resolve-only and are not re-emitted at scan. Record them
+                // before the footer fold so a many-file type clash cannot starve those slots.
+                PartitionMetadata eagerPartitions = listing.partitionMetadata();
+                if (eagerPartitions != null && eagerPartitions.isEmpty() == false) {
+                    warnOnShadowedColumns(
+                        shadowedPhysicalColumns(anchorMetadata.schema(), eagerPartitions.partitionColumns().keySet()),
+                        this::recordPendingWarning
+                    );
+                }
                 // Prefetch the dataset-level aggregate BEFORE the per-file stats gather — see
                 // applyDatasetAggregate for why post-gather reads self-defeat under cache pressure.
                 DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(listing, config, cacheable);
@@ -887,9 +906,16 @@ public class ExternalSourceResolver {
                     }
                 }, listener::onFailure);
                 if (cacheable) {
-                    readAndAggregateAllFileStatsWithCache(listing, config, implicitNulls, ffwReadConfigs, statsListener);
+                    readAndAggregateAllFileStatsWithCache(
+                        listing,
+                        config,
+                        implicitNulls,
+                        declaredTypeColumns,
+                        ffwReadConfigs,
+                        statsListener
+                    );
                 } else {
-                    readAndAggregateAllFileStats(listing, config, implicitNulls, ffwReadConfigs, statsListener);
+                    readAndAggregateAllFileStats(listing, config, implicitNulls, declaredTypeColumns, ffwReadConfigs, statsListener);
                 }
             } else if (listing.fileCount() > 1) {
                 // Defer branch (requiresStats == false): skip the N footer reads. The anchor-only stats are not
@@ -1881,16 +1907,20 @@ public class ExternalSourceResolver {
      * disagrees. A column the anchor cannot represent is whole-column null-filled by footer readers
      * (Parquet, ORC), so that file's harvest is rewritten to the all-null contract before the merge:
      * {@code value_count = 0}, {@code null_count = row_count}, no extrema. The remaining files' harvests
-     * fold normally and the aggregate stays warm. Text readers decide per value under the error policy,
-     * so an unrepresentable column's extrema and counts are dropped after the merge and {@code COUNT}
-     * / {@code MIN} / {@code MAX} scan. A representable footer file whose harvest extrema are not in
-     * the planner type's in-memory domain ({@code UNSIGNED_LONG} vs a signed integer) has those
-     * extrema encoded into the planner domain before the merge so MIN/MAX stay warm. {@code
-     * allMetadata.get(0)} is the anchor ({@link #gatherPerFile} emits listing order).
+     * fold normally and the aggregate stays warm. A declared column the scan would still coerce is not
+     * rewritten: extrema and counts are dropped after the merge so COUNT/MIN/MAX scan. Text readers
+     * decide per value under the error policy, so an unrepresentable column's extrema and counts are
+     * dropped after the merge and {@code COUNT} / {@code MIN} / {@code MAX} scan. A representable
+     * footer file whose harvest extrema are not in the planner type's in-memory domain
+     * ({@code UNSIGNED_LONG} vs a signed integer) has those extrema encoded into the planner domain
+     * before the merge so MIN/MAX stay warm; an encode failure drops merged counts so COUNT also
+     * scans. Encoded unsigned extrema under a non-unsigned planner type are poisoned so MIN/MAX
+     * scan while COUNT stays warm. {@code allMetadata.get(0)} is the anchor
+     * ({@link #gatherPerFile} emits listing order).
      */
     @Nullable
     static Map<String, Object> aggregateFileStatistics(List<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
-        return aggregateFileStatistics(allMetadata, implicitNullsForAbsentColumn, null);
+        return aggregateFileStatistics(allMetadata, implicitNullsForAbsentColumn, null, Set.of());
     }
 
     @Nullable
@@ -1899,10 +1929,24 @@ public class ExternalSourceResolver {
         boolean implicitNullsForAbsentColumn,
         @Nullable Consumer<String> warningSink
     ) {
+        return aggregateFileStatistics(allMetadata, implicitNullsForAbsentColumn, warningSink, Set.of());
+    }
+
+    @Nullable
+    static Map<String, Object> aggregateFileStatistics(
+        List<SourceMetadata> allMetadata,
+        boolean implicitNullsForAbsentColumn,
+        @Nullable Consumer<String> warningSink,
+        Set<String> declaredTypeColumns
+    ) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
         Map<String, DataType> anchorTypes = null;
         Set<String> unrepresentableColumns = new HashSet<>();
         Set<String> extremaIncompatibleColumns = new HashSet<>();
+        Set<String> safeMissColumns = new HashSet<>();
+        Set<String> failedEncodeColumns = new HashSet<>();
+        Set<String> unsignedForeignDomainColumns = new HashSet<>();
+        Set<String> declaredColumns = declaredTypeColumns == null ? Set.of() : declaredTypeColumns;
         for (SourceMetadata meta : allMetadata) {
             Map<String, Object> flat = flatStatsOf(meta);
             if (flat == null) {
@@ -1920,7 +1964,9 @@ public class ExternalSourceResolver {
                     DataType anchorType = anchorTypes.get(entry.getKey());
                     DataType fileType = entry.getValue();
                     if (unrepresentableUnderAnchor(anchorType, fileType)) {
-                        if (implicitNullsForAbsentColumn) {
+                        if (declaredCoercible(declaredColumns, entry.getKey(), fileType, anchorType)) {
+                            safeMissColumns.add(entry.getKey());
+                        } else if (implicitNullsForAbsentColumn) {
                             if (rewriteColumns == null) {
                                 rewriteColumns = new ArrayList<>();
                             }
@@ -1928,7 +1974,7 @@ public class ExternalSourceResolver {
                             if (warningSink != null) {
                                 if (fileSkipWarnings == null) {
                                     fileSkipWarnings = new SkipWarnings(
-                                        SkipWarnings.incompatiblePlannerTypeFileSummary("File", meta.location()),
+                                        SkipWarnings.incompatiblePlannerTypeFileSummary(meta.sourceType(), meta.location()),
                                         warningSink
                                     );
                                 }
@@ -1939,7 +1985,7 @@ public class ExternalSourceResolver {
                         } else {
                             unrepresentableColumns.add(entry.getKey());
                         }
-                    } else if (extremaSharePlannerDomain(anchorType, fileType) == false) {
+                    } else if (isUnsignedLongVersusSignedInteger(anchorType, fileType)) {
                         if (implicitNullsForAbsentColumn) {
                             if (encodeColumns == null) {
                                 encodeColumns = new ArrayList<>();
@@ -1948,28 +1994,32 @@ public class ExternalSourceResolver {
                         } else {
                             extremaIncompatibleColumns.add(entry.getKey());
                         }
+                    } else if (unsignedExtremaUnderNonUnsignedPlanner(anchorType, fileType)) {
+                        unsignedForeignDomainColumns.add(entry.getKey());
                     }
                 }
                 if (rewriteColumns != null) {
                     flat = SourceStatisticsSerializer.rewriteColumnsAsAllNull(flat, rewriteColumns);
                 }
                 if (encodeColumns != null) {
-                    flat = SourceStatisticsSerializer.encodeColumnExtremaAsUnsignedLong(flat, encodeColumns);
+                    flat = SourceStatisticsSerializer.encodeColumnExtremaAsUnsignedLong(flat, encodeColumns, failedEncodeColumns);
                 }
             }
             perFileFlatStats.add(flat);
         }
         Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
-        if (merged != null && (unrepresentableColumns.isEmpty() == false || extremaIncompatibleColumns.isEmpty() == false)) {
+        if (merged != null
+            && (unrepresentableColumns.isEmpty() == false
+                || extremaIncompatibleColumns.isEmpty() == false
+                || safeMissColumns.isEmpty() == false
+                || failedEncodeColumns.isEmpty() == false
+                || unsignedForeignDomainColumns.isEmpty() == false)) {
             merged = new HashMap<>(merged);
-            for (String column : unrepresentableColumns) {
-                SourceStatisticsSerializer.poisonColumnExtrema(merged, column);
-                merged.remove(SourceStatisticsSerializer.columnValueCountKey(column));
-                merged.remove(SourceStatisticsSerializer.columnNullCountKey(column));
-            }
-            for (String column : extremaIncompatibleColumns) {
-                SourceStatisticsSerializer.poisonColumnExtrema(merged, column);
-            }
+            dropColumnCounts(merged, unrepresentableColumns, true);
+            dropColumnCounts(merged, extremaIncompatibleColumns, true);
+            dropColumnCounts(merged, safeMissColumns, true);
+            dropColumnCounts(merged, failedEncodeColumns, true);
+            dropColumnCounts(merged, unsignedForeignDomainColumns, false);
         }
         return merged;
     }
@@ -1984,15 +2034,25 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Whether a later file's harvest extrema are already in the planner type's in-memory domain.
-     * {@code UNSIGNED_LONG} footer min/max are sign-flip-encoded; a signed integer harvest is a raw
-     * {@code Long}. Those must not be same-class-compared.
+     * Footer {@code UNSIGNED_LONG} min/max are sign-flip-encoded. Under any other planner type those
+     * longs are not the scan's values (a DOUBLE planner would {@code doubleValue()} the encoding).
      */
-    private static boolean extremaSharePlannerDomain(DataType anchorType, DataType fileType) {
-        if (anchorType == null || fileType == null || anchorType == fileType) {
-            return true;
+    private static boolean unsignedExtremaUnderNonUnsignedPlanner(DataType anchorType, DataType fileType) {
+        return fileType == DataType.UNSIGNED_LONG && anchorType != null && anchorType != DataType.UNSIGNED_LONG;
+    }
+
+    private static boolean declaredCoercible(Set<String> declaredTypeColumns, String name, DataType fileType, DataType plannerType) {
+        return declaredTypeColumns.contains(name) && DeclaredTypeCoercions.supports(fileType, plannerType);
+    }
+
+    private static void dropColumnCounts(Map<String, Object> merged, Set<String> columns, boolean dropCounts) {
+        for (String column : columns) {
+            SourceStatisticsSerializer.poisonColumnExtrema(merged, column);
+            if (dropCounts) {
+                merged.remove(SourceStatisticsSerializer.columnValueCountKey(column));
+                merged.remove(SourceStatisticsSerializer.columnNullCountKey(column));
+            }
         }
-        return isUnsignedLongVersusSignedInteger(anchorType, fileType) == false;
     }
 
     private static boolean isUnsignedLongVersusSignedInteger(DataType left, DataType right) {
@@ -2100,12 +2160,13 @@ public class ExternalSourceResolver {
         FileList listing,
         Map<String, Object> config,
         boolean implicitNulls,
+        Set<String> declaredTypeColumns,
         Map<String, String> readConfigsOut,
         ActionListener<Map<String, Object>> listener
     ) {
         gatherPerFile(listing, config, false, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
-            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, this::recordPendingWarning));
+            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, this::recordPendingWarning, declaredTypeColumns));
         }, e -> {
             // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
             // instead of silently degrading to partial stats and continuing. A read that failed *because* the query
@@ -2152,12 +2213,13 @@ public class ExternalSourceResolver {
         FileList listing,
         Map<String, Object> config,
         boolean implicitNulls,
+        Set<String> declaredTypeColumns,
         Map<String, String> readConfigsOut,
         ActionListener<Map<String, Object>> listener
     ) {
         gatherPerFile(listing, config, true, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
-            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, this::recordPendingWarning));
+            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, this::recordPendingWarning, declaredTypeColumns));
         }, e -> {
             // A bare cancellation, or a read that failed because the query was cancelled mid-flight (the cache wraps
             // loader failures, so consult the state directly), must abort rather than degrade to partial stats.
@@ -2514,15 +2576,11 @@ public class ExternalSourceResolver {
         List<Attribute> enrichedSchema = new ArrayList<>();
         // Physical columns dropped because a same-named partition key shadows them. Collected in
         // schema order (deduped) so we can emit one client-facing warning per shadowed column.
-        List<String> shadowedColumns = new ArrayList<>();
+        List<String> shadowedColumns = shadowedPhysicalColumns(originalSchema, partitionNames);
 
         for (Attribute attr : originalSchema) {
             if (partitionNames.contains(attr.name()) == false) {
                 enrichedSchema.add(attr);
-            } else if (shadowedColumns.contains(attr.name()) == false) {
-                // Partition (path-derived) value wins; the physical column is hidden (Spark/DuckDB
-                // semantics). The escape hatch to read the physical column is partition_detection: none.
-                shadowedColumns.add(attr.name());
             }
         }
 
@@ -2577,6 +2635,19 @@ public class ExternalSourceResolver {
      * are themselves already on a thread whose response headers feed the client, e.g. tests
      * exercising this method directly on the test thread. A no-op when nothing is shadowed.
      */
+    private static List<String> shadowedPhysicalColumns(List<Attribute> schema, Set<String> partitionNames) {
+        List<String> shadowed = new ArrayList<>();
+        if (schema == null || partitionNames == null || partitionNames.isEmpty()) {
+            return shadowed;
+        }
+        for (Attribute attr : schema) {
+            if (partitionNames.contains(attr.name()) && shadowed.contains(attr.name()) == false) {
+                shadowed.add(attr.name());
+            }
+        }
+        return shadowed;
+    }
+
     private static void warnOnShadowedColumns(List<String> shadowedColumns, @Nullable Consumer<String> warningSink) {
         if (shadowedColumns.isEmpty()) {
             return;
@@ -2622,6 +2693,33 @@ public class ExternalSourceResolver {
      * logical column name). {@link DeclaredReadSpec#NONE} when there is no mapping or it declares none of these. Built
      * once per path in {@link #resolve} and carried on the {@code ResolvedSource}.
      */
+    private static Set<String> declaredTypeColumnsOf(@Nullable DatasetMapping declaredMapping) {
+        DatasetMapping.Mappings mappings = declaredMapping == null ? null : declaredMapping.mappings();
+        return mappings == null ? Set.of() : Set.copyOf(mappings.properties().keySet());
+    }
+
+    /**
+     * Declared-type columns as the physical file names {@link #aggregateFileStatistics} sees on
+     * each file's schema. {@link #declaredTypeColumnsOf} is logical; a {@code path} rename is
+     * applied here so membership matches the harvest. {@link DeclaredReadSpec} keeps the logical
+     * set; {@link FileSourceFactory} physicalizes that copy at read time.
+     */
+    static Set<String> physicalDeclaredTypeColumnsOf(@Nullable DatasetMapping declaredMapping) {
+        Set<String> logical = declaredTypeColumnsOf(declaredMapping);
+        if (logical.isEmpty()) {
+            return logical;
+        }
+        Map<String, String> renames = DeclaredSchemaResolver.renameMap(declaredMapping);
+        if (renames.isEmpty()) {
+            return logical;
+        }
+        Set<String> physical = new HashSet<>(logical.size());
+        for (String col : logical) {
+            physical.add(PhysicalNames.translate(col, renames));
+        }
+        return Set.copyOf(physical);
+    }
+
     private static DeclaredReadSpec declaredReadSpecOf(@Nullable DatasetMapping declaredMapping) {
         Map<String, String> renames = DeclaredSchemaResolver.renameMap(declaredMapping);
         DatasetMapping.Mappings mappings = declaredMapping == null ? null : declaredMapping.mappings();
@@ -2630,7 +2728,7 @@ public class ExternalSourceResolver {
         // Every mapped field carries an explicit declared type (DatasetFieldMapping requires it), so the mapping's
         // logical column names ARE the declared-type columns — the ones licensed to coerce (incl. narrow) toward their
         // target at read time. Keyed by LOGICAL name; FileSourceFactory physicalizes them via renames.
-        Set<String> declaredTypeColumns = mappings == null ? Set.of() : Set.copyOf(mappings.properties().keySet());
+        Set<String> declaredTypeColumns = declaredTypeColumnsOf(declaredMapping);
         if (mappings != null) {
             Map<String, String> collected = new HashMap<>();
             for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {

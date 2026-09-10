@@ -69,11 +69,18 @@ public class SkipWarnings {
 
     /**
      * Per-file summary when an on-disk column type cannot be represented by the planner type
-     * and the column is returned as null. {@code fileKind} is the format-owned label
-     * ({@code "Parquet file"}, {@code "ORC file"}) or {@code "File"} when the caller is
-     * format-neutral.
+     * and the column is returned as null. {@code sourceType} selects the prefix so the resolve-time
+     * fold and the reader emit the same string and exact-string dedup collapses them.
      */
-    public static String incompatiblePlannerTypeFileSummary(String fileKind, String fileLocation) {
+    public static String incompatiblePlannerTypeFileSummary(String sourceType, String fileLocation) {
+        String fileKind;
+        if ("parquet".equals(sourceType)) {
+            fileKind = "Parquet file";
+        } else if ("orc".equals(sourceType)) {
+            fileKind = "ORC file";
+        } else {
+            fileKind = "File";
+        }
         return fileKind
             + " ["
             + fileLocation

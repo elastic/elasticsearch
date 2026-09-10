@@ -299,7 +299,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "drift_pq_type_ffw",
         "widen_pq_type_ffw",
         "drift_csv_type_ffw",
-        "ul_pq_type_ffw"
+        "ul_pq_type_ffw",
+        "drift_pq_declared_ffw"
     );
 
     /**
@@ -6198,7 +6199,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         putFirstFileWinsGlob("widen_pq_type_ffw", dir);
 
         // The anchor pins x to int64, which part-b's int32 widens into, so nothing is discarded and both forms
-        // answer over all four values. This is the near neighbour of the divergent case that must stay green.
+        // answer over all four values.
         assertThat(firstRowOf("FROM widen_pq_type_ffw | KEEP x | SORT x"), equalTo(List.of(-10L)));
         assertThat(
             firstRowOf("FROM widen_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
@@ -6239,6 +6240,26 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // must answer over that coerced domain, not mix encoded uint64 footer extrema with raw signed harvests.
         List<Object> scan = firstRowOf("FROM ul_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)");
         assertThat(firstRowOf("FROM ul_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(scan));
+        assertThat(documentsReadBy("FROM ul_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+    }
+
+    public void testFirstFileWinsDeclaredIntegerMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("x", new DatasetFieldMapping("integer", null)))
+        );
+        putFirstFileWinsGlob("drift_pq_declared_ffw", dir, "parquet", Map.of(), mapping);
+
+        // A mapping that restates the int32 anchor licenses per-value coerce of the later int64 file.
+        // The fold cannot rewrite those extrema into the planner domain, so COUNT/MIN/MAX scan
+        // over 1, 2, -10, 20 instead of all-nulling the later file.
+        assertThat(firstRowOf("FROM drift_pq_declared_ffw | KEEP x | SORT x"), equalTo(List.of(-10)));
+        assertThat(firstRowOf("FROM drift_pq_declared_ffw | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+        assertThat(firstRowOf("FROM drift_pq_declared_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(-10, 20, 4L)));
+        assertThat(documentsReadBy("FROM drift_pq_declared_ffw | STATS c = COUNT(x)"), equalTo(4L));
     }
 
     private long documentsReadBy(String query) {
@@ -6280,6 +6301,16 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     private void putFirstFileWinsGlob(String dataset, Path dir, String format, Map<String, Object> extra) {
+        putFirstFileWinsGlob(dataset, dir, format, extra, null);
+    }
+
+    private void putFirstFileWinsGlob(
+        String dataset,
+        Path dir,
+        String format,
+        Map<String, Object> extra,
+        @Nullable DatasetMapping mapping
+    ) {
         Map<String, Object> settings = new HashMap<>();
         settings.put("format", format);
         settings.put("schema_resolution", "first_file_wins");
@@ -6288,7 +6319,16 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
-                putDatasetRequest(dataset, "local_ds", StoragePath.fileUri(dir) + "/*." + format, settings)
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    dataset,
+                    "local_ds",
+                    StoragePath.fileUri(dir) + "/*." + format,
+                    null,
+                    settings,
+                    mapping
+                )
             )
         );
     }

@@ -165,15 +165,18 @@ public class ResolvingProject extends Project {
     public ResolvingProject replaceChild(LogicalPlan newChild) {
         ResolvingProject recomputed = new ResolvingProject(source(), newChild, command);
         Set<String> names = new HashSet<>(Expressions.names(recomputed.projections()));
+        Set<String> childNames = newChild.outputSet().names();
         // Convert-function synthetics (e.g. $$field$converted_to$long) must survive re-resolution.
         // Skip the empty-mapping <no-fields> placeholder: ResolveUnmapped has already replaced it on the
         // relation, and re-appending it would project an attribute the child no longer outputs.
+        // Only keep synthetics the new child still produces — a different child must not inherit orphans.
         var missingSynthetics = projections().stream()
             .filter(
                 p -> p.synthetic()
                     && p instanceof UnmappedFieldsAttribute == false
                     && Analyzer.NO_FIELDS_NAME.equals(p.name()) == false
                     && names.contains(p.name()) == false
+                    && childNames.contains(p.name())
             )
             .toList();
         return missingSynthetics.isEmpty()

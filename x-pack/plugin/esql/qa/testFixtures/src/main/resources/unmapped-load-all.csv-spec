@@ -3331,6 +3331,7 @@ disabledSourceYieldsOnlyMappedId
 required_capability: optional_fields_load_all_v2
 required_capability: source_field_mapping
 skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_disabled METADATA _source
@@ -3511,6 +3512,7 @@ storedobjectsFalse_For_unmapped_source_mapped_Highlight
 required_capability: optional_fields_load_all_v2
 required_capability: optional_fields_fix_unmapped_object_value
 skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_stored, unmapped_source_mapped METADATA _index, _source

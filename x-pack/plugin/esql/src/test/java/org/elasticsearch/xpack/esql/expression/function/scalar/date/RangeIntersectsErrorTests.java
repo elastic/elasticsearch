@@ -26,7 +26,6 @@ public class RangeIntersectsErrorTests extends ErrorsForCasesWithoutExamplesTest
     @Override
     protected List<TestCaseSupplier> cases() {
         assumeTrue("DATE_RANGE type is only supported in snapshot builds", DataType.DATE_RANGE.supportedVersion().supportedLocally());
-        assumeTrue("DOUBLE_RANGE type is only supported in snapshot builds", DataType.DOUBLE_RANGE.supportedVersion().supportedLocally());
         return paramsToSuppliers(RangeIntersectsTests.parameters());
     }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -61,7 +62,6 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -256,8 +256,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
     /**
      * Read the response from a {@link StreamInput}.
+     * When the remote node is old (transport version before {@link DriverCompletionInfo#ESQL_DRIVER_WARNINGS}),
+     * warnings arrive as RFC 7234 {@code Warning:} transport response headers stored in {@code threadContext}.
      */
-    protected abstract LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException;
+    protected abstract LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext)
+        throws IOException;
 
     protected static QueryList termQueryList(MappedFieldType field, AliasFilter aliasFilter, int channelOffset, DataType inputDataType) {
         return switch (inputDataType) {
@@ -344,13 +347,14 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         DiscoveryNode targetNode,
         T transportRequest
     ) {
+        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         transportService.sendChildRequest(
             targetNode,
             actionName,
             transportRequest,
             parentTask,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(delegate, in -> readLookupResponse(in, blockFactory), executor)
+            new ActionListenerResponseHandler<>(delegate, in -> readLookupResponse(in, blockFactory, threadContext), executor)
         );
     }
 
@@ -499,7 +503,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
-                    DriverCompletionInfo completionInfo = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L);
+                    DriverCompletionInfo completionInfo = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L, false);
                     List<Page> out = collectedPages;
                     if (mergePages && out.isEmpty()) {
                         out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
@@ -582,13 +586,9 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
     /**
      * Returns a {@link LongSupplier} for the current thread's store directory bytes read counter.
-     * Returns {@code () -> 0L} when the {@code directory_metrics} feature flag is disabled.
      */
     protected static LongSupplier directoryBytesReadSupplier(IndicesService indicesService) {
-        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
-            return indicesService::currentStoreBytesRead;
-        }
-        return () -> 0L;
+        return indicesService::currentStoreBytesRead;
     }
 
     public CircuitBreaker getBreaker() {
@@ -656,7 +656,19 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) {
             request.incRef();
-            ActionListener<LookupResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), request::decRef);
+            ActionListener<LookupResponse> channelListener = ActionListener.runBefore(
+                new ChannelActionListener<>(channel),
+                request::decRef
+            );
+            // Old coordinators receive warnings as transport response headers rather than the
+            // ESQL_DRIVER_WARNINGS wire field. Emit them here — before the channel serialises its
+            // ThreadContext — so they are included in the response headers sent back to the old node.
+            final ActionListener<LookupResponse> listener = channel.getVersion().supports(DriverCompletionInfo.ESQL_DRIVER_WARNINGS)
+                ? channelListener
+                : channelListener.map(resp -> {
+                    resp.warnings().forEach(HeaderWarning::addWarning);
+                    return resp;
+                });
             doLookup(request, (CancellableTask) task, listener);
         }
     }

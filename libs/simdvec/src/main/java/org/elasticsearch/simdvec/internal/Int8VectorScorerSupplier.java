@@ -15,8 +15,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.lucene.store.IndexInputUtils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -25,9 +24,7 @@ import java.lang.foreign.ValueLayout;
 // Scores pairs of indexed vectors (ordinal vs ordinal) for graph construction and segment merging.
 public abstract sealed class Int8VectorScorerSupplier implements RandomVectorScorerSupplier {
 
-    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow(AssertionError::new);
+    private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
     final int dims;
     /**
@@ -41,6 +38,7 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
     final FixedSizeScratch secondScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
+    final float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
 
     protected Int8VectorScorerSupplier(IndexInput input, ByteVectorValues values) {
         this.input = input;
@@ -62,15 +60,15 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
             return Float.NEGATIVE_INFINITY;
         }
 
-        float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
         long queryByteOffset = (long) firstOrd * vectorByteSize;
         input.seek(queryByteOffset);
-        IndexInputUtils.withVoidSlice(input, vectorByteSize, firstScratch, query -> {
+        return IndexInputUtils.withFloatSlice(input, vectorByteSize, firstScratch, query -> {
             long[] offsets = offsetsScratch.get(numNodes);
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) ordinals[i] * vectorByteSize;
             }
 
+            float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
             boolean resolved = IndexInputUtils.withSliceAddresses(
                 input,
                 offsets,
@@ -82,8 +80,8 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
             if (resolved == false) {
                 maxScore[0] = scorePerVectorFallback(query, scores, numNodes, offsets);
             }
+            return maxScore[0];
         });
-        return maxScore[0];
     }
 
     private float scorePerVectorFallback(MemorySegment query, float[] scores, int numNodes, long[] offsets) throws IOException {
@@ -102,9 +100,14 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
         long secondByteOffset = (long) secondOrd * vectorByteSize;
 
         input.seek(firstByteOffset);
-        return IndexInputUtils.withSlice(input, vectorByteSize, firstScratch, firstSeg -> {
+        return IndexInputUtils.withFloatSlice(input, vectorByteSize, firstScratch, firstSeg -> {
             input.seek(secondByteOffset);
-            return IndexInputUtils.withSlice(input, vectorByteSize, secondScratch, secondSeg -> scoreFromSegments(firstSeg, secondSeg));
+            return IndexInputUtils.withFloatSlice(
+                input,
+                vectorByteSize,
+                secondScratch,
+                secondSeg -> scoreFromSegments(firstSeg, secondSeg)
+            );
         });
     }
 

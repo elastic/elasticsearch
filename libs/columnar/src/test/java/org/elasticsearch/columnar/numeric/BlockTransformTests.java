@@ -9,8 +9,6 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.ByteArrayDataInput;
-import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.test.ESTestCase;
 
@@ -127,11 +125,11 @@ public class BlockTransformTests extends ESTestCase {
     private static void assertStageRoundTrip(BlockTransform stage, long[] original, int valueCount) throws IOException {
         String name = stage.getClass().getSimpleName() + "[valueCount=" + valueCount + "]";
         long[] work = original.clone();
-        ByteBuffersDataOutput params = new ByteBuffersDataOutput();
+        MetadataBuffer params = new MetadataBuffer();
         boolean fired = stage.tryEncode(work, valueCount, params);
         if (fired) {
             long[] decoded = work.clone();
-            stage.decode(decoded, valueCount, new ByteArrayDataInput(params.toArrayCopy()));
+            stage.decode(decoded, valueCount, DataInputMetadataReader.wrap(params));
             for (int i = 0; i < valueCount; i++) {
                 assertEquals(name + " must round-trip value " + i + " when it fires", original[i], decoded[i]);
             }

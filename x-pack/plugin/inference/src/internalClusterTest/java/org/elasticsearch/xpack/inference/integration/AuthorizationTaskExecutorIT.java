@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -24,6 +22,8 @@ import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.completion.UnifiedCompletionUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.tasks.TaskInfo;
@@ -128,7 +128,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         try {
             listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         } catch (Exception e) {
-            logger.atWarn().withThrowable(e).log("Failed to delete eis endpoints: " + idsToDelete);
+            logger.warn(() -> "Failed to delete eis endpoints: " + idsToDelete, e);
         }
     }
 

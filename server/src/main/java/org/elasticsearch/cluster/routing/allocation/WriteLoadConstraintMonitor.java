@@ -26,7 +26,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
-import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -63,7 +63,7 @@ public class WriteLoadConstraintMonitor {
 
     private final AtomicLong hotspotNodesCount = new AtomicLong(-1L); // metrics source of hotspotting node count
     private final DoubleHistogram hotspotDurationHistogram;
-    private final LongGauge hotspotNodeFlagGauge; // nodes hotspotting have 1 written, with the name/id
+    private final LongAsyncGauge hotspotNodeFlagGauge; // nodes hotspotting have 1 written, with the name/id
 
     protected WriteLoadConstraintMonitor(
         WriteLoadConstraintSettings writeLoadConstraintSettings,
@@ -87,14 +87,14 @@ public class WriteLoadConstraintMonitor {
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.rerouteService = rerouteService;
 
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             HOTSPOT_NODES_COUNT_METRIC_NAME,
             "Total number of nodes hotspotting with write loads",
             "unit",
             this::getHotspotNodesCount
         );
         hotspotDurationHistogram = meterRegistry.registerDoubleHistogram(HOTSPOT_DURATION_METRIC_NAME, "hotspot duration", "s");
-        hotspotNodeFlagGauge = meterRegistry.registerLongsGauge(
+        hotspotNodeFlagGauge = meterRegistry.registerLongsAsyncGauge(
             HOTSPOT_NODES_FLAG_METRIC_NAME,
             "hotspot node flag",
             "flag",

@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
@@ -43,10 +45,10 @@ import java.util.List;
  *     outside the v1 support matrix — runtime fields, index-time scripts, dynamic mapping,
  *     unsupported mapper types, etc. — causes the method to return {@code null}, at which point
  *     {@link ShardBatchIndexer} falls back to the sequential path.</li>
- *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution, Engine.Operation.Origin)}
- *     runs per chunk. It invokes each mapper once for the whole chunk — attaching one Lucene column per batch-wide value
- *     (id, source, engine-assigned seq-no/version, ...) via {@link BatchMappingContext}, and assembles {@link Engine.Index} operations
- *     plus the resulting {@link EngineBatch}. After the per-leaf loop, each group mapper is dispatched via
+ *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution,
+ *     Engine.Operation.Origin, Recycler)} runs per chunk. It invokes each mapper once for the whole chunk — attaching one Lucene
+ *     column per batch-wide value (id, source, engine-assigned seq-no/version, ...) via {@link BatchMappingContext}, and assembles
+ *     {@link Engine.Index} operations plus the resulting {@link EngineBatch}. After the per-leaf loop, each group mapper is dispatched via
  *     {@link FieldMapper#mapColumnGroupBatch}.</li>
  * </ol>
  */
@@ -210,6 +212,10 @@ public final class ShardBatchMapper {
                 return null;
             }
             final FieldMapper fieldMapper = (FieldMapper) resolved;
+            if (isMultiFieldSubField(fullPath, lookup)) {
+                logger.debug("batch indexing disabled: field [{}] is a mapped as a multi-field", fullPath);
+                return null;
+            }
             if (fieldMapper.supportsColumnarParse(indexSettings) == false) {
                 logger.debug(
                     "columnar batch mapping disabled: mapper at [{}] of type [{}] does not support columnar parsing",
@@ -294,6 +300,27 @@ public final class ShardBatchMapper {
     }
 
     /**
+     * Detects whether a field is mapped as a multi-field. This to avoid trying to index a multi-field directly, which isn't allowed.
+     * If a field is a multi-field, then {@link #resolveMappers(SourceSchema, MappingLookup, IndexSettings)} should
+     * fall back to the sequential execution path, which will ignore the field in question. This is current behavior.
+     */
+    private static boolean isMultiFieldSubField(String fullPath, MappingLookup lookup) {
+        int dot = fullPath.lastIndexOf('.');
+        if (dot <= 0) {
+            return false;
+        }
+        // Only check immediate dotted parent, because multi-fields are always leaf fields:
+        if (lookup.getMapper(fullPath.substring(0, dot)) instanceof FieldMapper ancestor) {
+            for (FieldMapper subMapper : ancestor.multiFields()) {
+                if (subMapper.fullPath().equals(fullPath)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * Returns {@code true} if an unmapped field at {@code fullPath} matches {@code routing_path}. The sequential
      * path rejects the document in that case rather than dropping the field
      * ({@code DocumentParser#failIfMatchesRoutingPath}).
@@ -344,7 +371,8 @@ public final class ShardBatchMapper {
         int chunkStart,
         int chunkEnd,
         BatchMapperResolution resolution,
-        Engine.Operation.Origin origin
+        Engine.Operation.Origin origin,
+        Recycler<BytesRef> recycler
     ) {
         final MappingLookup mappingLookup = shard.mapperService().mappingLookup();
         final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
@@ -358,7 +386,7 @@ public final class ShardBatchMapper {
             shard.getOperationPrimaryTerm(),
             shard.getRelativeTimeInNanos()
         );
-        final BatchMappingContext context = new BatchMappingContext(indexBatch, mappingLookup, shard.indexSettings());
+        final BatchMappingContext context = new BatchMappingContext(indexBatch, mappingLookup, shard.indexSettings(), recycler);
 
         try {
             for (MetadataFieldMapper metadataMapper : metadataMappers) {
@@ -391,9 +419,10 @@ public final class ShardBatchMapper {
             }
         } catch (Exception e) {
             logger.warn("columnar batch mapping failed on [{}], falling back", origin, e);
+            context.close();
             return null;
         }
 
-        return new EngineBatch(indexBatch, context.columns());
+        return new EngineBatch(indexBatch, context.columns(), context);
     }
 }

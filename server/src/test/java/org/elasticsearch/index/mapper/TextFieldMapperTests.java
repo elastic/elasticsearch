@@ -2235,7 +2235,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             MappedFieldType ft = mapperService.fieldType("field");
             SourceProvider sourceProvider = mapperService.mappingLookup().isSourceSynthetic() ? (ctx, doc) -> {
                 throw new IllegalArgumentException("Can't load source in scripts in synthetic mode");
-            } : SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics());
+            } : SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics(), null);
             SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
             var indexSettings = mapperService.getIndexSettings();
             IndexFieldData<?> sfd = ft.fielddataBuilder(
@@ -2512,12 +2512,36 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.omitNorms(), is(true));
     }
 
+    public void testNormsEnabledWhenIndexModeIsVectordbColumnar() throws IOException {
+        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.getName()).build();
+        XContentBuilder mapping = mapping(b -> b.startObject("potato").field("type", "text").endObject());
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> b.field("potato", "a potato flew around my room")));
+
+        assertTrue(
+            doc.rootDoc()
+                .getFields("potato")
+                .stream()
+                .anyMatch(
+                    field -> field.fieldType().indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS
+                        && field.fieldType().omitNorms() == false
+                )
+        );
+        assertTrue(doc.rootDoc().getFields("potato").stream().anyMatch(field -> field.fieldType().docValuesType() != DocValuesType.NONE));
+    }
+
     public void testDocValuesEnabledByDefaultWhenIndexModeIsColumnar() throws IOException {
         assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.COLUMNAR);
     }
 
     public void testDocValuesEnabledByDefaultWhenIndexModeIsColumnarLogsdb() throws IOException {
         assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.LOGSDB_COLUMNAR);
+    }
+
+    public void testDocValuesEnabledByDefaultWhenIndexModeIsVectordbColumnar() throws IOException {
+        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.VECTORDB_COLUMNAR);
     }
 
     private void assertDocValuesEnabledByDefaultInColumnarMode(IndexMode indexMode) throws IOException {
@@ -2661,8 +2685,8 @@ public class TextFieldMapperTests extends MapperTestCase {
                             StoredFieldsSpec storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
                             SourceLoader.Leaf leafSourceLoader = null;
                             if (storedFieldsSpec.requiresSource()) {
-                                var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
-                                leafSourceLoader = sourceLoader.leaf(ctx.reader(), null);
+                                var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+                                leafSourceLoader = sourceLoader.leaf(ctx, null);
                                 storedFieldsSpec = storedFieldsSpec.merge(
                                     new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
                                 );
@@ -2733,6 +2757,11 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsOnFailureParameter() {
         return true;
     }
 

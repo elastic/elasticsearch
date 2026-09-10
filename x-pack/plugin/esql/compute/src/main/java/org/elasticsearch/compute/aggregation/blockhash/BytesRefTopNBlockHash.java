@@ -284,11 +284,11 @@ final class BytesRefTopNBlockHash extends BlockHash {
         BytesRef scratch = new BytesRef();
         // Add all the values to the top set first, so we don't end up sending invalid values later.
         for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            if (count == 0) {
+            if (block.isNull(p)) {
                 acceptNull();
                 continue;
             }
+            int count = block.getValueCount(p);
             int first = block.getFirstValueIndex(p);
 
             for (int i = 0; i < count; i++) {

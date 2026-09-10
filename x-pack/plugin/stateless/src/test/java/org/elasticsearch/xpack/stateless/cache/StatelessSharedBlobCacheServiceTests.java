@@ -54,6 +54,7 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.getEvictionPolicy;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.maybeEvictLeastUsed;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.maybeScheduleDecayAndNewEpoch;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
@@ -272,9 +273,9 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             )
         ) {
-            cacheRegion(cacheService, generateFileCacheKey(), regionSize, 0);
+            cacheRegion(cacheService, generateFileCacheKey(), regionSize, 0, randomRegionTimestampMillis());
             // This is the 1st region since the entry is inserted at the head of freq list.
-            final RefCounted firstRegion = cacheRegion(cacheService, generateFileCacheKey(), regionSize, 0);
+            final RefCounted firstRegion = cacheRegion(cacheService, generateFileCacheKey(), regionSize, 0, randomRegionTimestampMillis());
             // Decay synchronously (DecayAndNewEpochTask uses DIRECT_EXECUTOR_SERVICE, which runs tasks inline).
             final boolean decayed = randomBoolean();
             if (decayed) {
@@ -316,7 +317,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
     private boolean fillAndMaybeDecay(SharedBlobCacheService<FileCacheKey> cacheService, DeterministicTaskQueue taskQueue) {
         final boolean shouldDecay = randomBoolean();
         while (freeRegionCount(cacheService) > 0) {
-            cacheRegion(cacheService, generateFileCacheKey(), cacheRegionSizeInBytes(1), 0);
+            cacheRegion(cacheService, generateFileCacheKey(), cacheRegionSizeInBytes(1), 0, randomRegionTimestampMillis());
         }
         if (shouldDecay) {
             maybeScheduleDecayAndNewEpoch(cacheService);
@@ -327,7 +328,7 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
 
     private void evictRandomly(SharedBlobCacheService<FileCacheKey> cacheService, long regionSize, boolean decayed) {
         if (decayed == false) {
-            cacheRegion(cacheService, generateFileCacheKey(), regionSize, 0);
+            cacheRegion(cacheService, generateFileCacheKey(), regionSize, 0, randomRegionTimestampMillis());
         } else {
             assertThat(maybeEvictLeastUsed(cacheService, generateFileCacheKey(), regionSize, 0), is(true));
         }
@@ -362,8 +363,20 @@ public class StatelessSharedBlobCacheServiceTests extends ESTestCase {
         ) {
             final ShardId shardId = new ShardId("index", randomUUID(), 0);
             final var cacheKey = new FileCacheKey(shardId, 1L, "file");
-            SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, cacheKey, cacheRegionSizeInBytes(250), 0);
-            SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, cacheKey, cacheRegionSizeInBytes(250), 1);
+            SharedBlobCacheServiceTestUtils.cacheRegion(
+                cacheService,
+                cacheKey,
+                cacheRegionSizeInBytes(250),
+                0,
+                randomRegionTimestampMillis()
+            );
+            SharedBlobCacheServiceTestUtils.cacheRegion(
+                cacheService,
+                cacheKey,
+                cacheRegionSizeInBytes(250),
+                1,
+                randomRegionTimestampMillis()
+            );
             assertThat(
                 SharedBlobCacheServiceTestUtils.countCachedRegionsByFreq(cacheService, key -> key.shardId().equals(shardId)),
                 equalTo(Map.of(1, 2))

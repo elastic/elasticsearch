@@ -16,7 +16,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.eirf.EirfRowToXContent;
+import org.elasticsearch.sourcebatch.SourceRowToXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,7 +30,7 @@ import java.util.Map;
 
 /**
  * Round-trip tests for {@link EscfEncoder}: encode JSON documents into an {@link EscfBatch}, then
- * reconstruct each row's source via {@link EirfRowToXContent} and assert it matches the original
+ * reconstruct each row's source via {@link SourceRowToXContent} and assert it matches the original
  * (compared as parsed maps, so key order and numeric width are irrelevant). Covers scalars, nested
  * objects, fixed arrays, arrays of objects (union/inline), explicit null, absent fields, booleans, and
  * heterogeneous columns that promote to a union.
@@ -278,7 +278,7 @@ public class EscfEncoderTests extends ESTestCase {
 
     private static Map<String, Object> reconstruct(EscfBatch batch, int row) throws IOException {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            EirfRowToXContent.writeRow(batch.row(row), batch.schema(), builder);
+            SourceRowToXContent.writeRow(batch.row(row), batch.schema(), builder);
             return XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
         }
     }

@@ -29,6 +29,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -93,7 +94,16 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         if (resolution == null) {
             return null;
         }
-        return ShardBatchMapper.mapColumnBatch(items, batch, shard, 0, items.length, resolution, Engine.Operation.Origin.PRIMARY);
+        return ShardBatchMapper.mapColumnBatch(
+            items,
+            batch,
+            shard,
+            0,
+            items.length,
+            resolution,
+            Engine.Operation.Origin.PRIMARY,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
     }
 
     /**
@@ -453,7 +463,8 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                     0,
                     2,
                     resolution,
-                    Engine.Operation.Origin.PRIMARY
+                    Engine.Operation.Origin.PRIMARY,
+                    BytesRefRecycler.NON_RECYCLING_INSTANCE
                 );
                 assertNotNull("chunk1 mapping should succeed", chunk1);
                 chunk1.columns().fillPrimaryTerm(1L);
@@ -475,7 +486,8 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                     2,
                     4,
                     resolution,
-                    Engine.Operation.Origin.PRIMARY
+                    Engine.Operation.Origin.PRIMARY,
+                    BytesRefRecycler.NON_RECYCLING_INSTANCE
                 );
                 assertNotNull("chunk2 mapping should succeed", chunk2);
                 chunk2.columns().fillPrimaryTerm(1L);
@@ -488,6 +500,82 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 assertTrue("chunk2 doc2: flat._keyed present", c2.fields().stream().anyMatch(f -> "flat._keyed".equals(f.name())));
                 c2.advance();
                 assertTrue("chunk2 doc3: flat._keyed present", c2.fields().stream().anyMatch(f -> "flat._keyed".equals(f.name())));
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * End-to-end through the real driver: a keyword field with a keyword multi-field takes the columnar path, and the sub-field's
+     * Lucene fields are emitted alongside the parent's from the parent's own source column.
+     */
+    public void testMultiFieldSubFieldIsMappedFromTheParentColumn() throws IOException {
+        final String mapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": {
+                  "type": "keyword",
+                  "fields": { "raw": { "type": "keyword", "ignore_above": 4 } }
+                }
+              }
+            }""";
+
+        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")), new BulkItemRequest(1, indexRequest("doc2")) };
+            try (SourceBatch batch = EscfEncoder.encode(List.of(doc("f", "abc"), doc("f", "abcdefgh")), XContentType.JSON)) {
+                EngineBatch result = mapBatch(shard, items, batch);
+                assertNotNull("expected columnar path to succeed for a multi-field mapping", result);
+
+                final MappedColumns mc = result.columns();
+                mc.fillPrimaryTerm(1L);
+                mc.setSeqNo(0, 10L);
+                mc.setSeqNo(1, 11L);
+                mc.setVersion(0, 1L);
+                mc.setVersion(1, 1L);
+
+                final MappedColumns.RowCursor cursor = mc.rowCursor();
+                cursor.advance();
+                List<IndexableField> fields = cursor.fields();
+                assertTrue("parent field f should be present", fields.stream().anyMatch(f -> "f".equals(f.name())));
+                assertTrue("sub-field f.raw should be present", fields.stream().anyMatch(f -> "f.raw".equals(f.name())));
+
+                // "abcdefgh" trips the sub-field's ignore_above but not the parent's, so only f.raw lands in _ignored.
+                cursor.advance();
+                fields = cursor.fields();
+                assertTrue("parent field f should still be present", fields.stream().anyMatch(f -> "f".equals(f.name())));
+                // LuceneBinaryColumn stores field names as BytesRef, so check binaryValue(), not stringValue().
+                final BytesRef rawRef = new BytesRef("f.raw");
+                assertTrue(
+                    "f.raw should be recorded in _ignored",
+                    fields.stream().anyMatch(f -> "_ignored".equals(f.name()) && rawRef.equals(f.binaryValue()))
+                );
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /** A sub-field whose mapper has no columnar support disqualifies the batch, which falls back to the row path. */
+    public void testUnsupportedMultiFieldSubMapperFallsBack() throws IOException {
+        final String mapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": {
+                  "type": "keyword",
+                  "fields": { "txt": { "type": "text" } }
+                }
+              }
+            }""";
+
+        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
+            try (SourceBatch batch = EscfEncoder.encode(List.of(doc("f", "hello")), XContentType.JSON)) {
+                assertNull("a text sub-field must force a fallback", mapBatch(shard, items, batch));
             }
         } finally {
             closeShards(shard);

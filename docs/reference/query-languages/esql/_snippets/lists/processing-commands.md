@@ -1,5 +1,6 @@
 * [`CHANGE_POINT`](/reference/query-languages/esql/commands/change-point.md) {applies_to}`stack: preview 9.1` {applies_to}`stack: ga 9.2`
 * [`COMPLETION`](/reference/query-languages/esql/commands/completion.md) {applies_to}`stack: preview 9.1` {applies_to}`stack: ga 9.3`
+* [`DEDUP`](/reference/query-languages/esql/commands/dedup.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 * [`DISSECT`](/reference/query-languages/esql/commands/dissect.md)
 * [`DROP`](/reference/query-languages/esql/commands/drop.md)
 * [`ENRICH`](/reference/query-languages/esql/commands/enrich.md)
@@ -7,6 +8,7 @@
 * [`GROK`](/reference/query-languages/esql/commands/grok.md)
 * [`FORK`](/reference/query-languages/esql/commands/fork.md) {applies_to}`stack: preview 9.1-9.3` {applies_to}`stack: ga 9.4`
 * [`FUSE`](/reference/query-languages/esql/commands/fuse.md) {applies_to}`stack: preview 9.2-9.4` {applies_to}`stack: ga 9.5`
+* [`HIGHLIGHT`](/reference/query-languages/esql/commands/highlight.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 * [`KEEP`](/reference/query-languages/esql/commands/keep.md)
 * [`LIMIT`](/reference/query-languages/esql/commands/limit.md)
 * [`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md) {applies_to}`stack: preview 9.0` {applies_to}`stack: ga 9.1`

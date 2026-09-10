@@ -15,8 +15,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.lucene.store.IndexInputUtils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -24,9 +23,7 @@ import java.lang.foreign.ValueLayout;
 
 public abstract sealed class Float32VectorScorerSupplier implements RandomVectorScorerSupplier {
 
-    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow(AssertionError::new);
+    private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
     final int dims;
     final int vectorByteSize;
@@ -36,8 +33,7 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
     final FixedSizeScratch secondScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
-    final float[] resultScratch = new float[] { Float.NEGATIVE_INFINITY };
-
+    final float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
 
     protected Float32VectorScorerSupplier(IndexInput input, FloatVectorValues values) {
         this.input = input;
@@ -59,29 +55,28 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
             return Float.NEGATIVE_INFINITY;
         }
 
-        final long queryByteOffset = (long) firstOrd * vectorByteSize;
-
-        resultScratch[0] = Float.NEGATIVE_INFINITY;
+        long queryByteOffset = (long) firstOrd * vectorByteSize;
         input.seek(queryByteOffset);
-        IndexInputUtils.withVoidSlice(input, vectorByteSize, firstScratch, query -> {
+        return IndexInputUtils.withFloatSlice(input, vectorByteSize, firstScratch, query -> {
             long[] offsets = offsetsScratch.get(numNodes);
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) ordinals[i] * vectorByteSize;
             }
 
+            maxScore[0] = Float.NEGATIVE_INFINITY;
             boolean resolved = IndexInputUtils.withSliceAddresses(
                 input,
                 offsets,
                 vectorByteSize,
                 numNodes,
                 addrsScratch,
-                addrs -> resultScratch[0] = bulkScoreFromSegment(addrs, query, MemorySegment.ofArray(scores), numNodes)
+                addrs -> maxScore[0] = bulkScoreFromSegment(addrs, query, MemorySegment.ofArray(scores), numNodes)
             );
             if (resolved == false) {
-                resultScratch[0] = scorePerVectorFallback(query, scores, numNodes, offsets);
+                maxScore[0] = scorePerVectorFallback(query, scores, numNodes, offsets);
             }
+            return maxScore[0];
         });
-        return resultScratch[0];
     }
 
     private float scorePerVectorFallback(MemorySegment query, float[] scores, int numNodes, long[] offsets) throws IOException {
@@ -96,17 +91,19 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
     }
 
     final float scoreFromOrds(int firstOrd, int secondOrd) throws IOException {
-        final long firstByteOffset = (long) firstOrd * vectorByteSize;
-        final long secondByteOffset = (long) secondOrd * vectorByteSize;
+        long firstByteOffset = (long) firstOrd * vectorByteSize;
+        long secondByteOffset = (long) secondOrd * vectorByteSize;
 
-        resultScratch[0] = Float.NEGATIVE_INFINITY;
         input.seek(firstByteOffset);
-        IndexInputUtils.withVoidSlice(input, vectorByteSize, firstScratch, firstSeg -> {
+        return IndexInputUtils.withFloatSlice(input, vectorByteSize, firstScratch, firstSeg -> {
             input.seek(secondByteOffset);
-            IndexInputUtils.withVoidSlice(input, vectorByteSize, secondScratch,
-                secondSeg -> resultScratch[0] = scoreFromSegments(firstSeg, secondSeg));
+            return IndexInputUtils.withFloatSlice(
+                input,
+                vectorByteSize,
+                secondScratch,
+                secondSeg -> scoreFromSegments(firstSeg, secondSeg)
+            );
         });
-        return resultScratch[0];
     }
 
     abstract float scoreFromSegments(MemorySegment a, MemorySegment b);

@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.columnar.storage;
 
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.logging.LogManager;
@@ -29,51 +30,44 @@ public class ColumnarNumericFootprintTests extends ColumnarNumericStorageTestBas
     private static final int BLOCK_SIZE = ColumNARDocValuesFormat.MIN_BLOCK_SIZE;
 
     public void testFootprintMonotonicTimestamps() throws IOException {
-        runFootprintTest("MONOTONIC_TIMESTAMPS", (f, t) -> NumericPipeline::monotonicLongPipeline, 66318);
+        runFootprintTest("MONOTONIC_TIMESTAMPS", (f, t) -> NumericPipeline::monotonicLongPipeline, 66361);
     }
 
     public void testFootprintTsdbSplit() throws IOException {
-        runFootprintTest("TSDB_SPLIT", (f, t) -> NumericPipeline::monotonicLongPipeline, 4759);
+        runFootprintTest("TSDB_SPLIT", (f, t) -> NumericPipeline::monotonicLongPipeline, 4803);
     }
 
     public void testFootprintCounterSteady() throws IOException {
-        runFootprintTest("COUNTER_STEADY", (f, t) -> NumericPipeline::monotonicLongPipeline, 3943);
+        runFootprintTest("COUNTER_STEADY", (f, t) -> NumericPipeline::monotonicLongPipeline, 3987);
     }
 
     public void testFootprintGauge() throws IOException {
-        runFootprintTest("GAUGE", (f, t) -> NumericPipeline::defaultPipeline, 53023);
+        runFootprintTest("GAUGE", (f, t) -> NumericPipeline::defaultPipeline, 53066);
     }
 
     public void testFootprintSensorDoubles() throws IOException {
-        runFootprintTest("SENSOR_DOUBLES", (f, t) -> NumericPipeline::doubleGaugePipeline, 57829);
+        runFootprintTest("SENSOR_DOUBLES", (f, t) -> NumericPipeline::doubleGaugePipeline, 57872);
     }
 
     public void testFootprintDoubleGauge() throws IOException {
-        runFootprintTest("DOUBLE_GAUGE", (f, t) -> NumericPipeline::doubleGaugePipeline, 124052);
+        runFootprintTest("DOUBLE_GAUGE", (f, t) -> NumericPipeline::doubleGaugePipeline, 124095);
     }
 
     public void testFootprintDoubleCounter() throws IOException {
-        runFootprintTest("DOUBLE_COUNTER", (f, t) -> NumericPipeline::doubleCounterPipeline, 48913);
+        runFootprintTest("DOUBLE_COUNTER", (f, t) -> NumericPipeline::doubleCounterPipeline, 48956);
     }
 
     public void testFootprintRandomFull() throws IOException {
-        runFootprintTest("RANDOM_FULL", (f, t) -> NumericPipeline::defaultPipeline, 401795);
-    }
-
-    public void testInvalidBlockSizeRejected() {
-        NumericPipelineSelector sel = (f, t) -> NumericPipeline::defaultPipeline;
-        expectThrows(IllegalArgumentException.class, () -> new ColumNARDocValuesFormat(sel, 0));
-        expectThrows(IllegalArgumentException.class, () -> new ColumNARDocValuesFormat(sel, -1));
-        expectThrows(IllegalArgumentException.class, () -> new ColumNARDocValuesFormat(sel, 64));
-        expectThrows(IllegalArgumentException.class, () -> new ColumNARDocValuesFormat(sel, 127));
-        expectThrows(IllegalArgumentException.class, () -> new ColumNARDocValuesFormat(sel, 384));
-        expectThrows(IllegalArgumentException.class, () -> new ColumNARDocValuesFormat(sel, 640));
-        expectThrows(IllegalArgumentException.class, () -> new ColumNARDocValuesFormat(sel, ColumNARDocValuesFormat.MAX_BLOCK_SIZE * 2));
+        runFootprintTest("RANDOM_FULL", (f, t) -> NumericPipeline::defaultPipeline, 401838);
     }
 
     private void runFootprintTest(String workload, NumericPipelineSelector selector, long expectedBytes) throws IOException {
         final long[] values = generate(workload, DOC_COUNT);
-        final long columnar = measureConsumer(new ColumNARDocValuesFormat(selector, BLOCK_SIZE), values, true);
+        final long columnar = measureConsumer(
+            new ColumNARDocValuesFormat(selector, field -> ColumnarFieldType.LONG, BLOCK_SIZE),
+            values,
+            true
+        );
         final long lucene = measureConsumer(new Lucene90DocValuesFormat(), values, false);
         final long es95Small = measureConsumer(es95Format(workload, false), values, false);
         final long es95Large = measureConsumer(es95Format(workload, true), values, false);

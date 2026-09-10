@@ -14,9 +14,8 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.elasticsearch.lucene.store.IndexInputUtils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.elasticsearch.simdvec.QuantizedByteVectorValuesAccess;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -24,9 +23,7 @@ import java.lang.foreign.ValueLayout;
 
 public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorScorerSupplier, QuantizedByteVectorValuesAccess {
 
-    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow(AssertionError::new);
+    private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
     final int dims;
     final float scoreCorrectionConstant;
@@ -38,6 +35,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     final FixedSizeScratch secondScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
+    final float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
 
     protected Int7SQVectorScorerSupplier(IndexInput input, LegacyQuantizedByteVectorValues values, float scoreCorrectionConstant) {
         this.input = input;
@@ -61,10 +59,9 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             return Float.NEGATIVE_INFINITY;
         }
 
-        float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
         long queryByteOffset = (long) firstOrd * vectorTotalBytes;
         input.seek(queryByteOffset);
-        IndexInputUtils.withVoidSlice(input, vectorTotalBytes, firstScratch, query -> {
+        return IndexInputUtils.withFloatSlice(input, vectorTotalBytes, firstScratch, query -> {
             float queryOffsetValue = query.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
 
             long[] offsets = offsetsScratch.get(numNodes);
@@ -72,6 +69,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
                 offsets[i] = (long) ordinals[i] * vectorTotalBytes;
             }
 
+            maxScore[0] = Float.NEGATIVE_INFINITY;
             boolean resolved = IndexInputUtils.withSliceAddresses(
                 input,
                 offsets,
@@ -83,8 +81,8 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             if (resolved == false) {
                 maxScore[0] = scorePerVectorFallback(scores, numNodes, query, offsets, queryOffsetValue);
             }
+            return maxScore[0];
         });
-        return maxScore[0];
     }
 
     private float scorePerVectorFallback(float[] scores, int numNodes, MemorySegment query, long[] offsets, float queryOffsetValue)
@@ -107,10 +105,10 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         long secondByteOffset = (long) secondOrd * vectorTotalBytes;
 
         input.seek(firstByteOffset);
-        return IndexInputUtils.withSlice(input, vectorTotalBytes, firstScratch, firstSeg -> {
+        return IndexInputUtils.withFloatSlice(input, vectorTotalBytes, firstScratch, firstSeg -> {
             float firstOffsetValue = firstSeg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
             input.seek(secondByteOffset);
-            return IndexInputUtils.withSlice(input, vectorTotalBytes, secondScratch, secondSeg -> {
+            return IndexInputUtils.withFloatSlice(input, vectorTotalBytes, secondScratch, secondSeg -> {
                 float secondOffsetValue = secondSeg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
                 return scoreFromSegments(firstSeg, firstOffsetValue, secondSeg, secondOffsetValue);
             });

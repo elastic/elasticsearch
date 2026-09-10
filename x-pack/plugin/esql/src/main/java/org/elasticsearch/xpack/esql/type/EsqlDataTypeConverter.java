@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRan
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDoubleRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
@@ -110,6 +111,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
@@ -163,6 +165,7 @@ public class EsqlDataTypeConverter {
         // ToDegrees, typeless
         Map.entry(DENSE_VECTOR, ToDenseVector::new),
         Map.entry(DOUBLE, ToDouble::new),
+        Map.entry(DOUBLE_RANGE, ToDoubleRange::new),
         Map.entry(EXPONENTIAL_HISTOGRAM, ToExponentialHistogram::new),
         Map.entry(GEO_POINT, ToGeoPoint::new),
         Map.entry(GEO_SHAPE, ToGeoShape::new),

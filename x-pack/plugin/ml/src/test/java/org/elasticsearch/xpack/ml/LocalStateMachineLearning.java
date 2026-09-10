@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.security.Security;
 
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -141,7 +140,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             public MockedRollupIndexCapsTransport(TransportService transportService) {
                 super(
                     GetRollupIndexCapsAction.NAME,
-                    new ActionFilters(new HashSet<>()),
+                    ActionFilters.EMPTY,
                     transportService.getTaskManager(),
                     EsExecutors.DIRECT_EXECUTOR_SERVICE
                 );

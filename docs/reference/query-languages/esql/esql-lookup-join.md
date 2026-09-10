@@ -40,7 +40,7 @@ Refer to [`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md
 The `LOOKUP JOIN` command adds fields from the lookup index as new columns to your results table based on matching values in the join field.
 
 The command requires two parameters:
-* The name of the lookup index (which must have the `lookup` [`index.mode setting`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting))
+* The name of the lookup index (which must have the `lookup` [`index.mode setting`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting)) {applies_to}`vectordb: unavailable`
 * The join condition. Can be one of the following:
    * A single field name
    * A comma-separated list of field names {applies_to}`stack: ga 9.2+`
@@ -213,7 +213,7 @@ Refer to the examples section of the [`LOOKUP JOIN`](/reference/query-languages/
 
 ### Index configuration
 
-Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
+Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting). {applies_to}`vectordb: unavailable`
 
 ### Data type compatibility
 
@@ -273,4 +273,4 @@ The following are the current limitations with `LOOKUP JOIN`:
   * Aliases, datemath, and datastreams are supported, as long as the index pattern matches a single concrete index {applies_to}`stack: ga 9.1.0`.
 * The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require `RENAME`s or `EVAL`s to achieve.
 * The query will circuit break if there are too many matching documents in the lookup index, or if the documents are too large. More precisely, `LOOKUP JOIN` works in batches of, normally, about 10,000 rows; a large amount of heap space is needed if the matching documents from the lookup index for a batch are multiple megabytes or larger. This is roughly the same as for `ENRICH`.
-* Cross-cluster or cross-project `LOOKUP JOIN` cannot be used after aggregations `STATS`, `SORT` and `LIMIT` commands, and coordinator-side `ENRICH` commands. Use the [`_coordinator:` prefix](#coordinator-mode) to lift this restriction.
+* Cross-cluster or cross-project `LOOKUP JOIN` cannot be used after a command that runs on the querying cluster. This includes all pipeline-breaking commands — `STATS`, `INLINE STATS`, `SORT`, `LIMIT`, `TS_INFO`, and `METRICS_INFO` among them — and any command that only ever runs on the querying cluster, such as `CHANGE_POINT`, `FORK`, `FUSE`, `RERANK`, `COMPLETION`, `MMR`, and coordinator-side `ENRICH`. Use the [`_coordinator:` prefix](#coordinator-mode) to avoid this restriction.

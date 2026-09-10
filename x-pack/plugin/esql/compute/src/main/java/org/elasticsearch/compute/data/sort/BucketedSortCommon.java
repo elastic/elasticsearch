@@ -35,7 +35,6 @@ class BucketedSortCommon implements Releasable {
 
     /**
      * The first index in a bucket. Note that this might not be <strong>used</strong>.
-     * See {@link }
      */
     long rootIndex(int bucket) {
         return (long) bucket * bucketSize;

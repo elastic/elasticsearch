@@ -20,13 +20,20 @@
 #     -d '{"branch":"main","env":{
 #            "WORKFLOW":"test-analysis",
 #            "ISSUE_URL":"https://github.com/elastic/elasticsearch/issues/150989"}}'
+#
+# To test an unreleased archimedes branch/tag/sha against this pipeline, add
+# ARCHIMEDES_REF=<ref> to the env block. The pre-command hook installs
+# archimedes from that ref (bypassing the release lookup + agent cache) and
+# archimedes auto-routes observability off the production dashboards. Any ref
+# the GH contents API accepts works — branch, tag, or commit SHA.
 
 # Surface trigger vars at pipeline level so env() in step `if` conditions can
 # see them on API-triggered builds.
 env:
-  WORKFLOW:  "${WORKFLOW:-}"
-  ISSUE_URL: "${ISSUE_URL:-}"
-  PR_URL:    "${PR_URL:-}"
+  WORKFLOW:       "${WORKFLOW:-}"
+  ISSUE_URL:      "${ISSUE_URL:-}"
+  PR_URL:         "${PR_URL:-}"
+  ARCHIMEDES_REF: "${ARCHIMEDES_REF:-}"
 
 steps:
   # ── Run archimedes ───────────────────────────────────────────────────────────

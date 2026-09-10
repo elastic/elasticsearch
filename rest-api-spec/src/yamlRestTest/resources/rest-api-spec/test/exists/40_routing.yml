@@ -1,6 +1,7 @@
 ---
 "Routing":
-
+ - requires:
+    test_runner_features: [ "allowed_warnings" ]
 
  - do:
      indices.create:
@@ -10,6 +11,8 @@
            index:
              number_of_shards: 5
              number_of_routing_shards: 5
+     allowed_warnings:
+       - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
 
  - do:
       index:

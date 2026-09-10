@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -20,6 +22,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Wraps a {@link StorageObject} and decompresses its stream via a {@link DecompressionCodec}.
@@ -36,12 +39,19 @@ final class DecompressingStorageObject implements StorageObject {
 
     private final StorageObject delegate;
     private final DecompressionCodec codec;
+    @Nullable
+    private final CircuitBreaker breaker;
 
     DecompressingStorageObject(StorageObject delegate, DecompressionCodec codec) {
+        this(delegate, codec, null);
+    }
+
+    DecompressingStorageObject(StorageObject delegate, DecompressionCodec codec, @Nullable CircuitBreaker breaker) {
         Check.notNull(delegate, "delegate cannot be null");
         Check.notNull(codec, "codec cannot be null");
         this.delegate = delegate;
         this.codec = codec;
+        this.breaker = breaker;
     }
 
     @Override
@@ -56,11 +66,12 @@ final class DecompressingStorageObject implements StorageObject {
             // S3 that drains the full response body to recycle the connection. Hiding close() from
             // the codec lets us release its inflate buffers separately from the raw stream, so
             // abortStream() below can route the abort to the raw stream without a drain.
-            InputStream decompressed = codec.decompress(new UncloseableInputStream(raw));
-            return new DecompressedStream(decompressed, raw);
+            InputStream decompressed = codec.decompress(new UncloseableInputStream(raw), breaker);
+            return new DecompressedStream(decompressed, raw, delegate);
         } catch (IOException | RuntimeException e) {
             try {
-                raw.close();
+                // Abort rather than close so providers like S3 skip the draining connection teardown.
+                delegate.abortStream(raw);
             } catch (IOException suppressed) {
                 e.addSuppressed(suppressed);
             }
@@ -86,6 +97,11 @@ final class DecompressingStorageObject implements StorageObject {
     @Override
     public long length() throws IOException {
         throw new UnsupportedOperationException("Decompressed length is unknown for stream-only compression (" + codec.name() + ")");
+    }
+
+    @Override
+    public long lengthForFooterCacheKey() throws IOException {
+        return delegate.lengthForFooterCacheKey();
     }
 
     @Override
@@ -121,24 +137,7 @@ final class DecompressingStorageObject implements StorageObject {
             // UncloseableInputStream over raw, this close does not propagate to raw — so the
             // subsequent delegate.abortStream(raw) can take the abort path (e.g. S3
             // ResponseInputStream.abort()) instead of a draining close().
-            IOException primary = null;
-            try {
-                ds.decompressed().close();
-            } catch (IOException e) {
-                primary = e;
-            }
-            try {
-                delegate.abortStream(ds.raw());
-            } catch (IOException e) {
-                if (primary == null) {
-                    throw e;
-                }
-                primary.addSuppressed(e);
-                throw primary;
-            }
-            if (primary != null) {
-                throw primary;
-            }
+            ds.releaseRaw(delegate);
             return;
         }
         // Streams produced by splittable/indexed codecs (via decompressRange/decompressFrame)
@@ -152,19 +151,19 @@ final class DecompressingStorageObject implements StorageObject {
      * {@link #abortStream(InputStream)} can route the abort to the raw stream — which is where
      * providers like S3 perform the connection-discard via {@code Abortable.abort()}.
      * <p>
-     * The {@link #close()} override is required because the codec wraps {@code raw} in an
-     * {@link UncloseableInputStream}: without it, closing the decompressor would no-op on
-     * the raw stream, leaking the underlying connection. After a full read {@code raw} is at
-     * EOF, so {@code raw.close()} is just connection release; partial-read callers that need
-     * to skip the close-time drain on providers like S3 must use
-     * {@link DecompressingStorageObject#abortStream(InputStream)} instead.
+     * {@link #close()} always aborts the raw GET. Gzip/zstd/lz4/brotli text files are one
+     * whole-object GET; discarding the connection is cheaper than draining unread compressed
+     * bytes. Idempotent with {@link DecompressingStorageObject#abortStream(InputStream)}.
      */
     private static final class DecompressedStream extends FilterInputStream {
         private final InputStream raw;
+        private final StorageObject rawOwner;
+        private final AtomicBoolean closed = new AtomicBoolean();
 
-        DecompressedStream(InputStream decompressed, InputStream raw) {
+        DecompressedStream(InputStream decompressed, InputStream raw, StorageObject rawOwner) {
             super(decompressed);
             this.raw = raw;
+            this.rawOwner = rawOwner;
         }
 
         InputStream decompressed() {
@@ -177,24 +176,46 @@ final class DecompressingStorageObject implements StorageObject {
 
         @Override
         public void close() throws IOException {
-            IOException primary = null;
+            releaseRaw(rawOwner);
+        }
+
+        /**
+         * Closes the codec then aborts {@code raw} through {@code owner}. No-op after the first
+         * successful call so {@code close()} and {@code abortStream} are interchangeable.
+         */
+        void releaseRaw(StorageObject owner) throws IOException {
+            if (closed.compareAndSet(false, true) == false) {
+                return;
+            }
+            Exception primary = null;
             try {
                 in.close();
-            } catch (IOException e) {
+            } catch (Exception e) {
+                // RuntimeException from the codec must not skip abort: closed is already true, so a
+                // later close/abortStream cannot recover the raw GET.
                 primary = e;
             }
             try {
-                raw.close();
-            } catch (IOException e) {
+                owner.abortStream(raw);
+            } catch (Exception e) {
                 if (primary == null) {
+                    if (e instanceof IOException ioe) {
+                        throw ioe;
+                    }
                     throw e;
                 }
                 primary.addSuppressed(e);
-                throw primary;
             }
-            if (primary != null) {
-                throw primary;
+            if (primary == null) {
+                return;
             }
+            if (primary instanceof IOException ioe) {
+                throw ioe;
+            }
+            if (primary instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw new IOException(primary);
         }
     }
 

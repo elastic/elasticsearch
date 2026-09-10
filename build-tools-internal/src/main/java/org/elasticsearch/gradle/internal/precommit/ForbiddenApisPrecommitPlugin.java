@@ -22,7 +22,7 @@ import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 
 import java.io.File;
-import java.util.Set;
+import java.util.List;
 
 import javax.inject.Inject;
 
@@ -72,7 +72,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                 t.dependsOn(resourcesTask);
                 t.setClasspath(sourceSet.getRuntimeClasspath().plus(sourceSet.getCompileClasspath()));
                 t.setTargetCompatibility(buildParams.getMinimumRuntimeVersion().getMajorVersion());
-                t.getBundledSignatures().set(BUNDLED_SIGNATURE_DEFAULTS);
+                t.setBundledSignatures(BUNDLED_SIGNATURE_DEFAULTS);
                 t.setSignaturesFiles(
                     project.files(
                         resourcesDir.toPath().resolve("forbidden/jdk-signatures.txt"),
@@ -80,7 +80,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                         resourcesDir.toPath().resolve("forbidden/jdk-deprecated.txt")
                     )
                 );
-                t.getSuppressAnnotations().set(Set.of("**.SuppressForbidden"));
+                t.setSuppressAnnotations(List.of("**.SuppressForbidden"));
                 if (buildParams.getMinimumRuntimeVersion().equals(JavaVersion.current()) == false) {
                     t.getJavaLauncher().set(javaToolchains.launcherFor(spec -> {
                         spec.getLanguageVersion().set(JavaLanguageVersion.of(buildParams.getMinimumRuntimeVersion().getMajorVersion()));

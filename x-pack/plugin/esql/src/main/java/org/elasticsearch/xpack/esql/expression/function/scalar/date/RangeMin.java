@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
@@ -40,6 +41,9 @@ public class RangeMin extends UnaryScalarFunction implements AnyNullIsNull {
 
     @FunctionInfo(
         returnType = { "date", "double" },
+        signatures = {
+            @Signature(params = { "date_range" }, returnType = "date"),
+            @Signature(params = { "double_range" }, returnType = "double") },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         briefSummary = "Returns the start value of a range.",

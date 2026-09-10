@@ -957,6 +957,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     Set.of(),
                     Map.of(),
                     Map.of(),
+                    Map.of(),
                     Map.of()
                 );
                 this.delegate = info;

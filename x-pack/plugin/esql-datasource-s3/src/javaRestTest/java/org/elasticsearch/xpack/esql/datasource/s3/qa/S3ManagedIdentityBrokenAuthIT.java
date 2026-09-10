@@ -85,7 +85,7 @@ public class S3ManagedIdentityBrokenAuthIT extends ESRestTestCase {
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
-        .setting("esql.datasource.managed_identity.enabled", "true")
+        .setting("esql.external.managed_identity.enabled", "true")
         .configFile(WEB_IDENTITY_TOKEN_FILE_LOCATION, Resource.fromString(ON_DISK_TOKEN))
         .systemProperty("org.elasticsearch.xpack.esql.datasource.s3.stsEndpointOverride", stsHttpFixture::getAddress)
         .environment("AWS_WEB_IDENTITY_TOKEN_FILE", () -> "/var/run/secrets/eks.amazonaws.com/serviceaccount/token")

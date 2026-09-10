@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.License;
@@ -38,7 +39,27 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.settings.Setting.Property.Dynamic;
+import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
+
 public class SqlPlugin extends Plugin implements ActionPlugin {
+
+    public static final int DEFAULT_MAX_QUERY_LENGTH = 1_000_000;
+
+    /**
+     * Maximum number of characters in an SQL query. Antlr may parse the entire
+     * query into tokens to make the choices, buffering the world. There's a lot we
+     * can do in the grammar to prevent that, but let's be paranoid and assume we'll
+     * fail at preventing antlr from slurping in the world. Instead, let's make sure
+     * that the world just isn't that big.
+     */
+    public static final Setting<Integer> MAX_QUERY_LENGTH_SETTING = Setting.intSetting(
+        "xpack.sql.max_query_length",
+        DEFAULT_MAX_QUERY_LENGTH,
+        1,
+        Dynamic,
+        NodeScope
+    );
 
     private final LicensedFeature.Momentary JDBC_FEATURE = LicensedFeature.momentary("sql", "jdbc", License.OperationMode.PLATINUM);
     private final LicensedFeature.Momentary ODBC_FEATURE = LicensedFeature.momentary("sql", "odbc", License.OperationMode.PLATINUM);
@@ -66,6 +87,11 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
     });
 
     public SqlPlugin(Settings settings) {}
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(MAX_QUERY_LENGTH_SETTING);
+    }
 
     // overridable by tests
     protected XPackLicenseState getLicenseState() {

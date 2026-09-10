@@ -60,6 +60,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.IntConsumer;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -199,6 +200,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                     }
                 },
                 threadPool.executor(PREWARM_THREAD_POOL),
+                randomRegionTimestampMillis(),
                 future
             );
             future.get(10, TimeUnit.SECONDS);
@@ -268,6 +270,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                 StatelessPlugin.PREWARM_THREAD_POOL
             ),
             threadPool.executor(PREWARM_THREAD_POOL),
+            randomRegionTimestampMillis(),
             future
         );
         future.get(10, TimeUnit.SECONDS);

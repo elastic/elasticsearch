@@ -19,6 +19,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.util.ArrayList;
@@ -58,6 +59,7 @@ public final class MappingLookup {
     private final Map<String, ObjectMapper> objectMappers;
     private final Map<String, InferenceFieldMetadata> inferenceFields;
     private final Set<String> syntheticVectorFields;
+    private final Set<String> vectorEmbeddingFields;
     private final Map<String, FieldMapper> dimensionFieldMappers;
     private final Map<String, FieldMapper> metricFieldMappers;
     private final int runtimeFieldMappersCount;
@@ -241,6 +243,7 @@ public final class MappingLookup {
 
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
         Set<String> syntheticVectorFields = new LinkedHashSet<>();
+        Set<String> vectorEmbeddingFields = new LinkedHashSet<>();
         for (FieldMapper mapper : mappers) {
             if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
                 inferenceFields.put(mapper.fullPath(), inferenceFieldMapper.getMetadata(fieldTypeLookup.sourcePaths(mapper.fullPath())));
@@ -248,9 +251,13 @@ public final class MappingLookup {
             if (mapper.syntheticVectorsLoader() != null) {
                 syntheticVectorFields.add(mapper.fullPath());
             }
+            if (mapper.fieldType().isVectorEmbedding()) {
+                vectorEmbeddingFields.add(mapper.fullPath());
+            }
         }
         this.inferenceFields = Collections.unmodifiableMap(inferenceFields);
         this.syntheticVectorFields = Collections.unmodifiableSet(syntheticVectorFields);
+        this.vectorEmbeddingFields = Collections.unmodifiableSet(vectorEmbeddingFields);
 
         if (runtimeFields.isEmpty()) {
             // without runtime fields this is the same as the field type lookup
@@ -511,8 +518,102 @@ public final class MappingLookup {
         return inferenceFields;
     }
 
+    /**
+     * Loader that restores the vector fields excluded from {@code _source}, or {@code null} when there are none to restore. Built from
+     * {@link #syntheticVectorFields()} rather than by walking the mapping. Only nested objects take part: plain objects would just
+     * aggregate their children, and excluding a path already excludes everything below it.
+     */
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(@Nullable SourceFilter filter) {
+        if (syntheticVectorFields.isEmpty()) {
+            return null;
+        }
+        // Grouped by the innermost nested object each field sits under, or "" for those under none.
+        Map<String, List<SourceLoader.SyntheticVectorsLoader>> byNestedParent = new LinkedHashMap<>();
+        for (String field : syntheticVectorFields) {
+            if (filter != null && filter.isPathFiltered(field, false)) {
+                continue;
+            }
+            if (getMapper(field) instanceof FieldMapper fieldMapper) {
+                var loader = fieldMapper.syntheticVectorsLoader();
+                if (loader != null) {
+                    groupUnder(byNestedParent, nestedLookup.getNestedParent(field), loader);
+                }
+            }
+        }
+        // Innermost first, so each nested object is wrapped before folding into its own parent's group.
+        for (var nested = deepestNested(byNestedParent); nested != null; nested = deepestNested(byNestedParent)) {
+            var nestedMapper = nestedLookup.getNestedMappers().get(nested);
+            assert nestedMapper != null : "no nested mapper for [" + nested + "]";
+            var inner = combine(byNestedParent.remove(nested));
+            groupUnder(byNestedParent, nestedLookup.getNestedParent(nested), nestedMapper.wrapSyntheticVectorsLoader(inner));
+        }
+        return combine(byNestedParent.get(""));
+    }
+
+    private static void groupUnder(
+        Map<String, List<SourceLoader.SyntheticVectorsLoader>> byNestedParent,
+        @Nullable String nestedParent,
+        SourceLoader.SyntheticVectorsLoader loader
+    ) {
+        byNestedParent.computeIfAbsent(nestedParent == null ? "" : nestedParent, k -> new ArrayList<>()).add(loader);
+    }
+
+    /** The deepest nested path present, or {@code null} once only the ungrouped entries remain. */
+    private static String deepestNested(Map<String, List<SourceLoader.SyntheticVectorsLoader>> byNestedParent) {
+        String deepest = null;
+        int deepestDepth = -1;
+        for (String path : byNestedParent.keySet()) {
+            if (path.isEmpty()) {
+                continue;
+            }
+            int depth = (int) path.chars().filter(c -> c == '.').count();
+            if (depth > deepestDepth) {
+                deepestDepth = depth;
+                deepest = path;
+            }
+        }
+        return deepest;
+    }
+
+    private static SourceLoader.SyntheticVectorsLoader combine(@Nullable List<SourceLoader.SyntheticVectorsLoader> loaders) {
+        if (loaders == null || loaders.isEmpty()) {
+            return null;
+        }
+        if (loaders.size() == 1) {
+            return loaders.get(0);
+        }
+        return context -> {
+            final List<SourceLoader.SyntheticVectorsLoader.Leaf> leaves = new ArrayList<>();
+            for (var loader : loaders) {
+                var leaf = loader.leaf(context);
+                if (leaf != null) {
+                    leaves.add(leaf);
+                }
+            }
+            if (leaves.isEmpty()) {
+                return null;
+            }
+            return (doc, acc) -> {
+                for (var leaf : leaves) {
+                    leaf.load(doc, acc);
+                }
+            };
+        };
+    }
+
     public Set<String> syntheticVectorFields() {
         return syntheticVectorFields;
+    }
+
+    /**
+     * Returns the paths of every field holding a vector embedding, which are the candidates for being stripped from {@code _source}.
+     * <p>
+     * This is deliberately not the same as {@link #syntheticVectorFields()}, which only holds the fields whose mapper offers a synthetic
+     * vectors loader and is therefore empty unless {@code index.mapping.exclude_source_vectors} is enabled. Vectors can also be excluded
+     * per request, so the set of candidates has to be established independently of that index setting.
+     */
+    public Set<String> vectorEmbeddingFields() {
+        return vectorEmbeddingFields;
     }
 
     public NestedLookup nestedLookup() {
@@ -640,18 +741,29 @@ public final class MappingLookup {
     /**
      * Build something to load source {@code _source}.
      */
-    public SourceLoader newSourceLoader(@Nullable SourceFilter filter, SourceFieldMetrics metrics) {
+    public SourceLoader newSourceLoader(
+        @Nullable SourceFilter filter,
+        SourceFieldMetrics metrics,
+        @Nullable NestedDocuments nestedDocuments
+    ) {
         if (isSourceSynthetic() || isSourceColumnarStored()) {
-            return new SourceLoader.Synthetic(
+            SourceLoader loader = new SourceLoader.Synthetic(
                 filter,
                 () -> mapping.syntheticFieldLoader(filter, isSourceColumnarStored()),
                 metrics,
                 mapping.ignoredSourceFormat()
             );
+            // columnar_stored leaves vectors out of its blob, so they are patched back in from the vector index or doc values.
+            // A synthetic _source has no patch loader: the loader above already rebuilds them.
+            var patchLoader = syntheticVectorsLoader(filter);
+            return patchLoader == null ? loader : new SourceLoader.SyntheticVectors(loader, patchLoader);
         }
-        var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter);
+        var syntheticVectorsLoader = syntheticVectorsLoader(filter);
         if (syntheticVectorsLoader != null) {
             return new SourceLoader.SyntheticVectors(removeExcludedSyntheticVectorFields(filter), syntheticVectorsLoader);
+        }
+        if (nestedDocuments != null && nestedLookup != NestedLookup.EMPTY) {
+            return new NestedStoredSourceLoader(filter, nestedDocuments);
         }
         return filter == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.Stored(filter);
     }

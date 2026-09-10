@@ -35,6 +35,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -324,8 +325,12 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         assertThat(translate(matchPhrase("body", "quick fox", null), TITLE), instanceOf(MatchNoDocsQuery.class));
     }
 
-    public void testQueryStringDefaultFieldOutsideOnIsMatchNone() {
-        assertThat(translate(queryString("fox", options("default_field", "body")), TITLE), instanceOf(MatchNoDocsQuery.class));
+    public void testQueryStringDefaultFieldOutsideOnThrows() {
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> translate(queryString("fox", options("default_field", "body")), TITLE)
+        );
+        assertThat(e.getMessage(), containsString("field [body] is not one of the searchable fields [title]"));
     }
 
     public void testMatchInvalidOperatorThrows() {
@@ -346,9 +351,10 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         assertThat(term.getTerm(), equalTo(new Term("title", "fox")));
     }
 
-    public void testKqlFieldOutsideOnIsMatchNone() {
+    public void testKqlFieldOutsideOnThrows() {
         Kql kql = new Kql(EMPTY, of("body: fox"), null, TEST_CFG);
-        assertThat(translate(kql, TITLE), instanceOf(MatchNoDocsQuery.class));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> translate(kql, TITLE));
+        assertThat(e.getMessage(), containsString("field [body] is not one of the searchable fields [title]"));
     }
 
     private static List<Term> terms(Query query) {

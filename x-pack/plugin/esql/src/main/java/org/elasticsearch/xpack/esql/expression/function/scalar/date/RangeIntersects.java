@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -79,6 +80,9 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
 
     @FunctionInfo(
         returnType = "boolean",
+        signatures = {
+            @Signature(params = { "date|date_range", "date|date_range" }, returnType = "boolean"),
+            @Signature(params = { "double|double_range", "double|double_range" }, returnType = "boolean") },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         briefSummary = "Returns true if two ranges or values overlap.",
@@ -333,8 +337,8 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
             upper = date;
             includeUpper = true;
         } else if (literalExp.dataType() == DOUBLE) {
-            lower = value;
-            upper = value;
+            lower = RangeWithin.finiteBound((Double) value);
+            upper = lower;
             includeUpper = true;
         } else if (literalExp.dataType() == DATE_RANGE) {
             LongRangeBlockBuilder.LongRange r = (LongRangeBlockBuilder.LongRange) value;
@@ -343,8 +347,9 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
             includeUpper = false;
         } else {
             DoubleRangeBlockBuilder.DoubleRange r = (DoubleRangeBlockBuilder.DoubleRange) value;
-            lower = r.from();
-            upper = r.to();
+            // Non-finite bounds become unbounded query sides; RECHECK keeps the semantics exact.
+            lower = RangeWithin.finiteBound(r.from());
+            upper = RangeWithin.finiteBound(r.to());
             includeUpper = false;
         }
         return new RangeQuery(source(), name, lower, true, upper, includeUpper, format, null, ShapeRelation.INTERSECTS);

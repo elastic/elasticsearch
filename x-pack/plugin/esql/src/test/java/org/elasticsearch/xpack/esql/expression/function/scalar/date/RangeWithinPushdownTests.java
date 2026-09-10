@@ -159,6 +159,28 @@ public class RangeWithinPushdownTests extends ESTestCase {
         );
     }
 
+    public void testDoubleRangeFieldWithinOpenLiteralRange() {
+        // Infinite bounds must translate to unbounded query sides: range queries on double fields
+        // reject non-finite values. RECHECK keeps the exact semantics.
+        RangeWithin fn = new RangeWithin(
+            Source.EMPTY,
+            doubleRangeField("height_range"),
+            doubleRangeLiteral(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+        );
+        assertThat(
+            fn.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER),
+            equalTo(new RangeQuery(Source.EMPTY, "height_range", null, true, null, false, null, null, ShapeRelation.WITHIN))
+        );
+    }
+
+    public void testDoubleFieldWithOpenLiteralRange() {
+        RangeWithin fn = new RangeWithin(Source.EMPTY, doubleField("height"), doubleRangeLiteral(Double.NEGATIVE_INFINITY, 2.5));
+        assertThat(
+            fn.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER),
+            equalTo(new RangeQuery(Source.EMPTY, "height", null, true, 2.5, false, null, null))
+        );
+    }
+
     public void testDoubleRangeFieldContainsLiteralPoint() {
         RangeWithin fn = new RangeWithin(Source.EMPTY, doubleLiteral(2.0), doubleRangeField("height_range"));
         assertThat(

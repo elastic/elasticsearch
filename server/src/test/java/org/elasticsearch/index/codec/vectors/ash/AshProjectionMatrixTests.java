@@ -24,8 +24,8 @@ public class AshProjectionMatrixTests extends ESTestCase {
     public void testDimAccessors() {
         int originalDim = 768;
         int nDims = 384;
-        float[][] w = new float[originalDim][nDims];
-        AshProjectionMatrix pm = new AshProjectionMatrix(w);
+        float[] w = new float[originalDim * nDims];
+        AshProjectionMatrix pm = new AshProjectionMatrix(w, originalDim, nDims);
         assertEquals(originalDim, pm.originalDim());
         assertEquals(nDims, pm.nDims());
     }
@@ -33,50 +33,49 @@ public class AshProjectionMatrixTests extends ESTestCase {
     public void testTransposeCorrectness() {
         int originalDim = 4;
         int nDims = 3;
-        float[][] w = { { 1, 2, 3 }, { 4, 5, 6 }, { 7, 8, 9 }, { 10, 11, 12 } };
-        AshProjectionMatrix pm = new AshProjectionMatrix(w);
-        float[][] wT = pm.wT();
+        float[] w = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
+        AshProjectionMatrix pm = new AshProjectionMatrix(w, originalDim, nDims);
+        float[] wT = pm.wT();
 
         // wT should be (nDims x originalDim)
-        assertEquals(nDims, wT.length);
-        assertEquals(originalDim, wT[0].length);
+        assertEquals(nDims * originalDim, wT.length);
 
-        // Verify transpose: wT[j][i] == w[i][j]
+        // Verify transpose: wT[j][i] == w[i][j] (i.e. wT[j*originalDim+i] == w[i*nDims+j])
         for (int i = 0; i < originalDim; i++) {
             for (int j = 0; j < nDims; j++) {
-                assertEquals(w[i][j], wT[j][i], 0f);
+                assertEquals(w[i * nDims + j], wT[j * originalDim + i], 0f);
             }
         }
     }
 
     public void testTransposeLazyAndCached() {
-        float[][] w = { { 1, 2 }, { 3, 4 } };
-        AshProjectionMatrix pm = new AshProjectionMatrix(w);
-        float[][] wT1 = pm.wT();
-        float[][] wT2 = pm.wT();
+        float[] w = { 1, 2, 3, 4 };
+        AshProjectionMatrix pm = new AshProjectionMatrix(w, 2, 2);
+        float[] wT1 = pm.wT();
+        float[] wT2 = pm.wT();
         assertSame(wT1, wT2);
     }
 
     public void testSerializationRoundtrip() throws IOException {
         int originalDim = randomIntBetween(4, 100);
         int nDims = randomIntBetween(2, originalDim);
-        float[][] w = randomMatrix(originalDim, nDims);
+        float[] w = randomMatrix(originalDim, nDims);
 
-        AshProjectionMatrix original = new AshProjectionMatrix(w);
+        AshProjectionMatrix original = new AshProjectionMatrix(w, originalDim, nDims);
 
         AshProjectionMatrix restored = writeAndRead(original);
 
         assertEquals(originalDim, restored.originalDim());
         assertEquals(nDims, restored.nDims());
-        assertMatrixEquals(w, restored.w());
+        assertArrayEquals(w, restored.w(), 0f);
     }
 
     public void testByteSizeMatchesActualSerialized() throws IOException {
         int originalDim = randomIntBetween(4, 50);
         int nDims = randomIntBetween(2, originalDim);
-        float[][] w = randomMatrix(originalDim, nDims);
+        float[] w = randomMatrix(originalDim, nDims);
 
-        AshProjectionMatrix pm = new AshProjectionMatrix(w);
+        AshProjectionMatrix pm = new AshProjectionMatrix(w, originalDim, nDims);
 
         ByteBuffersDataOutput dataOut = new ByteBuffersDataOutput();
         try (ByteBuffersIndexOutput out = new ByteBuffersIndexOutput(dataOut, "test", "test")) {
@@ -88,8 +87,7 @@ public class AshProjectionMatrixTests extends ESTestCase {
     }
 
     public void testEmptyMatrix() throws IOException {
-        float[][] w = new float[0][0];
-        AshProjectionMatrix pm = new AshProjectionMatrix(w);
+        AshProjectionMatrix pm = new AshProjectionMatrix(new float[0], 0, 0);
         assertEquals(0, pm.originalDim());
         assertEquals(0, pm.nDims());
 
@@ -107,23 +105,11 @@ public class AshProjectionMatrixTests extends ESTestCase {
         return AshProjectionMatrix.read(in);
     }
 
-    private float[][] randomMatrix(int rows, int cols) {
-        float[][] m = new float[rows][cols];
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                m[i][j] = (float) random().nextGaussian();
-            }
+    private float[] randomMatrix(int rows, int cols) {
+        float[] m = new float[rows * cols];
+        for (int i = 0; i < rows * cols; i++) {
+            m[i] = (float) random().nextGaussian();
         }
         return m;
-    }
-
-    private void assertMatrixEquals(float[][] expected, float[][] actual) {
-        assertEquals(expected.length, actual.length);
-        for (int i = 0; i < expected.length; i++) {
-            assertEquals(expected[i].length, actual[i].length);
-            for (int j = 0; j < expected[i].length; j++) {
-                assertEquals(expected[i][j], actual[i][j], 0f);
-            }
-        }
     }
 }

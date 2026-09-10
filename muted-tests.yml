@@ -2,9 +2,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregatorTests
   method: testSlopeUp
   issue: https://github.com/elastic/elasticsearch/issues/156237
-- class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
-  method: test {yaml=/10_apm/Test template reinstallation}
-  issue: https://github.com/elastic/elasticsearch/issues/116445
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
@@ -334,9 +331,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecK8sTimeseriesIT
   method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
   issue: https://github.com/elastic/elasticsearch/issues/153565
-- class: org.elasticsearch.geometry.utils.CircleUtilsTests
-  method: testCreateRegularGeoShapePolygon
-  issue: https://github.com/elastic/elasticsearch/issues/153600
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecK8sTimeseriesIT
   method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
   issue: https://github.com/elastic/elasticsearch/issues/153613

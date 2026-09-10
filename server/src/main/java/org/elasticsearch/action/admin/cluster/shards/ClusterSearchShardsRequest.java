@@ -51,10 +51,21 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
         indices = in.readStringArray();
         routing = in.readOptionalString();
         if (in.getTransportVersion().supports(SliceIndexing.CLUSTER_SEARCH_SHARDS_SLICE_ROUTING_STATE_VERSION)) {
-            final String searchSlice = in.readOptionalString(); // redundant on the wire, kept for compatibility
-            routingFromSlice = in.readBoolean();
-            assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
-                : "transmitted slice [" + searchSlice + "] does not match routing [" + routing + "] from slice [" + routingFromSlice + "]";
+            if (in.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION)) {
+                routingFromSlice = in.readBoolean();
+            } else {
+                // older peers also send the slice value, which is derived from routing and routingFromSlice here
+                final String searchSlice = in.readOptionalString();
+                routingFromSlice = in.readBoolean();
+                assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
+                    : "transmitted slice ["
+                        + searchSlice
+                        + "] does not match routing ["
+                        + routing
+                        + "] from slice ["
+                        + routingFromSlice
+                        + "]";
+            }
         } else {
             routingFromSlice = false;
         }
@@ -68,7 +79,9 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
         out.writeStringArray(indices);
         out.writeOptionalString(routing);
         if (out.getTransportVersion().supports(SliceIndexing.CLUSTER_SEARCH_SHARDS_SLICE_ROUTING_STATE_VERSION)) {
-            out.writeOptionalString(searchSlice());
+            if (out.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                out.writeOptionalString(searchSlice());
+            }
             out.writeBoolean(routingFromSlice);
         }
         out.writeOptionalString(preference);

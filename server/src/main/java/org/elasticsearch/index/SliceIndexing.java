@@ -43,6 +43,11 @@ public final class SliceIndexing {
     public static final TransportVersion OPEN_POINT_IN_TIME_SLICE_ROUTING_STATE_VERSION = TransportVersion.fromName(
         "open_point_in_time_slice_routing_state"
     );
+    /**
+     * From this version search-style requests no longer send the slice value; it is derived from routing and its provenance (also known
+     * by isRoutingFromSlice).
+     */
+    public static final TransportVersion SLICE_ROUTING_STATE_DERIVED_VERSION = TransportVersion.fromName("slice_routing_state_derived");
     private static final int MAX_SLICE_VALUE_LENGTH = 128;
     private static final Pattern VALID_SLICE_VALUE_PATTERN = Pattern.compile("[a-zA-Z0-9](?:[a-zA-Z0-9._:-]*[a-zA-Z0-9])?");
 

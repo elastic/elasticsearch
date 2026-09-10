@@ -318,9 +318,18 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         }
         if (in.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
             this.routingFromSlice = in.readBoolean();
-            final String searchSlice = in.readOptionalString(); // redundant on the wire, kept for compatibility
-            assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
-                : "transmitted slice [" + searchSlice + "] does not match routing [" + routing + "] from slice [" + routingFromSlice + "]";
+            if (in.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                // older peers also send the slice value, which is derived from routing and routingFromSlice here
+                final String searchSlice = in.readOptionalString();
+                assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
+                    : "transmitted slice ["
+                        + searchSlice
+                        + "] does not match routing ["
+                        + routing
+                        + "] from slice ["
+                        + routingFromSlice
+                        + "]";
+            }
         } else {
             this.routingFromSlice = false;
         }
@@ -365,7 +374,9 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         }
         if (out.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
             out.writeBoolean(routingFromSlice);
-            out.writeOptionalString(searchSlice());
+            if (out.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                out.writeOptionalString(searchSlice());
+            }
         }
     }
 

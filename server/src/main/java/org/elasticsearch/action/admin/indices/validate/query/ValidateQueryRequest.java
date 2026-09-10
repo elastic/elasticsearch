@@ -59,10 +59,21 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
         allShards = in.readBoolean();
         if (in.getTransportVersion().supports(SliceIndexing.VALIDATE_QUERY_SLICE_ROUTING_STATE_VERSION)) {
             routing = in.readOptionalString();
-            final String searchSlice = in.readOptionalString(); // redundant on the wire, kept for compatibility
-            routingFromSlice = in.readBoolean();
-            assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
-                : "transmitted slice [" + searchSlice + "] does not match routing [" + routing + "] from slice [" + routingFromSlice + "]";
+            if (in.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION)) {
+                routingFromSlice = in.readBoolean();
+            } else {
+                // older peers also send the slice value, which is derived from routing and routingFromSlice here
+                final String searchSlice = in.readOptionalString();
+                routingFromSlice = in.readBoolean();
+                assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
+                    : "transmitted slice ["
+                        + searchSlice
+                        + "] does not match routing ["
+                        + routing
+                        + "] from slice ["
+                        + routingFromSlice
+                        + "]";
+            }
         } else {
             routing = null;
             routingFromSlice = false;
@@ -192,7 +203,9 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
         out.writeBoolean(allShards);
         if (out.getTransportVersion().supports(SliceIndexing.VALIDATE_QUERY_SLICE_ROUTING_STATE_VERSION)) {
             out.writeOptionalString(routing);
-            out.writeOptionalString(searchSlice());
+            if (out.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                out.writeOptionalString(searchSlice());
+            }
             out.writeBoolean(routingFromSlice);
         }
     }

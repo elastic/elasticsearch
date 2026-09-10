@@ -128,8 +128,9 @@ public class ValueStreamTests extends ESTestCase {
                         ValueStream.Layouts.ANY
                     )
                 ) {
-                    for (BytesRef value : values)
+                    for (BytesRef value : values) {
                         writer.add(value);
+                    }
                     writer.finish();
                 }
             }
@@ -150,8 +151,9 @@ public class ValueStreamTests extends ESTestCase {
                         ValueStream.Layouts.CONTIGUOUS_VALUES
                     )
                 ) {
-                    for (BytesRef value : values)
+                    for (BytesRef value : values) {
                         writer.add(value);
+                    }
                     writer.finish();
                 }
             }

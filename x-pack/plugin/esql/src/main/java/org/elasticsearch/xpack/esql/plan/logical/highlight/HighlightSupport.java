@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -50,31 +49,22 @@ public final class HighlightSupport {
     private HighlightSupport() {}
 
     /**
-     * Whether a {@code WHERE} conjunct can be borrowed as (part of) an implicit HIGHLIGHT query. Only positive
-     * full-text predicates qualify, because the highlight query is display, not selection: a {@code NOT} says which
-     * rows to exclude and contributes no spans, and a non-full-text leaf (comparison, literal) has nothing to
-     * highlight. {@code AND}/{@code OR} of qualifying predicates qualify as a whole; if either side does not, the whole
-     * conjunct is skipped.
+     * Returns whether a {@code WHERE} conjunct can be borrowed for highlighting. Positive full-text predicates and
+     * boolean combinations of them are supported; negative and mixed full-text/non-full-text predicates are not.
      * <p>
-     * A predicate carrying an {@code analyzer} or {@code quote_analyzer} option is not borrowed: HIGHLIGHT translates
-     * against a synthetic context that knows only its own analyzer, so those options cannot be applied correctly today.
-     * {@link #collectImplicitQuery} reports that as an error rather than silently dropping the conjunct.
-     * TODO: support WHERE-side analyzer/quote_analyzer on an implicit HIGHLIGHT query (copy onto HIGHLIGHT when the
-     * name is unique; per-field MemoryIndex analysis when names differ).
-     * <p>
-     * This is deliberately narrower than what an explicit HIGHLIGHT query accepts (which allows {@code NOT} and mixed
-     * boolean combinations, see {@link org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders#build}): the implicit
-     * query is a best-effort convenience derived from selection predicates, so it only borrows shapes whose intent to
-     * highlight is unambiguous.
-     * <p>
-     * Must stay in sync with {@link org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders#build}: everything
-     * accepted here must be translatable there.
+     * Analyzer options are rejected because HIGHLIGHT's synthetic context only knows its own analyzer. Every accepted
+     * expression must also be supported by {@link org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders#build}.
+     * TODO: support analyzer options on borrowed predicates.
      */
     public static boolean isSupportedImplicitPredicate(Expression expr) {
+        return hasBorrowableShape(expr) && expr.anyMatch(HighlightSupport::hasAnalyzerOption) == false;
+    }
+
+    private static boolean hasBorrowableShape(Expression expr) {
         if (expr instanceof BinaryLogic binary) {
-            return isSupportedImplicitPredicate(binary.left()) && isSupportedImplicitPredicate(binary.right());
+            return hasBorrowableShape(binary.left()) && hasBorrowableShape(binary.right());
         }
-        return isBorrowableFullText(expr) && hasAnalyzerOption(expr) == false;
+        return isBorrowableFullText(expr);
     }
 
     private static boolean isBorrowableFullText(Expression expr) {
@@ -111,23 +101,13 @@ public final class HighlightSupport {
     }
 
     /**
-     * Collects the searchable conjuncts of every {@code WHERE} that still describes the documents reaching HIGHLIGHT.
-     * The walk moves down the child chain (children are upstream) and stops at the first node that is not
-     * {@link DocPreserving}, because past that point a row no longer maps to a single document. Non-unary barriers
-     * such as {@code LOOKUP JOIN} and {@code FORK} also end the walk and are recorded as the blocker so the
-     * missing-query message can name them, matching unary barriers such as {@code STATS}.
+     * Collects full-text conjuncts while walking upstream through {@link DocPreserving} plans. The walk stops when rows
+     * no longer map to individual documents.
      * <p>
-     * Conjuncts are collected as-is, with no check that their fields are still live: a predicate whose field was later
-     * dropped or renamed translates against a context that only knows the ON fields, so it becomes a match-none query
-     * and the column comes out null. An {@code AttributeSet} liveness guard would be worse, since membership is
-     * {@code NameId}-based and RENAME or MV_EXPAND mint fresh ids, silently dropping predicates.
-     * <p>
-     * WHEREs filter conjunctively, but highlight terms are OR-ed because the highlight query is display, not selection.
-     * The combined query is given {@code source} (HIGHLIGHT's own location) so a translation failure points at the
-     * command rather than at an arbitrary borrowed conjunct inside a WHERE.
-     * <p>
-     * A WHERE-side {@code analyzer} or {@code quote_analyzer} option cannot be borrowed today; the walk returns an
-     * error rather than dropping that conjunct or adopting the name onto HIGHLIGHT.
+     * Borrowed conjuncts are OR-ed because highlighting is display, not selection. Fields renamed or dropped after the
+     * filter are kept in the query and become match-none during translation; tracking them by {@code NameId} would lose
+     * predicates across commands that replace attributes. Analyzer options on otherwise borrowable predicates fail the
+     * whole derivation rather than being silently ignored.
      *
      * @param source HIGHLIGHT's source, used as the location of the combined query
      */
@@ -135,29 +115,23 @@ public final class HighlightSupport {
         List<Expression> predicates = new ArrayList<>();
         boolean sawUnborrowableFullText = false;
         boolean sawAnalyzerOption = false;
-        LogicalPlan blockedBy = null;
         LogicalPlan current = child;
-        while (current instanceof UnaryPlan) {
-            if (current instanceof DocPreserving docPreserving) {
-                if (current instanceof Filter filter) {
-                    if (filter.condition().anyMatch(HighlightSupport::hasAnalyzerOption)) {
+        while (current instanceof DocPreserving docPreserving) {
+            if (current instanceof Filter filter) {
+                for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
+                    if (isSupportedImplicitPredicate(conjunct)) {
+                        predicates.add(conjunct);
+                    } else if (hasBorrowableShape(conjunct) && conjunct.anyMatch(HighlightSupport::hasAnalyzerOption)) {
                         sawAnalyzerOption = true;
-                    }
-                    if (borrowConjuncts(filter, predicates) == false && filter.condition().anyMatch(e -> e instanceof FullTextFunction)) {
+                    } else if (conjunct.anyMatch(e -> e instanceof FullTextFunction)) {
                         sawUnborrowableFullText = true;
                     }
                 }
-                current = docPreserving.preservingInput();
-            } else {
-                blockedBy = current;
-                break;
             }
+            current = docPreserving.preservingInput();
         }
-        // Unary barriers are recorded in the loop. LOOKUP JOIN / FORK are not UnaryPlan, so the loop just ends
-        // on them; a source relation is a leaf and is not a blocker.
-        if (blockedBy == null && current.children().isEmpty() == false) {
-            blockedBy = current;
-        }
+        LogicalPlan blockedBy = current.children().isEmpty() ? null : current;
+
         // Do not partially borrow: a sibling MATCH without an analyzer would otherwise become the implicit query
         // and silently drop the analyzer-bearing conjunct.
         if (sawAnalyzerOption) {
@@ -170,17 +144,6 @@ public final class HighlightSupport {
             return new ImplicitQuery(Predicates.combineOrWithSource(predicates, source), null);
         }
         return new ImplicitQuery(null, missingQueryReason(sawUnborrowableFullText, blockedBy));
-    }
-
-    private static boolean borrowConjuncts(Filter filter, List<Expression> predicates) {
-        boolean borrowed = false;
-        for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
-            if (isSupportedImplicitPredicate(conjunct)) {
-                predicates.add(conjunct);
-                borrowed = true;
-            }
-        }
-        return borrowed;
     }
 
     private static String missingQueryReason(boolean sawUnborrowableFullText, @Nullable LogicalPlan blockedBy) {

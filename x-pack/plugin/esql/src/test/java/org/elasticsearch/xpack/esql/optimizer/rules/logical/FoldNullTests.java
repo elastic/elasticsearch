@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
@@ -321,30 +322,59 @@ public class FoldNullTests extends ESTestCase {
     }
 
     public void testEqualsNullSuggestsIsNull() {
-        var field = getFieldAttribute("emp_no");
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 19, "emp_no"));
         Equals equals = new Equals(new Source(1, 19, "emp_no == NULL"), field, NULL);
         assertNullLiteral(foldNull(equals));
         assertEquals("emp_no IS NULL", equals.nullMisuseAlternative());
     }
 
     public void testNotEqualsNullSuggestsIsNotNull() {
-        var field = getFieldAttribute("emp_no");
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 19, "emp_no"));
         NotEquals notEquals = new NotEquals(new Source(1, 19, "emp_no != NULL"), field, NULL);
         assertNullLiteral(foldNull(notEquals));
         assertEquals("emp_no IS NOT NULL", notEquals.nullMisuseAlternative());
     }
 
     public void testInsensitiveEqualsNullSuggestsIsNull() {
-        var field = getFieldAttribute("name", KEYWORD);
+        var field = getFieldAttribute("name", KEYWORD).withLocation(new Source(1, 12, "name"));
         InsensitiveEquals insensitiveEquals = new InsensitiveEquals(new Source(1, 12, "name =~ NULL"), field, NULL);
         assertNullLiteral(foldNull(insensitiveEquals));
         assertEquals("name IS NULL", insensitiveEquals.nullMisuseAlternative());
     }
 
     public void testNotSuggestsIsNotNullWhenChildIsEquals() {
-        var field = getFieldAttribute("emp_no");
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 24, "emp_no"));
         Equals equals = new Equals(new Source(1, 24, "emp_no == NULL"), field, NULL);
         Not not = new Not(new Source(1, 19, "NOT (emp_no == NULL)"), equals);
+        assertNullLiteral(foldNull(not));
+        assertEquals("emp_no IS NOT NULL", not.nullMisuseAlternative());
+    }
+
+    public void testInAllNullListSuggestsIsNull() {
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 12, "emp_no"));
+        In in = new In(new Source(1, 12, "emp_no IN (NULL, NULL)"), field, List.of(NULL, NULL));
+        assertNullLiteral(foldNull(in));
+        assertEquals("emp_no IS NULL", in.nullMisuseAlternative());
+    }
+
+    public void testInNullValueHasNoAlternative() {
+        var field = getFieldAttribute("emp_no");
+        In in = new In(new Source(1, 12, "NULL IN (emp_no, 1)"), NULL, List.of(field, L(1)));
+        assertNullLiteral(foldNull(in));
+        assertNull(in.nullMisuseAlternative());
+    }
+
+    public void testInValueAndNullDoesNotFold() {
+        var field = getFieldAttribute("emp_no");
+        In in = new In(EMPTY, field, List.of(L(1), NULL));
+        assertSame(in, foldNull(in));
+        assertNull(in.nullMisuseAlternative());
+    }
+
+    public void testNotInAllNullListSuggestsIsNotNull() {
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 12, "emp_no"));
+        In in = new In(new Source(1, 12, "emp_no NOT IN (NULL, NULL)"), field, List.of(NULL, NULL));
+        Not not = new Not(new Source(1, 12, "emp_no NOT IN (NULL, NULL)"), in);
         assertNullLiteral(foldNull(not));
         assertEquals("emp_no IS NOT NULL", not.nullMisuseAlternative());
     }

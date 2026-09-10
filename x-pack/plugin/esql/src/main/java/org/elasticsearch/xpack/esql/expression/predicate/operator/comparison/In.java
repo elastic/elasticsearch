@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Comparisons;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -121,7 +123,7 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  *     String Template generators that we use for things like {@link Block} and {@link Vector}.
  * </p>
  */
-public class In extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware {
+public class In extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware, NullMisuseSuggestion {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "In", In::new);
     private static final Logger logger = LogManager.getLogger(In.class);
 
@@ -245,6 +247,21 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             return null;
         }
         return super.fold(ctx);
+    }
+
+    @Override
+    public String nullMisuseAlternative() {
+        // All-null list only: WarnNullMisuse suggests `x IS NULL`. A mixed list uses a different
+        // message (`OR x IS NULL`) and does not go through this method.
+        // `NULL IN (x, y)` is always NULL regardless of x/y, so there is no IS NULL rewrite.
+        if (list.stream().allMatch(Expressions::isGuaranteedNull) == false) {
+            return null;
+        }
+        if (value instanceof Literal) {
+            return null;
+        }
+        String text = value.sourceText();
+        return text.isEmpty() ? null : text + " IS NULL";
     }
 
     protected boolean areCompatible(DataType left, DataType right) {

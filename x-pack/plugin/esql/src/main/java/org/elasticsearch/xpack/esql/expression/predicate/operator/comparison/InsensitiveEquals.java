@@ -169,7 +169,7 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison implements Ev
         if (kept instanceof Literal) {
             return null;
         }
-        String text = kept.sourceText().isEmpty() ? Expressions.name(kept) : kept.sourceText();
+        String text = kept.sourceText();
         return text.isEmpty() ? null : text + " IS NULL";
     }
 }

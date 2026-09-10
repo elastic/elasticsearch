@@ -295,7 +295,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         if (kept instanceof Literal) {
             return null;
         }
-        String text = kept.sourceText().isEmpty() ? Expressions.name(kept) : kept.sourceText();
+        String text = kept.sourceText();
         return text.isEmpty() ? null : text + " IS NOT NULL";
     }
 }

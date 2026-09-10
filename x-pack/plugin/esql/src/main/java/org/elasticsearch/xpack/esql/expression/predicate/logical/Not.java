@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -114,31 +115,40 @@ public class Not extends UnaryScalarFunction
 
     @Override
     public String nullMisuseAlternative() {
-        Expression left;
-        Expression right;
-        if (field() instanceof Equals equals) {
-            left = equals.left();
-            right = equals.right();
-        } else if (field() instanceof InsensitiveEquals insensitiveEquals) {
-            left = insensitiveEquals.left();
-            right = insensitiveEquals.right();
-        } else {
-            return null;
-        }
-        Expression kept;
-        if (Expressions.isGuaranteedNull(right)) {
-            kept = left;
-        } else if (Expressions.isGuaranteedNull(left)) {
-            kept = right;
-        } else {
-            return null;
-        }
+        Expression kept = keptNonNullOperand();
         // Suggesting `<literal> IS NOT NULL` (e.g. `5 IS NOT NULL`) is never what the user meant.
-        if (kept instanceof Literal) {
+        if (kept == null || kept instanceof Literal) {
             return null;
         }
-        String text = kept.sourceText().isEmpty() ? Expressions.name(kept) : kept.sourceText();
+        String text = kept.sourceText();
         return text.isEmpty() ? null : text + " IS NOT NULL";
+    }
+
+    /**
+     * Operand that would remain after rewriting {@code NOT (x == NULL)} / {@code x NOT IN (NULL)}
+     * as {@code x IS NOT NULL}, or {@code null} if this {@code NOT} is not that shape.
+     */
+    private Expression keptNonNullOperand() {
+        if (field() instanceof Equals equals) {
+            return keptNonNullOperand(equals.left(), equals.right());
+        }
+        if (field() instanceof InsensitiveEquals insensitiveEquals) {
+            return keptNonNullOperand(insensitiveEquals.left(), insensitiveEquals.right());
+        }
+        if (field() instanceof In in && in.list().stream().allMatch(Expressions::isGuaranteedNull)) {
+            return in.value();
+        }
+        return null;
+    }
+
+    private static Expression keptNonNullOperand(Expression left, Expression right) {
+        if (Expressions.isGuaranteedNull(right)) {
+            return left;
+        }
+        if (Expressions.isGuaranteedNull(left)) {
+            return right;
+        }
+        return null;
     }
 
     @Override

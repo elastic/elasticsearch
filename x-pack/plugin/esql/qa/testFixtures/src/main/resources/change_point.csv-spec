@@ -1100,7 +1100,7 @@ time:integer | values:null | type:keyword | pvalue:double
 
 values evals to null
 required_capability: change_point
-required_capability: fold_null_literal_warning
+required_capability: warn_null_misuse
 
 FROM employees
   | KEEP emp_no

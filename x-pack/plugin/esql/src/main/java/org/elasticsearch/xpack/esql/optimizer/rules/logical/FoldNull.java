@@ -54,7 +54,9 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
      */
     public static boolean foldsToNull(Expression e, Predicate<Expression> isNullChild) {
         if (e instanceof In in) {
-            return isNullChild.test(in.value());
+            // Matches In.fold(): a null probe, or a list that is entirely null, is always NULL.
+            // A mixed list (x IN (1, NULL)) is not — a match still yields true.
+            return isNullChild.test(in.value()) || in.list().stream().allMatch(isNullChild);
         }
         return e instanceof Alias == false && e instanceof AnyNullIsNull
         // Non-evaluatable functions stay as a STATS grouping (It isn't moved to an early EVAL like other groupings),

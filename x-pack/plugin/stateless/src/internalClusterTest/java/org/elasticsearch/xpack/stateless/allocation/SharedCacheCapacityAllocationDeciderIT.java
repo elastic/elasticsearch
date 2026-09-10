@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
@@ -22,6 +23,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 
 import java.util.Collection;
@@ -36,6 +39,13 @@ import static org.hamcrest.Matchers.equalTo;
 public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPluginIntegTestCase {
 
     private static final long CACHE_SIZE_IN_BYTES = 1000L;
+
+    private static final String MONITOR_TRIGGERING_REROUTE_LOG_MESSAGE =
+        "cache commitments exceeded the high watermark for nodes * triggering reroute";
+    private static final String MONITOR_NOT_REROUTING_ALL_NODES_OVER_LOW_WATERMARK_LOG_MESSAGE =
+        "not rerouting for nodes * over the high watermark because all search nodes exceed the low watermark";
+    private static final String MONITOR_SKIPPED_WHILE_DISABLED_LOG_MESSAGE =
+        "skipping monitor as the shared cache capacity decider or its canRemain check is disabled";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -307,6 +317,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         );
     }
 
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityMonitor:DEBUG", reason = "debug log for test")
     public void testCanRemainDisabledThenEnabledDynamically() {
         startMasterOnlyNode();
         startIndexNode();
@@ -332,16 +343,36 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         // while disabled" assertions below even run.
         updateClusterSettings(Settings.builder().put(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING.getKey(), false));
 
-        // The hosting node is heavily over the 95% high watermark. No need to fake anything for the other node, as the decider treats a
-        // node it has no cache data for as healthy (YES).
+        // The hosting node is heavily over the 95% high watermark. No need to fake anything for the other node, as the decider
+        // treats a node with no cache data as healthy (YES), and the monitor never gets far enough to look at any node's
+        // commitment while canRemain is disabled.
         final long hostedBoostedCommitmentBytes = bytesForPercent(97);
         final long noUnboostedCommitmentBytes = 0L;
-        fakeNodeCacheSizeAndCommitments(
-            Map.of(
-                hostedNodeId,
-                new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, hostedBoostedCommitmentBytes, noUnboostedCommitmentBytes)
-            )
-        );
+        try (MockLog mockLog = MockLog.capture(SharedCacheCapacityMonitor.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "monitor skipped because canRemain is disabled",
+                    SharedCacheCapacityMonitor.class.getCanonicalName(),
+                    Level.DEBUG,
+                    MONITOR_SKIPPED_WHILE_DISABLED_LOG_MESSAGE
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no reroute while canRemain is disabled",
+                    SharedCacheCapacityMonitor.class.getCanonicalName(),
+                    Level.DEBUG,
+                    MONITOR_TRIGGERING_REROUTE_LOG_MESSAGE
+                )
+            );
+            fakeNodeCacheSizeAndCommitments(
+                Map.of(
+                    hostedNodeId,
+                    new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, hostedBoostedCommitmentBytes, noUnboostedCommitmentBytes)
+                )
+            );
+            mockLog.assertAllExpectationsMatched();
+        }
 
         final var explainRequest = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT);
         explainRequest.setIndex(indexName).setShard(0).setPrimary(false).setCurrentNode(hostedNodeId);
@@ -361,21 +392,69 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
                 )
         );
 
-        // A reroute pass must not relocate the shard while canRemain is disabled, despite the fake oversubscription.
-        ClusterRerouteUtils.reroute(client());
         ensureGreen(indexName);
         assertThat(findSearchShard(indexName).routingEntry().currentNodeId(), equalTo(hostedNodeId));
 
         // Re-enabling canRemain dynamically, without restarting any node, should let the same fake oversubscription trigger
-        // relocation.
+        // relocation. No explicit reroute is needed, since a settings update triggers its own reroute once applied,
+        // which picks up the still-oversubscribed node under the now-enabled check.
         updateClusterSettings(Settings.builder().putNull(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING.getKey()));
-        ClusterRerouteUtils.reroute(client());
         awaitClusterState(
             state -> state.getRoutingNodes().node(otherNodeId).shardsWithState(indexName, ShardRoutingState.STARTED).findAny().isPresent()
                 && state.getRoutingNodes().node(hostedNodeId).shardsWithState(indexName, ShardRoutingState.STARTED).findAny().isEmpty()
         );
     }
 
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityMonitor:DEBUG", reason = "debug log for test")
+    public void testMonitorTriggersRerouteWhenNodeExceedsHighWatermark() {
+        startMasterOnlyNode();
+        startIndexNode();
+        final var searchNodeA = startSearchNode();
+        final var searchNodeB = startSearchNode();
+        ensureStableCluster(4);
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        final String searchNodeAId = getNodeId(searchNodeA);
+        final String searchNodeBId = getNodeId(searchNodeB);
+        final String hostedNodeId = findSearchShard(indexName).routingEntry().currentNodeId();
+        final String otherNodeId = hostedNodeId.equals(searchNodeAId) ? searchNodeBId : searchNodeAId;
+
+        // The hosting node crosses the 95% high watermark, and the other node is faked as well below the low watermark, so the
+        // monitor has somewhere to relieve the pressure onto. No settings update is involved here, so the only possible trigger
+        // for the relocation below is the monitor reacting to the ClusterInfo refresh inside the fake call.
+        final long hostedBoostedCommitmentBytes = bytesForPercent(97);
+        final long otherNodeBoostedCommitmentBytes = 0L;
+        final long noUnboostedCommitmentBytes = 0L;
+        try (MockLog mockLog = MockLog.capture(SharedCacheCapacityMonitor.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "reroute due to cache commitments exceeding the high watermark",
+                    SharedCacheCapacityMonitor.class.getCanonicalName(),
+                    Level.DEBUG,
+                    MONITOR_TRIGGERING_REROUTE_LOG_MESSAGE
+                )
+            );
+            fakeNodeCacheSizeAndCommitments(
+                Map.of(
+                    hostedNodeId,
+                    new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, hostedBoostedCommitmentBytes, noUnboostedCommitmentBytes),
+                    otherNodeId,
+                    new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, otherNodeBoostedCommitmentBytes, noUnboostedCommitmentBytes)
+                )
+            );
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        awaitClusterState(
+            state -> state.getRoutingNodes().node(otherNodeId).shardsWithState(indexName, ShardRoutingState.STARTED).findAny().isPresent()
+                && state.getRoutingNodes().node(hostedNodeId).shardsWithState(indexName, ShardRoutingState.STARTED).findAny().isEmpty()
+        );
+    }
+
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityMonitor:DEBUG", reason = "debug log for test")
     public void testCanRemainNotPreferredButShardStaysAssignedWithNoAlternativeNode() {
         startMasterOnlyNode();
         startIndexNode();
@@ -418,7 +497,29 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         );
 
         // NOT_PREFERRED is only a soft deprioritization. With no alternative node available, the shard must remain assigned and
-        // started rather than being left unassigned.
+        // started rather than being left unassigned. The monitor should decline to reroute too, since there is no node below the
+        // low watermark to relieve the pressure onto.
+        try (MockLog mockLog = MockLog.capture(SharedCacheCapacityMonitor.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "no reroute when there is no alternative node below the low watermark",
+                    SharedCacheCapacityMonitor.class.getCanonicalName(),
+                    Level.DEBUG,
+                    MONITOR_NOT_REROUTING_ALL_NODES_OVER_LOW_WATERMARK_LOG_MESSAGE
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no reroute log line when there is no alternative node below the low watermark",
+                    SharedCacheCapacityMonitor.class.getCanonicalName(),
+                    Level.DEBUG,
+                    MONITOR_TRIGGERING_REROUTE_LOG_MESSAGE
+                )
+            );
+            refreshClusterInfo();
+            mockLog.assertAllExpectationsMatched();
+        }
+
         ClusterRerouteUtils.reroute(client());
         ensureGreen(indexName);
         assertThat(findSearchShard(indexName).routingEntry().currentNodeId(), equalTo(soleSearchNodeId));

@@ -11,6 +11,12 @@ import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.util.List;
 import java.util.Map;
@@ -21,6 +27,25 @@ import static org.hamcrest.Matchers.is;
 
 public class LicenseIsEnforcedDuringSnapshotBasedRecoveryIT extends AbstractSnapshotBasedRecoveryRestTestCase {
 
+    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
+
+    // This project tests that enterprise licensing is enforced, therefore we use a basic license
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .nodes(3)
+        .setting("xpack.license.self_generated.type", "basic")
+        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
+        .setting("xpack.security.enabled", "false")
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     @Override
     protected String repositoryType() {
         return "fs";
@@ -28,7 +53,7 @@ public class LicenseIsEnforcedDuringSnapshotBasedRecoveryIT extends AbstractSnap
 
     @Override
     protected Settings repositorySettings() {
-        return Settings.builder().put("location", System.getProperty("tests.path.repo")).build();
+        return Settings.builder().put("location", repoDirectory.getRoot().getPath()).build();
     }
 
     @Override

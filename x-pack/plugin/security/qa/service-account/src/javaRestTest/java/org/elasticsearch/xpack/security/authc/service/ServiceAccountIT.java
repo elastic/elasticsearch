@@ -358,7 +358,8 @@ public class ServiceAccountIT extends ESRestTestCase {
                   "allow_restricted_indices": false
                 }
               ],
-              "applications": [        {
+              "applications": [
+                {
                   "application" : "kibana-*",
                   "privileges" : [
                     "reserved_fleet-setup"
@@ -366,7 +367,17 @@ public class ServiceAccountIT extends ESRestTestCase {
                   "resources" : [
                     "*"
                   ]
-                }      ],
+                },
+                {
+                  "application" : "apm",
+                  "privileges" : [
+                    "event:write"
+                  ],
+                  "resources" : [
+                    "*"
+                  ]
+                }
+              ],
               "run_as": [],
               "metadata": {},
               "transient_metadata": {
@@ -922,7 +933,12 @@ public class ServiceAccountIT extends ESRestTestCase {
             responseMap,
             hasEntry(
                 serviceAccountPrincipal,
-                Map.of("role_descriptor", XContentHelper.convertToMap(new BytesArray(roleDescriptorString), false, XContentType.JSON).v2())
+                Map.of(
+                    "type",
+                    "built_in",
+                    "role_descriptor",
+                    XContentHelper.convertToMap(new BytesArray(roleDescriptorString), false, XContentType.JSON).v2()
+                )
             )
         );
     }

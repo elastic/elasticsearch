@@ -145,8 +145,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -2260,7 +2262,7 @@ public class TransportSearchActionTests extends ESTestCase {
         assertEquals("s1", request.routing());
     }
 
-    public void testValidateAndResolveSearchSliceRoutingRejectsPitWhenSliceEnabled() {
+    public void testValidateAndResolveSearchSliceRoutingAllowsPitWhenSliceEnabled() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-enabled-index").source(
             new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY))
@@ -2273,16 +2275,39 @@ public class TransportSearchActionTests extends ESTestCase {
                     .put("index.slice.enabled", true)
             )
             .build();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
-                request,
-                Map.of(enabled.getIndex(), enabled),
-                request.indices(),
-                false
-            )
+        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
+            request,
+            Map.of(enabled.getIndex(), enabled),
+            request.indices(),
+            false
         );
-        assertThat(e.getMessage(), containsString("[point in time] is not supported when [index.slice.enabled] is true"));
+        assertNull(requestedSlice);
+        assertNull(request.routing());
+    }
+
+    public void testValidateAndResolveSearchSliceRoutingClearsRoutingForPitWithExplicitSlice() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest("slice-enabled-index").source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY))
+        );
+        request.searchSlice("tenant-a");
+        IndexMetadata enabled = IndexMetadata.builder("slice-enabled-index")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-enabled-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.slice.enabled", true)
+            )
+            .build();
+        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
+            request,
+            Map.of(enabled.getIndex(), enabled),
+            request.indices(),
+            false
+        );
+        assertEquals("tenant-a", requestedSlice);
+        assertEquals("tenant-a", request.searchSlice());
+        assertNull(request.routing());
     }
 
     /**
@@ -2438,5 +2463,45 @@ public class TransportSearchActionTests extends ESTestCase {
             .toArray(String[]::new);
 
         assertThat(Arrays.asList(actual), containsInAnyOrder(expected));
+    }
+
+    public void testCcsClusterInfoUpdateInternalCancel_UpdatesStatus() {
+        String indexExpr = "indexExpression";
+        Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
+        clusterMap.put(
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            new SearchResponse.Cluster(
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                indexExpr,
+                false,
+                SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION
+            )
+        );
+        String aliasA = "project-a";
+        clusterMap.put(aliasA, new SearchResponse.Cluster(aliasA, indexExpr, false, null));
+        String aliasB = "project-b";
+        clusterMap.put(aliasB, new SearchResponse.Cluster(aliasB, indexExpr, false, null));
+        SearchResponse.Clusters projects = new SearchResponse.Clusters(clusterMap, false);
+
+        // Confirm the initial state
+        for (String alias : projects.getClusterAliases()) {
+            assertThat(projects.getCluster(alias).getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+            assertThat(projects.getCluster(alias).getFailures(), empty());
+        }
+
+        var local = projects.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+
+        // Set one cluster to skipped
+        TransportSearchAction.ccsClusterInfoUpdateInternalCancel(projects, aliasA, true);
+        assertThat(projects.getCluster(aliasA).getStatus(), equalTo(SearchResponse.Cluster.Status.SKIPPED));
+        assertThat(projects.getCluster(aliasA).getFailures(), empty());
+
+        // Set one cluster to failed
+        TransportSearchAction.ccsClusterInfoUpdateInternalCancel(projects, aliasB, false);
+        assertThat(projects.getCluster(aliasB).getStatus(), equalTo(SearchResponse.Cluster.Status.FAILED));
+        assertThat(projects.getCluster(aliasB).getFailures(), empty());
+
+        // Confirm the other cluster is unmodified
+        assertThat(projects.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY), sameInstance(local));
     }
 }

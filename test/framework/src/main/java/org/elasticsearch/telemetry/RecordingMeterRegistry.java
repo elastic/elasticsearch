@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry;
 
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
+import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
@@ -17,6 +18,7 @@ import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -28,7 +30,6 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -51,11 +52,6 @@ public class RecordingMeterRegistry implements MeterRegistry {
         return instrument;
     }
 
-    @Override
-    public DoubleCounter getDoubleCounter(String name) {
-        return (DoubleCounter) recorder.getInstrument(InstrumentType.DOUBLE_COUNTER, name);
-    }
-
     protected DoubleCounter buildDoubleCounter(String name, String description, String unit) {
         return new RecordingInstruments.RecordingDoubleCounter(name, recorder);
     }
@@ -67,44 +63,36 @@ public class RecordingMeterRegistry implements MeterRegistry {
         return instrument;
     }
 
-    @Override
-    public DoubleUpDownCounter getDoubleUpDownCounter(String name) {
-        return (DoubleUpDownCounter) recorder.getInstrument(InstrumentType.DOUBLE_UP_DOWN_COUNTER, name);
-    }
-
     protected DoubleUpDownCounter buildDoubleUpDownCounter(String name, String description, String unit) {
         return new RecordingInstruments.RecordingDoubleUpDownCounter(name, recorder);
     }
 
     @Override
-    public DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleWithAttributes> observer) {
-        return registerDoublesGauge(name, description, unit, () -> Collections.singleton(observer.get()));
-    }
-
-    @Override
-    public DoubleGauge registerDoublesGauge(
-        String name,
-        String description,
-        String unit,
-        Supplier<Collection<DoubleWithAttributes>> observer
-    ) {
-        DoubleGauge instrument = buildDoubleGauge(name, description, unit, observer);
+    public DoubleGauge registerDoubleGauge(String name, String description, String unit) {
+        DoubleGauge instrument = new RecordingInstruments.RecordingDoubleGauge(name, recorder);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
     }
 
     @Override
-    public DoubleGauge getDoubleGauge(String name) {
-        return (DoubleGauge) recorder.getInstrument(InstrumentType.DOUBLE_GAUGE, name);
-    }
-
-    protected DoubleGauge buildDoubleGauge(
+    public DoubleAsyncGauge registerDoublesAsyncGauge(
         String name,
         String description,
         String unit,
         Supplier<Collection<DoubleWithAttributes>> observer
     ) {
-        return new RecordingInstruments.RecordingDoubleGauge(name, observer, recorder);
+        DoubleAsyncGauge instrument = buildDoubleGauge(name, description, unit, observer);
+        recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
+        return instrument;
+    }
+
+    protected DoubleAsyncGauge buildDoubleGauge(
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<DoubleWithAttributes>> observer
+    ) {
+        return new RecordingInstruments.RecordingDoubleAsyncGauge(name, observer, recorder);
     }
 
     @Override
@@ -119,11 +107,6 @@ public class RecordingMeterRegistry implements MeterRegistry {
         return registerDoubleHistogram(name, description, unit);
     }
 
-    @Override
-    public DoubleHistogram getDoubleHistogram(String name) {
-        return (DoubleHistogram) recorder.getInstrument(InstrumentType.DOUBLE_HISTOGRAM, name);
-    }
-
     protected DoubleHistogram buildDoubleHistogram(String name, String description, String unit) {
         return new RecordingInstruments.RecordingDoubleHistogram(name, recorder);
     }
@@ -133,11 +116,6 @@ public class RecordingMeterRegistry implements MeterRegistry {
         LongCounter instrument = buildLongCounter(name, description, unit);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
-    }
-
-    @Override
-    public LongAsyncCounter registerLongAsyncCounter(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
-        return registerLongsAsyncCounter(name, description, unit, () -> Collections.singleton(observer.get()));
     }
 
     @Override
@@ -153,21 +131,6 @@ public class RecordingMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public LongAsyncCounter getLongAsyncCounter(String name) {
-        return (LongAsyncCounter) recorder.getInstrument(InstrumentType.LONG_ASYNC_COUNTER, name);
-    }
-
-    @Override
-    public DoubleAsyncCounter registerDoubleAsyncCounter(
-        String name,
-        String description,
-        String unit,
-        Supplier<DoubleWithAttributes> observer
-    ) {
-        return registerDoublesAsyncCounter(name, description, unit, () -> Collections.singleton(observer.get()));
-    }
-
-    @Override
     public DoubleAsyncCounter registerDoublesAsyncCounter(
         String name,
         String description,
@@ -177,17 +140,6 @@ public class RecordingMeterRegistry implements MeterRegistry {
         DoubleAsyncCounter instrument = new RecordingInstruments.RecordingAsyncDoubleCounter(name, observer, recorder);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
-    }
-
-    @Override
-    public DoubleAsyncCounter getDoubleAsyncCounter(String name) {
-        return (DoubleAsyncCounter) recorder.getInstrument(InstrumentType.DOUBLE_ASYNC_COUNTER, name);
-
-    }
-
-    @Override
-    public LongCounter getLongCounter(String name) {
-        return (LongCounter) recorder.getInstrument(InstrumentType.LONG_COUNTER, name);
     }
 
     protected LongCounter buildLongCounter(String name, String description, String unit) {
@@ -202,8 +154,10 @@ public class RecordingMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public LongUpDownCounter getLongUpDownCounter(String name) {
-        return (LongUpDownCounter) recorder.getInstrument(InstrumentType.LONG_UP_DOWN_COUNTER, name);
+    public LongGauge registerLongGauge(String name, String description, String unit) {
+        LongGauge instrument = new RecordingInstruments.RecordingLongGauge(name, recorder);
+        recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
+        return instrument;
     }
 
     protected LongUpDownCounter buildLongUpDownCounter(String name, String description, String unit) {
@@ -211,24 +165,24 @@ public class RecordingMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
-        return registerLongsGauge(name, description, unit, () -> Collections.singleton(observer.get()));
-    }
-
-    @Override
-    public LongGauge registerLongsGauge(String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer) {
-        LongGauge instrument = buildLongGauge(name, description, unit, observer);
+    public LongAsyncGauge registerLongsAsyncGauge(
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<LongWithAttributes>> observer
+    ) {
+        LongAsyncGauge instrument = buildLongGauge(name, description, unit, observer);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
     }
 
-    @Override
-    public LongGauge getLongGauge(String name) {
-        return (LongGauge) recorder.getInstrument(InstrumentType.LONG_GAUGE, name);
-    }
-
-    protected LongGauge buildLongGauge(String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer) {
-        return new RecordingInstruments.RecordingLongGauge(name, observer, recorder);
+    protected LongAsyncGauge buildLongGauge(
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<LongWithAttributes>> observer
+    ) {
+        return new RecordingInstruments.RecordingLongAsyncGauge(name, observer, recorder);
     }
 
     @Override
@@ -238,18 +192,53 @@ public class RecordingMeterRegistry implements MeterRegistry {
         return instrument;
     }
 
+    protected LongHistogram buildLongHistogram(String name, String description, String unit) {
+        return new RecordingInstruments.RecordingLongHistogram(name, recorder);
+    }
+
     @Override
     public LongHistogram registerLongHistogram(String name, String description, String unit, List<Long> bucketBoundaries) {
         return registerLongHistogram(name, description, unit);
     }
 
-    @Override
-    public LongHistogram getLongHistogram(String name) {
-        return (LongHistogram) recorder.getInstrument(InstrumentType.LONG_HISTOGRAM, name);
+    public DoubleCounter getDoubleCounter(String name) {
+        return (DoubleCounter) recorder.getInstrument(InstrumentType.DOUBLE_COUNTER, name);
     }
 
-    protected LongHistogram buildLongHistogram(String name, String description, String unit) {
-        return new RecordingInstruments.RecordingLongHistogram(name, recorder);
+    public LongAsyncGauge getLongGauge(String name) {
+        return (LongAsyncGauge) recorder.getInstrument(InstrumentType.LONG_ASYNC_GAUGE, name);
+    }
+
+    public DoubleUpDownCounter getDoubleUpDownCounter(String name) {
+        return (DoubleUpDownCounter) recorder.getInstrument(InstrumentType.DOUBLE_UP_DOWN_COUNTER, name);
+    }
+
+    public LongUpDownCounter getLongUpDownCounter(String name) {
+        return (LongUpDownCounter) recorder.getInstrument(InstrumentType.LONG_UP_DOWN_COUNTER, name);
+    }
+
+    public DoubleAsyncGauge getDoubleGauge(String name) {
+        return (DoubleAsyncGauge) recorder.getInstrument(InstrumentType.DOUBLE_ASYNC_GAUGE, name);
+    }
+
+    public DoubleHistogram getDoubleHistogram(String name) {
+        return (DoubleHistogram) recorder.getInstrument(InstrumentType.DOUBLE_HISTOGRAM, name);
+    }
+
+    public LongAsyncCounter getLongAsyncCounter(String name) {
+        return (LongAsyncCounter) recorder.getInstrument(InstrumentType.LONG_ASYNC_COUNTER, name);
+    }
+
+    public DoubleAsyncCounter getDoubleAsyncCounter(String name) {
+        return (DoubleAsyncCounter) recorder.getInstrument(InstrumentType.DOUBLE_ASYNC_COUNTER, name);
+    }
+
+    public LongCounter getLongCounter(String name) {
+        return (LongCounter) recorder.getInstrument(InstrumentType.LONG_COUNTER, name);
+    }
+
+    public LongHistogram getLongHistogram(String name) {
+        return (LongHistogram) recorder.getInstrument(InstrumentType.LONG_HISTOGRAM, name);
     }
 
     /**

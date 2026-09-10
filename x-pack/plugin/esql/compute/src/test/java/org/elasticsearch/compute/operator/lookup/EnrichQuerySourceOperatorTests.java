@@ -39,6 +39,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
@@ -66,6 +67,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -361,6 +363,11 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
     }
 
     public void testQueries_OnlySingleValues() throws Exception {
+        DriverContext warningsContext = new DriverContext(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            TestBlockFactory.getNonBreakingInstance(),
+            null
+        );
         try (
             var directoryData = makeDirectoryWith(
                 List.of(List.of("a2"), List.of("a1", "c1", "b2"), List.of("a2"), List.of("a3"), List.of("b2", "b1", "a1"))
@@ -370,7 +377,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             )
         ) {
             QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF)
-                .onlySingleValues(warnings(), "multi-value found");
+                .onlySingleValues(warningsContext.createWarnings(new TestWarningsSource("test")), "multi-value found");
             // pos -> terms -> docs
             // -----------------------------
             // 0 -> [b2] -> []
@@ -390,7 +397,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
                     directoryData.searchExecutionContext,
-                    warnings(),
+                    warningsContext.createWarnings(new TestWarningsSource("test")),
                     () -> 0L
                 )
             ) {
@@ -405,9 +412,14 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 page.releaseBlocks();
                 assertTrue(queryOperator.isFinished());
             }
-            assertWarnings(
-                "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: multi-value found"
+            warningsContext.finish();
+            assertThat(
+                warningsContext.warnings(),
+                // hasItems here because many threads may add duplicate warnings
+                hasItems(
+                    "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.IllegalArgumentException: multi-value found"
+                )
             );
         }
     }
@@ -447,11 +459,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             new TestWarningsSource("unrelated"),
             "unrelated"
         );
-        try (
-            Releasable ignored = QueryWarnings.EMIT.bind(
-                Map.of(unrelated, Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("unrelated")))
-            )
-        ) {
+        try (Releasable ignored = QueryWarnings.EMIT.bind(Map.of(unrelated, warnings(new TestWarningsSource("unrelated"))))) {
             // no exception -- the binding above proves EMIT was left unbound by the onlySingleValues path
         }
     }
@@ -519,7 +527,12 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
     }
 
     private static Warnings warnings() {
-        return Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
+        return warnings(new TestWarningsSource("test"));
+    }
+
+    private static Warnings warnings(TestWarningsSource source) {
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        return driverContext.createWarnings(source);
     }
 
     private record DirectoryData(

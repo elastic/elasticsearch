@@ -77,7 +77,12 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
     }
 
     public void testSimpleOffHeapSize() throws IOException {
-        float[] vector = randomVector(random().nextInt(12, 500));
+        // Int4 (bits=4 / PACKED_NIBBLE) requires even dimensions; randomBitsPerValue may pick bits=4.
+        int dimension = random().nextInt(12, 500);
+        if (dimension % 2 != 0) {
+            dimension++;
+        }
+        float[] vector = randomVector(dimension);
         // Use threshold=0 to ensure HNSW graph is always built, but keep assertion tolerant to implementation details.
         KnnVectorsFormat format = new ES94HnswScalarQuantizedVectorsFormat(
             16,

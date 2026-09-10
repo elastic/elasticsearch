@@ -21,8 +21,6 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWith
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWithResponseStreamResponseHandler;
 import software.amazon.awssdk.services.sagemakerruntime.model.ResponseStream;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -34,6 +32,8 @@ import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
@@ -120,7 +120,7 @@ public class SageMakerClient implements Closeable {
             listener.onFailure(e);
         } else {
             ExceptionsHelper.maybeError(t).ifPresent(ExceptionsHelper::maybeDieOnAnotherThread);
-            log.atWarn().withThrowable(t).log("Unknown failure calling SageMaker.");
+            log.warn("Unknown failure calling SageMaker.", t);
             listener.onFailure(new RuntimeException("Unknown failure calling SageMaker.", t));
         }
         return null; // Void

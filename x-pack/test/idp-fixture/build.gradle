@@ -28,7 +28,7 @@ dockerFixtures {
 dependencies {
   testImplementation project(':test:framework')
   api project(':test:fixtures:testcontainer-utils')
-  api "junit:junit:${versions.junit}"
+  api "junit:junit:${versions.junit4}"
 
   runtimeOnly "net.java.dev.jna:jna:${versions.jna}"
 }

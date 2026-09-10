@@ -98,9 +98,27 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
     public static class TestInferenceService extends AbstractTestInferenceService {
         public static final String NAME = "text_embedding_test_service";
 
+        /**
+         * Inputs starting with this prefix make an inference request fail. Unlike {@code should_fail_validation}, which is a
+         * task setting and therefore also fails the validation call made when the endpoint is created, this is per-input: the
+         * endpoint registers normally and only the requests carrying such an input fail. That lets a test exercise a partial
+         * inference failure against a real endpoint.
+         */
+        public static final String FAILING_INPUT_PREFIX = "FAIL_INFERENCE";
+
+        public static final String FAILING_INPUT_MESSAGE = "inference intentionally failed based on input";
+
         private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING);
 
         public TestInferenceService(InferenceServiceFactoryContext context) {}
+
+        private static boolean isFailingInput(String input) {
+            return input != null && input.startsWith(FAILING_INPUT_PREFIX);
+        }
+
+        private static boolean failsOnInput(List<String> inputs) {
+            return inputs != null && inputs.stream().anyMatch(TestInferenceService::isFailingInput);
+        }
 
         @Override
         public String name() {
@@ -149,6 +167,10 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                 listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
                 return;
             }
+            if (failsOnInput(input)) {
+                listener.onFailure(new RuntimeException(FAILING_INPUT_MESSAGE));
+                return;
+            }
             if (Objects.requireNonNull(model.getConfigurations().getTaskType()) == TaskType.TEXT_EMBEDDING) {
                 ServiceSettings modelServiceSettings = model.getServiceSettings();
                 listener.onResponse(makeTextEmbeddingResults(input, modelServiceSettings));
@@ -181,6 +203,14 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         ) {
             if (Objects.equals((((TestTaskSettings) model.getTaskSettings()).shouldFailValidation()), Boolean.TRUE)) {
                 listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
+                return;
+            }
+
+            if (request.inputs()
+                .stream()
+                .flatMap(group -> group.inferenceStrings().stream())
+                .anyMatch(inferenceString -> isFailingInput(inferenceString.value()))) {
+                listener.onFailure(new RuntimeException(FAILING_INPUT_MESSAGE));
                 return;
             }
 

@@ -98,10 +98,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     private final boolean needToEnableTLS = randomBoolean();
     private final boolean apmIndicesExist = randomBoolean();
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initClusterStatsFields() throws Exception {
         clusterName = randomAlphaOfLength(5);
         version = randomAlphaOfLengthBetween(6, 32);
         clusterStatus = randomFrom(ClusterHealthStatus.values());
@@ -438,7 +436,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             VersionStats.of(metadata, singletonList(mockNodeResponse)),
             ClusterSnapshotStats.EMPTY,
             null,
-            false
+            false,
+            null
         );
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);

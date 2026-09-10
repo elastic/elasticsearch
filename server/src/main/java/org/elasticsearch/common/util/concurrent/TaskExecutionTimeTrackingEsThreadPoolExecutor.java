@@ -12,6 +12,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRate;
+import org.elasticsearch.common.util.ThreadUtilizationTracker;
 import org.elasticsearch.common.util.concurrent.EsExecutors.HotThreadsOnLargeQueueConfig;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.Nullable;
@@ -65,8 +66,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         ALLOCATION,
     }
 
-    private final UtilizationTracker apmUtilizationTracker = new UtilizationTracker();
-    private final UtilizationTracker allocationUtilizationTracker = new UtilizationTracker();
+    private final ThreadUtilizationTracker apmUtilizationTracker;
+    private final ThreadUtilizationTracker allocationUtilizationTracker;
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
@@ -103,12 +104,14 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             : null;
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
         this.trackMaxQueueLatency = trackingConfig.trackMaxQueueLatency();
+        this.apmUtilizationTracker = new ThreadUtilizationTracker(() -> System.nanoTime(), totalExecutionTime, getMaximumPoolSize());
+        this.allocationUtilizationTracker = new ThreadUtilizationTracker(() -> System.nanoTime(), totalExecutionTime, getMaximumPoolSize());
     }
 
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
         var instruments = new ArrayList<Instrument>();
         instruments.add(
-            meterRegistry.registerLongsGauge(
+            meterRegistry.registerLongsAsyncGauge(
                 ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_QUEUE_TIME,
                 "Time tasks spent in the queue for the " + threadPoolName + " thread pool",
                 "milliseconds",
@@ -129,7 +132,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             )
         );
         instruments.add(
-            meterRegistry.registerDoubleGauge(
+            meterRegistry.registerDoubleAsyncGauge(
                 ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION,
                 "fraction of maximum thread time utilized for " + threadPoolName,
                 "fraction",
@@ -138,7 +141,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         );
         if (threadUtilizationRate != null) {
             instruments.add(
-                meterRegistry.registerDoubleGauge(
+                meterRegistry.registerDoubleAsyncGauge(
                     ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION_EWMR,
                     "EWMR-based fraction of maximum thread time utilized for " + threadPoolName,
                     "fraction",
@@ -348,32 +351,5 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     // Used for testing
     public boolean trackingMaxQueueLatency() {
         return trackMaxQueueLatency;
-    }
-
-    /**
-     * Supports periodic polling for thread pool utilization. Tracks state since the last polling request so that the average utilization
-     * since the last poll can be calculated for the next polling request.
-     *
-     * Uses the difference of {@link #totalExecutionTime} since the last polling request to determine how much activity has occurred.
-     */
-    private class UtilizationTracker {
-        long lastPollTime = System.nanoTime();
-        long lastTotalExecutionTime = 0;
-
-        public synchronized double pollUtilization() {
-            final long currentTotalExecutionTimeNanos = totalExecutionTime.sum();
-            final long currentPollTimeNanos = System.nanoTime();
-
-            final long totalExecutionTimeSinceLastPollNanos = currentTotalExecutionTimeNanos - lastTotalExecutionTime;
-            final long timeSinceLastPoll = currentPollTimeNanos - lastPollTime;
-
-            final long maximumExecutionTimeSinceLastPollNanos = timeSinceLastPoll * getMaximumPoolSize();
-            final double utilizationSinceLastPoll = (double) totalExecutionTimeSinceLastPollNanos / maximumExecutionTimeSinceLastPollNanos;
-
-            lastTotalExecutionTime = currentTotalExecutionTimeNanos;
-            lastPollTime = currentPollTimeNanos;
-
-            return utilizationSinceLastPoll;
-        }
     }
 }

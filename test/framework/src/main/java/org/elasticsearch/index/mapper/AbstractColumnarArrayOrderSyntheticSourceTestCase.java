@@ -40,10 +40,6 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
      */
     protected abstract String fieldTypeName();
 
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     protected MapperService columnarMapperService() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         return createMapperService(settings, mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject()));
@@ -93,6 +89,18 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
         var mapper = columnarMapper();
         assertEquals("""
             {"field":[null]}""", syntheticSource(mapper, b -> b.startArray("field").nullValue().endArray()));
+    }
+
+    /**
+     * A scalar {@code null} (written via {@code b.nullField("field")}) must produce the same result as a
+     * single-element null array — both write one null slot via
+     * {@code MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull}, so synthetic source renders
+     * the field as {@code [null]}, not as absent.
+     */
+    public void testScalarNullRendersAsArray() throws IOException {
+        var mapper = columnarMapper();
+        assertEquals("""
+            {"field":[null]}""", syntheticSource(mapper, b -> b.nullField("field")));
     }
 
     public void testEmptyArray() throws IOException {

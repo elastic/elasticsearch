@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.inference.services.nvidia.request.rerank.NvidiaRe
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModel;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankResponseHandler;
 import org.elasticsearch.xpack.inference.services.nvidia.response.rerank.NvidiaRerankResponseEntity;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 
 import java.util.Map;
@@ -55,7 +55,7 @@ public class NvidiaActionCreator implements NvidiaActionVisitor {
 
     private static final ResponseHandler COMPLETION_HANDLER = new NvidiaCompletionResponseHandler(
         "NVIDIA completion",
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiCompletionResponseEntity::fromResponse
     );
 
     private static final ResponseHandler RERANK_HANDLER = new NvidiaRerankResponseHandler(
@@ -104,7 +104,7 @@ public class NvidiaActionCreator implements NvidiaActionVisitor {
             model,
             COMPLETION_HANDLER,
             inputs -> new NvidiaChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
-            ChatCompletionInput.class
+            CompletionInput.class
         );
 
         var errorMessage = buildErrorMessage(TaskType.COMPLETION, model.getInferenceEntityId());

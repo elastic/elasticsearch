@@ -146,10 +146,26 @@ public class TransformUpdater {
         @Nullable final CloudCredential callerCredential,
         ActionListener<UpdateResult> listener
     ) {
+        final boolean willMintCredential = TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+            && mintCloudCredential
+            && callerCredential != null;
+        final boolean migrateFromUIAM = TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+            && mintCloudCredential
+            && callerCredential == null
+            && config.getCredentialId() != null;
+
+        if (update != null && update.isForceRekeying()) {
+            // Mirror datafeed _force_rekeying: require CPS + cloud-authenticated caller.
+            if (willMintCredential == false) {
+                listener.onFailure(TransformConfig.forceRekeyingRequiresCpsAndCloudAuthException());
+                return;
+            }
+        }
+
         // rewrite config into a new format if necessary
         final TransformConfig rewrittenConfig = TransformConfig.rewriteForUpdate(config);
         TransformConfig appliedConfig = update != null ? update.apply(rewrittenConfig) : rewrittenConfig;
-        if (shouldDefaultProjectRoutingForUiamMigration(config, appliedConfig, update, callerCredential, mintCloudCredential)) {
+        if (shouldDefaultProjectRoutingForUiamMigration(config, appliedConfig, update, willMintCredential)) {
             logger.info(
                 "[{}] defaulting project_routing to [{}] to preserve local search scope",
                 config.getId(),
@@ -159,7 +175,7 @@ public class TransformUpdater {
                 appliedConfig.getSource().withProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
             ).build();
         }
-        final TransformConfig updatedConfig = appliedConfig;
+        final TransformConfig updatedConfig = migrateFromUIAM ? appliedConfig.withCredentialId(null) : appliedConfig;
         final SetOnce<AuthorizationState> authStateHolder = new SetOnce<>();
 
         // <5> Update state document + checkpoints, then emit result.
@@ -186,12 +202,15 @@ public class TransformUpdater {
             )
         );
 
-        // <4> Write the (possibly credential-stamped) config; on failure, roll back the just-minted
-        // credential so we don't leak it at UIAM.
-        ActionListener<Tuple<Map<String, String>, String>> writeConfigListener = listener.delegateFailureAndWrap((l, tuple) -> {
+        // <4> Write the config returned by mintAndPersist; on failure, roll back any freshly-minted
+        // credential. mintAndPersist stamps the credential id and rewrites headers atomically, so
+        // configToWrite is either updatedConfig unchanged (no mint) or a fully rewritten copy (UIAM).
+        // The rollback gate uses willMintCredential — not configToWrite.getCredentialId() == null —
+        // because on Reset/Upgrade paths the config already carries a *prior* credential id that must
+        // never be revoked here. willMintCredential is the authoritative "this call minted" signal.
+        ActionListener<Tuple<Map<String, String>, TransformConfig>> writeConfigListener = listener.delegateFailureAndWrap((l, tuple) -> {
             var destIndexMappings = tuple.v1();
-            var newTokenId = tuple.v2();
-            var configToWrite = newTokenId == null ? updatedConfig : updatedConfig.withCredentialId(newTokenId);
+            var configToWrite = tuple.v2();
 
             updateTransformConfiguration(
                 client,
@@ -203,20 +222,25 @@ public class TransformUpdater {
                 seqNoPrimaryTermAndIndex,
                 clusterState,
                 destIndexSettings,
-                ActionListener.wrap(r -> updateTransformListener.onResponse(configToWrite), configWriteFailure -> {
-                    if (newTokenId == null || mintCloudCredential == false) {
+                ActionListener.wrap(r -> {
+                    if (migrateFromUIAM) {
+                        auditor.info(configToWrite.getId(), "cleared cloud credential on update with non-cloud credentials");
+                    }
+                    updateTransformListener.onResponse(configToWrite);
+                }, configWriteFailure -> {
+                    if (willMintCredential == false) {
                         // No fresh mint to roll back (Reset / Upgrade, or mint was skipped).
                         l.onFailure(configWriteFailure);
                         return;
                     }
                     logger.debug(
                         "[{}] config update failed after credential mint [{}], compensating revoke + delete",
-                        updatedConfig.getId(),
-                        newTokenId
+                        configToWrite.getId(),
+                        configToWrite.getCredentialId()
                     );
                     cloudCredentialManager.loadRevokeAndDeleteByTokenId(
-                        updatedConfig.getId(),
-                        newTokenId,
+                        configToWrite.getId(),
+                        configToWrite.getCredentialId(),
                         ActionListener.running(() -> l.onFailure(configWriteFailure))
                     );
                 })
@@ -228,14 +252,15 @@ public class TransformUpdater {
         // directly (no copy needed): mint runs after <2> below, which already dispatched and closed
         // its own independent copy, so nothing else still needs this reference by the time mint runs.
         ActionListener<Map<String, String>> mintCredentialListener = writeConfigListener.delegateFailureAndWrap((l, destIndexMappings) -> {
-            if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && mintCloudCredential) {
+            if (willMintCredential) {
                 cloudCredentialManager.mintAndPersist(
-                    updatedConfig.getId(),
+                    updatedConfig,
                     callerCredential,
-                    l.delegateFailureAndWrap((ll, newTokenId) -> ll.onResponse(Tuple.tuple(destIndexMappings, newTokenId)))
+                    clusterState.getMinTransportVersion(),
+                    l.delegateFailureAndWrap((ll, configToWrite) -> ll.onResponse(Tuple.tuple(destIndexMappings, configToWrite)))
                 );
             } else {
-                l.onResponse(Tuple.tuple(destIndexMappings, null));
+                l.onResponse(Tuple.tuple(destIndexMappings, updatedConfig));
             }
         });
 
@@ -249,10 +274,17 @@ public class TransformUpdater {
                 // - config is in the latest index
                 // - rewrite did not change the config
                 // - update is not making any changes
+                boolean migratingToUiam = willMintCredential && config.getCredentialId() == null;
+                boolean forceRekey = willMintCredential && update != null && update.isForceRekeying();
+                boolean unchanged = migratingToUiam == false
+                    && forceRekey == false
+                    && (willMintCredential ? isUnchangedIgnoringHeaders(updatedConfig, config) : updatedConfig.equals(config));
                 if (config.getVersion() != null
                     && config.getVersion().onOrAfter(TransformInternalIndexConstants.INDEX_VERSION_LAST_CHANGED)
-                    && updatedConfig.equals(config)) {
-                    listener.onResponse(new UpdateResult(updatedConfig, authStateHolder.get(), UpdateResult.Status.NONE));
+                    && unchanged) {
+                    // Return the stored config, not updatedConfig: apply() may have copied caller
+                    // security headers into the in-memory copy even when we skip the write.
+                    listener.onResponse(new UpdateResult(config, authStateHolder.get(), UpdateResult.Status.NONE));
                     return;
                 }
 
@@ -504,7 +536,7 @@ public class TransformUpdater {
     ) {
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
             config.getSource().getIndex(),
-            config.getSource().indicesOptions()
+            config.getScopedIndicesOptions()
         );
         ClientHelper.executeAsyncWithOrigin(
             client,
@@ -561,10 +593,9 @@ public class TransformUpdater {
         TransformConfig originalConfig,
         TransformConfig appliedConfig,
         TransformConfigUpdate update,
-        @Nullable CloudCredential callerCredential,
-        boolean mintCloudCredential
+        boolean willMintCredential
     ) {
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false || mintCloudCredential == false || callerCredential == null) {
+        if (willMintCredential == false) {
             return false;
         }
         if (originalConfig.getCredentialId() != null) {
@@ -577,6 +608,21 @@ public class TransformUpdater {
             return false;
         }
         return appliedConfig.getSource().getProjectRouting() == null;
+    }
+
+    /**
+     * Returns {@code true} if {@code updatedConfig} equals {@code config} when the {@code headers}
+     * field is excluded from the comparison. Used for the CPS no-op check: minting always replaces
+     * headers with the freshly minted key's authentication, so a difference there alone is not a
+     * user-visible config change. Future per-request headers (e.g. trace headers) will similarly
+     * differ on every call, so the whole map is excluded rather than only the security subset.
+     *
+     * <p>Implemented by copying {@code config} and forcing its headers to match {@code updatedConfig}
+     * before {@link TransformConfig#equals}. A plain {@code new Builder(a).build().equals(new
+     * Builder(b).build())} would still compare headers and is not a substitute for this check.
+     */
+    private static boolean isUnchangedIgnoringHeaders(TransformConfig updatedConfig, TransformConfig config) {
+        return updatedConfig.equals(new TransformConfig.Builder(config).setHeaders(updatedConfig.getHeaders()).build());
     }
 
     private TransformUpdater() {}

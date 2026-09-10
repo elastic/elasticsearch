@@ -100,8 +100,8 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
     @Before
     public void setupTest() {
         Set<org.elasticsearch.common.settings.Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingSet.addAll(DLMFrozenTransitionSettings.ALL_SETTINGS);
         settingSet.add(DLMFrozenTransitionService.POLL_INTERVAL_SETTING);
-        settingSet.add(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING);
         threadPool = new TestThreadPool(
             getTestName(),
             new FixedExecutorBuilder(
@@ -124,10 +124,9 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeClusterServiceAndThreadPool() throws Exception {
         clusterService.close();
         terminate(threadPool);
-        super.tearDown();
     }
 
     private static DLMFrozenTransitionExecutor newTransitionExecutor(
@@ -364,8 +363,8 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
      */
     public void testAlreadyQueuedIndexIsNotResubmitted() throws Exception {
         Set<org.elasticsearch.common.settings.Setting<?>> allSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        allSettings.addAll(DLMFrozenTransitionSettings.ALL_SETTINGS);
         allSettings.add(DLMFrozenTransitionService.POLL_INTERVAL_SETTING);
-        allSettings.add(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING);
         TestThreadPool localThreadPool = new TestThreadPool(
             "test-dlm-frozen-transition-single-thread",
             new FixedExecutorBuilder(

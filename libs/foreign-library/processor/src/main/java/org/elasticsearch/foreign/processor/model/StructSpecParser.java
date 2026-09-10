@@ -9,6 +9,8 @@
 
 package org.elasticsearch.foreign.processor.model;
 
+import org.elasticsearch.foreign.Platform;
+
 import java.lang.foreign.MemoryLayout;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -48,6 +50,7 @@ class StructSpecParser {
     private static final String OFFSET_LIST_FQN = "org.elasticsearch.foreign.Offset.List";
     private static final String STRUCT_SIZE_FQN = "org.elasticsearch.foreign.StructSize";
     private static final String STRUCT_SIZE_LIST_FQN = "org.elasticsearch.foreign.StructSize.List";
+    private static final String SIZEOF_FQN = "org.elasticsearch.foreign.Sizeof";
 
     /**
      * Builds the {@link StructModel} for a {@code @StructSpecification} record. Record components are
@@ -73,7 +76,8 @@ class StructSpecParser {
             if (fieldType == null
                 || fieldType == NativeType.VOID
                 || fieldType == NativeType.STRING
-                || fieldType == NativeType.ADDRESSABLE) {
+                || fieldType == NativeType.ADDRESSABLE
+                || fieldType == NativeType.UPCALL) {
                 messager.printMessage(
                     Kind.ERROR,
                     "Unsupported field type '"
@@ -110,7 +114,7 @@ class StructSpecParser {
         if (error) {
             return null;
         }
-        return buildStructModel(typeSimpleName, layout, byteSizes, supportedPlatforms, /* isRecord */ true, isSparse);
+        return buildStructModel(typeSimpleName, layout, byteSizes, supportedPlatforms, /* isRecord */ true, isSparse, null);
     }
 
     /**
@@ -118,11 +122,16 @@ class StructSpecParser {
      * methods once, merging a getter/setter pair (which must be declared adjacently) into a single
      * field, validating {@code @ArrayField} length references, and placing every field at its resolved
      * absolute offset for each supported platform. Returns {@code null} on any error.
+     *
+     * @param unavailableOn the enclosing {@code @LibrarySpecification}'s {@code unavailableOn} platform names,
+     *        used to reject {@code @InlineStringField(wide = true)} fields on libraries that are unavailable
+     *        on Windows
      */
     static StructModel fromInterface(
         TypeElement typeElement,
         List<String> priorStructNames,
         Set<String> supportedPlatforms,
+        List<String> unavailableOn,
         ProcessingEnvironment env,
         Messager messager
     ) {
@@ -140,8 +149,10 @@ class StructSpecParser {
         List<String> scalarFieldNames = new ArrayList<>();
 
         // Abstract instance methods in declaration order; a field is one such method (a getter or
-        // setter) or two adjacent ones sharing a name (a getter/setter pair).
+        // setter) or two adjacent ones sharing a name (a getter/setter pair). @Sizeof methods are
+        // pulled out separately below — they contribute no field.
         List<ExecutableElement> methods = new ArrayList<>();
+        String sizeofMethodName = null;
         for (var enclosedMember : typeElement.getEnclosedElements()) {
             if (enclosedMember.getKind() != ElementKind.METHOD) {
                 continue;
@@ -149,6 +160,30 @@ class StructSpecParser {
             ExecutableElement method = (ExecutableElement) enclosedMember;
             var mods = method.getModifiers();
             if (mods.contains(Modifier.DEFAULT) || mods.contains(Modifier.STATIC)) {
+                continue;
+            }
+            AnnotationMirror sizeofMirror = ModelUtil.findAnnotationMirror(method, SIZEOF_FQN);
+            if (sizeofMirror != null) {
+                if (sizeofMethodName != null) {
+                    messager.printMessage(
+                        Kind.ERROR,
+                        "Duplicate @Sizeof method on '"
+                            + typeSimpleName
+                            + "': '"
+                            + sizeofMethodName
+                            + "' and '"
+                            + method.getSimpleName()
+                            + "'",
+                        method
+                    );
+                    error = true;
+                    continue;
+                }
+                if (validateSizeofMethod(method, typeSimpleName, messager) == false) {
+                    error = true;
+                    continue;
+                }
+                sizeofMethodName = method.getSimpleName().toString();
                 continue;
             }
             methods.add(method);
@@ -177,7 +212,7 @@ class StructSpecParser {
             }
 
             // Parse the whole field (both accessors) before placing it.
-            StructFieldModel field = parseField(first, second, typeSimpleName, priorStructNames, env, messager);
+            StructFieldModel field = parseField(first, second, typeSimpleName, priorStructNames, unavailableOn, env, messager);
             if (field == null) {
                 error = true;
                 continue;
@@ -235,7 +270,32 @@ class StructSpecParser {
         if (error) {
             return null;
         }
-        return buildStructModel(typeSimpleName, layout, byteSizes, supportedPlatforms, /* isRecord */ false, isSparse);
+        return buildStructModel(typeSimpleName, layout, byteSizes, supportedPlatforms, /* isRecord */ false, isSparse, sizeofMethodName);
+    }
+
+    /**
+     * Validates that a {@code @Sizeof} method has the required {@code int name()} shape: {@code int}
+     * return type, zero parameters. Returns {@code false} (with an error already emitted) if not.
+     */
+    private static boolean validateSizeofMethod(ExecutableElement method, String typeSimpleName, Messager messager) {
+        boolean valid = true;
+        if (method.getReturnType().getKind() != TypeKind.INT) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@Sizeof method '" + method.getSimpleName() + "' on '" + typeSimpleName + "' must return int",
+                method
+            );
+            valid = false;
+        }
+        if (method.getParameters().isEmpty() == false) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@Sizeof method '" + method.getSimpleName() + "' on '" + typeSimpleName + "' must take no parameters",
+                method
+            );
+            valid = false;
+        }
+        return valid;
     }
 
     // --- Layout accumulation ---
@@ -432,7 +492,8 @@ class StructSpecParser {
         Map<String, Long> byteSizes,
         Set<String> supportedPlatforms,
         boolean isRecord,
-        boolean isSparse
+        boolean isSparse,
+        String sizeofMethodName
     ) {
         List<StructFieldModel> fields = List.copyOf(layout.fields());
         List<StructLayoutModel> layouts;
@@ -451,7 +512,7 @@ class StructSpecParser {
         }
         return isRecord
             ? new StructRecordModel(typeSimpleName, fields, layouts)
-            : new StructInterfaceModel(typeSimpleName, fields, layouts);
+            : new StructInterfaceModel(typeSimpleName, fields, layouts, sizeofMethodName);
     }
 
     // --- Mode validation ---
@@ -591,11 +652,12 @@ class StructSpecParser {
         ExecutableElement second,
         String structName,
         List<String> priorStructNames,
+        List<String> unavailableOn,
         ProcessingEnvironment env,
         Messager messager
     ) {
-        StructFieldModel a = parseAccessor(first, structName, priorStructNames, env, messager);
-        StructFieldModel b = second == null ? null : parseAccessor(second, structName, priorStructNames, env, messager);
+        StructFieldModel a = parseAccessor(first, structName, priorStructNames, unavailableOn, env, messager);
+        StructFieldModel b = second == null ? null : parseAccessor(second, structName, priorStructNames, unavailableOn, env, messager);
         if (a == null || (second != null && b == null)) {
             return null;
         }
@@ -729,9 +791,18 @@ class StructSpecParser {
                     );
                     yield null;
                 }
+                if (is.wide() != isb.wide()) {
+                    messager.printMessage(
+                        Kind.ERROR,
+                        "@InlineStringField getter and setter for '" + is.name() + "' disagree on wide=; both must be the same",
+                        reportElement
+                    );
+                    yield null;
+                }
                 yield new InlineStringFieldModel(
                     is.name(),
                     is.length(),
+                    is.wide(),
                     is.hasGetter() || isb.hasGetter(),
                     is.hasSetter() || isb.hasSetter()
                 );
@@ -755,6 +826,7 @@ class StructSpecParser {
         ExecutableElement method,
         String enclosingStructSimpleName,
         List<String> priorStructNames,
+        List<String> unavailableOn,
         ProcessingEnvironment env,
         Messager messager
     ) {
@@ -821,7 +893,7 @@ class StructSpecParser {
         }
 
         if (inlineStringMirror != null) {
-            return buildInlineStringField(method, methodName, enclosingStructSimpleName, inlineStringMirror, messager);
+            return buildInlineStringField(method, methodName, enclosingStructSimpleName, inlineStringMirror, unavailableOn, messager);
         }
 
         NativeType returnType = ModelUtil.classifyType(method.getReturnType());
@@ -843,7 +915,8 @@ class StructSpecParser {
             if (paramType == null
                 || paramType == NativeType.VOID
                 || paramType == NativeType.STRING
-                || paramType == NativeType.ADDRESSABLE) {
+                || paramType == NativeType.ADDRESSABLE
+                || paramType == NativeType.UPCALL) {
                 messager.printMessage(
                     Kind.ERROR,
                     "Setter method '"
@@ -860,7 +933,10 @@ class StructSpecParser {
             return new ScalarFieldModel(methodName, paramType, false, true);
         }
 
-        if (returnType == null || returnType == NativeType.STRING || returnType == NativeType.ADDRESSABLE) {
+        if (returnType == null
+            || returnType == NativeType.STRING
+            || returnType == NativeType.ADDRESSABLE
+            || returnType == NativeType.UPCALL) {
             messager.printMessage(
                 Kind.ERROR,
                 "Unsupported field type '"
@@ -921,6 +997,7 @@ class StructSpecParser {
                 || valueType == NativeType.VOID
                 || valueType == NativeType.STRING
                 || valueType == NativeType.ADDRESSABLE
+                || valueType == NativeType.UPCALL
                 || valueType == NativeType.ADDRESS) {
                 messager.printMessage(
                     Kind.ERROR,
@@ -954,6 +1031,7 @@ class StructSpecParser {
                 || elementType == NativeType.VOID
                 || elementType == NativeType.STRING
                 || elementType == NativeType.ADDRESSABLE
+                || elementType == NativeType.UPCALL
                 || elementType == NativeType.ADDRESS) {
                 messager.printMessage(
                     Kind.ERROR,
@@ -977,6 +1055,7 @@ class StructSpecParser {
         String methodName,
         String enclosingStructSimpleName,
         AnnotationMirror inlineStringMirror,
+        List<String> unavailableOn,
         Messager messager
     ) {
         Integer length = ModelUtil.annotationIntValue(inlineStringMirror, "length");
@@ -984,6 +1063,28 @@ class StructSpecParser {
             messager.printMessage(
                 Kind.ERROR,
                 "@InlineStringField on '" + methodName + "' in '" + enclosingStructSimpleName + "' requires a positive length",
+                method,
+                inlineStringMirror
+            );
+            return null;
+        }
+
+        boolean wide = ModelUtil.annotationBooleanValue(inlineStringMirror, "wide", false);
+        if (wide && length % 2 != 0) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@InlineStringField(wide = true) requires an even length in bytes; got " + length + " on '" + methodName + "'",
+                method,
+                inlineStringMirror
+            );
+            return null;
+        }
+        if (wide && unavailableOn.contains(Platform.WINDOWS_X64.name())) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@InlineStringField(wide = true) on '"
+                    + methodName
+                    + "' is invalid: enclosing @LibrarySpecification lists WINDOWS_X64 in unavailableOn",
                 method,
                 inlineStringMirror
             );
@@ -1018,7 +1119,7 @@ class StructSpecParser {
                 );
                 return null;
             }
-            return new InlineStringFieldModel(methodName, length, false, true);
+            return new InlineStringFieldModel(methodName, length, wide, false, true);
         } else {
             NativeType returnType = ModelUtil.classifyType(returnMirror);
             if (returnType != NativeType.STRING) {
@@ -1043,7 +1144,7 @@ class StructSpecParser {
                 );
                 return null;
             }
-            return new InlineStringFieldModel(methodName, length, true, false);
+            return new InlineStringFieldModel(methodName, length, wide, true, false);
         }
     }
 }

@@ -31,15 +31,19 @@ public final class StGeotileFromFieldAndLiteralEvaluator implements ExpressionEv
 
   private final int precision;
 
+  private final SpatialGridFunction.GeoShapeCellsComputer shapeTiler;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StGeotileFromFieldAndLiteralEvaluator(Source source, ExpressionEvaluator wkbBlock,
-      int precision, DriverContext driverContext) {
+      int precision, SpatialGridFunction.GeoShapeCellsComputer shapeTiler,
+      DriverContext driverContext) {
     this.source = source;
     this.wkbBlock = wkbBlock;
     this.precision = precision;
+    this.shapeTiler = shapeTiler;
     this.driverContext = driverContext;
   }
 
@@ -69,7 +73,7 @@ public final class StGeotileFromFieldAndLiteralEvaluator implements ExpressionEv
           continue position;
         }
         try {
-          StGeotile.fromFieldAndLiteral(result, p, wkbBlockBlock, this.precision);
+          StGeotile.fromFieldAndLiteral(result, p, wkbBlockBlock, this.precision, this.shapeTiler);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -103,15 +107,19 @@ public final class StGeotileFromFieldAndLiteralEvaluator implements ExpressionEv
 
     private final int precision;
 
-    public Factory(Source source, ExpressionEvaluator.Factory wkbBlock, int precision) {
+    private final SpatialGridFunction.GeoShapeCellsComputer shapeTiler;
+
+    public Factory(Source source, ExpressionEvaluator.Factory wkbBlock, int precision,
+        SpatialGridFunction.GeoShapeCellsComputer shapeTiler) {
       this.source = source;
       this.wkbBlock = wkbBlock;
       this.precision = precision;
+      this.shapeTiler = shapeTiler;
     }
 
     @Override
     public StGeotileFromFieldAndLiteralEvaluator get(DriverContext context) {
-      return new StGeotileFromFieldAndLiteralEvaluator(source, wkbBlock.get(context), precision, context);
+      return new StGeotileFromFieldAndLiteralEvaluator(source, wkbBlock.get(context), precision, shapeTiler, context);
     }
 
     @Override

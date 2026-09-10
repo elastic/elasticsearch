@@ -1389,6 +1389,10 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
             return this;
         }
 
+        public static String normalizeKeyPrefix(String key, String prefix) {
+            return key.startsWith(prefix) == false && key.endsWith("*") == false ? prefix + key : key;
+        }
+
         /**
          * Checks that all settings in the builder start with the specified prefix.
          *
@@ -1399,9 +1403,9 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
             Iterator<Map.Entry<String, Object>> iterator = map.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String key = entry.getKey();
-                if (key.startsWith(prefix) == false && key.endsWith("*") == false) {
-                    replacements.put(prefix + key, entry.getValue());
+                String normalizedKey = normalizeKeyPrefix(entry.getKey(), prefix);
+                if (normalizedKey != entry.getKey()) {
+                    replacements.put(normalizedKey, entry.getValue());
                     iterator.remove();
                 }
             }

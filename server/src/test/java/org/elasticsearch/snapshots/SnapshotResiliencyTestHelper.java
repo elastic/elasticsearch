@@ -128,6 +128,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryFeatures;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
@@ -659,7 +660,7 @@ public class SnapshotResiliencyTestHelper {
                     projectResolver,
                     clusterService,
                     RecoverySchedulingListener.NOOP,
-                    new RecoveryGateMonitor(List::of, threadPool)
+                    new RecoveryGateMonitor(List::of, threadPool, clusterService.getClusterSettings())
                 );
 
                 indicesService = new IndicesServiceBuilder().settings(settings)
@@ -720,7 +721,7 @@ public class SnapshotResiliencyTestHelper {
                     snapshotFilesProvider
                 );
 
-                final ActionFilters actionFilters = new ActionFilters(emptySet());
+                final ActionFilters actionFilters = ActionFilters.EMPTY;
                 final ActiveFetchPhaseTasks activeFetchPhaseTasks = new ActiveFetchPhaseTasks();
                 new TransportFetchPhaseResponseChunkAction(transportService, activeFetchPhaseTasks, namedWriteableRegistry);
                 Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
@@ -909,7 +910,8 @@ public class SnapshotResiliencyTestHelper {
                     indexingMemoryLimits,
                     EmptySystemIndices.INSTANCE,
                     projectResolver,
-                    DocumentParsingProvider.EMPTY_INSTANCE
+                    DocumentParsingProvider.EMPTY_INSTANCE,
+                    bigArrays
                 );
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(
@@ -932,7 +934,13 @@ public class SnapshotResiliencyTestHelper {
                     mock(FileSettingsService.class),
                     threadPool,
                     false,
-                    IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance()
+                    IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
+                    new FeatureService(List.of()) {
+                        @Override
+                        public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                            return RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE.equals(feature);
+                        }
+                    }
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,

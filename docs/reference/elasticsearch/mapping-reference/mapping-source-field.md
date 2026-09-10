@@ -325,16 +325,18 @@ PUT my-columnar-index
 {
   "settings": {
     "index": {
+      "mapping": {
+        "source": {
+          "mode": "columnar_stored"
+        }
+      },
       "mode": "columnar"
-    }
-  },
-  "mappings": {
-    "_source": {
-      "mode": "columnar_stored"
     }
   }
 }
 ```
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview` When a field is mapped with [`doc_values: {multi_value: false, on_failure: ignore}`](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-on-failure), both columnar source modes reconstruct the full original array in `_source`. The primary doc value appears first, followed by the values held in the field's hidden `._on_failure` sidecar column, preserving the order in which they were originally supplied. Source fidelity is therefore maintained even though only the first value per document participates in search, aggregation, and ES|QL queries.
 
 Turning off `_source` entirely (`"_source": {"enabled": false}`) is **not allowed** in columnar modes.
 

@@ -1,0 +1,372 @@
+// Functional tests for the DENSE_VECTOR command.
+//
+// The "test_dense_inference" TEXT_EMBEDDING mock returns a deterministic float vector derived from the
+// input string's hashCode, so the embeddings asserted below are stable (they match the values used in
+// text-embedding.csv-spec). The DENSE_VECTOR command appends a generated "<field>_dense_vector" column
+// (dense_vector type) after the existing columns, one per embedded text/keyword field.
+
+dense_vector command on a single field using a ROW source operator
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+ROW input = "Who is Victor Hugo?"
+| DENSE_VECTOR input WITH { "inference_id" : "test_dense_inference" }
+;
+
+input:keyword       | input_dense_vector:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+// The core use case: embed a NON-constant, per-row indexed text field. Each row's publisher value is
+// embedded at runtime into its own vector (distinct values -> distinct vectors), which is exactly what
+// DENSE_VECTOR adds over the TEXT_EMBEDDING function (which only embeds a constant/expression once).
+dense_vector command embeds a non-constant indexed field per row
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("2924", "7381", "7670")
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, publisher, publisher_dense_vector
+;
+
+book_no:keyword | publisher:text      | publisher_dense_vector:dense_vector
+2924            | Oxford Paperbacks   | [45.0, 56.0, 48.0]
+7381            | Red Wheel/Weiser    | [45.0, 53.0, 56.0]
+7670            | Courier Corporation | [45.0, 49.0, 55.0]
+;
+
+dense_vector command on multiple fields
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+ROW a = "be excellent to each other", b = "live long and prosper"
+| DENSE_VECTOR a, b WITH { "inference_id" : "test_dense_inference" }
+;
+
+a:keyword                  | b:keyword             | a_dense_vector:dense_vector | b_dense_vector:dense_vector
+be excellent to each other | live long and prosper | [45.0, 55.0, 54.0]          | [50.0, 57.0, 56.0]
+;
+
+dense_vector command on a single explicitly-named field
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+ROW title = "Who is Victor Hugo?"
+| DENSE_VECTOR title WITH { "inference_id" : "test_dense_inference" }
+;
+
+title:keyword       | title_dense_vector:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+dense_vector command with timeout option
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+required_capability: inference_accept_timeout
+
+ROW input = "Who is Victor Hugo?"
+| DENSE_VECTOR input WITH { "inference_id" : "test_dense_inference", "timeout" : "30s" }
+;
+
+input:keyword       | input_dense_vector:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+dense_vector command on multiple non-constant fields from an index
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("7480", "8605")
+| DENSE_VECTOR title, publisher WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, title, publisher, title_dense_vector, publisher_dense_vector
+;
+
+book_no:keyword | title:text | publisher:text | title_dense_vector:dense_vector | publisher_dense_vector:dense_vector
+7480            | The Hobbit | Mariner Books  | [50.0, 49.0, 48.0]              | [45.0, 49.0, 53.0]
+8605            | Dead Souls | Vintage        | [45.0, 49.0, 53.0]              | [50.0, 49.0, 50.0]
+;
+
+
+// Each chained DENSE_VECTOR clause is an independent command with its own WITH options (per-field endpoints).
+dense_vector command chained clauses
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("7480", "8605")
+| DENSE_VECTOR title WITH { "inference_id" : "test_dense_inference" }
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, title, publisher, title_dense_vector, publisher_dense_vector
+;
+
+book_no:keyword | title:text | publisher:text | title_dense_vector:dense_vector | publisher_dense_vector:dense_vector
+7480            | The Hobbit | Mariner Books  | [50.0, 49.0, 48.0]              | [45.0, 49.0, 53.0]
+8605            | Dead Souls | Vintage        | [45.0, 49.0, 53.0]              | [50.0, 49.0, 50.0]
+;
+
+
+dense_vector command on a single explicitly-named field over an index
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("7480", "8605")
+| DENSE_VECTOR title WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, title, title_dense_vector
+;
+
+book_no:keyword | title:text | title_dense_vector:dense_vector
+7480            | The Hobbit | [50.0, 49.0, 48.0]
+8605            | Dead Souls | [45.0, 49.0, 53.0]
+;
+
+dense_vector command with timeout option over an index
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+required_capability: inference_accept_timeout
+
+FROM books
+| WHERE book_no IN ("2924", "7381", "7670")
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference", "timeout" : "30s" }
+| SORT book_no
+| KEEP book_no, publisher, publisher_dense_vector
+;
+
+book_no:keyword | publisher:text      | publisher_dense_vector:dense_vector
+2924            | Oxford Paperbacks   | [45.0, 56.0, 48.0]
+7381            | Red Wheel/Weiser    | [45.0, 53.0, 56.0]
+7670            | Courier Corporation | [45.0, 49.0, 55.0]
+;
+
+
+dense_vector command on a null value produces a null vector
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no IN ("7480", "8605")
+| EVAL maybe_title = CASE(book_no == "7480", title)
+| DENSE_VECTOR maybe_title WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, maybe_title, maybe_title_dense_vector
+;
+
+book_no:keyword | maybe_title:keyword | maybe_title_dense_vector:dense_vector
+7480            | The Hobbit          | [50.0, 49.0, 48.0]
+8605            | null                | null
+;
+
+
+// For multi-valued fields only the FIRST value is embedded 
+dense_vector command on a multi-valued field embeds the first value
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no == "2924"
+| EVAL sorted_author = MV_SORT(author)
+| DENSE_VECTOR sorted_author WITH { "inference_id" : "test_dense_inference" }
+| KEEP book_no, sorted_author, sorted_author_dense_vector
+;
+
+book_no:keyword | sorted_author:keyword                                | sorted_author_dense_vector:dense_vector
+2924            | [Alan Myers, Fyodor Dostoevsky, W. J. Leatherbarrow] | [45.0, 52.0, 51.0]
+;
+
+// Assert the generated column is a usable dense_vector.
+dense_vector command output consumed by v_cosine
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
+
+FROM books
+| WHERE book_no == "2924"
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference" }
+| EVAL sim = v_cosine(publisher_dense_vector, publisher_dense_vector)
+| KEEP book_no, sim
+;
+
+book_no:keyword | sim:double
+2924            | 1.0
+;
+
+// Assert a generated column shadows an existing same-named column (last wins).
+// Case (a) - two inputs producing the same name - can't happen; see AnalyzerTests dotted-name tests.
+dense_vector command generated column shadows an existing same-named column
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no == "2924"
+| EVAL publisher_dense_vector = "placeholder"
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference" }
+| KEEP book_no, publisher_dense_vector
+;
+
+book_no:keyword | publisher_dense_vector:dense_vector
+2924            | [45.0, 56.0, 48.0]
+;
+
+
+// An explicit text type is equivalent to the default: the input is embedded as text.
+dense_vector command with explicit text type
+required_capability: dense_vector_command_v2
+required_capability: dense_vector_field_type_released
+
+ROW input = "Who is Victor Hugo?"
+| DENSE_VECTOR input WITH { "inference_id" : "test_dense_inference", "type" : "text" }
+;
+
+input:keyword       | input_dense_vector:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+
+// A text input runs against an embedding (multimodal) endpoint. The "test_embedding_inference" mock embeds
+// text the same way as the text_embedding mock, so the vector matches the text-type result.
+dense_vector command text runs against an embedding endpoint
+required_capability: dense_vector_command_v2
+required_capability: dense_vector_field_type_released
+
+ROW input = "Who is Victor Hugo?"
+| DENSE_VECTOR input WITH { "inference_id" : "test_embedding_inference", "type" : "text" }
+;
+
+input:keyword       | input_dense_vector:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+
+// An image input is a base64 data URI embedded through a multimodal endpoint. The "test_embedding_inference"
+// mock decodes the base64 payload back to its text, embeds it, and negates the vector for image inputs.
+// The payload decodes to "Who is Victor Hugo?", whose text vector is [56.0, 50.0, 48.0].
+dense_vector command with image type
+required_capability: dense_vector_command_v2
+required_capability: dense_vector_field_type_released
+
+ROW input = "data:image/jpeg;base64,V2hvIGlzIFZpY3RvciBIdWdvPw=="
+| DENSE_VECTOR input WITH { "inference_id" : "test_embedding_inference", "type" : "image" }
+;
+
+input:keyword                                          | input_dense_vector:dense_vector
+data:image/jpeg;base64,V2hvIGlzIFZpY3RvciBIdWdvPw==    | [-56.0, -50.0, -48.0]
+;
+
+
+// Embedding two fields but keeping only one: the unused field's embedding is pruned by the optimizer, and the kept
+// column is unchanged. This asserts output correctness under pruning (the savings are not observable in the output).
+dense_vector command keeps only the used generated column
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+ROW a = "be excellent to each other", b = "live long and prosper"
+| DENSE_VECTOR a, b WITH { "inference_id" : "test_dense_inference" }
+| KEEP a, a_dense_vector
+;
+
+a:keyword                  | a_dense_vector:dense_vector
+be excellent to each other | [45.0, 55.0, 54.0]
+;
+
+
+// Per-row alignment when the rows span more than one inference request. The command coalesces rows into
+// batched requests (InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE), and all 79 books are embedded here,
+// so several requests are issued. Every row must carry the vector of ITS OWN publisher: if a batched response
+// were ever matched up against the wrong inputs, the rows below would shift and this test would fail.
+dense_vector command aligns every row when batched across requests
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference" }
+| SORT book_no
+| KEEP book_no, publisher_dense_vector
+;
+
+book_no:keyword | publisher_dense_vector:dense_vector
+1211            | [45.0, 54.0, 48.0]
+1463            | [45.0, 49.0, 49.0]
+1502            | [49.0, 55.0, 49.0]
+1937            | [50.0, 53.0, 54.0]
+1985            | [45.0, 49.0, 48.0]
+2130            | [45.0, 49.0, 49.0]
+2236            | [45.0, 53.0, 56.0]
+2301            | [45.0, 49.0, 48.0]
+2378            | [49.0, 53.0, 52.0]
+2382            | [45.0, 57.0, 51.0]
+2464            | [45.0, 49.0, 50.0]
+2540            | [49.0, 49.0, 54.0]
+2675            | [45.0, 49.0, 57.0]
+2713            | [50.0, 49.0, 50.0]
+2714            | [45.0, 49.0, 57.0]
+2776            | [49.0, 48.0, 52.0]
+2847            | [53.0, 57.0, 49.0]
+2883            | [49.0, 48.0, 52.0]
+2924            | [45.0, 56.0, 48.0]
+2936            | [45.0, 54.0, 54.0]
+2951            | [45.0, 49.0, 51.0]
+3254            | [45.0, 49.0, 55.0]
+3293            | [49.0, 53.0, 48.0]
+3535            | [49.0, 56.0, 49.0]
+3677            | [55.0, 54.0, 52.0]
+3870            | [45.0, 55.0, 50.0]
+3950            | [57.0, 56.0, 50.0]
+4023            | [49.0, 53.0, 53.0]
+4231            | [54.0, 53.0, 52.0]
+4289            | [45.0, 49.0, 49.0]
+4382            | [45.0, 49.0, 48.0]
+4502            | [53.0, 57.0, 49.0]
+4536            | [56.0, 49.0, 49.0]
+4636            | [49.0, 51.0, 55.0]
+4724            | [50.0, 49.0, 50.0]
+4814            | [49.0, 57.0, 56.0]
+4917            | [45.0, 49.0, 56.0]
+4977            | [50.0, 49.0, 50.0]
+5119            | [50.0, 49.0, 50.0]
+5127            | [45.0, 49.0, 55.0]
+5327            | [45.0, 49.0, 48.0]
+5335            | [45.0, 49.0, 57.0]
+5404            | [50.0, 49.0, 50.0]
+5469            | [45.0, 49.0, 55.0]
+5578            | [50.0, 49.0, 50.0]
+5948            | [49.0, 48.0, 52.0]
+5996            | [45.0, 49.0, 48.0]
+6151            | [54.0, 50.0, 54.0]
+6323            | [57.0, 56.0, 50.0]
+6380            | [49.0, 57.0, 56.0]
+6405            | [45.0, 49.0, 53.0]
+6478            | [45.0, 49.0, 55.0]
+6760            | [45.0, 49.0, 53.0]
+6818            | [45.0, 49.0, 53.0]
+6970            | [45.0, 49.0, 53.0]
+7140            | [45.0, 49.0, 56.0]
+7350            | [45.0, 49.0, 53.0]
+7381            | [45.0, 53.0, 56.0]
+7400            | [50.0, 55.0, 51.0]
+7480            | [45.0, 49.0, 53.0]
+7541            | [49.0, 56.0, 48.0]
+7635            | [52.0, 53.0, 55.0]
+7670            | [45.0, 49.0, 55.0]
+7912            | [50.0, 49.0, 48.0]
+8077            | [50.0, 49.0, 50.0]
+8086            | [53.0, 57.0, 53.0]
+8423            | [49.0, 57.0, 52.0]
+8480            | [45.0, 49.0, 57.0]
+8534            | [54.0, 48.0, 57.0]
+8605            | [50.0, 49.0, 50.0]
+8615            | [51.0, 51.0, 54.0]
+8678            | [50.0, 49.0, 49.0]
+8873            | [53.0, 48.0, 51.0]
+8875            | [45.0, 54.0, 54.0]
+8956            | [49.0, 57.0, 54.0]
+9032            | [50.0, 51.0, 51.0]
+9607            | [45.0, 54.0, 54.0]
+9801            | [54.0, 48.0, 57.0]
+9896            | [51.0, 56.0, 55.0]
+;

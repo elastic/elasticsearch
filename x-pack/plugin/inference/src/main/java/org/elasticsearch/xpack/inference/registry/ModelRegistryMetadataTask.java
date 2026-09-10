@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,7 +28,7 @@ public final class ModelRegistryMetadataTask {
 
     private ModelRegistryMetadataTask() {}
 
-    public record ModelAndSettings(String inferenceEntityId, MinimalServiceSettings settings) {}
+    public record ModelAndSettings(String inferenceEntityId, EndpointClusterState settings) {}
 
     public abstract static class MetadataTask extends AckedBatchedClusterStateUpdateTask {
         private final ProjectId projectId;
@@ -46,11 +46,11 @@ public final class ModelRegistryMetadataTask {
     }
 
     public static class UpgradeModelsMetadataTask extends MetadataTask {
-        private final Map<String, MinimalServiceSettings> fromIndex;
+        private final Map<String, EndpointClusterState> fromIndex;
 
         public UpgradeModelsMetadataTask(
             ProjectId projectId,
-            Map<String, MinimalServiceSettings> fromIndex,
+            Map<String, EndpointClusterState> fromIndex,
             ActionListener<AcknowledgedResponse> listener
         ) {
             super(projectId, listener);

@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 153665
-pr: 155459
-summary: Fix exponential histogram merging with zero bucket overlap
-type: bug

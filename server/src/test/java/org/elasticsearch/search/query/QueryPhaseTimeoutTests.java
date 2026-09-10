@@ -651,7 +651,6 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             .creationDate(System.currentTimeMillis())
             .build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        // final SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         final long nowInMillis = randomNonNegativeLong();
         return new SearchExecutionContext(
             0,
@@ -1007,10 +1006,6 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
      * aggregation contexts in tests. Handles plugin setup and resource cleanup.
      */
     private static final class AggregationTestHelper extends AggregatorTestCase implements AutoCloseable {
-        void intiPlugins() {
-            super.initPlugins();
-        }
-
         @Override
         public void close() {
             super.cleanupReleasables();
@@ -1088,11 +1083,6 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.zero();
-        }
-
-        @Override
-        public boolean supportsVersion(TransportVersion version) {
-            return super.supportsVersion(version);
         }
     }
 }

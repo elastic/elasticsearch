@@ -6,6 +6,9 @@
 * [`histogram_count`](/reference/query-languages/promql/functions/histogram.md#promql-fn-histogram_count) {applies_to}`stack: ga 9.5`
   :::{include} ../brief-summary/histogram_count.md
   :::
+* [`histogram_fraction`](/reference/query-languages/promql/functions/histogram.md#promql-fn-histogram_fraction) {applies_to}`stack: ga 9.6`
+  :::{include} ../brief-summary/histogram_fraction.md
+  :::
 * [`histogram_quantile`](/reference/query-languages/promql/functions/histogram.md#promql-fn-histogram_quantile) {applies_to}`stack: ga 9.5`
   :::{include} ../brief-summary/histogram_quantile.md
   :::

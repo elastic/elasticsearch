@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -20,10 +18,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.inference.metadata.EndpointMetadataClusterState;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -131,7 +131,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
             InternalDeleteInferenceEndpointsAction.INSTANCE,
             deleteRequest,
             ActionListener.wrap(response -> listener.onResponse(authModel), e -> {
-                logger.atWarn().withThrowable(e).log("Failed to delete removed EIS inference endpoints: {}", toDelete);
+                logger.warn(() -> Strings.format("Failed to delete removed EIS inference endpoints: %s", toDelete), e);
                 listener.onResponse(authModel);
             })
         );
@@ -147,7 +147,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
 
         // We get all existing endpoints from the registry in a single call to ensure all decisions
         // of a single authorization request are based on a single cluster state.
-        Map<String, MinimalServiceSettings> existingById = modelRegistry.getMinimalServiceSettings(
+        Map<String, EndpointClusterState> existingById = modelRegistry.getEndpointClusterState(
             endpoints.stream().map(Model::getInferenceEntityId).collect(Collectors.toSet()),
             false
         );
@@ -156,7 +156,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
             .collect(Collectors.toList());
     }
 
-    private static boolean shouldPersistEndpoint(Model newEndpoint, @Nullable MinimalServiceSettings existingEndpoint) {
+    private static boolean shouldPersistEndpoint(Model newEndpoint, @Nullable EndpointClusterState existingEndpoint) {
         if (existingEndpoint == null) {
             logger.debug(
                 () -> Strings.format(
@@ -167,8 +167,9 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
             return true;
         }
 
-        EndpointMetadata existingMetadata = existingEndpoint.endpointMetadata();
-        if (existingMetadata.fingerprintMatches(newEndpoint.getConfigurations().getEndpointMetadataOrEmpty()) == false) {
+        var existingMetadata = existingEndpoint.endpointMetadata();
+        var updatedMetadata = EndpointMetadataClusterState.from(newEndpoint.getConfigurations().getEndpointMetadataOrEmpty());
+        if (existingMetadata.fingerprintMatches(updatedMetadata) == false) {
             logger.debug(
                 () -> Strings.format(
                     "[%s] selected for persistence, because its fingerprint has changed",
@@ -177,7 +178,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
             );
             return true;
         }
-        if (newEndpoint.getConfigurations().getEndpointMetadataOrEmpty().hasNewerVersionThan(existingMetadata)) {
+        if (updatedMetadata.isNewerThan(existingMetadata)) {
             logger.debug(
                 () -> Strings.format("[%s] selected for persistence, because its version is higher", newEndpoint.getInferenceEntityId())
             );
@@ -207,15 +208,18 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
 
             for (var response : responses.getResults()) {
                 if (response.failed()) {
-                    logger.atWarn()
-                        .withThrowable(response.failureCause())
-                        .log("Failed to store new EIS preconfigured inference endpoint with inference ID [{}]", response.inferenceId());
+                    logger.warn(
+                        () -> Strings.format(
+                            "Failed to store new EIS preconfigured inference endpoint with inference ID [%s]",
+                            response.inferenceId()
+                        ),
+                        response.failureCause()
+                    );
                 } else {
-                    logger.atInfo()
-                        .log("Successfully stored EIS preconfigured inference endpoint with inference ID [{}]", response.inferenceId());
+                    logger.info("Successfully stored EIS preconfigured inference endpoint with inference ID [{}]", response.inferenceId());
                 }
             }
-        }, e -> logger.atWarn().withThrowable(e).log("Failed to store new EIS preconfigured inference endpoints [{}]", newEndpoints));
+        }, e -> logger.warn(() -> Strings.format("Failed to store new EIS preconfigured inference endpoints [%s]", newEndpoints), e));
 
         client.execute(
             StoreInferenceEndpointsAction.INSTANCE,

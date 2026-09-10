@@ -53,7 +53,7 @@ public class DLMFrozenTransitionPluginTests extends ESTestCase {
             )
         );
         Set<Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingSet.add(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING);
+        settingSet.addAll(DLMFrozenTransitionSettings.ALL_SETTINGS);
         clusterService = createClusterService(
             threadPool,
             DiscoveryNodeUtils.create("node", "node"),
@@ -71,10 +71,9 @@ public class DLMFrozenTransitionPluginTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeClusterServiceAndThreadPool() throws Exception {
         clusterService.close();
         terminate(threadPool);
-        super.tearDown();
     }
 
     /**

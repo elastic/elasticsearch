@@ -283,11 +283,6 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    @Override
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     @After
     public void verifyAndCloseEngines() throws Exception {
         try {
@@ -308,11 +303,6 @@ public abstract class EngineTestCase extends ESTestCase {
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool), nodeEnvironment);
         }
-    }
-
-    @Override
-    public final void tearDown() throws Exception {
-        super.tearDown();
     }
 
     protected static LuceneDocument testDocumentWithTextField() {
@@ -1249,7 +1239,7 @@ public abstract class EngineTestCase extends ESTestCase {
      * Gets a collection of tuples of docId, sequence number, and primary term of all live documents in the provided engine.
      */
     protected List<DocIdSeqNoAndSource> getDocIds(Engine engine, boolean refresh) throws IOException {
-        return EngineTestUtils.getDocIds(engine, refresh, false);
+        return EngineTestUtils.getDocIds(engine, refresh);
     }
 
     /**
@@ -1773,6 +1763,7 @@ public abstract class EngineTestCase extends ESTestCase {
             uids,
             ids,
             routings,
+            null,
             contentTypes,
             sources,
             requestedVersion,

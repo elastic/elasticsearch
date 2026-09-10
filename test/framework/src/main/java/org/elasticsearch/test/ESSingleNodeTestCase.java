@@ -125,12 +125,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         }
     }
 
-    @Override
-    public final void setUp() throws Exception {
-        // do not override setUp, use an @Before
-        super.setUp();
-    }
-
     @Before
     public final void startTestNode() throws Exception {
         // the seed has to be created regardless of whether it will be used or not, for repeatability
@@ -140,12 +134,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (NODE == null) {
             startNode(seed);
         }
-    }
-
-    @Override
-    public final void tearDown() throws Exception {
-        // do not override tearDown, use an @After
-        super.tearDown();
     }
 
     @After

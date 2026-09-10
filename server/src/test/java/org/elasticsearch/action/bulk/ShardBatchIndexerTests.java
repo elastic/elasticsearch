@@ -19,7 +19,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
@@ -30,6 +32,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
@@ -81,6 +84,11 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             "tag":   { "type": "keyword" }
           }
         }""";
+
+    private final ShardBatchIndexer shardBatchIndexer = new ShardBatchIndexer(
+        new BatchIndexingEnabled(ClusterSettings.createBuiltInClusterSettings()),
+        new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+    );
 
     private final List<IndexShard> trackedShards = new ArrayList<>();
 
@@ -169,8 +177,6 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         return EscfEncoder.encode(sources, XContentType.JSON);
     }
 
-    // TODO(columnar): add testBatchIndexOnPrimaryStoredSource once stored source mode enables the
-    // columnar path; add tests for long, date, double, etc. once those mappers support columnar.
     public void testBatchIndexOnPrimaryAbortedItem() throws Exception {
         IndexShard shard = newMappedPrimaryShard();
 
@@ -194,7 +200,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
 
         try (SourceBatch batch = buildBatch(1)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
         }
 
@@ -284,7 +290,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
 
             // Fallback contract: no per-item responses produced, items remain queued for the
@@ -326,7 +332,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
 
             assertTrue(context.hasMoreOperationsToExecute());
@@ -349,7 +355,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
 
         try (SourceBatch batch = buildColumnarBatch(1)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
         }
 
@@ -381,7 +387,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
 
         try (SourceBatch batch = buildColumnarBatch(numDocs)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
         }
 
@@ -419,7 +425,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
 
         try (SourceBatch batch = buildColumnarBatch(numDocs)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
         }
 
@@ -454,7 +460,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
 
         try (SourceBatch batch = buildColumnarBatch(2)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
         }
 
@@ -486,13 +492,13 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
 
         try (SourceBatch batch = buildColumnarBatch(1)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
             assertFalse(context.hasMoreOperationsToExecute());
 
             IndexShard replica = newColumnarReplicaShard();
 
-            ShardBatchIndexer.ReplicaBatchResult result = ShardBatchIndexer.performBatchIndexOnReplica(items, batch, replica);
+            ShardBatchIndexer.ReplicaBatchResult result = shardBatchIndexer.performBatchIndexOnReplica(items, batch, replica);
             assertThat(result.processedItems(), equalTo(1));
             assertThat(result.location(), notNullValue());
 
@@ -518,13 +524,13 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
 
         try (SourceBatch batch = buildColumnarBatch(numDocs)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
             assertFalse(context.hasMoreOperationsToExecute());
 
             IndexShard replica = newColumnarReplicaShard();
 
-            ShardBatchIndexer.ReplicaBatchResult result = ShardBatchIndexer.performBatchIndexOnReplica(items, batch, replica);
+            ShardBatchIndexer.ReplicaBatchResult result = shardBatchIndexer.performBatchIndexOnReplica(items, batch, replica);
             assertThat(result.processedItems(), equalTo(numDocs));
             assertThat(result.location(), notNullValue());
 
@@ -551,7 +557,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
 
         try (SourceBatch batch = buildColumnarBatch(2)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
 
             // Override the second item's response with a failure.
@@ -565,7 +571,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
 
             IndexShard replica = newColumnarReplicaShard();
 
-            ShardBatchIndexer.ReplicaBatchResult result = ShardBatchIndexer.performBatchIndexOnReplica(items, batch, replica);
+            ShardBatchIndexer.ReplicaBatchResult result = shardBatchIndexer.performBatchIndexOnReplica(items, batch, replica);
             assertThat(result.processedItems(), equalTo(1));
 
             closeShards(shard, replica);
@@ -603,7 +609,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
 
             assertFalse(context.hasMoreOperationsToExecute());
@@ -619,6 +625,48 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
                 assertThat(searcher.getIndexReader().numDocs(), equalTo(numDocs));
             }
         }
+
+        closeShards(shard);
+    }
+
+    public void testBatchIndexColumnarNumericFields_noLeak() throws Exception {
+        String numericMapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "count":  { "type": "integer" },
+                "score":  { "type": "double" }
+              }
+            }""";
+        IndexShard shard = newColumnarPrimaryShardWithMapping(numericMapping);
+
+        int numDocs = randomIntBetween(2, 20);
+        BulkItemRequest[] items = new BulkItemRequest[numDocs];
+        List<BytesReference> sources = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            items[i] = new BulkItemRequest(i, new IndexRequest("index").id(Integer.toString(i)));
+            sources.add(new BytesArray("{\"count\":" + i + ",\"score\":" + (i * 1.5) + "}"));
+        }
+
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            items
+        );
+        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
+
+        try (EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            future.actionGet();
+        }
+
+        assertFalse(context.hasMoreOperationsToExecute());
+        for (int i = 0; i < numDocs; i++) {
+            assertFalse("doc " + i + " should not have failed", items[i].getPrimaryResponse().isFailed());
+        }
+        // MockPageCacheRecycler.ensureAllPagesAreReleased() is called automatically by ESTestCase.after().
 
         closeShards(shard);
     }
@@ -639,7 +687,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
 
         try (SourceBatch batch = buildBatch(2)) {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ShardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
             future.actionGet();
 
             // Override the first item to be a NOOP
@@ -648,8 +696,8 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
 
             IndexShard replica = newMappedReplicaShard();
 
-            ShardBatchIndexer.ReplicaBatchResult result = ShardBatchIndexer.performBatchIndexOnReplica(items, batch, replica);
-            // A batch is written as a single contiguous Translog.IndexBatch record, so a NOOP ends the batch where it
+            ShardBatchIndexer.ReplicaBatchResult result = shardBatchIndexer.performBatchIndexOnReplica(items, batch, replica);
+            // A batch is written as a single contiguous IndexOperationBatch.TranslogRecord, so a NOOP ends the batch where it
             // is encountered. With the NOOP at the leading item, nothing is batched and the NOOP plus the remaining
             // items are left to the serial fallback path (which resumes from processedItems).
             assertThat(result.processedItems(), equalTo(0));

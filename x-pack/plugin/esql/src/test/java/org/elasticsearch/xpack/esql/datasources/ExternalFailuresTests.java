@@ -16,12 +16,16 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.concurrent.ExecutionException;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class ExternalFailuresTests extends ESTestCase {
 
@@ -96,6 +100,31 @@ public class ExternalFailuresTests extends ESTestCase {
         }
     }
 
+    public void testInflaterPrematureEofIsMalformedInput() {
+        EOFException inflater = new EOFException("Unexpected end of ZLIB input stream");
+        RuntimeException classified = ExternalFailures.classify(inflater);
+        assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertSame(inflater, classified.getCause());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+
+        RuntimeException surfaced = ExternalFailures.surface(inflater, "Streaming parallel parsing failed");
+        assertThat(surfaced, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(surfaced));
+        assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("Streaming parallel parsing failed"));
+
+        UncheckedIOException wrapped = new UncheckedIOException(inflater);
+        RuntimeException classifiedWrapped = ExternalFailures.classify(wrapped);
+        assertThat(classifiedWrapped, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classifiedWrapped));
+    }
+
+    public void testObjectChangedPassesThroughAs503() {
+        var changed = new ExternalObjectChangedException("Object changed during read of [s3://b/k]");
+        assertSame(changed, ExternalFailures.classify(changed));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(changed)));
+        assertSame(changed, ExternalFailures.surface(changed, "ctx"));
+    }
+
     public void testRetryableStatusPolicy() {
         // Shared by every storage backend (S3/GCS/Azure/HTTP) to decide 503-vs-client: server-side and
         // throttling statuses are retryable; 2xx/4xx (including not-found/forbidden) are not.
@@ -156,13 +185,13 @@ public class ExternalFailuresTests extends ESTestCase {
     }
 
     public void testSurfaceWrapsIoExceptionAsExternalClient() {
-        IOException ioe = new IOException("record exceeded max_record_size");
+        IOException ioe = new IOException("record exceeded external_max_record_size");
         RuntimeException surfaced = ExternalFailures.surface(ioe, "Streaming parallel parsing failed");
         assertThat(surfaced, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
         assertSame(ioe, surfaced.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(surfaced));
         assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("Streaming parallel parsing failed"));
-        assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("record exceeded max_record_size"));
+        assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("record exceeded external_max_record_size"));
     }
 
     public void testSurfaceWrapsUncheckedIoExceptionAsExternalClient() {
@@ -227,4 +256,44 @@ public class ExternalFailuresTests extends ESTestCase {
         assertSame("classify must pass an already-typed surface() result through unchanged", surfaced, classified);
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
     }
+
+    public void testLocateOmitsThePrefixWhenTheDetailAlreadyNamesTheLocation() {
+        String location = "s3://bucket/data/good.csv";
+        assertThat(
+            ExternalFailures.locate("Failed to resolve external source", location, "Object not found: " + location),
+            equalTo("Object not found: s3://bucket/data/good.csv")
+        );
+    }
+
+    public void testLocateAddsThePrefixWhenTheDetailDoesNotNameTheLocation() {
+        assertThat(
+            ExternalFailures.locate("Failed to resolve external source", "s3://bucket/data/good.csv", "CSV file has no schema line"),
+            equalTo("Failed to resolve external source [s3://bucket/data/good.csv]: CSV file has no schema line")
+        );
+    }
+
+    public void testLocateHandlesAMessagelessFailure() {
+        // EsRejectedExecutionException has a no-argument constructor, and the rejection arm passes getMessage()
+        // straight into locate -- so a null detail is reachable, not hypothetical.
+        assertEquals(
+            "Failed to resolve external source [s3://bucket/data/good.csv]",
+            ExternalFailures.locate("Failed to resolve external source", "s3://bucket/data/good.csv", null)
+        );
+    }
+
+    public void testRootCauseStepsThroughAToStringDerivedWrapper() {
+        IOException real = new IOException("Object not found: s3://bucket/x.csv");
+        // The shape the resolver sees: a JDK ExecutionException whose message is the cause's toString(). It is not
+        // an ElasticsearchWrapperException, so ExceptionsHelper.unwrapCause would return it unchanged.
+        ExecutionException wrapper = new ExecutionException(real);
+        assertSame(real, ExternalFailures.rootCause(wrapper));
+        assertSame(wrapper, ExceptionsHelper.unwrapCause(wrapper));
+    }
+
+    public void testRootCauseKeepsAWrapperThatCarriesItsOwnMessage() {
+        IOException real = new IOException("Object not found: s3://bucket/x.csv");
+        IOException described = new IOException("Failed to list bucket [b]", real);
+        assertSame(described, ExternalFailures.rootCause(described));
+    }
+
 }

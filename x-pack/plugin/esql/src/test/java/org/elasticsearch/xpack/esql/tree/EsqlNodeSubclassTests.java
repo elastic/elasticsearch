@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.fulltext.FullTextPredic
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -133,7 +134,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomEsIndex;
-import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexNameWithModes;
+import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexProperties;
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomRemotesWithIndices;
 import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomFieldAttributes;
 import static org.elasticsearch.xpack.esql.plan.physical.LookupJoinExecSerializationTests.randomJoinOnExpression;
@@ -579,6 +580,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == JoinType.class) {
             // SemiJoin/AntiJoin/MarkJoin assert on their config type, so feed the matching one.
             return joinTypeFor(toBuildClass);
+        } else if (toBuildClass == ResolvingProject.class && argType == LogicalPlan.class) {
+            // ResolvingProject's ctor asserts at most one $$unmapped_fields in the child output. randomResolvedExpression can draw
+            // UnmappedFieldsAttribute for any Attribute arg, letting the random tree stack two — a shape the analyzer never builds.
+            return randomEsRelation();
         } else if (List.of(Fork.class, MergeExec.class, UnionAll.class, ViewUnionAll.class).contains(toBuildClass)
             && argType == LogicalPlan.class) {
                 // limit recursion of plans, in order to prevent stackoverflow errors
@@ -646,6 +651,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
         if (argClass == EsIndex.class) {
             return randomEsIndex();
+        }
+        if (argClass == IndexProperties.class) {
+            IndexMode mode = randomFrom(IndexMode.availableModes());
+            return new IndexProperties(mode, between(0, 10));
         }
         if (argClass == JoinConfig.class) {
             return new JoinConfig(
@@ -955,7 +964,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             randomFrom(IndexMode.availableModes()),
             randomRemotesWithIndices(),
             randomRemotesWithIndices(),
-            randomIndexNameWithModes(),
+            randomIndexProperties(),
             randomFieldAttributes(0, 10, false)
         );
     }

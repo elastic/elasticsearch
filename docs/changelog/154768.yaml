@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 154755
-pr: 154768
-summary: Apply `PropagateEmptyRelation` to `AbstractSubqueryJoin`
-type: bug

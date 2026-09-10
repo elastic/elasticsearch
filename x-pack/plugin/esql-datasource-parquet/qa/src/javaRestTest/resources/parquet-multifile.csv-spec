@@ -7,8 +7,8 @@
 //                           rows: charlie(50, paris), dave(60, london)
 // The mixed-temporal (ts:date/date_nanos) and lossy-representation (code:integer/keyword) columns live in the
 // SEPARATE {{employees_multifile_temporal}} and {{employees_multifile_type_drift}} fixtures, used only by the
-// parquetUbnMixedTemporal* / parquetUbnMixedRepresentation tests below, so they do not perturb this fixture's
-// first-file-wins and widened-column tests.
+// parquetUbnMixedTemporal* / parquetUbnMixedRepresentation* / parquetUbnFilterTypeDriftedColumn tests below,
+// so they do not perturb this fixture's first-file-wins and widened-column tests.
 //
 // Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. ParquetFormatSpecIT
 // registers the dataset on every storage backend and runs the FROM query verbatim. The dataset name encodes
@@ -132,6 +132,25 @@ lo:keyword | hi:keyword
 10         | 9
 ;
 
+// Filter on the type-drifted `code` column: INTEGER in A {2,9}, KEYWORD in B {10,11}, widened to
+// KEYWORD. UNION_BY_NAME remints withPushedFilter(null) on the INT file; that clear must stick so
+// FilterExec re-applies lexicographically on the unified page. "9" > "5"; "2"/"10"/"11" do not.
+parquetUbnFilterTypeDriftedColumn
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: employees_type_drift_union: "{{employees_multifile_type_drift}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_type_drift_union
+| WHERE code > "5"
+| KEEP id, code
+| SORT id ASC;
+warningRegex:Column \[code\] widened to keyword:.*distinct types: \[integer, keyword\]
+warningRegex:Schema reconciliation widened columns to keyword due to cross-file type disagreement.*
+
+id:integer | code:keyword
+2          | 9
+;
+
 parquetUbnFilterWidenedColumn
 required_capability: external_command
 required_capability: external_source_read_schema
@@ -159,6 +178,43 @@ count:long
 4
 ;
 
+// STATS BY a column missing from some files must still count those files' rows as the null group.
+// File A has no city: alice/bob land in city=null. File B contributes paris and london.
+parquetUbnCountByCity
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| STATS c = COUNT(*) BY city
+| SORT city ASC;
+warningRegex:declared column \[city\] is not present in some source files
+
+c:long | city:keyword
+1      | london
+1      | paris
+2      | null
+;
+
+// KEEP a column missing from some files must still return those files' rows as null.
+// parquetUbnProjectPruning does not cover this: KEEP name, city overlaps file A on name.
+parquetUbnProjectCityOnly
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| KEEP city
+| SORT city ASC;
+warningRegex:declared column \[city\] is not present in some source files
+
+city:keyword
+london
+paris
+null
+null
+;
+
 parquetUbnProjectPruning
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
@@ -167,6 +223,7 @@ dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"sch
 FROM employees_multifile_ubn_union
 | KEEP name, city
 | SORT name ASC;
+warningRegex:declared column \[city\] is not present in some source files
 
 name:keyword | city:keyword
 alice        | null
@@ -175,20 +232,73 @@ charlie      | paris
 dave         | london
 ;
 
+// ===== Pushed filters on a column one file does not have =====
+// Under union_by_name a file missing the predicate column never registers a block under that
+// name in the filter evaluator: classifyPredicateColumns only marks a column as a predicate
+// column when the file schema has it. The conjunct therefore bails to the all-survive sentinel
+// and FilterExec decides the rows downstream. Both cases below are green with and without the
+// elastic/elasticsearch#157313 fix - they are end-to-end pins on the user-visible answer, not
+// regression tests for that bug.
+
+parquetUbnFilterOnFileAMissingColumn
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| WHERE city == "paris"
+| KEEP name, city
+| SORT name ASC;
+
+name:keyword | city:keyword
+charlie      | paris
+;
+
+// WHERE city IS NULL must match file A's rows (city is absent there, so every row is null).
+// The overlap skip used to drop file A before the IS NULL carve-out, returning 0.
+parquetUbnFilterCityIsNull
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| WHERE city IS NULL
+| STATS count = COUNT(*);
+warningRegex:declared column \[city\] is not present in some source files
+
+count:long
+2
+;
+
+parquetUbnFilterOnFileBMissingColumn
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| WHERE score > 90.0
+| KEEP name, score
+| SORT name ASC;
+
+name:keyword | score:double
+bob          | 92.0
+;
+
 // ===== FIRST_FILE_WINS on divergent Parquet schemas =====
-// Anchor: parquet_ubn_a.parquet (lex-smallest) — schema [name, age:integer, score:double]
+// Anchor: parquet_ubn_a.parquet (lex-smallest; file_sort_by=name) — schema [name, age:integer, score:double]
 // File B is read through anchor's schema: name maps OK, age (int64 → int32) is incompatible
 // so the entire column is returned as null with a warning, score is missing → null.
 
 parquetFfwAllRows
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
-dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
+dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw
 | SORT name ASC;
 warningRegex:Column \[age\] in file \[.*parquet_ubn_b\.parquet\] has type \[LONG\] incompatible with planner type \[INTEGER\]; returning nulls for this column
 warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with the planner type; they are returned as null
+warningRegex:declared column \[score\] is not present in some source files
 
 name:keyword | age:integer | score:double
 alice        | 30          | 85.5
@@ -200,7 +310,7 @@ dave         | null        | null
 parquetFfwCount
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
-dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
+dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw
 | STATS count = COUNT(*);
@@ -214,7 +324,7 @@ count:long
 parquetFfwFilterAnchorOnly
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
-dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
+dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw
 | WHERE score IS NOT NULL
@@ -222,6 +332,7 @@ FROM employees_multifile_ubn_ffw
 | SORT name ASC;
 warningRegex:Column \[age\] in file \[.*parquet_ubn_b\.parquet\] has type \[LONG\] incompatible with planner type \[INTEGER\]; returning nulls for this column
 warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with the planner type; they are returned as null
+warningRegex:declared column \[score\] is not present in some source files
 
 name:keyword | score:double
 alice        | 85.5

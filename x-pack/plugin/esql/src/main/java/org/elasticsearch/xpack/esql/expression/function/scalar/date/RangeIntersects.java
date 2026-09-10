@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -46,6 +48,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
@@ -58,6 +62,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
  *   <li>(date_range, date_range): the two ranges overlap, i.e. {@code a.from < b.to && b.from < a.to} for half-open ranges</li>
  *   <li>(date, date_range) and (date_range, date): the point is inside the range — equivalent to RANGE_WITHIN's point case</li>
  *   <li>(date, date): degenerate; equivalent to {@code a == b}, lowered to {@link Equals} via {@link SurrogateExpression}</li>
+ *   <li>The equivalent combinations of double and double_range</li>
  * </ul>
  */
 public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpression, TranslationAware, AnyNullIsNull {
@@ -75,18 +80,29 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
 
     @FunctionInfo(
         returnType = "boolean",
+        signatures = {
+            @Signature(params = { "date|date_range", "date|date_range" }, returnType = "boolean"),
+            @Signature(params = { "double|double_range", "double|double_range" }, returnType = "boolean") },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
-        briefSummary = "Returns true if two date ranges or dates overlap.",
+        briefSummary = "Returns true if two ranges or values overlap.",
         description = "Returns true if the two arguments overlap. The relation is symmetric — argument order does not matter. "
-            + "Supports any combination of `date` and `date_range`. "
-            + "When both arguments are `date`, this is equivalent to `a == b`.",
+            + "Supports all combinations of ranges and corresponding scalar types. "
+            + "When both arguments are scalar values, this is equivalent to `a == b`.",
         examples = @Example(file = "date_range", tag = "rangeIntersects", explanation = "Find ranges that overlap a target window")
     )
     public RangeIntersects(
         Source source,
-        @Param(name = "left", type = { "date", "date_range" }, description = "First value (point or range).") Expression left,
-        @Param(name = "right", type = { "date", "date_range" }, description = "Second value (point or range).") Expression right
+        @Param(
+            name = "left",
+            type = { "date", "date_range", "double", "double_range" },
+            description = "First value (point or range)."
+        ) Expression left,
+        @Param(
+            name = "right",
+            type = { "date", "date_range", "double", "double_range" },
+            description = "Second value (point or range)."
+        ) Expression right
     ) {
         super(source, List.of(left, right));
         this.left = left;
@@ -151,8 +167,22 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
         if (leftType == DATE_RANGE && rightType == DATETIME) {
             return processPoint((Long) rightValue, (LongRangeBlockBuilder.LongRange) leftValue);
         }
-        // (date, date): degenerate equality
-        return ((Long) leftValue).longValue() == ((Long) rightValue).longValue();
+        if (leftType == DATETIME) {
+            return ((Long) leftValue).longValue() == ((Long) rightValue).longValue();
+        }
+        if (leftType == DOUBLE_RANGE && rightType == DOUBLE_RANGE) {
+            return processRange((DoubleRangeBlockBuilder.DoubleRange) leftValue, (DoubleRangeBlockBuilder.DoubleRange) rightValue);
+        }
+        if (leftType == DOUBLE && rightType == DOUBLE_RANGE) {
+            return processPoint((Double) leftValue, (DoubleRangeBlockBuilder.DoubleRange) rightValue);
+        }
+        if (leftType == DOUBLE_RANGE && rightType == DOUBLE) {
+            return processPoint((Double) rightValue, (DoubleRangeBlockBuilder.DoubleRange) leftValue);
+        }
+        if (leftType == DOUBLE) {
+            return ((Double) leftValue).doubleValue() == ((Double) rightValue).doubleValue();
+        }
+        throw new IllegalStateException("Unexpected types for folding RANGE_INTERSECTS: " + leftType + ", " + rightType);
     }
 
     @Evaluator(extraName = "Point")
@@ -167,15 +197,57 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
         return a.from() < b.to() && b.from() < a.to();
     }
 
+    @Evaluator(extraName = "DoublePoint")
+    static boolean processPoint(double point, DoubleRangeBlockBuilder.DoubleRange range) {
+        return point >= range.from() && point < range.to();
+    }
+
+    @Evaluator(extraName = "DoubleRange")
+    static boolean processRange(DoubleRangeBlockBuilder.DoubleRange a, DoubleRangeBlockBuilder.DoubleRange b) {
+        return a.from() < b.to() && b.from() < a.to();
+    }
+
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution first = isType(left, dt -> dt == DATE_RANGE || dt == DATETIME, sourceText(), FIRST, "date", "date_range");
-        TypeResolution second = isType(right, dt -> dt == DATE_RANGE || dt == DATETIME, sourceText(), SECOND, "date", "date_range");
+        TypeResolution first = isType(
+            left,
+            RangeIntersects::isRangeValue,
+            sourceText(),
+            FIRST,
+            "date",
+            "date_range",
+            "double",
+            "double_range"
+        );
+        DataType expectedScalarType = switch (left.dataType()) {
+            case DATETIME, DATE_RANGE -> DATETIME;
+            case DOUBLE, DOUBLE_RANGE -> DOUBLE;
+            default -> null;
+        };
+        DataType expectedRangeType = switch (left.dataType()) {
+            case DATETIME, DATE_RANGE -> DATE_RANGE;
+            case DOUBLE, DOUBLE_RANGE -> DOUBLE_RANGE;
+            default -> null;
+        };
+        TypeResolution second = expectedScalarType == null
+            ? isType(right, RangeIntersects::isRangeValue, sourceText(), SECOND, "date", "date_range", "double", "double_range")
+            : isType(
+                right,
+                dt -> dt == expectedScalarType || dt == expectedRangeType,
+                sourceText(),
+                SECOND,
+                expectedScalarType.esType(),
+                expectedRangeType.esType()
+            );
         return first.and(second);
+    }
+
+    private static boolean isRangeValue(DataType dataType) {
+        return dataType == DATETIME || dataType == DATE_RANGE || dataType == DOUBLE || dataType == DOUBLE_RANGE;
     }
 
     @Override
@@ -194,14 +266,22 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
             // Swap so the point comes first; intersection is symmetric.
             return new RangeIntersectsPointEvaluator.Factory(source(), rightEvaluator, leftEvaluator);
         }
-        // (date, date) is handled by the surrogate() lowering to Equals; reach here only if the optimizer didn't apply it.
-        throw new IllegalStateException("RANGE_INTERSECTS(date, date) should have been replaced by Equals via surrogate()");
+        if (leftType == DOUBLE_RANGE && rightType == DOUBLE_RANGE) {
+            return new RangeIntersectsDoubleRangeEvaluator.Factory(source(), leftEvaluator, rightEvaluator);
+        }
+        if (leftType == DOUBLE && rightType == DOUBLE_RANGE) {
+            return new RangeIntersectsDoublePointEvaluator.Factory(source(), leftEvaluator, rightEvaluator);
+        }
+        if (leftType == DOUBLE_RANGE && rightType == DOUBLE) {
+            return new RangeIntersectsDoublePointEvaluator.Factory(source(), rightEvaluator, leftEvaluator);
+        }
+        throw new IllegalStateException("RANGE_INTERSECTS on two scalar values should have been replaced by Equals via surrogate()");
     }
 
     @Override
     public Expression surrogate() {
-        // (date, date) collapses to plain equality: two timestamps "intersect" iff they're equal.
-        if (left.dataType() == DATETIME && right.dataType() == DATETIME) {
+        // scalar pairs collapse to plain equality
+        if (isRange(left.dataType()) == false && isRange(right.dataType()) == false) {
             return new Equals(source(), left, right);
         }
         return null;
@@ -209,8 +289,8 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        // (date, date) lowers to Equals via surrogate() before translation; reject here as a safety net.
-        if (left.dataType() == DATETIME && right.dataType() == DATETIME) {
+        // Scalar pairs lower to Equals via surrogate() before translation; reject here as a safety net.
+        if (isRange(left.dataType()) == false && isRange(right.dataType()) == false) {
             return Translatable.NO;
         }
         if (isPushable(left, right, pushdownPredicates) || isPushable(right, left, pushdownPredicates)) {
@@ -223,6 +303,10 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
 
     private static boolean isPushable(Expression maybeField, Expression maybeLiteral, LucenePushdownPredicates pushdownPredicates) {
         return pushdownPredicates.isPushableFieldAttribute(maybeField) && maybeLiteral.foldable();
+    }
+
+    private static boolean isRange(DataType dataType) {
+        return dataType == DATE_RANGE || dataType == DOUBLE_RANGE;
     }
 
     @Override
@@ -239,7 +323,9 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(fieldExp);
         String name = handler.nameOf(attribute);
         Object value = literalValueOf(literalExp);
-        String format = DEFAULT_DATE_TIME_FORMATTER.pattern();
+        String format = attribute.dataType() == DATETIME || attribute.dataType() == DATE_RANGE
+            ? DEFAULT_DATE_TIME_FORMATTER.pattern()
+            : null;
 
         // Build the [lower, upper) interval representing the literal. A point degenerates to [d, d] inclusive.
         Object lower;
@@ -250,10 +336,20 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
             lower = date;
             upper = date;
             includeUpper = true;
-        } else {
+        } else if (literalExp.dataType() == DOUBLE) {
+            lower = RangeWithin.finiteBound((Double) value);
+            upper = lower;
+            includeUpper = true;
+        } else if (literalExp.dataType() == DATE_RANGE) {
             LongRangeBlockBuilder.LongRange r = (LongRangeBlockBuilder.LongRange) value;
             lower = dateTimeToString(r.from());
             upper = dateTimeToString(r.to());
+            includeUpper = false;
+        } else {
+            DoubleRangeBlockBuilder.DoubleRange r = (DoubleRangeBlockBuilder.DoubleRange) value;
+            // Non-finite bounds become unbounded query sides; RECHECK keeps the semantics exact.
+            lower = RangeWithin.finiteBound(r.from());
+            upper = RangeWithin.finiteBound(r.to());
             includeUpper = false;
         }
         return new RangeQuery(source(), name, lower, true, upper, includeUpper, format, null, ShapeRelation.INTERSECTS);

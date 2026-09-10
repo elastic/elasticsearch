@@ -307,4 +307,80 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
         );
         assertThat(e.getMessage(), containsString("cannot contain the reserved character"));
     }
+
+    /**
+     * A relative key whose nesting depth exceeds {@code depth_limit} throws {@link IllegalArgumentException}
+     * on the columnar path, mirroring the row path's {@code FlattenedFieldParser.validateDepthLimit}.
+     *
+     * <p>The mapping uses {@code depth_limit: 2}, so a key like {@code a.b.c} (dot-count = 2,
+     * effective depth = 3) should be rejected while {@code a.b} (dot-count = 1, effective depth = 2)
+     * is accepted.
+     */
+    public void testDepthLimitExceededThrowsIllegalArgument() {
+        // "a.b.c" has dot-count 2, effective depth 3 > depth_limit 2 → rejected.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> assertColumnarMatchesXContent(
+                mapping(b -> b.startObject(FIELD).field("type", "flattened").field("depth_limit", 2).endObject()),
+                columnarSettings(),
+                batch("depth_limit exceeded", 1L, doc("d1", 1L, "{\"flat\":{\"a\":{\"b\":{\"c\":\"deep\"}}}}"))
+            )
+        );
+        assertThat(e.getMessage(), containsString("exceeds the maximum depth limit"));
+        assertThat(e.getMessage(), containsString("[2]"));
+    }
+
+    /**
+     * A key exactly at {@code depth_limit} (dot-count = depth_limit - 1) must pass on both paths.
+     * Guards against an off-by-one in the check.
+     */
+    public void testDepthLimitAtBoundaryPasses() throws IOException {
+        // depth_limit = 2 → keys with dot-count ≤ 1 (effective depth ≤ 2) are accepted.
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").field("depth_limit", 2).endObject()),
+            columnarSettings(),
+            batch(
+                "depth at boundary",
+                1L,
+                doc("d1", 1L, "{\"flat\":{\"a\":{\"b\":\"ok\"}}}"), // dot-count 1, depth 2 = limit → accepted
+                doc("d2", 2L, "{\"flat\":{\"top\":\"v\"}}") // dot-count 0, depth 1 < limit → accepted
+            )
+        );
+    }
+
+    /**
+     * A literal dotted key inside the flattened value ({@code {"flat":{"a.b":"v"}}}) produces the same
+     * field set as the equivalent nested object ({@code {"flat":{"a":{"b":"v"}}}}), on both paths.
+     */
+    public void testLiteralDottedKeyMatchesNestedObject() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+            columnarSettings(),
+            batch(
+                "literal dotted key vs nested object",
+                1L,
+                doc("d1", 1L, "{\"flat\":{\"a.b\":\"v\"}}"),
+                doc("d2", 2L, "{\"flat\":{\"a\":{\"b\":\"v\"}}}")
+            )
+        );
+    }
+
+    /**
+     * Both spellings of the same key inside a <em>single</em> document produce two group columns with the identical
+     * relative key {@code a.b}, both present on that document. This is the case that breaks a per-leaf mapper — it
+     * would emit two independent outputs — but a group mapper receives every column in one
+     * {@link FlattenedFieldMapper#mapColumnGroupBatch} call and merges both slots into the same per-document blob.
+     */
+    public void testBothSpellingsOfOneKeyInASingleDocument() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+            columnarSettings(),
+            batch(
+                "both spellings in one doc",
+                1L,
+                doc("d1", 1L, "{\"flat\":{\"a.b\":\"one\",\"a\":{\"b\":\"two\"}}}"),
+                doc("d2", 2L, "{\"flat\":{\"a.b\":\"only\"}}")
+            )
+        );
+    }
 }

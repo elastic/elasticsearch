@@ -13,7 +13,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
-import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -100,7 +99,7 @@ public class EsqlCCSUtils {
                 updateExecutionInfoToReturnEmptyResult(executionInfo, e);
                 listener.onResponse(
                     new Versioned<>(
-                        new Result(Analyzer.NO_FIELDS, List.of(), Map.of(), configuration, DriverCompletionInfo.EMPTY, executionInfo),
+                        new Result(Analyzer.NO_FIELDS, List.of(), Map.of(), configuration, DriverCompletionInfo.EMPTY, executionInfo, null),
                         TransportVersion.current()
                     )
                 );
@@ -216,34 +215,34 @@ public class EsqlCCSUtils {
     }
 
     /**
-     * Check per-cluster failures for remote non-remotable-abstraction errors — views and datasets — thrown by remote
-     * clusters during field resolution. Neither is supported across clusters (views never; datasets not yet, in TP), so
-     * any such error must fail the entire query regardless of whether other clusters succeeded.
+     * Check per-cluster failures for remote view errors thrown by remote clusters during field resolution. A view is not
+     * remotable, so such an error must fail the entire query regardless of whether other clusters succeeded.
      * <p>
-     * Both kinds are collected in a single pass and reported together via one {@link RemoteResourceNotSupportedException},
-     * so a query that matches a remote view on one cluster and a remote dataset on another surfaces both at once rather
-     * than whichever kind happened to be checked first.
+     * Views matched on several clusters are collected in a single pass and reported together, so a query that reaches a
+     * view on more than one of them names all of them at once rather than whichever was iterated first.
+     * <p>
+     * The aggregate carries an empty dataset list: a dataset on another cluster is invisible rather than an error, so
+     * nothing can put one here. Since #157726 this coordinator does not ask a remote to resolve its views either, so
+     * the views half is defensive in the same way. What can still reach it is a remote answering a coordinator old
+     * enough to ask, which is the whole of what either half now reports.
      */
     static void checkForRemoteResourceErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
         List<String> views = new ArrayList<>();
-        List<String> datasets = new ArrayList<>();
         for (var entry : failures.entrySet()) {
             for (FieldCapabilitiesFailure failure : entry.getValue()) {
                 Throwable cause = ExceptionsHelper.unwrapCause(failure.getException());
-                // A remote that hosts both kinds already combined them into RemoteResourceNotSupportedException; a remote
-                // with a single kind reports the per-kind exception. Collect from whichever shape arrived.
+                // The aggregate is read defensively rather than because anything can send one. A remote only ever
+                // reported datasets when the request asked it to, and this coordinator never asks, so no peer can take
+                // its dataset branch. If an aggregate arrives anyway, only its views half can be acted on here.
                 if (cause instanceof RemoteResourceNotSupportedException resourceEx) {
                     views.addAll(resourceEx.views());
-                    datasets.addAll(resourceEx.datasets());
                 } else if (cause instanceof RemoteViewNotSupportedException viewEx) {
                     views.addAll(viewEx.views());
-                } else if (cause instanceof RemoteDatasetNotSupportedException datasetEx) {
-                    datasets.addAll(datasetEx.datasets());
                 }
             }
         }
-        if (views.isEmpty() == false || datasets.isEmpty() == false) {
-            throw new RemoteResourceNotSupportedException(views, datasets);
+        if (views.isEmpty() == false) {
+            throw new RemoteResourceNotSupportedException(views, List.of());
         }
     }
 

@@ -37,6 +37,16 @@ abstract class AbstractFixed64Column extends EscfColumn {
         this.data = ReleasableBytesReference.unwrap(data);
     }
 
+    /**
+     * Returns a new dense {@link DenseLongValuesCursor} positioned before the first row of this
+     * column's window. The column must be fully present ({@link #validity} {@code == null}); call
+     * this only on dense columns (e.g. array children).
+     */
+    DenseLongValuesCursor longValuesCursor() {
+        assert validity == null : "values cursor is only valid for dense (fully-present) columns";
+        return new DenseLongValuesCursor(docCount, this);
+    }
+
     /** The raw little-endian 8-byte slot for document {@code d}. */
     final long rawLong(int row) {
         return data.getLongLE(row * 8);

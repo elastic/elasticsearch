@@ -320,6 +320,8 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         if (bdv.advanceExact(doc) == false) {
             return null;
         }
+        // A columnar payload carries its own count and writes no companion, so the lookup below finds nothing and
+        // decodeExtreme ignores the count it yields.
         NumericDocValues counts = reader.getNumericDocValues(
             "host.name" + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX
         );

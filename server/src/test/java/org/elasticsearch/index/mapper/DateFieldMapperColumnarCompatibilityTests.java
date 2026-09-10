@@ -392,4 +392,21 @@ public class DateFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
             )
         );
     }
+
+    public void testDateParentWithKeywordSubField() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "date");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "date parent, keyword sub-field",
+                1L,
+                doc("d1", 1L, "{\"f\":\"2024-01-01T00:00:00.000Z\"}"),
+                doc("d2", 2L, "{\"f\":\"2024-06-30T23:59:59.999Z\"}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
 }

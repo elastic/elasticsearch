@@ -614,11 +614,13 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
             }
         );
 
-        assertBusy(() -> assertThat(
-            "Circuit breaker should be released after rank_feature phase completes",
-            getRequestBreakerUsed(dataNode),
-            lessThanOrEqualTo(breakerBeforeSearch)
-        ));
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after rank_feature phase completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
     }
 
     private String startDataNode(String cbRequestLimit) {

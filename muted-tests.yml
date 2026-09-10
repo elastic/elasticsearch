@@ -367,9 +367,6 @@ tests:
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldSourceOnlyRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/155541
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
-  method: testLongLivedPitRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/155740
 - class: org.elasticsearch.gateway.GatewayServiceIT
   method: testSettingsAppliedBeforeReroute
   issue: https://github.com/elastic/elasticsearch/issues/155802
@@ -468,9 +465,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.BulkFailureRetryIT
   method: testBulkFailureRetries
   issue: https://github.com/elastic/elasticsearch/issues/158127
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=update_by_query/10_basic/Response for version conflict with conflicts=proceed}
-  issue: https://github.com/elastic/elasticsearch/issues/158337
 - class: org.elasticsearch.common.LocalTimeOffsetTests
   method: testOverlap
   issue: https://github.com/elastic/elasticsearch/issues/158343
@@ -483,3 +477,23 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotResiliencyTests
   method: testConcurrentSnapshotDeleteAndDeleteIndex
   issue: https://github.com/elastic/elasticsearch/issues/158512
+- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
+  method: testGetVirtualBatchedCompoundCommitIfPrimaryRelocates
+  issue: https://github.com/elastic/elasticsearch/issues/158593
+- class: org.elasticsearch.script.mustache.MultiSearchTemplateIT
+  method: testLargeMsearchTemplateDoesNotOom
+  issue: https://github.com/elastic/elasticsearch/issues/158428
+- class: org.elasticsearch.common.logging.DeprecationLoggerTests
+  method: testMultipleSlowLoggersUseSingleLog4jLogger
+  issue: https://github.com/elastic/elasticsearch/issues/158695
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.ReverseTests
+  method: testFold {TestCase=<long unicode TEXT>}
+  issue: https://github.com/elastic/elasticsearch/issues/158699
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.ReverseTests
+  method: testFold {TestCase=<long unicode KEYWORD>}
+  issue: https://github.com/elastic/elasticsearch/issues/158700
+- class: org.elasticsearch.search.SearchWithRejectionsIT
+  method: testOpenContextsAfterRejections
+  issue: https://github.com/elastic/elasticsearch/issues/156244
+- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+  issue: https://github.com/elastic/elasticsearch/issues/158953

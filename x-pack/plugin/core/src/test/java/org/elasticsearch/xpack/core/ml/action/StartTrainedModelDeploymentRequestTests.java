@@ -248,6 +248,21 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         assertThat(e.getMessage(), containsString("Invalid deployment_id"));
     }
 
+    public void testValidate_GivenDeploymentIdContainsBackslash() {
+        // '\' must be rejected on every platform ES runs on, not only where it happens to be the local
+        // path separator (Windows) - this validator runs cluster-wide in Request#validate, so accept/reject
+        // cannot depend on which node handles the request. On Linux/macOS this assertion would still pass
+        // even if MlStrings#isValidPathSafeId only rejected the current platform's separator, since '\' was
+        // never the local separator there either - so this case is the one that actually pins the fix.
+        Request request = createRandom();
+        request.setDeploymentId("foo\\bar");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
     public void testValidate_GivenDeploymentIdIsEmpty() {
         Request request = createRandom();
         request.setDeploymentId("");

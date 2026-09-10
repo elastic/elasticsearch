@@ -11,54 +11,116 @@ package org.elasticsearch.simdjson.internal.fieldnames;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntPredicate;
+import java.util.function.LongSupplier;
 
 import static java.nio.ByteOrder.LITTLE_ENDIAN;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
- * Optimized field name table that freezes after the first document into a compact
- * power-of-two hash table sized to ~2x the field count. Uses:
+ * Optimized field name table that freezes on a child's first {@link Child#freeze()} into
+ * a compact power-of-two hash table sized to ~2x however many names the child had learned
+ * by then.Uses:
  * <ul>
  *   <li>Same wyhash as {@link FieldNameHash} for compatibility with
  *       {@link FieldNameHash#scanAndHash}.</li>
  *   <li>Inline first-8-bytes prefix for fast rejection (avoids full comparison
  *       for hash collisions when prefixes differ).</li>
- *   <li>Power-of-two table — for 90 fields this gives a 256-slot table
+ *   <li>Power-of-two table; e.g. for 90 fields this gives a 256-slot table
  *       improving cache locality.</li>
  * </ul>
  *
+ * <h2>Learning beyond the freeze point</h2>
+ * A child's hash table is immutable once frozen, so names not yet learned at that point would
+ * otherwise miss forever — a real cost when documents are sparse or when one child sees several
+ * mappings. Instead, a frozen child records misses in a small bounded overflow buffer and offers
+ * them to the shared table on {@link Child#release()}.
+ *
+ * <p>Publication swaps a superset table into {@link #shared} by CAS. A child does not eagerly
+ * observe this — it keeps using the {@link Frozen} snapshot it already has, so a lookup never
+ * pays for a shared read — but {@link Child#release()} re-syncs it against {@link #shared} before
+ * returning. This matters because a child is typically thread-confined and long-lived (e.g. one
+ * per parsing thread, kept for the thread's lifetime), while {@code release()} is called once per
+ * batch; without the re-sync, a child that froze early would never benefit from names other
+ * children taught the shared table later; with it, every batch boundary gives a chance to adopt
+ * the richer table and drop the now-redundant entries from its own overflow buffer. The scheme
+ * converges: once the shared table covers the field names a workload actually uses, nothing is
+ * new any more and both publishing and re-syncing become no-ops.
+ *
+ * <h2>Long-running processes: the cap and its reset valve</h2>
+ * A single instance is shared for the process's entire lifetime (see {@code SimdJsonParserPool}),
+ * across every index and mapping that instance ever sees. Left unchecked, {@link #MAX_SHARED_NAMES}
+ * guards against two different failure modes that pull in opposite directions:
+ * <ul>
+ *   <li>Genuinely unbounded cardinality (field names with embedded data) — here the right answer
+ *       is to converge once on whichever names won the early race and stop trying; every declined
+ *       merge is a handful of lookups with no allocation, so being stuck costs nothing beyond the
+ *       lost canonicalization for names that never made it in.</li>
+ *   <li>Cumulative staleness over a long enough process life — old, now-irrelevant mappings from
+ *       long-deleted indices can fill the cap first and then never get evicted, permanently
+ *       blocking a currently-active mapping's names from ever joining the shared table even
+ *       though the live working set easily fits.</li>
+ * </ul>
+ * Declining forever handles the first well and the second badly. Resetting unconditionally, the
+ * way Jackson's {@code ByteQuadsCanonicalizer} does, handles the second well but makes the first
+ * actively worse: a table that can never fit unbounded names would be wiped and relearned
+ * forever, paying the relearning cost indefinitely for names that were never going to converge
+ * anyway. {@link #union} resets instead of declining once {@link #RESET_COOLDOWN_NANOS} has
+ * passed since the last reset, which bounds the cost of the first case to at most one relearn per
+ * cooldown window while still letting the second case self-heal, eventually, without a human
+ * noticing.
+ *
  * <p>Thread-safety follows a parent/child model: a single root instance is shared
  * across all threads. Each parsing thread obtains a {@link Child} via {@link #makeChild()}.
- *
- * <h2>Learning beyond the first document</h2>
- * A child's hash table is immutable once frozen, so names the first document did not contain
- * would otherwise miss forever — a real cost when documents are sparse or when one child sees
- * several mappings. Instead, a frozen child records misses in a small bounded overflow buffer and
- * offers them to the shared table on {@link Child#release()}.
- *
- * <p>Publication swaps a superset table into {@link #shared} by CAS. Existing children are
- * unaffected because each holds its own immutable {@link Frozen} reference and never re-reads;
- * only children created afterwards see the richer table. The scheme converges: once the shared
- * table covers the field names a workload actually uses, nothing is new any more and merging
- * stops.
  */
 public final class FrozenFieldNameTable {
 
     /**
-     * Ceiling on names in the shared table. Merges that would exceed it are declined, which bounds
+     * Ceiling on names in the shared table. A merge that would exceed it is declined - or, once
+     * {@link #RESET_COOLDOWN_NANOS} has passed since the last reset, replaces the table outright
+     * with one holding only the merge's own candidate names (see {@link #union}) - which bounds
      * both memory and the cost of the rebuild a merge performs. Without a cap, workloads that put
-     * high-cardinality data in field names (for example {@code {"user.9f3a1.count": 1}}) would grow
-     * the table without limit.
+     * high-cardinality data in field names (for example {@code {"user.9f3a1.count": 1}}) would
+     * grow the table without limit.
+     *
+     * <p>Sized generously relative to a typical mapping (tens to a few hundred fields): even a
+     * large multi-tenant cluster sharing many distinct schemas across one process's lifetime
+     * should rarely approach this before the reset valve gets a chance to matter. The rebuild
+     * {@link #union} performs when merging is cheap enough (an array copy over at most this many
+     * entries, done on {@link Child#release()} rather than per document) that raising this
+     * further costs little.
      */
-    static final int MAX_SHARED_NAMES = 4096;
+    static final int MAX_SHARED_NAMES = 16384;
+
+    /**
+     * Minimum time between resets triggered by {@link #MAX_SHARED_NAMES}. Large and deliberately
+     * conservative: a reset is a safety valve for staleness accumulated over a process's entire
+     * lifetime, not a routine event, so there is no benefit to reacting quickly and real cost -
+     * repeated relearning - to reacting too often. Best-effort rather than exact: concurrent
+     * callers may occasionally race past this check together (see {@link #union}), which only
+     * risks an extra reset right at the boundary, not a correctness problem.
+     */
+    static final long RESET_COOLDOWN_NANOS = TimeUnit.MINUTES.toNanos(30);
 
     private static final VarHandle LONG_LE = MethodHandles.byteArrayViewVarHandle(long[].class, LITTLE_ENDIAN);
 
     private final AtomicReference<Frozen> shared = new AtomicReference<>();
+    private final LongSupplier nanoTime;
+    private final AtomicLong lastResetNanos;
 
-    public FrozenFieldNameTable() {}
+    public FrozenFieldNameTable() {
+        this(System::nanoTime);
+    }
+
+    /** Package-private so tests can drive the reset cooldown deterministically instead of via wall-clock sleeps. */
+    FrozenFieldNameTable(LongSupplier nanoTime) {
+        this.nanoTime = nanoTime;
+        this.lastResetNanos = new AtomicLong(nanoTime.getAsLong());
+    }
 
     public Child makeChild() {
         Frozen f = shared.get();
@@ -69,8 +131,14 @@ public final class FrozenFieldNameTable {
      * Publishes a newly frozen child's table. The first publisher donates its table wholesale,
      * which costs nothing; later publishers have to merge their names into whatever is already
      * shared.
+     *
+     * <p>Guarded by {@link #MAX_SHARED_NAMES} too: a child whose own table already exceeds the
+     * cap is declined outright, without even attempting {@link #mergeNames}.
      */
     void mergeChild(Frozen childFrozen, String[] names, byte[][] keys, int[] lens, int count) {
+        if (childFrozen.count() > MAX_SHARED_NAMES) {
+            return;
+        }
         if (shared.compareAndSet(null, childFrozen)) {
             return;
         }
@@ -81,11 +149,18 @@ public final class FrozenFieldNameTable {
      * Merges {@code names[from..to)} into the shared table, retrying until it wins the CAS or finds
      * it has nothing to add. Names already present keep their existing {@link String} instance, so
      * publication never changes the identity of a name callers may already hold.
+     *
+     * <p>Callers must keep {@code to - from} within {@link #MAX_SHARED_NAMES}: {@link #mergeChild}
+     * guarantees this for a first-ever publish, and {@link Child#publishOverflow} never offers more
+     * than {@link Child#MAX_OVERFLOW}, comfortably under it. This lets both this method and
+     * {@link #resetOrDecline} treat a batch as always small enough to fit a fresh table alone,
+     * without re-deriving that from {@code current}, which may be {@code null}.
      */
     void mergeNames(String[] names, byte[][] keys, int[] lens, int from, int to) {
         if (to <= from) {
             return;
         }
+        assert to - from <= MAX_SHARED_NAMES : "merge batch of " + (to - from) + " exceeds MAX_SHARED_NAMES on its own";
         for (;;) {
             Frozen current = shared.get();
             Frozen merged = current == null ? build(names, keys, lens, from, to) : union(current, names, keys, lens, from, to);
@@ -139,14 +214,16 @@ public final class FrozenFieldNameTable {
     }
 
     /**
-     * Returns a table holding {@code current} plus whichever of {@code names[from..to)} it lacks,
-     * or {@code current} itself when there is nothing to add or the result would be too large.
+     * Returns a table holding {@code current} plus whichever of {@code names[from..to)} it lacks;
+     * {@code current} itself when there is nothing to add; or, once the merge would exceed
+     * {@link #MAX_SHARED_NAMES}, either {@code current} unchanged or a fresh table built only
+     * from {@code names[from..to)} - see {@link #resetOrDecline}.
      *
      * <p>The table is exact-sized and open-addressed with no spare capacity, so growing it means
-     * rebuilding it. That is affordable only because merges stop once the shared table covers the
-     * workload's names.
+     * rebuilding it. That is affordable only because merges stop growing it once the shared table
+     * covers the workload's names.
      */
-    private Frozen union(Frozen current, String[] names, byte[][] keys, int[] lens, int from, int to) {
+    Frozen union(Frozen current, String[] names, byte[][] keys, int[] lens, int from, int to) {
         boolean[] isNew = new boolean[to - from];
         int newCount = 0;
         for (int i = from; i < to; i++) {
@@ -161,7 +238,7 @@ public final class FrozenFieldNameTable {
             return current;
         }
         if (current.count() + newCount > MAX_SHARED_NAMES) {
-            return current;
+            return resetOrDecline(current, names, keys, lens, from, to);
         }
 
         String[] mergedNames = new String[current.count() + newCount];
@@ -188,6 +265,35 @@ public final class FrozenFieldNameTable {
         }
 
         return build(mergedNames, mergedKeys, mergedLens, 0, n);
+    }
+
+    /**
+     * Called once a merge would push {@code current} past {@link #MAX_SHARED_NAMES}. Declines
+     * (returns {@code current} unchanged) unless {@link #RESET_COOLDOWN_NANOS} has passed since
+     * the last reset, in which case it discards {@code current} - stale winners and all - and
+     * returns a fresh table holding only this merge's own {@code names[from..to)}, giving the
+     * table a clean start to reconverge on whatever is actually still active. That fresh table
+     * cannot itself exceed the cap: it is exactly {@code to - from} entries, and {@link #mergeNames}
+     * guarantees callers never pass more than {@link #MAX_SHARED_NAMES} of those.
+     *
+     * <p>Discarding {@code current} rather than trying to keep its "best" entries is deliberate:
+     * nothing here can tell a name that is still relevant from one that is not, so picking
+     * survivors would be guessing. A fresh start is simple, and if the live working set is small
+     * relative to {@link #MAX_SHARED_NAMES} - the case this exists for - it reconverges quickly.
+     *
+     * <p>The cooldown check and the reset it may trigger are best-effort: two callers can race
+     * between reading {@link #lastResetNanos} and updating it, so a burst of concurrent over-cap
+     * merges could occasionally produce more than one reset right at the boundary. That merely
+     * costs an extra relearn; {@link #mergeNames}'s CAS retry loop still ensures only one result
+     * is ever published.
+     */
+    private Frozen resetOrDecline(Frozen current, String[] names, byte[][] keys, int[] lens, int from, int to) {
+        long now = nanoTime.getAsLong();
+        long last = lastResetNanos.get();
+        if (now - last < RESET_COOLDOWN_NANOS || lastResetNanos.compareAndSet(last, now) == false) {
+            return current;
+        }
+        return build(names, keys, lens, from, to);
     }
 
     /**
@@ -287,17 +393,11 @@ public final class FrozenFieldNameTable {
         private final FrozenFieldNameTable parent;
         private Frozen frozen;
 
-        private String[] learnNames;
-        private byte[][] learnKeys;
-        private int[] learnLens;
-        private int learnCount;
-        private boolean dirty;
+        /** Non-null exactly while {@code frozen == null}: names seen before this child ever froze. */
+        private NameSet learned;
 
-        private String[] overflowNames;
-        private byte[][] overflowKeys;
-        private int[] overflowLens;
-        private int[] overflowHashes;
-        private int overflowCount;
+        /** Lazily created on the first post-freeze miss; names the frozen table above does not hold. */
+        private NameSet overflow;
 
         /** How much of the overflow buffer {@link #release()} has already offered to the parent. */
         private int overflowPublished;
@@ -305,12 +405,7 @@ public final class FrozenFieldNameTable {
         Child(FrozenFieldNameTable parent, Frozen frozen) {
             this.parent = parent;
             this.frozen = frozen;
-            if (frozen == null) {
-                learnNames = new String[128];
-                learnKeys = new byte[128][];
-                learnLens = new int[128];
-                learnCount = 0;
-            }
+            this.learned = frozen == null ? NameSet.growable() : null;
         }
 
         @Override
@@ -319,12 +414,7 @@ public final class FrozenFieldNameTable {
                 String hit = frozen.lookup(buf, off, len, hash);
                 return hit != null ? hit : lookupOverflow(buf, off, len, hash);
             }
-            for (int i = 0; i < learnCount; i++) {
-                if (learnLens[i] == len && Arrays.equals(learnKeys[i], 0, len, buf, off, off + len)) {
-                    return learnNames[i];
-                }
-            }
-            return null;
+            return learned.lookup(buf, off, len, hash);
         }
 
         @Override
@@ -333,12 +423,7 @@ public final class FrozenFieldNameTable {
                 String hit = frozen.lookup(buf, off, len, hash, prefix8);
                 return hit != null ? hit : lookupOverflow(buf, off, len, hash);
             }
-            for (int i = 0; i < learnCount; i++) {
-                if (learnLens[i] == len && Arrays.equals(learnKeys[i], 0, len, buf, off, off + len)) {
-                    return learnNames[i];
-                }
-            }
-            return null;
+            return learned.lookup(buf, off, len, hash);
         }
 
         /**
@@ -346,35 +431,17 @@ public final class FrozenFieldNameTable {
          * per child rather than reallocated for every document that contains it.
          */
         private String lookupOverflow(byte[] buf, int off, int len, int hash) {
-            for (int i = 0; i < overflowCount; i++) {
-                if (overflowHashes[i] == hash && overflowLens[i] == len) {
-                    if (Arrays.equals(overflowKeys[i], 0, len, buf, off, off + len)) {
-                        return overflowNames[i];
-                    }
-                }
-            }
-            return null;
+            return overflow == null ? null : overflow.lookup(buf, off, len, hash);
         }
 
         @Override
         public String insert(byte[] buf, int off, int len, int hash) {
-            String s = new String(buf, off, len, StandardCharsets.UTF_8);
+            String s = new String(buf, off, len, UTF_8);
             if (frozen != null) {
                 recordOverflow(s, buf, off, len, hash);
                 return s;
             }
-            if (learnCount >= learnNames.length) {
-                int nc = learnNames.length * 2;
-                learnNames = Arrays.copyOf(learnNames, nc);
-                learnKeys = Arrays.copyOf(learnKeys, nc);
-                learnLens = Arrays.copyOf(learnLens, nc);
-            }
-            byte[] key = Arrays.copyOfRange(buf, off, off + len);
-            learnNames[learnCount] = s;
-            learnKeys[learnCount] = key;
-            learnLens[learnCount] = len;
-            learnCount++;
-            dirty = true;
+            learned.add(s, buf, off, len, hash);
             return s;
         }
 
@@ -387,54 +454,94 @@ public final class FrozenFieldNameTable {
          * canonicalized nor published.
          */
         private void recordOverflow(String name, byte[] buf, int off, int len, int hash) {
-            if (overflowCount == MAX_OVERFLOW) {
-                return;
+            if (overflow == null) {
+                overflow = NameSet.capped(MAX_OVERFLOW);
             }
-            if (overflowNames == null) {
-                overflowNames = new String[MAX_OVERFLOW];
-                overflowKeys = new byte[MAX_OVERFLOW][];
-                overflowLens = new int[MAX_OVERFLOW];
-                overflowHashes = new int[MAX_OVERFLOW];
-            }
-            overflowNames[overflowCount] = name;
-            // Copied because buf may be the walker's reusable string buffer.
-            overflowKeys[overflowCount] = Arrays.copyOfRange(buf, off, off + len);
-            overflowLens[overflowCount] = len;
-            overflowHashes[overflowCount] = hash;
-            overflowCount++;
+            overflow.add(name, buf, off, len, hash);
         }
 
         @Override
         public void freeze() {
-            if (frozen != null || learnCount == 0) return;
+            if (frozen != null || learned.count == 0) return;
 
-            frozen = build(learnNames, learnKeys, learnLens, 0, learnCount);
-            parent.mergeChild(frozen, learnNames, learnKeys, learnLens, learnCount);
+            frozen = build(learned.names, learned.keys, learned.lens, 0, learned.count);
+            parent.mergeChild(frozen, learned.names, learned.keys, learned.lens, learned.count);
 
-            learnNames = null;
-            learnKeys = null;
-            learnLens = null;
-            dirty = false;
+            learned = null;
         }
 
         @Override
         public void release() {
-            if (frozen == null && dirty) {
+            if (frozen == null && learned.count > 0) {
                 freeze();
             } else if (frozen == null) {
-                Frozen parentFrozen = parent.getShared();
-                if (parentFrozen != null) {
-                    frozen = parentFrozen;
-                    learnNames = null;
-                    learnKeys = null;
-                    learnLens = null;
-                }
-            } else if (overflowCount > overflowPublished) {
-                parent.mergeNames(overflowNames, overflowKeys, overflowLens, overflowPublished, overflowCount);
-                overflowPublished = overflowCount;
-                // The buffer stays live: this child keeps canonicalizing these names from it, since
-                // its own frozen table is immutable and will never contain them.
+                adoptShared();
+            } else {
+                publishOverflow();
+                refreshFromShared();
             }
+        }
+
+        /** Adopts the parent's shared table if one has been published since this child was created. */
+        private void adoptShared() {
+            Frozen parentFrozen = parent.getShared();
+            if (parentFrozen != null) {
+                frozen = parentFrozen;
+                learned = null;
+            }
+        }
+
+        /** Offers any overflow entries not yet offered to the parent. */
+        private void publishOverflow() {
+            if (overflow != null && overflow.count > overflowPublished) {
+                parent.mergeNames(overflow.names, overflow.keys, overflow.lens, overflowPublished, overflow.count);
+                overflowPublished = overflow.count;
+            }
+        }
+
+        /**
+         * Re-syncs {@code frozen} against the parent's current shared table, so this child - which
+         * may live for a long time relative to how often names change - eventually sees names other
+         * children published, not only what it already had or learned itself.
+         *
+         * <p>Adopting a newer table is always safe for correctness, since callers compare resolved
+         * names with {@code equals}, not identity. Most of the time it is also identity-preserving:
+         * {@link FrozenFieldNameTable#union} copies existing entries by reference when it grows the
+         * table, so a name already resolved through {@code frozen} keeps its instance, and a name
+         * previously resolved through this child's own overflow buffer may simply start resolving to
+         * a different, but {@code equals}, instance if another child published it first.
+         *
+         * <p>The exception is {@link FrozenFieldNameTable#resetOrDecline}: once the shared table has
+         * been reset rather than grown, the adopted table holds only the resetting merge's own
+         * candidate names, not the previous table's contents. A name this child's own {@code frozen}
+         * already resolved - even one actively in use - can therefore stop resolving here entirely
+         * until it is looked up as a miss and inserted again, exactly as if this child had never
+         * learned it.
+         */
+        private void refreshFromShared() {
+            Frozen latest = parent.getShared();
+            if (latest == frozen) {
+                return;
+            }
+            frozen = latest;
+            compactOverflow();
+        }
+
+        /**
+         * Drops overflow entries the freshly adopted table now covers, freeing bounded capacity for
+         * names that are genuinely still missing rather than leaving it permanently occupied by
+         * entries that have become redundant.
+         *
+         * <p>Entries kept are treated as unpublished again: re-offering an already-published name is
+         * a cheap no-op (see {@link FrozenFieldNameTable#union}), and compaction can reorder entries,
+         * so tracking exactly which survivors were already published is not worth the bookkeeping.
+         */
+        private void compactOverflow() {
+            if (overflow == null) {
+                return;
+            }
+            overflow.retainIf(i -> frozen.lookup(overflow.keys[i], 0, overflow.lens[i], overflow.hashes[i]) == null);
+            overflowPublished = 0;
         }
 
         /** Returns {@code true} if this child has been frozen into a hash table. Primarily for testing. */
@@ -444,7 +551,111 @@ public final class FrozenFieldNameTable {
 
         /** Number of post-freeze misses this child has recorded. Primarily for testing. */
         public int overflowCount() {
-            return overflowCount;
+            return overflow == null ? 0 : overflow.count;
+        }
+
+        /**
+         * Flat, parallel-array storage for field names not yet resolvable from the frozen table,
+         * shared by two phases of {@link Child}'s lifecycle that need the same scan-then-append
+         * shape but different growth rules: pre-freeze learning ({@link #growable()}, discarded once
+         * frozen) and post-freeze overflow ({@link #capped}, kept for the rest of the child's life).
+         *
+         * <p>Every entry stores its hash for cheap rejection before the full byte comparison. That
+         * costs the learning phase a few discarded bytes per entry for no benefit of its own (it is
+         * scanned only while processing the first document, then thrown away), but sharing one
+         * implementation is simpler than hand-rolling the same scan and grow-on-demand logic twice.
+         *
+         * <p>Package-private rather than {@code private} so {@code NameSetTests} can exercise its
+         * array bookkeeping directly; everything below is otherwise an internal implementation
+         * detail of {@link Child}.
+         */
+        static final class NameSet {
+
+            /** {@link #capacity} sentinel meaning "grow as needed, never reject an add". */
+            private static final int UNBOUNDED = -1;
+
+            private final int capacity;
+            private String[] names;
+            private byte[][] keys;
+            private int[] lens;
+            private int[] hashes;
+            private int count;
+
+            /** A set capped at {@code capacity} entries; further adds beyond that are silently dropped. */
+            static NameSet capped(int capacity) {
+                return new NameSet(capacity);
+            }
+
+            /** An unbounded, doubling-on-demand set, used for the pre-freeze learning phase. */
+            static NameSet growable() {
+                return new NameSet(UNBOUNDED);
+            }
+
+            private NameSet(int capacity) {
+                this.capacity = capacity;
+            }
+
+            /** Number of names currently recorded. Primarily for testing. */
+            int count() {
+                return count;
+            }
+
+            String lookup(byte[] buf, int off, int len, int hash) {
+                for (int i = 0; i < count; i++) {
+                    if (hashes[i] == hash && lens[i] == len && Arrays.equals(keys[i], 0, len, buf, off, off + len)) {
+                        return names[i];
+                    }
+                }
+                return null;
+            }
+
+            /** Records {@code name}; a capped set that is already full silently drops it. */
+            void add(String name, byte[] buf, int off, int len, int hash) {
+                if (capacity >= 0 && count == capacity) {
+                    return;
+                }
+                if (names == null) {
+                    int initial = capacity >= 0 ? capacity : 128;
+                    names = new String[initial];
+                    keys = new byte[initial][];
+                    lens = new int[initial];
+                    hashes = new int[initial];
+                } else if (count == names.length) {
+                    int nc = names.length * 2;
+                    names = Arrays.copyOf(names, nc);
+                    keys = Arrays.copyOf(keys, nc);
+                    lens = Arrays.copyOf(lens, nc);
+                    hashes = Arrays.copyOf(hashes, nc);
+                }
+                // Copied because buf may be the walker's reusable string buffer.
+                keys[count] = Arrays.copyOfRange(buf, off, off + len);
+                names[count] = name;
+                lens[count] = len;
+                hashes[count] = hash;
+                count++;
+            }
+
+            /**
+             * Compacts the set down to the entries for which {@code keep} returns {@code true},
+             * dropping the rest. Used after adopting a fresher frozen table, to free capacity
+             * previously spent on names that table now resolves directly.
+             */
+            void retainIf(IntPredicate keep) {
+                int kept = 0;
+                for (int i = 0; i < count; i++) {
+                    if (keep.test(i) == false) {
+                        continue;
+                    }
+                    if (kept != i) {
+                        names[kept] = names[i];
+                        keys[kept] = keys[i];
+                        lens[kept] = lens[i];
+                        hashes[kept] = hashes[i];
+                    }
+                    kept++;
+                }
+                count = kept;
+            }
         }
     }
 

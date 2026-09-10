@@ -889,6 +889,70 @@ public class RestoreServiceTests extends ESTestCase {
         });
     }
 
+    /**
+     * An empty {@code targets} list is a caller error for this internal entry point. It is rejected up front rather than submitting a
+     * restore that does nothing, which was probably not the user's intention.
+     */
+    public void testRestoreOverOpenIndicesRejectsEmptyTargets() throws Exception {
+        withOpenIndexRestoreHarness(fixture -> {
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> fixture.restoreService()
+                    .restoreSnapshotOverOpenIndices(
+                        ProjectId.DEFAULT,
+                        fixture.snapshot(),
+                        fixture.snapshotInfo(),
+                        TEST_REQUEST_TIMEOUT,
+                        UUIDs.randomBase64UUID(),
+                        List.of(),
+                        ActionListener.noop()
+                    )
+            );
+            assertThat(e.getMessage(), equalTo("targets must not be empty"));
+            assertThat(
+                "a rejected call must not initialize a restore",
+                Iterables.size(RestoreInProgress.get(fixture.clusterService().state())),
+                equalTo(0L)
+            );
+        });
+    }
+
+    /**
+     * A restore whose snapshot names a project that does not exist in the cluster state is rejected when the cluster-state update runs,
+     * surfacing the failure through the listener rather than mutating anything.
+     */
+    public void testRestoreOverOpenIndicesRejectsMissingProject() throws Exception {
+        withOpenIndexRestoreHarness(fixture -> {
+            final ProjectId missingProject = ProjectId.fromId("does-not-exist");
+            final Snapshot snapshotInMissingProject = new Snapshot(
+                missingProject,
+                fixture.snapshot().getRepository(),
+                fixture.snapshot().getSnapshotId()
+            );
+            final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+            fixture.restoreService()
+                .restoreSnapshotOverOpenIndices(
+                    missingProject,
+                    snapshotInMissingProject,
+                    fixture.snapshotInfo(),
+                    TEST_REQUEST_TIMEOUT,
+                    UUIDs.randomBase64UUID(),
+                    List.of(fixture.target()),
+                    future
+                );
+            final SnapshotRestoreException e = expectThrows(
+                SnapshotRestoreException.class,
+                () -> future.actionGet(TimeValue.timeValueSeconds(10))
+            );
+            assertThat(e.getMessage(), containsString("project [" + missingProject + "] does not exist"));
+            assertThat(
+                "a rejected restore must not initialize an entry",
+                Iterables.size(RestoreInProgress.get(fixture.clusterService().state())),
+                equalTo(0L)
+            );
+        });
+    }
+
     private static String historyUuid(ClusterState state, String indexName) {
         return state.metadata().getProject(ProjectId.DEFAULT).index(indexName).getSettings().get(IndexMetadata.SETTING_HISTORY_UUID);
     }

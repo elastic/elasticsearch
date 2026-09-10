@@ -661,6 +661,9 @@ public final class RestoreService implements ClusterStateApplier {
         ActionListener<RestoreCompletionResponse> listener
     ) {
         Objects.requireNonNull(targets, "targets");
+        if (targets.isEmpty()) {
+            throw new IllegalArgumentException("targets must not be empty");
+        }
         final Map<String, IndexId> indicesToRestore = new HashMap<>();
         final Map<String, Index> openIndexTargets = new HashMap<>();
         final ProjectMetadata.Builder snapshotProjectBuilder = ProjectMetadata.builder(projectId);

@@ -140,9 +140,12 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
      * what stops field caps resolving it, and from there the name is just a name that matches nothing.
      * <p>
      * What the clear cannot undo is anything authorization already did under that flag. {@code
-     * ViewAndDatasetDlsFlsRequestInterceptor} gates on the same option and runs earlier, so such a request from a
-     * caller whose role carries document or field level security still fails by name. That window closes once both
-     * ends are current, since a coordinator on this version never sets the option in the first place.
+     * ViewAndDatasetDlsFlsRequestInterceptor} runs earlier, and it applies to every request here rather than only to an
+     * older one, since it gates on {@code resolveViews() || resolveDatasets()} and views are always asked for. What
+     * keeps it quiet is upstream of it: with the option off, a dataset name does not survive index resolution, so the
+     * interceptor finds none to object to. An older coordinator's request was resolved under the flag, so the name is
+     * still there and a caller whose role carries document or field level security is refused, with the name reported
+     * in the failure's metadata rather than in its message. That closes once both ends are current.
      */
     static void clearDatasetResolution(FieldCapabilitiesRequest fieldCapsRequest) {
         fieldCapsRequest.indicesOptions(

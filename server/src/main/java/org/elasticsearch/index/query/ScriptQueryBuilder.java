@@ -241,6 +241,11 @@ public class ScriptQueryBuilder extends LeafQueryBuilder<ScriptQueryBuilder> {
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + script.getIdOrCode().length() * 2L + estimateValue(script.getParams());
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(script);
     }

@@ -195,6 +195,11 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + estimateValue(value);
+    }
+
+    @Override
     protected boolean doEquals(MatchPhrasePrefixQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(value, other.value)

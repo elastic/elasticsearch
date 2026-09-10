@@ -8,7 +8,14 @@
 package org.elasticsearch.xpack.kql.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -19,6 +26,8 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.kql.KqlPlugin;
 import org.hamcrest.Matchers;
 
@@ -271,6 +280,33 @@ public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder>
         KqlQueryBuilder kqlQuery = new KqlQueryBuilder(generateRandomKqlQuery()).queryName(randomIdentifier());
         QueryBuilder rewrittenQuery = rewriteQuery(kqlQuery, queryRewriteContext, searchExecutionContext);
         assertThat(rewrittenQuery.queryName(), equalTo(kqlQuery.queryName()));
+    }
+
+    public void testQueryBreakerEstimate() throws IOException {
+        // cost = BASELINE + query.length() * 2
+        // "hi" (2 chars): 256 + 4 = 260; limit = 260 (equal → does not trip)
+        String smallQuery = "hi";
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + smallQuery.length() * 2L;
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            KqlQueryBuilder small = new KqlQueryBuilder(smallQuery);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+            }
+            KqlQueryBuilder large = new KqlQueryBuilder("x".repeat(500));
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(large, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 
     public void testQueryBoostIsPreserved() throws IOException {

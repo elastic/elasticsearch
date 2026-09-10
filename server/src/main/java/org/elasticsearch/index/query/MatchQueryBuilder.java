@@ -409,6 +409,11 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + estimateValue(value);
+    }
+
+    @Override
     protected boolean doEquals(MatchQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(value, other.value)

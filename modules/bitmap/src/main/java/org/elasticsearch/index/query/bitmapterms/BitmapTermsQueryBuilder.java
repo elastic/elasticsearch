@@ -212,6 +212,12 @@ public class BitmapTermsQueryBuilder extends LeafQueryBuilder<BitmapTermsQueryBu
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        // value is the raw base64-encoded bitmap string — can be very large.
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + value.length() * 2L + 64L;
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, value);
     }

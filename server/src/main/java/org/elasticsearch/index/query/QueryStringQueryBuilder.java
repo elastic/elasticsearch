@@ -808,6 +808,11 @@ public final class QueryStringQueryBuilder extends LeafQueryBuilder<QueryStringQ
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + queryString.length() * 2L + estimateValue(fieldsAndWeights);
+    }
+
+    @Override
     protected boolean doEquals(QueryStringQueryBuilder other) {
         return Objects.equals(queryString, other.queryString)
             && Objects.equals(defaultField, other.defaultField)

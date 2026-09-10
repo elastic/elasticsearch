@@ -447,6 +447,25 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     /**
+     * Estimates heap bytes for a single parsed value. Handles {@link String}, {@code byte[]},
+     * {@link BytesRef}, {@link Map}, and {@link Collection}; primitives and unknowns cost 8 bytes.
+     * Child {@link QueryBuilder} instances are already charged separately by the parsing loop;
+     * do not pass them here.
+     */
+    protected static long estimateValue(Object v) {
+        if (v instanceof String s) return s.length() * 2L + 64L;
+        if (v instanceof byte[] b) return b.length + 32L;
+        if (v instanceof BytesRef b) return b.length + 64L;
+        if (v instanceof Map<?, ?> m) return 32L + m.size() * 48L + m.entrySet()
+            .stream()
+            .mapToLong(e -> estimateValue(e.getKey()) + estimateValue(e.getValue()))
+            .sum();
+        if (v instanceof Collection<?> c) return 32L + c.size() * 8L + c.stream().mapToLong(AbstractQueryBuilder::estimateValue).sum();
+        if (v == null) return 0L;
+        return 8L;
+    }
+
+    /**
      * Parses and returns a query (excluding the query field that wraps it). To be called by API that support
      * user provided queries. Note that the returned query may hold inner queries, and so on. Calling this method
      * will initialize the tracking of nested depth to make sure that there's a limit to the number of queries

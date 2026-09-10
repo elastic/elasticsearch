@@ -300,6 +300,11 @@ public class GeoPolygonQueryBuilder extends LeafQueryBuilder<GeoPolygonQueryBuil
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + shell.size() * 40L;
+    }
+
+    @Override
     protected boolean doEquals(GeoPolygonQueryBuilder other) {
         return Objects.equals(validationMethod, other.validationMethod)
             && Objects.equals(fieldName, other.fieldName)

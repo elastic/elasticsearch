@@ -774,6 +774,11 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + estimateValue(value) + estimateValue(fieldsBoosts);
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(
             value,

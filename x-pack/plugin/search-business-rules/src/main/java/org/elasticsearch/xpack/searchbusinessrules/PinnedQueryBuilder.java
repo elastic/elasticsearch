@@ -273,6 +273,22 @@ public class PinnedQueryBuilder extends LeafQueryBuilder<PinnedQueryBuilder> {
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        long total = QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        if (ids != null) {
+            for (String id : ids)
+                total += id.length() * 2L + 64L;
+        }
+        if (docs != null) {
+            for (SpecifiedDocument doc : docs) {
+                total += doc.id().length() * 2L + 64L;
+                if (doc.index() != null) total += doc.index().length() * 2L + 64L;
+            }
+        }
+        return total;
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(ids, docs, organicQuery);
     }

@@ -22,6 +22,9 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -86,6 +89,31 @@ public class AbstractQueryBuilderTests extends ESTestCase {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return xContentRegistry;
+    }
+
+    public void testEstimateValueHelper() {
+        // null → 0
+        assertEquals(0L, AbstractQueryBuilder.estimateValue(null));
+        // String → length*2+64
+        assertEquals(68L, AbstractQueryBuilder.estimateValue("hi"));  // 2*2+64
+        // byte[] → length+32
+        assertEquals(34L, AbstractQueryBuilder.estimateValue(new byte[2]));  // 2+32
+        // BytesRef → length+64
+        assertEquals(67L, AbstractQueryBuilder.estimateValue(new BytesRef(new byte[3])));  // 3+64
+        // empty List → 32+0+0
+        assertEquals(32L, AbstractQueryBuilder.estimateValue(new ArrayList<>()));
+        // List with null → 32 + 1*8 + 0
+        List<Object> withNull = new ArrayList<>();
+        withNull.add(null);
+        assertEquals(40L, AbstractQueryBuilder.estimateValue(withNull));
+        // List with one String → 32 + 1*8 + 68
+        assertEquals(108L, AbstractQueryBuilder.estimateValue(List.of("hi")));
+        // Nested: List containing an empty List → 32 + 1*8 + 32
+        assertEquals(72L, AbstractQueryBuilder.estimateValue(List.of(List.of())));
+        // empty Map → 32+0+0
+        assertEquals(32L, AbstractQueryBuilder.estimateValue(Map.of()));
+        // Map with one entry: key "k" (1*2+64=66), value "v" (1*2+64=66) → 32+48+66+66
+        assertEquals(212L, AbstractQueryBuilder.estimateValue(Map.of("k", "v")));
     }
 
     public void testMaybeConvertToBytesRefLongTerm() {

@@ -16,13 +16,22 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -34,6 +43,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 
@@ -232,5 +242,43 @@ public abstract class GeoShapeQueryBuilderTestCase extends AbstractQueryTestCase
     protected Map<String, String> getObjectsHoldingArbitraryContent() {
         // shape field can accept any element but expects a type
         return Collections.singletonMap("shape", "Required [type]");
+    }
+
+    public void testPolygonShapeBreakerEstimate() throws IOException {
+        // Formula: BASELINE + point_count * 24, where point_count = ring.length() for a simple polygon.
+        // Small: triangle — 3 unique vertices + 1 closing point = 4 coords → 256 + 4*24 = 352
+        LinearRing smallRing = new LinearRing(new double[] { 0, 1, 1, 0 }, new double[] { 0, 0, 1, 0 });
+        Polygon smallPolygon = new Polygon(smallRing);
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 4 * 24L;
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            GeoShapeQueryBuilder small = new GeoShapeQueryBuilder(getFieldName(), smallPolygon);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+            }
+            // Large: 100 unique vertices + 1 closing point = 101 coords → 256 + 101*24 = 2680, exceeds limit 352
+            double[] lons = new double[101];
+            double[] lats = new double[101];
+            for (int i = 0; i < 100; i++) {
+                lons[i] = i * 0.1;
+                lats[i] = 0;
+            }
+            lons[100] = lons[0];
+            lats[100] = lats[0];
+            Polygon largePolygon = new Polygon(new LinearRing(lons, lats));
+            GeoShapeQueryBuilder large = new GeoShapeQueryBuilder(getFieldName(), largePolygon);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(large, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -270,6 +271,22 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    protected long parseTimeBreakerEstimate() {
+        long total = QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        for (FilterFunctionBuilder ffb : filterFunctionBuilders) {
+            if (ffb.getScoreFunction() instanceof ScriptScoreFunctionBuilder s) {
+                Script script = s.getScript();
+                total += script.getIdOrCode().length() * 2L + estimateValue(script.getParams()) + 128L;
+            } else if (ffb.getScoreFunction() instanceof DecayFunctionBuilder<?> d) {
+                total += 128L + d.getFunctionBytes().length();
+            } else {
+                total += 128L;
+            }
+        }
+        return total;
     }
 
     @Override

@@ -78,4 +78,18 @@ public class TextEmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBui
     protected TextEmbeddingQueryVectorBuilder doParseInstance(XContentParser parser) throws IOException {
         return TextEmbeddingQueryVectorBuilder.fromXContent(parser);
     }
+
+    public void testParseTimeBreakerEstimate() {
+        String modelId = "my-model";
+        String modelText = "query text";
+        TextEmbeddingQueryVectorBuilder builder = new TextEmbeddingQueryVectorBuilder(modelId, modelText);
+        long expected = modelText.length() * 2L + 64L + modelId.length() * 2L + 64L;
+        assertEquals(expected, builder.parseTimeBreakerEstimate());
+
+        // A large model text charges proportionally more
+        String largeText = "x".repeat(500);
+        TextEmbeddingQueryVectorBuilder large = new TextEmbeddingQueryVectorBuilder(modelId, largeText);
+        long largeExpected = largeText.length() * 2L + 64L + modelId.length() * 2L + 64L;
+        assertEquals(largeExpected, large.parseTimeBreakerEstimate());
+    }
 }

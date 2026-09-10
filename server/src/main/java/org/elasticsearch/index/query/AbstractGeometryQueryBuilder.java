@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.GeometryPointCountVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -427,6 +428,16 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             && Objects.equals(shape, other.shape)
             && Objects.equals(supplier, other.supplier)
             && Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
+    }
+
+    @Override
+    protected long parseTimeBreakerEstimate() {
+        if (shape == null) {
+            return QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        }
+        // 24 bytes per coordinate: two doubles (16 bytes) + per-element array overhead.
+        int points = shape.visit(new GeometryPointCountVisitor());
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + points * 24L;
     }
 
     @Override

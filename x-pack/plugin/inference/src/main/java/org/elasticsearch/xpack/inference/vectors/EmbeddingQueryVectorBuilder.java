@@ -185,6 +185,16 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         return builder;
     }
 
+    @Override
+    public long parseTimeBreakerEstimate() {
+        long cost = 0L;
+        for (var s : input.inferenceStrings()) {
+            cost += s.value().length() * 2L + 64L;
+        }
+        if (inferenceId != null) cost += inferenceId.length() * 2L + 64L;
+        return cost;
+    }
+
     public String getInferenceId() {
         return inferenceId;
     }

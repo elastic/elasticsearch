@@ -367,6 +367,15 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        if (documents == null) return QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long total = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + documents.size() * 8L;
+        for (BytesReference doc : documents)
+            total += doc.length();
+        return total;
+    }
+
+    @Override
     protected boolean doEquals(PercolateQueryBuilder other) {
         return Objects.equals(field, other.field)
             && Objects.equals(documents, other.documents)

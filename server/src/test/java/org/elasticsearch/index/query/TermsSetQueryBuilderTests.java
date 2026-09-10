@@ -30,7 +30,13 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
@@ -42,6 +48,8 @@ import org.elasticsearch.script.TermsSetQueryScript;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -394,6 +402,38 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         }
     }
 
+    public void testScriptPayloadBreakerEstimate() throws IOException {
+        // minimumShouldMatchScript source and params are charged beyond values.
+        // source "_script" (7 chars): 7*2+64=78. empty params: 32.
+        // values List.of("hi"): 32+1*8+(2*2+64)=108. small: 256+108+78+32=474.
+        // large params Map.of("k","x"×500): 32+48+(1*2+64)+(500*2+64)=1210. large: 256+108+78+1210=1652 → trips.
+        String scriptSource = "_script";
+        long scriptSourceCost = scriptSource.length() * 2L + 64L;
+        long emptyParamsCost = 32L;
+        long valuesCost = 32L + 8L + (2 * 2L + 64L);
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + valuesCost + scriptSourceCost + emptyParamsCost;
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            Script smallScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, scriptSource, Collections.emptyMap());
+            TermsSetQueryBuilder small = new TermsSetQueryBuilder(TEXT_FIELD_NAME, List.of("hi")).setMinimumShouldMatchScript(smallScript);
+            Script largeScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, scriptSource, Map.of("k", "x".repeat(500)));
+            TermsSetQueryBuilder big = new TermsSetQueryBuilder(TEXT_FIELD_NAME, List.of("hi")).setMinimumShouldMatchScript(largeScript);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser);
+                }
+                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
     public static class CustomScriptPlugin extends MockScriptPlugin {
 
         @Override
@@ -407,6 +447,33 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                     throw new UncheckedIOException(e);
                 }
             });
+        }
+    }
+
+    public void testTermsValueBreakerEstimate() throws IOException {
+        // BASELINE + estimateValue(values) — values is a List<Object>.
+        // List.of("hi"): 32 + 1*8 + (2*2+64) = 108. small: 256+108=364.
+        // List.of("x"×500): 32 + 1*8 + (500*2+64) = 1104. large: 256+1104=1360 → trips.
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 32L + 8L + (2 * 2L + 64L);
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            TermsSetQueryBuilder small = new TermsSetQueryBuilder(TEXT_FIELD_NAME, List.of("hi")).setMinimumShouldMatchField("num");
+            TermsSetQueryBuilder big = new TermsSetQueryBuilder(TEXT_FIELD_NAME, List.of("x".repeat(500))).setMinimumShouldMatchField(
+                "num"
+            );
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser);
+                }
+                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
         }
     }
 

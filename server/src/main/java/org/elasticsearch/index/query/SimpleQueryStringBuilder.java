@@ -617,6 +617,11 @@ public final class SimpleQueryStringBuilder extends LeafQueryBuilder<SimpleQuery
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + queryText.length() * 2L + estimateValue(fieldsAndWeights);
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(fieldsAndWeights, analyzer, defaultOperator, queryText, minimumShouldMatch, settings, flags, type);
     }

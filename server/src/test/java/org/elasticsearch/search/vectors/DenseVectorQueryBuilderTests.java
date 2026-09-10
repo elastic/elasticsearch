@@ -10,16 +10,30 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -211,5 +225,63 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
         );
         assertThat(e.getMessage(), containsString("similarity_function"));
         assertThat(e.getMessage(), containsString("quantized"));
+    }
+
+    public void testQueryVectorBuilderTextBreakerEstimate() {
+        // When queryVector is absent, parseTimeBreakerEstimate() delegates to queryVectorBuilder.
+        QueryVectorBuilder stub = new QueryVectorBuilder() {
+            @Override
+            public void buildVector(Client c, ActionListener<float[]> l) {}
+
+            @Override
+            public String getWriteableName() {
+                return "stub";
+            }
+
+            @Override
+            public TransportVersion getMinimalSupportedVersion() {
+                return TransportVersion.minimumCompatible();
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {}
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder b, ToXContent.Params p) {
+                return b;
+            }
+
+            @Override
+            public long parseTimeBreakerEstimate() {
+                return 500L;
+            }
+        };
+        DenseVectorQueryBuilder q = new DenseVectorQueryBuilder(VECTOR_FIELD, null, stub, null, null);
+        assertEquals(AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 500L, q.parseTimeBreakerEstimate());
+    }
+
+    public void testVectorBreakerEstimate() throws IOException {
+        // small: 2-element float vector -> cost = 256 + 2*4 = 264; large: 100-element float vector -> cost = 256 + 100*4 = 656
+        DenseVectorQueryBuilder small = new DenseVectorQueryBuilder(VECTOR_FIELD, new float[] { 1f, 2f }, null, null);
+        DenseVectorQueryBuilder large = new DenseVectorQueryBuilder(VECTOR_FIELD, new float[100], null, null);
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 2 * 4L; // 264
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+            }
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(large, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 }

@@ -13,7 +13,15 @@ import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -120,5 +128,36 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(exception.getMessage(), equalTo("span_or [clauses] as a nested span clause can't have non-default boost value [2.0]"));
+    }
+
+    public void testClausesBreakerEstimate() throws IOException {
+        // BASELINE + clauses.size()*8. SpanTerm children are charged via namedObject before the parent.
+        // SpanTermQueryBuilder("field","value"): 256 + (5*2+64) + (5+64) = 399.
+        // limit = 2*childCost + BASELINE = 1054.
+        // Without the override the parent charges exactly 256 (= limit, strict > → no trip).
+        // With the override the parent charges 256 + 2*8 = 272 → total 1070 > 1054 → trips on
+        // the collection overhead term.
+        // small = 1 clause: 399 (child) + 264 (own) = 663 ≤ 1054 → passes.
+        SpanTermQueryBuilder term = new SpanTermQueryBuilder("field", "value");
+        long childCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + ("field".length() * 2L + 64L) + ("value".length() + 64L);
+        long limit = 2 * childCost + AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            SpanOrQueryBuilder small = new SpanOrQueryBuilder(term);
+            SpanOrQueryBuilder big = new SpanOrQueryBuilder(term).addClause(term);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser);
+                }
+                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 }

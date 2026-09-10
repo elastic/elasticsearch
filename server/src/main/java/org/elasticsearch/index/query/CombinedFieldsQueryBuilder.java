@@ -433,6 +433,11 @@ public final class CombinedFieldsQueryBuilder extends LeafQueryBuilder<CombinedF
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + estimateValue(value) + estimateValue(fieldsAndBoosts);
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(value, fieldsAndBoosts, operator, minimumShouldMatch, zeroTermsQuery, autoGenerateSynonymsPhraseQuery);
     }

@@ -143,6 +143,11 @@ public class IntervalQueryBuilder extends LeafQueryBuilder<IntervalQueryBuilder>
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + field.length() * 2L + 64L + sourceProvider.estimateBytes();
+    }
+
+    @Override
     protected boolean doEquals(IntervalQueryBuilder other) {
         return Objects.equals(field, other.field) && Objects.equals(sourceProvider, other.sourceProvider);
     }

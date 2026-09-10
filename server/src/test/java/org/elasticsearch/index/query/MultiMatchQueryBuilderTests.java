@@ -25,12 +25,20 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -486,5 +494,31 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             "64kb",
             () -> new MultiMatchQueryBuilder("abc", TEXT_FIELD_NAME, KEYWORD_FIELD_NAME).fuzziness(Fuzziness.ONE).prefixLength(3)
         );
+    }
+
+    public void testQueryValueBreakerEstimate() throws IOException {
+        // BASELINE + estimateValue(value) + estimateValue(fieldsBoosts)
+        // value="hi" (String): 2*2+64=68. fieldsBoosts={"mapped_string":1.0f}: 32+1*48+(13*2+64)+8=178.
+        // small: 256+68+178=502. large: value="x"×500 → 1064; total=1498.
+        long fieldsCost = 32L + 48L + 13 * 2L + 64L + 8L; // TEXT_FIELD_NAME = "mapped_string" (13 chars) + Float 8
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + (2 * 2L + 64L) + fieldsCost;
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            MultiMatchQueryBuilder small = new MultiMatchQueryBuilder("hi", TEXT_FIELD_NAME);
+            MultiMatchQueryBuilder big = new MultiMatchQueryBuilder("x".repeat(500), TEXT_FIELD_NAME);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser);
+                }
+                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 }

@@ -244,6 +244,11 @@ public class PrefixQueryBuilder extends LeafQueryBuilder<PrefixQueryBuilder> imp
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + value.length() * 2L + 64L;
+    }
+
+    @Override
     protected final int doHashCode() {
         return Objects.hash(fieldName, value, rewrite, caseInsensitive);
     }

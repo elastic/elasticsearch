@@ -141,11 +141,12 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
 
     public void testTooManyClausesRejectedAtParseTime() throws IOException {
         int max = 5;
-        // limit = (max inner clauses + 1 root dis_max) * per-clause estimate
-        LimitedBreaker limitedBreaker = new LimitedBreaker(
-            CircuitBreaker.REQUEST,
-            ByteSizeValue.ofBytes((long) (max + 1) * AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES)
-        );
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        // DisMaxQueryBuilder charges BASELINE + queries.size() * 8 for slot overhead.
+        // Set limit = cost of (max children + root dis_max with max slots), so the big query's
+        // root dis_max charge (BASELINE + (max+1)*8) tips it over.
+        long okTotal = max * baseline + (baseline + (long) max * 8);
+        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(okTotal));
         AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
         try {
             // dis_max with max inner clauses: root + max children charge exactly at the limit — must succeed

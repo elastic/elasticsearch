@@ -412,6 +412,11 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + query.length() * 2L;
+    }
+
+    @Override
     protected boolean doEquals(SemanticQueryBuilder other) {
         // Exclude inferenceInfoFuture from equality because it is transient
         return Objects.equals(fieldName, other.fieldName)

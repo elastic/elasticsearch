@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 
 import java.io.IOException;
@@ -34,6 +36,24 @@ import java.util.concurrent.ExecutionException;
 final class ParquetReadFailures {
 
     private ParquetReadFailures() {}
+
+    /**
+     * Closes {@code releasables} via {@link Releasables#close}, adding any thrown exception as
+     * suppressed on {@code cause} rather than letting it propagate and mask {@code cause}.
+     * {@link AssertionError} is caught in addition to {@link RuntimeException} to cover any
+     * {@code assert} statement inside a {@code close()} implementation. The self-suppression
+     * guard prevents the {@link IllegalArgumentException} that {@link Throwable#addSuppressed}
+     * throws when a releasable rethrows the same instance as the in-flight cause.
+     */
+    static void closePreservingCause(Throwable cause, Releasable... releasables) {
+        try {
+            Releasables.close(releasables);
+        } catch (RuntimeException | AssertionError cleanupFailure) {
+            if (cleanupFailure != cause) {
+                cause.addSuppressed(cleanupFailure);
+            }
+        }
+    }
 
     static RuntimeException wrap(Throwable t, String context) {
         Throwable cause = unwrapJoin(t);

@@ -81,7 +81,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -1089,9 +1088,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private Supplier<DirectoryMetrics> directoryMetricsDelta() {
-        return Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
-            ? indicesService.directoryMetricsDelta()
-            : indicesService.cacheMetricsDelta();
+        return indicesService.directoryMetricsDelta();
     }
 
     private static void setDirectoryMetrics(SearchPhaseResult result, Supplier<DirectoryMetrics> metricsDelta, SearchContext context) {
@@ -1920,6 +1917,25 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public boolean freeReaderContext(ShardSearchContextId contextId) {
         return freeReaderContext(contextId, "explicit free request");
+    }
+
+    /**
+     * Marks the reader context for the given {@code contextId} as relocating, so the background
+     * Reaper will expire it gracefully once all in-flight {@code markAsUsed} references are
+     * released (plus a short grace period). This avoids the race where an immediate
+     * {@link #freeReaderContext} call closes underlying resources in the phase-transition gap
+     * between search phases when no reference is held.
+     *
+     * @return {@code true} if a context was found and marked, {@code false} if no active context
+     *         exists for the given id (already freed or never created on this node)
+     */
+    public boolean markContextAsRelocating(ShardSearchContextId contextId) {
+        final ReaderContext context = activeReaders.get(contextId);
+        if (context == null) {
+            return false;
+        }
+        context.relocate();
+        return true;
     }
 
     private boolean freeReaderContext(ShardSearchContextId contextId, String reason) {

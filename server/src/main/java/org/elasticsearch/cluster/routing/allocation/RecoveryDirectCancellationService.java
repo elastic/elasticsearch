@@ -150,10 +150,13 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
             value -> this.enableDirectRecoveryCancellations = value
         );
         // Only registered on stateless (via the stateless plugin).
-        clusterSettings.initializeAndWatchIfRegistered(
-            ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOT_STATELESS_SETTING,
-            value -> this.enableDirectCancellationsForSnapshotsInStateless = value
-        );
+        clusterSettings.initializeAndWatchIfRegistered(ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOT_STATELESS_SETTING, enabled -> {
+            final boolean wasEnabled = enableDirectCancellationsForSnapshotsInStateless;
+            enableDirectCancellationsForSnapshotsInStateless = enabled;
+            if (isStateless && wasEnabled == false && enabled && clusterService.state().nodes().isLocalNodeElectedMaster()) {
+                cancelRecoveriesBlockingSnapshots();
+            }
+        });
         clusterService.addListener(this);
     }
 

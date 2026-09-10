@@ -36,94 +36,33 @@ export const NEVER_FAIL_GRACE_MINUTES = 2;
 // outcome. Keep in sync with GradleRunner.writeStatusReport.
 const TASK_STATUS_FILE = "build/task-status.json";
 
-// Per-job copy of the above, uploaded by the status-dir glob and read back by the analyze step, which
-// rebuilds this path from the jobId.
-const TASK_STATUS_COPY_PREFIX = `${STATUS_DIR_NAME}/${TASK_STATUS_FILE_PREFIX}`;
-
 // The wrapped command and its task paths travel in env vars rather than being baked into the wrapper, so
 // one copy of the wrapper serves every batch of a step. Indexed by BUILDKITE_PARALLEL_JOB at run time.
 const CMD_VAR_PREFIX = "FLAKINESS_CMD_";
 const TASK_PATHS_VAR_PREFIX = "FLAKINESS_TASK_PATHS_";
 
-// Wraps a shell command so it always exits 0, appending a Buildkite warning annotation when the wrapped
-// command fails. The step state stays "passed", so Buildkite's per-step and group-aggregate GitHub commit
-// statuses report success.
-//
-// soft_fail is not used: Buildkite's GitHub commit-status integration mirrors step.state ("failed" /
-// "timed_out") and ignores the soft_failed flag, so a soft_fail step that fails still shows a red check.
-//
-// The command runs under GNU `timeout` (see NEVER_FAIL_GRACE_MINUTES) so an overrun is killed by us rather
-// than by the agent, and the wrapper still reaches `exit 0`.
-//
-// With `emitOutcome` (batch steps; not analyze) the wrapper also records rc + wall-clock duration to
-// `<status dir>/status-<jobId>.json` - the two facts JUnit XML cannot supply. It classifies nothing;
-// see entrypoints/analyze.ts and README "Observability".
+// The checked-in runner. Why the step must exit 0, why soft_fail is not an option, and what the per-job
+// status file carries are all documented in the script itself.
+const NEVER_FAIL_SCRIPT = ".buildkite/scripts/flakiness-detection/runners/never-fail.sh";
+
+/**
+ * A short invocation of the checked-in never-fail runner. Everything the wrapper used to generate inline -
+ * the timeout, the failure annotation, the OOM probe, the task-status copy, the per-job outcome - lives in
+ * {@link NEVER_FAIL_SCRIPT} now, so this only computes the inner timeout and names the step.
+ *
+ * The inner timeout has to beat Buildkite's outer `timeout_in_minutes`, which the agent enforces by
+ * SIGKILLing the step: ours must win so the runner can still annotate and exit 0, otherwise the step ends
+ * up in state "timed_out".
+ *
+ * Omitting `kind` gives never-fail behaviour with no batch outcome, which is what the analyze step wants.
+ */
 function wrapNeverFail(contextKey: string, outerTimeoutMin: number, emitOutcome?: { kind: TestKind }): string {
   const innerTimeoutMin = Math.max(1, outerTimeoutMin - NEVER_FAIL_GRACE_MINUTES);
-  return [
-    "set +e",
-    // The command is not baked in: it comes from an env var picked at run time, so this wrapper appears
-    // once per step instead of once per batch. BUILDKITE_PARALLEL_JOB is unset on a non-parallel step, so
-    // `:-0` selects the single batch and both step shapes share one code path.
-    '_fd_i="$${BUILDKITE_PARALLEL_JOB:-0}"',
-    `_fd_cmd_var="${CMD_VAR_PREFIX}$$_fd_i"`,
-    "WRAPPED_CMD_FILE=$(mktemp)",
-    // `$${!var}` is indirect expansion deferred past Buildkite's upload pass, which cannot parse `!` as the
-    // start of an identifier. printf keeps the command unexpanded until bash runs the file, which is what
-    // the quoted heredoc used to do.
-    'printf \'%s\\n\' "$${!_fd_cmd_var}" > "$$WRAPPED_CMD_FILE"',
-    // Lets the self-report tell a timeout SIGKILL from a kernel OOM-kill by duration. `$(...)` survives
-    // Buildkite's upload-time interpolation, which only substitutes `$VAR`/`${VAR}`.
-    ...(emitOutcome ? ["_fd_start=$(date +%s)"] : []),
-    // --foreground keeps the command in the parent's process group. Without it `timeout` setpgid()s its
-    // child, the gradle CLI loses the controlling-TTY plumbing the develocity scan plugin relies on, and
-    // the CLI JVM hangs ~36min after BUILD SUCCESSFUL. Diagnosed on build #2 of
-    // elasticsearch-flakiness-detection-manual.
-    `timeout --foreground --signal=TERM --kill-after=30s ${innerTimeoutMin}m bash "$$WRAPPED_CMD_FILE"`,
-    "rc=$?",
-    "rm -f \"$$WRAPPED_CMD_FILE\"",
-    `if [ "$$rc" -eq 124 ] || [ "$$rc" -eq 137 ]; then`,
-    `  buildkite-agent annotate --style warning --context "${contextKey}-failures" --append "[$$BUILDKITE_LABEL] (job $$BUILDKITE_JOB_ID) timed out after ${innerTimeoutMin}m (rc=$$rc) - see job log"`,
-    `elif [ "$$rc" -ne 0 ]; then`,
-    `  buildkite-agent annotate --style warning --context "${contextKey}-failures" --append "[$$BUILDKITE_LABEL] (job $$BUILDKITE_JOB_ID) exited with $$rc - see job log"`,
-    "fi",
-    // Best-effort per-job status file for analyze. `|| true` plus the trailing `exit 0` mean observability
-    // can never fail a batch. Runtime values (`rc`, duration, oom) are `$$`-escaped to defer past
-    // Buildkite's upload pass; `stepKey`/`kind` are build-time constants.
-    //
-    // OOM: every ES test JVM runs with `-XX:+HeapDumpOnOutOfMemoryError` and a heapdump path under
-    // buildDir (ElasticsearchTestBasePlugin), so a leftover `.hprof` means a JVM-heap OutOfMemoryError -
-    // which exits rc=1 via Gradle, unlike the rc=137 SIGKILL a kernel OOM-kill gives. Detected from the
-    // file rather than the log so we never touch the wrapped command's stdout/`--foreground` plumbing.
-    // analyze.ts turns it into the `oom` infraSubtype.
-    ...(emitOutcome
-      ? [
-          "_fd_end=$(date +%s)",
-          `mkdir -p ${STATUS_DIR_NAME}`,
-          "_fd_oom=\"\"",
-          "if [ -n \"$(find . -type f -path '*/build/heapdump/*.hprof' -print -quit 2>/dev/null)\" ]; then _fd_oom=\"oom\"; fi",
-          // A task rejected by `onlyIf` (bwc's `bwc_tests_enabled`, the distro arch check) or with no
-          // source is reported SKIPPED: zero tests, exit 0 - from rc alone, indistinguishable from a hang.
-          // gradle-runner records every task's outcome in build/task-status.json, so analyze reads the
-          // verdict for THIS batch's task paths. The scoping is the point: a healthy build has unrelated
-          // SKIPPED entries, and an unscoped check would mislabel the muted-tests case (task ran, filter
-          // matched nothing) as not_applicable.
-          //
-          // For REST kinds each repeat-rest-test.sh iteration overwrites the file, so this is the last
-          // iteration's verdict - sound, because `onlyIf` predicates do not flip mid-job.
-          //
-          // Only COPIED here; analyze.ts parses the JSON, so this shell stays uncoupled from its spacing.
-          `cp ${TASK_STATUS_FILE} "${TASK_STATUS_COPY_PREFIX}$$BUILDKITE_JOB_ID.json" 2>/dev/null || true`,
-          `_fd_tp_var="${TASK_PATHS_VAR_PREFIX}$$_fd_i"`,
-          // Resolved into a plain variable here so the printf below needs no braces: `$${...}` inside a TS
-          // template literal would be read as an interpolation. `:-[]` keeps the JSON well formed if the
-          // var is somehow unset.
-          '_fd_tp="$${!_fd_tp_var:-[]}"',
-          `printf '{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s,"infraSubtype":"%s","taskPaths":%s}' "$$BUILDKITE_JOB_ID" "${contextKey}" "${emitOutcome.kind}" "$$rc" "$(( _fd_end - _fd_start ))" "$$_fd_oom" "$$_fd_tp" > "${STATUS_DIR_NAME}/${JOB_STATUS_FILE_PREFIX}$$BUILDKITE_JOB_ID.json" || true`,
-        ]
-      : []),
-    "exit 0",
-  ].join("\n");
+  const args = [`--context ${contextKey}`, `--inner-timeout-minutes ${innerTimeoutMin}`];
+  if (emitOutcome) {
+    args.push(`--kind ${emitOutcome.kind}`);
+  }
+  return `${NEVER_FAIL_SCRIPT} ${args.join(" ")}`;
 }
 
 // Steps get fresh agents with no shared workspace, so batch steps upload their JUnit XML and analyze
@@ -332,8 +271,19 @@ interface PipelineGroup {
 }
 
 interface Pipeline {
+  // Pipeline-level env, so the layout constants appear once rather than on every step. The runner scripts
+  // read them from here, which keeps domain.ts the single source for the names.
+  env?: Record<string, string>;
   steps: [PipelineGroup];
 }
+
+/** The artifact layout both runner scripts need, named once for the whole pipeline. */
+const RUNNER_LAYOUT_ENV: Record<string, string> = {
+  FLAKINESS_STATUS_DIR: STATUS_DIR_NAME,
+  FLAKINESS_JOB_STATUS_PREFIX: JOB_STATUS_FILE_PREFIX,
+  FLAKINESS_TASK_STATUS_PREFIX: TASK_STATUS_FILE_PREFIX,
+  FLAKINESS_TASK_STATUS_FILE: TASK_STATUS_FILE,
+};
 
 /**
  * Pure: build the BK pipeline structure. Groups commands by step `key`; a key with more than one batch
@@ -410,6 +360,7 @@ export function toBuildkitePipeline(
   }
 
   return {
+    env: { ...RUNNER_LAYOUT_ENV },
     steps: [{ group: cfg.groupName, steps }],
   };
 }

@@ -46,10 +46,15 @@ describe("toBuildkitePipeline end-to-end", () => {
       ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.IndexTests"
     );
     expect(step.env!["FLAKINESS_CMD_0"]).not.toContain("__GRADLE__");
-    expect(step.command).toContain("exit 0");
-    // Inner timeout fires 2m before outer timeout_in_minutes so the wrapper
-    // still gets to annotate + exit 0 even on a stuck command.
-    expect(step.command).toContain("timeout --foreground --signal=TERM --kill-after=30s 58m bash");
+    // The step invokes the checked-in runner; the timeout, annotation and status behaviour it implements
+    // is covered by never-fail.test.ts. What matters here is that the invocation is correct.
+    expect(step.command).toBe(
+      ".buildkite/scripts/flakiness-detection/runners/never-fail.sh " +
+        "--context flakiness-detection:unit --inner-timeout-minutes 58 --kind test"
+    );
+    // Inner timeout fires 2m before outer timeout_in_minutes so the runner still gets to annotate and
+    // exit 0 even on a stuck command.
+    expect(step.timeout_in_minutes).toBe(60);
     expect(step.timeout_in_minutes).toBe(60);
     expect(step.agents.provider).toBe("gcp");
     expect(step.agents.machineType).toBe("n4-custom-32-98304");
@@ -81,22 +86,13 @@ describe("toBuildkitePipeline end-to-end", () => {
     // Raw commands only: the wrapper is emitted once, in the step's `command`, not copied per batch.
     expect(step.env!["FLAKINESS_CMD_0"]).not.toContain("timeout --foreground");
     expect(step.env!["FLAKINESS_CMD_0"]).not.toContain("buildkite-agent annotate");
-    expect(step.command).toContain('_fd_i="$${BUILDKITE_PARALLEL_JOB:-0}"');
-    // The never-fail properties are asserted on the single wrapper, not per batch.
-    expect(step.command).toContain("exit 0");
-    // Each parallel batch is independently wrapped under the inner timeout.
-    expect(step.command).toContain("timeout --foreground --signal=TERM --kill-after=30s 58m bash");
-    // Both `$$` escapes defer interpolation past BK's pipeline-upload pass:
-    //   * BUILDKITE_PARALLEL_JOB is a per-job runtime var; if not escaped, BK
-    //     substitutes empty at upload time and the indirect lookup becomes a
-    //     no-op (the bug observed on build 150689). `:-0` is inside the escape,
-    //     so BK never parses it either.
-    //   * `${!var}` (bash indirect expansion) can't be parsed by BK as a
-    //     variable identifier because of the leading `!`.
-    expect(step.command).toContain('$${BUILDKITE_PARALLEL_JOB:-0}');
-    expect(step.command).not.toMatch(/[^$]\$\{BUILDKITE_PARALLEL_JOB/);
-    expect(step.command).toContain('$${!_fd_cmd_var}');
-    expect(step.command).not.toMatch(/[^$]\$\{!_fd_cmd_var\}/);
+    // Batch selection moved into the runner, which reads BUILDKITE_PARALLEL_JOB itself. That removed the
+    // whole `$$`-escaping problem from the generated pipeline: nothing here needs deferring past
+    // Buildkite's upload-time interpolation any more, so an unescaped `$` cannot silently become empty
+    // (the bug observed on build 150689).
+    expect(step.command).not.toContain("$");
+    expect(step.command).toContain("--context flakiness-detection:java-rest");
+    expect(step.command).toContain("--kind javaRestTest");
 
     const analyze = group.steps[1];
     expect(analyze.key).toBe("flakiness-detection:analyze");
@@ -110,29 +106,18 @@ describe("toBuildkitePipeline end-to-end", () => {
     const pipeline = pipelineFromPlanCommands([unit("org.elasticsearch.SomeTests")]);
     const [batch, analyze] = pipeline.steps[0].steps;
 
-    // Single-batch step captures the start epoch and writes a per-job status
-    // file tagged with the kind + step key, carrying the runtime rc + duration
-    // + OOM subtype (from the heap-dump probe below).
-    expect(batch.command).toContain("_fd_start=$(date +%s)");
-    expect(batch.command).toContain(
-      'printf \'{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s,"infraSubtype":"%s","taskPaths":%s}\' "$$BUILDKITE_JOB_ID" "flakiness-detection:unit" "test" "$$rc" "$(( _fd_end - _fd_start ))" "$$_fd_oom" "$$_fd_tp" > "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true'
-    );
-    // Task paths are resolved from the per-batch env var rather than baked in.
-    expect(batch.command).toContain('_fd_tp="$${!_fd_tp_var:-[]}"');
+    // `--kind` is what turns on outcome recording. The recording itself - the duration, the rc, the OOM
+    // probe, the task-status copy, the JSON shape - is the runner's job and is covered by
+    // never-fail.test.ts; here we only pin that the batch step asks for it and the analyze step does not.
+    expect(batch.command).toContain("--kind test");
+    expect(batch.command).toContain("--context flakiness-detection:unit");
     expect(batch.env!["FLAKINESS_TASK_PATHS_0"]).toBe("[]");
-    // gradle-runner's task report is COPIED, not parsed here: analyze.ts does the matching with real JSON
-    // parsing, so this shell stays uncoupled from the report's exact spacing.
-    expect(batch.command).toContain('cp build/task-status.json "flakiness-status/tasks-$$BUILDKITE_JOB_ID.json"');
-    // OOM is detected from a heap-dump file (TTY-safe), not the log; the probe
-    // stops at the first match.
-    expect(batch.command).toContain("find . -type f -path '*/build/heapdump/*.hprof' -print -quit");
 
-    // The analyze step is not a test batch and must not write a status file or
-    // probe for OOM.
+    // The analyze step is not a test batch: never-fail behaviour, but no outcome of its own.
     expect(analyze.key).toBe("flakiness-detection:analyze");
-    expect(analyze.command).not.toContain("flakiness-status/status-");
-    expect(analyze.command).not.toContain("_fd_start=");
-    expect(analyze.command).not.toContain("heapdump");
+    expect(analyze.command).toContain("--context flakiness-detection:analyze");
+    expect(analyze.command).not.toContain("--kind");
+    expect(analyze.env!["FLAKINESS_TASK_PATHS_0"]).toBeUndefined();
   });
 
   test("each parallel batch writes a status file with the correct kind", () => {
@@ -142,10 +127,10 @@ describe("toBuildkitePipeline end-to-end", () => {
     }
 
     const step = pipelineFromPlanCommands(commands).steps[0].steps[0];
-    // All batches of a step share a kind (they are grouped by key), so the kind and the status write are
-    // in the single wrapper rather than repeated per batch. Only the task paths differ per batch.
-    expect(step.command).toContain('"flakiness-detection:java-rest" "javaRestTest"');
-    expect(step.command).toContain('> "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true');
+    // All batches of a step share a kind (they are grouped by key), so it is one flag on the single
+    // invocation rather than a value repeated per batch. Only the task paths differ per batch.
+    expect(step.command).toContain("--context flakiness-detection:java-rest");
+    expect(step.command).toContain("--kind javaRestTest");
     // One task-paths var per batch. This fixture carries no taskPaths, so both are the empty array; the
     // per-batch differentiation is covered by the `collapses multiple batches` test above.
     expect(step.env!["FLAKINESS_TASK_PATHS_0"]).toBe("[]");
@@ -240,8 +225,10 @@ describe("toBuildkitePipeline", () => {
     // Non-parallel steps use the same wrapper and the same env var; BUILDKITE_PARALLEL_JOB is unset there,
     // so `:-0` picks index 0. One code path for both shapes.
     expect(step.env?.FLAKINESS_CMD_0).toBe("only");
-    expect(step.command).toContain('_fd_i="$${BUILDKITE_PARALLEL_JOB:-0}"');
-    expect(step.command).toContain("FLAKINESS_CMD_$$_fd_i");
+    // One code path for both step shapes: the runner reads BUILDKITE_PARALLEL_JOB itself and falls back
+    // to index 0, which is what a non-parallel step gets.
+    expect(step.command).toContain("never-fail.sh");
+    expect(step.command).not.toContain("--kind undefined");
   });
 
   test("batch steps upload JUnit XML + status artifacts; analyze step downloads statuses", () => {
@@ -275,7 +262,8 @@ describe("toBuildkitePipeline", () => {
     const analyzerIdx = analyzeCmd.indexOf("entrypoints/analyze.ts");
     expect(downloadIdx).toBeLessThan(analyzerIdx);
     // Analyze step uses timeout_in_minutes: 10, so inner timeout is 8m.
-    expect(analyze.command).toContain("timeout --foreground --signal=TERM --kill-after=30s 8m bash");
+    // 10m outer timeout leaves an 8m inner one after the grace period.
+    expect(analyze.command).toContain("--inner-timeout-minutes 8");
   });
 
   test("emits an analyze-only step when all tests are not_applicable (no batches)", () => {

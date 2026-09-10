@@ -247,7 +247,7 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
                 }
 
                 @Override
-                public long cost() {
+                public long cost() throws IOException {
                     return maxDoc;
                 }
             };
@@ -378,7 +378,7 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
                         }
 
                         @Override
-                        public long cost() {
+                        public long cost() throws IOException {
                             return 0;
                         }
                     };

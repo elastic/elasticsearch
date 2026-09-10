@@ -313,7 +313,7 @@ public final class SourceConfirmedTextQuery extends Query {
                     }
 
                     @Override
-                    public long cost() {
+                    public long cost() throws IOException {
                         return approximationSupplier.cost();
                     }
                 };

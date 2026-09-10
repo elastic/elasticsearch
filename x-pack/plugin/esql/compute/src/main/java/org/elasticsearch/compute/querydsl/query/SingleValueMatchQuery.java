@@ -389,7 +389,7 @@ public final class SingleValueMatchQuery extends Query {
         }
 
         @Override
-        public long cost() {
+        public long cost() throws IOException {
             return docIdSetIterator.cost();
         }
     }
@@ -445,7 +445,7 @@ public final class SingleValueMatchQuery extends Query {
         }
 
         @Override
-        public long cost() {
+        public long cost() throws IOException {
             return approximation.cost();
         }
     }

@@ -417,7 +417,7 @@ public class LuceneTests extends ESTestCase {
                         }
 
                         @Override
-                        public long cost() {
+                        public long cost() throws IOException {
                             return context.reader().maxDoc();
                         }
 
@@ -772,7 +772,7 @@ public class LuceneTests extends ESTestCase {
                         }
 
                         @Override
-                        public long cost() {
+                        public long cost() throws IOException {
                             return innerSupplier.cost();
                         }
                     };

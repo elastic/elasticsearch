@@ -27,7 +27,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
 
 import java.io.IOException;
-import java.util.function.LongSupplier;
 
 /**
  * Package-private helper that contains the encoding-agnostic sliced search logic shared by
@@ -111,7 +110,7 @@ final class IVFSlicedSearchHelper {
         }
 
         final IOSupplier<DocIdSetIterator> docIdIteratorSupplier;
-        final LongSupplier costSupplier;
+        final IOSupplier<Long> costSupplier;
         if (filterWeight != null) {
             ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
             if (supplier == null) {
@@ -180,7 +179,7 @@ final class IVFSlicedSearchHelper {
         int sliceOrd,
         KnnCollector knnCollector,
         IOSupplier<DocIdSetIterator> docIdIteratorSupplier,
-        LongSupplier costSupplier,
+        IOSupplier<Long> costSupplier,
         Bits liveDocs,
         int maxDoc,
         LeafReaderContext context,

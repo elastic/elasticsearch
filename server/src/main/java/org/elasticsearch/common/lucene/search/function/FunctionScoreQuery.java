@@ -311,7 +311,7 @@ public class FunctionScoreQuery extends Query {
                 }
 
                 @Override
-                public long cost() {
+                public long cost() throws IOException {
                     return subQueryScorerSupplier.cost();
                 }
             };
@@ -332,7 +332,7 @@ public class FunctionScoreQuery extends Query {
                 }
 
                 @Override
-                public long cost() {
+                public long cost() throws IOException {
                     return scorerSupplier.cost();
                 }
             };

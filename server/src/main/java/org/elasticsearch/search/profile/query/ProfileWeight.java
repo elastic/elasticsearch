@@ -77,7 +77,7 @@ public final class ProfileWeight extends Weight {
             }
 
             @Override
-            public long cost() {
+            public long cost() throws IOException {
                 timer.start();
                 try {
                     return subQueryScorerSupplier.cost();

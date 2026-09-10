@@ -538,7 +538,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
                                 }
 
                                 @Override
-                                public long cost() {
+                                public long cost() throws IOException {
                                     assert false;
                                     return context.reader().maxDoc();
                                 }
@@ -622,7 +622,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
                                 }
 
                                 @Override
-                                public long cost() {
+                                public long cost() throws IOException {
                                     return 0;
                                 }
                             };

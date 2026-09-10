@@ -87,7 +87,7 @@ final class PointRangeBreakerWeight extends Weight {
             }
 
             @Override
-            public long cost() {
+            public long cost() throws IOException {
                 return inner.cost();
             }
 

@@ -217,7 +217,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
                     }
 
                     @Override
-                    public long cost() {
+                    public long cost() throws IOException {
                         return approxScorerSupplier.cost();
                     }
                 };

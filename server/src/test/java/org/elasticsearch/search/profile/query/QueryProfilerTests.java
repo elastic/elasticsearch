@@ -251,7 +251,7 @@ public class QueryProfilerTests extends ESTestCase {
                         }
 
                         @Override
-                        public long cost() {
+                        public long cost() throws IOException {
                             return 42;
                         }
                     };

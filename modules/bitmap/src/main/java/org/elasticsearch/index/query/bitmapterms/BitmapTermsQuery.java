@@ -97,7 +97,7 @@ public class BitmapTermsQuery extends Query implements Accountable {
                         }
 
                         @Override
-                        public long cost() {
+                        public long cost() throws IOException {
                             return estimatedCost;
                         }
                     };
@@ -116,7 +116,7 @@ public class BitmapTermsQuery extends Query implements Accountable {
                     }
 
                     @Override
-                    public long cost() {
+                    public long cost() throws IOException {
                         return cost;
                     }
                 };

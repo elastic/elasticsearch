@@ -30,7 +30,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.function.LongSupplier;
 
 /**
  * An IVF kNN query for byte-encoded vector fields. The raw byte[] query is passed directly to
@@ -158,7 +157,7 @@ public class IVFKnnByteVectorQuery extends AbstractIVFKnnVectorQuery {
             return TopDocsCollector.EMPTY_TOPDOCS;
         }
         IOSupplier<DocIdSetIterator> docIdIteratorSupplier = () -> supplier.get(Long.MAX_VALUE).iterator();
-        LongSupplier costSupplier = supplier::cost;
+        IOSupplier<Long> costSupplier = supplier::cost;
         return approximateSearch(
             ctx,
             new ESAcceptDocs.ScorerSupplierAcceptDocs(docIdIteratorSupplier, costSupplier, liveDocs, maxDoc),

@@ -30,7 +30,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.function.LongSupplier;
 
 /** A {@link IVFKnnFloatVectorQuery} that uses the IVF search strategy. */
 public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
@@ -154,7 +153,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         }
         // no need to cache iterator as we are calling it once
         IOSupplier<DocIdSetIterator> docIdIteratorSupplier = () -> supplier.get(Long.MAX_VALUE).iterator();
-        LongSupplier costSupplier = () -> supplier.cost();
+        IOSupplier<Long> costSupplier = supplier::cost;
         return approximateSearch(
             ctx,
             new ESAcceptDocs.ScorerSupplierAcceptDocs(docIdIteratorSupplier, costSupplier, liveDocs, maxDoc),

@@ -222,7 +222,7 @@ public final class ShardSplittingQuery extends Query {
                     }
 
                     @Override
-                    public long cost() {
+                    public long cost() throws IOException {
                         return leafReader.maxDoc();
                     }
                 };

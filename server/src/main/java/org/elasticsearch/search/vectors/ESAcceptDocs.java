@@ -32,7 +32,6 @@ import org.apache.lucene.util.MathUtil;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.LongSupplier;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
@@ -334,7 +333,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
     /** An AcceptDocs that wraps a ScorerSupplier. Indicates that a filter was provided. */
     public static final class ScorerSupplierAcceptDocs extends ESAcceptDocs {
         private final IOSupplier<DocIdSetIterator> docIdIteratorSupplier;
-        private final LongSupplier costSupplier;
+        private final IOSupplier<Long> costSupplier;
         private BitSet acceptBitSet;
         private final Bits liveDocs;
         private final int maxDoc;
@@ -342,7 +341,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         public ScorerSupplierAcceptDocs(
             IOSupplier<DocIdSetIterator> docIdIteratorSupplier,
-            LongSupplier costSupplier,
+            IOSupplier<Long> costSupplier,
             Bits liveDocs,
             int maxDoc
         ) {
@@ -351,7 +350,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         public ScorerSupplierAcceptDocs(
             IOSupplier<DocIdSetIterator> docIdIteratorSupplier,
-            LongSupplier costSupplier,
+            IOSupplier<Long> costSupplier,
             Bits liveDocs,
             int maxDoc,
             int sliceOrd,
@@ -441,7 +440,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
             }
             SliceAcceptDocs slice = sliceAcceptDocsOrNull();
             int maxCost = slice == null ? maxDoc : slice.length();
-            int approxCost = acceptBitSet == null ? (int) costSupplier.getAsLong() : acceptBitSet.approximateCardinality();
+            int approxCost = acceptBitSet == null ? costSupplier.get().intValue() : acceptBitSet.approximateCardinality();
             return Math.min(approxCost, maxCost);
         }
     }

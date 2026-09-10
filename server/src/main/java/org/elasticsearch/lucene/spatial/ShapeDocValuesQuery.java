@@ -141,7 +141,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
                     }
 
                     @Override
-                    public long cost() {
+                    public long cost() throws IOException {
                         return context.reader().maxDoc();
                     }
                 };
@@ -202,7 +202,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
                     }
 
                     @Override
-                    public long cost() {
+                    public long cost() throws IOException {
                         return context.reader().maxDoc();
                     }
                 };

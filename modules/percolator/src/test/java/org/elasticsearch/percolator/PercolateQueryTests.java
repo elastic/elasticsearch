@@ -283,7 +283,7 @@ public class PercolateQueryTests extends ESTestCase {
                         }
 
                         @Override
-                        public long cost() {
+                        public long cost() throws IOException {
                             return innerSupplier.cost();
                         }
                     };

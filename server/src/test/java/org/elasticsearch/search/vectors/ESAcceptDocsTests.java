@@ -258,7 +258,7 @@ public class ESAcceptDocsTests extends ESTestCase {
         }
 
         @Override
-        public long cost() {
+        public long cost() throws IOException {
             return iterator.cost();
         }
     }

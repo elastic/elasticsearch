@@ -193,7 +193,7 @@ final class PercolateQuery extends Query implements Accountable {
                     }
 
                     @Override
-                    public long cost() {
+                    public long cost() throws IOException {
                         return approximationSupplier.cost();
                     }
                 };

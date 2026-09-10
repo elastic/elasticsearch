@@ -1216,7 +1216,7 @@ public class KnnSearcher {
                         }
 
                         @Override
-                        public long cost() {
+                        public long cost() throws IOException {
                             return cardinality;
                         }
                     };

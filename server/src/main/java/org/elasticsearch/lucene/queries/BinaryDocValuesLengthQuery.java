@@ -66,7 +66,7 @@ final class BinaryDocValuesLengthQuery extends Query {
                 }
                 return new ConstantScoreScorerSupplier(score(), scoreMode, context.reader().maxDoc()) {
                     @Override
-                    public long cost() {
+                    public long cost() throws IOException {
                         return context.reader().maxDoc();
                     }
 

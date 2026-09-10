@@ -308,7 +308,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
                             }
 
                             @Override
-                            public long cost() {
+                            public long cost() throws IOException {
                                 return scorerSupplier.cost();
                             }
                         };
@@ -361,7 +361,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
                             }
 
                             @Override
-                            public long cost() {
+                            public long cost() throws IOException {
                                 return inScorerSupplier.cost();
                             }
 

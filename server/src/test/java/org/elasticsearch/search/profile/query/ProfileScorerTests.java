@@ -100,7 +100,7 @@ public class ProfileScorerTests extends ESTestCase {
                 }
 
                 @Override
-                public long cost() {
+                public long cost() throws IOException {
                     return cost;
                 }
 

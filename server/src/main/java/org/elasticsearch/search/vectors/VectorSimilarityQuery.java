@@ -163,7 +163,7 @@ public class VectorSimilarityQuery extends Query implements QueryProfilerProvide
                 }
 
                 @Override
-                public long cost() {
+                public long cost() throws IOException {
                     return inScorerSupplier.cost();
                 }
             };

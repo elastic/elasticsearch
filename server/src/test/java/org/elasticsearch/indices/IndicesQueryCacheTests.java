@@ -510,7 +510,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
                 }
 
                 @Override
-                public long cost() {
+                public long cost() throws IOException {
                     return inScorerSupplier.cost();
                 }
             };

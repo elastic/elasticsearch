@@ -127,7 +127,7 @@ public class BitmapBKDQuery extends Query implements Accountable {
                         }
 
                         @Override
-                        public long cost() {
+                        public long cost() throws IOException {
                             return estimatedCost;
                         }
                     };
@@ -142,7 +142,7 @@ public class BitmapBKDQuery extends Query implements Accountable {
                     }
 
                     @Override
-                    public long cost() {
+                    public long cost() throws IOException {
                         return estimatedCost;
                     }
                 };

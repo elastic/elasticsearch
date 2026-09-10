@@ -62,60 +62,48 @@ public class HighlightSupportTests extends ESTestCase {
         QueryString qstr = queryString("fox", null);
         Kql kql = new Kql(EMPTY, of("title: fox"), null, TEST_CFG);
 
-        assertTrue(HighlightSupport.isSupportedImplicitPredicate(match));
-        assertTrue(HighlightSupport.isSupportedImplicitPredicate(phrase));
-        assertTrue(HighlightSupport.isSupportedImplicitPredicate(qstr));
-        assertTrue(HighlightSupport.isSupportedImplicitPredicate(kql));
-        assertTrue(HighlightSupport.isSupportedImplicitPredicate(new And(EMPTY, match, phrase)));
-        assertTrue(HighlightSupport.isSupportedImplicitPredicate(new Or(EMPTY, qstr, kql)));
-        assertFalse(HighlightSupport.isSupportedImplicitPredicate(new Not(EMPTY, match)));
-        assertFalse(HighlightSupport.isSupportedImplicitPredicate(of("fox")));
-        assertFalse(HighlightSupport.isSupportedImplicitPredicate(new And(EMPTY, match, new Not(EMPTY, phrase))));
+        for (Expression supported : List.of(
+            match,
+            phrase,
+            qstr,
+            kql,
+            new And(EMPTY, match, phrase),
+            new Or(EMPTY, qstr, kql),
+            match("title", "fox", options("fuzziness", "AUTO"))
+        )) {
+            assertTrue(supported.toString(), HighlightSupport.isSupportedImplicitPredicate(supported));
+        }
 
-        // A NOT anywhere in the conjunct, or an OR mixing a full-text leaf with a non-full-text one, is not borrowed.
-        assertFalse(HighlightSupport.isSupportedImplicitPredicate(new Or(EMPTY, match, new Not(EMPTY, phrase))));
-        assertFalse(HighlightSupport.isSupportedImplicitPredicate(new Or(EMPTY, match, of("fox"))));
-
-        // analyzer/quote_analyzer options are not borrowed; collectImplicitQuery reports that as an error.
-        // TODO: support WHERE-side analyzer/quote_analyzer on an implicit HIGHLIGHT query.
-        assertFalse(HighlightSupport.isSupportedImplicitPredicate(match("title", "fox", options("analyzer", "english"))));
-        assertFalse(HighlightSupport.isSupportedImplicitPredicate(matchPhrase("body", "quick fox", options("analyzer", "english"))));
-        assertFalse(HighlightSupport.isSupportedImplicitPredicate(queryString("fox", options("analyzer", "english"))));
-        assertFalse(HighlightSupport.isSupportedImplicitPredicate(queryString("fox", options("quote_analyzer", "english"))));
-        assertFalse(
-            HighlightSupport.isSupportedImplicitPredicate(new Kql(EMPTY, of("title: fox"), options("analyzer", "english"), TEST_CFG))
-        );
-        assertTrue(HighlightSupport.isSupportedImplicitPredicate(match("title", "fox", options("fuzziness", "AUTO"))));
-        assertFalse(
-            HighlightSupport.isSupportedImplicitPredicate(new And(EMPTY, match, match("body", "fox", options("analyzer", "english"))))
-        );
+        for (Expression unsupported : List.of(
+            new Not(EMPTY, match),
+            of("fox"),
+            new And(EMPTY, match, new Not(EMPTY, phrase)),
+            new Or(EMPTY, match, new Not(EMPTY, phrase)),
+            new Or(EMPTY, match, of("fox")),
+            match("title", "fox", options("analyzer", "english")),
+            matchPhrase("body", "quick fox", options("analyzer", "english")),
+            queryString("fox", options("analyzer", "english")),
+            queryString("fox", options("quote_analyzer", "english")),
+            new Kql(EMPTY, of("title: fox"), options("analyzer", "english"), TEST_CFG),
+            new And(EMPTY, match, match("body", "fox", options("analyzer", "english")))
+        )) {
+            assertFalse(unsupported.toString(), HighlightSupport.isSupportedImplicitPredicate(unsupported));
+        }
     }
 
     public void testAllHighlightableFieldsFiltersAndDeduplicates() {
         Attribute firstDuplicate = getFieldAttribute("duplicate", KEYWORD);
         Attribute integer = getFieldAttribute("count", INTEGER);
         Attribute metadata = new MetadataAttribute(EMPTY, MetadataAttribute.INDEX, KEYWORD, true);
-        Attribute lastDuplicate = getFieldAttribute("duplicate", TEXT);
+        // Keeping body before the replacement duplicate verifies that putLast moves the duplicate to the end.
         Attribute body = getFieldAttribute("body", TEXT);
+        Attribute lastDuplicate = getFieldAttribute("duplicate", TEXT);
 
         List<NamedExpression> fields = HighlightSupport.allHighlightableFields(
-            List.of(firstDuplicate, integer, metadata, lastDuplicate, body)
+            List.of(firstDuplicate, integer, metadata, body, lastDuplicate)
         );
 
-        assertThat(fields, equalTo(List.of(lastDuplicate, body)));
-    }
-
-    public void testAllHighlightableFieldsMovesDuplicatesToEnd() {
-        // Unlike the fixture above, `body` sits BETWEEN the two colliding `duplicate` attributes, so this input can
-        // actually distinguish "relocate to end" (putLast) from "overwrite in place" (plain put).
-        Attribute firstDuplicate = getFieldAttribute("duplicate", KEYWORD);
-        Attribute body = getFieldAttribute("body", TEXT);
-        Attribute lastDuplicate = getFieldAttribute("duplicate", TEXT);
-
-        assertThat(
-            HighlightSupport.allHighlightableFields(List.of(firstDuplicate, body, lastDuplicate)),
-            equalTo(List.of(body, lastDuplicate))
-        );
+        assertThat(fields, equalTo(List.of(body, lastDuplicate)));
     }
 
     public void testDeriveFieldsFromPositiveQueryReferences() {

@@ -356,13 +356,9 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("field [body] is not one of the searchable fields [title]"));
     }
 
-    // Against a lenient context, a QSTR naming a field outside ON resolves to nothing and becomes match-none.
-    public void testQueryStringFieldOutsideOnLenientIsMatchNone() {
+    public void testFieldsOutsideOnAreMatchNoneInLenientContext() {
         assertThat(translateLenient(queryString("body:fox", null), TITLE), instanceOf(MatchNoDocsQuery.class));
         assertThat(translateLenient(queryString("fox", options("default_field", "body")), TITLE), instanceOf(MatchNoDocsQuery.class));
-    }
-
-    public void testKqlFieldOutsideOnLenientIsMatchNone() {
         Kql kql = new Kql(EMPTY, of("body: fox"), null, TEST_CFG);
         assertThat(translateLenient(kql, TITLE), instanceOf(MatchNoDocsQuery.class));
     }

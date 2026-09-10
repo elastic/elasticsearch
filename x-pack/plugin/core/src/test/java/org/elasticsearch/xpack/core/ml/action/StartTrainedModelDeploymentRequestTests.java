@@ -280,6 +280,54 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         assertThat(e, is(nullValue()));
     }
 
+    public void testValidate_GivenDeploymentIdIsPackagedModelId() {
+        Request request = createRandom();
+        request.setDeploymentId(".elser_model_2");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
+    public void testValidate_GivenDeploymentIdIsDefaultModelIdWithHyphens() {
+        Request request = createRandom();
+        request.setDeploymentId(".multilingual-e5-small");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
+    public void testValidate_GivenDeploymentIdIsExactlyDotDot() {
+        Request request = createRandom();
+        request.setDeploymentId("..");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
+    public void testValidate_GivenDeploymentIdIsLeadingDotFollowedBySlash() {
+        Request request = createRandom();
+        request.setDeploymentId("./foo");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
+    public void testValidate_GivenDeploymentIdIsLoneLeadingDot() {
+        Request request = createRandom();
+        request.setDeploymentId(".");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
     public void testDefaults() {
         Request request = new Request(randomAlphaOfLength(10), randomAlphaOfLength(10));
         assertThat(request.getTimeout(), equalTo(TimeValue.timeValueSeconds(30)));

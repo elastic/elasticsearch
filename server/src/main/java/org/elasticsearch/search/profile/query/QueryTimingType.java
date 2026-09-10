@@ -21,8 +21,7 @@ public enum QueryTimingType {
     SCORE,
     SHALLOW_ADVANCE,
     COMPUTE_MAX_SCORE,
-    SET_MIN_COMPETITIVE_SCORE,
-    INTO_BIT_SET;
+    SET_MIN_COMPETITIVE_SCORE;
 
     @Override
     public String toString() {

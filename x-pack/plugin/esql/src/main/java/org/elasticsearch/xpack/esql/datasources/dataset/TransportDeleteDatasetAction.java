@@ -86,9 +86,7 @@ public class TransportDeleteDatasetAction extends AcknowledgedTransportMasterNod
             );
         } catch (IndexNotFoundException e) {
             final String missing = e.getIndex() != null ? e.getIndex().getName() : String.join(",", request.names());
-            ResourceNotFoundException notFound = new ResourceNotFoundException("dataset [{}] not found", missing);
-            datasetService.recordRejected(null, notFound);
-            listener.onFailure(notFound);
+            listener.onFailure(new ResourceNotFoundException("dataset [{}] not found", missing));
             return;
         }
         if (result.datasets().length == 0) {

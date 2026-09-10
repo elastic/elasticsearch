@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening.Policy;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +23,7 @@ public class TypeWideningTests extends ESTestCase {
 
     /**
      * Every type reachable on an external-dataset schema path: what the text inferrers produce, plus
-     * what a typed CSV header can declare, plus what a columnar footer can carry, including
+     * what a typed CSV header can declare, plus what a columnar footer can carry &mdash; including
      * {@code UNSUPPORTED} and {@code NULL}, which the Parquet and Arrow readers put into a file schema
      * for map and depth-capped struct columns and which therefore reach reconciliation.
      */
@@ -46,7 +47,9 @@ public class TypeWideningTests extends ESTestCase {
         // an unexpected type must get keyword, never null and never an exception.
         for (DataType a : DataType.values()) {
             for (DataType b : DataType.values()) {
-                assertNotNull(a + " join " + b, TypeWidening.join(a, b));
+                for (Policy policy : Policy.values()) {
+                    assertNotNull(a + " join " + b + " [" + policy + "]", TypeWidening.join(a, b, policy));
+                }
             }
         }
     }
@@ -59,8 +62,13 @@ public class TypeWideningTests extends ESTestCase {
     public void testJoinNeverInventsAThirdType() {
         for (DataType a : DataType.values()) {
             for (DataType b : DataType.values()) {
-                DataType joined = TypeWidening.join(a, b);
-                assertTrue(a + " join " + b + " = " + joined, joined == a || joined == b || joined == DataType.KEYWORD);
+                for (Policy policy : Policy.values()) {
+                    DataType joined = TypeWidening.join(a, b, policy);
+                    assertTrue(
+                        a + " join " + b + " [" + policy + "] = " + joined,
+                        joined == a || joined == b || joined == DataType.KEYWORD
+                    );
+                }
             }
         }
     }
@@ -71,23 +79,29 @@ public class TypeWideningTests extends ESTestCase {
      */
     public void testLatticeHasNoBottom() {
         for (DataType t : UNIVERSE) {
-            if (t == DataType.NULL) {
-                continue;
+            for (Policy policy : Policy.values()) {
+                if (t == DataType.NULL) {
+                    continue;
+                }
+                assertEquals(t + " [" + policy + "]", DataType.KEYWORD, TypeWidening.join(DataType.NULL, t, policy));
             }
-            assertEquals(t.toString(), DataType.KEYWORD, TypeWidening.join(DataType.NULL, t));
         }
     }
 
     public void testJoinIsIdempotent() {
         for (DataType t : DataType.values()) {
-            assertEquals(t.toString(), t, TypeWidening.join(t, t));
+            for (Policy policy : Policy.values()) {
+                assertEquals(t + " [" + policy + "]", t, TypeWidening.join(t, t, policy));
+            }
         }
     }
 
     public void testJoinIsCommutative() {
         for (DataType a : UNIVERSE) {
             for (DataType b : UNIVERSE) {
-                assertEquals(a + " join " + b, TypeWidening.join(a, b), TypeWidening.join(b, a));
+                for (Policy policy : Policy.values()) {
+                    assertEquals(a + " join " + b + " [" + policy + "]", TypeWidening.join(a, b, policy), TypeWidening.join(b, a, policy));
+                }
             }
         }
     }
@@ -101,9 +115,11 @@ public class TypeWideningTests extends ESTestCase {
         for (DataType a : UNIVERSE) {
             for (DataType b : UNIVERSE) {
                 for (DataType c : UNIVERSE) {
-                    DataType left = TypeWidening.join(TypeWidening.join(a, b), c);
-                    DataType right = TypeWidening.join(a, TypeWidening.join(b, c));
-                    assertEquals(a + ", " + b + ", " + c, left, right);
+                    for (Policy policy : Policy.values()) {
+                        DataType left = TypeWidening.join(TypeWidening.join(a, b, policy), c, policy);
+                        DataType right = TypeWidening.join(a, TypeWidening.join(b, c, policy), policy);
+                        assertEquals(a + ", " + b + ", " + c + " [" + policy + "]", left, right);
+                    }
                 }
             }
         }
@@ -111,62 +127,74 @@ public class TypeWideningTests extends ESTestCase {
 
     public void testKeywordAbsorbsEverything() {
         for (DataType t : UNIVERSE) {
-            assertEquals(t.toString(), DataType.KEYWORD, TypeWidening.join(t, DataType.KEYWORD));
+            for (Policy policy : Policy.values()) {
+                assertEquals(t + " [" + policy + "]", DataType.KEYWORD, TypeWidening.join(t, DataType.KEYWORD, policy));
+            }
         }
     }
 
     public void testLosslessPromotions() {
-        assertEquals(DataType.LONG, TypeWidening.join(DataType.INTEGER, DataType.LONG));
-        assertEquals(DataType.DOUBLE, TypeWidening.join(DataType.INTEGER, DataType.DOUBLE));
-        assertEquals(DataType.DATE_NANOS, TypeWidening.join(DataType.DATETIME, DataType.DATE_NANOS));
+        for (Policy policy : Policy.values()) {
+            assertEquals(DataType.LONG, TypeWidening.join(DataType.INTEGER, DataType.LONG, policy));
+            assertEquals(DataType.DOUBLE, TypeWidening.join(DataType.INTEGER, DataType.DOUBLE, policy));
+            assertEquals(DataType.DATE_NANOS, TypeWidening.join(DataType.DATETIME, DataType.DATE_NANOS, policy));
+        }
     }
 
     /**
-     * A numeric type and a temporal type have no common supertype below keyword. Answering otherwise
-     * is what let a column of numbers be typed as timestamps and read as instants in 1970.
+     * The bug this lattice exists to make impossible: a numeric type and a temporal type have no
+     * common supertype below keyword. Answering otherwise is what let a column of numbers be typed
+     * as timestamps and read as instants in 1970.
      */
     public void testNumericAndTemporalHaveNoCommonSupertype() {
         for (DataType numeric : List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.UNSIGNED_LONG)) {
             for (DataType temporal : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
-                assertEquals(numeric + " join " + temporal, DataType.KEYWORD, TypeWidening.join(numeric, temporal));
-                assertEquals(temporal + " join " + numeric, DataType.KEYWORD, TypeWidening.join(temporal, numeric));
+                for (Policy policy : Policy.values()) {
+                    assertEquals(
+                        numeric + " join " + temporal + " [" + policy + "]",
+                        DataType.KEYWORD,
+                        TypeWidening.join(numeric, temporal, policy)
+                    );
+                    assertEquals(
+                        temporal + " join " + numeric + " [" + policy + "]",
+                        DataType.KEYWORD,
+                        TypeWidening.join(temporal, numeric, policy)
+                    );
+                }
             }
         }
     }
 
     public void testBooleanJoinsNothingButItself() {
         for (DataType t : UNIVERSE) {
-            if (t == DataType.BOOLEAN) {
-                continue;
+            for (Policy policy : Policy.values()) {
+                if (t == DataType.BOOLEAN) {
+                    continue;
+                }
+                assertEquals(t + " [" + policy + "]", DataType.KEYWORD, TypeWidening.join(DataType.BOOLEAN, t, policy));
             }
-            assertEquals(t.toString(), DataType.KEYWORD, TypeWidening.join(DataType.BOOLEAN, t));
         }
     }
 
     /**
-     * {@code join} answers {@code DOUBLE} for {@code LONG + DOUBLE}. A single file of mixed integer
-     * and fractional values and a glob that splits those values across files land on the same type.
+     * The whole justification for having two policies is that they differ by one edge and no more. If
+     * a future promotion is added to one and not the other, this fails and forces the question.
      */
-    public void testJoinPromotesLongToDouble() {
-        assertEquals(DataType.DOUBLE, TypeWidening.join(DataType.LONG, DataType.DOUBLE));
-        assertEquals(DataType.DOUBLE, TypeWidening.join(DataType.DOUBLE, DataType.LONG));
-    }
-
-    /**
-     * {@code widenLossless} stays null for {@code LONG + DOUBLE} so strict callers can tell "no lossless
-     * supertype" from "the answer is keyword". That is the only pair where {@code join} returns a
-     * non-keyword type and {@code widenLossless} does not answer.
-     */
-    public void testWidenLosslessExcludesOnlyLongDouble() {
-        List<String> excluded = new ArrayList<>();
+    public void testPoliciesDifferOnExactlyOneEdge() {
+        List<String> differing = new ArrayList<>();
         for (DataType a : UNIVERSE) {
             for (DataType b : UNIVERSE) {
-                if (TypeWidening.widenLossless(a, b) == null && TypeWidening.join(a, b) != DataType.KEYWORD) {
-                    excluded.add(a + "+" + b);
+                DataType inference = TypeWidening.join(a, b, Policy.INFERENCE);
+                DataType reconciliation = TypeWidening.join(a, b, Policy.RECONCILIATION);
+                if (inference != reconciliation) {
+                    differing.add(a + "+" + b);
                 }
             }
         }
-        assertEquals("only LONG+DOUBLE is a lossy join promotion, got " + excluded, List.of("LONG+DOUBLE", "DOUBLE+LONG"), excluded);
+        // Both orderings of the one pair.
+        assertEquals("policies must differ on LONG+DOUBLE and nothing else, got " + differing, 2, differing.size());
+        assertEquals(DataType.DOUBLE, TypeWidening.join(DataType.LONG, DataType.DOUBLE, Policy.INFERENCE));
+        assertEquals(DataType.KEYWORD, TypeWidening.join(DataType.LONG, DataType.DOUBLE, Policy.RECONCILIATION));
     }
 
     /**
@@ -182,12 +210,12 @@ public class TypeWideningTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, TypeWidening.widenLossless(DataType.KEYWORD, DataType.KEYWORD));
     }
 
-    public void testWidenLosslessAgreesWithJoinWhereverItAnswers() {
+    public void testWidenLosslessAgreesWithReconciliationJoinWhereverItAnswers() {
         for (DataType a : UNIVERSE) {
             for (DataType b : UNIVERSE) {
                 DataType lossless = TypeWidening.widenLossless(a, b);
                 if (lossless != null) {
-                    assertEquals(a + "+" + b, lossless, TypeWidening.join(a, b));
+                    assertEquals(a + "+" + b, lossless, TypeWidening.join(a, b, Policy.RECONCILIATION));
                 }
             }
         }

@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
-import java.util.List;
-
 /**
  * Compact file listing that groups files by the relative directory they were listed under. Each file
  * carries the index of its directory; {@link #path(int)} replays {@code basePath + directory + leaf}
@@ -48,7 +46,6 @@ final class DirectoryGroupedFileList implements FileList {
      */
     @Nullable
     private final FileSetFingerprint fileSetFingerprint;
-    private final List<String> exclusionWarnings;
 
     DirectoryGroupedFileList(
         String basePath,
@@ -62,8 +59,7 @@ final class DirectoryGroupedFileList implements FileList {
         @Nullable String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
         int fileCount,
-        @Nullable FileSetFingerprint fileSetFingerprint,
-        List<String> exclusionWarnings
+        @Nullable FileSetFingerprint fileSetFingerprint
     ) {
         this.basePath = basePath;
         this.groupDirs = groupDirs;
@@ -77,7 +73,6 @@ final class DirectoryGroupedFileList implements FileList {
         this.partitionMetadata = partitionMetadata;
         this.fileCount = fileCount;
         this.fileSetFingerprint = fileSetFingerprint;
-        this.exclusionWarnings = exclusionWarnings == null || exclusionWarnings.isEmpty() ? List.of() : List.copyOf(exclusionWarnings);
     }
 
     @Override
@@ -163,11 +158,6 @@ final class DirectoryGroupedFileList implements FileList {
         if (sharedExtension != null) {
             bytes += 40 + sharedExtension.length() * (long) Character.BYTES;
         }
-        return bytes + exclusionWarningBytes();
-    }
-
-    @Override
-    public List<String> exclusionWarnings() {
-        return exclusionWarnings;
+        return bytes;
     }
 }

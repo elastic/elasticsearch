@@ -1308,8 +1308,7 @@ class NodeConstruction {
             fileSettingsService,
             threadPool,
             projectResolver.supportsMultipleProjects(),
-            pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance),
-            featureService
+            pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance)
         );
 
         DiscoveryModule discoveryModule = createDiscoveryModule(

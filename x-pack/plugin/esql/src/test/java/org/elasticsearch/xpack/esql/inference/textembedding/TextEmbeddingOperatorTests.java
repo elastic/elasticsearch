@@ -20,7 +20,6 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.inference.AbstractDenseEmbeddingOperatorTestCase;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -36,15 +35,25 @@ import static org.hamcrest.Matchers.matchesRegex;
 public class TextEmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTestCase {
 
     @Override
-    protected Operator.OperatorFactory createOperatorFactory(InferenceService inferenceService, int batchSize, boolean tolerateFailures) {
+    protected Operator.OperatorFactory createOperatorFactory(InferenceService inferenceService) {
         return new TextEmbeddingOperator.Factory(
             inferenceService,
             SIMPLE_INFERENCE_ID,
             evaluatorFactory(inputChannel),
-            batchSize,
             null,
             Source.EMPTY,
-            tolerateFailures
+            false
+        );
+    }
+
+    private Operator.OperatorFactory createTolerantOperatorFactory(InferenceService inferenceService) {
+        return new TextEmbeddingOperator.Factory(
+            inferenceService,
+            SIMPLE_INFERENCE_ID,
+            evaluatorFactory(inputChannel),
+            null,
+            Source.EMPTY,
+            true
         );
     }
 
@@ -62,7 +71,7 @@ public class TextEmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTe
         var runner = new TestDriverRunner().builder(driverContext);
         runner.input(simpleInput(runner.context().blockFactory(), inputSize));
 
-        List<Page> results = runner.run(createOperatorFactory(failingService, InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE, true));
+        List<Page> results = runner.run(createTolerantOperatorFactory(failingService));
         try {
             // The query completes instead of throwing, and every embedding output value is null.
             for (Page resultPage : results) {
@@ -100,10 +109,7 @@ public class TextEmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTe
             var runner = new TestDriverRunner().builder(driverContext());
             runner.input(simpleInput(runner.context().blockFactory(), between(1, 100)));
 
-            Exception actual = expectThrows(
-                Exception.class,
-                () -> runner.run(createOperatorFactory(failingService, InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE, true))
-            );
+            Exception actual = expectThrows(Exception.class, () -> runner.run(createTolerantOperatorFactory(failingService)));
             assertThat(actual.getMessage(), containsString(fatal.getMessage()));
         }
     }
@@ -123,22 +129,13 @@ public class TextEmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTe
         var runner = new TestDriverRunner().builder(driverContext);
         runner.input(simpleInput(runner.context().blockFactory(), between(1, 100)));
 
-        Exception actual = expectThrows(
-            Exception.class,
-            () -> runner.run(createOperatorFactory(failingService, InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE, true))
-        );
+        Exception actual = expectThrows(Exception.class, () -> runner.run(createTolerantOperatorFactory(failingService)));
         assertThat(actual.getMessage(), containsString("rejected execution"));
         assertThat(collectWarnings(driverContext), empty());
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo(
-            "TextEmbeddingOperator[inference_id=["
-                + SIMPLE_INFERENCE_ID
-                + "], batch_size=["
-                + InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE
-                + "]]"
-        );
+        return equalTo("TextEmbeddingOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "]]");
     }
 }

@@ -447,8 +447,7 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
                         blobContainer,
                         request.blobName,
                         request.copyBlobName,
-                        request.targetLength,
-                        null
+                        request.targetLength
                     );
                     copySuccess = true;
                 } catch (UnsupportedOperationException uoe) {
@@ -500,8 +499,7 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
                         blobContainer,
                         request.blobName,
                         request.copyBlobName,
-                        request.targetLength,
-                        null
+                        request.targetLength
                     );
                     copySuccess = true;
                 } catch (UnsupportedOperationException uoe) {

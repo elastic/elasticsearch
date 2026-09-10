@@ -910,7 +910,6 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
-        // Coordinators always rebuild the ShardSearchRequest, so data nodes omit it from shard results.
         return new ShardSearchRequest(
             shardIt.getOriginalIndices(),
             request,
@@ -924,7 +923,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
             shardIt.getSearchContextId(),
             shardIt.getSearchContextKeepAlive(),
             shardIt.getSplitShardCountSummary(),
-            true
+            ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST_FEATURE_FLAG.isEnabled()
         );
     }
 

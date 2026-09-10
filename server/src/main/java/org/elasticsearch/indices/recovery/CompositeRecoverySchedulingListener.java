@@ -93,9 +93,9 @@ public class CompositeRecoverySchedulingListener implements RecoverySchedulingLi
     }
 
     @Override
-    public void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type, RecoveryState.Stage stage, long elapsedTimeMillis) {
+    public void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onStartedRecoveryCancelledOnTarget(type, stage, elapsedTimeMillis);
+            listener.onStartedRecoveryCancelledOnTarget(type);
         }
     }
 

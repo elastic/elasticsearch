@@ -8,17 +8,11 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.esql.datasources.DecompressionCodecRegistry;
-import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractDataSourceValidatorTests;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
-import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,13 +22,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
-    private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
-        .withResourceCheck(S3ResourceCheck::validate);
+    private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"));
 
     @Override
     protected DataSourceValidator validator() {
@@ -111,40 +102,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         "s3",
         S3Configuration::fromMap,
         Set.of("s3", "s3a", "s3n")
-    ).withFormatConfigKeyResolver(CSV_RESOLVER).withFormatReaderRegistry(csvGzipRegistry());
-
-    /**
-     * Registry the production validator uses for compound-extension inference. Mockito stub: only
-     * {@link FormatReader#formatName()}, {@link FormatReader#fileExtensions()}, and
-     * {@link FormatReader#supportsWholeFileCompression()} are consulted.
-     */
-    private static FormatReaderRegistry csvGzipRegistry() {
-        FormatReader csv = mock(FormatReader.class);
-        when(csv.formatName()).thenReturn("csv");
-        when(csv.fileExtensions()).thenReturn(List.of(".csv"));
-        when(csv.supportsWholeFileCompression()).thenReturn(true);
-        DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
-        codecs.register(new DecompressionCodec() {
-            @Override
-            public String name() {
-                return "gzip";
-            }
-
-            @Override
-            public List<String> extensions() {
-                return List.of(".gz");
-            }
-
-            @Override
-            public InputStream decompress(InputStream raw) {
-                return raw;
-            }
-        });
-        FormatReaderRegistry registry = new FormatReaderRegistry(codecs);
-        registry.registerLazy("csv", (s, bf) -> csv, Settings.EMPTY, null);
-        registry.registerExtension(".csv", "csv");
-        return registry;
-    }
+    ).withFormatConfigKeyResolver(CSV_RESOLVER, Set.of(".gz"));
 
     public void testValidateDatasourceWithCredentials() {
         var result = validator.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "secret", "region", "us-east-1"));
@@ -161,14 +119,6 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     public void testValidateDatasourceRejectsInvalidAuth() {
         expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("auth", "oauth2")));
-    }
-
-    public void testValidateDatasourceRejectsInvalidAddressingStyle() {
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDatasource(Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "ftp_style"))
-        );
-        assertThat(e.getMessage(), containsString("Unsupported addressing_style value [ftp_style]"));
     }
 
     public void testValidateDatasourceAuthCaseInsensitive() {
@@ -553,68 +503,6 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
     }
 
-    public void testValidateDatasetFileSortByRequiresFirstFileWins() {
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_resolution", "union_by_name", "file_sort_by", "list"))
-        );
-        assertThat(e.getMessage(), containsString("file_sort_by"));
-        assertThat(e.getMessage(), containsString("file_order"));
-        assertThat(e.getMessage(), containsString("first_file_wins"));
-    }
-
-    public void testValidateDatasetFileOrderRequiresFirstFileWins() {
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_resolution", "strict", "file_order", "desc"))
-        );
-        assertThat(e.getMessage(), containsString("file_sort_by"));
-        assertThat(e.getMessage(), containsString("file_order"));
-        assertThat(e.getMessage(), containsString("first_file_wins"));
-    }
-
-    public void testValidateDatasetFileSortByRejectedWhenSchemaResolutionOmitted() {
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_sort_by", "name"))
-        );
-        assertThat(e.getMessage(), containsString("first_file_wins"));
-    }
-
-    public void testValidateDatasetFileSortByAcceptedWithFirstFileWins() {
-        Map<String, Object> result = validator.validateDataset(
-            Map.of(),
-            "s3://b/p",
-            Map.of("schema_resolution", "first_file_wins", "file_sort_by", "mtime", "file_order", "desc")
-        );
-        assertEquals("first_file_wins", result.get("schema_resolution"));
-        assertEquals("mtime", result.get("file_sort_by"));
-        assertEquals("desc", result.get("file_order"));
-    }
-
-    public void testValidateDatasetUnknownFileSortByRejected() {
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(
-                Map.of(),
-                "s3://b/p",
-                Map.of("schema_resolution", "first_file_wins", "file_sort_by", "created_time")
-            )
-        );
-        assertThat(e.getMessage(), containsString("Unknown file_sort_by value [created_time]"));
-        assertThat(e.getMessage(), containsString("list, name, mtime"));
-    }
-
-    public void testValidateDatasetLegacySortByAndOrderAreUnknownSettings() {
-        var sortBy = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("sort_by", "name"))
-        );
-        assertThat(sortBy.getMessage(), containsString("unknown setting [sort_by]"));
-        var order = expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("order", "desc")));
-        assertThat(order.getMessage(), containsString("unknown setting [order]"));
-    }
-
     public void testValidateDatasetMaxErrors() {
         assertEquals("100", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "100")).get("max_errors"));
     }
@@ -853,19 +741,8 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         assertThat(e.validationErrors(), hasSize(2));
         assertThat(e.validationErrors(), hasItem("[resource] is required"));
-        // The "known settings: [...]" suffix is sorted, so it is stable across JVM runs and can be matched
-        // in full. Matching only the prefix would let the list go back to Set.of iteration order unnoticed.
+        // The "known settings: [...]" suffix lists an unordered set, so match only the stable prefix.
         assertThat(e.validationErrors(), hasItem(containsString("unknown setting [delimiter]")));
-        assertThat(
-            e.validationErrors(),
-            hasItem(
-                containsString(
-                    "known settings: [error_mode, file_exclusions, file_order, file_sort_by, format, hive_partitioning, "
-                        + "max_error_ratio, max_errors, max_split_probes, partition_detection, partition_path, "
-                        + "schema_resolution, schema_sample_size, split_probe_window, target_split_size]"
-                )
-            )
-        );
     }
 
     public void testUnknownExplicitFormatRejected() {
@@ -903,8 +780,6 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         assertThat(e.validationErrors(), hasSize(1));
         assertThat(e.validationErrors().get(0), containsString("unknown setting [not_a_setting]"));
-        assertThat(e.validationErrors().get(0), containsString("file_sort_by"));
-        assertThat(e.validationErrors().get(0), containsString("file_order"));
         assertThat(e.getMessage(), not(containsString("cannot determine format")));
     }
 
@@ -935,268 +810,6 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         expectThrows(
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "auto", "delimiter", "|"))
-        );
-    }
-
-    // --- ARN and MRAP resource rejection ---
-
-    public void testValidateDatasetRejectsMrapHost() {
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://mfzwi23gnjvgw.mrap/data/f.parquet", Map.of())
-        );
-        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
-        assertThat(e.getMessage(), containsString("s3://mfzwi23gnjvgw.mrap/data/f.parquet"));
-    }
-
-    public void testValidateDatasetRejectsMrapArn() {
-        // ARN whose first path segment ends with .mrap — gets MRAP message, not generic ARN message.
-        // The not() assertion catches a missing return after the MRAP branch.
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(
-                Map.of(),
-                "s3://arn:aws:s3::444732909647:accesspoint/mfzwi23gnjvgw.mrap/data/f.parquet",
-                Map.of()
-            )
-        );
-        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
-        assertThat(e.getMessage(), not(containsString("does not accept an ARN")));
-    }
-
-    public void testValidateDatasetRejectsMrapFqdn() {
-        // Full AWS global endpoint hostname that MRAP aliases resolve to — must get the MRAP message.
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(
-                Map.of(),
-                "s3://mfzwi23gnjvgw.mrap.accesspoint.s3-global.amazonaws.com/data/f.parquet",
-                Map.of()
-            )
-        );
-        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
-        assertThat(e.getMessage(), not(containsString("does not accept an ARN")));
-    }
-
-    public void testValidateDatasetRejectsAccessPointArn() {
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://arn:aws:s3:us-east-1:444732909647:accesspoint/my-ap/data/f.parquet", Map.of())
-        );
-        assertThat(e.getMessage(), containsString("does not accept an ARN"));
-        assertThat(e.getMessage(), containsString("Use a bucket name, or an access point alias"));
-    }
-
-    public void testValidateDatasetRejectsObjectLambdaArn() {
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(
-                Map.of(),
-                "s3://arn:aws:s3-object-lambda:us-east-1:444732909647:accesspoint/olap/data/f.parquet",
-                Map.of()
-            )
-        );
-        assertThat(e.getMessage(), containsString("does not accept an ARN"));
-    }
-
-    public void testValidateDatasetRejectsOutpostsArn() {
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(
-                Map.of(),
-                "s3://arn:aws:s3-outposts:us-east-1:444732909647:outpost/op-x/accesspoint/ap/data/f.parquet",
-                Map.of()
-            )
-        );
-        assertThat(e.getMessage(), containsString("does not accept an ARN"));
-    }
-
-    public void testValidateDatasetRejectsS3TablesArn() {
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://arn:aws:s3tables:us-east-1:444732909647:bucket/tb/ns/tbl", Map.of())
-        );
-        assertThat(e.getMessage(), containsString("does not accept an ARN"));
-    }
-
-    public void testValidateDatasetRejectsAccessGrantsArn() {
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(
-                Map.of(),
-                "s3://arn:aws:s3:us-east-1:444732909647:access-grants/default/data/f.parquet",
-                Map.of()
-            )
-        );
-        assertThat(e.getMessage(), containsString("does not accept an ARN"));
-    }
-
-    public void testValidateDatasetArnCheckIsCaseInsensitive() {
-        // ARN prefix matching must be case-insensitive
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://ARN:aws:s3:us-east-1:123:accesspoint/x/f.parquet", Map.of())
-        );
-        assertThat(e.getMessage(), containsString("does not accept an ARN"));
-    }
-
-    public void testValidateDatasetMrapCheckIsCaseInsensitive() {
-        // .mrap suffix matching must be case-insensitive
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://mfzwi23gnjvgw.MRAP/data/f.parquet", Map.of())
-        );
-        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
-    }
-
-    public void testValidateDatasetAcceptsNormalBucket() {
-        // control — must not be rejected
-        assertNotNull(validator.validateDataset(Map.of(), "s3://my-bucket/data/f.parquet", Map.of()));
-    }
-
-    public void testValidateDatasetAcceptsMrapInKey() {
-        // .mrap appears in the key path, not the host — legal bucket + key, must be accepted
-        assertNotNull(validator.validateDataset(Map.of(), "s3://my-bucket/archive.mrap/data.parquet", Map.of()));
-    }
-
-    public void testValidateDatasetAccessPointAlias() {
-        assertNotNull(validator.validateDataset(Map.of(), "s3://my-ap-a1b2c3d4e-s3alias/data/f.parquet", Map.of()));
-    }
-
-    public void testValidateDatasetObjectLambdaAlias() {
-        assertNotNull(validator.validateDataset(Map.of(), "s3://myolap-1a4n8t--ol-s3/data/f.parquet", Map.of()));
-    }
-
-    public void testValidateDatasetOutpostsAlias() {
-        assertNotNull(validator.validateDataset(Map.of(), "s3://my-access-po-o01ac--op-s3/data/f.parquet", Map.of()));
-    }
-
-    public void testValidateDatasetExpressDirectoryBucket() {
-        assertNotNull(validator.validateDataset(Map.of(), "s3://my-bucket--use1-az4--x-s3/data/f.parquet", Map.of()));
-    }
-
-    public void testValidateDatasetDottedBucketName() {
-        assertNotNull(validator.validateDataset(Map.of(), "s3://my.dotted.bucket/data/f.parquet", Map.of()));
-    }
-
-    public void testValidateDatasetMrapInsideNameNotRejected() {
-        // ends-with check: ".mrap" must appear at the end, not as a substring in the middle
-        assertNotNull(validator.validateDataset(Map.of(), "s3://bucket-with.mrap-inside/data/f.parquet", Map.of()));
-    }
-
-    public void testValidateDatasetArnPrefixWithoutColonNotRejected() {
-        // "arn" without the colon is a legal bucket name prefix — only "arn:" triggers the check
-        assertNotNull(validator.validateDataset(Map.of(), "s3://arnold-bucket/data/f.parquet", Map.of()));
-    }
-
-    /**
-     * The load-bearing rewrap-survival test: the S3 resource check must survive all EsqlPlugin
-     * withers. If the resourceCheck field is missing from any wither's private-constructor call, it is
-     * silently dropped and ARN/MRAP resources pass validation after the re-wrap.
-     */
-    public void testResourceCheckSurvivesAllWithers() {
-        FileDataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
-            .withResourceCheck(S3ResourceCheck::validate)
-            .withManagedIdentityEnabled(() -> false)
-            .withFederatedIdentityEnabled(() -> false)
-            .withFormatReaderRegistry(csvGzipRegistry())
-            .withFormatConfigKeyResolver(CSV_RESOLVER);
-
-        var e = expectThrows(
-            ValidationException.class,
-            () -> v.validateDataset(Map.of(), "s3://arn:aws:s3:us-east-1:123456789012:accesspoint/my-ap/data/f.parquet", Map.of())
-        );
-        assertThat(e.getMessage(), containsString("does not accept an ARN"));
-
-        var e2 = expectThrows(
-            ValidationException.class,
-            () -> v.validateDataset(Map.of(), "s3://mfzwi23gnjvgw.mrap/data/f.parquet", Map.of())
-        );
-        assertThat(e2.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
-    }
-
-    /**
-     * Verifies that {@link S3DataSourcePlugin#datasourceValidators} wires the S3 resource check.
-     * If {@code .withResourceCheck(...)} were dropped from the plugin, this test would fail while
-     * unit tests that construct {@link FileDataSourceValidator} directly would still pass.
-     */
-    public void testDatasourceValidatorsIncludesResourceCheck() {
-        DataSourceValidator v = new S3DataSourcePlugin().datasourceValidators(org.elasticsearch.common.settings.Settings.EMPTY).get("s3");
-        var e = expectThrows(
-            ValidationException.class,
-            () -> v.validateDataset(Map.of(), "s3://arn:aws:s3:us-east-1:123456789012:accesspoint/my-ap/data/f.parquet", Map.of())
-        );
-        assertThat(e.getMessage(), containsString("does not accept an ARN"));
-    }
-
-    // --- Glob metacharacter and object-key special-character tests ---
-    // '?' is a first-class glob metacharacter (StoragePath.GLOB_METACHARACTERS). Every object matched by
-    // "day?.csv" ends in ".csv", so the format is inferable from the pattern's own extension. The validator
-    // must not apply URL query-string semantics (truncation at '?') to object-store paths.
-
-    public void testFormatAwareValidatorInfersFormatThroughQuestionMarkGlob() {
-        // '?' is a glob metacharacter; every object this pattern matches ends in .csv.
-        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/logs/day?.csv", Map.of("delimiter", ";"));
-        assertEquals(";", result.get("delimiter"));
-    }
-
-    public void testFormatAwareValidatorInfersFormatThroughQuestionMarkGlobCompoundExtension() {
-        // '?' glob + compound extension (.csv.gz): outer ext .gz triggers compression fallback,
-        // inner ext .csv resolves the format. A naive strip at '?' would yield "day" (no extension).
-        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/logs/day?.csv.gz", Map.of("delimiter", ";"));
-        assertEquals(";", result.get("delimiter"));
-    }
-
-    public void testFormatAwareValidatorInfersFormatThroughStarGlob() {
-        // '*' glob: same extension guarantee, same fix must not regress it.
-        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/logs/day*.csv", Map.of("delimiter", ";"));
-        assertEquals(";", result.get("delimiter"));
-    }
-
-    public void testFormatAwareValidatorHashInObjectKeyInfersFormat() {
-        // '#' is a legal object-store key character; it must not be treated as a URI fragment delimiter.
-        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/report#1.csv", Map.of("delimiter", ";"));
-        assertEquals(";", result.get("delimiter"));
-    }
-
-    public void testFormatAwareValidatorVersionIdQueryStringInfersFormat() {
-        // '?' after the extension (e.g. S3 versionId URLs) must not break format inference.
-        // FormatNameResolverTests pins this shape as supported at query time; CRUD must agree.
-        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/file.csv?versionId=abc", Map.of("delimiter", ";"));
-        assertEquals(";", result.get("delimiter"));
-    }
-
-    public void testFormatAwareValidatorFormatFlipEdgeCaseDocumented() {
-        // An S3 key literally named "data.parquet?x=.csv": last extension is ".csv", so the validator
-        // resolves format=csv and accepts CSV settings. Pre-fix this was rejected (ext ".parquet" maps
-        // to no format in this test resolver); after fix it is accepted because the last dot wins.
-        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data.parquet?x=.csv", Map.of("delimiter", ";"));
-        assertEquals(";", result.get("delimiter"));
-    }
-
-    public void testUnsupportedSchemeListsTheSchemesInAStableOrder() {
-        // Nine schemes declared out of order. Set.of salts its iteration per JVM run; over nine elements the sorted
-        // arrangement is not among the orderings it can produce, so with the renderer's sort removed this fails every
-        // time. A three-element set does reach sorted order, which is why one is not a gate.
-        DataSourceValidator manySchemes = new FileDataSourceValidator(
-            "s3",
-            S3Configuration::fromMap,
-            Set.of("s3n", "s3a", "zs3", "ms3", "as3", "s3", "ks3", "bs3", "ys3")
-        );
-
-        var e = expectThrows(
-            ValidationException.class,
-            () -> manySchemes.validateDataset(Map.of(), "ftp://bucket/data/good.csv", Map.of())
-        );
-
-        assertThat(
-            e.validationErrors(),
-            hasItem(
-                containsString(
-                    "[resource] must use one of the supported URI schemes "
-                        + "[as3://, bs3://, ks3://, ms3://, s3://, s3a://, s3n://, ys3://, zs3://]"
-                )
-            )
         );
     }
 }

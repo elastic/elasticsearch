@@ -138,14 +138,8 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void copyBlob(
-        OperationPurpose purpose,
-        BlobContainer sourceBlobContainer,
-        String sourceBlobName,
-        String blobName,
-        long blobSize,
-        @Nullable Executor executor
-    ) throws IOException {
+    public void copyBlob(OperationPurpose purpose, BlobContainer sourceBlobContainer, String sourceBlobName, String blobName, long blobSize)
+        throws IOException {
         assert BlobContainer.assertPurposeConsistency(purpose, sourceBlobName);
         assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         if (sourceBlobContainer instanceof AzureBlobContainer == false) {

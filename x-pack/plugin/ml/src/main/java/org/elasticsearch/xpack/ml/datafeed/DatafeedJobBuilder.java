@@ -55,7 +55,6 @@ public class DatafeedJobBuilder {
     // after MachineLearning.createComponents() runs. Eager capture would freeze a Noop value
     // here and silently strip the cloud token from the datafeed runner's field_caps probe.
     private final Supplier<CloudCredentialManager> cloudCredentialManagerSupplier;
-    private final DatafeedSearchTelemetry searchTelemetry;
 
     private volatile long delayedDataCheckFreq;
     private volatile int ccsStabilizationCycles;
@@ -70,8 +69,7 @@ public class DatafeedJobBuilder {
         JobResultsPersister jobResultsPersister,
         Settings settings,
         ClusterService clusterService,
-        Supplier<CloudCredentialManager> cloudCredentialManagerSupplier,
-        DatafeedSearchTelemetry searchTelemetry
+        Supplier<CloudCredentialManager> cloudCredentialManagerSupplier
     ) {
         this.client = client;
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
@@ -86,7 +84,6 @@ public class DatafeedJobBuilder {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
         this.cloudCredentialManagerSupplier = Objects.requireNonNull(cloudCredentialManagerSupplier);
-        this.searchTelemetry = Objects.requireNonNull(searchTelemetry);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DELAYED_DATA_CHECK_FREQ, this::setDelayedDataCheckFreq);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CCS_STABILIZATION_CYCLES, v -> this.ccsStabilizationCycles = v);
         clusterService.getClusterSettings()
@@ -204,7 +201,6 @@ public class DatafeedJobBuilder {
             job,
             xContentRegistry,
             timingStatsReporter,
-            searchTelemetry,
             dataExtractorFactoryHandler
         );
     }

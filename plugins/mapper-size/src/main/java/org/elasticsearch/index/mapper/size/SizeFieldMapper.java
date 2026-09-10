@@ -119,7 +119,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
         // postParse is a no-op when disabled (the common case). The enabled case needs the raw
         // request source size as a column; revisit alongside SourceFieldMapper when we add stored source
         // support.

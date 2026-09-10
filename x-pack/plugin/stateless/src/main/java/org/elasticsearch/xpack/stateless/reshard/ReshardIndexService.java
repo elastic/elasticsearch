@@ -46,8 +46,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
@@ -60,10 +58,8 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -232,41 +228,31 @@ public class ReshardIndexService {
      * Called by the SplitTargetService when a request to move to split has completed.
      * This is not performed directly by {@link #transitionTargetState} because that runs as a master action
      * which may not be on the same node as the target shard. It is expected to be called by SplitTargetService.
-     * @param indexShard the shard that has completed the split
+     * @param shardId the shard that has completed the split
      */
-    void notifySplitCompletion(IndexShard indexShard) {
-        splitCompletionTracker.notifyCompletion(indexShard);
+    void notifySplitCompletion(ShardId shardId) {
+        splitCompletionTracker.notifyCompletion(shardId);
     }
 
     /**
      * Called by the SplitTargetService when a request to move to split has failed.
      * Listeners waiting for the split to complete will be notified of the failure.
      * Any new listeners will immediately fail until a subsequent split attempt succeeds.
-     * @param indexShard the shard that has failed to split
-     * @param e          the exception describing the failure
+     * @param shardId the shard that has failed to split
+     * @param e       the exception describing the failure
      */
-    void notifySplitFailure(IndexShard indexShard, Exception e) {
-        splitCompletionTracker.notifyFailure(indexShard, e);
+    void notifySplitFailure(ShardId shardId, Exception e) {
+        splitCompletionTracker.notifyFailure(shardId, e);
     }
 
     /**
      * Called to stop tracking split completion for a shard and release resources.
      * Call this when the target shard has moved to DONE or beyond, at which point there
      * is no need to register listeners waiting for split completion.
-     * @param indexShard the shard that has moved past the tracking stage
+     * @param shardId the shard that has moved past the tracking stage
      */
-    void stopTrackingSplit(IndexShard indexShard) {
-        splitCompletionTracker.stopTrackingShard(indexShard);
-    }
-
-    /** Call when the shard is closed before its split finished, since nothing else will complete its listeners. */
-    void failAndStopTrackingSplit(IndexShard indexShard, Exception e) {
-        splitCompletionTracker.failAndStopTrackingShard(indexShard, e);
-    }
-
-    // visible for testing: a finished or cancelled split must clear this, or the closed IndexShard stays pinned.
-    Set<ShardId> getShardsTrackingSplitCompletion() {
-        return splitCompletionTracker.getTrackedShards();
+    void stopTrackingSplit(ShardId shardId) {
+        splitCompletionTracker.stopTrackingShard(shardId);
     }
 
     public void transitionSourceState(
@@ -295,13 +281,7 @@ public class ReshardIndexService {
         try {
             final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final var indexShard = indexService.getShard(shardId.id());
-            maybeAwaitSplit(indexShard.indexSettings().getIndexMetadata().getReshardingMetadata(), indexShard, listener);
-            // Closing a shard cancels its split, and that cancellation only fails listeners registered at that moment. The
-            // cancellation can land between the getShard above and the registerListener inside maybeAwaitSplit, leaving this
-            // listener stranded. The shard is gone from IndexService by then, so re-check and fail this listener here.
-            if (indexService.getShardOrNull(shardId.id()) != indexShard) {
-                failAndStopTrackingSplit(indexShard, new IndexShardClosedException(shardId));
-            }
+            maybeAwaitSplit(indexShard.indexSettings().getIndexMetadata().getReshardingMetadata(), shardId, listener);
         } catch (IndexNotFoundException | IndexClosedException | ShardNotFoundException e) {
             // let the caller deal with this as appropriate for the waiting operation
             listener.onFailure(e);
@@ -309,8 +289,7 @@ public class ReshardIndexService {
     }
 
     // visible for testing
-    void maybeAwaitSplit(IndexReshardingMetadata reshardingMetadata, IndexShard indexShard, ActionListener<Void> listener) {
-        final var shardId = indexShard.shardId();
+    void maybeAwaitSplit(IndexReshardingMetadata reshardingMetadata, ShardId shardId, ActionListener<Void> listener) {
         // we assume that we cannot proceed past the SPLIT state without requiring all coordinator nodes
         // to have seen the state (or that any that haven't will have their requests failed), so if there
         // is no metadata or the target shard is past SPLIT, there is no need to wait.
@@ -328,7 +307,7 @@ public class ReshardIndexService {
             return;
         }
         // Otherwise, request to be notified when the shard state has advanced.
-        splitCompletionTracker.registerListener(indexShard, listener);
+        splitCompletionTracker.registerListener(shardId, listener);
     }
 
     public void deleteUnownedDocuments(ShardId shardId, ActionListener<Void> listener) {
@@ -365,7 +344,7 @@ public class ReshardIndexService {
                             shardId.getId()
                         );
                         final var refreshRequest = new BasicReplicationRequest(shardId, splitShardCountSummary);
-                        client.execute(
+                        client.executeLocally(
                             TransportShardRefreshAction.TYPE,
                             refreshRequest,
                             refreshListener.delegateFailure((inner, response) -> {
@@ -870,63 +849,50 @@ public class ReshardIndexService {
     // that if we're shutting down anyway there's no point in notifying these listeners. Tearing
     // down the node should fail any remote requests anyway.
     private static class SplitCompletionTracker {
-        // A replacement shard reuses the ShardId, so key on the instance; otherwise it inherits the closed shard's listeners.
-        private final ConcurrentHashMap<IndexShard, ShardSplitCompletionTracker> shardListeners;
+        private final ConcurrentHashMap<ShardId, ShardSplitCompletionTracker> shardListeners;
 
         SplitCompletionTracker() {
             shardListeners = new ConcurrentHashMap<>();
         }
 
-        public void registerListener(IndexShard indexShard, ActionListener<Void> listener) {
-            getOrCreateShardTracker(indexShard).registerListener(listener);
+        public void registerListener(ShardId shardId, ActionListener<Void> listener) {
+            getOrCreateShardTracker(shardId).registerListener(listener);
         }
 
         /**
          * Call when a shard split has been acknowledged by all coordinating nodes
          * This will notify all enqueued listeners as well as ensure that any new listeners that register after
          * split has completed are immediately notified.
-         * @param indexShard the shard that has completed split
+         * @param shardId the shard that has completed split
          */
-        public void notifyCompletion(IndexShard indexShard) {
-            logger.debug("notifying split completion for shard {}", indexShard.shardId());
-            getOrCreateShardTracker(indexShard).notifyCompletion();
+        public void notifyCompletion(ShardId shardId) {
+            logger.debug("notifying split completion for shard {}", shardId);
+            getOrCreateShardTracker(shardId).notifyCompletion();
         }
 
         /**
          * Notify listeners that the last attempt to transition to split failed
          * This state is latched until the shard successfully splits, which means after this function is called,
          * all new listeners will instantly fail until notifyCompletion is called to reset the latch.
-         * @param indexShard the shard that failed to split
-         * @param e          the exception that caused the failure
+         * @param shardId the shard that failed to split
+         * @param e       the exception that caused the failure
          */
-        public void notifyFailure(IndexShard indexShard, Exception e) {
-            getOrCreateShardTracker(indexShard).notifyFailure(e);
+        public void notifyFailure(ShardId shardId, Exception e) {
+            getOrCreateShardTracker(shardId).notifyFailure(e);
         }
 
         /**
          * Stop tracking listeners for the given shard and remove any stored state.
          * This should be called when the target shard has moved to DONE state to reclaim memory.
-         * @param indexShard
+         * @param shardId
          */
-        public void stopTrackingShard(IndexShard indexShard) {
-            final var listener = shardListeners.remove(indexShard);
+        public void stopTrackingShard(ShardId shardId) {
+            final var listener = shardListeners.remove(shardId);
             assert listener == null || listener.hasListeners() == false : "removing shard tracker with registered listeners";
         }
 
-        public void failAndStopTrackingShard(IndexShard indexShard, Exception e) {
-            final var tracker = shardListeners.get(indexShard);
-            if (tracker != null) {
-                tracker.notifyFailure(e);
-                shardListeners.remove(indexShard, tracker);
-            }
-        }
-
-        public Set<ShardId> getTrackedShards() {
-            return shardListeners.keySet().stream().map(IndexShard::shardId).collect(Collectors.toSet());
-        }
-
-        private ShardSplitCompletionTracker getOrCreateShardTracker(IndexShard indexShard) {
-            return shardListeners.computeIfAbsent(indexShard, k -> new ShardSplitCompletionTracker());
+        private ShardSplitCompletionTracker getOrCreateShardTracker(ShardId shardId) {
+            return shardListeners.computeIfAbsent(shardId, k -> new ShardSplitCompletionTracker());
         }
     }
 

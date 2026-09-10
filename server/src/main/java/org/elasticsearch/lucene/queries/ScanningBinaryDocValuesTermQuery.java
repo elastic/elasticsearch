@@ -59,7 +59,8 @@ public class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQue
         if (values == null) {
             return null;
         }
-        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(fieldName + COUNT_FIELD_SUFFIX);
+        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
         // tryTermEqualIterator is only valid for single-valued fields (see its javadoc on
         // BlockLoader.OptionalColumnAtATimeReader). It returns a TwoPhaseIterator-backed iterator,
         // so sub-segment slicing (DataPartitioning.DOC) scales with cores.

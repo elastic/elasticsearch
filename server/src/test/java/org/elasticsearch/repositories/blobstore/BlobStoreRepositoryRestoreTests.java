@@ -96,14 +96,13 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 Files.delete(shard.shardPath().resolveIndex().resolve(deletedFile));
             }
 
-            // build a new shard using the same store directory as the closed shard, recovering from the snapshot taken above
+            // build a new shard using the same store directory as the closed shard
             ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(
                 shard.routingEntry(),
-                new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, IndexVersion.current(), indexId)
+                RecoverySource.ExistingStoreRecoverySource.INSTANCE
             );
             shard = newShard(
                 shardRouting,
-                null,
                 shard.shardPath(),
                 shard.indexSettings().getIndexMetadata(),
                 null,

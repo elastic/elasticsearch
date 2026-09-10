@@ -13,7 +13,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Function;
 
 /**
@@ -39,7 +38,7 @@ public final class DataSourceValidationUtils {
     public static void rejectUnknownFields(Map<String, Object> settings, Set<String> knownFields, ValidationException errors) {
         for (String key : settings.keySet()) {
             if (knownFields.contains(key) == false) {
-                errors.addValidationError("unknown setting [" + key + "]; known settings: " + new TreeSet<>(knownFields));
+                errors.addValidationError("unknown setting [" + key + "]; known settings: " + knownFields);
             }
         }
     }

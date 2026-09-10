@@ -27,6 +27,7 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -116,6 +117,18 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         "shard_search_request_reshard_shard_count_summary"
     );
     public static final TransportVersion SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST = TransportVersion.fromName(
+        "shard_results_skip_shard_search_request"
+    );
+
+    /**
+     * Feature flag controlling whether the coordinator omits the {@link ShardSearchRequest} from
+     * shard-level results ({@link org.elasticsearch.search.query.QuerySearchResult},
+     * {@link org.elasticsearch.search.dfs.DfsSearchResult},
+     * {@link org.elasticsearch.search.rank.feature.RankFeatureResult}).
+     * Enabled by default in snapshot builds; requires
+     * {@code -Des.shard_results_skip_shard_search_request_feature_flag_enabled=true} in release builds.
+     */
+    public static final FeatureFlag SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST_FEATURE_FLAG = new FeatureFlag(
         "shard_results_skip_shard_search_request"
     );
 

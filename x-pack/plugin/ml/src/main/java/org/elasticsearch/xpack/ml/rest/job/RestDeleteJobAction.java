@@ -56,7 +56,7 @@ public class RestDeleteJobAction extends BaseRestHandler {
         } else {
             deleteJobRequest.setShouldStoreResult(true);
 
-            Task task = client.executeAndReturnTask(
+            Task task = client.executeLocally(
                 DeleteJobAction.INSTANCE,
                 deleteJobRequest,
                 /*

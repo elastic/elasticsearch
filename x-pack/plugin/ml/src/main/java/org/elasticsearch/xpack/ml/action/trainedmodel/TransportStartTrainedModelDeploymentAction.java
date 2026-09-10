@@ -657,10 +657,9 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         );
     }
 
-    // visible for tests
-    static class DeploymentStartedPredicate implements Predicate<ClusterState> {
+    private static class DeploymentStartedPredicate implements Predicate<ClusterState> {
 
-        volatile Exception exception;
+        private volatile Exception exception;
 
         // for logging
         private final String deploymentId;
@@ -701,24 +700,12 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             }
 
             if (nodeFailuresAndReasons.isEmpty() == false) {
-                if (nodesStillInitializing.isEmpty()) {
-                    exception = new ElasticsearchStatusException(
-                        "Could not start trained model deployment, the following nodes failed with errors [{}]",
-                        RestStatus.CONFLICT,
-                        nodeFailuresAndReasons
-                    );
-                    return true;
-                }
-                // Some nodes have failed (often a transient stop/start race during node churn) but others
-                // are still initializing - give those a chance to come up before giving up on the deployment.
-                logger.debug(
-                    () -> format(
-                        "[%s] nodes failed with errors [%s] but nodes %s are still initializing, keep waiting",
-                        deploymentId,
-                        nodeFailuresAndReasons,
-                        nodesStillInitializing
-                    )
+                exception = new ElasticsearchStatusException(
+                    "Could not start trained model deployment, the following nodes failed with errors [{}]",
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    nodeFailuresAndReasons
                 );
+                return true;
             }
             Set<String> nodesShuttingDown = nodesShuttingDown(clusterState);
             List<DiscoveryNode> nodes = clusterState.nodes()

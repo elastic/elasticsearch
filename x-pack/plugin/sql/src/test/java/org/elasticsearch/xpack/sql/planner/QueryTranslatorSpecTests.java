@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.hamcrest.Matcher;
@@ -53,7 +52,7 @@ public class QueryTranslatorSpecTests extends ESTestCase {
         }
 
         LogicalPlan plan(String sql) {
-            return analyzer.analyze(parser.createStatement(sql, List.of(), DateUtils.UTC, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH), true);
+            return analyzer.analyze(parser.createStatement(sql, DateUtils.UTC), true);
         }
 
         PhysicalPlan optimizeAndPlan(String sql) {

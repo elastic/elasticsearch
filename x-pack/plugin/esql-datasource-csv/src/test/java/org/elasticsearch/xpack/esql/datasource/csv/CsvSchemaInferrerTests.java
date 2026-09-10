@@ -480,7 +480,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
             for (DataType second : INFERABLE) {
                 assertEquals(
                     first + " then " + second,
-                    TypeWidening.join(first, second),
+                    TypeWidening.join(first, second, TypeWidening.Policy.INFERENCE),
                     inferOne(canonicalValueFor(first), canonicalValueFor(second))
                 );
             }

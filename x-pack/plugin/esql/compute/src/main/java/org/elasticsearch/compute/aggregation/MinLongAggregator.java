@@ -23,7 +23,4 @@ class MinLongAggregator {
         return Math.min(current, v);
     }
 
-    public static void combine(LongArrayState state, int groupId, long v) {
-        state.min(groupId, v);
-    }
 }

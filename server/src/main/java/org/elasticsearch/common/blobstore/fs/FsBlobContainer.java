@@ -31,7 +31,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
@@ -64,7 +63,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -357,14 +355,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void copyBlob(
-        OperationPurpose purpose,
-        BlobContainer sourceBlobContainer,
-        String sourceBlobName,
-        String blobName,
-        long blobSize,
-        @Nullable Executor executor
-    ) throws IOException {
+    public void copyBlob(OperationPurpose purpose, BlobContainer sourceBlobContainer, String sourceBlobName, String blobName, long blobSize)
+        throws IOException {
         if (sourceBlobContainer instanceof FsBlobContainer == false) {
             throw new IllegalArgumentException("source blob container must be a FsBlobContainer");
         }

@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -57,14 +56,8 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
     public static final String TYPE_TRACES = "traces";
 
     @Inject
-    public OTLPTracesTransportAction(
-        TransportService transportService,
-        ActionFilters actionFilters,
-        ThreadPool threadPool,
-        Client client,
-        Settings settings
-    ) {
-        super(NAME, transportService, actionFilters, threadPool, client, settings);
+    public OTLPTracesTransportAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool, Client client) {
+        super(NAME, transportService, actionFilters, threadPool, client);
     }
 
     @Override
@@ -74,7 +67,6 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
         SpanDocumentBuilder spanDocumentBuilder = new SpanDocumentBuilder(byteStringAccessor);
         SpanEventDocumentBuilder spanEventDocumentBuilder = new SpanEventDocumentBuilder(byteStringAccessor);
         List<ResourceSpans> resourceSpansList = tracesServiceRequest.getResourceSpansList();
-        long totalExpandedBytes = 0;
         for (int i = 0, resourceSpansListSize = resourceSpansList.size(); i < resourceSpansListSize; i++) {
             ResourceSpans resourceSpans = resourceSpansList.get(i);
             Resource resource = resourceSpans.getResource();
@@ -108,9 +100,9 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                         if (Strings.hasLength(documentId)) {
                             indexRequest.id(documentId);
                         }
-                        indexRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder);
-                        totalExpandedBytes = accountExpandedContent(totalExpandedBytes, indexRequest);
-                        bulkRequestBuilder.add(indexRequest);
+                        bulkRequestBuilder.add(
+                            indexRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder)
+                        );
                     }
                     List<Span.Event> eventsList = span.getEventsList();
                     for (int l = 0, eventsListSize = eventsList.size(); l < eventsListSize; l++) {
@@ -138,9 +130,9 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                             if (Strings.hasLength(eventDocumentId)) {
                                 eventRequest.id(eventDocumentId);
                             }
-                            eventRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder);
-                            totalExpandedBytes = accountExpandedContent(totalExpandedBytes, eventRequest);
-                            bulkRequestBuilder.add(eventRequest);
+                            bulkRequestBuilder.add(
+                                eventRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder)
+                            );
                         }
                     }
                 }

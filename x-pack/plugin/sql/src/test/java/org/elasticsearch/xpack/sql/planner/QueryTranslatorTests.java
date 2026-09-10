@@ -70,7 +70,6 @@ import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.QueryFolder.FoldAggregate.GroupingContext;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
-import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
@@ -144,7 +143,7 @@ public class QueryTranslatorTests extends ESTestCase {
         }
 
         public LogicalPlan plan(String sql, ZoneId zoneId) {
-            return analyzer.analyze(parser.createStatement(sql, List.of(), zoneId, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH), true);
+            return analyzer.analyze(parser.createStatement(sql, zoneId), true);
         }
 
         private PhysicalPlan optimizeAndPlan(String sql) {
@@ -156,7 +155,7 @@ public class QueryTranslatorTests extends ESTestCase {
         }
 
         private LogicalPlan parameterizedSql(String sql, SqlTypedParamValue... params) {
-            return analyzer.analyze(parser.createStatement(sql, List.of(params), DateUtils.UTC, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH), true);
+            return analyzer.analyze(parser.createStatement(sql, asList(params), DateUtils.UTC), true);
         }
     }
 

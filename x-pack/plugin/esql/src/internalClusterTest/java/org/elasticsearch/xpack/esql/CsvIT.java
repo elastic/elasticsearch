@@ -71,7 +71,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsRequest;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -92,7 +91,6 @@ import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
 import org.elasticsearch.xpack.wildcard.Wildcard;
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -371,11 +369,6 @@ public class CsvIT extends ESTestCase {
         cluster.close();
     }
 
-    @After
-    public void resetNameIndexThreshold() {
-        Analyzer.ResolveRefs.resetNameIndexThreshold();
-    }
-
     public final void test() throws Throwable {
         assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
         assumeFalseLogging(
@@ -398,8 +391,6 @@ public class CsvIT extends ESTestCase {
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesLocalCluster);
         CsvTestUtils.checkMissingTestCapabilities(ENABLED_CAPS, testCase.missingCapabilitiesLocalCluster);
         CsvTestUtils.checkPragma(testCase.pragmas);
-
-        Analyzer.ResolveRefs.setNameIndexThresholdForTests(randomBoolean() ? 0 : Integer.MAX_VALUE);
 
         currentGroupName = groupName;
         // verify no prior failures

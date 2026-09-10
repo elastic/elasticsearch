@@ -67,10 +67,9 @@ public final class WelfordAlgorithm {
             count = countValue;
             return;
         }
-        double delta = meanValue - mean;
+        double delta = mean - meanValue;
         m2 += m2Value + delta * delta * count * countValue / (count + countValue);
-        // A weighted sum can round identical means differently and introduce variance in subsequent merges.
-        mean += delta * ((double) countValue / (count + countValue));
+        mean = (mean * count + meanValue * countValue) / (count + countValue);
         count += countValue;
     }
 

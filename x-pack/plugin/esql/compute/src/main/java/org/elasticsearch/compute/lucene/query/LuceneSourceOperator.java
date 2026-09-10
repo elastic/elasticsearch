@@ -202,35 +202,14 @@ public class LuceneSourceOperator extends LuceneOperator {
         /**
          * Cost-aware {@link DataPartitioning#AUTO} strategy for the unsorted source. A no-limit scan (e.g. {@code STATS})
          * visits every matching doc, so it shares the {@link #autoPartitioning} rule with count and TopN: costly →
-         * SEGMENT, cheap ({@code cost < minCostForDoc}) → SEGMENT, else DOC.
-         * <p>
-         * A query with a {@code limit} keeps {@link PartitioningStrategy#SHARD} unless it is a guaranteed full scan:
-         * costly-to-build clauses (BKD point ranges, multi-term) keep {@code SHARD} because a single shard-level walk
-         * beats rebuilding scorers per segment when the limit fires early; {@link org.apache.lucene.search.MatchAllDocsQuery}
-         * and {@link org.apache.lucene.search.MatchNoDocsQuery} keep {@code SHARD}; cheap filters (cost below
-         * {@code minCostForDoc}) keep {@code SHARD}. Only a scan-heavy filter with {@code cost ≥ minCostForDoc} (e.g. a
-         * doc-values-only field with no BKD index) is promoted to {@link PartitioningStrategy#DOC}, because those scans
-         * visit {@code ~maxDoc} regardless of match density and the limit is never reached early.
+         * SEGMENT, cheap ({@code cost < minCostForDoc}) → SEGMENT, else DOC. A query with a {@code limit} early-terminates
+         * after matching {@code N} docs — whether DOC pays off then depends on match density, which the cost can't see —
+         * so that case is deferred and keeps the low-overhead {@link PartitioningStrategy#SHARD}.
          */
         public static DataPartitioning.AutoStrategy autoStrategy(long minCostForDoc) {
             return limit -> limit == NO_LIMIT
                 ? (ctx, query) -> autoPartitioning(ctx, query, DOC, minCostForDoc, SEGMENT)
-                : (ctx, query) -> limitedScanAutoStrategy(ctx, query, minCostForDoc);
-        }
-
-        private static PartitioningStrategy limitedScanAutoStrategy(ShardContext ctx, Query query, long minCostForDoc) {
-            if (containsCostlyClause(query)) {
-                return SHARD;
-            }
-            Query unwrapped = unwrapQuery(query);
-            if (unwrapped instanceof MatchAllDocsQuery || unwrapped instanceof MatchNoDocsQuery) {
-                return SHARD;
-            }
-            try {
-                return queryCost(ctx, query, minCostForDoc) < minCostForDoc ? SHARD : DOC;
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+                : Factory::lowOverheadAutoStrategy;
         }
 
         /**
@@ -472,7 +451,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @Override
     public boolean isFinished() {
-        return doneCollecting || (currentPagePos == 0 && limiter.remaining() == 0);
+        return doneCollecting || limiter.remaining() == 0;
     }
 
     @Override
@@ -489,35 +468,28 @@ public class LuceneSourceOperator extends LuceneOperator {
         try {
             final LuceneScorer scorer = getCurrentOrLoadNextScorer();
             if (scorer == null) {
-                assert doneCollecting == false || currentPagePos == 0 : "finished with " + currentPagePos + " buffered docs";
                 return null;
+            }
+            if (minCompetitiveQuery != null) {
+                minCompetitiveQuery.update(scorer.shardContext(), scorer.leafReaderContext());
             }
             if (docIds == null) {
                 docIds = docIdsPool.getOrAllocate(maxPageSize);
             }
             final int remainingDocsStart = remainingDocs = limiter.remaining();
-            if (remainingDocsStart == 0) {
-                // Another driver exhausted the shared limit; nothing left to collect, only the buffered docs to emit (see isFinished).
+            try {
+                scorer.scoreNextRange(
+                    leafCollector,
+                    scorer.leafReaderContext().reader().getLiveDocs(),
+                    // Note: if (maxPageSize - currentPagePos) is a small "remaining" interval, this could lead to slow collection with a
+                    // highly selective filter. Having a large "enough" difference between max- and minPageSize (and thus currentPagePos)
+                    // alleviates this issue.
+                    maxPageSize - currentPagePos
+                );
+            } catch (CollectionTerminatedException ex) {
+                // The leaf collector terminated the execution
                 doneCollecting = true;
                 scorer.markAsDone();
-            } else {
-                if (minCompetitiveQuery != null) {
-                    minCompetitiveQuery.update(scorer.shardContext(), scorer.leafReaderContext());
-                }
-                try {
-                    scorer.scoreNextRange(
-                        leafCollector,
-                        scorer.leafReaderContext().reader().getLiveDocs(),
-                        // Note: if (maxPageSize - currentPagePos) is a small "remaining" interval, this could lead to slow collection with
-                        // a highly selective filter. Having a large "enough" difference between max- and minPageSize (and thus
-                        // currentPagePos) alleviates this issue.
-                        maxPageSize - currentPagePos
-                    );
-                } catch (CollectionTerminatedException ex) {
-                    // The leaf collector terminated the execution
-                    doneCollecting = true;
-                    scorer.markAsDone();
-                }
             }
             final int collectedDocs = remainingDocsStart - remainingDocs;
             final int discardedDocs = collectedDocs - limiter.tryAccumulateHits(collectedDocs);

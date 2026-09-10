@@ -20,11 +20,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.codec.Elasticsearch96Codec;
+import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.search.vectors.KnnScoreDocQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
-import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Param;
 
@@ -51,17 +50,17 @@ import java.util.Set;
  * <p>Cold/hot cache state and simulated first-byte latency are inherited @Params from
  * {@link AbstractStatelessQueryBenchmark}.
  *
- * <h2>Measuring object-store prefetching</h2>
+ * <h2>Measuring the object-store prefetch feature flag</h2>
  *
  * <pre>{@code
  * ./gradlew -p benchmarks run --args '
  *   RescoreKnnVectorQueryBenchmark -p cacheState=COLD -p firstByteLatencyMs=100
- *   -jvmArgsAppend "-Des.stateless.cache.object_store_prefetch.enabled=true"
+ *   -jvmArgsAppend "-Des.stateless_object_store_prefetch_feature_flag_enabled=true"
  * '
  *
  * ./gradlew -p benchmarks run --args '
  *   RescoreKnnVectorQueryBenchmark -p cacheState=COLD -p firstByteLatencyMs=100
- *   -jvmArgsAppend "-Des.stateless.cache.object_store_prefetch.enabled=false"
+ *   -jvmArgsAppend "-Des.stateless_object_store_prefetch_feature_flag_enabled=false"
  * '
  * }</pre>
  */
@@ -88,22 +87,13 @@ public class RescoreKnnVectorQueryBenchmark extends AbstractStatelessQueryBenchm
 
     @Override
     protected Settings extraNodeSettings() {
-        return Settings.builder()
-            .putList("node.roles", "search")
-            .put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_OBJECT_STORE_PREFETCH_ENABLED_SETTING.getKey(),
-                System.getProperty(
-                    "es." + StatelessSharedBlobCacheService.STATELESS_CACHE_OBJECT_STORE_PREFETCH_ENABLED_SETTING.getKey(),
-                    "true"
-                )
-            )
-            .build();
+        return Settings.builder().putList("node.roles", "search").build();
     }
 
     @Override
     protected IndexWriterConfig indexWriterConfig() {
         IndexWriterConfig iwc = new IndexWriterConfig();
-        iwc.setCodec(new Elasticsearch96Codec() {
+        iwc.setCodec(new Elasticsearch93Lucene104Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
                 return new ES93FlatVectorFormat();

@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -44,7 +43,6 @@ import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
 import static org.elasticsearch.test.ESTestCase.safeAwait;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 
 /**
  * Base test cluster that exposes the basis to run tests against any elasticsearch cluster, whose layout
@@ -79,10 +77,6 @@ public abstract class TestCluster {
         if (size() == 0) {
             return;
         }
-
-        // Wait for the master to drain its queue: otherwise we might compute the set of things to wipe incorrectly
-        assertNoTimeout(internalClient().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID));
-
         safeAwait((ActionListener<Void> done) -> {
             try (RefCountingListener listeners = new RefCountingListener(done)) {
                 wipeAllTemplates(excludeTemplates, listeners);

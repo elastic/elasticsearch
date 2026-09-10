@@ -143,7 +143,6 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT.withHints(DataAccessHint.RANDOM),
-            true,
             true
         );
 
@@ -165,7 +164,6 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT.withHints(DataAccessHint.RANDOM),
-            true,
             true
         );
         var copy = original.copy();
@@ -192,7 +190,6 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
-            true,
             true
         );
 
@@ -228,7 +225,6 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
-            true,
             true
         );
 
@@ -260,7 +256,6 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
-            true,
             true
         );
 
@@ -290,7 +285,6 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
-            true,
             true
         );
 
@@ -327,7 +321,6 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT.withHints(DataAccessHint.RANDOM),
-            true,
             true
         );
 
@@ -354,7 +347,6 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
-            true,
             true
         );
 
@@ -392,8 +384,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
-            false,
-            true
+            false
         );
         var slice = original.copyWithContext(IOContext.DEFAULT, 0, 500 * 1024 * 1024L);
         assertEquals(SharedBytes.MADV_NORMAL, CacheFileReaderTestUtils.adviceForRange(slice, ByteRange.of(0, REGION_SIZE)));
@@ -415,7 +406,6 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
-            true,
             true
         );
         var indexInput = new BlobCacheIndexInput("test.cfs", IOContext.DEFAULT, reader, null, 500 * 1024 * 1024, 0);
@@ -449,8 +439,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,
-            false,
-            true
+            false
         );
         long parentOffset = 100;
         var indexInput = new BlobCacheIndexInput("test.cfs", IOContext.DEFAULT, reader, null, 2048, parentOffset);
@@ -477,7 +466,6 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT.withHints(DataAccessHint.RANDOM),
-            true,
             true
         );
         var indexInput = new BlobCacheIndexInput("test.vec", IOContext.DEFAULT, reader, null, 1024, 0);
@@ -498,8 +486,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 1024),
             BlobCacheMetrics.NOOP,
-            System::currentTimeMillis,
-            true
+            System::currentTimeMillis
         );
         var indexInput = new BlobCacheIndexInput("test.cfs", IOContext.DEFAULT, reader, null, 1024, 0);
         var slice = (BlobCacheIndexInput) indexInput.doSlice("_0.doc", 0, 512);
@@ -534,8 +521,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 1024),
             BlobCacheMetrics.NOOP,
-            System::currentTimeMillis,
-            true
+            System::currentTimeMillis
         );
 
         ByteBuffer buf = ByteBuffer.allocate(10);

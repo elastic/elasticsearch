@@ -23,6 +23,7 @@ package org.elasticsearch.xpack.lucene.bwc;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexNotFoundException;
@@ -33,6 +34,7 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Version;
@@ -42,10 +44,13 @@ import org.elasticsearch.core.SuppressForbidden;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -56,31 +61,26 @@ import java.util.Set;
  */
 @SuppressWarnings("CheckStyle")
 @SuppressForbidden(reason = "Lucene class")
-public class OldSegmentInfos implements Iterable<SegmentCommitInfo> {
-
-    /**
-     * The minimum supported major version that can be opened
-     */
-    private static final int MIN_SUPPORTED_MAJOR_VERSION = 6;
+public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
 
     /**
      * Adds the {@link Version} that committed this segments_N file, as well as the {@link Version}
      * of the oldest segment, since 5.3+
      */
-    private static final int VERSION_53 = 6;
+    public static final int VERSION_53 = 6;
     /**
      * The version that added information about the Lucene version at the time when the index has been
      * created.
      */
-    private static final int VERSION_70 = 7;
+    public static final int VERSION_70 = 7;
     /** The version that updated segment name counter to be long instead of int. */
-    private static final int VERSION_72 = 8;
+    public static final int VERSION_72 = 8;
     /** The version that recorded softDelCount */
-    private static final int VERSION_74 = 9;
+    public static final int VERSION_74 = 9;
     /** The version that recorded SegmentCommitInfo IDs */
-    private static final int VERSION_86 = 10;
+    public static final int VERSION_86 = 10;
 
-    private static final int VERSION_CURRENT = VERSION_86;
+    static final int VERSION_CURRENT = VERSION_86;
 
     /** Name of the generation reference file name */
     private static final String OLD_SEGMENTS_GEN = "segments.gen";
@@ -91,12 +91,23 @@ public class OldSegmentInfos implements Iterable<SegmentCommitInfo> {
     /** Counts how often the index has been changed. */
     public long version;
 
-    private long generation; // generation of the "segments_N" we last successfully read
+    private long generation; // generation of the "segments_N" for the next commit
+    private long lastGeneration; // generation of the "segments_N" file we last successfully read
+    // or wrote; this is normally the same as generation except if
+    // there was an IOException that had interrupted a commit
 
     /** Opaque Map&lt;String, String&gt; that user can specify during IndexWriter.commit */
     public Map<String, String> userData = Collections.emptyMap();
 
-    private final List<SegmentCommitInfo> segments = new ArrayList<>();
+    private List<SegmentCommitInfo> segments = new ArrayList<>();
+
+    /**
+     * If non-null, information about loading segments_N files will be printed here.
+     */
+    private static PrintStream infoStream = null;
+
+    /** Id for this commit; only written starting with Lucene 5.0 */
+    private byte[] id;
 
     /** Which Lucene version wrote this commit. */
     private Version luceneVersion;
@@ -117,10 +128,8 @@ public class OldSegmentInfos implements Iterable<SegmentCommitInfo> {
         if (indexCreatedVersionMajor > Version.LATEST.major) {
             throw new IllegalArgumentException("indexCreatedVersionMajor is in the future: " + indexCreatedVersionMajor);
         }
-        if (indexCreatedVersionMajor < MIN_SUPPORTED_MAJOR_VERSION) {
-            throw new IllegalArgumentException(
-                "indexCreatedVersionMajor must be >= " + MIN_SUPPORTED_MAJOR_VERSION + ", got: " + indexCreatedVersionMajor
-            );
+        if (indexCreatedVersionMajor < 6) {
+            throw new IllegalArgumentException("indexCreatedVersionMajor must be >= 6, got: " + indexCreatedVersionMajor);
         }
         this.indexCreatedVersionMajor = indexCreatedVersionMajor;
     }
@@ -153,7 +162,7 @@ public class OldSegmentInfos implements Iterable<SegmentCommitInfo> {
 
     /** Get the segments_N filename in use by this segment infos. */
     public String getSegmentsFileName() {
-        return IndexFileNames.fileNameFromGeneration(IndexFileNames.SEGMENTS, "", generation);
+        return IndexFileNames.fileNameFromGeneration(IndexFileNames.SEGMENTS, "", lastGeneration);
     }
 
     /** Parse the generation off the segments file name and return it. */
@@ -169,7 +178,21 @@ public class OldSegmentInfos implements Iterable<SegmentCommitInfo> {
         }
     }
 
-    static OldSegmentInfos readCommit(Directory directory, String segmentFileName, int minSupportedMajorVersion) throws IOException {
+    /** return generation of the next pending_segments_N that will be written */
+    private long getNextPendingGeneration() {
+        if (generation == -1) {
+            return 1;
+        } else {
+            return generation + 1;
+        }
+    }
+
+    /** Since Lucene 5.0, every commit (segments_N) writes a unique id. This will return that id */
+    public byte[] getId() {
+        return id.clone();
+    }
+
+    static final OldSegmentInfos readCommit(Directory directory, String segmentFileName, int minSupportedMajorVersion) throws IOException {
 
         long generation = generationFromSegmentsFileName(segmentFileName);
         // System.out.println(Thread.currentThread() + ": SegmentInfos.readCommit " + segmentFileName);
@@ -183,7 +206,7 @@ public class OldSegmentInfos implements Iterable<SegmentCommitInfo> {
     }
 
     /** Read the commit from the provided {@link ChecksumIndexInput}. */
-    static OldSegmentInfos readCommit(Directory directory, ChecksumIndexInput input, long generation, int minSupportedMajorVersion)
+    static final OldSegmentInfos readCommit(Directory directory, ChecksumIndexInput input, long generation, int minSupportedMajorVersion)
         throws IOException {
         Throwable priorE = null;
         int format = -1;
@@ -200,7 +223,7 @@ public class OldSegmentInfos implements Iterable<SegmentCommitInfo> {
             CodecUtil.checkIndexHeaderSuffix(input, Long.toString(generation, Character.MAX_RADIX));
 
             Version luceneVersion = Version.fromBits(input.readVInt(), input.readVInt(), input.readVInt());
-            int indexCreatedVersion = minSupportedMajorVersion;
+            int indexCreatedVersion = 6;
             if (format >= VERSION_70) {
                 indexCreatedVersion = input.readVInt();
             }
@@ -230,7 +253,9 @@ public class OldSegmentInfos implements Iterable<SegmentCommitInfo> {
             }
 
             OldSegmentInfos infos = new OldSegmentInfos(indexCreatedVersion);
+            infos.id = id;
             infos.generation = generation;
+            infos.lastGeneration = generation;
             infos.luceneVersion = luceneVersion;
             parseSegmentInfos(directory, input, infos, format);
             return infos;
@@ -266,6 +291,7 @@ public class OldSegmentInfos implements Iterable<SegmentCommitInfo> {
             // else leave as null: no segments
         }
 
+        long totalDocs = 0;
         for (int seg = 0; seg < numSegments; seg++) {
             String segName = input.readString();
             if (format < VERSION_70) {
@@ -281,6 +307,7 @@ public class OldSegmentInfos implements Iterable<SegmentCommitInfo> {
             Codec codec = readCodec(input);
             SegmentInfo info = codec.segmentInfoFormat().read(directory, segName, segmentID, IOContext.DEFAULT);
             info.setCodec(codec);
+            totalDocs += info.maxDoc();
             long delGen = CodecUtil.readBELong(input);
             int delCount = CodecUtil.readBEInt(input);
             if (delCount < 0 || delCount > info.maxDoc()) {
@@ -381,13 +408,150 @@ public class OldSegmentInfos implements Iterable<SegmentCommitInfo> {
         }
     }
 
-    static OldSegmentInfos readLatestCommit(Directory directory) throws IOException {
+    /** Find the latest commit ({@code segments_N file}) and load all {@link SegmentCommitInfo}s. */
+    public static final OldSegmentInfos readLatestCommit(Directory directory) throws IOException {
+        return readLatestCommit(directory, Version.MIN_SUPPORTED_MAJOR);
+    }
+
+    static final OldSegmentInfos readLatestCommit(Directory directory, int minSupportedMajorVersion) throws IOException {
         return new OldSegmentInfos.FindSegmentsFile<OldSegmentInfos>(directory) {
             @Override
             protected OldSegmentInfos doBody(String segmentFileName) throws IOException {
-                return readCommit(directory, segmentFileName, MIN_SUPPORTED_MAJOR_VERSION);
+                return readCommit(directory, segmentFileName, minSupportedMajorVersion);
             }
         }.run();
+    }
+
+    // Only true after prepareCommit has been called and
+    // before finishCommit is called
+    boolean pendingCommit;
+
+    private void write(Directory directory) throws IOException {
+
+        long nextGeneration = getNextPendingGeneration();
+        String segmentFileName = IndexFileNames.fileNameFromGeneration(IndexFileNames.PENDING_SEGMENTS, "", nextGeneration);
+
+        // Always advance the generation on write:
+        generation = nextGeneration;
+
+        IndexOutput segnOutput = null;
+        boolean success = false;
+
+        try {
+            segnOutput = directory.createOutput(segmentFileName, IOContext.DEFAULT);
+            write(segnOutput);
+            segnOutput.close();
+            directory.sync(Collections.singleton(segmentFileName));
+            success = true;
+        } finally {
+            if (success) {
+                pendingCommit = true;
+            } else {
+                // We hit an exception above; try to close the file
+                // but suppress any exception:
+                IOUtils.closeWhileHandlingException(segnOutput);
+                // Try not to leave a truncated segments_N file in
+                // the index:
+                IOUtils.deleteFilesIgnoringExceptions(directory, segmentFileName);
+            }
+        }
+    }
+
+    /** Write ourselves to the provided {@link IndexOutput} */
+    public void write(IndexOutput out) throws IOException {
+        CodecUtil.writeIndexHeader(
+            out,
+            "segments",
+            VERSION_CURRENT,
+            StringHelper.randomId(),
+            Long.toString(generation, Character.MAX_RADIX)
+        );
+        out.writeVInt(Version.LATEST.major);
+        out.writeVInt(Version.LATEST.minor);
+        out.writeVInt(Version.LATEST.bugfix);
+        // System.out.println(Thread.currentThread().getName() + ": now write " + out.getName() + " with
+        // version=" + version);
+
+        out.writeVInt(indexCreatedVersionMajor);
+
+        CodecUtil.writeBELong(out, version);
+        out.writeVLong(counter); // write counter
+        CodecUtil.writeBEInt(out, size());
+
+        if (size() > 0) {
+
+            Version minSegmentVersion = null;
+
+            // We do a separate loop up front so we can write the minSegmentVersion before
+            // any SegmentInfo; this makes it cleaner to throw IndexFormatTooOldExc at read time:
+            for (SegmentCommitInfo siPerCommit : this) {
+                Version segmentVersion = siPerCommit.info.getVersion();
+                if (minSegmentVersion == null || segmentVersion.onOrAfter(minSegmentVersion) == false) {
+                    minSegmentVersion = segmentVersion;
+                }
+            }
+
+            out.writeVInt(minSegmentVersion.major);
+            out.writeVInt(minSegmentVersion.minor);
+            out.writeVInt(minSegmentVersion.bugfix);
+        }
+
+        // write infos
+        for (SegmentCommitInfo siPerCommit : this) {
+            SegmentInfo si = siPerCommit.info;
+            out.writeString(si.name);
+            byte[] segmentID = si.getId();
+            if (segmentID.length != StringHelper.ID_LENGTH) {
+                throw new IllegalStateException(
+                    "cannot write segment: invalid id segment=" + si.name + "id=" + StringHelper.idToString(segmentID)
+                );
+            }
+            out.writeBytes(segmentID, segmentID.length);
+            out.writeString(si.getCodec().getName());
+
+            CodecUtil.writeBELong(out, siPerCommit.getDelGen());
+            int delCount = siPerCommit.getDelCount();
+            if (delCount < 0 || delCount > si.maxDoc()) {
+                throw new IllegalStateException(
+                    "cannot write segment: invalid maxDoc segment=" + si.name + " maxDoc=" + si.maxDoc() + " delCount=" + delCount
+                );
+            }
+            CodecUtil.writeBEInt(out, delCount);
+            CodecUtil.writeBELong(out, siPerCommit.getFieldInfosGen());
+            CodecUtil.writeBELong(out, siPerCommit.getDocValuesGen());
+            int softDelCount = siPerCommit.getSoftDelCount();
+            if (softDelCount < 0 || softDelCount > si.maxDoc()) {
+                throw new IllegalStateException(
+                    "cannot write segment: invalid maxDoc segment=" + si.name + " maxDoc=" + si.maxDoc() + " softDelCount=" + softDelCount
+                );
+            }
+            CodecUtil.writeBEInt(out, softDelCount);
+            // we ensure that there is a valid ID for this SCI just in case
+            // this is manually upgraded outside of IW
+            byte[] sciId = siPerCommit.getId();
+            if (sciId != null) {
+                out.writeByte((byte) 1);
+                assert sciId.length == StringHelper.ID_LENGTH : "invalid SegmentCommitInfo#id: " + Arrays.toString(sciId);
+                out.writeBytes(sciId, 0, sciId.length);
+            } else {
+                out.writeByte((byte) 0);
+            }
+
+            out.writeSetOfStrings(siPerCommit.getFieldInfosFiles());
+            final Map<Integer, Set<String>> dvUpdatesFiles = siPerCommit.getDocValuesUpdatesFiles();
+            CodecUtil.writeBEInt(out, dvUpdatesFiles.size());
+            for (Map.Entry<Integer, Set<String>> e : dvUpdatesFiles.entrySet()) {
+                CodecUtil.writeBEInt(out, e.getKey());
+                out.writeSetOfStrings(e.getValue());
+            }
+        }
+        out.writeMapOfStrings(userData);
+        CodecUtil.writeFooter(out);
+    }
+
+    /** version number when this SegmentInfos was generated. */
+    public long getVersion() {
+        return version;
     }
 
     /** Returns current generation. */
@@ -395,8 +559,22 @@ public class OldSegmentInfos implements Iterable<SegmentCommitInfo> {
         return generation;
     }
 
+    /** Returns last succesfully read or written generation. */
+    public long getLastGeneration() {
+        return lastGeneration;
+    }
+
     public Version getLuceneVersion() {
         return luceneVersion;
+    }
+
+    /**
+     * Prints the given message to the infoStream. Note, this method does not check for null
+     * infoStream. It assumes this check has been performed by the caller, which is recommended to
+     * avoid the (usually) expensive message creation.
+     */
+    private static void message(String message) {
+        infoStream.println("SIS [" + Thread.currentThread().getName() + "]: " + message);
     }
 
     /**
@@ -417,7 +595,19 @@ public class OldSegmentInfos implements Iterable<SegmentCommitInfo> {
 
         /** Locate the most recent {@code segments} file and run {@link #doBody} on it. */
         public T run() throws IOException {
-            long lastGen;
+            return run(null);
+        }
+
+        /** Run {@link #doBody} on the provided commit. */
+        public T run(IndexCommit commit) throws IOException {
+            if (commit != null) {
+                if (directory != commit.getDirectory()) throw new IOException(
+                    "the specified commit does not match the specified Directory"
+                );
+                return doBody(commit.getSegmentsFileName());
+            }
+
+            long lastGen = -1;
             long gen = -1;
             IOException exc = null;
 
@@ -444,17 +634,29 @@ public class OldSegmentInfos implements Iterable<SegmentCommitInfo> {
                 }
                 gen = getLastCommitGeneration(files);
 
+                if (infoStream != null) {
+                    message("directory listing gen=" + gen);
+                }
+
                 if (gen == -1) {
                     throw new IndexNotFoundException("no segments* file found in " + directory + ": files: " + Arrays.toString(files));
                 } else if (gen > lastGen) {
                     String segmentFileName = IndexFileNames.fileNameFromGeneration(IndexFileNames.SEGMENTS, "", gen);
 
                     try {
-                        return doBody(segmentFileName);
+                        T t = doBody(segmentFileName);
+                        if (infoStream != null) {
+                            message("success on " + segmentFileName);
+                        }
+                        return t;
                     } catch (IOException err) {
                         // Save the original root cause:
                         if (exc == null) {
                             exc = err;
+                        }
+
+                        if (infoStream != null) {
+                            message("primary Exception on '" + segmentFileName + "': " + err + "'; will retry: gen = " + gen);
                         }
                     }
                 } else {
@@ -468,6 +670,27 @@ public class OldSegmentInfos implements Iterable<SegmentCommitInfo> {
          * goes wrong during the processing that could have been caused by a writer committing.
          */
         protected abstract T doBody(String segmentFileName) throws IOException;
+    }
+
+    /**
+     * Returns all file names referenced by SegmentInfo. The returned collection is recomputed on each
+     * invocation.
+     */
+    public Collection<String> files(boolean includeSegmentsFile) throws IOException {
+        HashSet<String> files = new HashSet<>();
+        if (includeSegmentsFile) {
+            final String segmentFileName = getSegmentsFileName();
+            if (segmentFileName != null) {
+                files.add(segmentFileName);
+            }
+        }
+        final int size = size();
+        for (int i = 0; i < size; i++) {
+            final SegmentCommitInfo info = info(i);
+            files.addAll(info.files());
+        }
+
+        return files;
     }
 
     /** Returns readable description of this segment. */

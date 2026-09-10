@@ -549,7 +549,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public static final String SNAPSHOT_RECOVERY_STATE_FACTORY_KEY = "snapshot_prewarm";
 
     @Override
-    public Map<String, IndexStorePlugin.RecoveryStateFactory> getRecoveryStateFactories() {
+    public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
         return Map.of(SNAPSHOT_RECOVERY_STATE_FACTORY_KEY, SearchableSnapshotRecoveryState::new);
     }
 

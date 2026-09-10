@@ -40,7 +40,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
-import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfColumnTransforms;
 import org.elasticsearch.escf.LuceneLongColumn;
@@ -378,8 +377,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     private static final IndexableFieldType MARKER_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
-        return fieldType().value() != null && copyTo().copyToFields().isEmpty();
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return fieldType().value() != null && copyTo().copyToFields().isEmpty() && multiFields().iterator().hasNext() == false;
     }
 
     /**
@@ -393,7 +392,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
      * canonicalization is accepted here but rejected by the row path; mismatches always fall back.
      */
     @Override
-    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final BytesRef expected = new BytesRef(fieldType().value()); // non-null: gated by supportsColumnarParse
         final EscfColumnBuilder markers;
         if (ctx.isSourceSynthetic()) {
@@ -424,10 +423,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 }
             }
             if (markers != null) {
-                EscfColumnData markersData = markers.finish(ctx.docCount());
                 ctx.addColumn(
-                    LuceneLongColumn.of(markersData, fieldType().name(), MARKER_FIELD_TYPE, LongColumn.NumericKind.LONG),
-                    markersData
+                    LuceneLongColumn.of(markers.finish(ctx.docCount()), fieldType().name(), MARKER_FIELD_TYPE, LongColumn.NumericKind.LONG)
                 );
             }
             success = true;

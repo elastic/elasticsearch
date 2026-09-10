@@ -1,0 +1,14 @@
+area: "Monitoring"
+deprecation:
+  area: "REST API"
+  details: The `_monitoring/bulk` and `_monitoring/migrate/alerts` REST APIs, used
+    by the legacy internal collection method for Stack Monitoring, are deprecated
+    and will be removed in Elasticsearch 10.0.
+  impact: Users relying on internal collection for Stack Monitoring should migrate
+    to Metricbeat or Elastic Agent based monitoring. Calling either endpoint now
+    returns a deprecation warning.
+  title: Deprecate legacy monitoring REST apis.
+issues: []
+pr: 152269
+summary: Deprecate legacy monitoring REST apis.
+type: deprecation

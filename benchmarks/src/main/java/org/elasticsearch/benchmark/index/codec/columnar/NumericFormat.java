@@ -39,7 +39,7 @@ import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
-import org.elasticsearch.index.codec.Elasticsearch96Codec;
+import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
@@ -90,13 +90,9 @@ public enum NumericFormat {
                     (f, bs) -> es95FieldContext(workload, f, bs)
                 );
             }
-            case COLUMNAR -> new ColumNARDocValuesFormat(
-                (f, t) -> bs -> selectPipeline(workload, bs),
-                f -> ColumnarFieldType.LONG,
-                blockSize
-            );
+            case COLUMNAR -> new ColumNARDocValuesFormat((f, t) -> bs -> selectPipeline(workload, bs), blockSize);
         };
-        return new Elasticsearch96Codec() {
+        return new Elasticsearch93Lucene104Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dv;
@@ -207,6 +203,7 @@ public enum NumericFormat {
     private static FieldType columnarFieldType() {
         final FieldType type = new FieldType();
         type.setDocValuesType(DocValuesType.BINARY);
+        type.putAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, ColumnarFieldType.LONG.name());
         type.freeze();
         return type;
     }

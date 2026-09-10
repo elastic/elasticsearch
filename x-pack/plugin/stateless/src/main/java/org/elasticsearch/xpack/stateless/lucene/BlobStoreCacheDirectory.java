@@ -340,8 +340,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             cacheService.getThreadPool().relativeTimeInMillisSupplier(),
             cacheService.getRegionSize(),
             context,
-            cacheService.hasSearchRole(),
-            cacheService.isObjectStorePrefetchEnabled()
+            cacheService.hasSearchRole()
         );
         return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset());
     }

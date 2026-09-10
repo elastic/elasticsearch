@@ -213,14 +213,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 this::clusterHasCapability,
                 indicesToLoad()
             );
-            // wait until the newly created indices are ready to search
-            ensureHealth(client(), "", request -> {
-                request.addParameter("wait_for_status", "yellow");
-                request.addParameter("wait_for_no_initializing_shards", "true");
-                request.addParameter("wait_for_no_relocating_shards", "true");
-                request.addParameter("timeout", "60s");
-                request.addParameter("level", "shards");
-            });
             return null;
         });
         // Views can be created before or after ingest, since index resolution is currently only done on the combined query.
@@ -555,13 +547,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             && hasCapabilities(client(), List.of("auto_partition_docs_threshold"))
             && randomBoolean()) {
             pragma.put(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey(), between(1, 1000));
-        }
-        if (randomBoolean() && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.PARTITIONING_AGGREGATIONS.capabilityName()))) {
-            if (rarely()) {
-                pragma.put(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey(), between(1, 256));
-            } else {
-                pragma.put(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey(), between(256, 4096));
-            }
         }
     }
 

@@ -1,0 +1,6 @@
+area: Engine
+issues:
+ - 149343
+pr: 149429
+summary: Fixing `StatelessTranslogIT.testTranslogLocalFailureOnlyStressRecoveryTest()`
+type: bug

@@ -16,9 +16,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Distributes external splits evenly across eligible remote workers in round-robin order.
- * Falls back to coordinator-only when there are no splits or no eligible workers,
- * including an index-only cluster where the coordinator then runs the scan itself.
+ * Distributes external splits evenly across eligible data nodes in round-robin order.
+ * Falls back to coordinator-only when there are no splits or no eligible nodes.
  */
 public final class RoundRobinStrategy implements ExternalDistributionStrategy {
 
@@ -32,7 +31,7 @@ public final class RoundRobinStrategy implements ExternalDistributionStrategy {
     }
 
     public RoundRobinStrategy() {
-        this(NodeEligibilityStrategy.EXTERNAL_WORKER_NODES);
+        this(NodeEligibilityStrategy.DATA_NODES_ONLY);
     }
 
     @Override

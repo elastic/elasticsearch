@@ -588,8 +588,7 @@ public class Docker {
 
         // nc is useful for checking network issues
         // zip/unzip are installed to help users who are working with certificates.
-        // tar is required in some k8s situations: https://github.com/kubernetes/kubernetes/issues/58512
-        Stream.of("nc", "tar", "unzip", "zip")
+        Stream.of("nc", "unzip", "zip")
             .forEach(
                 cliBinary -> assertTrue(
                     cliBinary + " ought to be available.",

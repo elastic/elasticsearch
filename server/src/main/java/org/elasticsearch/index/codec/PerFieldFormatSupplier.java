@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
@@ -88,8 +87,6 @@ public class PerFieldFormatSupplier {
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion104");
 
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
-    static final PostingsFormat DEFAULT_POSTINGS_FORMAT = new Lucene104PostingsFormat();
-
     private final MapperService mapperService;
     private final ThreadPool threadPool;
 
@@ -140,7 +137,7 @@ public class PerFieldFormatSupplier {
             if (IndexSettings.USE_ES_812_POSTINGS_FORMAT.get(mapperService.getIndexSettings().getSettings())) {
                 return es812PostingsFormat;
             } else {
-                return DEFAULT_POSTINGS_FORMAT;
+                return Elasticsearch93Lucene104Codec.DEFAULT_POSTINGS_FORMAT;
             }
         } else {
             // our own posting format using PFOR, used for logsdb and tsdb indices by default

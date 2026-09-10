@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 158020
+summary: Reject blank job id on close request
+type: bug

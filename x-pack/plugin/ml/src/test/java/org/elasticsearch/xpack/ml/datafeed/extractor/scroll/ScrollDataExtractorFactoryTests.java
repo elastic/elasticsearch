@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
@@ -85,8 +84,7 @@ public class ScrollDataExtractorFactoryTests extends ESTestCase {
             job,
             extractedFields,
             NamedXContentRegistry.EMPTY,
-            timingStatsReporter,
-            DatafeedSearchTelemetry.NOOP
+            timingStatsReporter
         );
     }
 

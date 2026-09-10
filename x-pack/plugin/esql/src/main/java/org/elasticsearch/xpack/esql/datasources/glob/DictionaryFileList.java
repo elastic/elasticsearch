@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
-import java.util.List;
-
 /**
  * Segment-dictionary-encoded file listing implementing {@link FileList}.
  * Compresses path storage from ~700 bytes/file (StorageEntry) to ~52 bytes/file
@@ -44,7 +42,6 @@ final class DictionaryFileList implements FileList {
      */
     @Nullable
     private final FileSetFingerprint fileSetFingerprint;
-    private final List<String> exclusionWarnings;
 
     DictionaryFileList(
         String basePath,
@@ -57,8 +54,7 @@ final class DictionaryFileList implements FileList {
         @Nullable String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
         int fileCount,
-        @Nullable FileSetFingerprint fileSetFingerprint,
-        List<String> exclusionWarnings
+        @Nullable FileSetFingerprint fileSetFingerprint
     ) {
         this.basePath = basePath;
         this.tokens = tokens;
@@ -71,7 +67,6 @@ final class DictionaryFileList implements FileList {
         this.partitionMetadata = partitionMetadata;
         this.fileCount = fileCount;
         this.fileSetFingerprint = fileSetFingerprint;
-        this.exclusionWarnings = exclusionWarnings == null || exclusionWarnings.isEmpty() ? List.of() : List.copyOf(exclusionWarnings);
     }
 
     @Override
@@ -151,11 +146,7 @@ final class DictionaryFileList implements FileList {
         if (sharedExtension != null) {
             bytes += 40 + sharedExtension.length() * (long) Character.BYTES;
         }
-        return bytes + exclusionWarningBytes();
+        return bytes;
     }
 
-    @Override
-    public List<String> exclusionWarnings() {
-        return exclusionWarnings;
-    }
 }

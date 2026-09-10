@@ -534,7 +534,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             SearchRequest searchRequest = new SearchRequest().searchSlice("slice-1")
                 .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY)));
-            assertNull(searchRequest.validate());
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[slice] cannot be used with point in time", validationErrors.validationErrors().get(0));
         }
         {
             SearchRequest searchRequest = new SearchRequest().preference("pref1")

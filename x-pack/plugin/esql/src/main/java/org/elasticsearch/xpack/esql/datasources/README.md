@@ -205,15 +205,13 @@ StorageProvider provider = storageProviderRegistry.getProvider(path);
 FormatReader reader = formatReaderRegistry.getByExtension(path.objectName());
 
 // Create operator factory
-AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
     provider,
     reader,
     path,
     attributes,
-    1000,   // batch size
-    maxBufferSize,
-    readExecutor
-).build();
+    1000  // batch size
+);
 ```
 
 ### Example 2: Reading a Parquet file from S3
@@ -225,15 +223,13 @@ StoragePath path = StoragePath.of("s3://my-bucket/data/sales.parquet");
 StorageProvider provider = storageProviderRegistry.getProvider(path);  // S3StorageProvider
 FormatReader reader = formatReaderRegistry.getByExtension(".parquet"); // ParquetFormatReader
 
-AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
     provider,
     reader,
     path,
     attributes,
-    5000,
-    maxBufferSize,
-    readExecutor
-).build();
+    5000
+);
 ```
 
 ### Example 3: Reading an Iceberg table
@@ -418,6 +414,7 @@ The abstraction includes comprehensive tests:
 - `HttpStorageProviderTests` - Tests for HTTP/HTTPS access
 - `CsvFormatReaderTests` - Tests for CSV parsing
 - `DataSourceModuleTests` - Integration tests for plugin discovery
+- `ExternalSourceOperatorFactoryTests` - Integration tests
 
 Run tests:
 

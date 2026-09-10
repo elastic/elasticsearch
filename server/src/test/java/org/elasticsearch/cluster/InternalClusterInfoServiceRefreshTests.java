@@ -15,9 +15,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
@@ -48,10 +46,9 @@ import static org.mockito.Mockito.verify;
 public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
 
     public void testEstimatedHeapUsageCollectorSuccessAndFailure() {
-        // We collect the estimated heap usage stats regardless of whether the decider is enabled
         final Settings settings = baseSettingsBuilder().put(
             InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(),
-            randomBoolean()
+            true
         ).build();
 
         try (RefreshTestContext context = RefreshTestContext.create(settings)) {
@@ -84,7 +81,6 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
 
             ClusterInfo clusterInfo = refresh(clusterInfoService);
             verify(estimatedHeapUsageCollector).collectEstimatedHeapUsage(any());
-            assertThat(clusterInfo.getNodeHeapMetrics().get("node-id").totalBytes(), equalTo(1_000L));
             assertThat(clusterInfo.getNodeHeapMetrics().get("node-id").nodeHeapEstimates(), equalTo(nodeHeapEstimates.get("node-id")));
             assertThat(clusterInfo.getEstimatedShardHeapUsages(), equalTo(shardHeapUsageEstimates.perShard()));
             assertThat(
@@ -99,78 +95,6 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             assertThat(clusterInfo.getNodeHeapMetrics(), equalTo(Map.of()));
             assertThat(clusterInfo.getEstimatedShardHeapUsages(), equalTo(Map.of()));
             assertThat(clusterInfo.getDefaultShardHeapUsageForShardsWithoutMetrics(), equalTo(ShardAndIndexHeapUsage.ZERO));
-        }
-    }
-
-    public void testNodeStatsFailureClearsNodeHeapMetrics() {
-        // When node stats fail, nodeHeapMetrics must be empty even if the estimated heap usage collector succeeds.
-        try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
-            final EstimatedHeapUsageCollector estimatedHeapUsageCollector = mock(EstimatedHeapUsageCollector.class);
-            doAnswer(invocation -> {
-                final ActionListener<EstimatedHeapUsageStats> listener = invocation.getArgument(0);
-                listener.onResponse(
-                    new EstimatedHeapUsageStats(Map.of("node-id", new NodeHeapEstimates(100L, 20L)), ShardHeapUsageEstimates.empty())
-                );
-                return null;
-            }).when(estimatedHeapUsageCollector).collectEstimatedHeapUsage(any());
-
-            final AtomicBoolean failNodeStats = new AtomicBoolean();
-            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
-                nodeStatsClient(context.threadPool(), failNodeStats),
-                estimatedHeapUsageCollector,
-                CacheSizesAndCommitmentCollector.EMPTY,
-                PartitionSizeCollector.EMPTY,
-                SearchLaneRequirementsCollector.EMPTY
-            );
-
-            // Success: nodeHeapMetrics populated from both node stats and estimates
-            ClusterInfo clusterInfo = refresh(clusterInfoService);
-            assertThat(clusterInfo.getNodeHeapMetrics().get("node-id").totalBytes(), equalTo(1_000L));
-
-            // Node stats failure: nodeHeapMetrics empty even though estimates succeed
-            failNodeStats.set(true);
-            clusterInfo = refresh(clusterInfoService);
-            assertThat(clusterInfo.getNodeHeapMetrics(), equalTo(Map.of()));
-        }
-    }
-
-    public void testNodeStatsRequestIncludesJvmButNotFsWhenDiskThresholdDisabled() {
-        // JVM metric must always be requested; FS metric must be omitted when disk threshold is disabled.
-        try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
-            final AtomicBoolean jvmRequested = new AtomicBoolean(false);
-            final AtomicBoolean fsRequested = new AtomicBoolean(false);
-            final NoOpClient capturingClient = new NoOpClient(context.threadPool()) {
-                @Override
-                @SuppressWarnings("unchecked")
-                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                    ActionType<Response> action,
-                    Request request,
-                    ActionListener<Response> listener
-                ) {
-                    if (request instanceof NodesStatsRequest nodesStatsRequest) {
-                        jvmRequested.set(nodesStatsRequest.requestedMetrics().contains(NodesStatsRequestParameters.Metric.JVM));
-                        fsRequested.set(nodesStatsRequest.requestedMetrics().contains(NodesStatsRequestParameters.Metric.FS));
-                        listener.onResponse(
-                            (Response) new NodesStatsResponse(new ClusterName("cluster"), List.of(nodeStats("node-id", 1_000L)), List.of())
-                        );
-                    } else {
-                        fail("unexpected action: " + action.name());
-                    }
-                }
-            };
-
-            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
-                capturingClient,
-                EstimatedHeapUsageCollector.EMPTY,
-                CacheSizesAndCommitmentCollector.EMPTY,
-                PartitionSizeCollector.EMPTY,
-                SearchLaneRequirementsCollector.EMPTY
-            );
-
-            refresh(clusterInfoService);
-
-            assertTrue("JVM metric must always be requested", jvmRequested.get());
-            assertFalse("FS metric must not be requested when disk threshold is disabled", fsRequested.get());
         }
     }
 
@@ -190,7 +114,6 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             }).when(partitionSizeCollector).collectHostedShardsPartitionSizes(any(), any());
 
             final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
-                nodeStatsClient(context.threadPool()),
                 EstimatedHeapUsageCollector.EMPTY,
                 CacheSizesAndCommitmentCollector.EMPTY,
                 partitionSizeCollector,
@@ -238,7 +161,6 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             }).when(cacheSizesAndCommitmentCollector).collectCacheSizesAndCommitmentStats(any(), any());
 
             final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
-                nodeStatsClient(context.threadPool()),
                 EstimatedHeapUsageCollector.EMPTY,
                 cacheSizesAndCommitmentCollector,
                 PartitionSizeCollector.EMPTY,
@@ -275,7 +197,6 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             }).when(searchLaneRequirementsCollector).collectSearchLaneRequirements(any(), any());
 
             final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
-                nodeStatsClient(context.threadPool()),
                 EstimatedHeapUsageCollector.EMPTY,
                 CacheSizesAndCommitmentCollector.EMPTY,
                 PartitionSizeCollector.EMPTY,
@@ -310,10 +231,6 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
     }
 
     private static NoOpClient nodeStatsClient(ThreadPool threadPool) {
-        return nodeStatsClient(threadPool, new AtomicBoolean(false));
-    }
-
-    private static NoOpClient nodeStatsClient(ThreadPool threadPool, AtomicBoolean fail) {
         return new NoOpClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
@@ -323,29 +240,19 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                 ActionListener<Response> listener
             ) {
                 if (request instanceof NodesStatsRequest) {
-                    if (fail.get()) {
-                        listener.onFailure(new IllegalStateException("simulated node stats failure"));
-                    } else {
-                        listener.onResponse(
-                            (Response) new NodesStatsResponse(new ClusterName("cluster"), List.of(nodeStats("node-id", 1_000L)), List.of())
-                        );
-                    }
+                    NodeStats nodeStats = mock(NodeStats.class);
+                    JvmStats jvmStats = mock(JvmStats.class);
+                    JvmStats.Mem mem = mock(JvmStats.Mem.class);
+                    Mockito.when(nodeStats.getNode()).thenReturn(DiscoveryNodeUtils.create("node-id"));
+                    Mockito.when(nodeStats.getJvm()).thenReturn(jvmStats);
+                    Mockito.when(jvmStats.getMem()).thenReturn(mem);
+                    Mockito.when(mem.getHeapMax()).thenReturn(ByteSizeValue.ofBytes(1_000L));
+                    listener.onResponse((Response) new NodesStatsResponse(new ClusterName("cluster"), List.of(nodeStats), List.of()));
                 } else {
                     fail("unexpected action: " + action.name());
                 }
             }
         };
-    }
-
-    private static NodeStats nodeStats(String nodeId, long heapMaxBytes) {
-        NodeStats nodeStatsMock = mock(NodeStats.class);
-        JvmStats jvmStats = mock(JvmStats.class);
-        JvmStats.Mem mem = mock(JvmStats.Mem.class);
-        Mockito.when(nodeStatsMock.getNode()).thenReturn(DiscoveryNodeUtils.create(nodeId));
-        Mockito.when(nodeStatsMock.getJvm()).thenReturn(jvmStats);
-        Mockito.when(jvmStats.getMem()).thenReturn(mem);
-        Mockito.when(mem.getHeapMax()).thenReturn(ByteSizeValue.ofBytes(heapMaxBytes));
-        return nodeStatsMock;
     }
 
     private record RefreshTestContext(Settings settings, ThreadPool threadPool, ClusterService clusterService) implements AutoCloseable {
@@ -358,7 +265,22 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
         }
 
         InternalClusterInfoService createClusterInfoService(
-            Client client,
+            EstimatedHeapUsageCollector estimatedHeapUsageCollector,
+            CacheSizesAndCommitmentCollector cacheSizesAndCommitmentCollector,
+            PartitionSizeCollector partitionSizeCollector,
+            SearchLaneRequirementsCollector searchLaneRequirementsCollector
+        ) {
+            return createClusterInfoService(
+                new NoOpClient(threadPool),
+                estimatedHeapUsageCollector,
+                cacheSizesAndCommitmentCollector,
+                partitionSizeCollector,
+                searchLaneRequirementsCollector
+            );
+        }
+
+        InternalClusterInfoService createClusterInfoService(
+            NoOpClient client,
             EstimatedHeapUsageCollector estimatedHeapUsageCollector,
             CacheSizesAndCommitmentCollector cacheSizesAndCommitmentCollector,
             PartitionSizeCollector partitionSizeCollector,

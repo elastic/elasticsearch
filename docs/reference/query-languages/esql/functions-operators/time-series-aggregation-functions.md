@@ -79,9 +79,8 @@ mapping:
   regular aggregation such as `SUM`, `AVG`, or `PERCENTILE` directly to the field, and
   `TS` implicitly merges the histograms per time series. Fields with the type `histogram` must first
   be cast using `::exponential_histogram` or `::tdigest`. Refer to
-  [](/reference/query-languages/esql/esql-histogram-fields.md)
-  for full details, or [Work with histogram metrics](/reference/query-languages/esql/commands/ts.md#work-with-histogram-metrics)
-  for `TS`-specific examples.
+  [Work with histogram metrics](/reference/query-languages/esql/commands/ts.md#work-with-histogram-metrics)
+  for examples and guidance on mixed field types.
 
 For the conceptual context behind the counter/gauge split, refer to
 [When to use TS vs FROM](/reference/query-languages/esql/commands/ts.md#when-to-use-ts-vs-from).

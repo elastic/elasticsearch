@@ -51,7 +51,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -95,7 +94,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -507,14 +505,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         BlobContainer sourceBlobContainer,
                         String sourceBlobName,
                         String blobName,
-                        long blobSize,
-                        @Nullable Executor executor
+                        long blobSize
                     ) throws IOException {
                         int attempt = copyAttempts.incrementAndGet();
                         if (attempt <= failuresBeforeSuccess) {
                             throw new IOException("simulated copy failure (attempt " + attempt + ")");
                         }
-                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
+                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
                     }
                 }
                 return new WrappedContainer(innerContainer);
@@ -568,12 +565,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         BlobContainer sourceBlobContainer,
                         String sourceBlobName,
                         String blobName,
-                        long blobSize,
-                        @Nullable Executor executor
+                        long blobSize
                     ) throws IOException {
                         copyRunning.countDown();
                         safeAwait(copyCanProceed);
-                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
+                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
                         copySucceeded.set(true);
                     }
                 }
@@ -3612,13 +3608,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     BlobContainer sourceBlobContainer,
                     String sourceBlobName,
                     String blobName,
-                    long blobSize,
-                    @Nullable Executor executor
+                    long blobSize
                 ) throws IOException {
                     if (blobName.equals(copyBlockedNameRef.get())) {
                         safeAwait(copyBlocker);
                     }
-                    super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
+                    super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
                 }
             }
             return new WrappedContainer(innerContainer);

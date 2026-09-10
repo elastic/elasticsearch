@@ -22,7 +22,6 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.SnapshotMetrics;
@@ -230,11 +229,10 @@ public class StatelessMockRepository extends FsRepository {
                 BlobContainer sourceBlobContainer,
                 String sourceBlobName,
                 String blobName,
-                long blobSize,
-                @Nullable Executor executor
+                long blobSize
             ) throws IOException {
                 getStrategy().blobContainerCopyBlob(
-                    () -> super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor),
+                    () -> super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize),
                     purpose,
                     sourceBlobContainer,
                     sourceBlobName,

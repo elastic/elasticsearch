@@ -30,9 +30,6 @@ import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetryTestSupport;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
@@ -63,11 +60,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.stringContainsInOrder;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -130,12 +124,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
             )
         );
 
-        AggregationDataExtractor extractor = new AggregationDataExtractor(
-            client,
-            createContext(1000L, 4000L),
-            timingStatsReporter,
-            DatafeedSearchTelemetry.NOOP
-        );
+        AggregationDataExtractor extractor = new AggregationDataExtractor(client, createContext(1000L, 4000L), timingStatsReporter);
 
         ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         ActionFuture<SearchResponse> searchResponse = toActionFuture(createSearchResponse("time", histogramBuckets));
@@ -183,8 +172,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         AggregationDataExtractor extractor = new AggregationDataExtractor(
             client,
             createContext(1000L, 2000L, projectRouting),
-            timingStatsReporter,
-            DatafeedSearchTelemetry.NOOP
+            timingStatsReporter
         );
 
         ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
@@ -198,12 +186,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
     }
 
     public void testExtractionGivenResponseHasNullAggs() throws IOException {
-        AggregationDataExtractor extractor = new AggregationDataExtractor(
-            client,
-            createContext(1000L, 2000L),
-            timingStatsReporter,
-            DatafeedSearchTelemetry.NOOP
-        );
+        AggregationDataExtractor extractor = new AggregationDataExtractor(client, createContext(1000L, 2000L), timingStatsReporter);
 
         ActionFuture<SearchResponse> searchResponse = toActionFuture(createSearchResponse(null));
         when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(searchResponse);
@@ -216,12 +199,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
     }
 
     public void testExtractionGivenResponseHasEmptyAggs() throws IOException {
-        AggregationDataExtractor extractor = new AggregationDataExtractor(
-            client,
-            createContext(1000L, 2000L),
-            timingStatsReporter,
-            DatafeedSearchTelemetry.NOOP
-        );
+        AggregationDataExtractor extractor = new AggregationDataExtractor(client, createContext(1000L, 2000L), timingStatsReporter);
 
         InternalAggregations emptyAggs = AggregationTestUtils.createAggs(Collections.emptyList());
         ActionFuture<SearchResponse> searchResponse = toActionFuture(createSearchResponse(emptyAggs));
@@ -235,12 +213,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
     }
 
     public void testExtractionGivenResponseHasEmptyHistogramAgg() throws IOException {
-        AggregationDataExtractor extractor = new AggregationDataExtractor(
-            client,
-            createContext(1000L, 2000L),
-            timingStatsReporter,
-            DatafeedSearchTelemetry.NOOP
-        );
+        AggregationDataExtractor extractor = new AggregationDataExtractor(client, createContext(1000L, 2000L), timingStatsReporter);
 
         ActionFuture<SearchResponse> searchResponse = toActionFuture(createSearchResponse("time", Collections.emptyList()));
         when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(searchResponse);
@@ -252,77 +225,8 @@ public class AggregationDataExtractorTests extends ESTestCase {
         verify(client).execute(eq(TransportSearchAction.TYPE), any());
     }
 
-    public void testExtractionShouldRecordEmittedDocumentCountInTelemetry() throws IOException {
-        List<InternalHistogram.Bucket> histogramBuckets = Arrays.asList(
-            createHistogramBucket(
-                1000L,
-                3,
-                Arrays.asList(
-                    createMax("time", 1999),
-                    createTerms("airline", new Term("a", 1, "responsetime", 11.0), new Term("b", 2, "responsetime", 12.0))
-                )
-            ),
-            createHistogramBucket(2000L, 0, Collections.emptyList()),
-            createHistogramBucket(
-                3000L,
-                7,
-                Arrays.asList(
-                    createMax("time", 3999),
-                    createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0))
-                )
-            )
-        );
-
-        DatafeedSearchTelemetryTestSupport telemetrySupport = new DatafeedSearchTelemetryTestSupport();
-        AggregationDataExtractor extractor = new AggregationDataExtractor(
-            client,
-            createContext(1000L, 4000L),
-            timingStatsReporter,
-            telemetrySupport.telemetry
-        );
-
-        ActionFuture<SearchResponse> searchResponse = toActionFuture(createSearchResponse("time", histogramBuckets));
-        when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(searchResponse);
-
-        assertThat(extractor.hasNext(), is(true));
-        extractor.next();
-
-        verify(telemetrySupport.resultCountHistogram).record(
-            4,
-            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.AGGREGATION.attributeValue())
-        );
-        verify(telemetrySupport.pageSizeHistogram, never()).record(anyLong(), anyMap());
-    }
-
-    public void testExtractionGivenNullAggsShouldRecordZeroInTelemetry() throws IOException {
-        DatafeedSearchTelemetryTestSupport telemetrySupport = new DatafeedSearchTelemetryTestSupport();
-        AggregationDataExtractor extractor = new AggregationDataExtractor(
-            client,
-            createContext(1000L, 2000L),
-            timingStatsReporter,
-            telemetrySupport.telemetry
-        );
-
-        ActionFuture<SearchResponse> searchResponse = toActionFuture(createSearchResponse(null));
-        when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(searchResponse);
-
-        assertThat(extractor.hasNext(), is(true));
-        extractor.next();
-
-        verify(telemetrySupport.resultCountHistogram).record(
-            0,
-            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.AGGREGATION.attributeValue())
-        );
-        verify(telemetrySupport.pageSizeHistogram, never()).record(anyLong(), anyMap());
-    }
-
     public void testExtractionGivenResponseHasMultipleTopLevelAggs() {
-        AggregationDataExtractor extractor = new AggregationDataExtractor(
-            client,
-            createContext(1000L, 2000L),
-            timingStatsReporter,
-            DatafeedSearchTelemetry.NOOP
-        );
+        AggregationDataExtractor extractor = new AggregationDataExtractor(client, createContext(1000L, 2000L), timingStatsReporter);
 
         InternalHistogram histogram1 = mock(InternalHistogram.class);
         when(histogram1.getName()).thenReturn("hist_1");
@@ -339,12 +243,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
     }
 
     public void testExtractionGivenCancelBeforeNext() {
-        AggregationDataExtractor extractor = new AggregationDataExtractor(
-            client,
-            createContext(1000L, 4000L),
-            timingStatsReporter,
-            DatafeedSearchTelemetry.NOOP
-        );
+        AggregationDataExtractor extractor = new AggregationDataExtractor(client, createContext(1000L, 4000L), timingStatsReporter);
 
         ActionFuture<SearchResponse> searchResponse = toActionFuture(createSearchResponse("time", Collections.emptyList()));
         when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(searchResponse);
@@ -371,12 +270,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
             timestamp += 1000L;
         }
 
-        AggregationDataExtractor extractor = new AggregationDataExtractor(
-            client,
-            createContext(1000L, timestamp + 1),
-            timingStatsReporter,
-            DatafeedSearchTelemetry.NOOP
-        );
+        AggregationDataExtractor extractor = new AggregationDataExtractor(client, createContext(1000L, timestamp + 1), timingStatsReporter);
 
         ActionFuture<SearchResponse> searchResponse = toActionFuture(createSearchResponse("time", histogramBuckets));
         when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(searchResponse);
@@ -407,12 +301,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
     }
 
     public void testExtractionGivenSearchResponseHasError() {
-        AggregationDataExtractor extractor = new AggregationDataExtractor(
-            client,
-            createContext(1000L, 2000L),
-            timingStatsReporter,
-            DatafeedSearchTelemetry.NOOP
-        );
+        AggregationDataExtractor extractor = new AggregationDataExtractor(client, createContext(1000L, 2000L), timingStatsReporter);
         when(client.execute(eq(TransportSearchAction.TYPE), any())).thenThrow(
             new SearchPhaseExecutionException("phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY)
         );
@@ -422,12 +311,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
     }
 
     public void testGetSummary() {
-        AggregationDataExtractor extractor = new AggregationDataExtractor(
-            client,
-            createContext(1000L, 2300L),
-            timingStatsReporter,
-            DatafeedSearchTelemetry.NOOP
-        );
+        AggregationDataExtractor extractor = new AggregationDataExtractor(client, createContext(1000L, 2300L), timingStatsReporter);
 
         ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         ActionFuture<SearchResponse> searchResponse = toActionFuture(createSummaryResponse(1001L, 2299L, 10L));

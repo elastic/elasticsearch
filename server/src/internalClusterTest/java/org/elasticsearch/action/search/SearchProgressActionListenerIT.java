@@ -166,7 +166,7 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
                 throw new AssertionError();
             }
         };
-        client.execute(TransportSearchAction.TYPE, new SearchRequest(request) {
+        client.executeLocally(TransportSearchAction.TYPE, new SearchRequest(request) {
             @Override
             public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
                 SearchTask task = super.createTask(id, type, action, parentTaskId, headers);

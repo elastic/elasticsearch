@@ -337,26 +337,17 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            failIfNotIndexedNorDocValuesFallback(context);
+            failIfNotIndexed();
             Long longValue = parseTerm(value);
             if (longValue == null) {
                 return Queries.NO_DOCS_INSTANCE;
             }
-            long sortableValue = unsignedToSortableSignedLong(longValue);
-            if (indexType.hasPoints() == false) {
-                return SortedNumericDocValuesField.newSlowRangeQuery(name(), sortableValue, sortableValue);
-            }
-            return LongPoint.newExactQuery(name(), sortableValue);
+            return LongPoint.newExactQuery(name(), unsignedToSortableSignedLong(longValue));
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexedNorDocValuesFallback(context);
-            if (indexType.hasPoints() == false) {
-                // Without a point index the set has to be matched as a disjunction of per-value
-                // doc-values queries, which termQuery already builds.
-                return super.termsQuery(values, context);
-            }
+            failIfNotIndexed();
             long[] lvalues = new long[values.size()];
             int upTo = 0;
             for (Object value : values) {
@@ -382,7 +373,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            failIfNotIndexedNorDocValuesFallback(context);
+            failIfNotIndexed();
             long l = Long.MIN_VALUE;
             long u = Long.MAX_VALUE;
             if (lowerTerm != null) {
@@ -397,18 +388,13 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
             if (l > u) return Queries.NO_DOCS_INSTANCE;
 
-            Query query;
-            if (indexType.hasPoints()) {
-                query = LongPoint.newRangeQuery(name(), l, u);
-                if (hasDocValues()) {
-                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
-                    query = new IndexOrDocValuesQuery(query, dvQuery);
+            Query query = LongPoint.newRangeQuery(name(), l, u);
+            if (hasDocValues()) {
+                Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                query = new IndexOrDocValuesQuery(query, dvQuery);
+                if (context.indexSortedOnField(name())) {
+                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
                 }
-            } else {
-                query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
-            }
-            if (hasDocValues() && context.indexSortedOnField(name())) {
-                query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
             }
             return query;
         }

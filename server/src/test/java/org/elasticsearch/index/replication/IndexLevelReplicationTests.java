@@ -26,7 +26,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -704,59 +703,6 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             deleteOnReplica(deleteRequest, shards, replica);
             indexOnReplica(indexRequest, shards, replica);
             shards.assertAllEqual(0);
-        }
-    }
-
-    /**
-     * Reproduces the primary/replica divergence tracked in
-     * <a href="https://github.com/elastic/elasticsearch/issues/150408">#150408</a> at the replication-group level, exercising the real
-     * replication code path rather than the engine in isolation.
-     *
-     * <p>Two writes for the same document are applied in order on the primary (an update), so the higher seq_no wins there. They are then
-     * delivered <em>out of order</em> on the replica (higher seq_no first, then the stale lower seq_no) with a refresh in between so the id
-     * is evicted from the version map and the stale op must resolve against Lucene. On sequence-number-disabled indices the replica must
-     * still keep the highest seq_no document so that primary and replica converge. Before the fix the replica read a pruned/absent
-     * {@code _seq_no} as {@code UNASSIGNED_SEQ_NO}, treated the stale op as newer, and diverged from the primary.
-     */
-    public void testOutOfOrderReplicaWritesConvergeWithSequenceNumbersDisabled() throws Exception {
-        final Settings settings = Settings.builder()
-            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
-            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.name())
-            .build();
-        // Pre-register field "f" in the mapping: the test framework uses a no-op mapping updater, so a document that triggers a dynamic
-        // mapping update on the primary would hang waiting for a master update that never happens.
-        final String mappings = """
-            { "_doc": { "properties": { "f": { "type": "keyword"} }}}""";
-        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(1, settings, mappings))) {
-            shards.startAll();
-            final IndexShard primary = shards.getPrimary();
-            final IndexShard replica = shards.getReplicas().get(0);
-
-            // Two writes for the same id, applied in order on the primary: the second (higher seq_no) becomes the live document.
-            final BulkShardRequest staleWrite = indexOnPrimary(
-                new IndexRequest(index.getName()).id("1").source("{\"f\":\"stale\"}", XContentType.JSON),
-                primary
-            );
-            final BulkShardRequest freshWrite = indexOnPrimary(
-                new IndexRequest(index.getName()).id("1").source("{\"f\":\"fresh\"}", XContentType.JSON),
-                primary
-            );
-
-            // Deliver the writes out of order on the replica: the higher seq_no first ...
-            indexOnReplica(freshWrite, shards, replica);
-            // ... refresh so the id is evicted from the version map and the stale op must resolve against Lucene ...
-            replica.refresh("test");
-            // ... then the stale (lower seq_no) write, which must not overwrite the higher seq_no document.
-            indexOnReplica(staleWrite, shards, replica);
-
-            primary.refresh("test");
-            final List<DocIdSeqNoAndSource> primaryDocs = getDocIdAndSeqNos(primary);
-            assertThat(primaryDocs, hasSize(1));
-            assertThat(
-                "primary and replica must converge on the highest seq_no document",
-                getDocIdAndSeqNos(replica),
-                equalTo(primaryDocs)
-            );
         }
     }
 

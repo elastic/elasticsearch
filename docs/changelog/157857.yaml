@@ -1,0 +1,6 @@
+area: Columnar
+issues:
+ - 157817
+pr: 157857
+summary: Fix `ArrayOrder` block loaders falsely claiming SORTED_ASCENDING
+type: bug

@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 157889
+summary: Fix FLS field names term state filtering
+type: bug

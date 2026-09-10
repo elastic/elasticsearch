@@ -1,3 +1,0 @@
-FROM employees
-| WHERE (emp_no IN (FROM employees | KEEP emp_no)) == true
-  AND languages IN (FROM employees | KEEP languages)

@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 158508
-summary: Add parallel hash aggregation operator
-type: enhancement

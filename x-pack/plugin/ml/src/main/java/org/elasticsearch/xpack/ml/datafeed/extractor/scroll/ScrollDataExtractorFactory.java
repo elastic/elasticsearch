@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -67,7 +66,6 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     private final TimeBasedExtractedFields extractedFields;
     private final NamedXContentRegistry xContentRegistry;
     private final DatafeedTimingStatsReporter timingStatsReporter;
-    private final DatafeedSearchTelemetry searchTelemetry;
 
     /**
      * Scroll IDs that could not be cleared during a previous network disruption.
@@ -85,8 +83,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         Job job,
         TimeBasedExtractedFields extractedFields,
         NamedXContentRegistry xContentRegistry,
-        DatafeedTimingStatsReporter timingStatsReporter,
-        DatafeedSearchTelemetry searchTelemetry
+        DatafeedTimingStatsReporter timingStatsReporter
     ) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
@@ -95,7 +92,6 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.xContentRegistry = xContentRegistry;
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
-        this.searchTelemetry = Objects.requireNonNull(searchTelemetry);
     }
 
     /**
@@ -218,7 +214,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
             datafeedConfig.getRuntimeMappings(),
             datafeedConfig.getProjectRouting()
         );
-        return new ScrollDataExtractor(client, dataExtractorContext, timingStatsReporter, searchTelemetry, this);
+        return new ScrollDataExtractor(client, dataExtractorContext, timingStatsReporter, this);
     }
 
     List<String> effectiveIndices() {
@@ -239,7 +235,6 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         Job job,
         NamedXContentRegistry xContentRegistry,
         DatafeedTimingStatsReporter timingStatsReporter,
-        DatafeedSearchTelemetry searchTelemetry,
         ActionListener<DataExtractorFactory> listener
     ) {
 
@@ -281,16 +276,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
             }
             TimeBasedExtractedFields fields = TimeBasedExtractedFields.build(job, datafeed, fieldCapabilitiesResponse);
             listener.onResponse(
-                new ScrollDataExtractorFactory(
-                    client,
-                    datafeed,
-                    extraFilters,
-                    job,
-                    fields,
-                    xContentRegistry,
-                    timingStatsReporter,
-                    searchTelemetry
-                )
+                new ScrollDataExtractorFactory(client, datafeed, extraFilters, job, fields, xContentRegistry, timingStatsReporter)
             );
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);

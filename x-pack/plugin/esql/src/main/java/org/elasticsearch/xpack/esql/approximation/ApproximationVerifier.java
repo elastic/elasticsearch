@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -286,32 +285,32 @@ public class ApproximationVerifier {
             }
         });
 
-        // Check whether there's a MergePlan (FORK, UnionAll, ViewUnionAll).
-        List<MergePlan> mergePlans = logicalPlan.collect(MergePlan.class);
-        if (mergePlans.isEmpty()) {
-            // When there's no merge, verify this logical plan.
+        // Check whether there's a FORK.
+        List<Fork> forks = logicalPlan.collect(Fork.class);
+        if (forks.isEmpty()) {
+            // When there's no FORK, verify this logical plan.
             return verifyBranchOrThrow(logicalPlan);
         } else {
-            // When there's a merge, find the structure.
-            if (mergePlans.size() > 1) {
+            // When there's a FORK, find the structure.
+            if (forks.size() > 1) {
                 // Often these queries will fail anyway, because multiple or nested forks or subqueries
                 // are not supported. However, that check is postponed until after logical optimization,
                 // because sometimes they can be flattened. See also: UnionAll::checkNestedUnionAlls.
                 throw new VerificationException(
                     "line {}:{}: approximation not supported: query with multiple or nested forks or subqueries cannot be approximated",
-                    mergePlans.get(1).source().source().getLineNumber(),
-                    mergePlans.get(1).source().source().getColumnNumber()
+                    forks.get(1).source().source().getLineNumber(),
+                    forks.get(1).source().source().getColumnNumber()
                 );
             }
 
-            MergePlan mergePlan = mergePlans.getFirst();
+            Fork fork = forks.getFirst();
 
-            boolean statsInBranches = mergePlan.anyMatch(plan -> plan instanceof Aggregate);
+            boolean statsInBranches = fork.anyMatch(plan -> plan instanceof Aggregate);
 
             if (statsInBranches == false) {
-                // When the merge is after the STATS, like
+                // When the FORK is after the STATS, like
                 // - FROM index | FORK (...) (...) | STATS ...
-                // verify there's just one STATS, and verify as if there were no merge.
+                // verify there's just one STATS, and verify as if there were no FORK.
                 List<Aggregate> aggregates = logicalPlan.collect(Aggregate.class);
                 if (aggregates.size() > 1) {
                     throw new ChainedStatsVerificationException(logicalPlan);
@@ -325,9 +324,9 @@ public class ApproximationVerifier {
                 List<QueryProperties> branchProperties = new ArrayList<>();
 
                 VerificationException firstVerificationException = null;
-                for (int branchIndex = 0; branchIndex < mergePlan.children().size(); branchIndex++) {
+                for (int branchIndex = 0; branchIndex < fork.children().size(); branchIndex++) {
                     int branchIndexFinal = branchIndex;
-                    LogicalPlan branch = logicalPlan.transformDown(MergePlan.class, f -> f.children().get(branchIndexFinal));
+                    LogicalPlan branch = logicalPlan.transformDown(Fork.class, f -> f.children().get(branchIndexFinal));
                     try {
                         branchProperties.add(verifyBranchOrThrow(branch));
                     } catch (VerificationException e) {

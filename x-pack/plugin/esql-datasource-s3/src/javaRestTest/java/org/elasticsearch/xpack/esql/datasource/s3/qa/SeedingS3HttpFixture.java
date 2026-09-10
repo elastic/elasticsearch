@@ -17,12 +17,10 @@ import com.sun.net.httpserver.HttpHandler;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.rest.RestStatus;
 
 import java.util.function.BiPredicate;
 
 import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
-import static fixture.aws.AwsFixtureUtils.sendError;
 
 /**
  * {@link S3HttpFixture} subclass that captures the underlying {@link S3HttpHandler} so the test JVM
@@ -46,8 +44,8 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
         super(
             true,
             null,
-            () -> bucket,
-            () -> "" /* no base path: external sources address objects by full key */,
+            bucket,
+            "" /* no base path: external sources address objects by full key */,
             () -> S3ConsistencyModel.STRONG_MPUS,
             authorizationPredicate
         );
@@ -61,12 +59,6 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
         return exchange -> {
             try {
                 if (checkAuthorization(authorizationPredicate, exchange)) {
-                    if (addressesAnotherBucket(exchange.getRequestURI().getPath())) {
-                        // S3 answers a request for a bucket that does not exist with 404 NoSuchBucket;
-                        // the shared handler answers 500, which would make a probe measure the fixture.
-                        sendError(exchange, RestStatus.NOT_FOUND, "NoSuchBucket", "The specified bucket does not exist");
-                        return;
-                    }
                     handler.handle(exchange);
                 }
             } catch (Error e) {
@@ -86,15 +78,6 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
             throw new IllegalStateException("S3 fixture has not been started yet; call seedBlob from @BeforeClass");
         }
         handler.blobs().put("/" + bucket + "/" + key, new BlobEntry(new BytesArray(content), "STANDARD"));
-    }
-
-    /**
-     * True when the request addresses a bucket this fixture does not serve. The shared {@link S3HttpHandler}
-     * answers those with a 500, which is not what S3 does — it returns 404 NoSuchBucket — so a probe pointed at
-     * a missing bucket would otherwise be measuring the fixture rather than the product.
-     */
-    private boolean addressesAnotherBucket(String requestPath) {
-        return requestPath.startsWith("/" + bucket + "/") == false && requestPath.equals("/" + bucket) == false;
     }
 
 }

@@ -191,10 +191,22 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 if (resolvedIndexMode == null) {
                     resolvedIndexMode = templateIndexMode;
                 }
-                additionalSettings.put(
-                    IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
-                    fallbackSourceMode(resolvedIndexMode).toString()
-                );
+                if (resolvedIndexMode == IndexMode.VECTORDB_COLUMNAR) {
+                    // This mode supports synthetic source only, so there is no source mode to fall back to. Templates may
+                    // still declare the mode; the license is enforced when an index is created from them.
+                    if (isTemplateValidation == false) {
+                        throw new IllegalArgumentException(
+                            "index mode ["
+                                + IndexMode.VECTORDB_COLUMNAR.getName()
+                                + "] requires synthetic source, which is not available with the current license"
+                        );
+                    }
+                } else {
+                    additionalSettings.put(
+                        IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+                        fallbackSourceMode(resolvedIndexMode).toString()
+                    );
+                }
             }
         }
 

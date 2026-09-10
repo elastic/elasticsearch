@@ -19,7 +19,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -58,17 +57,6 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     /** Low-cardinality storage scheme dimension for this scan's histograms; {@code null} when unknown (connector path). */
     private final String scheme;
     /**
-     * Format name from the resolved {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader#formatName()};
-     * {@code null} on the connector path, folded to {@code unresolved} by the metrics holder.
-     */
-    private final String format;
-    /**
-     * Factory hold released from {@link #close()} so a producer that finishes during pipeline
-     * construction cannot drop the last {@code operatorRefCount} before later {@code get()} calls.
-     * No-op when this operator was not created by {@link AsyncExternalSourceOperatorFactory}.
-     */
-    private final Releasable onOperatorClose;
-    /**
      * Reference point for the time-to-first-row measurement, captured when this SCAN OPERATOR is constructed
      * (per driver, after planning and discovery) — NOT at query start. The measurement is therefore a per-scan
      * proxy: a query with several external-source scans records one observation per scan.
@@ -80,33 +68,19 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     private long processNanos;
 
     public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
-        this(buffer, driverContext, ExternalSourceMetrics.NOOP, null, null);
+        this(buffer, driverContext, ExternalSourceMetrics.NOOP, null);
     }
 
     public AsyncExternalSourceOperator(
         AsyncExternalSourceBuffer buffer,
         DriverContext driverContext,
         ExternalSourceMetrics externalSourceMetrics,
-        String scheme,
-        String format
-    ) {
-        this(buffer, driverContext, externalSourceMetrics, scheme, format, () -> {});
-    }
-
-    public AsyncExternalSourceOperator(
-        AsyncExternalSourceBuffer buffer,
-        DriverContext driverContext,
-        ExternalSourceMetrics externalSourceMetrics,
-        String scheme,
-        String format,
-        Releasable onOperatorClose
+        String scheme
     ) {
         this.buffer = Objects.requireNonNull(buffer, "buffer");
         this.driverContext = Objects.requireNonNull(driverContext, "driverContext");
         this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
         this.scheme = scheme;
-        this.format = format;
-        this.onOperatorClose = onOperatorClose == null ? () -> {} : onOperatorClose;
     }
 
     @Override
@@ -117,7 +91,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             if (page != null) {
                 if (pagesEmitted == 0) {
                     // First page delivered: record time-to-first-row once. The record method self-guards (best-effort).
-                    externalSourceMetrics.recordTimeToFirstRow((startNanos - operatorStartNanos) / 1_000_000, scheme, format);
+                    externalSourceMetrics.recordTimeToFirstRow((startNanos - operatorStartNanos) / 1_000_000, scheme);
                 }
                 pagesEmitted++;
                 rowsEmitted += page.getPositionCount();
@@ -168,13 +142,9 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public void close() {
-        try {
-            emitPendingWarnings();
-            recordParseAndSplits();
-            finish();
-        } finally {
-            onOperatorClose.close();
-        }
+        emitPendingWarnings();
+        recordParseAndSplits();
+        finish();
     }
 
     /**
@@ -197,8 +167,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         FormatReaderStatus formatReaderStatus = buffer.formatReaderStatus();
         long readNanos = formatReaderStatus == null ? 0L : formatReaderStatus.readNanos();
         // Both record methods self-guard (best-effort): an instrumentation failure cannot break teardown.
-        externalSourceMetrics.recordParse(rowsEmitted, TimeUnit.NANOSECONDS.toMillis(readNanos), scheme, format);
-        externalSourceMetrics.recordSplitsScanned(splitsProcessed, scheme, format);
+        externalSourceMetrics.recordParse(rowsEmitted, TimeUnit.NANOSECONDS.toMillis(readNanos), scheme);
+        externalSourceMetrics.recordSplitsScanned(splitsProcessed, scheme);
     }
 
     /**

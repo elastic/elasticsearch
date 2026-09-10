@@ -136,7 +136,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         // we have to implement a TransportNodesAction instead of using TransportNodesListGatewayStartedShards
         // for fetching shard stores info, that operates on a list of shards instead of a single shard
 
-        client.execute(TransportNodesListGatewayStartedShards.TYPE, request, listener);
+        client.executeLocally(TransportNodesListGatewayStartedShards.TYPE, request, listener);
     }
 
     private record ShardRequestContext(

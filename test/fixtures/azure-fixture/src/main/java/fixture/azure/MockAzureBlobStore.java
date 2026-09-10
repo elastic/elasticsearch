@@ -22,7 +22,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -154,8 +153,7 @@ public class MockAzureBlobStore {
         })
             .filter(e -> e.getValue().isCommitted())
             .peek(e -> e.getValue().checkLeaseForRead(leaseId))
-            // Real Azure List Blobs returns names in lexicographic order.
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, TreeMap::new));
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     public String acquireLease(String path, int leaseTimeSeconds, @Nullable String proposedLeaseId) {

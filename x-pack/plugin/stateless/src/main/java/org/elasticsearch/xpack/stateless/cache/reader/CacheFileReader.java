@@ -58,6 +58,8 @@ import static org.elasticsearch.xpack.stateless.StatelessPlugin.GET_VIRTUAL_BATC
  */
 public class CacheFileReader {
 
+    public static final FeatureFlag OBJECT_STORE_PREFETCH_FEATURE_FLAG = new FeatureFlag("stateless_object_store_prefetch");
+
     static final int MAX_PREFETCH_ALREADY_UPLOADED_RETRIES = 2;
 
     private static final Logger logger = LogManager.getLogger(CacheFileReader.class);
@@ -101,7 +103,6 @@ public class CacheFileReader {
     private final long exclusiveStart;
     private final long exclusiveEnd;
     private final boolean hasSearchRole;
-    private final boolean objectStorePrefetchEnabled;
     /**
      * Where to account the bytes read from the cache, whether they were already there or had to be fetched. Installed
      * by the index input that owns this reader, and carried on to its copies.
@@ -113,8 +114,7 @@ public class CacheFileReader {
         CacheBlobReader cacheBlobReader,
         BlobFileRanges blobFileRanges,
         BlobCacheMetrics blobCacheMetrics,
-        LongSupplier relativeTimeInMillisSupplier,
-        boolean objectStorePrefetchEnabled
+        LongSupplier relativeTimeInMillisSupplier
     ) {
         this(
             cacheFile,
@@ -126,8 +126,7 @@ public class CacheFileReader {
             SharedBytes.MADV_NORMAL,
             0,
             0,
-            false,
-            objectStorePrefetchEnabled
+            false
         );
     }
 
@@ -145,8 +144,7 @@ public class CacheFileReader {
         LongSupplier relativeTimeInMillisSupplier,
         int regionSize,
         IOContext context,
-        boolean hasSearchRole,
-        boolean objectStorePrefetchEnabled
+        boolean hasSearchRole
     ) {
         this(
             cacheFile,
@@ -158,8 +156,7 @@ public class CacheFileReader {
             contextToAdvice(context, hasSearchRole),
             0,
             Long.MAX_VALUE,
-            hasSearchRole,
-            objectStorePrefetchEnabled
+            hasSearchRole
         );
     }
 
@@ -173,8 +170,7 @@ public class CacheFileReader {
         int desiredAdvice,
         long exclusiveStart,
         long exclusiveEnd,
-        boolean hasSearchRole,
-        boolean objectStorePrefetchEnabled
+        boolean hasSearchRole
     ) {
         this.cacheFile = Objects.requireNonNull(cacheFile);
         this.cacheBlobReader = Objects.requireNonNull(cacheBlobReader);
@@ -186,7 +182,6 @@ public class CacheFileReader {
         this.exclusiveStart = exclusiveStart;
         this.exclusiveEnd = exclusiveEnd;
         this.hasSearchRole = hasSearchRole;
-        this.objectStorePrefetchEnabled = objectStorePrefetchEnabled;
     }
 
     /**
@@ -212,8 +207,7 @@ public class CacheFileReader {
             desiredMAdvice,
             exclusiveStart,
             exclusiveEnd,
-            hasSearchRole,
-            objectStorePrefetchEnabled
+            hasSearchRole
         );
         copy.storeMetrics = storeMetrics.singleThreaded();
         return copy;
@@ -251,8 +245,7 @@ public class CacheFileReader {
             advice,
             exclStart,
             exclEnd,
-            hasSearchRole,
-            objectStorePrefetchEnabled
+            hasSearchRole
         );
         copy.storeMetrics = storeMetrics.singleThreaded();
         return copy;
@@ -341,8 +334,8 @@ public class CacheFileReader {
     /**
      * Attempts to prefetch byte(s) from the local cache using the fast path.
      *
-     * <p>If the data is not in the cache and {@link StatelessSharedBlobCacheService#STATELESS_CACHE_OBJECT_STORE_PREFETCH_ENABLED_SETTING}
-     * is enabled, schedules an asynchronous download from the object store so that subsequent reads may find the
+     * <p>If the data is not in the cache and {@link #OBJECT_STORE_PREFETCH_FEATURE_FLAG} is enabled,
+     * schedules an asynchronous download from the object store so that subsequent reads may find the
      * data already cached. Otherwise this method is best-effort and non-blocking, only succeeding
      * when the data is already present in the local cache.</p>
      *
@@ -353,7 +346,7 @@ public class CacheFileReader {
      * @throws IOException if an I/O error occurs
      */
     public final boolean tryPrefetch(long offset, long length) throws IOException {
-        if (objectStorePrefetchEnabled == false) {
+        if (OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled() == false) {
             return cacheFile.tryPrefetch(offset, length);
         }
         final long blobLength = cacheFile.getLength();

@@ -64,24 +64,12 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
                 "/_snapshot/" + repositoryName(),
                 (b, p) -> b.field("type", S3Repository.TYPE).startObject("settings").value(settings).endObject()
             );
-
-            final var expectedWarnings = new ArrayList<String>();
             if (S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.exists(settings)) {
-                expectedWarnings.add("""
+                request.setOptions(expectWarnings("""
                     [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed \
-                    in a future release. See the breaking changes documentation for the next major version.""");
+                    in a future release. See the breaking changes documentation for the next major version."""));
             }
-            if (settings.keySet().contains("disable_chunked_encoding")) {
-                expectedWarnings.add("""
-                    [s3.client.placeholder.disable_chunked_encoding] setting was deprecated in Elasticsearch and will be removed \
-                    in a future release. See the breaking changes documentation for the next major version.""");
-            }
-            if (expectedWarnings.isEmpty() == false) {
-                request.setOptions(expectWarnings(expectedWarnings.toArray(String[]::new)));
-            }
-
             return request;
-
         }
     }
 

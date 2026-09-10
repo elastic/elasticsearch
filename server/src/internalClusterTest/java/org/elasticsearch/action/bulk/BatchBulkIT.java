@@ -33,6 +33,7 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -224,110 +225,6 @@ public class BatchBulkIT extends ESIntegTestCase {
         // Spot-check a specific doc by id.
         var getResponse = client().get(new org.elasticsearch.action.get.GetRequest(index).id("doc-0")).actionGet();
         assertTrue(getResponse.isExists());
-    }
-
-    public void testKeywordWithMultiField() throws IOException {
-        String index = "test-columnar-keyword-subfield";
-
-        XContentBuilder mapping = JsonXContent.contentBuilder();
-        mapping.startObject();
-        {
-            mapping.startObject("_doc");
-            {
-                mapping.field("dynamic", "strict");
-                mapping.startObject("properties");
-                {
-                    mapping.startObject("host");
-                    mapping.field("type", "keyword");
-                    mapping.startObject("fields");
-                    mapping.startObject("raw").field("type", "keyword").field("ignore_above", 256).endObject();
-                    mapping.endObject();
-                    mapping.endObject();
-                    mapping.startObject("service").field("type", "keyword").endObject();
-                }
-                mapping.endObject();
-            }
-            mapping.endObject();
-        }
-        mapping.endObject();
-
-        assertAcked(
-            indicesAdmin().prepareCreate(index)
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 0)
-                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
-                )
-                .setMapping(mapping)
-        );
-        ensureGreen(index);
-
-        String coordinatingNode = findCoordinatingNode();
-
-        int counter = 0;
-        int numDocs = randomIntBetween(20, 100);
-        BulkRequest bulkRequest = new BulkRequest();
-        for (int i = 0; i < numDocs; i++) {
-            int suffix = i % 5;
-            if (suffix == 0) {
-                counter++;
-            }
-            bulkRequest.add(
-                new IndexRequest(index).id("doc-" + i)
-                    .source(XContentType.JSON, "host", "host-" + suffix, "service", "svc-" + (i % 3))
-                    .opType(DocWriteRequest.OpType.CREATE)
-            );
-        }
-        long host0 = counter;
-
-        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
-        final Level origLevel = batchLogger.getLevel();
-        Loggers.setLevel(batchLogger, Level.TRACE);
-        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "batch indexed on primary",
-                    ShardBatchIndexer.class.getName(),
-                    Level.TRACE,
-                    "batch indexed * operations on primary shard *"
-                )
-            );
-
-            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
-            assertNoFailures(bulkResponse);
-            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
-
-            mockLog.assertAllExpectationsMatched();
-        } finally {
-            Loggers.setLevel(batchLogger, origLevel);
-        }
-
-        refresh(index);
-
-        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
-            assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
-        });
-
-        // The parent field must be searchable via its own column.
-        assertResponse(
-            prepareSearch(index).setQuery(QueryBuilders.termQuery("host", "host-0")).setSize(0).setTrackTotalHits(true),
-            searchResponse -> {
-                assertNoFailures(searchResponse);
-                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(host0));
-            }
-        );
-
-        // The sub-field must have been indexed with identical values and return the same count.
-        assertResponse(
-            prepareSearch(index).setQuery(QueryBuilders.termQuery("host.raw", "host-0")).setSize(0).setTrackTotalHits(true),
-            searchResponse -> {
-                assertNoFailures(searchResponse);
-                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(host0));
-            }
-        );
     }
 
     public void testColumnarMatchOnlyTextBatchMode() throws IOException {
@@ -1141,7 +1038,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         }
     }
 
-    public void testTimeSeriesRoutingPathFallsBackFromBatchMode() throws IOException {
+    public void testTimeSeriesIndexViaBatchMode() throws IOException {
         String index = "test-batch-tsdb";
 
         // Create a time series index
@@ -2060,6 +1957,7 @@ public class BatchBulkIT extends ESIntegTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testMultiValueFalseOnFailureIgnoreInBatchPath() throws IOException {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         String index = "test-batch-mvf";
 
         XContentBuilder mapping = JsonXContent.contentBuilder();

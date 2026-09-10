@@ -282,7 +282,7 @@ public class NodeTests extends ESTestCase {
             assertions.accept(result);
         }), latch);
 
-        node.transformDown(rule, Runnable::run, listener);
+        node.transformDown(rule, listener);
         assertTrue("timed out after 5s", latch.await(5, TimeUnit.SECONDS));
     }
 

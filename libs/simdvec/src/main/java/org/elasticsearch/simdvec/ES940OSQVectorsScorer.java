@@ -10,28 +10,23 @@ package org.elasticsearch.simdvec;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.simdvec.internal.vectorization.BBQDotProduct;
 import org.elasticsearch.simdvec.internal.vectorization.JdkFeatures;
 
 import java.io.IOException;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
-import static org.elasticsearch.simdvec.BBQEncoding.D1Q1;
-import static org.elasticsearch.simdvec.BBQEncoding.D1Q4;
-import static org.elasticsearch.simdvec.BBQEncoding.D2Q4;
-import static org.elasticsearch.simdvec.BBQEncoding.D4Q4;
-import static org.elasticsearch.simdvec.BBQEncoding.D7Q7;
 
 /** Scorer for quantized vectors stored as an {@link IndexInput}. */
 public class ES940OSQVectorsScorer {
 
     public static final int BULK_SIZE = 32;
 
-    public static boolean supportsQuantization(byte indexBits, byte queryBits) {
-        return switch ((indexBits << 8) | queryBits) {
-            case D1Q1, D1Q4, D2Q4, D4Q4, D7Q7 -> true;
+    public static boolean supportsQuantization(byte queryBits, byte indexBits) {
+        return switch ((queryBits << 8) | indexBits) {
+            case (1 << 8) | 1, (4 << 8) | 1, (4 << 8) | 2, (4 << 8) | 4, (7 << 8) | 7 -> true;
             default -> false;
         };
     }
@@ -48,9 +43,10 @@ public class ES940OSQVectorsScorer {
         D2Q4_PACKED((byte) 2, (byte) 4, BitEncoding.PACKED),
         D4Q4_STRIPED((byte) 4, (byte) 4),
         D4Q4_PACKED((byte) 4, (byte) 4, BitEncoding.PACKED),
-        D7Q7((byte) 7, (byte) 7, BitEncoding.PACKED);
+        D7Q7((byte) 7, (byte) 7);
 
-        private final BBQEncoding bbqEncoding;
+        private final byte indexBits;
+        private final byte queryBits;
         private final BitEncoding bitEncoding;
 
         QuantEncoding(byte indexBits, byte queryBits) {
@@ -58,23 +54,28 @@ public class ES940OSQVectorsScorer {
         }
 
         QuantEncoding(byte indexBits, byte queryBits, BitEncoding bitEncoding) {
-            this.bbqEncoding = new BBQEncoding(indexBits, queryBits);
+            this.indexBits = indexBits;
+            this.queryBits = queryBits;
             this.bitEncoding = bitEncoding;
         }
 
-        public static QuantEncoding of(BBQEncoding bbqEncoding, BitEncoding bitEncoding) {
-            return switch (bbqEncoding.toSwitchValue()) {
-                case BBQEncoding.D1Q1 -> D1Q1;
-                case BBQEncoding.D1Q4 -> D1Q4;
-                case BBQEncoding.D2Q4 -> bitEncoding == BitEncoding.PACKED ? D2Q4_PACKED : D2Q4_STRIPED;
-                case BBQEncoding.D4Q4 -> bitEncoding == BitEncoding.PACKED ? D4Q4_PACKED : D4Q4_STRIPED;
-                case BBQEncoding.D7Q7 -> D7Q7;
-                default -> throw new IllegalArgumentException("Unsupported query/index bits combination: " + bbqEncoding);
+        public static QuantEncoding of(byte queryBits, byte indexBits, BitEncoding bitEncoding) {
+            return switch ((queryBits << 8) | indexBits) {
+                case (1 << 8) | 1 -> D1Q1;
+                case (4 << 8) | 1 -> D1Q4;
+                case (4 << 8) | 2 -> bitEncoding == BitEncoding.PACKED ? D2Q4_PACKED : D2Q4_STRIPED;
+                case (4 << 8) | 4 -> bitEncoding == BitEncoding.PACKED ? D4Q4_PACKED : D4Q4_STRIPED;
+                case (7 << 8) | 7 -> D7Q7;
+                default -> throw new IllegalArgumentException("Unsupported query/index bits combination: " + queryBits + "/" + indexBits);
             };
         }
 
-        public BBQEncoding bbqEncoding() {
-            return bbqEncoding;
+        public byte indexBits() {
+            return indexBits;
+        }
+
+        public byte queryBits() {
+            return queryBits;
         }
 
         public BitEncoding bitEncoding() {
@@ -92,11 +93,6 @@ public class ES940OSQVectorsScorer {
         1f / ((1 << 7) - 1),
         1f / ((1 << 8) - 1), };
 
-    /** Scale for a quantization of the given bit width, for scorers that are not fixed to one encoding */
-    protected static float bitScale(int bits) {
-        return BIT_SCALES[bits - 1];
-    }
-
     /** The wrapper {@link IndexInput}. */
     protected final IndexInput in;
 
@@ -111,8 +107,6 @@ public class ES940OSQVectorsScorer {
     protected final float[] additionalCorrections;
     private final byte[] scratch;
     private final byte[] packedScratch;
-    /** Dot product for the bit-plane encodings; {@code null} for the packed encodings and D7Q7, which are not bit-planes */
-    private final BBQDotProduct dotProduct;
 
     public ES940OSQVectorsScorer(IndexInput in, QuantEncoding encoding, int dimensions, int dataLength, int bulkSize) {
         this.in = in;
@@ -124,31 +118,28 @@ public class ES940OSQVectorsScorer {
         this.targetComponentSums = new int[bulkSize];
         this.additionalCorrections = new float[bulkSize];
         this.bulkSize = bulkSize;
-        this.scratch = encoding.bbqEncoding().dataBits() == 7 ? new byte[dimensions] : null;
+        this.scratch = encoding.indexBits() == 7 ? new byte[dimensions] : null;
         this.packedScratch = encoding.bitEncoding == BitEncoding.PACKED ? new byte[length] : null;
-        this.dotProduct = switch (encoding) {
-            case D1Q1, D1Q4, D2Q4_STRIPED, D4Q4_STRIPED -> BBQDotProduct.create(in, dimensions, encoding.bbqEncoding());
-            case D2Q4_PACKED, D4Q4_PACKED, D7Q7 -> null;
-        };
     }
 
     public ES940OSQVectorsScorer(
         IndexInput in,
-        BBQEncoding bbqEncoding,
+        byte queryBits,
+        byte indexBits,
         int dimensions,
         int dataLength,
         int bulkSize,
         BitEncoding bitEncoding
     ) {
-        this(in, QuantEncoding.of(bbqEncoding, bitEncoding), dimensions, dataLength, bulkSize);
+        this(in, QuantEncoding.of(queryBits, indexBits, bitEncoding), dimensions, dataLength, bulkSize);
     }
 
-    public ES940OSQVectorsScorer(IndexInput in, BBQEncoding bbqEncoding, int dimensions, int dataLength, int bulkSize) {
-        this(in, bbqEncoding, dimensions, dataLength, bulkSize, BitEncoding.STRIPED);
+    public ES940OSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {
+        this(in, queryBits, indexBits, dimensions, dataLength, bulkSize, BitEncoding.STRIPED);
     }
 
-    public ES940OSQVectorsScorer(IndexInput in, BBQEncoding bbqEncoding, int dimensions, int dataLength) {
-        this(in, bbqEncoding, dimensions, dataLength, BULK_SIZE);
+    public ES940OSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength) {
+        this(in, queryBits, indexBits, dimensions, dataLength, BULK_SIZE);
     }
 
     /**
@@ -157,16 +148,38 @@ public class ES940OSQVectorsScorer {
      */
     public long quantizeScore(byte[] q) throws IOException {
         return switch (encoding) {
-            case D1Q1, D1Q4, D2Q4_STRIPED, D4Q4_STRIPED -> dotProduct.dotProduct(q);
+            case D1Q1 -> quantized1BitScoreSymmetric(q, length);
+            case D1Q4 -> quantized4BitScore(q, length);
+            case D2Q4_STRIPED -> quantized4BitScore2BitIndexStriped(q);
             case D2Q4_PACKED -> quantized4BitScore2BitIndexPacked(q);
             case D4Q4_PACKED -> quantized4BitScorePacked(q);
+            case D4Q4_STRIPED -> quantized4BitScoreSymmetric(q);
             case D7Q7 -> quantized7BitScore(q);
         };
+    }
+
+    private long quantized1BitScoreSymmetric(byte[] q, int length) throws IOException {
+        assert q.length == length : "length mismatch q " + q.length + " vs " + length;
+        long score = 0;
+        for (int i = 0; i < length; i++) {
+            score += Long.bitCount((q[i] & in.readByte()) & 0xFF);
+        }
+        return score;
     }
 
     private long quantized7BitScore(byte[] q) throws IOException {
         in.readBytes(scratch, 0, dimensions);
         return VectorUtil.dotProduct(scratch, q);
+    }
+
+    private long quantized4BitScoreSymmetric(byte[] q) throws IOException {
+        assert q.length == length : "length mismatch q " + q.length + " vs " + length;
+        assert length % 4 == 0 : "length must be multiple of 4 for 4-bit index length: " + length + " dimensions: " + dimensions;
+        int stripe0 = (int) quantized4BitScore(q, length / 4);
+        int stripe1 = (int) quantized4BitScore(q, length / 4);
+        int stripe2 = (int) quantized4BitScore(q, length / 4);
+        int stripe3 = (int) quantized4BitScore(q, length / 4);
+        return stripe0 + ((long) stripe1 << 1) + ((long) stripe2 << 2) + ((long) stripe3 << 3);
     }
 
     private long quantized4BitScorePacked(byte[] q) throws IOException {
@@ -184,6 +197,14 @@ public class ES940OSQVectorsScorer {
         return score;
     }
 
+    private long quantized4BitScore2BitIndexStriped(byte[] q) throws IOException {
+        assert q.length == length * 2;
+        assert length % 2 == 0 : "length must be even for 2-bit index length: " + length + " dimensions: " + dimensions;
+        int lower = (int) quantized4BitScore(q, length / 2);
+        int upper = (int) quantized4BitScore(q, length / 2);
+        return lower + ((long) upper << 1);
+    }
+
     private long quantized4BitScore2BitIndexPacked(byte[] q) throws IOException {
         assert q.length == length * 4 : "length mismatch q " + q.length + " vs " + (length * 4);
         in.readBytes(packedScratch, 0, length);
@@ -196,6 +217,38 @@ public class ES940OSQVectorsScorer {
             score += (packed & 0x03) * (q[i + 3 * length] & 0x0F);
         }
         return score;
+    }
+
+    private long quantized4BitScore(byte[] q, int length) throws IOException {
+        assert q.length == length * 4;
+        final int size = length;
+        long subRet0 = 0;
+        long subRet1 = 0;
+        long subRet2 = 0;
+        long subRet3 = 0;
+        int r = 0;
+        for (final int upperBound = size & -Long.BYTES; r < upperBound; r += Long.BYTES) {
+            final long value = in.readLong();
+            subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r) & value);
+            subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + size) & value);
+            subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + 2 * size) & value);
+            subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + 3 * size) & value);
+        }
+        for (final int upperBound = size & -Integer.BYTES; r < upperBound; r += Integer.BYTES) {
+            final int value = in.readInt();
+            subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r) & value);
+            subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r + size) & value);
+            subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r + 2 * size) & value);
+            subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r + 3 * size) & value);
+        }
+        for (; r < size; r++) {
+            final byte value = in.readByte();
+            subRet0 += Integer.bitCount((q[r] & value) & 0xFF);
+            subRet1 += Integer.bitCount((q[r + size] & value) & 0xFF);
+            subRet2 += Integer.bitCount((q[r + 2 * size] & value) & 0xFF);
+            subRet3 += Integer.bitCount((q[r + 3 * size] & value) & 0xFF);
+        }
+        return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
     }
 
     /**
@@ -246,9 +299,9 @@ public class ES940OSQVectorsScorer {
     ) {
         float ax = lowerInterval;
         // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-        float lx = (upperInterval - ax) * bitScale(encoding.bbqEncoding().dataBits());
+        float lx = (upperInterval - ax) * BIT_SCALES[encoding.indexBits() - 1];
         float ay = queryLowerInterval;
-        float ly = (queryUpperInterval - ay) * bitScale(encoding.bbqEncoding().queryBits());
+        float ly = (queryUpperInterval - ay) * BIT_SCALES[encoding.queryBits() - 1];
         float y1 = queryComponentSum;
         float score = ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
         // For euclidean, we need to invert the score and apply the additional correction, which is

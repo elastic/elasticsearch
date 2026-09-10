@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 157699
-summary: Deliver external-source cast warnings through the driver warning channel
-type: bug

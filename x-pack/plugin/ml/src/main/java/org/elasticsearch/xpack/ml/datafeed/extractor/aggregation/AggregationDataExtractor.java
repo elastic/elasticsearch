@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 
 /**
@@ -23,10 +22,9 @@ class AggregationDataExtractor extends AbstractAggregationDataExtractor {
     AggregationDataExtractor(
         Client client,
         AggregationDataExtractorContext dataExtractorContext,
-        DatafeedTimingStatsReporter timingStatsReporter,
-        DatafeedSearchTelemetry searchTelemetry
+        DatafeedTimingStatsReporter timingStatsReporter
     ) {
-        super(client, dataExtractorContext, timingStatsReporter, searchTelemetry);
+        super(client, dataExtractorContext, timingStatsReporter);
     }
 
     @Override

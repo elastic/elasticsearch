@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 154001
-summary: Add back `EsqlQueryRequestBuilder`
-type: enhancement

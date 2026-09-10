@@ -9,7 +9,7 @@
 #
 
 # Builds and pushes the cross-compilation toolchain image for Elasticsearch
-# native libraries (libvec, libsimdjson, and future native modules).
+# native libraries (libvec, libes_simdjson, and future native modules).
 # Run this script when compiler versions need updating.
 # No Mac or macOS SDK required — can be run on any machine with Docker.
 #
@@ -28,7 +28,7 @@ case "${1:-}" in
   *)       echo "Usage: $0 [--local]" >&2; exit 1 ;;
 esac
 
-VERSION=6
+VERSION=4
 HOST=docker.elastic.co
 REPOSITORY=elasticsearch-infra/es-native-cross-toolchain
 IMAGE=$HOST/$REPOSITORY:$VERSION

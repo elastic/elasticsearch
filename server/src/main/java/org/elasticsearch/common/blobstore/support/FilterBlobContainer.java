@@ -17,7 +17,6 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -125,17 +124,11 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
-    public void copyBlob(
-        OperationPurpose purpose,
-        BlobContainer sourceBlobContainer,
-        String sourceBlobName,
-        String blobName,
-        long blobSize,
-        @Nullable Executor executor
-    ) throws IOException {
+    public void copyBlob(OperationPurpose purpose, BlobContainer sourceBlobContainer, String sourceBlobName, String blobName, long blobSize)
+        throws IOException {
         // FsBlobContainer accesses internals of the sourceBlobContainer in copyBlob so it needs the delegate
         assert sourceBlobContainer instanceof FilterBlobContainer;
-        delegate.copyBlob(purpose, ((FilterBlobContainer) sourceBlobContainer).delegate, sourceBlobName, blobName, blobSize, executor);
+        delegate.copyBlob(purpose, ((FilterBlobContainer) sourceBlobContainer).delegate, sourceBlobName, blobName, blobSize);
     }
 
     @Override

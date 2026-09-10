@@ -201,8 +201,7 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
                 sourceBlobContainer,
                 sourceBlobName,
                 destinationBlobName,
-                blobBytes.length(),
-                null
+                blobBytes.length()
             );
             return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
         });
@@ -286,7 +285,7 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
 
                     // server-side copy (source is the small single-part blob written above)
                     final String copyName = randomIdentifier();
-                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length(), null);
+                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length());
                     assertStorageClass(blobStore, bucket, keyPrefix + copyName, expectedStorageClass, "server-side copy", purpose);
                 }
             } finally {

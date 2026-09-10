@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -105,7 +104,9 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             mdFiles.add(md);
         }
         final IndexShard targetShard = newShard(false);
-        targetShard.markAsRecovering("test-peer-recovery");
+        final DiscoveryNode pNode = getFakeDiscoNode(sourceShard.routingEntry().currentNodeId());
+        final DiscoveryNode rNode = getFakeDiscoNode(targetShard.routingEntry().currentNodeId());
+        targetShard.markAsRecovering("test-peer-recovery", new RecoveryState(targetShard.routingEntry(), rNode, pNode));
         final RecoveryTarget recoveryTarget = new RecoveryTarget(targetShard, null, 0L, null, null, null);
         final PlainActionFuture<Void> receiveFileInfoFuture = new PlainActionFuture<>();
         recoveryTarget.receiveFileInfo(
@@ -211,9 +212,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testPrepareIndexForPeerRecovery() throws Exception {
+        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+
         // empty copy
         IndexShard shard = newShard(false);
-        shard.markAsRecovering("for testing");
+        shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), localNode, localNode));
         shard.prepareForIndexRecovery();
         assertThat(recoverLocallyUpToGlobalCheckpoint(shard), equalTo(UNASSIGNED_SEQ_NO));
         assertThat(shard.recoveryState().getTranslog().totalLocal(), equalTo(RecoveryState.Translog.UNKNOWN));
@@ -237,9 +240,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 }
             }
         }
-        ShardRouting reinitRouting = ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE);
-        IndexShard replica = reinitShard(shard, reinitRouting, DiscoveryNodeUtils.create("source-node"));
-        replica.markAsRecovering("for testing");
+        IndexShard replica = reinitShard(
+            shard,
+            ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE)
+        );
+        replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
         assertThat(recoverLocallyUpToGlobalCheckpoint(replica), equalTo(globalCheckpoint + 1));
         assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(expectedTotalLocal));
@@ -253,9 +258,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             populateRandomData(shard);
         }
         shard.store().markStoreCorrupted(new IOException("test"));
-        reinitRouting = ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE);
-        replica = reinitShard(shard, reinitRouting, DiscoveryNodeUtils.create("source-node"));
-        replica.markAsRecovering("for testing");
+        replica = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
+        replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
         assertThat(recoverLocallyUpToGlobalCheckpoint(replica), equalTo(UNASSIGNED_SEQ_NO));
         assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(RecoveryState.Translog.UNKNOWN));
@@ -266,8 +270,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         // copy with truncated translog
         shard = newStartedShard(false);
         SeqNoStats seqNoStats = populateRandomData(shard);
-        reinitRouting = ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE);
-        replica = reinitShard(shard, reinitRouting, DiscoveryNodeUtils.create("source-node"));
+        replica = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
         globalCheckpoint = randomFrom(UNASSIGNED_SEQ_NO, seqNoStats.getMaxSeqNo());
         String translogUUID = Translog.createEmptyTranslog(
             replica.shardPath().resolveTranslog(),
@@ -277,7 +280,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         );
         replica.store().associateIndexWithNewTranslog(translogUUID);
         safeCommit = replica.store().findSafeIndexCommit(globalCheckpoint);
-        replica.markAsRecovering("for testing");
+        replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
         if (safeCommit.isPresent()) {
             assertThat(recoverLocallyUpToGlobalCheckpoint(replica), equalTo(safeCommit.get().localCheckpoint() + 1));
@@ -293,6 +296,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testClosedIndexSkipsLocalRecovery() throws Exception {
+        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
         IndexShard shard = newStartedShard(false);
         long globalCheckpoint = populateRandomData(shard).getGlobalCheckpoint();
         Optional<SequenceNumbers.CommitInfo> safeCommit = shard.store().findSafeIndexCommit(globalCheckpoint);
@@ -308,12 +312,13 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 .settings(Settings.builder().put(shard.indexSettings().getSettings()).put(IndexMetadata.SETTING_BLOCKS_WRITE, true))
                 .build();
         }
-        final ShardRouting reinitRouting = ShardRoutingHelper.initWithSameId(
-            shard.routingEntry(),
-            RecoverySource.PeerRecoverySource.INSTANCE
+        IndexShard replica = reinitShard(
+            shard,
+            ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE),
+            indexMetadata,
+            NoOpEngine::new
         );
-        IndexShard replica = reinitShard(shard, reinitRouting, DiscoveryNodeUtils.create("source-node"), indexMetadata, NoOpEngine::new);
-        replica.markAsRecovering("for testing");
+        replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
         assertThat(recoverLocallyUpToGlobalCheckpoint(replica), equalTo(safeCommit.get().localCheckpoint() + 1));
         assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(0));
@@ -325,20 +330,15 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     public void testResetStartingSeqNoIfLastCommitCorrupted() throws Exception {
         IndexShard shard = newStartedShard(false);
         populateRandomData(shard);
-
-        DiscoveryNode targetNode = DiscoveryNodeUtils.builder("target-node").roles(Collections.emptySet()).build();
-        DiscoveryNode sourceNode = DiscoveryNodeUtils.create("source-node");
-        final ShardRouting reinitRouting = ShardRoutingHelper.initWithSameId(
-            shard.routingEntry(),
-            RecoverySource.PeerRecoverySource.INSTANCE
-        );
-        shard = reinitShard(shard, reinitRouting, sourceNode);
-        shard.markAsRecovering("peer recovery");
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("bar").roles(Collections.emptySet()).build();
+        shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
         long startingSeqNo = recoverLocallyUpToGlobalCheckpoint(shard);
         shard.store().markStoreCorrupted(new IOException("simulated"));
-        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, sourceNode, 0L, null, null, null);
-        StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(logger, targetNode, recoveryTarget, startingSeqNo);
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, 0L, null, null, null);
+        StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(logger, rNode, recoveryTarget, startingSeqNo);
         assertThat(request.startingSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
         assertThat(request.metadataSnapshot().size(), equalTo(0));
         recoveryTarget.decRef();
@@ -348,12 +348,10 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     public void testMarkDoneFailureIsPropagated() throws Exception {
         IndexShard shard = newStartedShard(false);
         populateRandomData(shard);
-        final ShardRouting reinitRouting = ShardRoutingHelper.initWithSameId(
-            shard.routingEntry(),
-            RecoverySource.PeerRecoverySource.INSTANCE
-        );
-        shard = reinitShard(shard, reinitRouting, DiscoveryNodeUtils.create("source-node"));
-        shard.markAsRecovering("peer recovery");
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("bar").roles(Collections.emptySet()).build();
+        shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -386,8 +384,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testResetStartRequestIfTranslogIsCorrupted() throws Exception {
-        DiscoveryNode targetNode = DiscoveryNodeUtils.builder("target-node").roles(Collections.emptySet()).build();
-        DiscoveryNode sourceNode = DiscoveryNodeUtils.create("source-node");
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("bar").roles(Collections.emptySet()).build();
         IndexShard shard = newStartedShard(false);
         final SeqNoStats seqNoStats = populateRandomData(shard);
         closeShardNoCheck(shard);
@@ -403,17 +401,13 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         } else {
             IOUtils.rm(shard.shardPath().resolveTranslog());
         }
-        final ShardRouting reinitRouting = ShardRoutingHelper.initWithSameId(
-            shard.routingEntry(),
-            RecoverySource.PeerRecoverySource.INSTANCE
-        );
-        shard = reinitShard(shard, reinitRouting, sourceNode);
-        shard.markAsRecovering("peer recovery");
+        shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
-        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, sourceNode, 0L, null, null, null);
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, 0L, null, null, null);
         StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(
             logger,
-            targetNode,
+            rNode,
             recoveryTarget,
             randomNonNegativeLong()
         );
@@ -424,13 +418,12 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testSnapshotFileWrite() throws Exception {
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("bar").roles(Collections.emptySet()).build();
+
         IndexShard shard = newShard(false);
-        final ShardRouting reinitRouting = ShardRoutingHelper.initWithSameId(
-            shard.routingEntry(),
-            RecoverySource.PeerRecoverySource.INSTANCE
-        );
-        shard = reinitShard(shard, reinitRouting, DiscoveryNodeUtils.create("source-node"));
-        shard.markAsRecovering("peer recovery");
+        shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
 
         RecoveryState.Index recoveryStateIndex = shard.recoveryState().getIndex();
@@ -512,8 +505,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testSnapshotFileIsDeletedAfterFailure() throws Exception {
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("bar").roles(Collections.emptySet()).build();
+
         IndexShard shard = newShard(false);
-        shard.markAsRecovering("peer recovery");
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
 
         RecoveryState.Index recoveryStateIndex = shard.recoveryState().getIndex();
@@ -590,13 +586,12 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testReceiveFileInfoDeletesRecoveredFiles() throws Exception {
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("bar").roles(Collections.emptySet()).build();
+
         IndexShard shard = newShard(false);
-        final ShardRouting reinitRouting = ShardRoutingHelper.initWithSameId(
-            shard.routingEntry(),
-            RecoverySource.PeerRecoverySource.INSTANCE
-        );
-        shard = reinitShard(shard, reinitRouting, DiscoveryNodeUtils.create("source-node"));
-        shard.markAsRecovering("peer recovery");
+        shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
 
         RecoveryState.Index recoveryStateIndex = shard.recoveryState().getIndex();
@@ -684,8 +679,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testSnapshotFileAreDeletedAfterCancel() throws Exception {
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("bar").roles(Collections.emptySet()).build();
+
         IndexShard shard = newShard(false);
-        shard.markAsRecovering("peer recovery");
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
 
         RecoveryState.Index recoveryStateIndex = shard.recoveryState().getIndex();
@@ -756,8 +754,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testSnapshotFileDownloadPermitIsReleasedAfterClosingRecoveryTarget() throws Exception {
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("bar").roles(Collections.emptySet()).build();
+
         IndexShard shard = newShard(false);
-        shard.markAsRecovering("peer recovery");
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
 
         AtomicBoolean snapshotFileDownloadsPermitFlag = new AtomicBoolean();
@@ -776,14 +777,10 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         IndexShard shard = newStartedShard(false);
         populateRandomData(shard);
 
-        DiscoveryNode targetNode = DiscoveryNodeUtils.builder("target-node").roles(Collections.emptySet()).build();
-        DiscoveryNode sourceNode = DiscoveryNodeUtils.create("source-node");
-        final ShardRouting reinitRouting = ShardRoutingHelper.initWithSameId(
-            shard.routingEntry(),
-            RecoverySource.PeerRecoverySource.INSTANCE
-        );
-        shard = reinitShard(shard, reinitRouting, sourceNode);
-        shard.markAsRecovering("peer recovery");
+        DiscoveryNode pNode = DiscoveryNodeUtils.builder("foo").roles(Collections.emptySet()).build();
+        DiscoveryNode rNode = DiscoveryNodeUtils.builder("bar").roles(Collections.emptySet()).build();
+        shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
         long startingSeqNo = recoverLocallyUpToGlobalCheckpoint(shard);
         assertThat("test requires a valid starting sequence number from translog", startingSeqNo, greaterThan(NO_OPS_PERFORMED));
@@ -795,10 +792,10 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             }
         }
 
-        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, sourceNode, 0L, null, null, null);
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, 0L, null, null, null);
         RecoveryFailedException exception = expectThrows(
             RecoveryFailedException.class,
-            () -> PeerRecoveryTargetService.getStartRecoveryRequest(logger, targetNode, recoveryTarget, startingSeqNo)
+            () -> PeerRecoveryTargetService.getStartRecoveryRequest(logger, rNode, recoveryTarget, startingSeqNo)
         );
         assertThat(exception.getMessage(), containsString("index not found with non-empty starting sequence number"));
         recoveryTarget.decRef();

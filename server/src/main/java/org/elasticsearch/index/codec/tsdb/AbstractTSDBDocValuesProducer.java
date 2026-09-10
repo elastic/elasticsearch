@@ -1255,12 +1255,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         return new BaseSortedDocValues(entry) {
 
             @Override
-            public RandomAccessNumericValues tryRandomAccess() throws IOException {
-                // A sorted column holds its ordinals on a numeric column.
-                return ords instanceof RandomAccessNumericValues.Provider provider ? provider.tryRandomAccess() : null;
-            }
-
-            @Override
             public int ordValue() throws IOException {
                 return (int) ords.longValue();
             }
@@ -1378,13 +1372,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     public abstract class BaseSortedDocValues extends SortedDocValues
         implements
             BlockLoader.OptionalColumnAtATimeReader,
-            PartitionedDocValues,
-            RandomAccessNumericValues.Provider {
-
-        @Override
-        public RandomAccessNumericValues tryRandomAccess() throws IOException {
-            return null;
-        }
+            PartitionedDocValues {
 
         final SortedEntry entry;
         final TermsEnum termsEnum;
@@ -1455,17 +1443,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    public abstract static class BaseDenseNumericValues extends NumericDocValues
-        implements
-            BlockLoader.OptionalColumnAtATimeReader,
-            RandomAccessNumericValues.Provider {
+    public abstract static class BaseDenseNumericValues extends NumericDocValues implements BlockLoader.OptionalColumnAtATimeReader {
         private final int maxDoc;
         protected int doc = -1;
-
-        @Override
-        public RandomAccessNumericValues tryRandomAccess() throws IOException {
-            return null;
-        }
 
         BaseDenseNumericValues(int maxDoc) {
             this.maxDoc = maxDoc;
@@ -2470,18 +2450,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[numericBlockSize];
                 private final FixedBitSet matches = new FixedBitSet(numericBlockSize);
-                // Its own NumericValues, so random access does not evict the iterator's decoded block.
-                private RandomAccessNumericValues randomAccess;
-
-                @Override
-                public RandomAccessNumericValues tryRandomAccess() throws IOException {
-                    if (randomAccess == null) {
-                        final NumericValues values = getValues(entry, maxOrd);
-                        randomAccess = values::advance;
-                    }
-                    return randomAccess;
-                }
-
                 private long lookaheadBlockIndex = -1;
                 private long[] lookaheadBlock;
                 private IndexInput lookaheadData = null;

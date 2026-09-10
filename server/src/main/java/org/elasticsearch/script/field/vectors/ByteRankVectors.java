@@ -129,7 +129,7 @@ public class ByteRankVectors implements RankVectors, MultiByteVectorsSource {
         return scoresScratch;
     }
 
-    protected float[] ensureMaxesScratch(int queryCount) {
+    private float[] ensureMaxesScratch(int queryCount) {
         if (maxesScratch.length < queryCount) {
             maxesScratch = new float[queryCount];
         }

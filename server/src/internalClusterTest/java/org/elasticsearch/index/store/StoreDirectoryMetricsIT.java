@@ -30,6 +30,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class StoreDirectoryMetricsIT extends ESIntegTestCase {
 
     public void testDirectoryMetrics() throws IOException {
+        assumeTrue("directory metrics feature flag must be enabled for test", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+
         final String indexName = randomIndexName();
         createIndex(indexName, 1, 0);
         IntStream.range(0, between(10, 100)).forEach(i -> indexDoc(indexName, "id " + i, "f", i));

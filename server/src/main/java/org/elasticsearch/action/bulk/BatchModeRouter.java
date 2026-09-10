@@ -23,11 +23,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.transport.BytesRefRecycler;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 /**
  * Per-bulk router: decides each item's destination shard and builds the per-shard {@link SourceBatch}.
@@ -37,7 +35,8 @@ import java.util.function.BiConsumer;
  */
 final class BatchModeRouter implements Releasable {
 
-    // TODO: restrict to a single concrete index for now; expand to multi-index in a follow-up.
+    // provided-batch mode state (null in x-content mode)
+    // TODO: As a first pass we are restricting to a single concrete index. We will expand to multi index support.
     @Nullable
     private final String indexAbstractionName;
     @Nullable
@@ -45,17 +44,14 @@ final class BatchModeRouter implements Releasable {
     @Nullable
     private final int[] partitionIds;
     @Nullable
-    private final BulkItemRequest[] items;
+    private final IndexRequest[] items;
     @Nullable
     private Index concreteIndex;
     private int shardCount;
+    private boolean requiresPrecomputedTsid;
     private int lastRow = -1;
     private int routedCount;
     private boolean scattered;
-    private boolean groupingBuilt;
-
-    @Nullable
-    private IndexRouting deferredRouting;
 
     // x-content mode state (null in provided-batch mode)
     @Nullable
@@ -65,7 +61,7 @@ final class BatchModeRouter implements Releasable {
         this.indexAbstractionName = indexAbstractionName;
         this.source = source;
         this.partitionIds = new int[source.docCount()];
-        this.items = new BulkItemRequest[source.docCount()];
+        this.items = new IndexRequest[source.docCount()];
         this.encoders = null;
     }
 
@@ -148,19 +144,16 @@ final class BatchModeRouter implements Releasable {
     }
 
     /**
-     * Records one item for routing. For the provided-batch mode the actual shard assignment is
-     * deferred until {@link #buildGrouping}; for x-content the item is encoded and routed immediately.
-     *
-     * @param requestsByShard the grouping map to fill; both modes write into it
+     * Routes one item to its shard, performing all batch bookkeeping for this mode. Owns
+     * {@code preRoutingProcess} / {@code postRoutingProcess} so {@link BulkOperation} needs a
+     * single call.
      */
-    void route(
-        BulkItemRequest bulkItem,
+    int route(
         DocWriteRequest<?> request,
         IndexAbstraction abstraction,
         Index concreteIndex,
         IndexRouting routing,
-        ProjectMetadata project,
-        Map<ShardId, List<BulkItemRequest>> requestsByShard
+        ProjectMetadata project
     ) {
         if (encoders != null) {
             request.preRoutingProcess(routing);
@@ -169,15 +162,23 @@ final class BatchModeRouter implements Releasable {
                 shardId = request.route(routing);
             }
             request.postRoutingProcess(routing);
-            requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), k -> new ArrayList<>()).add(bulkItem);
+            return shardId;
         } else {
             IndexRequest batchItem = (IndexRequest) request;
             prepareRouting(batchItem, abstraction, concreteIndex, routing, project);
-            recordDeferredItem(bulkItem, batchItem.indexSource().rowIndex());
+            request.preRoutingProcess(routing);
+            int shardId = request.route(routing);
+            request.postRoutingProcess(routing);
+            markRoutedShard(batchItem, shardId);
+            return shardId;
         }
     }
 
-    private void prepareRouting(
+    /**
+     * Validates that this item can be routed without {@code _source}, and binds the concrete index
+     * on the first item. Must run before {@link IndexRequest#route(IndexRouting)}.
+     */
+    void prepareRouting(
         IndexRequest request,
         IndexAbstraction abstraction,
         Index concreteIndex,
@@ -206,6 +207,14 @@ final class BatchModeRouter implements Releasable {
                     + " multiple backing indices) are not yet supported and will be added in a follow-up"
             );
         }
+        if (requiresPrecomputedTsid && request.tsid() == null) {
+            throw new IllegalArgumentException(
+                "index ["
+                    + concreteIndex.getName()
+                    + "] routes on _tsid, but this item of a pre-built source batch has no inline source to extract"
+                    + " the dimensions from; supply a pre-computed _tsid"
+            );
+        }
     }
 
     private void assignConcrete(Index index, IndexRouting routing, ProjectMetadata project) {
@@ -219,17 +228,24 @@ final class BatchModeRouter implements Releasable {
                         + " only on _id/_routing"
                 );
             }
+            // hashSource short-circuits on a pre-computed tsid, which each item must therefore carry.
+            requiresPrecomputedTsid = true;
         }
         shardCount = project.getIndexSafe(index).getNumberOfShards();
         concreteIndex = index;
-        this.deferredRouting = routing;
     }
 
-    private void recordDeferredItem(BulkItemRequest bulkItem, int rowIndex) {
+    void markRoutedShard(IndexRequest request, int shardId) {
+        if (shardId < 0 || shardId >= shardCount) {
+            throw new IllegalStateException(
+                "shard [" + shardId + "] is outside the shard count [" + shardCount + "] of index [" + concreteIndex.getName() + "]"
+            );
+        }
+        int rowIndex = request.indexSource().rowIndex();
         int docCount = source.docCount();
         if (rowIndex < 0 || rowIndex >= docCount) {
             throw new IllegalArgumentException(
-                "rowIndex " + rowIndex + " is out of range [0, " + docCount + ") for pre-built batch [" + indexAbstractionName + "]"
+                "rowIndex " + rowIndex + " is out of range [0, " + docCount + ") for pre-built batch [" + request.index() + "]"
             );
         }
         if (rowIndex <= lastRow) {
@@ -239,12 +255,13 @@ final class BatchModeRouter implements Releasable {
                     + " is not strictly greater than the previous row "
                     + lastRow
                     + " of pre-built batch ["
-                    + indexAbstractionName
+                    + request.index()
                     + "]; rows must arrive in ascending order"
             );
         }
+        partitionIds[rowIndex] = shardId;
+        items[rowIndex] = request;
         lastRow = rowIndex;
-        items[rowIndex] = bulkItem;
         routedCount++;
     }
 
@@ -252,17 +269,20 @@ final class BatchModeRouter implements Releasable {
      * Returns the per-shard batches. In provided-batch mode returns empty on any call after the
      * first — the failure-store redirect pass must not re-scatter batches already in flight.
      */
-    Map<ShardId, List<BulkItemRequest>> buildGrouping(
-        Map<ShardId, List<BulkItemRequest>> requestsByShard,
-        BiConsumer<BulkItemRequest, Exception> onItemFailure
-    ) {
-        assert groupingBuilt == false : "buildGrouping called more than once";
-        groupingBuilt = true;
+    Map<ShardId, SourceBatch> shardBatches() {
         if (encoders != null) {
-            return requestsByShard;
+            return encoders.finalizeBatches();
         }
+        return providedBatchShardBatches();
+    }
+
+    private Map<ShardId, SourceBatch> providedBatchShardBatches() {
+        if (scattered) {
+            return Map.of();
+        }
+        scattered = true;
         if (routedCount == 0) {
-            return requestsByShard;
+            return Map.of();
         }
         if (routedCount != source.docCount()) {
             throw new IllegalStateException(
@@ -274,53 +294,6 @@ final class BatchModeRouter implements Releasable {
                     + routedCount
                     + " were routed; dropped rows in pre-built batches are not yet supported and will be added in a follow-up"
             );
-        }
-        IndexRequest[] requests = buildRequestArray();
-        try {
-            deferredRouting.preProcess(requests);
-            int[] shards = deferredRouting.indexShard(requests, source);
-            deferredRouting.postProcess(requests);
-
-            for (int i = 0; i < requests.length; i++) {
-                int shardId = shards[i];
-                partitionIds[i] = shardId;
-                requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), k -> new ArrayList<>()).add(items[i]);
-            }
-        } catch (Exception e) {
-            // The trio does not give us a row index, so we cannot isolate which row(s) caused the
-            // problem. Fail every deferred item with the same exception.
-            scattered = true; // prevent shardBatches() from attempting a stale scatter
-            for (int i = 0; i < source.docCount(); i++) {
-                if (items[i] != null) {
-                    onItemFailure.accept(items[i], e);
-                }
-            }
-        }
-        return requestsByShard;
-    }
-
-    private IndexRequest[] buildRequestArray() {
-        IndexRequest[] requests = new IndexRequest[routedCount];
-        for (int i = 0; i < routedCount; i++) {
-            requests[i] = (IndexRequest) items[i].request();
-        }
-        return requests;
-    }
-
-    /**
-     * Returns the per-shard batches. For provided-batch mode, returns empty on any call after the
-     * first — the failure-store redirect pass must not re-scatter batches already in flight.
-     */
-    Map<ShardId, SourceBatch> shardBatches() {
-        if (encoders != null) {
-            return encoders.finalizeBatches();
-        }
-        if (scattered) {
-            return Map.of();
-        }
-        scattered = true;
-        if (routedCount == 0) {
-            return Map.of();
         }
         if (shardCount == 1) {
             return Map.of(new ShardId(concreteIndex, 0), source);
@@ -335,13 +308,12 @@ final class BatchModeRouter implements Releasable {
         }
         Map<ShardId, SourceBatch> result = new HashMap<>();
         int[] nextRow = new int[shardCount];
-        for (int row = 0; row < routedCount; row++) {
+        for (int row = 0; row < partitionIds.length; row++) {
             int partition = partitionIds[row];
             EscfBatch part = parts[partition];
             assert part != null : "null partition " + partition + " for row " + row;
             result.putIfAbsent(new ShardId(concreteIndex, partition), part);
-            IndexRequest req = (IndexRequest) items[row].request();
-            req.indexSource().setSourceRow(part, nextRow[partition]++, req.indexSource().contentType());
+            items[row].indexSource().setSourceRow(part, nextRow[partition]++, items[row].indexSource().contentType());
         }
         return result;
     }

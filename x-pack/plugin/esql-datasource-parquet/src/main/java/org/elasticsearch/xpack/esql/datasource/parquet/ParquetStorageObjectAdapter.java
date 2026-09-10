@@ -11,11 +11,9 @@ import org.apache.parquet.io.SeekableInputStream;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.UninitializedArrays;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -47,11 +45,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     private final StorageObject storageObject;
     private final long length;
     private final FooterByteCache.Key cacheKey;
-    private final FooterByteCache footerBytes;
     private final int windowSize;
     private final CircuitBreaker breaker;
-    @Nullable
-    private final ParquetIoWatermark ioWatermark;
 
     /**
      * Optional pre-warmed cache installed before {@code RowGroupFilter} runs. When set, reads
@@ -73,30 +68,14 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     /** Default window size (4MB) for the sliding range cache. */
     static final int DEFAULT_WINDOW_SIZE = 4 * 1024 * 1024;
 
-    /**
-     * Maximum window size (10MB). Caps adaptive window hints so large {@code forRange} splits do not allocate
-     * 16 MiB arrays; matches {@link ExternalSourceSettings#BLOB_STORE_GET_SIZE_BYTES}.
-     */
-    static final int MAX_WINDOW_SIZE = ExternalSourceSettings.BLOB_STORE_GET_SIZE_BYTES;
+    /** Maximum window size (16MB). Caps adaptive window hints to prevent unbounded memory allocation. */
+    static final int MAX_WINDOW_SIZE = 16 * 1024 * 1024;
 
     /**
      * Creates an adapter with the default 4MB sliding window charged to the given circuit breaker.
-     *
-     * @param footerBytes the footer byte cache to consult and seed on tail reads. The owning
-     *                    format reader passes its own instance so all adapters it creates (across
-     *                    splits, streams, and derived readers) share one cache
      */
-    public ParquetStorageObjectAdapter(StorageObject storageObject, FooterByteCache footerBytes, CircuitBreaker breaker) {
-        this(storageObject, footerBytes, DEFAULT_WINDOW_SIZE, breaker, null);
-    }
-
-    ParquetStorageObjectAdapter(
-        StorageObject storageObject,
-        FooterByteCache footerBytes,
-        CircuitBreaker breaker,
-        ParquetIoWatermark ioWatermark
-    ) {
-        this(storageObject, footerBytes, DEFAULT_WINDOW_SIZE, breaker, ioWatermark);
+    public ParquetStorageObjectAdapter(StorageObject storageObject, CircuitBreaker breaker) {
+        this(storageObject, DEFAULT_WINDOW_SIZE, breaker);
     }
 
     /**
@@ -107,47 +86,20 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * @param rangeBytes byte span of the range being read; floored at {@link #DEFAULT_WINDOW_SIZE} and
      *                   capped at {@link #MAX_WINDOW_SIZE} as a hint. The constructor then clamps the
      *                   window to the file length.
-     * @param footerBytes the footer byte cache shared with the owning format reader (see the
-     *                    default-window constructor)
      */
-    public static ParquetStorageObjectAdapter forRange(
-        StorageObject storageObject,
-        long rangeBytes,
-        FooterByteCache footerBytes,
-        CircuitBreaker breaker
-    ) {
+    public static ParquetStorageObjectAdapter forRange(StorageObject storageObject, long rangeBytes, CircuitBreaker breaker) {
         int windowSize = (int) Math.min(Math.max(rangeBytes, DEFAULT_WINDOW_SIZE), MAX_WINDOW_SIZE);
-        return new ParquetStorageObjectAdapter(storageObject, footerBytes, windowSize, breaker, null);
+        return new ParquetStorageObjectAdapter(storageObject, windowSize, breaker);
     }
 
-    static ParquetStorageObjectAdapter forRange(
-        StorageObject storageObject,
-        long rangeBytes,
-        FooterByteCache footerBytes,
-        CircuitBreaker breaker,
-        ParquetIoWatermark ioWatermark
-    ) {
-        int windowSize = (int) Math.min(Math.max(rangeBytes, DEFAULT_WINDOW_SIZE), MAX_WINDOW_SIZE);
-        return new ParquetStorageObjectAdapter(storageObject, footerBytes, windowSize, breaker, ioWatermark);
-    }
-
-    private ParquetStorageObjectAdapter(
-        StorageObject storageObject,
-        FooterByteCache footerBytes,
-        int windowSize,
-        CircuitBreaker breaker,
-        @Nullable ParquetIoWatermark ioWatermark
-    ) {
+    private ParquetStorageObjectAdapter(StorageObject storageObject, int windowSize, CircuitBreaker breaker) {
         if (storageObject == null) {
             throw new QlIllegalArgumentException("storageObject cannot be null");
         }
         this.storageObject = storageObject;
-        this.footerBytes = footerBytes;
         this.breaker = breaker;
-        this.ioWatermark = ioWatermark;
         try {
             this.length = storageObject.length();
-            this.cacheKey = FooterByteCache.Key.keyFor(storageObject);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path() + "]", e);
         }
@@ -155,6 +107,12 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         // (pos >= length). For length > 0 this equals min(requested, length), so
         // length <= windowSize iff the object fits in the window (whole-file fill below).
         this.windowSize = (int) Math.min(windowSize, Math.max(1L, this.length));
+        this.cacheKey = FooterByteCache.Key.keyFor(storageObject, this.length);
+    }
+
+    static void clearFooterCacheForTests() {
+        FooterByteCache.getInstance().invalidateAll();
+        ParquetFormatReader.clearParsedFooterCacheForTests();
     }
 
     /**
@@ -188,16 +146,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         // opened before {@link #installPreWarmedChunks} (notably the one parquet-mr opens at
         // {@code ParquetFileReader.open}) must still observe a later install, otherwise the
         // pre-warm optimization would be silently bypassed.
-        return new WindowedSeekableInputStream(
-            storageObject,
-            cacheKey,
-            footerBytes,
-            length,
-            windowSize,
-            breaker,
-            ioWatermark,
-            this::currentPreWarmedChunks
-        );
+        return new WindowedSeekableInputStream(storageObject, cacheKey, length, windowSize, breaker, this::currentPreWarmedChunks);
     }
 
     private NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> currentPreWarmedChunks() {
@@ -241,12 +190,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
         private final StorageObject storageObject;
         private final FooterByteCache.Key cacheKey;
-        private final FooterByteCache tailCache;
         private final long length;
         private final int windowSize;
         private final CircuitBreaker breaker;
-        @Nullable
-        private final ParquetIoWatermark ioWatermark;
         private final byte[] window;
 
         /**
@@ -266,31 +212,21 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         WindowedSeekableInputStream(
             StorageObject storageObject,
             FooterByteCache.Key cacheKey,
-            FooterByteCache tailCache,
             long length,
             int windowSize,
             CircuitBreaker breaker,
-            @Nullable ParquetIoWatermark ioWatermark,
             Supplier<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> preWarmedChunksSupplier
         ) {
             this.storageObject = storageObject;
             this.cacheKey = cacheKey;
-            this.tailCache = tailCache;
             this.length = length;
             this.windowSize = windowSize;
             this.breaker = LocalCircuitBreaker.forAsyncIo(breaker);
-            this.ioWatermark = ioWatermark;
             this.breaker.addEstimateBytesAndMaybeBreak(windowSize, WINDOW_BREAKER_LABEL);
-            if (this.ioWatermark != null) {
-                this.ioWatermark.forceAdd(windowSize);
-            }
             byte[] allocated;
             try {
                 allocated = UninitializedArrays.newByteArray(windowSize);
             } catch (Throwable t) {
-                if (this.ioWatermark != null) {
-                    this.ioWatermark.release(windowSize);
-                }
                 this.breaker.addWithoutBreaking(-windowSize);
                 throw t;
             }
@@ -358,6 +294,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 toRead = posToRead;
             }
 
+            FooterByteCache tailCache = FooterByteCache.getInstance();
             if (fillFromTailCache(tailCache, fetchPos, (int) toRead)) {
                 assert windowCovers(pos);
                 return;
@@ -365,7 +302,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
             // Whole-file fills must not become FooterByteCache entries: isTailRead would otherwise
             // be true (fetchPos == 0, toRead == length) and objects up to maxEntryBytes would
-            // evict genuine footers from the configured per-reader footer cache budget.
+            // evict genuine footers from the 8 MiB JVM-wide budget.
             boolean isTailRead = wholeFileFill == false && fetchPos + toRead == length;
             if (isTailRead && toRead <= tailCache.maxEntryBytes()) {
                 try {
@@ -609,9 +546,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 windowStart = -1;
                 windowLength = 0;
                 breaker.addWithoutBreaking(-windowSize);
-                if (ioWatermark != null) {
-                    ioWatermark.release(windowSize);
-                }
             }
         }
 

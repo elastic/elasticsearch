@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
@@ -295,8 +294,9 @@ public class MLModelDeploymentsUpgradeIT extends AbstractXpackRollingUpgradeTest
 
     private Response getTrainedModelStats(String modelId) throws IOException {
         Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
-        // Transient 404/503 while ML indices relocate or the plugin is still recovering during upgrade.
-        return performRequestRaisingAssertionOnTransientStatus(request, RestStatus.NOT_FOUND, RestStatus.SERVICE_UNAVAILABLE);
+        var response = client().performRequest(request);
+        assertOK(response);
+        return response;
     }
 
     private Response infer(String input, String modelId) throws IOException {

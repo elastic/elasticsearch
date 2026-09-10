@@ -66,24 +66,15 @@ public class BulkArrowAggregationTests extends ESTestCase {
         int positions = between(2, 5000);
         int[] values = new int[positions];
         boolean[] mask = new boolean[positions];
-        boolean seen = false;
         long expected = 0;
         for (int i = 0; i < positions; i++) {
             values[i] = between(-1000, 1000);
             mask[i] = randomBoolean();
             if (mask[i]) {
-                seen = true;
                 expected += values[i];
             }
         }
-        Long actual = sumIntArrowMasked(values, mask);
-        if (seen) {
-            assertNotNull(actual);
-            assertEquals(expected, actual.longValue());
-        } else {
-            // SUM of no unmasked values is null, not 0
-            assertNull(actual);
-        }
+        assertEquals(expected, sumIntArrowMasked(values, mask));
     }
 
     /**
@@ -137,7 +128,7 @@ public class BulkArrowAggregationTests extends ESTestCase {
         }
     }
 
-    private Long sumIntArrowMasked(int[] values, boolean[] mask) {
+    private long sumIntArrowMasked(int[] values, boolean[] mask) {
         DriverContext ctx = driverContext();
         try (
             IntBlock block = arrowBlock(values);
@@ -145,22 +136,15 @@ public class BulkArrowAggregationTests extends ESTestCase {
             SumIntAggregatorFunction agg = new SumIntAggregatorFunctionSupplier().aggregator(ctx, List.of(0))
         ) {
             agg.addRawInput(new Page(block), maskVector);
-            return evaluateLongOrNull(agg, ctx);
+            return evaluateLong(agg, ctx);
         }
     }
 
     private long evaluateLong(SumIntAggregatorFunction agg, DriverContext ctx) {
-        Long value = evaluateLongOrNull(agg, ctx);
-        assertNotNull(value);
-        return value;
-    }
-
-    private Long evaluateLongOrNull(SumIntAggregatorFunction agg, DriverContext ctx) {
         Block[] out = new Block[1];
         try {
             agg.evaluateFinal(out, 0, ctx);
-            LongBlock block = (LongBlock) out[0];
-            return block.isNull(0) ? null : block.getLong(0);
+            return ((LongBlock) out[0]).getLong(0);
         } finally {
             Releasables.closeExpectNoException(out);
         }

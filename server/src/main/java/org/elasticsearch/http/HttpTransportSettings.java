@@ -17,9 +17,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
@@ -55,17 +53,6 @@ public final class HttpTransportSettings {
     public static final Setting<Integer> SETTING_PIPELINING_MAX_EVENTS = intSetting(
         "http.pipelining.max_events",
         10000,
-        Property.NodeScope
-    );
-    /**
-     * When enabled, every REST response includes the {@code Elastic-Cluster-Name} header carrying this node's
-     * {@code cluster.name}. It is opt-in and disabled by default. It mirrors the {@code X-Found-Handling-Cluster} header
-     * that the Elastic Cloud proxy adds for hosted deployments, allowing self-managed clusters to surface the cluster
-     * name for client telemetry.
-     */
-    public static final Setting<Boolean> SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED = Setting.boolSetting(
-        "http.headers.cluster_name.enabled",
-        false,
         Property.NodeScope
     );
     public static final Setting<Boolean> SETTING_HTTP_COMPRESSION = Setting.boolSetting("http.compression", true, Property.NodeScope);
@@ -110,35 +97,6 @@ public final class HttpTransportSettings {
         ByteSizeValue.of(8, ByteSizeUnit.MB),
         ByteSizeValue.ZERO,
         ByteSizeValue.ofBytes(Integer.MAX_VALUE),
-        Property.NodeScope
-    );
-    public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH = new Setting<>(
-        "http.max_protobuf_expanded_content_length",
-        ByteSizeValue.of(100, ByteSizeUnit.MB).getStringRep(),
-        s -> ByteSizeValue.parseBytesSizeValue(s, "http.max_protobuf_expanded_content_length"),
-        new Setting.Validator<>() {
-            @Override
-            public void validate(ByteSizeValue value) {}
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                return List.<Setting<?>>of(SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH).iterator();
-            }
-
-            @Override
-            public void validate(ByteSizeValue value, Map<Setting<?>, Object> settings) {
-                ByteSizeValue protobufContentLength = (ByteSizeValue) settings.get(SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH);
-                if (protobufContentLength != null && value.getBytes() < protobufContentLength.getBytes()) {
-                    throw new IllegalArgumentException(
-                        "[http.max_protobuf_expanded_content_length] ("
-                            + value
-                            + ") must not be less than [http.max_protobuf_content_length] ("
-                            + protobufContentLength
-                            + ")"
-                    );
-                }
-            }
-        },
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CHUNK_SIZE = Setting.byteSizeSetting(

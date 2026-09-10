@@ -30,6 +30,7 @@ import org.elasticsearch.search.rank.FieldBasedRerankerIT;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
@@ -48,6 +49,11 @@ public class BytesReadRankFeatureIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), FieldBasedRerankerIT.FieldBasedRerankerPlugin.class);
+    }
+
+    @Before
+    public void ensureDirectoryMetricsEnabled() {
+        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
     }
 
     public void testRankFeaturePhaseSetsBytesReadHeader() throws InterruptedException {

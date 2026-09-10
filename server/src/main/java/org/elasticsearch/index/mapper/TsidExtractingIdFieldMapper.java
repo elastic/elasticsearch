@@ -18,7 +18,6 @@ import org.apache.lucene.document.column.TokenStreamColumn;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingHashBuilder;
 import org.elasticsearch.common.Strings;
@@ -35,8 +34,6 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-
-import static org.elasticsearch.escf.EscfColumn.windowValidity;
 
 /**
  * A mapper for the {@code _id} field that builds the {@code _id} from the
@@ -320,7 +317,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
         return true;
     }
 
@@ -414,30 +411,18 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         private final BytesRef[] uids;
         private final int from;
         private final int count;
-        private final FixedBitSet filter;
 
         SyntheticIdTokenStreamColumn(BytesRef[] uids, int from, int count) {
-            this(uids, from, count, null);
-        }
-
-        private SyntheticIdTokenStreamColumn(BytesRef[] uids, int from, int count, FixedBitSet filter) {
-            super(SyntheticIdField.NAME, SyntheticIdField.COLUMNAR_INDEXED_TYPE, filter != null ? Density.SPARSE : Density.DENSE);
+            super(SyntheticIdField.NAME, SyntheticIdField.COLUMNAR_INDEXED_TYPE, Density.DENSE);
             this.uids = uids;
             this.from = from;
             this.count = count;
-            this.filter = filter;
-        }
-
-        @Override
-        public LuceneColumn withFilter(FixedBitSet newFilter) {
-            assert newFilter == null || newFilter.length() == count;
-            return new SyntheticIdTokenStreamColumn(uids, from, count, LuceneColumn.singleFilter(filter, newFilter));
         }
 
         @Override
         public LuceneColumn slice(int from, int count) {
             Objects.checkFromIndexSize(from, count, this.count);
-            return new SyntheticIdTokenStreamColumn(uids, this.from + from, count, windowValidity(filter, from, count));
+            return new SyntheticIdTokenStreamColumn(uids, this.from + from, count);
         }
 
         @Override
@@ -453,13 +438,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
                 @Override
                 public int nextDoc() {
-                    ++doc;
-                    if (filter != null) {
-                        while (doc < count && filter.get(doc) == false) {
-                            ++doc;
-                        }
-                    }
-                    return doc < count ? doc : DocIdSetIterator.NO_MORE_DOCS;
+                    return ++doc < count ? doc : DocIdSetIterator.NO_MORE_DOCS;
                 }
 
                 @Override
@@ -478,7 +457,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                 @Override
                 public int nextDoc() {
                     srcIdx++;
-                    while (srcIdx < from + count && (uids[srcIdx] == null || (filter != null && filter.get(srcIdx - from) == false))) {
+                    while (srcIdx < from + count && uids[srcIdx] == null) {
                         srcIdx++;
                     }
                     return srcIdx < from + count ? srcIdx - from : DocIdSetIterator.NO_MORE_DOCS;

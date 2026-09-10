@@ -38,7 +38,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -55,11 +54,11 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         for (ActionType<XPackInfoFeatureResponse> infoAction : randomSubsetOf(featureSetCount, XPackInfoFeatureAction.ALL)) {
             FeatureSet featureSet = new FeatureSet(randomAlphaOfLength(5), randomBoolean(), randomBoolean());
             featureSets.put(infoAction, featureSet);
-            doAnswer(answer -> {
+            when(client.executeLocally(eq(infoAction), any(ActionRequest.class), any(ActionListener.class))).thenAnswer(answer -> {
                 var listener = (ActionListener<XPackInfoFeatureResponse>) answer.getArguments()[2];
                 listener.onResponse(new XPackInfoFeatureResponse(featureSet));
                 return null;
-            }).when(client).execute(eq(infoAction), any(ActionRequest.class), any(ActionListener.class));
+            });
         }
 
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();

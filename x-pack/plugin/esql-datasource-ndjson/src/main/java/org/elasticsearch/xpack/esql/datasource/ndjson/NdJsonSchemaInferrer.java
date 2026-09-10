@@ -300,7 +300,7 @@ public class NdJsonSchemaInferrer {
         }
         DataType resolved = null;
         for (DataType type : observed) {
-            resolved = resolved == null ? type : TypeWidening.join(resolved, type);
+            resolved = resolved == null ? type : TypeWidening.join(resolved, type, TypeWidening.Policy.INFERENCE);
         }
         return resolved;
     }

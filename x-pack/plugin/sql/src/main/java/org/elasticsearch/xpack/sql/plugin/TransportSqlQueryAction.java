@@ -81,7 +81,6 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final AsyncTaskManagementService<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> asyncTaskManagementService;
     private final ActivityLogger<SqlLogContext> activityLogger;
-    private volatile int maxQueryLength;
 
     @Inject
     public TransportSqlQueryAction(
@@ -107,8 +106,6 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         this.sqlLicenseChecker = sqlLicenseChecker;
         this.transportService = transportService;
         this.crossProjectModeDecider = crossProjectModeDecider;
-        this.maxQueryLength = SqlPlugin.MAX_QUERY_LENGTH_SETTING.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(SqlPlugin.MAX_QUERY_LENGTH_SETTING, v -> this.maxQueryLength = v);
 
         asyncTaskManagementService = new AsyncTaskManagementService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,
@@ -152,8 +149,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
                 transportService,
                 clusterService,
                 crossProjectModeDecider,
-                activityLogger,
-                maxQueryLength
+                activityLogger
             );
         }
     }
@@ -167,23 +163,12 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         TransportService transportService,
         ClusterService clusterService,
         CrossProjectModeDecider crossProjectModeDecider,
-        ActivityLogger<SqlLogContext> activityLogger,
-        int maxQueryLength
+        ActivityLogger<SqlLogContext> activityLogger
     ) {
         activityLogger.wrapAndRun(
             operationListener,
             new SqlLogContextBuilder(task, request),
-            (l) -> operation(
-                planExecutor,
-                task,
-                request,
-                l,
-                username,
-                transportService,
-                clusterService,
-                crossProjectModeDecider,
-                maxQueryLength
-            )
+            (l) -> operation(planExecutor, task, request, l, username, transportService, clusterService, crossProjectModeDecider)
         );
     }
 
@@ -198,8 +183,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         String username,
         TransportService transportService,
         ClusterService clusterService,
-        CrossProjectModeDecider crossProjectModeDecider,
-        int maxQueryLength
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
@@ -226,8 +210,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             task,
             allowPartialSearchResults,
             crossProjectEnabled,
-            request.projectRouting(),
-            maxQueryLength
+            request.projectRouting()
         );
         if (Strings.hasText(request.cursor()) == false) {
             planExecutor.sql(
@@ -352,8 +335,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             transportService,
             clusterService,
             crossProjectModeDecider,
-            activityLogger,
-            maxQueryLength
+            activityLogger
         );
     }
 

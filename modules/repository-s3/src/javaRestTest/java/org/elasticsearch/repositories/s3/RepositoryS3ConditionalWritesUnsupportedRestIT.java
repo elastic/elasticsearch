@@ -36,7 +36,6 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
-import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
@@ -46,19 +45,19 @@ import static org.hamcrest.Matchers.hasItem;
 public class RepositoryS3ConditionalWritesUnsupportedRestIT extends AbstractRepositoryS3RestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3BasicCredentialsRestIT");
+    private static final String BUCKET = PREFIX + "bucket";
+    private static final String BASE_PATH = PREFIX + "base_path";
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
     private static final String CLIENT = "no_conditional_writes_client";
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
-    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
-    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
         null,
-        bucketSupplier,
-        basePathSupplier,
+        BUCKET,
+        BASE_PATH,
         S3ConsistencyModel::randomConsistencyModel,
         fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
     ) {
@@ -121,12 +120,12 @@ public class RepositoryS3ConditionalWritesUnsupportedRestIT extends AbstractRepo
 
     @Override
     protected String getBucketName() {
-        return bucketSupplier.get();
+        return BUCKET;
     }
 
     @Override
     protected String getBasePath() {
-        return basePathSupplier.get();
+        return BASE_PATH;
     }
 
     @Override

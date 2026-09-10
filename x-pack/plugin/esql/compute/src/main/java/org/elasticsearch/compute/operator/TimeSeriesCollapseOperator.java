@@ -33,7 +33,7 @@ import org.elasticsearch.core.Releasables;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Collapses expanded time-series rows into one multi-valued row per output series.
@@ -133,7 +133,7 @@ public class TimeSeriesCollapseOperator extends HashAggregationOperator {
                 end,
                 step,
                 maxPageSize,
-                dc -> BlockHash.build(groups, dc.blockFactory(), aggregationBatchSize, false),
+                () -> BlockHash.build(groups, driverContext.blockFactory(), aggregationBatchSize, false),
                 driverContext
             );
         }
@@ -166,7 +166,7 @@ public class TimeSeriesCollapseOperator extends HashAggregationOperator {
         long end,
         long step,
         int maxPageSize,
-        Function<DriverContext, BlockHash> blockHash,
+        Supplier<BlockHash> blockHash,
         DriverContext driverContext
     ) {
         this(
@@ -186,21 +186,16 @@ public class TimeSeriesCollapseOperator extends HashAggregationOperator {
         int valueChannel,
         int stepChannel,
         int maxPageSize,
-        Function<DriverContext, BlockHash> blockHash,
+        Supplier<BlockHash> blockHash,
         DriverContext driverContext
     ) {
-        super(AggregatorMode.SINGLE, aggregators(state), blockHash, Integer.MAX_VALUE, 1.0, maxPageSize, null, null, driverContext, null);
+        super(AggregatorMode.SINGLE, aggregators(state), blockHash, Integer.MAX_VALUE, 1.0, maxPageSize, null, driverContext);
         this.groups = groups;
         this.valueChannel = valueChannel;
         this.stepChannel = stepChannel;
         this.maxPageSize = maxPageSize;
         this.outputBlockCount = outputBlockCount(groups, valueChannel, stepChannel);
         this.state = state;
-    }
-
-    @Override
-    public Operator tryPromote(DriverContext driverContext) {
-        return this;
     }
 
     @Override

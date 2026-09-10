@@ -11,6 +11,7 @@ package org.elasticsearch.search.telemetry;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
@@ -40,6 +41,8 @@ public class SearchStoreBytesReadTelemetryTests extends ESSingleNodeTestCase {
     }
 
     public void testSimpleQueryRecordsStoreBytesRead() throws Exception {
+        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+
         var numPrimaries = randomIntBetween(1, 3);
         String indexName = randomIndexName();
         createIndex(

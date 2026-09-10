@@ -1,0 +1,6 @@
+area: Data streams
+issues:
+ - 134505
+pr: 157634
+summary: "`DataStreamAutoShardingService.calculate()` works on stale data [#134505]"
+type: bug

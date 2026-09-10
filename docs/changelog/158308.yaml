@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 158308
-summary: Surface breaker trips from S3/HTTP reads as 429
-type: bug

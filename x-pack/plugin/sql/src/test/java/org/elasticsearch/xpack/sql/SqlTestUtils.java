@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryTask;
-import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
@@ -62,8 +61,7 @@ public final class SqlTestUtils {
         null,
         false,
         false,
-        null,
-        SqlPlugin.DEFAULT_MAX_QUERY_LENGTH
+        null
     );
 
     public static SqlConfiguration randomConfiguration(ZoneId providedZoneId, SqlVersion sqlVersion) {
@@ -88,8 +86,7 @@ public final class SqlTestUtils {
             randomTask(taskId, mode, sqlVersion),
             randomBoolean(),
             false,
-            null,
-            SqlPlugin.DEFAULT_MAX_QUERY_LENGTH
+            null
         );
     }
 

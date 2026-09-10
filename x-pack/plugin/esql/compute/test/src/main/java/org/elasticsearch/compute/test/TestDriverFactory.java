@@ -18,7 +18,6 @@ import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 
 import java.util.List;
@@ -35,7 +34,7 @@ public class TestDriverFactory {
         List<Operator> intermediateOperators,
         SinkOperator sink
     ) {
-        return create(driverContext, source, intermediateOperators, sink, Driver.DEFAULT_STATUS_INTERVAL, () -> {});
+        return create(driverContext, source, intermediateOperators, sink, () -> {});
     }
 
     public static Driver create(
@@ -43,7 +42,6 @@ public class TestDriverFactory {
         SourceOperator source,
         List<Operator> intermediateOperators,
         SinkOperator sink,
-        TimeValue statusInterval,
         Releasable releasable
     ) {
         // Do not wrap the local breaker for small local breakers, as the output mights not match expectations.
@@ -73,7 +71,7 @@ public class TestDriverFactory {
             source,
             intermediateOperators,
             sink,
-            statusInterval,
+            Driver.DEFAULT_STATUS_INTERVAL,
             releasable
         );
     }

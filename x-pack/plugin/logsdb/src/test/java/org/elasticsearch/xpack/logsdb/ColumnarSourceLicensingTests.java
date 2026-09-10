@@ -28,7 +28,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.settings.Settings.builder;
@@ -40,7 +39,8 @@ import static org.mockito.Mockito.when;
 /**
  * Tests for the license-based source-mode fallback for strict-columnar index modes. These modes default to synthetic source but do not
  * support stored source, so they must fall back to {@link SourceFieldMapper.Mode#COLUMNAR_STORED} (not
- * {@link SourceFieldMapper.Mode#STORED}) when an enterprise license is absent.
+ * {@link SourceFieldMapper.Mode#STORED}) when an enterprise license is absent. The exception is
+ * {@link IndexMode#VECTORDB_COLUMNAR}, which supports synthetic source only and is therefore rejected outright.
  *
  * The enforcement lives in {@link LogsdbIndexModeSettingsProvider} — the only {@code IndexSettingProvider}
  * that handles synthetic-source fallback — which is why these tests reside in the logsdb module despite
@@ -120,44 +120,97 @@ public class ColumnarSourceLicensingTests extends ESTestCase {
         return builder().put(settingsBuilder.build()).build();
     }
 
-    private List<IndexMode> columnarModes() {
-        return Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList();
+    public void testLogsdbColumnarFallsBackToColumnarStoredWithoutEnterpriseLicense() throws IOException {
+        Settings result = provideColumnarSettings(IndexMode.LOGSDB_COLUMNAR, basicLicenseService);
+        // Use raw string comparison: INDEX_MAPPER_SOURCE_MODE_SETTING.get() cross-validates against index.mode,
+        // which is not present in the additional settings returned by the provider.
+        assertEquals(SourceFieldMapper.Mode.COLUMNAR_STORED.name(), result.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()));
     }
 
-    public void testFallsBackToColumnarStoredWithoutEnterpriseLicense() throws IOException {
-        for (IndexMode mode : columnarModes()) {
-            Settings result = provideColumnarSettings(mode, basicLicenseService);
-            // Use raw string comparison: INDEX_MAPPER_SOURCE_MODE_SETTING.get() cross-validates against index.mode,
-            // which is not present in the additional settings returned by the provider.
+    public void testColumnarFallsBackToColumnarStoredWithoutEnterpriseLicense() throws IOException {
+        Settings result = provideColumnarSettings(IndexMode.COLUMNAR, basicLicenseService);
+        assertEquals(SourceFieldMapper.Mode.COLUMNAR_STORED.name(), result.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()));
+    }
+
+    /**
+     * Unlike the other columnar modes, vectordb_columnar supports synthetic source only, so there is no source mode to
+     * fall back to and index creation is rejected instead.
+     */
+    public void testVectordbColumnarRejectedWithoutEnterpriseLicense() {
+        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> provideColumnarSettings(IndexMode.VECTORDB_COLUMNAR, basicLicenseService)
+        );
+        assertEquals(
+            "index mode [vectordb_columnar] requires synthetic source, which is not available with the current license",
+            e.getMessage()
+        );
+    }
+
+    public void testLogsdbColumnarDoesNotFallBackWithEnterpriseLicense() throws IOException {
+        Settings result = provideColumnarSettings(IndexMode.LOGSDB_COLUMNAR, enterpriseLicenseService);
+        assertFalse(
+            "enterprise license should allow synthetic source; source mode setting must not be injected",
+            IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(result)
+        );
+    }
+
+    public void testColumnarDoesNotFallBackWithEnterpriseLicense() throws IOException {
+        Settings result = provideColumnarSettings(IndexMode.COLUMNAR, enterpriseLicenseService);
+        assertFalse(
+            "enterprise license should allow synthetic source; source mode setting must not be injected",
+            IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(result)
+        );
+    }
+
+    public void testVectordbColumnarDoesNotFallBackWithEnterpriseLicense() throws IOException {
+        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings result = provideColumnarSettings(IndexMode.VECTORDB_COLUMNAR, enterpriseLicenseService);
+        assertFalse(
+            "enterprise license should allow synthetic source; source mode setting must not be injected",
+            IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(result)
+        );
+    }
+
+    public void testLogsdbColumnarFallsBackToColumnarStoredWithOperatorFallbackFlag() throws IOException {
+        enterpriseLicenseService.setSyntheticSourceFallback(true);
+        try {
+            Settings result = provideColumnarSettings(IndexMode.LOGSDB_COLUMNAR, enterpriseLicenseService);
             assertEquals(
-                mode.getName(),
                 SourceFieldMapper.Mode.COLUMNAR_STORED.name(),
                 result.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey())
             );
+        } finally {
+            enterpriseLicenseService.setSyntheticSourceFallback(false);
         }
     }
 
-    public void testDoesNotFallBackWithEnterpriseLicense() throws IOException {
-        for (IndexMode mode : columnarModes()) {
-            Settings result = provideColumnarSettings(mode, enterpriseLicenseService);
-            assertFalse(
-                mode.getName() + ": enterprise license should allow synthetic source; source mode setting must not be injected",
-                IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(result)
-            );
-        }
-    }
-
-    public void testFallsBackToColumnarStoredWithOperatorFallbackFlag() throws IOException {
+    public void testColumnarFallsBackToColumnarStoredWithOperatorFallbackFlag() throws IOException {
         enterpriseLicenseService.setSyntheticSourceFallback(true);
         try {
-            for (IndexMode mode : columnarModes()) {
-                Settings result = provideColumnarSettings(mode, enterpriseLicenseService);
-                assertEquals(
-                    mode.getName(),
-                    SourceFieldMapper.Mode.COLUMNAR_STORED.name(),
-                    result.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey())
-                );
-            }
+            Settings result = provideColumnarSettings(IndexMode.COLUMNAR, enterpriseLicenseService);
+            assertEquals(
+                SourceFieldMapper.Mode.COLUMNAR_STORED.name(),
+                result.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey())
+            );
+        } finally {
+            enterpriseLicenseService.setSyntheticSourceFallback(false);
+        }
+    }
+
+    public void testVectordbColumnarRejectedWithOperatorFallbackFlag() {
+        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        enterpriseLicenseService.setSyntheticSourceFallback(true);
+        try {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> provideColumnarSettings(IndexMode.VECTORDB_COLUMNAR, enterpriseLicenseService)
+            );
+            assertEquals(
+                "index mode [vectordb_columnar] requires synthetic source, which is not available with the current license",
+                e.getMessage()
+            );
         } finally {
             enterpriseLicenseService.setSyntheticSourceFallback(false);
         }

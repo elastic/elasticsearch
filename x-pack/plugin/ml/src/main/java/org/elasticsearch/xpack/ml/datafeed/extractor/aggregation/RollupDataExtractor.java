@@ -10,7 +10,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 
 /**
@@ -24,10 +23,9 @@ class RollupDataExtractor extends AbstractAggregationDataExtractor {
     RollupDataExtractor(
         Client client,
         AggregationDataExtractorContext dataExtractorContext,
-        DatafeedTimingStatsReporter timingStatsReporter,
-        DatafeedSearchTelemetry searchTelemetry
+        DatafeedTimingStatsReporter timingStatsReporter
     ) {
-        super(client, dataExtractorContext, timingStatsReporter, searchTelemetry);
+        super(client, dataExtractorContext, timingStatsReporter);
     }
 
     @Override

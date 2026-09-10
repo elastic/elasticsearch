@@ -1,0 +1,7 @@
+area: Reindex
+issues:
+ - 150294
+ - 150295
+pr: 150342
+summary: Eagerly fail reindexes that are unable to be relocated
+type: bug

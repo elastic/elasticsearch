@@ -81,6 +81,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.DirectoryMetricsTests;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.store.StoreMetricsDirectory;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
@@ -752,6 +753,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
     }
 
     public void testConcurrentRewriteCapturesWorkerBytes() throws Exception {
+        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
         ThreadLocalDirectoryMetricHolder<StoreMetrics> holder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
         DirectoryMetricsAwareExecutor wrapped = new DirectoryMetricsAwareExecutor(
@@ -810,6 +812,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
     }
 
     public void testConcurrentSearchMatchesSequentialBytesRead() throws Exception {
+        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
         ThreadLocalDirectoryMetricHolder<StoreMetrics> holder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
         TermQuery termQuery = new TermQuery(new Term("field", "value"));

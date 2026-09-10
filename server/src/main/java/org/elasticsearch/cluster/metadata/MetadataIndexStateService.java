@@ -722,7 +722,7 @@ public class MetadataIndexStateService {
             if (request.ackTimeout() != null) {
                 shardRequest.timeout(request.ackTimeout());
             }
-            client.execute(
+            client.executeLocally(
                 TransportVerifyShardBeforeCloseAction.TYPE,
                 shardRequest,
                 listener.delegateFailure((delegate, replicationResponse) -> {
@@ -735,7 +735,7 @@ public class MetadataIndexStateService {
                     if (request.ackTimeout() != null) {
                         req.timeout(request.ackTimeout());
                     }
-                    client.execute(TransportVerifyShardBeforeCloseAction.TYPE, req, delegate);
+                    client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, req, delegate);
                 })
             );
         }
@@ -855,7 +855,7 @@ public class MetadataIndexStateService {
                 parentTaskId
             );
             shardRequest.timeout(request.ackTimeout());
-            client.execute(
+            client.executeLocally(
                 TransportVerifyShardIndexBlockAction.TYPE,
                 shardRequest,
                 listener.delegateFailure((delegate, replicationResponse) -> {
@@ -863,7 +863,7 @@ public class MetadataIndexStateService {
                     if (request.ackTimeout() != null) {
                         phase2.timeout(request.ackTimeout());
                     }
-                    client.execute(TransportVerifyShardIndexBlockAction.TYPE, phase2, delegate);
+                    client.executeLocally(TransportVerifyShardIndexBlockAction.TYPE, phase2, delegate);
                 })
             );
         }

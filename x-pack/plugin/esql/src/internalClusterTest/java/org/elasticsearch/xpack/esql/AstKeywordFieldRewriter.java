@@ -554,7 +554,9 @@ public final class AstKeywordFieldRewriter {
                 return scope;
             }
             if (node instanceof UnionAll unionAll) {
-                // UnionAll backs `FROM a, (subquery), ...`; independent sources, unlike FORK's shared input.
+                // UnionAll (a Fork subclass) backs `FROM a, (subquery), ...`; it must be matched
+                // before Fork so the union-of-independent-sources semantics apply rather than the
+                // shared-input FORK ones.
                 return processUnionAll(unionAll, scope);
             }
             if (node instanceof Fork fork) {

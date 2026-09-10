@@ -9,51 +9,21 @@ package org.elasticsearch.xpack.esql.inference.embedding;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
-import org.elasticsearch.xpack.esql.inference.AbstractEmbeddingRequestIterator;
-import org.elasticsearch.xpack.esql.inference.AbstractEmbeddingRequestIteratorTestCase;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 
 import java.util.Base64;
-import java.util.List;
 
 import static org.elasticsearch.xpack.esql.inference.InferenceService.ESQL_PRODUCT_USE_CASE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
-public class EmbeddingRequestIteratorTests extends AbstractEmbeddingRequestIteratorTestCase {
-
-    @Override
-    protected AbstractEmbeddingRequestIterator newRequestIterator(String inferenceId, BytesRefBlock textBlock, int batchSize) {
-        return new EmbeddingRequestIterator(
-            inferenceId,
-            textBlock,
-            DataType.TEXT,
-            batchSize,
-            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
-        );
-    }
-
-    @Override
-    protected int inputSize(BulkInferenceRequestItem item) {
-        if (item.inferenceRequest() == null) {
-            return 0;
-        }
-        return ((EmbeddingAction.Request) item.inferenceRequest()).getEmbeddingRequest().inputs().size();
-    }
-
-    @Override
-    protected List<String> inputValues(BulkInferenceRequestItem item) {
-        return ((EmbeddingAction.Request) item.inferenceRequest()).getEmbeddingRequest()
-            .inputs()
-            .stream()
-            .map(group -> group.value().value())
-            .toList();
-    }
+public class EmbeddingRequestIteratorTests extends ComputeTestCase {
 
     public void testIterateSmallInput() throws Exception {
         assertIterateRequests(between(1, 100));
@@ -72,7 +42,6 @@ public class EmbeddingRequestIteratorTests extends AbstractEmbeddingRequestItera
                 inferenceId,
                 inputBlock,
                 DataType.TEXT,
-                1,
                 BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
             )
         ) {
@@ -93,7 +62,6 @@ public class EmbeddingRequestIteratorTests extends AbstractEmbeddingRequestItera
                 inferenceId,
                 inputBlock,
                 DataType.TEXT,
-                1,
                 BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
             )
         ) {
@@ -151,7 +119,6 @@ public class EmbeddingRequestIteratorTests extends AbstractEmbeddingRequestItera
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    1,
                     BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
@@ -198,7 +165,6 @@ public class EmbeddingRequestIteratorTests extends AbstractEmbeddingRequestItera
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    1,
                     BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
@@ -237,7 +203,6 @@ public class EmbeddingRequestIteratorTests extends AbstractEmbeddingRequestItera
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    1,
                     BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
@@ -279,7 +244,6 @@ public class EmbeddingRequestIteratorTests extends AbstractEmbeddingRequestItera
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    1,
                     BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
@@ -324,7 +288,6 @@ public class EmbeddingRequestIteratorTests extends AbstractEmbeddingRequestItera
                 inferenceId,
                 inputBlock,
                 DataType.TEXT,
-                1,
                 BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
             )
         ) {
@@ -347,7 +310,6 @@ public class EmbeddingRequestIteratorTests extends AbstractEmbeddingRequestItera
                     inferenceId,
                     inputBlock,
                     DataType.IMAGE,
-                    1,
                     BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
@@ -393,7 +355,6 @@ public class EmbeddingRequestIteratorTests extends AbstractEmbeddingRequestItera
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    1,
                     BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
@@ -434,7 +395,6 @@ public class EmbeddingRequestIteratorTests extends AbstractEmbeddingRequestItera
                     inferenceId,
                     inputBlock,
                     DataType.IMAGE,
-                    1,
                     BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
@@ -469,7 +429,6 @@ public class EmbeddingRequestIteratorTests extends AbstractEmbeddingRequestItera
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    1,
                     BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
@@ -497,7 +456,6 @@ public class EmbeddingRequestIteratorTests extends AbstractEmbeddingRequestItera
                 inferenceId,
                 inputBlock,
                 dataType,
-                1,
                 BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
             )
         ) {
@@ -543,7 +501,6 @@ public class EmbeddingRequestIteratorTests extends AbstractEmbeddingRequestItera
                 inferenceId,
                 inputBlock,
                 DataType.TEXT,
-                1,
                 BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
             )
         ) {

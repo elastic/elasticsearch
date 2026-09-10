@@ -191,7 +191,9 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                 var mapping = new HashMap<>(defaults.mappingGenerator().get());
                 mapping.put(
                     "doc_values",
-                    randomBoolean() ? Map.of("multi_value", false, "on_failure", "ignore") : Map.of("multi_value", false)
+                    FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled() && randomBoolean()
+                        ? Map.of("multi_value", false, "on_failure", "ignore")
+                        : Map.of("multi_value", false)
                 );
                 return mapping;
             });

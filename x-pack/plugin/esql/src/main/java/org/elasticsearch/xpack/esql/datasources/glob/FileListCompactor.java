@@ -228,8 +228,7 @@ final class FileListCompactor {
             raw.originalPattern(),
             raw.partitionMetadata(),
             count,
-            raw.fileSetFingerprint(),
-            raw.exclusionWarnings()
+            raw.fileSetFingerprint()
         );
     }
 
@@ -347,8 +346,7 @@ final class FileListCompactor {
             raw.originalPattern(),
             raw.partitionMetadata(),
             count,
-            raw.fileSetFingerprint(),
-            raw.exclusionWarnings()
+            raw.fileSetFingerprint()
         );
     }
 

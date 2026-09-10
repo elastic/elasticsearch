@@ -120,7 +120,6 @@ public class GoogleCloudStorageBlobStoreStorageClassTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             randomIntBetween(1, 8) * 1024,
             largeBlobThreshold,
-            ByteSizeValue.ofMb(1).getBytes(),
             BackoffPolicy.noBackoff(),
             new GcsRepositoryStatsCollector(),
             dataStorageClass,
@@ -206,7 +205,7 @@ public class GoogleCloudStorageBlobStoreStorageClassTests extends ESTestCase {
         assertStorageClass(null, sourceBlobName);
 
         // copy with SNAPSHOT_DATA purpose so the destination is assigned the configured data storage class
-        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length, null);
+        container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length);
 
         assertStorageClass(dataStorageClass, destBlobName);
     }
@@ -223,7 +222,7 @@ public class GoogleCloudStorageBlobStoreStorageClassTests extends ESTestCase {
         assertStorageClass(null, sourceBlobName);
 
         // copy with SNAPSHOT_METADATA purpose so the destination is assigned the configured metadata storage class
-        container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length, null);
+        container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length);
 
         assertStorageClass(metadataStorageClass, destBlobName);
     }

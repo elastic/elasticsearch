@@ -24,25 +24,23 @@ import org.junit.rules.TestRule;
 import java.util.function.Supplier;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
-import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3BasicCredentialsRestIT");
+    private static final String BUCKET = PREFIX + "bucket";
+    private static final String BASE_PATH = PREFIX + "base_path";
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
     private static final String CLIENT = "basic_credentials_client";
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
-    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
-    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
-
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
         null,
-        bucketSupplier,
-        basePathSupplier,
+        BUCKET,
+        BASE_PATH,
         S3ConsistencyModel::randomConsistencyModel,
         fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
     );
@@ -66,12 +64,12 @@ public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3Rest
 
     @Override
     protected String getBucketName() {
-        return bucketSupplier.get();
+        return BUCKET;
     }
 
     @Override
     protected String getBasePath() {
-        return basePathSupplier.get();
+        return BASE_PATH;
     }
 
     @Override

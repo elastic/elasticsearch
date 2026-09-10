@@ -68,7 +68,6 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.plugin",
         "org.elasticsearch.plugin.analysis",
         "org.elasticsearch.server",
-        "org.elasticsearch.simdjson",
         "org.elasticsearch.simdvec",
         "org.elasticsearch.tdigest",
         "org.elasticsearch.useragent.api",

@@ -431,14 +431,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         assertBusy(() -> assertTrue(sourceBlobContainer.blobExists(randomPurpose(), sourceBlobName)));
 
         final var destinationBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
-        destinationBlobContainer.copyBlob(
-            randomPurpose(),
-            sourceBlobContainer,
-            sourceBlobName,
-            destinationBlobName,
-            blobBytes.length(),
-            null
-        );
+        destinationBlobContainer.copyBlob(randomPurpose(), sourceBlobContainer, sourceBlobName, destinationBlobName, blobBytes.length());
         assertThat(Streams.readFully(destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName)), equalBytes(blobBytes));
 
         sourceBlobContainer.delete(randomPurpose());
@@ -449,8 +442,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 sourceBlobContainer,
                 sourceBlobName,
                 destinationBlobName,
-                blobBytes.length(),
-                null
+                blobBytes.length()
             )
         );
         destinationBlobContainer.delete(randomPurpose());

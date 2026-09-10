@@ -96,11 +96,6 @@ class RangeStorageObject implements StorageObject {
     }
 
     @Override
-    public long lengthForFooterCacheKey() throws IOException {
-        return delegate.lengthForFooterCacheKey();
-    }
-
-    @Override
     public Instant lastModified() throws IOException {
         return delegate.lastModified();
     }
@@ -183,11 +178,6 @@ class RangeStorageObject implements StorageObject {
     @Override
     public boolean supportsNativeAsync() {
         return delegate.supportsNativeAsync();
-    }
-
-    @Override
-    public boolean readBytesAsyncReleasesExecutor() {
-        return delegate.readBytesAsyncReleasesExecutor();
     }
 
     @Override

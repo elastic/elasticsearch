@@ -19,6 +19,4 @@ This section details how {{esql}} handles different data types and special field
 
 * [Multivalued fields](esql-multivalued-fields.md): Learn how to work with fields that contain multiple values in {{esql}}.
 
-* [Histogram fields](esql-histogram-fields.md): Learn how to query pre-aggregated value distributions stored as `exponential_histogram`, `tdigest`, or `histogram` fields.
-
 * [Unmapped fields](esql-unmapped-fields.md): Learn how {{esql}} handles fields that aren't in the index mapping, and how to query them with `SET unmapped_fields`.

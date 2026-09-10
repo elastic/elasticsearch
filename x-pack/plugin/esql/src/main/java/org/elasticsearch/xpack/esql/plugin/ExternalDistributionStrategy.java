@@ -12,10 +12,8 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 /**
- * Decides whether an external source query should be distributed across eligible
- * remote workers or executed locally on the coordinator. Index-role nodes are never
- * selected as remote workers; an empty eligible-worker set is a {@code LOCAL} fallback,
- * not a failure.
+ * Decides whether an external source query should be distributed across data nodes
+ * or executed locally on the coordinator.
  */
 public interface ExternalDistributionStrategy {
 

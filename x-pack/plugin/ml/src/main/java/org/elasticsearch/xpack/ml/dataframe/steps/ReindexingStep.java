@@ -179,7 +179,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
                         return;
                     }
                     LOGGER.info("[{}] Started reindexing", config.getId());
-                    Task reindexTask = client.executeAndReturnTask(
+                    Task reindexTask = client.executeLocally(
                         ReindexAction.INSTANCE,
                         reindexRequest,
                         new ContextPreservingActionListener<>(supplier, reindexCompletedListener)

@@ -151,8 +151,6 @@ import org.elasticsearch.xpack.stateless.recovery.StatelessSearchNodeRecoveryLis
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
-import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction;
-import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
 import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
@@ -428,7 +426,6 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING);
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING);
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING);
-            res.add(StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING);
             return Set.copyOf(res);
         }
 
@@ -516,27 +513,6 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             }
 
             private Map<ActionType<?>, TransportAction<?, ?>> getActions(ActionFilters actionFilters) {
-                final var primaryRelocationMetricsCollectorProvider = new StatelessPrimaryRelocationMetricsCollectorProvider(
-                    StatelessPrimaryRelocationMetricsCollector.NOOP
-                );
-                final var primaryRelocationSourceService = new StatelessPrimaryRelocationSourceService(
-                    clusterService(),
-                    transportService().getThreadPool(),
-                    indicesService,
-                    testStatelessPlugin.hollowShardsService,
-                    new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
-                    mock(IndexShardCacheWarmer.class),
-                    HollowShardsMetrics.NOOP,
-                    client
-                );
-                final var primaryRelocationTargetService = new StatelessPrimaryRelocationTargetService(
-                    clusterService(),
-                    transportService().getThreadPool(),
-                    indicesService,
-                    new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
-                    mock(IndexShardCacheWarmer.class),
-                    primaryRelocationMetricsCollectorProvider
-                );
                 return Map.of(
                     TransportNewCommitNotificationAction.TYPE,
                     new TransportNewCommitNotificationAction(
@@ -557,18 +533,25 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         actionFilters,
                         indicesService,
                         new CompositeRecoverySchedulingListener(),
-                        primaryRelocationSourceService,
+                        new StatelessPrimaryRelocationSourceService(
+                            clusterService(),
+                            transportService().getThreadPool(),
+                            indicesService,
+                            testStatelessPlugin.hollowShardsService,
+                            new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
+                            mock(IndexShardCacheWarmer.class),
+                            HollowShardsMetrics.NOOP
+                        ),
+                        new StatelessPrimaryRelocationTargetService(
+                            clusterService(),
+                            transportService().getThreadPool(),
+                            indicesService,
+                            new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
+                            mock(IndexShardCacheWarmer.class),
+                            new StatelessPrimaryRelocationMetricsCollectorProvider(StatelessPrimaryRelocationMetricsCollector.NOOP)
+                        ),
                         peerRecoveryTargetService,
-                        primaryRelocationMetricsCollectorProvider
-                    ),
-                    TransportStatelessPrimaryRelocationPrewarmAction.TYPE,
-                    new TransportStatelessPrimaryRelocationPrewarmAction(transportService(), actionFilters, primaryRelocationTargetService),
-                    TransportStatelessPrimaryRelocationHandoffAction.TYPE,
-                    new TransportStatelessPrimaryRelocationHandoffAction(
-                        transportService(),
-                        actionFilters,
-                        peerRecoveryTargetService,
-                        primaryRelocationTargetService
+                        new StatelessPrimaryRelocationMetricsCollectorProvider(StatelessPrimaryRelocationMetricsCollector.NOOP)
                     ),
                     StatelessUnpromotableRelocationAction.TYPE,
                     new TransportStatelessUnpromotableRelocationAction(

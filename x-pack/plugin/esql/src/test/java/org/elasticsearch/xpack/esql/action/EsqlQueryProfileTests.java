@@ -47,7 +47,6 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             randomNonNegativeLong(),
             randomFrom(UnmappedResolution.values()),
             randomIntBetween(0, 100),
-            randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }
@@ -71,8 +70,7 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
         UnmappedResolution unmappedResolution = instance.unmappedResolution();
         int externalWarmAggregates = instance.externalWarmAggregates();
         long splitDiscovery = instance.splitDiscoveryNanos();
-        long splitDiscoveryCpu = instance.splitDiscoveryCpuNanos();
-        switch (randomIntBetween(0, 17)) {
+        switch (randomIntBetween(0, 16)) {
             case 0 -> query = randomValueOtherThan(query, EsqlQueryProfileTests::randomTimeSpan);
             case 1 -> planning = randomValueOtherThan(planning, EsqlQueryProfileTests::randomTimeSpan);
             case 2 -> parsing = randomValueOtherThan(parsing, EsqlQueryProfileTests::randomTimeSpan);
@@ -90,7 +88,6 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             case 14 -> unmappedResolution = randomValueOtherThan(unmappedResolution, () -> randomFrom(UnmappedResolution.values()));
             case 15 -> externalWarmAggregates = randomValueOtherThan(externalWarmAggregates, () -> randomIntBetween(0, 100));
             case 16 -> splitDiscovery = randomValueOtherThan(splitDiscovery, ESTestCase::randomNonNegativeLong);
-            case 17 -> splitDiscoveryCpu = randomValueOtherThan(splitDiscoveryCpu, ESTestCase::randomNonNegativeLong);
         }
         return new EsqlQueryProfile(
             query,
@@ -109,8 +106,7 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             bytesScanned,
             unmappedResolution,
             externalWarmAggregates,
-            splitDiscovery,
-            splitDiscoveryCpu
+            splitDiscovery
         );
     }
 

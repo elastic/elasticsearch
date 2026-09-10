@@ -14,7 +14,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -25,8 +24,7 @@ public record AggregationDataExtractorFactory(
     QueryBuilder extraFilters,
     Job job,
     NamedXContentRegistry xContentRegistry,
-    DatafeedTimingStatsReporter timingStatsReporter,
-    DatafeedSearchTelemetry searchTelemetry
+    DatafeedTimingStatsReporter timingStatsReporter
 ) implements DataExtractorFactory {
 
     public static AggregatedSearchRequestBuilder requestBuilder(Client client, String[] indices) {
@@ -58,6 +56,6 @@ public record AggregationDataExtractorFactory(
             datafeedConfig.getRuntimeMappings(),
             datafeedConfig.getProjectRouting()
         );
-        return new AggregationDataExtractor(client, dataExtractorContext, timingStatsReporter, searchTelemetry);
+        return new AggregationDataExtractor(client, dataExtractorContext, timingStatsReporter);
     }
 }

@@ -42,10 +42,6 @@ Because the data is not indexed, you only can use `histogram` fields for the fol
 * [range](/reference/aggregations/search-aggregations-bucket-range-aggregation.md#search-aggregations-bucket-range-aggregation-histogram-fields) aggregation
 * [exists](/reference/query-languages/query-dsl/query-dsl-exists-query.md) query
 
-### Query histogram fields in ES|QL
-
-In ES|QL, `histogram` fields that contain T-Digest data can be queried by casting to `tdigest` or `exponential_histogram`. HDR histogram data is not supported. Refer to [](/reference/query-languages/esql/esql-histogram-fields.md) for details.
-
 
 ## Building a histogram [mapping-types-histogram-building-histogram]
 

@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,12 +28,12 @@ public class PushDownFiltersIntoFork extends OptimizerRules.OptimizerRule<Filter
 
     @Override
     protected LogicalPlan rule(Filter filter) {
-        if (filter.child() instanceof Fork == false) {
+        if (filter.child() instanceof Fork == false || filter.child() instanceof UnionAll) {
             return filter;
         }
         Fork fork = (Fork) filter.child();
         // if none of the FORK branches benefits from pushing down a pipeline breaker, we can do an early return
-        if (fork.children().stream().anyMatch(PushDownUtils::shouldPushDownPipelineBreakerIntoMergeBranch) == false) {
+        if (fork.children().stream().anyMatch(PushDownUtils::shouldPushDownPipelineBreakerIntoForkBranch) == false) {
             return filter;
         }
 

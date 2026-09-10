@@ -68,7 +68,7 @@ public final class ParquetReaderCounters {
     private final LongAdder totalReadNanos = new LongAdder();
     private final LongAdder totalReadCpuNanos = new LongAdder();
 
-    // Footer cache (reader-shared ParsedFooterCache)
+    // Footer cache (JVM-wide ParsedFooterCache)
     private final LongAdder footerCacheHits = new LongAdder();
     private final LongAdder footerCacheMisses = new LongAdder();
 

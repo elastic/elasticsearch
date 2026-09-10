@@ -26,11 +26,9 @@ import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentSer
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
@@ -62,7 +60,6 @@ public class InferenceWaitForAllocation {
 
     private final TrainedModelAssignmentService assignmentService;
     private final BiConsumer<WaitingRequest, TrainedModelAssignment> queuedConsumer;
-    private final LongSupplier relativeTimeInMillisSupplier;
     private AtomicInteger pendingRequestCount = new AtomicInteger();
 
     // Visible for testing the MAX_PENDING_REQUEST_COUNT back-pressure accounting.
@@ -75,18 +72,13 @@ public class InferenceWaitForAllocation {
      * @param assignmentService            Trained model assignment service
      * @param onInferenceScaledConsumer    The consumer of the waiting request called once an
      *                                     allocation is available.
-     * @param relativeTimeInMillisSupplier Monotonic clock used to bound how long a failed
-     *                                     deployment is tolerated before giving up; the bound is
-     *                                     the caller's inference timeout.
      */
     public InferenceWaitForAllocation(
         TrainedModelAssignmentService assignmentService,
-        BiConsumer<WaitingRequest, TrainedModelAssignment> onInferenceScaledConsumer,
-        LongSupplier relativeTimeInMillisSupplier
+        BiConsumer<WaitingRequest, TrainedModelAssignment> onInferenceScaledConsumer
     ) {
         this.assignmentService = assignmentService;
         this.queuedConsumer = onInferenceScaledConsumer;
-        this.relativeTimeInMillisSupplier = relativeTimeInMillisSupplier;
     }
 
     /**
@@ -110,16 +102,12 @@ public class InferenceWaitForAllocation {
             return;
         }
 
-        TimeValue inferenceTimeout = Objects.requireNonNullElse(
-            request.request().getInferenceTimeout(),
-            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
-        );
-        var predicate = new DeploymentHasAtLeastOneAllocation(request.deploymentId(), relativeTimeInMillisSupplier, inferenceTimeout);
+        var predicate = new DeploymentHasAtLeastOneAllocation(request.deploymentId());
 
         assignmentService.waitForAssignmentCondition(
             request.deploymentId(),
             predicate,
-            inferenceTimeout,
+            request.request().getInferenceTimeout(),
             new WaitingListener(request, predicate)
         );
     }
@@ -127,15 +115,10 @@ public class InferenceWaitForAllocation {
     private static class DeploymentHasAtLeastOneAllocation implements Predicate<ClusterState> {
 
         private final String deploymentId;
-        private final LongSupplier relativeTimeInMillisSupplier;
-        private final TimeValue failureTimeout;
         private AtomicReference<Exception> exception = new AtomicReference<>();
-        private volatile long firstFailureObservedAtMillis = -1;
 
-        DeploymentHasAtLeastOneAllocation(String deploymentId, LongSupplier relativeTimeInMillisSupplier, TimeValue failureTimeout) {
+        DeploymentHasAtLeastOneAllocation(String deploymentId) {
             this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, "deployment_id");
-            this.relativeTimeInMillisSupplier = relativeTimeInMillisSupplier;
-            this.failureTimeout = failureTimeout;
         }
 
         @Override
@@ -156,49 +139,30 @@ public class InferenceWaitForAllocation {
                 return true; // don't try again
             }
 
-            var routable = trainedModelAssignment.getNodeRoutingTable().values().stream().filter(RoutingInfo::isRoutable).findFirst();
-            if (routable.isPresent()) {
-                return true;
-            }
-
             Map<String, String> nodeFailuresAndReasons = new HashMap<>();
             for (var nodeIdAndRouting : trainedModelAssignment.getNodeRoutingTable().entrySet()) {
                 if (RoutingState.FAILED.equals(nodeIdAndRouting.getValue().getState())) {
                     nodeFailuresAndReasons.put(nodeIdAndRouting.getKey(), nodeIdAndRouting.getValue().getReason());
                 }
             }
-            if (nodeFailuresAndReasons.isEmpty()) {
-                // no current failures; reset so a later failure gets its own fresh timeout window
-                firstFailureObservedAtMillis = -1;
-                return false;
+            if (nodeFailuresAndReasons.isEmpty() == false) {
+                if (nodeFailuresAndReasons.size() == trainedModelAssignment.getNodeRoutingTable().size()) {
+                    exception.set(
+                        new ElasticsearchStatusException(
+                            "[{}] Error waiting for a model allocation, all nodes have failed with errors [{}]",
+                            RestStatus.INTERNAL_SERVER_ERROR,
+                            trainedModelAssignment.getDeploymentId(),
+                            nodeFailuresAndReasons
+                        )
+                    );
+                    return true; // don't try again
+                } else {
+                    logger.warn("Deployment [{}] has failed routes [{}]", trainedModelAssignment.getDeploymentId(), nodeFailuresAndReasons);
+                }
             }
 
-            long nowMillis = relativeTimeInMillisSupplier.getAsLong();
-            if (firstFailureObservedAtMillis < 0) {
-                firstFailureObservedAtMillis = nowMillis;
-            }
-            if (nowMillis - firstFailureObservedAtMillis < failureTimeout.millis()) {
-                // Node failures here are often transient, e.g. caused by a stop/start race during
-                // routine node churn while scaling up from zero. Keep waiting for the caller's
-                // inference timeout so a fresh allocation can recover; when that elapses, fail
-                // with the real per-node reasons (409) rather than a generic timeout.
-                logger.debug(
-                    "Deployment [{}] has failed routes [{}], within inference timeout, keep waiting",
-                    trainedModelAssignment.getDeploymentId(),
-                    nodeFailuresAndReasons
-                );
-                return false;
-            }
-
-            exception.set(
-                new ElasticsearchStatusException(
-                    "[{}] Error waiting for a model allocation, all nodes have failed with errors [{}]",
-                    RestStatus.CONFLICT,
-                    trainedModelAssignment.getDeploymentId(),
-                    nodeFailuresAndReasons
-                )
-            );
-            return true; // don't try again
+            var routable = trainedModelAssignment.getNodeRoutingTable().values().stream().filter(RoutingInfo::isRoutable).findFirst();
+            return routable.isPresent();
         }
     }
 

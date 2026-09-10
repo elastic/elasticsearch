@@ -80,11 +80,11 @@ public abstract class RestActionTestCase extends ESTestCase {
      * functions, and can be reset to allow reconfiguration partway through a test without having to construct a new object.
      *
      * By default, will throw {@link AssertionError} when any execution method is called, unless configured otherwise using
-     * {@link #setExecuteVerifier} or {@link #setExecuteAndReturnTaskVerifier}.
+     * {@link #setExecuteVerifier} or {@link #setExecuteLocallyVerifier}.
      */
     public static final class VerifyingClient extends NoOpNodeClient {
         AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeVerifier = new AtomicReference<>();
-        AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeAndReturnTaskVerifier = new AtomicReference<>();
+        AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeLocallyVerifier = new AtomicReference<>();
 
         public VerifyingClient(ThreadPool threadPool) {
             super(threadPool);
@@ -98,12 +98,12 @@ public abstract class RestActionTestCase extends ESTestCase {
 
         /**
          * Clears any previously set verifier functions set by {@link #setExecuteVerifier} and/or
-         * {@link #setExecuteAndReturnTaskVerifier}. These functions are replaced with functions which will throw an
+         * {@link #setExecuteLocallyVerifier}. These functions are replaced with functions which will throw an
          * {@link AssertionError} if called.
          */
         public void reset() {
             executeVerifier.set((arg1, arg2) -> { throw new AssertionError(); });
-            executeAndReturnTaskVerifier.set((arg1, arg2) -> { throw new AssertionError(); });
+            executeLocallyVerifier.set((arg1, arg2) -> { throw new AssertionError(); });
         }
 
         /**
@@ -140,24 +140,24 @@ public abstract class RestActionTestCase extends ESTestCase {
         }
 
         /**
-         * Sets the function that will be called when {@link #executeAndReturnTask(ActionType, ActionRequest, ActionListener)} is called.
-         * The given function should return either a subclass of {@link ActionResponse} or {@code null}.
-         * @param verifier A function which is called in place of {@link #executeAndReturnTask(ActionType, ActionRequest, ActionListener)}
+         * Sets the function that will be called when {@link #executeLocally(ActionType, ActionRequest, ActionListener)} is called. The
+         * given function should return either a subclass of {@link ActionResponse} or {@code null}.
+         * @param verifier A function which is called in place of {@link #executeLocally(ActionType, ActionRequest, ActionListener)}
          */
-        public void setExecuteAndReturnTaskVerifier(BiFunction<ActionType<?>, ActionRequest, ActionResponse> verifier) {
-            executeAndReturnTaskVerifier.set(verifier);
+        public void setExecuteLocallyVerifier(BiFunction<ActionType<?>, ActionRequest, ActionResponse> verifier) {
+            executeLocallyVerifier.set(verifier);
         }
 
         private static final AtomicLong taskIdGenerator = new AtomicLong(0L);
 
         @Override
-        public <Request extends ActionRequest, Response extends ActionResponse> Task executeAndReturnTask(
+        public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
             ActionType<Response> action,
             Request request,
             ActionListener<Response> listener
         ) {
             @SuppressWarnings("unchecked") // Callers are responsible for lining this up
-            Response response = (Response) executeAndReturnTaskVerifier.get().apply(action, request);
+            Response response = (Response) executeLocallyVerifier.get().apply(action, request);
             ActionListener.respondAndRelease(listener, response);
             return request.createTask(
                 taskIdGenerator.incrementAndGet(),

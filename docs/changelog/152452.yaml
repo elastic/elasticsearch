@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 144831
-pr: 152452
-summary: Support match functions after INLINE STATS
-type: enhancement

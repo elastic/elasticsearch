@@ -414,16 +414,13 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
                     pullOperations(engine);
                 }
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
-                assertThat(
-                    engine.config().getMapperService().isUseColumnarId(),
-                    equalTo(leader.config().getMapperService().isUseColumnarId())
-                );
                 // have to verify without source since we are randomly testing without _source
-                List<DocIdSeqNoAndSource> docsWithoutSourceOnFollower = EngineTestUtils.getDocIds(engine, true)
+                boolean columnarId = engine.engineConfig.getMapperService().isUseColumnarId();
+                List<DocIdSeqNoAndSource> docsWithoutSourceOnFollower = EngineTestUtils.getDocIds(engine, true, columnarId)
                     .stream()
                     .map(d -> new DocIdSeqNoAndSource(d.id(), null, d.seqNo(), d.primaryTerm(), d.version()))
                     .toList();
-                List<DocIdSeqNoAndSource> docsWithoutSourceOnLeader = EngineTestUtils.getDocIds(leader, true)
+                List<DocIdSeqNoAndSource> docsWithoutSourceOnLeader = EngineTestUtils.getDocIds(engine, true, columnarId)
                     .stream()
                     .map(d -> new DocIdSeqNoAndSource(d.id(), null, d.seqNo(), d.primaryTerm(), d.version()))
                     .toList();

@@ -300,7 +300,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     private static final IndexableFieldType PRIMARY_TERM_COLUMN_FIELD_TYPE = NumericDocValuesField.TYPE;
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
         return true;
     }
 

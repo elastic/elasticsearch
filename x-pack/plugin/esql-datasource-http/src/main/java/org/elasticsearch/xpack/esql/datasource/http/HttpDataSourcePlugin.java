@@ -13,7 +13,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.http.local.LocalStorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
@@ -118,13 +117,11 @@ public class HttpDataSourcePlugin extends Plugin implements DataSourcePlugin {
     public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
         Map<String, DataSourceValidator> validators = new HashMap<>();
         if (httpEnabled()) {
-            DataSourceValidator http = new FileDataSourceValidator("http", NoAuthDataSourceConfiguration::fromMap, Set.of("http", "https"))
-                .withFixedAuthMode(FileDataSourceConfiguration.AuthMode.ANONYMOUS);
+            DataSourceValidator http = new FileDataSourceValidator("http", NoAuthDataSourceConfiguration::fromMap, Set.of("http", "https"));
             validators.put(http.type(), http);
         }
         if (localEnabled()) {
-            DataSourceValidator local = new FileDataSourceValidator("local", NoAuthDataSourceConfiguration::fromMap, Set.of("file"))
-                .withFixedAuthMode(FileDataSourceConfiguration.AuthMode.ANONYMOUS);
+            DataSourceValidator local = new FileDataSourceValidator("local", NoAuthDataSourceConfiguration::fromMap, Set.of("file"));
             validators.put(local.type(), local);
         }
         return validators;

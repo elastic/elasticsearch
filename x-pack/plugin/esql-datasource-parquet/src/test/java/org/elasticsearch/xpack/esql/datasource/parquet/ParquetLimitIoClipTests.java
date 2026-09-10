@@ -29,7 +29,6 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
@@ -41,7 +40,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -76,13 +74,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * exhausted, and (when OffsetIndex exists) fetch only prefix pages of the first covering groups.
  */
 public class ParquetLimitIoClipTests extends ESTestCase {
-
-    /**
-     * Footer byte cache handed to every adapter this test constructs. In production the owning
-     * format reader supplies its instance; a fresh per-test-class cache gives the same sharing
-     * within a test and automatic isolation between tests.
-     */
-    private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
 
     private BlockFactory blockFactory;
 
@@ -291,12 +282,7 @@ public class ParquetLimitIoClipTests extends ESTestCase {
         byte[] parquetData = createMultiRowGroupFile(4000, 2048);
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
         RecordingStorageObject storage = new RecordingStorageObject(parquetData);
-        try (
-            ParquetFileReader reader = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(storage, footerByteCache, blockFactory.breaker()),
-                options
-            )
-        ) {
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, blockFactory.breaker()), options)) {
             List<BlockMetaData> blocks = reader.getRowGroups();
             assertThat(blocks.size(), greaterThan(1));
             assertThat(
@@ -478,7 +464,7 @@ public class ParquetLimitIoClipTests extends ESTestCase {
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
         try (
             ParquetFileReader reader = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(new RecordingStorageObject(parquetData), footerByteCache, blockFactory.breaker()),
+                new ParquetStorageObjectAdapter(new RecordingStorageObject(parquetData), blockFactory.breaker()),
                 options
             )
         ) {
@@ -531,7 +517,7 @@ public class ParquetLimitIoClipTests extends ESTestCase {
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
         try (
             ParquetFileReader reader = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(new RecordingStorageObject(parquetData), footerByteCache, blockFactory.breaker()),
+                new ParquetStorageObjectAdapter(new RecordingStorageObject(parquetData), blockFactory.breaker()),
                 options
             )
         ) {
@@ -582,7 +568,7 @@ public class ParquetLimitIoClipTests extends ESTestCase {
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
         try (
             ParquetFileReader reader = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(new RecordingStorageObject(parquetData), footerByteCache, blockFactory.breaker()),
+                new ParquetStorageObjectAdapter(new RecordingStorageObject(parquetData), blockFactory.breaker()),
                 options
             )
         ) {
@@ -608,7 +594,7 @@ public class ParquetLimitIoClipTests extends ESTestCase {
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
         try (
             ParquetFileReader reader = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(new RecordingStorageObject(parquetData), footerByteCache, blockFactory.breaker()),
+                new ParquetStorageObjectAdapter(new RecordingStorageObject(parquetData), blockFactory.breaker()),
                 options
             )
         ) {

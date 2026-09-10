@@ -91,7 +91,7 @@ public final class HistoBackedHistogramAggregator extends AbstractHistogramAggre
 
                         double key = Math.floor((value - offset) / interval);
                         assert key >= previousKey;
-                        if (hardBounds == null || hardBounds.contain(key * interval + offset)) {
+                        if (hardBounds == null || hardBounds.contain(key * interval)) {
                             long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
                             if (bucketOrd < 0) { // already seen
                                 bucketOrd = -1 - bucketOrd;

@@ -1069,7 +1069,8 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
 
                 @Override
                 public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
-                    if (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER) {
+                    if (indexShard.recoveryState() == null
+                        || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER) {
                         listener.onResponse(null);
                         return;
                     }

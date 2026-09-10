@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 157103
+pr: 157148
+summary: Fix TS STATS literal aggregates dropped by optimizer
+type: bug

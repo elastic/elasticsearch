@@ -147,6 +147,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryListener;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
@@ -1000,21 +1001,22 @@ public class IndicesService extends AbstractLifecycleComponent
         final Consumer<IndexShard.ShardFailure> onShardFailure,
         final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final DiscoveryNode localNode,
-        @Nullable final DiscoveryNode sourceNode,
+        final DiscoveryNode targetNode,
+        final DiscoveryNode sourceNode,
         long clusterStateVersion
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
-        IndexShard indexShard = indexService.createShard(shardRouting, localNode, sourceNode, globalCheckpointSyncer, retentionLeaseSyncer);
+        RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
+        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
 
         throttlingRecoveryService.enqueue(
             projectId,
             recoveryListener,
-            indexShard.recoveryState(),
+            recoveryState,
             indexService.getMetadata(),
             shardRouting.allocationId().getId(),
             indexShard.recoveryStats(),
@@ -1031,6 +1033,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 final var releaseStoreRef = Releasables.assertOnce(Releasables.releaseOnce(store::decRef));
                 try {
                     indexShard.startRecovery(
+                        recoveryState,
                         recoveryTargetService,
                         postRecoveryMerger.maybeMergeAfterRecovery(
                             indexService.getMetadata(),
@@ -1039,7 +1042,7 @@ public class IndicesService extends AbstractLifecycleComponent
                         ),
                         repositoriesService,
                         (mapping, l) -> {
-                            assert indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                            assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
                                 : "mapping update consumer only required by local shards recovery";
                             AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
                                 // concrete index - no name clash, it uses uuid
@@ -2085,7 +2088,8 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Cumulative bytes read from the store directory on the current thread, as tracked by store metrics.
+     * Cumulative bytes read from the store directory on the current thread, as tracked by store metrics
+     * when the {@code directory_metrics} feature flag is enabled.
      */
     public long currentStoreBytesRead() {
         return storeMetricHolder.instance().getBytesRead();

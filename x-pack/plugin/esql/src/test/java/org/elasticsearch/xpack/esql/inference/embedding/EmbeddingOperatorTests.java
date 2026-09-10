@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.inference.AbstractDenseEmbeddingOperatorTestCase;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.hamcrest.Matcher;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -27,28 +26,21 @@ import static org.hamcrest.Matchers.equalTo;
 public class EmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTestCase {
 
     @Override
-    protected Operator.OperatorFactory createOperatorFactory(InferenceService inferenceService, int batchSize, boolean tolerateFailures) {
+    protected Operator.OperatorFactory createOperatorFactory(InferenceService inferenceService) {
         return new EmbeddingOperator.Factory(
             inferenceService,
             SIMPLE_INFERENCE_ID,
             evaluatorFactory(inputChannel),
             DataType.TEXT,
-            batchSize,
             BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING),
             Source.EMPTY,
-            tolerateFailures
+            false
         );
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo(
-            "EmbeddingOperator[inference_id=["
-                + SIMPLE_INFERENCE_ID
-                + "], batch_size=["
-                + InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE
-                + "]]"
-        );
+        return equalTo("EmbeddingOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "]]");
     }
 
     public void testImageEmbeddingOperator() {
@@ -57,7 +49,6 @@ public class EmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTestCa
             SIMPLE_INFERENCE_ID,
             evaluatorFactory(inputChannel),
             DataType.IMAGE,
-            InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE,
             BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING),
             Source.EMPTY,
             false

@@ -166,9 +166,8 @@ public final class AmazonBedrockConverseUtils {
         return false;
     }
 
-    private static List<SystemContentBlock> getSystemContentBlock(@Nullable Content content) {
+    private static List<SystemContentBlock> getSystemContentBlock(Content content) {
         return switch (content) {
-            case null -> List.of();
             case ContentString stringContent -> convertContentString(
                 stringContent.content(),
                 (text) -> SystemContentBlock.builder().text(text).build()
@@ -185,7 +184,6 @@ public final class AmazonBedrockConverseUtils {
     private static Message convertToolResultMessage(org.elasticsearch.inference.completion.Message requestMessage) {
         // Bedrock allows empty tool result string content but not empty tool result object content
         var convertedToolResultContentBlock = switch (requestMessage.content()) {
-            case null -> List.<ToolResultContentBlock>of();
             case ContentString stringContent -> List.of(ToolResultContentBlock.builder().text(stringContent.content()).build());
             case ContentObjects objectsContent -> objectsContent.contentObjects()
                 .stream()
@@ -236,10 +234,8 @@ public final class AmazonBedrockConverseUtils {
         return Message.builder().role(ConversationRole.ASSISTANT).content(blocks).build();
     }
 
-    private static List<ContentBlock> convertContentToBlocks(@Nullable Content content) {
+    private static List<ContentBlock> convertContentToBlocks(Content content) {
         var blocks = switch (content) {
-            // Messages can omit content, e.g. an assistant message that carries only tool_calls
-            case null -> List.<ContentBlock>of();
             case ContentString stringContent -> convertContentString(
                 stringContent.content(),
                 (text) -> ContentBlock.builder().text(text).build()

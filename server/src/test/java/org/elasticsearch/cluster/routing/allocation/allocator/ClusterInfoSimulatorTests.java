@@ -939,9 +939,11 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 equalTo(sourceHostedShardsBeforeFirstRelocation - shardHeapUsage)
             );
             assertThat(
-                "Expected the hosted-shards heap usage for node " + targetNodeId + " to have increased by the shard and index heap usage",
+                "Expected the hosted-shards heap usage for node "
+                    + targetNodeId
+                    + " to have increased by only the shard's heap usage, not the index heap usage",
                 nodeHeapUsages.get(targetNodeId).nodeHeapEstimates().hostedShardsHeapUsage(),
-                equalTo(targetHostedShardsBeforeFirstRelocation + shardHeapUsage + indexHeapUsage)
+                equalTo(targetHostedShardsBeforeFirstRelocation + shardHeapUsage)
             );
         }
 
@@ -1025,9 +1027,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             assertThat(
                 "Expected the hosted-shards heap usage for node "
                     + sourceNodeId
-                    + " to have decreased by the shard's heap usage and the index heap usage",
+                    + " to have decreased by only the shard's heap usage, even though the index was also removed from the node",
                 nodeHeapUsages.get(sourceNodeId).nodeHeapEstimates().hostedShardsHeapUsage(),
-                equalTo(sourceHostedShardsBeforeRelocation - shardHeapUsage - indexHeapUsage)
+                equalTo(sourceHostedShardsBeforeRelocation - shardHeapUsage)
             );
             assertThat(
                 "Expected the hosted-shards heap usage for node " + targetNodeId + " to have increased by only the shard's heap usage",
@@ -1088,11 +1090,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 equalTo(targetNodeHeapBeforeAssignment + shardHeapUsage + indexHeapUsage)
             );
             assertThat(
-                "Expect the hosted-shards heap usage for node "
-                    + newTargetNodeId
-                    + " to have increased by the shard's heap usage and the index heap usage",
+                "Expect the hosted-shards heap usage for node " + newTargetNodeId + " to have increased by only the shard's heap usage",
                 nodeHeapUsages.get(newTargetNodeId).nodeHeapEstimates().hostedShardsHeapUsage(),
-                equalTo(targetHostedShardsBeforeAssignment + shardHeapUsage + indexHeapUsage)
+                equalTo(targetHostedShardsBeforeAssignment + shardHeapUsage)
             );
         }
     }
@@ -1328,7 +1328,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             );
             assertThat(
                 simulatorForNewShard.computeNodeHeapMetrics().get(nodeId).nodeHeapEstimates().hostedShardsHeapUsage(),
-                equalTo(hostedShardsBaselineBytes + deltaBytes)
+                equalTo(hostedShardsBaselineBytes + defaultShardHeapBytes)
             );
         }
 
@@ -1393,11 +1393,11 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             );
             assertThat(
                 simulatorForRelocation.computeNodeHeapMetrics().get(sourceNodeId).nodeHeapEstimates().hostedShardsHeapUsage(),
-                equalTo(hostedShardsBaselineBytes - deltaBytes)
+                equalTo(hostedShardsBaselineBytes - defaultShardHeapBytes)
             );
             assertThat(
                 simulatorForRelocation.computeNodeHeapMetrics().get(targetNodeId).nodeHeapEstimates().hostedShardsHeapUsage(),
-                equalTo(hostedShardsBaselineBytes + deltaBytes)
+                equalTo(hostedShardsBaselineBytes + defaultShardHeapBytes)
             );
         }
     }

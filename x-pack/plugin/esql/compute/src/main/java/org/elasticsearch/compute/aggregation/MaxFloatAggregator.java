@@ -22,8 +22,4 @@ class MaxFloatAggregator {
     public static float combine(float current, float v) {
         return Math.max(current, v);
     }
-
-    public static void combine(FloatArrayState state, int groupId, float v) {
-        state.max(groupId, v);
-    }
 }

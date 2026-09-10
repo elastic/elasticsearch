@@ -54,12 +54,11 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
-import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
@@ -76,12 +75,9 @@ import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQue
 import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
@@ -312,29 +308,14 @@ public abstract class FullTextFunction extends Function
                 });
             }
 
-            // Collect the Aggregate nodes that belong to an INLINE STATS. Unlike a plain STATS, INLINE STATS keeps every input
-            // row (it is the sub-query side of a left join), so it does not block pushing the full-text function down to Lucene.
-            //
-            // The two walks below cover the two shapes INLINE STATS takes: this verifier runs once on the
-            // analyzed plan, which always contains InlineStats, and again on the optimized plan, where SubstituteSurrogatePlans
-            // has replaced every InlineStats with an InlineJoin.
-            //
-            // On the InlineJoin side, look anywhere in the right-hand subtree rather than just at its root: an aggregate
-            // expression (e.g. MAX(id) + 1) leaves the Aggregate wrapped in a Project/Eval once ReplaceAggregateAggExpressionWithEval
-            // has run. Restricting the walk to right() keeps unrelated aggregates on the left branch (a preceding STATS) failing,
-            // and nothing else can appear there because stubSource() cuts the aggregate's input down to a StubRelation.
-            Set<Aggregate> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
-            plan.forEachDown(InlineStats.class, is -> inlineStatsAggregates.add(is.aggregate()));
-            plan.forEachDown(InlineJoin.class, ij -> ij.right().forEachDown(Aggregate.class, inlineStatsAggregates::add));
-
             checkCommandsBeforeExpression(
                 plan,
                 condition,
                 FullTextFunction.class,
                 lp -> (lp instanceof Limit == false)
-                    && (lp instanceof Aggregate == false || inlineStatsAggregates.contains(lp))
+                    && (lp instanceof Aggregate == false)
                     && (lp instanceof MvExpand == false)
-                    && (lp instanceof MergePlan == false)
+                    && (lp instanceof Fork == false)
                     && (lp instanceof LimitBy == false)
                     && (lp instanceof TopNBy == false)
                     && (lp instanceof Dedup == false)
@@ -581,20 +562,20 @@ public abstract class FullTextFunction extends Function
                 }
             }
 
-            // MergePlan's own output exposes ReferenceAttributes, so to reach the underlying
+            // Fork's own output exposes ReferenceAttributes, so to reach the underlying
             // FieldAttribute we look inside each branch's output and match by name.
-            if (p instanceof MergePlan mergePlan) {
+            if (p instanceof Fork fork) {
                 String currentName = current.get().name();
-                // resolve when current field is part of the merge output
-                boolean inMergeOutput = mergePlan.output().stream().anyMatch(a -> a.id().equals(current.get().id()));
-                if (inMergeOutput == false) {
+                // resolve when current field is part of the Fork output
+                boolean inForkOutput = fork.output().stream().anyMatch(a -> a.id().equals(current.get().id()));
+                if (inForkOutput == false) {
                     breakEarly.set(true);
                     return;
                 }
 
                 // Every branch must contain this field, not just one
                 FieldAttribute candidate = null;
-                for (LogicalPlan branch : mergePlan.children()) {
+                for (LogicalPlan branch : fork.children()) {
                     FieldAttribute match = branch.output()
                         .stream()
                         .filter(a -> a.name().equals(currentName) && a instanceof FieldAttribute)

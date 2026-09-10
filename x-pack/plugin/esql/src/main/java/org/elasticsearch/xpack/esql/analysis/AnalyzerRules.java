@@ -17,9 +17,7 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -62,7 +60,7 @@ public final class AnalyzerRules {
     public static List<Attribute> maybeResolveAgainstList(
         UnresolvedAttribute u,
         Collection<Attribute> attrList,
-        Function<Attribute, Attribute> fieldInspector
+        java.util.function.Function<Attribute, Attribute> fieldInspector
     ) {
         final String name = u.name();
 
@@ -75,7 +73,7 @@ public final class AnalyzerRules {
         Supplier<UnresolvedAttribute> unresolved,
         Collection<Attribute> attrList,
         boolean isPattern,
-        Function<Attribute, Attribute> fieldInspector
+        java.util.function.Function<Attribute, Attribute> fieldInspector
     ) {
         List<Attribute> matches = new ArrayList<>();
 
@@ -88,28 +86,6 @@ public final class AnalyzerRules {
             }
         }
 
-        return resolveCollectedMatches(matches, unresolved, isPattern, fieldInspector);
-    }
-
-    // Exact-name resolution via a prebuilt name index (O(1) lookup) instead of the linear scan above; the index
-    // must already exclude synthetic attributes so results match the scanning overload.
-    public static List<Attribute> maybeResolveAgainstList(
-        UnresolvedAttribute u,
-        Map<String, List<Attribute>> nameIndex,
-        Function<Attribute, Attribute> fieldInspector
-    ) {
-        List<Attribute> candidates = nameIndex.get(u.name());
-        // copy: resolveCollectedMatches mutates the list in place while the index entry is shared across lookups
-        List<Attribute> matches = candidates == null ? new ArrayList<>() : new ArrayList<>(candidates);
-        return resolveCollectedMatches(matches, () -> u, false, fieldInspector);
-    }
-
-    private static List<Attribute> resolveCollectedMatches(
-        List<Attribute> matches,
-        Supplier<UnresolvedAttribute> unresolved,
-        boolean isPattern,
-        Function<Attribute, Attribute> fieldInspector
-    ) {
         if (matches.isEmpty()) {
             return matches;
         }

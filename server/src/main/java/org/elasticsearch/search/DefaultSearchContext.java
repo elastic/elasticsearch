@@ -217,7 +217,7 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
-                // Always wrap: cache and directory metrics must be collected on worker threads.
+                // Always wrap: cache metrics must be collected on worker threads regardless of the directory_metrics flag.
                 this.metricsAwareExecutor = new DirectoryMetricsAwareExecutor(executor, currentThreadDirectoryMetricsCapture);
                 executor = this.metricsAwareExecutor;
 

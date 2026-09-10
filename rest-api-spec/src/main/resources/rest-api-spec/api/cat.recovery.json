@@ -76,7 +76,6 @@
           "time",
           "type",
           "stage",
-          "local_retries",
           "priority",
           "source_host",
           "source_node",

@@ -23,14 +23,10 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
@@ -57,25 +53,17 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
     public void testAuthenticationIsRequired() {
         when(securityContext.getAuthentication()).thenReturn(null);
         final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
-        transportCreateServiceAccountTokenAction.doExecute(mock(Task.class), newRequest("elastic"), future);
+        transportCreateServiceAccountTokenAction.doExecute(mock(Task.class), mock(CreateServiceAccountTokenRequest.class), future);
         final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("authentication is required"));
-        verifyNoInteractions(serviceAccountService);
     }
 
-    public void testExecutionWillDelegateToTheBuiltInPathForAnyNamespace() {
+    public void testExecutionWillDelegate() {
         final Authentication authentication = AuthenticationTestHelper.builder().build();
         when(securityContext.getAuthentication()).thenReturn(authentication);
-        for (String namespace : List.of("elastic", randomValueOtherThan("elastic", () -> randomAlphaOfLengthBetween(3, 8)))) {
-            final CreateServiceAccountTokenRequest request = newRequest(namespace);
-            final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
-            transportCreateServiceAccountTokenAction.doExecute(mock(Task.class), request, future);
-            verify(serviceAccountService).createBuiltInToken(authentication, request, future);
-        }
-        verify(serviceAccountService, never()).createUserManagedToken(any(), any(), any());
-    }
-
-    private static CreateServiceAccountTokenRequest newRequest(String namespace) {
-        return new CreateServiceAccountTokenRequest(namespace, randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+        final CreateServiceAccountTokenRequest request = mock(CreateServiceAccountTokenRequest.class);
+        final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
+        transportCreateServiceAccountTokenAction.doExecute(mock(Task.class), request, future);
+        verify(serviceAccountService).createIndexToken(authentication, request, future);
     }
 }

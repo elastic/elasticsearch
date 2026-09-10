@@ -22,8 +22,4 @@ class MinFloatAggregator {
     public static float combine(float current, float v) {
         return Math.min(current, v);
     }
-
-    public static void combine(FloatArrayState state, int groupId, float v) {
-        state.min(groupId, v);
-    }
 }

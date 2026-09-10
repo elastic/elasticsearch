@@ -154,7 +154,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 // server-side copy if supported
                 try {
                     final var destinationBlobName = blobName + "_copy";
-                    container.copyBlob(randomPurpose(), container, blobName, destinationBlobName, data.length, null);
+                    container.copyBlob(randomPurpose(), container, blobName, destinationBlobName, data.length);
                     readBlobName = destinationBlobName;
                 } catch (UnsupportedOperationException ignored) {}
             }

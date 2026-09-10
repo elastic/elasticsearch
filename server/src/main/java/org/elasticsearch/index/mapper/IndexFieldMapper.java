@@ -165,7 +165,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
         // No preParse/postParse override — nothing to port for the columnar path either.
         return true;
     }

@@ -59,7 +59,6 @@ class AggregationToJsonProcessor {
     private final boolean includeDocCount;
     private final LinkedHashMap<String, Object> keyValuePairs;
     private long keyValueWrittenCount;
-    private long writtenDocumentCount;
     private final SortedMap<Long, List<Map<String, Object>>> docsByBucketTimestamp;
     private final long startTime;
     private final String compositeAggDateValueSourceName;
@@ -86,7 +85,6 @@ class AggregationToJsonProcessor {
         keyValuePairs = new LinkedHashMap<>();
         docsByBucketTimestamp = new TreeMap<>();
         keyValueWrittenCount = 0;
-        writtenDocumentCount = 0;
         this.startTime = startTime;
         this.compositeAggDateValueSourceName = compositeAggDateValueSourceName;
     }
@@ -477,7 +475,6 @@ class AggregationToJsonProcessor {
             keyValueWrittenCount++;
         }
         jsonBuilder.endObject();
-        writtenDocumentCount++;
     }
 
     /**
@@ -485,13 +482,6 @@ class AggregationToJsonProcessor {
      */
     public long getKeyValueCount() {
         return keyValueWrittenCount;
-    }
-
-    /**
-     * The JSON documents emitted so far (one per written record).
-     */
-    public long getWrittenDocumentCount() {
-        return writtenDocumentCount;
     }
 
     private static List<InternalAggregation> asList(@Nullable InternalAggregations aggs) {

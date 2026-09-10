@@ -763,7 +763,6 @@ public final class CsvTestUtils {
         TDIGEST(CsvTestUtils::parseTDigest, TDigestHolder.class),
         HISTOGRAM(CsvTestUtils::parseHistogram, BytesRef.class),
         FLATTENED(s -> s, String.class),
-        SOURCE(s -> s, String.class),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {
@@ -808,8 +807,6 @@ public final class CsvTestUtils {
             LOOKUP.put("V", VERSION);
 
             LOOKUP.put("DENSE_VECTOR", DENSE_VECTOR);
-
-            LOOKUP.put("_SOURCE", SOURCE);
         }
 
         private final Function<String, Object> converter;
@@ -879,7 +876,6 @@ public final class CsvTestUtils {
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> actualType;
                 case HISTOGRAM -> HISTOGRAM;
                 case FLATTENED -> FLATTENED;
-                case SOURCE -> SOURCE;
                 default -> KEYWORD;
             };
         }

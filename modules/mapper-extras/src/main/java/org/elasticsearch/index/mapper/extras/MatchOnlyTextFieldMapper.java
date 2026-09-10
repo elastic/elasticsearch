@@ -105,11 +105,11 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryM
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesAutomatonQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
 import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
@@ -403,10 +403,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return useArrayOrderBinaryDocValues;
         }
 
-        /**
-         * Which framing a doc-values query has to decode for this field. A match_only_text field is never routed to
-         * the ColumNAR codec, so {@link BinaryDocValuesFormat#COLUMNAR_PAYLOAD} is not among the answers.
-         */
+        /** Which framing a doc-values query has to decode for this field. */
         private BinaryDocValuesFormat binaryFormat() {
             return useArrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;
         }
@@ -775,7 +772,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return ScanningBinaryDocValuesAutomatonQuery.forWildcard(name(), value, caseInsensitive, binaryFormat());
+                return new ScanningBinaryDocValuesWildcardQuery(name(), value, caseInsensitive, binaryFormat());
             }
             if (caseInsensitive == false) {
                 Term term = new Term(name(), value);
@@ -1204,12 +1201,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
         // usesBinaryDocValues() requires doc_values to be enabled which means synthetic-source stored-fallback is unreachable.
         // Additionally, this excludes the low-cardinality SORTED_SET encoding.
-        // copy_to has no equivalent in mapColumnBatch (no per-value dispatch to other fields), so fields using it fall back.
-        // match_only_text has no ignore_above/null_value/normalizer; multi-fields are handled by the base class.
-        return fieldType().usesBinaryDocValues() && copyTo().copyToFields().isEmpty();
+        // Copy_to/multi-fields have no equivalent in mapColumnBatch (no per-value dispatch to sub-mappers or other fields),
+        // so fields using them fall back to the row path.
+        // match_only_text has no ignore_above/null_value/normalizer
+        return fieldType().usesBinaryDocValues() && copyTo().copyToFields().isEmpty() && multiFields().iterator().hasNext() == false;
     }
 
     // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
@@ -1226,7 +1224,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = indexed;
         final boolean emitDvs = docValuesParameters.enabled();
         if (emitTerms == false && emitDvs == false) {

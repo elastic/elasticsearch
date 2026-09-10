@@ -61,8 +61,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PREWARM_RELOCATION_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -219,7 +219,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         final Set<PrimaryTermAndGeneration> passedBlobFiles = ConcurrentCollections.newConcurrentSet();
         MockTransportService.getInstance(indexNodeB)
             .addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
-                var handoffRequest = (TransportStatelessPrimaryRelocationHandoffAction.Request) request;
+                var handoffRequest = (TransportStatelessPrimaryRelocationAction.PrimaryContextHandoffRequest) request;
                 var latestBccBlob = handoffRequest.latestBccBlob();
                 Assert.assertNotNull(latestBccBlob);
                 passedBlobFiles.add(latestBccBlob.blobFile().termAndGeneration());
@@ -302,11 +302,11 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         // Pause pre-warming on target until we are done with relocation
         CountDownLatch prewarmBlockLatch = new CountDownLatch(1);
         // Capture the blob passed during pre-warming in relocation
-        AtomicReference<BlobFileWithLength> prewarmBccBlobRef = new AtomicReference<>();
+        AtomicReference<TransportStatelessPrimaryRelocationAction.BlobFileWithLength> prewarmBccBlobRef = new AtomicReference<>();
         CountDownLatch prewarmMessageFailedLatch = new CountDownLatch(1);
         MockTransportService.getInstance(indexNodeB)
             .addRequestHandlingBehavior(PREWARM_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
-                var handoffRequest = (TransportStatelessPrimaryRelocationPrewarmAction.Request) request;
+                var handoffRequest = (TransportStatelessPrimaryRelocationAction.PrewarmRelocationRequest) request;
                 var latestBccBlob = handoffRequest.latestBccBlob();
                 Assert.assertNotNull(latestBccBlob);
                 prewarmBccBlobRef.set(latestBccBlob);
@@ -414,7 +414,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         final Set<Long> handoffBlobGenerations = ConcurrentCollections.newConcurrentSet();
         MockTransportService.getInstance(indexNodeB)
             .addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
-                var handoffRequest = (TransportStatelessPrimaryRelocationHandoffAction.Request) request;
+                var handoffRequest = (TransportStatelessPrimaryRelocationAction.PrimaryContextHandoffRequest) request;
                 var latestBccBlob = handoffRequest.latestBccBlob();
                 if (latestBccBlob != null) {
                     handoffBlobGenerations.add(latestBccBlob.blobFile().termAndGeneration().generation());

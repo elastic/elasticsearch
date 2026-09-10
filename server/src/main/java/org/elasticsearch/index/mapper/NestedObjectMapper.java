@@ -169,7 +169,6 @@ public class NestedObjectMapper extends ObjectMapper {
             NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
                 context.buildFullName(leafName()),
                 context.isSourceSynthetic(),
-                context.isSourceColumnarStored(),
                 context.isDataStream(),
                 context.parentObjectContainsDimensions(),
                 nestedTypeFilter,
@@ -238,7 +237,6 @@ public class NestedObjectMapper extends ObjectMapper {
         NestedMapperBuilderContext(
             String path,
             boolean isSourceSynthetic,
-            boolean isSourceColumnarStored,
             boolean isDataStream,
             boolean parentObjectContainsDimensions,
             Query nestedTypeFilter,
@@ -246,17 +244,7 @@ public class NestedObjectMapper extends ObjectMapper {
             Dynamic dynamic,
             MapperService.MergeReason mergeReason
         ) {
-            super(
-                path,
-                isSourceSynthetic,
-                isDataStream,
-                parentObjectContainsDimensions,
-                dynamic,
-                mergeReason,
-                true,
-                false,
-                isSourceColumnarStored
-            );
+            super(path, isSourceSynthetic, isDataStream, parentObjectContainsDimensions, dynamic, mergeReason, true);
             this.parentIncludedInRoot = parentIncludedInRoot;
             this.nestedTypeFilter = nestedTypeFilter;
         }
@@ -266,7 +254,6 @@ public class NestedObjectMapper extends ObjectMapper {
             return new NestedMapperBuilderContext(
                 buildFullName(name),
                 isSourceSynthetic(),
-                isSourceColumnarStored(),
                 isDataStream(),
                 parentObjectContainsDimensions(),
                 nestedTypeFilter,
@@ -411,8 +398,12 @@ public class NestedObjectMapper extends ObjectMapper {
         return builder.endObject();
     }
 
-    /** Groups the patches {@code patchLoader} produces per nested document, reported against this object's path. */
-    SourceLoader.SyntheticVectorsLoader wrapSyntheticVectorsLoader(SourceLoader.SyntheticVectorsLoader patchLoader) {
+    @Override
+    protected SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(SourceFilter sourceFilter) {
+        var patchLoader = super.syntheticVectorsLoader(sourceFilter);
+        if (patchLoader == null) {
+            return null;
+        }
         return context -> {
             var leaf = patchLoader.leaf(context);
             if (leaf == null) {

@@ -34,18 +34,18 @@ class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
 
     private final TimeValue timeout;
 
-    TextEmbeddingRequestIterator(String inferenceId, BytesRefBlock textBlock, int batchSize, TimeValue timeout) {
-        super(inferenceId, TaskType.TEXT_EMBEDDING, textBlock, batchSize);
+    TextEmbeddingRequestIterator(String inferenceId, BytesRefBlock textBlock, TimeValue timeout) {
+        super(inferenceId, TaskType.TEXT_EMBEDDING, textBlock);
         this.timeout = timeout;
     }
 
     @Override
-    protected BulkInferenceRequestItem buildRequestItem(List<String> texts, PositionValueCountsBuilder pvcs) {
-        if (texts.isEmpty()) {
+    protected BulkInferenceRequestItem buildRequestItem(String text, PositionValueCountsBuilder pvcs) {
+        if (text == null) {
             return new BulkInferenceRequestItem(null, pvcs);
         }
         InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, taskType)
-            .setInput(texts)
+            .setInput(List.of(text))
             .setContext(new InferenceContext(ESQL_PRODUCT_USE_CASE));
         if (timeout != null) {
             builder.setInferenceTimeout(timeout);
@@ -56,13 +56,13 @@ class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
     /**
      * Factory for creating {@link TextEmbeddingRequestIterator} instances.
      */
-    record Factory(String inferenceId, TaskType taskType, ExpressionEvaluator textEvaluator, int batchSize, TimeValue timeout)
+    record Factory(String inferenceId, TaskType taskType, ExpressionEvaluator textEvaluator, TimeValue timeout)
         implements
             BulkInferenceRequestItemIterator.Factory {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new TextEmbeddingRequestIterator(inferenceId, (BytesRefBlock) textEvaluator.eval(inputPage), batchSize, timeout);
+            return new TextEmbeddingRequestIterator(inferenceId, (BytesRefBlock) textEvaluator.eval(inputPage), timeout);
         }
 
         @Override

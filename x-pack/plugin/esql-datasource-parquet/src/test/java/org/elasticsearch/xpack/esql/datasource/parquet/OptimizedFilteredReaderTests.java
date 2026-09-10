@@ -200,10 +200,10 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
 
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 1024))) {
             OptimizedParquetColumnIterator optimized = (OptimizedParquetColumnIterator) iter;
-            // Empty page-index ranges admit no I/O, so fillPrefetchQueue skips ordinal 0 and
-            // seeds only the matching group. Later prefetch must still be intact.
-            assertTrue("fixture must queue ahead of the empty first group", optimized.prefetchDepth() > 1);
-            assertEquals(List.of(1), optimized.pendingPrefetchOrdinals());
+            // The fixture's first projected row group exceeds SHALLOW_PREFETCH_BYTES, so
+            // computePrefetchDepth deliberately seeds both ordinals before the first hasNext().
+            assertTrue("fixture must queue the empty and matching row groups together", optimized.prefetchDepth() > 1);
+            assertEquals(List.of(0, 1), optimized.pendingPrefetchOrdinals());
             assertTrue("first row group must have empty page-index ranges", optimized.rowRanges(0).isEmpty());
             assertFalse("later row group must retain matching page-index ranges", optimized.rowRanges(1).isEmpty());
             assertEquals("matching row group must be prefetched once during queue seeding", 1, storage.largeAsyncReads.get());
@@ -774,8 +774,7 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         ) {
             for (int id : new int[] { 0, 1_000, 500, 500 }) {
                 // Two values form each row group; together they cross SHALLOW_PREFETCH_BYTES so
-                // depth is >1 and the matching group is queued while the empty first group is
-                // skipped (zero filtered bytes).
+                // both groups are queued before the empty first group's ranges are consumed.
                 byte[] payload = new byte[4_250_000];
                 payload[0] = (byte) id;
                 writer.write(groupFactory.newGroup().append("id", id).append("payload", Binary.fromConstantByteArray(payload)));

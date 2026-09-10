@@ -92,7 +92,8 @@ public class ParquetFormatReaderConfigKeysTests extends ESTestCase {
             }
         }
         return new FileDataSourceValidator("s3", (settings, secrets) -> null, Set.of("s3")).withFormatConfigKeyResolver(
-            FileDataSourceValidator.FormatConfigKeyResolver.of(formatToConfigKeys, extToFormat)
+            FileDataSourceValidator.FormatConfigKeyResolver.of(formatToConfigKeys, extToFormat),
+            Set.of()
         );
     }
 }

@@ -119,32 +119,30 @@ public final class ShardBatchIndexer {
 
         for (int chunkStart = 0; chunkStart < items.length; chunkStart += BATCH_CHUNK_SIZE) {
             final int chunkEnd = Math.min(chunkStart + BATCH_CHUNK_SIZE, items.length);
-            try (
-                EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(
-                    items,
-                    batch,
-                    primary,
-                    chunkStart,
-                    chunkEnd,
-                    resolution,
-                    Engine.Operation.Origin.PRIMARY,
-                    recycler
-                )
-            ) {
-                if (engineBatch == null) {
-                    return;
-                }
-
-                final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(engineBatch);
-                logger.trace("batch indexed [{}] operations on primary shard [{}]", results.size(), primary.shardId());
-
-                for (Engine.IndexResult result : results) {
-                    assert context.hasMoreOperationsToExecute();
-                    context.setRequestToExecute(context.getCurrent());
-                    context.markBatchOperationAsExecuted(result);
-                    context.markAsCompleted(context.getExecutionResult());
-                }
+            final EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(
+                items,
+                batch,
+                primary,
+                chunkStart,
+                chunkEnd,
+                resolution,
+                Engine.Operation.Origin.PRIMARY,
+                recycler
+            );
+            if (engineBatch == null) {
+                return;
             }
+
+            final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(engineBatch);
+            logger.trace("batch indexed [{}] operations on primary shard [{}]", results.size(), primary.shardId());
+
+            for (Engine.IndexResult result : results) {
+                assert context.hasMoreOperationsToExecute();
+                context.setRequestToExecute(context.getCurrent());
+                context.markBatchOperationAsExecuted(result);
+                context.markAsCompleted(context.getExecutionResult());
+            }
+
         }
     }
 
@@ -189,29 +187,26 @@ public final class ShardBatchIndexer {
             }
 
             if (validEnd > chunkStart) {
-                try (
-                    EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(
-                        items,
-                        batch,
-                        replica,
-                        chunkStart,
-                        validEnd,
-                        resolution,
-                        Engine.Operation.Origin.REPLICA,
-                        recycler
-                    )
-                ) {
-                    if (engineBatch == null) {
-                        processedItems = chunkStart;
-                        break;
+                final EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(
+                    items,
+                    batch,
+                    replica,
+                    chunkStart,
+                    validEnd,
+                    resolution,
+                    Engine.Operation.Origin.REPLICA,
+                    recycler
+                );
+                if (engineBatch == null) {
+                    processedItems = chunkStart;
+                    break;
+                }
+                final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(engineBatch);
+                for (Engine.IndexResult result : results) {
+                    if (result.getFailure() != null) {
+                        throw result.getFailure();
                     }
-                    final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(engineBatch);
-                    for (Engine.IndexResult result : results) {
-                        if (result.getFailure() != null) {
-                            throw result.getFailure();
-                        }
-                        location = TransportWriteAction.locationToSync(location, result.getTranslogLocation(), true);
-                    }
+                    location = TransportWriteAction.locationToSync(location, result.getTranslogLocation(), true);
                 }
             }
 

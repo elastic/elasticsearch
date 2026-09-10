@@ -408,6 +408,12 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
             if (routing() != null && isRoutingFromSlice() == false) {
                 validationException = addValidationError("[routing] cannot be used with point in time", validationException);
             }
+            if (isRoutingFromSlice()) {
+                validationException = addValidationError(
+                    "[" + SliceIndexing.PARAM_NAME + "] cannot be used with point in time",
+                    validationException
+                );
+            }
             if (preference() != null) {
                 validationException = addValidationError("[preference] cannot be used with point in time", validationException);
             }

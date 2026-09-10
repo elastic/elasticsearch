@@ -30,7 +30,7 @@ public final class MapperMergeContext {
      * The root context, to be used when merging a tree of mappers
      */
     public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, MergeReason mergeReason, long newFieldsBudget) {
-        return root(isSourceSynthetic, isDataStream, mergeReason, newFieldsBudget, false, false);
+        return root(isSourceSynthetic, isDataStream, mergeReason, newFieldsBudget, false);
     }
 
     /**
@@ -41,11 +41,10 @@ public final class MapperMergeContext {
         boolean isDataStream,
         MergeReason mergeReason,
         long newFieldsBudget,
-        boolean isStrictColumnar,
-        boolean isSourceColumnarStored
+        boolean isStrictColumnar
     ) {
         return new MapperMergeContext(
-            MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason, isStrictColumnar, isSourceColumnarStored),
+            MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason, isStrictColumnar),
             NewFieldsBudget.of(newFieldsBudget)
         );
     }

@@ -7,18 +7,13 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
-
-import java.util.Arrays;
 
 /**
  * Aggregator state for an array of booleans. It is created in a mode where it
@@ -36,65 +31,30 @@ import java.util.Arrays;
  * </p>
  */
 final class BooleanArrayState extends AbstractArrayState implements GroupingAggregatorState {
-    private static final int WORDS_PER_PAGE = PageCacheRecycler.PAGE_SIZE_IN_BYTES / Long.BYTES;
-    static final int PAGE_SIZE = WORDS_PER_PAGE * Long.SIZE;
-    private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(PAGE_SIZE);
-    private static final int PAGE_MASK = PAGE_SIZE - 1;
-    private static final int INITIAL_SIZE = 256;
-
     private final boolean init;
-    private final CircuitBreaker breaker;
-    private long usedBytes;
-    private int capacity;
-    private long[][] pages;
 
-    BooleanArrayState(BigArrays bigArrays, CircuitBreaker breaker, boolean init) {
+    private BitArray values;
+    private int size;
+
+    BooleanArrayState(BigArrays bigArrays, boolean init) {
         super(bigArrays);
-        this.breaker = breaker;
+        this.values = new BitArray(1, bigArrays);
+        this.size = 1;
+        this.values.set(0, init);
         this.init = init;
-        reserveBytes(bytesUsedByPagesArray(1) + bytesUsedByPage(INITIAL_SIZE / Long.SIZE));
-        this.pages = new long[1][INITIAL_SIZE / Long.SIZE];
-        this.capacity = INITIAL_SIZE;
-        if (init) {
-            Arrays.fill(pages[0], -1L);
-        }
     }
 
     boolean get(int groupId) {
-        return (pages[groupId >>> PAGE_SHIFT][(groupId & PAGE_MASK) >>> 6] & (1L << groupId)) != 0;
+        return values.get(groupId);
+    }
+
+    boolean getOrDefault(int groupId) {
+        return groupId < size ? values.get(groupId) : init;
     }
 
     void set(int groupId, boolean value) {
-        if (groupId >= capacity) {
-            grow(groupId + 1);
-        }
-        final long[] page = pages[groupId >>> PAGE_SHIFT];
-        final int word = (groupId & PAGE_MASK) >>> 6;
-        if (value) {
-            page[word] |= 1L << groupId;
-        } else {
-            page[word] &= ~(1L << groupId);
-        }
-        trackGroupId(groupId);
-    }
-
-    void min(int groupId, boolean value) {
-        if (groupId >= capacity) {
-            grow(groupId + 1);
-        }
-        if (value == false) {
-            pages[groupId >>> PAGE_SHIFT][(groupId & PAGE_MASK) >>> 6] &= ~(1L << groupId);
-        }
-        trackGroupId(groupId);
-    }
-
-    void max(int groupId, boolean value) {
-        if (groupId >= capacity) {
-            grow(groupId + 1);
-        }
-        if (value) {
-            pages[groupId >>> PAGE_SHIFT][(groupId & PAGE_MASK) >>> 6] |= 1L << groupId;
-        }
+        ensureCapacity(groupId);
+        values.set(groupId, value);
         trackGroupId(groupId);
     }
 
@@ -102,7 +62,7 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
-                    builder.appendBoolean(i, get(selected.getInt(i)));
+                    builder.appendBoolean(i, values.get(selected.getInt(i)));
                 }
                 return builder.build().asBlock();
             }
@@ -111,7 +71,7 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 if (hasValue(group)) {
-                    builder.appendBoolean(get(group));
+                    builder.appendBoolean(values.get(group));
                 } else {
                     builder.appendNull();
                 }
@@ -120,54 +80,11 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
         }
     }
 
-    void ensureCapacity(int minSize) {
-        if (minSize > capacity) {
-            grow(minSize);
+    private void ensureCapacity(int groupId) {
+        if (groupId >= size) {
+            values.fill(size, groupId + 1, init);
+            size = groupId + 1;
         }
-    }
-
-    private void grow(int minSize) {
-        if (capacity < PAGE_SIZE) {
-            final int oldLength = capacity / Long.SIZE;
-            final int newLength = Math.min(WORDS_PER_PAGE, ArrayUtil.oversize(Math.ceilDiv(minSize, Long.SIZE), Long.BYTES));
-            reserveBytes(bytesUsedByPage(newLength));
-            pages[0] = Arrays.copyOf(pages[0], newLength);
-            releaseBytes(bytesUsedByPage(oldLength));
-            if (init) {
-                Arrays.fill(pages[0], oldLength, newLength, -1L);
-            }
-            capacity = newLength * Long.SIZE;
-            if (minSize <= capacity) {
-                return;
-            }
-        }
-        final int pageIndex = (minSize - 1) >>> PAGE_SHIFT;
-        if (pageIndex >= pages.length) {
-            final int newLength = ArrayUtil.oversize(pageIndex + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
-            reserveBytes(bytesUsedByPagesArray(newLength));
-            final int oldLength = pages.length;
-            pages = Arrays.copyOf(pages, newLength);
-            releaseBytes(bytesUsedByPagesArray(oldLength));
-        }
-        if (minSize == capacity + 1) {
-            pages[pageIndex] = newPage();
-            capacity += PAGE_SIZE;
-            return;
-        }
-        for (int p = capacity >>> PAGE_SHIFT; p <= pageIndex; p++) {
-            assert pages[p] == null;
-            pages[p] = newPage();
-        }
-        capacity = (pageIndex + 1) * PAGE_SIZE;
-    }
-
-    private long[] newPage() {
-        reserveBytes(bytesUsedByPage(WORDS_PER_PAGE));
-        final long[] page = new long[WORDS_PER_PAGE];
-        if (init) {
-            Arrays.fill(page, -1L);
-        }
-        return page;
     }
 
     /** Extracts an intermediate view of the contents of this state.  */
@@ -186,8 +103,8 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < capacity && hasValue(group)) {
-                    valuesBuilder.appendBoolean(i, get(group));
+                if (group < size && hasValue(group)) {
+                    valuesBuilder.appendBoolean(i, values.get(group));
                     hasValueBuilder.appendBoolean(i, true);
                 } else {
                     allHaveValue = false;
@@ -205,31 +122,8 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
         }
     }
 
-    private void reserveBytes(long bytes) {
-        breaker.addEstimateBytesAndMaybeBreak(bytes, "BooleanArrayState");
-        usedBytes += bytes;
-    }
-
-    private void releaseBytes(long bytes) {
-        breaker.addWithoutBreaking(-bytes);
-        usedBytes -= bytes;
-    }
-
-    static long bytesUsedByPagesArray(int length) {
-        return RamUsageEstimator.alignObjectSize(
-            (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * length
-        );
-    }
-
-    static long bytesUsedByPage(int length) {
-        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * length);
-    }
-
     @Override
     public void close() {
-        pages = null;
-        final long bytes = usedBytes;
-        usedBytes = 0;
-        Releasables.close(() -> breaker.addWithoutBreaking(-bytes), super::close);
+        Releasables.close(values, super::close);
     }
 }

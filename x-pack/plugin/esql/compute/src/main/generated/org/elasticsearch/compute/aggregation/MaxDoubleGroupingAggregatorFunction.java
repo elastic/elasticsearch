@@ -38,7 +38,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   MaxDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = new DoubleArrayState(driverContext.bigArrays(), driverContext.breaker(), MaxDoubleAggregator.init());
+    this.state = new DoubleArrayState(driverContext.bigArrays(), MaxDoubleAggregator.init());
     this.driverContext = driverContext;
   }
 
@@ -127,7 +127,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           double vValue = vBlock.getDouble(vOffset);
-          MaxDoubleAggregator.combine(state, groupId, vValue);
+          state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
         }
       }
     }
@@ -144,7 +144,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         double vValue = vVector.getDouble(valuesPosition);
-        MaxDoubleAggregator.combine(state, groupId, vValue);
+        state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
       }
     }
   }
@@ -191,7 +191,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          MaxDoubleAggregator.combine(state, groupId, max.getDouble(valuesPosition));
+          state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), max.getDouble(valuesPosition)));
         }
       }
     }
@@ -214,7 +214,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           double vValue = vBlock.getDouble(vOffset);
-          MaxDoubleAggregator.combine(state, groupId, vValue);
+          state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
         }
       }
     }
@@ -231,7 +231,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         double vValue = vVector.getDouble(valuesPosition);
-        MaxDoubleAggregator.combine(state, groupId, vValue);
+        state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
       }
     }
   }
@@ -278,7 +278,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          MaxDoubleAggregator.combine(state, groupId, max.getDouble(valuesPosition));
+          state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), max.getDouble(valuesPosition)));
         }
       }
     }
@@ -295,7 +295,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
       int vEnd = vStart + vBlock.getValueCount(valuesPosition);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
-        MaxDoubleAggregator.combine(state, groupId, vValue);
+        state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
       }
     }
   }
@@ -305,7 +305,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
       double vValue = vVector.getDouble(valuesPosition);
-      MaxDoubleAggregator.combine(state, groupId, vValue);
+      state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), vValue));
     }
   }
 
@@ -345,7 +345,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       if (seen.getBoolean(valuesPosition)) {
-        MaxDoubleAggregator.combine(state, groupId, max.getDouble(valuesPosition));
+        state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), max.getDouble(valuesPosition)));
       }
     }
   }

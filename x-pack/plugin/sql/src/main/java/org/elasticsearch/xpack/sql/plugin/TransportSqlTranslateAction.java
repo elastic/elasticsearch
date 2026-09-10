@@ -38,7 +38,6 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     private final PlanExecutor planExecutor;
     private final SqlLicenseChecker sqlLicenseChecker;
     private final CrossProjectModeDecider cpsDecider;
-    private volatile int maxQueryLength;
 
     @Inject
     public TransportSqlTranslateAction(
@@ -60,8 +59,6 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
         this.cpsDecider = cpsDecider;
-        this.maxQueryLength = SqlPlugin.MAX_QUERY_LENGTH_SETTING.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(SqlPlugin.MAX_QUERY_LENGTH_SETTING, v -> this.maxQueryLength = v);
     }
 
     @Override
@@ -87,8 +84,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
             null,
             Protocol.ALLOW_PARTIAL_SEARCH_RESULTS,
             cpsDecider.crossProjectEnabled(),
-            request.projectRouting(),
-            maxQueryLength
+            request.projectRouting()
         );
 
         planExecutor.searchSource(

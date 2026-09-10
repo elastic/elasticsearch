@@ -1,5 +1,0 @@
-area: TSDB
-issues: []
-pr: 158562
-summary: Bisect the scans in synthetic `_id` lookups
-type: enhancement

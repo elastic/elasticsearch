@@ -128,7 +128,6 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
-import org.elasticsearch.indices.recovery.RecoveryFeatures;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
@@ -934,13 +933,7 @@ public class SnapshotResiliencyTestHelper {
                     mock(FileSettingsService.class),
                     threadPool,
                     false,
-                    IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
-                    new FeatureService(List.of()) {
-                        @Override
-                        public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-                            return RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE.equals(feature);
-                        }
-                    }
+                    IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance()
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,

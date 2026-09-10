@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -23,6 +22,7 @@ import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -230,7 +230,7 @@ public interface SourceLoader {
 
             @Override
             public Source source(LeafStoredFieldLoader storedFieldLoader, int docId) throws IOException {
-                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new BytesStreamOutput())) {
+                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
                     write(storedFieldLoader, docId, b);
                     return Source.fromBytes(BytesReference.bytes(b), b.contentType());
                 }
@@ -438,21 +438,13 @@ public interface SourceLoader {
         final SyntheticVectorsLoader patchLoader;
 
         SyntheticVectors(@Nullable SourceFilter sourceFilter, SyntheticVectorsLoader patchLoader) {
-            this(sourceFilter == null ? FROM_STORED_SOURCE : new Stored(sourceFilter), patchLoader);
-        }
-
-        /**
-         * Patches vectors into the {@code _source} produced by {@code sourceLoader}. Used by {@code columnar_stored}, whose
-         * blob is read back by a {@link Synthetic} loader rather than from a stored field.
-         */
-        SyntheticVectors(SourceLoader sourceLoader, SyntheticVectorsLoader patchLoader) {
-            this.sourceLoader = sourceLoader;
+            this.sourceLoader = sourceFilter == null ? FROM_STORED_SOURCE : new Stored(sourceFilter);
             this.patchLoader = patchLoader;
         }
 
         @Override
         public boolean reordersFieldValues() {
-            return sourceLoader.reordersFieldValues();
+            return false;
         }
 
         @Override

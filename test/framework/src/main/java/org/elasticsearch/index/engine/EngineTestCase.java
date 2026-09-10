@@ -1239,7 +1239,7 @@ public abstract class EngineTestCase extends ESTestCase {
      * Gets a collection of tuples of docId, sequence number, and primary term of all live documents in the provided engine.
      */
     protected List<DocIdSeqNoAndSource> getDocIds(Engine engine, boolean refresh) throws IOException {
-        return EngineTestUtils.getDocIds(engine, refresh);
+        return EngineTestUtils.getDocIds(engine, refresh, false);
     }
 
     /**

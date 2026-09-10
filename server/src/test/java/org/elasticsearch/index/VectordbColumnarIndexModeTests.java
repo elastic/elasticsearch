@@ -59,10 +59,8 @@ public class VectordbColumnarIndexModeTests extends ESTestCase {
 
     public void testColumnarDefaults() {
         assertThat(IndexMode.VECTORDB_COLUMNAR.defaultSourceMode(), equalTo(SourceFieldMapper.Mode.SYNTHETIC));
-        assertThat(
-            IndexMode.VECTORDB_COLUMNAR.supportedSourceModes(),
-            equalTo(List.of(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED))
-        );
+        // Unlike the other columnar modes, columnar_stored source is not supported yet.
+        assertThat(IndexMode.VECTORDB_COLUMNAR.supportedSourceModes(), equalTo(List.of(SourceFieldMapper.Mode.SYNTHETIC)));
         assertThat(IndexMode.VECTORDB_COLUMNAR.getDefaultCodec(), equalTo(CodecService.BEST_COMPRESSION_CODEC));
         assertTrue(IndexMode.VECTORDB_COLUMNAR.isColumnar());
         assertTrue(IndexMode.VECTORDB_COLUMNAR.isStrictColumnar());

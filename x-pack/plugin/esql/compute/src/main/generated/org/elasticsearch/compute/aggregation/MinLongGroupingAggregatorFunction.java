@@ -38,7 +38,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
 
   MinLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = new LongArrayState(driverContext.bigArrays(), driverContext.breaker(), MinLongAggregator.init());
+    this.state = new LongArrayState(driverContext.bigArrays(), MinLongAggregator.init());
     this.driverContext = driverContext;
   }
 
@@ -127,7 +127,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           long vValue = vBlock.getLong(vOffset);
-          MinLongAggregator.combine(state, groupId, vValue);
+          state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), vValue));
         }
       }
     }
@@ -144,7 +144,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         long vValue = vVector.getLong(valuesPosition);
-        MinLongAggregator.combine(state, groupId, vValue);
+        state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), vValue));
       }
     }
   }
@@ -191,7 +191,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          MinLongAggregator.combine(state, groupId, min.getLong(valuesPosition));
+          state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), min.getLong(valuesPosition)));
         }
       }
     }
@@ -214,7 +214,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           long vValue = vBlock.getLong(vOffset);
-          MinLongAggregator.combine(state, groupId, vValue);
+          state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), vValue));
         }
       }
     }
@@ -231,7 +231,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         long vValue = vVector.getLong(valuesPosition);
-        MinLongAggregator.combine(state, groupId, vValue);
+        state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), vValue));
       }
     }
   }
@@ -278,7 +278,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          MinLongAggregator.combine(state, groupId, min.getLong(valuesPosition));
+          state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), min.getLong(valuesPosition)));
         }
       }
     }
@@ -295,7 +295,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
       int vEnd = vStart + vBlock.getValueCount(valuesPosition);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
-        MinLongAggregator.combine(state, groupId, vValue);
+        state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), vValue));
       }
     }
   }
@@ -305,7 +305,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
       long vValue = vVector.getLong(valuesPosition);
-      MinLongAggregator.combine(state, groupId, vValue);
+      state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), vValue));
     }
   }
 
@@ -345,7 +345,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       if (seen.getBoolean(valuesPosition)) {
-        MinLongAggregator.combine(state, groupId, min.getLong(valuesPosition));
+        state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), min.getLong(valuesPosition)));
       }
     }
   }

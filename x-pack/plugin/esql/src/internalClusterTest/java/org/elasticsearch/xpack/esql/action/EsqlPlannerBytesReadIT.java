@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -28,6 +29,11 @@ import static org.hamcrest.Matchers.notNullValue;
 public class EsqlPlannerBytesReadIT extends AbstractEsqlIntegTestCase {
 
     public void testAggregateBytesReadIncludesPlannerAndOperatorContributions() {
+        assumeTrue(
+            "directory_metrics feature flag must be enabled to record store bytes",
+            Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
+        );
+
         String idx = "esql_planner_bytes";
         assertAcked(
             prepareCreate(idx).setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157798
+summary: Fix backwards read of `_ignored_source` doc values
+type: bug

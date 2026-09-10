@@ -52,12 +52,6 @@ public abstract class AbstractArrayState implements Releasable, GroupingAggregat
         }
     }
 
-    protected final void trackGroupIds(int fromGroupId, int toGroupId) {
-        if (trackingGroupIds()) {
-            seen.fill(fromGroupId, toGroupId, true);
-        }
-    }
-
     protected final boolean trackingGroupIds() {
         return seen != null;
     }

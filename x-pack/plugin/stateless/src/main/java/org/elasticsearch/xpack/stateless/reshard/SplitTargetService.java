@@ -254,9 +254,7 @@ public class SplitTargetService {
         }
 
         void cancel() {
-            final boolean isFirstCancellation = cancelled.getAndSet(true) == false;
-            assert isFirstCancellation : "split for " + shard.shardId() + " cancelled twice";
-            reshardIndexService.failAndStopTrackingSplit(shard, new IndexShardClosedException(shard.shardId()));
+            cancelled.set(true);
         }
 
         private synchronized void advance(State newState) {
@@ -325,14 +323,14 @@ public class SplitTargetService {
                 }
                 case State.SplitApplied splitApplied -> {
                     logger.info("notifying of split completion for target shard {}", shard.shardId());
-                    reshardIndexService.notifySplitCompletion(shard);
+                    reshardIndexService.notifySplitCompletion(shard.shardId());
                     deleteUnownedData();
                 }
                 case State.UnownedDataDeleted ignored -> {
                     changeStateToDone();
                 }
                 case State.Done ignored -> {
-                    reshardIndexService.stopTrackingSplit(shard);
+                    reshardIndexService.stopTrackingSplit(shard.shardId());
                     onCompleted.run();
                 }
 
@@ -362,7 +360,7 @@ public class SplitTargetService {
                     logger.warn("Failed to complete split target shard sequence", failed.exception);
 
                     if (failed.destinationState instanceof State.Split) {
-                        reshardIndexService.notifySplitFailure(shard, failed.exception);
+                        reshardIndexService.notifySplitFailure(shard.shardId(), failed.exception);
                         /// Transition to SPLIT failed in some unexpected way and now we are failing all incoming refresh requests
                         /// due to the `notifySplitFailure` call above.
                         /// There is nothing we can really do at this point to recover so we hope we can figure this out on recovery.

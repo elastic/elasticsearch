@@ -2876,7 +2876,7 @@ public class NumberFieldMapper extends FieldMapper {
     private static final IndexableFieldType DOUBLE_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0.0).fieldType();
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
         // Neither doc_values.multi_value nor ignore_malformed is implemented by mapColumnBatch, but
         // neither is rejected up front either: both only matter for documents the columnar path
         // already refuses, and refusing late falls back to row path.
@@ -2885,12 +2885,13 @@ public class NumberFieldMapper extends FieldMapper {
             && indexTerms == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
-            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
+            && multiFields().iterator().hasNext() == false
+            && (dimension == false || writeDimensionRouting == false)
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 
     @Override
-    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         switch (source.kind()) {
             case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING -> {
             } // handled below
@@ -2903,14 +2904,7 @@ public class NumberFieldMapper extends FieldMapper {
             );
         }
         Long nullSortableLong = nullValue != null ? type.toSortableLong(nullValue) : null;
-        EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(
-            source,
-            type,
-            coerce(),
-            ctx.recycler(),
-            nullSortableLong,
-            ctx::addResource
-        );
+        EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(source, type, coerce(), ctx.recycler(), nullSortableLong);
         if (fieldType().indexType().hasDocValuesSkipper()) {
             ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, numericKind(type)));
         } else if (indexed) {
@@ -2921,10 +2915,7 @@ public class NumberFieldMapper extends FieldMapper {
                     EscfColumn.from(outData),
                     ctx.recycler()
                 );
-                ctx.addColumn(
-                    LuceneBinaryColumn.of(halfFloatPointData, fieldType().name(), HALF_FLOAT_POINT_FIELD_TYPE),
-                    halfFloatPointData
-                );
+                ctx.addColumn(LuceneBinaryColumn.of(halfFloatPointData, fieldType().name(), HALF_FLOAT_POINT_FIELD_TYPE));
             } else {
                 ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), indexableFieldType(type), numericKind(type)));
             }
@@ -2939,13 +2930,7 @@ public class NumberFieldMapper extends FieldMapper {
                     ctx.recycler()
                 );
                 ctx.addColumn(
-                    LuceneLongColumn.of(
-                        halfFloatStoredData,
-                        fieldType().name(),
-                        FLOAT_STORED_ONLY_FIELD_TYPE,
-                        LongColumn.NumericKind.FLOAT
-                    ),
-                    halfFloatStoredData
+                    LuceneLongColumn.of(halfFloatStoredData, fieldType().name(), FLOAT_STORED_ONLY_FIELD_TYPE, LongColumn.NumericKind.FLOAT)
                 );
             } else {
                 ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), storedOnlyFieldType(type), numericKind(type)));

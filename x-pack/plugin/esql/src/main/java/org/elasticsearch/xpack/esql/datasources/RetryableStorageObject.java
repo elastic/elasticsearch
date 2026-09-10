@@ -192,17 +192,6 @@ class RetryableStorageObject implements StorageObject {
     }
 
     @Override
-    public long lengthForFooterCacheKey() throws IOException {
-        return retryPolicy.execute(
-            delegate::lengthForFooterCacheKey,
-            "lengthForFooterCacheKey",
-            delegate.path(),
-            retryCounters::addRetryProfileOnly,
-            RetryPolicy.RetryTelemetry.NONE
-        );
-    }
-
-    @Override
     public Instant lastModified() throws IOException {
         // See length(): metadata-op retries stay off the read-scoped registry sink (RetryTelemetry.NONE +
         // addRetryProfileOnly), but still feed the per-query profile retry count.
@@ -411,11 +400,6 @@ class RetryableStorageObject implements StorageObject {
     @Override
     public boolean supportsNativeAsync() {
         return delegate.supportsNativeAsync();
-    }
-
-    @Override
-    public boolean readBytesAsyncReleasesExecutor() {
-        return delegate.readBytesAsyncReleasesExecutor();
     }
 
     @Override

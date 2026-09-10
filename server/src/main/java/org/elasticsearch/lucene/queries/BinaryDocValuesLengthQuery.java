@@ -47,7 +47,7 @@ final class BinaryDocValuesLengthQuery extends Query {
     BinaryDocValuesLengthQuery(String fieldName, int length, BinaryDocValuesFormat binaryFormat) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.length = length;
-        this.binaryFormat = AbstractBinaryDocValuesQuery.rejectColumnar(binaryFormat, fieldName);
+        this.binaryFormat = Objects.requireNonNull(binaryFormat);
     }
 
     @Override
@@ -80,33 +80,23 @@ final class BinaryDocValuesLengthQuery extends Query {
                             return DocIdSetIterator.empty();
                         }
 
-                        Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
                         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-                        return switch (binaryFormat) {
-                            // Refused by the constructor, so a query holding this format does not exist.
-                            case COLUMNAR_PAYLOAD -> throw new AssertionError("columnar field [" + fieldName + "]");
-                            case ARRAY_ORDER_INLINE_NULL, SEPARATE_COUNT -> {
-                                final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-                                DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-                                if ((countsSkipper == null || countsSkipper.maxValue() == 1)
-                                    && values instanceof BlockLoader.OptionalLengthReader direct) {
-                                    // tryLengthIterator returns a TwoPhaseIterator-backed iterator (see the contract on
-                                    // BlockLoader.OptionalLengthReader), so sub-segment slicing scales with cores.
-                                    yield direct.tryLengthIterator(length);
-                                }
-                                if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
-                                    yield AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(
-                                        values,
-                                        counts,
-                                        lengthPredicate,
-                                        matchCost
-                                    );
-                                }
-                                yield countsSkipper != null
-                                    ? AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, lengthPredicate, matchCost)
-                                    : AbstractBinaryDocValuesQuery.singleValuedIterator(values, lengthPredicate, matchCost);
-                            }
-                        };
+                        final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
+                        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
+                        if ((countsSkipper == null || countsSkipper.maxValue() == 1)
+                            && values instanceof BlockLoader.OptionalLengthReader direct) {
+                            // tryLengthIterator returns a TwoPhaseIterator-backed iterator (see the contract on
+                            // BlockLoader.OptionalLengthReader), so sub-segment slicing scales with cores.
+                            return direct.tryLengthIterator(length);
+                        }
+                        Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
+                        if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
+                            return AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, lengthPredicate, matchCost);
+                        } else if (countsSkipper != null) {
+                            return AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, lengthPredicate, matchCost);
+                        } else {
+                            return AbstractBinaryDocValuesQuery.singleValuedIterator(values, lengthPredicate, matchCost);
+                        }
                     }
                 };
             }

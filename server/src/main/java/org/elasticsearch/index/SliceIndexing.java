@@ -10,11 +10,8 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.search.OpenPointInTimeRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.FeatureFlag;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.regex.Pattern;
@@ -42,9 +39,6 @@ public final class SliceIndexing {
     public static final TransportVersion VALIDATE_QUERY_SLICE_ROUTING_STATE_VERSION = TransportVersion.fromName(
         "validate_query_slice_routing_state"
     );
-    public static final TransportVersion OPEN_POINT_IN_TIME_SLICE_ROUTING_STATE_VERSION = TransportVersion.fromName(
-        "open_point_in_time_slice_routing_state"
-    );
     private static final int MAX_SLICE_VALUE_LENGTH = 128;
     private static final Pattern VALID_SLICE_VALUE_PATTERN = Pattern.compile("[a-zA-Z0-9](?:[a-zA-Z0-9._:-]*[a-zA-Z0-9])?");
 
@@ -57,41 +51,7 @@ public final class SliceIndexing {
     /**
      * Parsed routing result with provenance indicating if the value came from {@code slice}.
      */
-    public record ParsedRouting(String routing, boolean fromSlice) {
-        /**
-         * Returns the {@code slice} parameter value for search-style requests, or {@code null} when routing did not come from
-         * {@code slice}.
-         */
-        @Nullable
-        String toSearchSlice() {
-            if (fromSlice == false) {
-                return null;
-            }
-            return routing == null ? SLICE_ALL : routing;
-        }
-    }
-
-    /**
-     * Applies parsed REST {@code routing}/{@code slice} parameters to a {@link SearchRequest}.
-     */
-    public static void applySearchRoutingOrSlice(ParsedRouting parsedRouting, SearchRequest request) {
-        if (parsedRouting.fromSlice()) {
-            request.searchSlice(parsedRouting.toSearchSlice());
-        } else {
-            request.routing(parsedRouting.routing());
-        }
-    }
-
-    /**
-     * Applies parsed REST {@code routing}/{@code slice} parameters to an {@link OpenPointInTimeRequest}.
-     */
-    public static void applySearchRoutingOrSlice(ParsedRouting parsedRouting, OpenPointInTimeRequest request) {
-        if (parsedRouting.fromSlice()) {
-            request.searchSlice(parsedRouting.toSearchSlice());
-        } else {
-            request.routing(parsedRouting.routing());
-        }
-    }
+    public record ParsedRouting(String routing, boolean fromSlice) {}
 
     /**
      * Validates user-supplied {@code slice} values accepted by REST write APIs.

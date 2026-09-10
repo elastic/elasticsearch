@@ -161,7 +161,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             }
             final var snapshotStatusRequest = new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY), snapshots);
             snapshotStatusRequest.setTimeout(request.masterNodeTimeout().millis() < 0 ? null : request.masterNodeTimeout());
-            client.execute(
+            client.executeLocally(
                 TransportNodesSnapshotsStatus.TYPE,
                 snapshotStatusRequest,
                 // fork to snapshot meta since building the response is expensive for large snapshots

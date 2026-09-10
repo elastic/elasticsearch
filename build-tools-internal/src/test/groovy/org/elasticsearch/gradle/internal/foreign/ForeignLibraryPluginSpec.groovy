@@ -9,7 +9,6 @@
 
 package org.elasticsearch.gradle.internal.foreign
 
-import org.elasticsearch.gradle.fixtures.AbstractProjectBuilderPluginSpec
 import org.gradle.api.Project
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.plugins.JavaLibraryPlugin
@@ -18,31 +17,28 @@ import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.testfixtures.ProjectBuilder
+import spock.lang.Specification
 
-class ForeignLibraryPluginSpec extends AbstractProjectBuilderPluginSpec {
-
-    @Override
-    Class<ForeignLibraryPlugin> getPluginClassUnderTest() {
-        return ForeignLibraryPlugin
-    }
+class ForeignLibraryPluginSpec extends Specification {
 
     Project consumer
     Project foreignLibraryProject
     Project processorProject
 
     def setup() {
-        def rootProject = buildProject("root")
-        def libsProject = buildProject("libs", rootProject)
-        foreignLibraryProject = buildProject("foreign-library", libsProject)
-        processorProject = buildProject("processor", foreignLibraryProject)
-        consumer = buildProject("consumer", rootProject)
+        def rootProject = ProjectBuilder.builder().withName("root").build()
+        def libsProject = ProjectBuilder.builder().withParent(rootProject).withName("libs").build()
+        foreignLibraryProject = ProjectBuilder.builder().withParent(libsProject).withName("foreign-library").build()
+        processorProject = ProjectBuilder.builder().withParent(foreignLibraryProject).withName("processor").build()
+        consumer = ProjectBuilder.builder().withParent(rootProject).withName("consumer").build()
 
         // Apply java-library to the stub libs so they expose the api/runtime configurations
         // that the consumer project resolves through.
         foreignLibraryProject.pluginManager.apply(JavaLibraryPlugin)
         processorProject.pluginManager.apply(JavaLibraryPlugin)
 
-        applyPluginUnderTest(consumer)
+        consumer.pluginManager.apply(ForeignLibraryPlugin)
         // Applied after ForeignLibraryPlugin on purpose: java-test-fixtures creates its source set late.
         // Registering in this order covers ForeignLibraryPlugin referencing a source sets that do not exist yet.
         consumer.pluginManager.apply("java-test-fixtures")

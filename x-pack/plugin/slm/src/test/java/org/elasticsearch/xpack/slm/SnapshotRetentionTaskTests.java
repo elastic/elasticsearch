@@ -174,7 +174,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             MockSnapshotRetentionTask retentionTask = new MockSnapshotRetentionTask(
                 noOpClient,
                 clusterService,
-                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, clusterService, threadPool, (historyItem) -> {
+                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, clusterService, (historyItem) -> {
                     assertEquals(deletionSuccess, historyItem.isSuccess());
                     if (historyItem.isSuccess() == false) {
                         assertThat(historyItem.getErrorDetails(), containsString("deletion_failed"));
@@ -269,7 +269,6 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 new SnapshotLifecycleTaskTests.VerifyingHistoryStore(
                     noOpClient,
                     clusterService,
-                    threadPool,
                     (historyItem) -> fail("should never write history")
                 )
             );
@@ -347,7 +346,6 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 new SnapshotLifecycleTaskTests.VerifyingHistoryStore(
                     noOpClient,
                     clusterService,
-                    threadPool,
                     (historyItem) -> fail("should never write history")
                 )
             );
@@ -416,7 +414,6 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 new SnapshotLifecycleTaskTests.VerifyingHistoryStore(
                     noOpClient,
                     clusterService,
-                    threadPool,
                     (historyItem) -> fail("should never write history")
                 ),
                 () -> {
@@ -472,7 +469,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             MockSnapshotRetentionTask task = new MockSnapshotRetentionTask(
                 noOpClient,
                 clusterService,
-                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, clusterService, threadPool, (historyItem) -> {}),
+                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, clusterService, (historyItem) -> {}),
                 () -> {
                     retentionWasRun.set(true);
                     return Collections.emptyMap();

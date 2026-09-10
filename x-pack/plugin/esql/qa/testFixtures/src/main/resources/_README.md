@@ -223,36 +223,6 @@ null
 ;
 ```
 
-### Approximate knn
-
-`knn` uses approximate nearest-neighbour search (HNSW) when pushed to Lucene.
-`LIMIT` after `knn` is pushed into the function as `k`. The result is a
-top-k **set**, not a unique ranked table: approximation may omit a true
-neighbour, and equal scores at the `k` cut pick an arbitrary document.
-
-Do **not** assert an exact top-k table (specific colors in specific slots).
-`ignoreOrder` does not help: it only reorders rows, it does not stabilize
-which rows knn kept.
-
-For tests of knn together with other operators (`RENAME`, `MV_EXPAND`,
-`EVAL`, …), pin the result with a filter on a uniquely nearest document:
-
-```csv-spec
-from colors metadata _score
-| rename rgb_vector as vec
-| where knn(vec, [0, 120, 0]) and color == "green"
-| keep color, vec
-;
-
-color:text | vec:dense_vector
-green      | [0.0, 128.0, 0.0]
-;
-```
-
-Asserting `count(*)` or using `{any}` (below) is also fine. Docs snippets
-may show a representative ranking on this tiny fixture; do not copy that
-pattern into new tests.
-
 ### Non-deterministic results: ranges and wildcards
 
 When a result is not exactly predictable (approximate aggregations, similarity

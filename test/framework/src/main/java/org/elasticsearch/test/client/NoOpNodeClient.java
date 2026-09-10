@@ -31,7 +31,7 @@ import java.util.function.Supplier;
 
 /**
  * Client that always response with {@code null} to every request. Override {@link #doExecute(ActionType, ActionRequest, ActionListener)} or
- * {@link #executeAndReturnTask(ActionType, ActionRequest, ActionListener)} for testing.
+ * {@link #executeLocally(ActionType, ActionRequest, ActionListener)} for testing.
  *
  * See also {@link NoOpClient} if you do not specifically need a {@link NodeClient}.
  */
@@ -65,7 +65,7 @@ public class NoOpNodeClient extends NodeClient {
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse> Task executeAndReturnTask(
+    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
         ActionType<Response> action,
         Request request,
         ActionListener<Response> listener

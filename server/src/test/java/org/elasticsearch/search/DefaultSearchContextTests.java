@@ -63,6 +63,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.DirectoryMetricsTests;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -1169,6 +1170,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
     }
 
     public void testDirectoryMetricsAwareExecutorAccumulatesForkedTaskMetrics() throws Exception {
+        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
         ThreadLocal<StoreMetrics> threadStoreMetrics = ThreadLocal.withInitial(StoreMetrics::new);
         DirectoryMetrics.Capture capture = DirectoryMetricsTests.metricsCapture(StoreMetrics.NAME, threadStoreMetrics::get);
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(1, 3));
@@ -1207,6 +1209,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
     }
 
     public void testDirectoryMetricsAwareExecutorPropagatesExceptionsAndStillAccumulates() {
+        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
         ThreadLocal<StoreMetrics> threadStoreMetrics = ThreadLocal.withInitial(StoreMetrics::new);
         Executor executor = Runnable::run;
         var wrapped = new DirectoryMetricsAwareExecutor(

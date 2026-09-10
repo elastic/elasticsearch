@@ -51,6 +51,7 @@ public class StatelessRecoveryMetricsCollector implements IndexEventListener {
         try {
             if (indexShard.state() == IndexShardState.RECOVERING) {
                 final RecoveryState recoveryState = indexShard.recoveryState();
+                assert recoveryState != null;
                 if (recoveryState.getStage() == RecoveryState.Stage.DONE) {
                     // TODO: ideally read/warmed metrics should be emitted right after corresponding operation is finished (ES-8709)
                     updateMetrics(indexShard, indexShard.store(), recoveryMetricLabels(indexShard));

@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -240,17 +239,14 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             final String nodeId = routingNode.nodeId();
             final DiscoveryNode discoveryNode = discoveryNodes.get(nodeId);
             assert discoveryNode != null : "The routing nodes is from the cluster state so DiscoveryNodes should be consistent";
-            if (EstimatedHeapSettings.collectsEstimatesForNode(discoveryNode) == false) {
+            // We only provide estimates for indexing nodes
+            if (EstimatedHeapSettings.appliesToNode(discoveryNode) == false) {
                 continue;
             }
-            final boolean isIndexNode = discoveryNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE);
-            // Index nodes use real per-node overheads; search nodes use zero overheads because only
-            // hostedShardsHeapUsage is meaningful for them — totalHeapUsage is left as 0.
             final EstimatedHeapUsageBuilder builderForNode = new EstimatedHeapUsageBuilder(
                 nodeBaseHeapEstimateInBytes,
                 minimumRequiredHeapForHandlingLargeIndexingOps,
-                mergeMemoryEstimate,
-                isIndexNode
+                mergeMemoryEstimate
             );
             for (ShardRouting shard : routingNode) {
                 // Only include active shards in our node-level estimates, the simulator will complete
@@ -264,17 +260,14 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             }
             heapUsageBuilders.put(nodeId, builderForNode);
         }
-        // Take the max postings memory across indexing nodes only and use that for all indexing nodes' total heap estimate.
-        // Search node postings are intentionally excluded: they host replicas of the same shards as indexing nodes and could
-        // otherwise dominate the max, inflating the legacy decider's view of indexing nodes.
+        // Take the max postings memory across all nodes and use that for all nodes' total heap estimate
         final long maxTotalPostingsInMemoryBytes = heapUsageBuilders.values()
             .stream()
-            .filter(EstimatedHeapUsageBuilder::isIndexNode)
             .mapToLong(builder -> builder.totalPostingsInMemoryBytes)
             .max()
             .orElse(0L);
         lastMaxTotalPostingsInMemoryBytes = maxTotalPostingsInMemoryBytes; // Tracked for testing purposes
-        return new HashMap<>(Maps.transformValues(heapUsageBuilders, builder -> builder.getHeapEstimate(maxTotalPostingsInMemoryBytes)));
+        return Maps.transformValues(heapUsageBuilders, builder -> builder.getHeapEstimate(maxTotalPostingsInMemoryBytes));
     }
 
     /**
@@ -314,18 +307,15 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * @return the node's estimated heap usage
      */
     public NodeHeapEstimates estimateNodeHeapUsage(
-        DiscoveryNode localNode,
         int totalIndices,
         long largeIndexingOpsHeapBytes,
         long mergeMemoryEstimateBytes,
         Map<ShardId, ShardMappingSize> shardMappingSizes
     ) {
-        assert localNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) : "This should only ever be called for indexing nodes";
         final EstimatedHeapUsageBuilder builder = new EstimatedHeapUsageBuilder(
             getNodeBaseHeapEstimateInBytes(totalIndices),
             largeIndexingOpsHeapBytes,
-            mergeMemoryEstimateBytes,
-            true
+            mergeMemoryEstimateBytes
         );
         final long nowNanos = relativeTimeInNanos();
         shardMappingSizes.forEach((shardId, size) -> builder.add(shardId, ShardMemoryMetrics.fromShardMappingSize(size, nowNanos)));
@@ -863,9 +853,9 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         private final long nodeBaseHeapEstimateInBytes;
         private final long minimumRequiredHeapForAcceptingLargeIndexingOps;
         private final long shardMergeMemoryEstimate;
+        private final long adaptiveMinThresholdBytes;
         private final ShardHeapEstimator shardHeapEstimator;
         private final Set<String> seenIndices = new HashSet<>();
-        private final boolean indexNode;
         private long mappingSizeInBytes;
         private long totalPostingsInMemoryBytes;
         private long shardMemoryUsageInBytes;
@@ -873,27 +863,23 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         EstimatedHeapUsageBuilder(
             long nodeBaseHeapEstimateInBytes,
             long minimumRequiredHeapForAcceptingLargeIndexingOps,
-            long shardMergeMemoryEstimate,
-            boolean indexNode
+            long shardMergeMemoryEstimate
         ) {
             this.shardHeapEstimator = createShardHeapEstimator(SelfReportedShardOverhead.DEFAULT, PostingsInEstimate.EXCLUDE);
             this.nodeBaseHeapEstimateInBytes = nodeBaseHeapEstimateInBytes;
             this.minimumRequiredHeapForAcceptingLargeIndexingOps = minimumRequiredHeapForAcceptingLargeIndexingOps;
             this.shardMergeMemoryEstimate = shardMergeMemoryEstimate;
-            this.indexNode = indexNode;
+            this.adaptiveMinThresholdBytes = getAdaptiveShardMemoryEstimationMinThreshold(nodeBaseHeapEstimateInBytes);
         }
 
         void add(ShardId shardId, ShardMemoryMetrics shardMemoryMetrics) {
             if (seenIndices.add(shardId.getIndexName())) {
-                mappingSizeInBytes = Math.addExact(mappingSizeInBytes, shardMemoryMetrics.getMappingSizeInBytes());
+                mappingSizeInBytes += shardMemoryMetrics.getMappingSizeInBytes();
             }
             // Postings are accumulated separately (instead of folding them into computeShardHeapUsage's result) because
             // getPerNodeMemoryMetrics later uses the maximum totalPostingsInMemoryBytes across all nodes.
-            shardMemoryUsageInBytes = Math.addExact(shardMemoryUsageInBytes, shardHeapEstimator.computeShardHeapUsage(shardMemoryMetrics));
-            totalPostingsInMemoryBytes = Math.addExact(
-                totalPostingsInMemoryBytes,
-                shardHeapEstimator.getEffectiveShardPostingsInBytes(shardMemoryMetrics)
-            );
+            shardMemoryUsageInBytes += shardHeapEstimator.computeShardHeapUsage(shardMemoryMetrics);
+            totalPostingsInMemoryBytes += shardHeapEstimator.getEffectiveShardPostingsInBytes(shardMemoryMetrics);
         }
 
         /**
@@ -904,29 +890,13 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
          */
         NodeHeapEstimates getHeapEstimate(long postingsForTotalEstimate) {
             final long totalHeapEstimateInBytes = getHeapUsageEstimate(postingsForTotalEstimate);
-            return new NodeHeapEstimates(
-                totalHeapEstimateInBytes,
-                addExact(mappingSizeInBytes, shardMemoryUsageInBytes, totalPostingsInMemoryBytes)
-            );
+            final long hostedShardsHeapEstimateInBytes = shardMemoryUsageInBytes + totalPostingsInMemoryBytes;
+            return new NodeHeapEstimates(totalHeapEstimateInBytes, hostedShardsHeapEstimateInBytes);
         }
 
         long getHeapUsageEstimate(long effectivePostingsValue) {
-            // We only produce a "total" heap usage estimate for indexing nodes
-            if (indexNode == false) {
-                return 0;
-            }
-            return addExact(
-                shardMemoryUsageInBytes,
-                mappingSizeInBytes,
-                shardMergeMemoryEstimate,
-                nodeBaseHeapEstimateInBytes,
-                minimumRequiredHeapForAcceptingLargeIndexingOps,
-                effectivePostingsValue
-            );
-        }
-
-        public boolean isIndexNode() {
-            return indexNode;
+            return shardMemoryUsageInBytes + mappingSizeInBytes + shardMergeMemoryEstimate + nodeBaseHeapEstimateInBytes
+                + minimumRequiredHeapForAcceptingLargeIndexingOps + effectivePostingsValue;
         }
     }
 
@@ -1076,19 +1046,5 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         ENABLE,
         DISABLE,
         DEFAULT;
-    }
-
-    /**
-     * Recursive {@link Math#addExact(long, long)}, will throw if we overflow at any point
-     *
-     * @param longs The longs to add
-     * @return The sum of the longs
-     */
-    private static long addExact(long... longs) {
-        long total = 0;
-        for (long l : longs) {
-            total = Math.addExact(total, l);
-        }
-        return total;
     }
 }

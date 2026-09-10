@@ -17,9 +17,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.tests.index.ForceMergePolicy;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
+import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
-import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -36,31 +35,15 @@ public class StoredFieldCodecDuelTests extends ESTestCase {
     private static final String DOUBLE_FIELD = "double_field_5";
 
     public void testDuelBestSpeed() throws IOException {
-        var baseline = new PerFieldMapperCodec(
-            Lucene104Codec.Mode.BEST_SPEED,
-            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-            null,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            null
-        );
-        var contender = new Elasticsearch93Lucene104Codec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED);
+        var baseline = new LegacyPerFieldMapperCodec(Lucene104Codec.Mode.BEST_SPEED, null, BigArrays.NON_RECYCLING_INSTANCE, null);
+        var contender = new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, null, BigArrays.NON_RECYCLING_INSTANCE, null);
         doTestDuel(baseline, contender);
     }
 
     public void testDuelBestCompression() throws IOException {
-        var baseline = new PerFieldMapperCodec(
-            Lucene104Codec.Mode.BEST_COMPRESSION,
-            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-            null,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            null
-        );
+        var baseline = new LegacyPerFieldMapperCodec(Lucene104Codec.Mode.BEST_COMPRESSION, null, BigArrays.NON_RECYCLING_INSTANCE, null);
         var contender = new PerFieldMapperCodec(
-            Lucene104Codec.Mode.BEST_SPEED,
-            ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION,
-            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+            Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION,
             null,
             BigArrays.NON_RECYCLING_INSTANCE,
             null

@@ -28,7 +28,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -375,10 +374,10 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(mapping2, equalTo(new ColumnMapping(new int[] { 0 }, null)));
     }
 
-    public void testUnionByNameLongToDoubleWidensToDouble() {
-        // LONG + DOUBLE is a join promotion to DOUBLE. The long file is cast; the double file is
-        // already the unified type. Integers above 2^53 are not exact, so a precision-loss warning
-        // is emitted instead of stringifying the column.
+    public void testUnionByNameLongToDoubleWidensToKeyword() {
+        // The lossy LONG + DOUBLE pair is intentionally outside the lossless table (>2^53 precision
+        // loss). Under UBN it falls back to KEYWORD with a warning — louder than silent precision
+        // loss and consistent with the cross-type floor in DuckDB / Spark / ClickHouse.
         List<Attribute> schema1 = List.of(attr("val", DataType.LONG));
         List<Attribute> schema2 = List.of(attr("val", DataType.DOUBLE));
 
@@ -387,96 +386,16 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
-        List<String> warnings = drainWarningMessages();
-
-        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
-        ColumnMapping m1 = result.perFileInfo().get(f1).mapping();
-        ColumnMapping m2 = result.perFileInfo().get(f2).mapping();
-        assertThat(m1, equalTo(new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DOUBLE })));
-        assertThat(m2, equalTo(new ColumnMapping(new int[] { 0 }, null)));
-
-        assertWarningMentionsAll(warnings, "val", "long", "double", "f1.parquet", "f2.parquet", "widened to double", "2^53");
-        String joined = String.join(" || ", warnings);
-        assertThat(joined, not(containsString("widened to keyword")));
-    }
-
-    public void testUnionByNameWarningSinkReceivesPrecisionLossAndSkipsHeaderWarning() {
-        List<Attribute> schema1 = List.of(attr("val", DataType.LONG));
-        List<Attribute> schema2 = List.of(attr("val", DataType.DOUBLE));
-        StoragePath f1 = path("s3://b/f1.parquet");
-        StoragePath f2 = path("s3://b/f2.parquet");
-        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
-
-        List<String> sunk = new ArrayList<>();
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, sunk::add);
-
-        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
-        assertWarningMentionsAll(sunk, "val", "long", "double", "widened to double", "2^53");
-        assertThat(String.join(" || ", sunk), not(containsString("widened to keyword")));
-        assertNoResponseWarnings();
-    }
-
-    public void testUnionByNameIntegerLongDoubleWidensToDouble() {
-        List<Attribute> schema1 = List.of(attr("val", DataType.INTEGER));
-        List<Attribute> schema2 = List.of(attr("val", DataType.LONG));
-        List<Attribute> schema3 = List.of(attr("val", DataType.DOUBLE));
-
-        StoragePath f1 = path("s3://b/f1.parquet");
-        StoragePath f2 = path("s3://b/f2.parquet");
-        StoragePath f3 = path("s3://b/f3.parquet");
-
-        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
-        metadata.put(f1, meta(schema1));
-        metadata.put(f2, meta(schema2));
-        metadata.put(f3, meta(schema3));
-
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
-        List<String> warnings = drainWarningMessages();
-
-        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
-        assertWarningMentionsAll(warnings, "val", "long", "double", "widened to double", "2^53");
-        assertThat(String.join(" || ", warnings), not(containsString("widened to keyword")));
-    }
-
-    public void testUnionByNameLongDoubleKeywordStaysKeyword() {
-        List<Attribute> schema1 = List.of(attr("val", DataType.LONG));
-        List<Attribute> schema2 = List.of(attr("val", DataType.DOUBLE));
-        List<Attribute> schema3 = List.of(attr("val", DataType.KEYWORD));
-
-        StoragePath f1 = path("s3://b/f1.parquet");
-        StoragePath f2 = path("s3://b/f2.parquet");
-        StoragePath f3 = path("s3://b/f3.parquet");
-
-        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
-        metadata.put(f1, meta(schema1));
-        metadata.put(f2, meta(schema2));
-        metadata.put(f3, meta(schema3));
-
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
-        List<String> warnings = drainWarningMessages();
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
-        assertWarningMentionsAll(warnings, "val", "widened to keyword");
-        assertThat(String.join(" || ", warnings), not(containsString("widened to double")));
-        assertThat(String.join(" || ", warnings), not(containsString("2^53")));
-    }
+        // Both files contributed non-string types → both file mappings carry a KEYWORD cast.
+        ColumnMapping m1 = result.perFileInfo().get(f1).mapping();
+        ColumnMapping m2 = result.perFileInfo().get(f2).mapping();
+        assertThat(m1, equalTo(new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD })));
+        assertThat(m2, equalTo(new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD })));
 
-    public void testUnionByNameTextLongToDoublePinsLongFile() {
-        List<Attribute> schema1 = List.of(attr("val", DataType.LONG));
-        List<Attribute> schema2 = List.of(attr("val", DataType.DOUBLE));
-
-        StoragePath f1 = path("s3://b/f1.ndjson");
-        StoragePath f2 = path("s3://b/f2.ndjson");
-
-        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "ndjson"), f2, meta(schema2, "ndjson"));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
-        drainWarningMessages();
-
-        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
-        assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
-        assertThat(result.perFileInfo().get(f1).inferredTypes(), equalTo(Map.of("val", DataType.LONG)));
-        assertThat(result.perFileInfo().get(f2).fileSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
-        assertThat(result.perFileInfo().get(f2).inferredTypes(), nullValue());
+        List<String> warnings = drainWarningMessages();
+        assertWarningMentionsAll(warnings, "val", "long", "double", "f1.parquet", "f2.parquet");
     }
 
     public void testUnionByNameColumnOrdering() {
@@ -1000,16 +919,17 @@ public class SchemaReconciliationTests extends ESTestCase {
     }
 
     public void testSchemaWidenLongDoubleStaysNullForStrictCallers() {
-        // schemaWiden is the lossless form: LONG + DOUBLE has no lossless supertype, even though
-        // UBN join answers DOUBLE.
+        // The strict-only entry point keeps returning null so future non-UBN callers that want the
+        // lossless-only semantic still have it. UBN's widenToCommonOrKeyword is the additive layer
+        // — verified indirectly via testUnionByNameLongToDoubleWidensToKeyword above.
         assertThat(SchemaReconciliation.schemaWiden(DataType.LONG, DataType.DOUBLE), nullValue());
         assertThat(SchemaReconciliation.schemaWiden(DataType.DOUBLE, DataType.LONG), nullValue());
     }
 
     public void testUnionByNameDenseVectorWithIntegerFallsBackToKeyword() {
         // Defensive: we do not delegate wholesale to EsqlDataTypeConverter.commonType (which would
-        // pick DENSE_VECTOR here). The UBN path uses TypeWidening.join, whose top is KEYWORD for
-        // this pair.
+        // pick DENSE_VECTOR here). The UBN path uses its own widenToCommonOrKeyword and falls back
+        // to KEYWORD for any pair the lossless table cannot widen.
         List<Attribute> schema1 = List.of(attr("v", DataType.DENSE_VECTOR));
         List<Attribute> schema2 = List.of(attr("v", DataType.INTEGER));
 

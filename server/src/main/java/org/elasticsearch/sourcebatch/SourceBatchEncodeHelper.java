@@ -9,11 +9,14 @@
 
 package org.elasticsearch.sourcebatch;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
@@ -36,45 +39,6 @@ public final class SourceBatchEncodeHelper {
      */
     public static PackedArray packArray(XContentParser parser) throws IOException {
         return parseArray(parser);
-    }
-
-    /**
-     * Packs accumulated inline-array elements, choosing {@link SourceValueType#FIXED_ARRAY} when all
-     * elements share a fixed-width type and {@code forceUnion} is false.
-     */
-    public static PackedArray packAccumulatedElements(
-        byte[] elemTypes,
-        long[] elemNumeric,
-        Object[] elemVar,
-        int count,
-        boolean forceUnion
-    ) {
-        boolean useFixed = false;
-        byte sharedType = 0;
-        if (forceUnion == false && count > 0) {
-            sharedType = elemTypes[0];
-            useFixed = true;
-            for (int i = 1; i < count; i++) {
-                if (elemTypes[i] != sharedType) {
-                    useFixed = false;
-                    break;
-                }
-            }
-            if (useFixed && SourceValueType.elemDataSize(sharedType) == 0) {
-                useFixed = false;
-            }
-        }
-
-        byte[] packed;
-        byte arrayType;
-        if (useFixed) {
-            packed = packFixedArray(sharedType, elemNumeric, elemVar, count);
-            arrayType = SourceValueType.FIXED_ARRAY;
-        } else {
-            packed = packUnionArray(elemTypes, elemNumeric, elemVar, count);
-            arrayType = SourceValueType.UNION_ARRAY;
-        }
-        return new PackedArray(arrayType, packed);
     }
 
     /**
@@ -118,17 +82,24 @@ public final class SourceBatchEncodeHelper {
      * Parser must be positioned after START_OBJECT.
      */
     public static byte[] serializeKeyValue(XContentParser parser) throws IOException {
-        KeyValueWriter writer = KeyValueWriter.forObjectPayload();
+        // TODO: Eventually expose a recycler here and use a recycling instance
+        BytesStreamOutput out = new BytesStreamOutput(64);
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token != XContentParser.Token.FIELD_NAME) {
                 throw new IllegalStateException("Expected FIELD_NAME but got " + token);
             }
-            String fieldName = parser.currentName();
+            byte[] keyBytes = parser.currentName().getBytes(StandardCharsets.UTF_8);
             token = parser.nextToken(); // value token
-            writeElementValue(writer, fieldName, parser, token);
+
+            // key_length(i32) + key_bytes
+            out.writeIntLE(keyBytes.length);
+            out.writeBytes(keyBytes, 0, keyBytes.length);
+
+            // type(1) + value_data
+            writeElementValue(out, parser, token);
         }
-        return writer.toBytes();
+        return BytesReference.toBytes(out.bytes());
     }
 
     private static PackedArray parseArray(XContentParser parser) throws IOException {
@@ -165,21 +136,26 @@ public final class SourceBatchEncodeHelper {
                 case VALUE_NUMBER -> {
                     XContentParser.NumberType numType = parser.numberType();
                     switch (numType) {
-                        case INT -> {
-                            elemTypes[count] = SourceValueType.INT;
-                            elemNumeric[count] = parser.intValue();
+                        case INT, LONG -> {
+                            long val = parser.longValue();
+                            if (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) {
+                                elemTypes[count] = SourceValueType.INT;
+                                elemNumeric[count] = val;
+                            } else {
+                                elemTypes[count] = SourceValueType.LONG;
+                                elemNumeric[count] = val;
+                            }
                         }
-                        case LONG -> {
-                            elemTypes[count] = SourceValueType.LONG;
-                            elemNumeric[count] = parser.longValue();
-                        }
-                        case FLOAT -> {
-                            elemTypes[count] = SourceValueType.FLOAT;
-                            elemNumeric[count] = Float.floatToRawIntBits(parser.floatValue());
-                        }
-                        case DOUBLE -> {
-                            elemTypes[count] = SourceValueType.DOUBLE;
-                            elemNumeric[count] = Double.doubleToRawLongBits(parser.doubleValue());
+                        case FLOAT, DOUBLE -> {
+                            double val = parser.doubleValue();
+                            float fval = (float) val;
+                            if ((double) fval == val) {
+                                elemTypes[count] = SourceValueType.FLOAT;
+                                elemNumeric[count] = Float.floatToRawIntBits(fval);
+                            } else {
+                                elemTypes[count] = SourceValueType.DOUBLE;
+                                elemNumeric[count] = Double.doubleToRawLongBits(val);
+                            }
                         }
                         default -> {
                             elemTypes[count] = SourceValueType.STRING;
@@ -194,45 +170,88 @@ public final class SourceBatchEncodeHelper {
             count++;
         }
 
-        return packAccumulatedElements(elemTypes, elemNumeric, elemVar, count, forceUnion);
+        boolean useFixed = false;
+        byte sharedType = 0;
+        if (forceUnion == false && count > 0) {
+            sharedType = elemTypes[0];
+            useFixed = true;
+            for (int i = 1; i < count; i++) {
+                if (elemTypes[i] != sharedType) {
+                    useFixed = false;
+                    break;
+                }
+            }
+            if (useFixed && SourceValueType.elemDataSize(sharedType) == 0) {
+                useFixed = false;
+            }
+        }
+
+        byte[] packed;
+        byte arrayType;
+        if (useFixed) {
+            packed = packFixedArray(sharedType, elemNumeric, elemVar, count);
+            arrayType = SourceValueType.FIXED_ARRAY;
+        } else {
+            packed = packUnionArray(elemTypes, elemNumeric, elemVar, count);
+            arrayType = SourceValueType.UNION_ARRAY;
+        }
+        return new PackedArray(arrayType, packed);
     }
 
-    private static void writeElementValue(KeyValueWriter writer, String fieldName, XContentParser parser, XContentParser.Token token)
-        throws IOException {
+    private static void writeElementValue(BytesStreamOutput out, XContentParser parser, XContentParser.Token token) throws IOException {
         switch (token) {
             case VALUE_STRING -> {
                 XContentString.UTF8Bytes str = parser.optimizedText().bytes();
-                writer.writeStringField(fieldName, str.bytes(), str.offset(), str.length());
+                out.writeByte(SourceValueType.STRING);
+                out.writeIntLE(str.length());
+                out.writeBytes(str.bytes(), str.offset(), str.length());
             }
             case VALUE_NUMBER -> {
                 XContentParser.NumberType numType = parser.numberType();
                 switch (numType) {
-                    case INT -> writer.writeIntField(fieldName, parser.intValue());
-                    case LONG -> writer.writeLongField(fieldName, parser.longValue());
-                    case FLOAT -> writer.writeFloatField(fieldName, parser.floatValue());
-                    case DOUBLE -> writer.writeDoubleField(fieldName, parser.doubleValue());
+                    case INT, LONG -> {
+                        long val = parser.longValue();
+                        if (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) {
+                            out.writeByte(SourceValueType.INT);
+                            out.writeIntLE((int) val);
+                        } else {
+                            out.writeByte(SourceValueType.LONG);
+                            out.writeLongLE(val);
+                        }
+                    }
+                    case FLOAT, DOUBLE -> {
+                        double val = parser.doubleValue();
+                        float fval = (float) val;
+                        if ((double) fval == val) {
+                            out.writeByte(SourceValueType.FLOAT);
+                            out.writeIntLE(Float.floatToRawIntBits(fval));
+                        } else {
+                            out.writeByte(SourceValueType.DOUBLE);
+                            out.writeLongLE(Double.doubleToRawLongBits(val));
+                        }
+                    }
                     default -> {
                         XContentString.UTF8Bytes str = parser.optimizedText().bytes();
-                        writer.writeStringField(fieldName, str.bytes(), str.offset(), str.length());
+                        out.writeByte(SourceValueType.STRING);
+                        out.writeIntLE(str.length());
+                        out.writeBytes(str.bytes(), str.offset(), str.length());
                     }
                 }
             }
-            case VALUE_BOOLEAN -> writer.writeBooleanField(fieldName, parser.booleanValue());
-            case VALUE_NULL -> writer.writeNullField(fieldName);
+            case VALUE_BOOLEAN -> out.writeByte(parser.booleanValue() ? SourceValueType.TRUE : SourceValueType.FALSE);
+            case VALUE_NULL -> out.writeByte(SourceValueType.NULL);
             case START_OBJECT -> {
-                writer.beginObjectField(fieldName);
-                XContentParser.Token inner;
-                while ((inner = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (inner != XContentParser.Token.FIELD_NAME) {
-                        throw new IllegalStateException("Expected FIELD_NAME but got " + inner);
-                    }
-                    String nestedName = parser.currentName();
-                    inner = parser.nextToken();
-                    writeElementValue(writer, nestedName, parser, inner);
-                }
-                writer.endObjectField();
+                byte[] nested = serializeKeyValue(parser);
+                out.writeByte(SourceValueType.KEY_VALUE);
+                out.writeIntLE(nested.length);
+                out.writeBytes(nested, 0, nested.length);
             }
-            case START_ARRAY -> writer.writeArrayField(fieldName, parseArray(parser));
+            case START_ARRAY -> {
+                PackedArray arr = parseArray(parser);
+                out.writeByte(arr.arrayType());
+                out.writeIntLE(arr.packed().length);
+                out.writeBytes(arr.packed(), 0, arr.packed().length);
+            }
             default -> throw new IllegalStateException("Unexpected token: " + token);
         }
     }

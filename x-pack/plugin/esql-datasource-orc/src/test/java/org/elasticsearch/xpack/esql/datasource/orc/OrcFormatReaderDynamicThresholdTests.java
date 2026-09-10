@@ -60,6 +60,7 @@ public class OrcFormatReaderDynamicThresholdTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() {
+        OrcStorageObjectAdapter.clearCacheForTests();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 

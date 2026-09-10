@@ -177,7 +177,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(
                 previewDatafeedConfig,
                 crossProjectModeDecider,
-                isCrossProjectPreviewAllowed(request, datafeedConfig, callerCredential != null)
+                callerCredential != null
             );
             final Client previewClient = cloudCredentialManager.wrapClient(
                 new ParentTaskAssigningClient(client, parentTaskId),
@@ -208,24 +208,6 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 )
             );
         });
-    }
-
-    /**
-     * Whether preview may promote {@link DatafeedConfig} to cross-project {@link org.elasticsearch.action.support.IndicesOptions}.
-     * Persisted-ID preview requires a stored UIAM envelope (runtime parity); inline preview requires only a cloud caller.
-     */
-    static boolean isCrossProjectPreviewAllowed(
-        PreviewDatafeedAction.Request request,
-        DatafeedConfig persistedConfig,
-        boolean hasCallerCloudCredential
-    ) {
-        if (hasCallerCloudCredential == false) {
-            return false;
-        }
-        if (request.getDatafeedConfig() != null) {
-            return true;
-        }
-        return persistedConfig.getCloudInternalCredential() != null;
     }
 
     /**

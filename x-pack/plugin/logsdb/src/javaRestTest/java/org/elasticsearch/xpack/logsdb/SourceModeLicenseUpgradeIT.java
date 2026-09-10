@@ -23,7 +23,8 @@ public class SourceModeLicenseUpgradeIT extends SourceModeLicenseChangeTestCase 
     }
 
     /**
-     * Builds one TestCase for each strict-columnar index mode: all of them start out on columnar_stored rather than stored.
+     * Builds one TestCase for each strict-columnar index mode that has a source mode to fall back to. vectordb_columnar
+     * supports synthetic source only, so without a license it cannot be created at all rather than starting out stored.
      */
     private List<TestCase> columnarCases() {
         return List.of(
@@ -40,13 +41,6 @@ public class SourceModeLicenseUpgradeIT extends SourceModeLicenseChangeTestCase 
                 SourceFieldMapper.Mode.COLUMNAR_STORED,
                 SourceFieldMapper.Mode.SYNTHETIC,
                 () -> isColumnarIndexModeSupported() == false
-            ),
-            new SourceModeTestCase(
-                "vectordb-columnar-test",
-                "vectordb_columnar",
-                SourceFieldMapper.Mode.COLUMNAR_STORED,
-                SourceFieldMapper.Mode.SYNTHETIC,
-                () -> isVectordbColumnarIndexModeSupported() == false
             )
         );
     }

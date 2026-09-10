@@ -178,14 +178,12 @@ public class CrossIndexModeGenerativeRestRunnerTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------
-    // canonicalValue — 5-significant-figure rounding
+    // canonicalValue — 6-significant-figure rounding
     // -----------------------------------------------------------------------
 
-    /** Non-trivial double is rounded to 5 significant figures. */
-    public void testDoubleRoundedToFiveSigFigs() {
-        // 1.23456789 → 1.2346 (5 sig figs, HALF_DOWN) — also absorbs variance ULP noise
-        // such as -1.43178 vs -1.43177.
-        assertEquals(canonicalValue(-1.43178), canonicalValue(-1.43177));
+    /** Non-trivial double is rounded to 6 significant figures. */
+    public void testDoubleRoundedToSixSigFigs() {
+        // 1.23456789 → 1.23457 (6 sig figs, HALF_DOWN)
         String canon = canonicalValue(1.23456789);
         assertFalse("Should be rounded, not full precision", canon.equals(String.valueOf(1.23456789)));
     }

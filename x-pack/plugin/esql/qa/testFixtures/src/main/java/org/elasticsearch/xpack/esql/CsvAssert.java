@@ -632,7 +632,7 @@ public final class CsvAssert {
                 x -> EsqlDataTypeConverter.doubleRangeToString((DoubleRangeBlockBuilder.DoubleRange) x)
             );
             case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, JSON, NULL, BOOLEAN,
-                DENSE_VECTOR, TDIGEST, UNSUPPORTED, FLATTENED, SOURCE -> expectedValue;
+                DENSE_VECTOR, TDIGEST, UNSUPPORTED, FLATTENED -> expectedValue;
         };
     }
 
@@ -653,7 +653,7 @@ public final class CsvAssert {
                 String.class,
                 x -> DEFAULT_DATE_NANOS_FORMATTER.formatNanos(DEFAULT_DATE_NANOS_FORMATTER.parseNanos((String) x))
             );
-            case FLATTENED, SOURCE -> {
+            case FLATTENED -> {
                 if (actualValue instanceof List<?> list) {
                     // REST tests return List<Map> for multi-value flattened (e.g. from mv_append)
                     yield list.stream().map(CsvAssert::convertActualFlattenedValue).toList();
@@ -677,8 +677,7 @@ public final class CsvAssert {
                 throw new UncheckedIOException(e);
             }
         }
-        // A FLATTENED value under CsvIT is already a JSON string from the block loader, so compare it directly. A SOURCE value is always
-        // a Map and never reaches this point.
+        // CsvIT: value is already a JSON string from the block loader — compare directly
         return value;
     }
 

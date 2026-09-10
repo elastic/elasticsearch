@@ -152,7 +152,7 @@ public final class ExchangeBuffer {
         return noMoreInputs;
     }
 
-    public int size() {
+    int size() {
         return queueSize.get();
     }
 

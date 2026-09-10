@@ -57,6 +57,7 @@ public class RankVectorsScoreScriptUtils {
             }
             field.getElement().checkDimensions(field.get().getDims(), queryVector.get(0).size());
             this.queryVector = new byte[queryVector.size()][queryVector.get(0).size()];
+            float[] validateValues = new float[queryVector.size()];
             int lastSize = -1;
             for (int i = 0; i < queryVector.size(); i++) {
                 if (lastSize != -1 && lastSize != queryVector.get(i).size()) {
@@ -65,12 +66,11 @@ public class RankVectorsScoreScriptUtils {
                     );
                 }
                 lastSize = queryVector.get(i).size();
-                // Every dimension of the inner vector must be validated, so collect them all before checking the bounds.
-                float[] validateValues = new float[lastSize];
-                for (int j = 0; j < lastSize; j++) {
+                for (int j = 0; j < queryVector.get(i).size(); j++) {
                     final Number number = queryVector.get(i).get(j);
-                    this.queryVector[i][j] = number.byteValue();
-                    validateValues[j] = number.floatValue();
+                    byte value = number.byteValue();
+                    this.queryVector[i][j] = value;
+                    validateValues[i] = number.floatValue();
                 }
                 field.getElement().checkVectorBounds(validateValues);
             }
@@ -211,15 +211,14 @@ public class RankVectorsScoreScriptUtils {
                 throw new IllegalArgumentException("Cannot calculate bit dot product for non-bit vectors");
             }
             int fieldDims = field.get().getDims();
-            // the dimensions of each query vector are checked here, not how many query vectors were provided
-            if (fieldDims != queryVector[0].length * Byte.SIZE && fieldDims != queryVector[0].length) {
+            if (fieldDims != queryVector.length * Byte.SIZE && fieldDims != queryVector.length) {
                 throw new IllegalArgumentException(
                     "The query vector has an incorrect number of dimensions. Must be ["
                         + fieldDims / 8
                         + "] for bitwise operations, or ["
                         + fieldDims
                         + "] for byte wise operations: provided ["
-                        + queryVector[0].length
+                        + queryVector.length
                         + "]."
                 );
             }

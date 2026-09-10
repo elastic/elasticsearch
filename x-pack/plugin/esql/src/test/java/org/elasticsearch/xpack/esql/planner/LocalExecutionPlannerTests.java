@@ -51,7 +51,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
-import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
+import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -61,7 +62,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -129,7 +129,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -613,27 +612,17 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testPlanUnmappedFieldExtractStoredSource() throws Exception {
         var blockLoader = constructBlockLoader();
-        assertUnmappedFieldLoader(blockLoader.loader());
+        // In case of stored source we expect bytes based block source loader (this loads source from _source)
+        assertThat(blockLoader.loader(), instanceOf(BlockSourceReader.BytesRefsBlockLoader.class));
     }
 
     public void testPlanUnmappedFieldExtractSyntheticSource() throws Exception {
+        // Enables synthetic source, so that fallback synthetic source blocker loader is used:
         settings = Settings.builder().put(settings).put("index.mapping.source.mode", "synthetic").build();
 
         var blockLoader = constructBlockLoader();
-        assertUnmappedFieldLoader(blockLoader.loader());
-    }
-
-    /**
-     * The unmapped-field loader is gated on {@link EsqlCapabilities.Cap#OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE}, so assert the
-     * contract on both sides of the gate: a release build must keep dispatching {@code KeywordFieldType}'s own loaders, exactly as it
-     * did before the fix. Without the else branch these tests fail under {@code -Dbuild.snapshot=false} (the release-tests pipeline).
-     */
-    private static void assertUnmappedFieldLoader(BlockLoader loader) {
-        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE.isEnabled()) {
-            assertThat(loader, instanceOf(UnmappedKeywordBlockLoader.class));
-        } else {
-            assertThat(loader, not(instanceOf(UnmappedKeywordBlockLoader.class)));
-        }
+        // In case of synthetic source we expect bytes based block source loader (this loads source from _ignored_source)
+        assertThat(blockLoader.loader(), instanceOf(FallbackSyntheticSourceBlockLoader.class));
     }
 
     public void testTimeSeries() throws IOException {
@@ -678,10 +667,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY),
             PlannerSettings.PARALLEL_OPERATOR_MAX_WORKERS.getDefault(Settings.EMPTY),
             PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY),
-            PlannerSettings.DEFAULTS.minCompetitiveTimestampOptimizationEnabled(),
-            PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeBatchPages(),
-            PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeMaxPendingKeys(),
-            PlannerSettings.DEFAULTS.aggregationPartitioningCountThreshold()
+            PlannerSettings.DEFAULTS.minCompetitiveTimestampOptimizationEnabled()
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
@@ -824,7 +810,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private int randomEstimatedRowSize(boolean huge) {
-        int hugeBoundary = SourceOperator.TARGET_PAGE_SIZE / SourceOperator.MIN_TARGET_PAGE_SIZE;
+        int hugeBoundary = SourceOperator.MIN_TARGET_PAGE_SIZE * 10;
         return huge ? between(hugeBoundary, Integer.MAX_VALUE) : between(1, hugeBoundary);
     }
 
@@ -1194,7 +1180,6 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             esPhysicalOperationProviders(shardContexts),
             operatorFactoryRegistry,
-            null, // RemoteFetchService - not needed for these tests
             null, // parallelWorkerExecutor - not needed for these tests
             0,    // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop()

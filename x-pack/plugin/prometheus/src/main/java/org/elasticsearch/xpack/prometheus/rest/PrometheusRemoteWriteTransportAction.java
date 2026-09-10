@@ -32,11 +32,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -79,19 +77,16 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
     private static final String PROMETHEUS_DATASET_SUFFIX = ".prometheus";
 
     private final Client client;
-    private final long maxExpandedContentLength;
 
     @Inject
     public PrometheusRemoteWriteTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool,
-        Client client,
-        Settings settings
+        Client client
     ) {
         super(NAME, transportService, actionFilters, in -> TransportAction.localOnly(), threadPool.executor(ThreadPool.Names.WRITE));
         this.client = client;
-        this.maxExpandedContentLength = HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.get(settings).getBytes();
     }
 
     @Override
@@ -104,7 +99,6 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
             int totalSamples = 0;
             int droppedMissingName = 0;
-            long totalExpandedBytes = 0;
             for (TimeSeries timeSeries : writeRequest.getTimeseriesList()) {
                 int seriesSamples = timeSeries.getSamplesCount();
                 totalSamples += seriesSamples;
@@ -126,6 +120,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                         namespace = DataStream.sanitizeNamespace(labelValue);
                     }
                 }
+
                 if (metricName == null) {
                     droppedMissingName += seriesSamples;
                     continue;
@@ -135,21 +130,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                     if (Double.isFinite(sample.getValue()) == false) {
                         continue;
                     }
-                    IndexRequest indexRequest = buildIndexRequest(timeSeries, sample, metricName, dataset, namespace);
-                    // Guard against label fan-out: the same labels are copied into every per-sample document.
-                    totalExpandedBytes += indexRequest.ramBytesUsed();
-                    if (totalExpandedBytes > maxExpandedContentLength) {
-                        ElasticsearchStatusException e = new ElasticsearchStatusException(
-                            "Prometheus remote write request rejected: expanded content would exceed limit ["
-                                + maxExpandedContentLength
-                                + "] bytes",
-                            RestStatus.REQUEST_ENTITY_TOO_LARGE
-                        );
-                        logger.debug("failed to execute prometheus remote write request", e);
-                        listener.onFailure(e);
-                        return;
-                    }
-                    bulkRequestBuilder.add(indexRequest);
+                    bulkRequestBuilder.add(buildIndexRequest(timeSeries, sample, metricName, dataset, namespace));
                 }
             }
 
@@ -186,12 +167,10 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             }));
 
         } catch (InvalidProtocolBufferException e) {
-            logger.debug("invalid Prometheus remote write payload", e);
             listener.onFailure(
                 new ElasticsearchStatusException("Invalid Prometheus remote write payload: " + e.getMessage(), RestStatus.BAD_REQUEST, e)
             );
         } catch (Exception e) {
-            logger.error("failed to execute prometheus remote write request", e);
             listener.onFailure(e);
         }
     }

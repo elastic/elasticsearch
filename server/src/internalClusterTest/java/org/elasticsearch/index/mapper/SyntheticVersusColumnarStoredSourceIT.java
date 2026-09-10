@@ -168,6 +168,7 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
      * Both source modes must reconstruct the same document from their respective storage mechanisms.
      */
     public void testMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         var mappingXContent = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -195,6 +196,7 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
      * this is a regression test for the existing nullability-tracking path.
      */
     public void testNullabilityViolationOmittedIdenticallyAcrossSourceModes() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         var mappingXContent = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -221,6 +223,7 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
      * {@code _ignored} with the field name.
      */
     public void testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         var mappingXContent = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -244,6 +247,7 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
     }
 
     public void testNumberFieldMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         var mappingXContent = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")

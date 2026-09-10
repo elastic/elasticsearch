@@ -20,15 +20,12 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.escf.LuceneLongColumn;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.escf.EscfColumn.windowValidity;
 
 public final class MappedColumns {
 
@@ -82,25 +79,6 @@ public final class MappedColumns {
             slicedColumns.add(c.slice(from, newCount));
         }
         return new MappedColumns(this.offset + from, newCount, seqNos, primaryTerms, versions, slicedColumns);
-    }
-
-    /**
-     * Returns a copy of this {@code MappedColumns} where every column is filtered to emit only
-     * the documents whose bit is set in {@code filter}. Returns {@code this} when {@code filter}
-     * is {@code null}.
-     *
-     * @param filter a bitset of length {@link #docCount()}, or {@code null}
-     */
-    public MappedColumns withFilter(FixedBitSet filter) {
-        if (filter == null) {
-            return this;
-        }
-        assert filter.length() == count;
-        List<LuceneColumn> filtered = new ArrayList<>(columns.size());
-        for (LuceneColumn c : columns) {
-            filtered.add(c.withFilter(filter));
-        }
-        return new MappedColumns(offset, count, seqNos, primaryTerms, versions, filtered);
     }
 
     public ColumnBatch toColumnBatch() {
@@ -213,28 +191,14 @@ public final class MappedColumns {
         // complete field (including any doc values) on the row path, so this column's row emission
         // would be redundant or conflicting.
         private final boolean noOpRowPath;
-        private final FixedBitSet filter;
 
         WindowedBinaryColumn(BytesRef[] values, String name, IndexableFieldType fieldType, int from, int count, boolean noOpRowPath) {
-            this(values, name, fieldType, from, count, noOpRowPath, null);
-        }
-
-        private WindowedBinaryColumn(
-            BytesRef[] values,
-            String name,
-            IndexableFieldType fieldType,
-            int from,
-            int count,
-            boolean noOpRowPath,
-            FixedBitSet filter
-        ) {
-            super(name, fieldType, filter != null ? Density.SPARSE : (allPresent(values, from, count) ? Density.DENSE : Density.SPARSE));
+            super(name, fieldType, allPresent(values, from, count) ? Density.DENSE : Density.SPARSE);
             this.values = values;
             this.from = from;
             this.count = count;
             this.fieldType = fieldType;
             this.noOpRowPath = noOpRowPath;
-            this.filter = filter;
         }
 
         private static boolean allPresent(BytesRef[] values, int from, int count) {
@@ -247,31 +211,9 @@ public final class MappedColumns {
         }
 
         @Override
-        public WindowedBinaryColumn withFilter(FixedBitSet newFilter) {
-            assert newFilter == null || newFilter.length() == count;
-            return new WindowedBinaryColumn(
-                values,
-                name(),
-                fieldType,
-                from,
-                count,
-                noOpRowPath,
-                LuceneColumn.singleFilter(filter, newFilter)
-            );
-        }
-
-        @Override
         public WindowedBinaryColumn slice(int from, int count) {
             Objects.checkFromIndexSize(from, count, this.count);
-            return new WindowedBinaryColumn(
-                values,
-                name(),
-                fieldType,
-                this.from + from,
-                count,
-                noOpRowPath,
-                windowValidity(filter, from, count)
-            );
+            return new WindowedBinaryColumn(values, name(), fieldType, this.from + from, count, noOpRowPath);
         }
 
         @Override
@@ -307,7 +249,7 @@ public final class MappedColumns {
                 public int nextDoc() {
                     srcIdx++;
                     final int end = from + count;
-                    while (srcIdx < end && (values[srcIdx] == null || (filter != null && filter.get(srcIdx - from) == false))) {
+                    while (srcIdx < end && values[srcIdx] == null) {
                         srcIdx++;
                     }
                     doc = srcIdx < end ? srcIdx - from : DocIdSetIterator.NO_MORE_DOCS;
@@ -332,10 +274,16 @@ public final class MappedColumns {
                 public int nextDoc() {
                     srcIdx++;
                     final int end = from + count;
-                    while (srcIdx < end && (values[srcIdx] == null || (filter != null && filter.get(srcIdx - from) == false))) {
+                    while (srcIdx < end && values[srcIdx] == null) {
                         srcIdx++;
                     }
-                    return srcIdx >= end ? DocIdSetIterator.NO_MORE_DOCS : srcIdx - from;
+                    int doc;
+                    if (srcIdx >= end) {
+                        doc = DocIdSetIterator.NO_MORE_DOCS;
+                    } else {
+                        doc = srcIdx - from;
+                    }
+                    return doc;
                 }
 
                 @Override

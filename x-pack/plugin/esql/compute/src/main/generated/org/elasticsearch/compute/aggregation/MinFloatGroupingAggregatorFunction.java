@@ -38,7 +38,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
 
   MinFloatGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = new FloatArrayState(driverContext.bigArrays(), driverContext.breaker(), MinFloatAggregator.init());
+    this.state = new FloatArrayState(driverContext.bigArrays(), MinFloatAggregator.init());
     this.driverContext = driverContext;
   }
 
@@ -127,7 +127,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           float vValue = vBlock.getFloat(vOffset);
-          MinFloatAggregator.combine(state, groupId, vValue);
+          state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), vValue));
         }
       }
     }
@@ -144,7 +144,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         float vValue = vVector.getFloat(valuesPosition);
-        MinFloatAggregator.combine(state, groupId, vValue);
+        state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), vValue));
       }
     }
   }
@@ -191,7 +191,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          MinFloatAggregator.combine(state, groupId, min.getFloat(valuesPosition));
+          state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), min.getFloat(valuesPosition)));
         }
       }
     }
@@ -214,7 +214,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           float vValue = vBlock.getFloat(vOffset);
-          MinFloatAggregator.combine(state, groupId, vValue);
+          state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), vValue));
         }
       }
     }
@@ -231,7 +231,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         float vValue = vVector.getFloat(valuesPosition);
-        MinFloatAggregator.combine(state, groupId, vValue);
+        state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), vValue));
       }
     }
   }
@@ -278,7 +278,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          MinFloatAggregator.combine(state, groupId, min.getFloat(valuesPosition));
+          state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), min.getFloat(valuesPosition)));
         }
       }
     }
@@ -295,7 +295,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
       int vEnd = vStart + vBlock.getValueCount(valuesPosition);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         float vValue = vBlock.getFloat(vOffset);
-        MinFloatAggregator.combine(state, groupId, vValue);
+        state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), vValue));
       }
     }
   }
@@ -305,7 +305,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
       float vValue = vVector.getFloat(valuesPosition);
-      MinFloatAggregator.combine(state, groupId, vValue);
+      state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), vValue));
     }
   }
 
@@ -345,7 +345,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       if (seen.getBoolean(valuesPosition)) {
-        MinFloatAggregator.combine(state, groupId, min.getFloat(valuesPosition));
+        state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), min.getFloat(valuesPosition)));
       }
     }
   }

@@ -75,13 +75,10 @@ public interface IndexStorePlugin {
     @FunctionalInterface
     interface RecoveryStateFactory {
         /**
-         * Creates a new {@link RecoveryState} for the given shard. Called once per shard at creation time.
-         *
-         * @param shardRouting the routing entry for the shard being created
-         * @param localNode    the node on which the shard is being created
-         * @param sourceNode   the node from which the shard is being recovered, or {@code null} for non-peer recoveries
+         * Creates a new {@link RecoveryState} per shard. This method is called once per shard on shard creation.
+         * @return a new RecoveryState instance
          */
-        RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode localNode, @Nullable DiscoveryNode sourceNode);
+        RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode);
     }
 
     /**
@@ -89,7 +86,7 @@ public interface IndexStorePlugin {
      * {@link org.elasticsearch.index.IndexModule#INDEX_RECOVERY_TYPE_SETTING} on the index will be examined and either use the default
      * or looked up among all the recovery state factories from {@link IndexStorePlugin} plugins.
      *
-     * @return a map from recovery type to a recovery state factory
+     * @return a map from recovery type to an recovery state factory
      */
     default Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
         return Collections.emptyMap();

@@ -260,7 +260,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                         DiscoveryNode[] nodes,
                         ActionListener<BaseNodesResponse<NodeGatewayStartedShards>> listener
                     ) {
-                        client.execute(
+                        client.executeLocally(
                             TransportNodesListGatewayStartedShards.TYPE,
                             new TransportNodesListGatewayStartedShards.Request(shardId, customDataPath, nodes),
                             listener.safeMap(r -> r) // weaken type
@@ -307,7 +307,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                         DiscoveryNode[] nodes,
                         ActionListener<BaseNodesResponse<NodeStoreFilesMetadata>> listener
                     ) {
-                        client.execute(
+                        client.executeLocally(
                             TransportNodesListShardStoreMetadata.TYPE,
                             new TransportNodesListShardStoreMetadata.Request(shardId, customDataPath, nodes),
                             listener.safeMap(r -> r) // weaken type

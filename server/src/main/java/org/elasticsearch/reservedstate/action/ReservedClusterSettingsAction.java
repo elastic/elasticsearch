@@ -86,8 +86,12 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
             validate(request);
         }
 
-        final var state = SettingsUpdater.forReservedState(clusterSettings)
-            .updateSettings(prevState.state(), request.transientSettings(), request.persistentSettings(), logger);
+        final var state = new SettingsUpdater(clusterSettings).updateSettings(
+            prevState.state(),
+            request.transientSettings(),
+            request.persistentSettings(),
+            logger
+        );
 
         Set<String> currentKeys = request.persistentSettings()
             .keySet()

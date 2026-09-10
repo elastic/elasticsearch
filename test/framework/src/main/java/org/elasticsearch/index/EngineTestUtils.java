@@ -20,7 +20,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -46,12 +45,10 @@ public final class EngineTestUtils {
      *
      * For integration tests, use the {@link org.elasticsearch.test.ESIntegTestCase#getDocIdAndSeqNos(IndexShard)} method.
      */
-    public static List<DocIdSeqNoAndSource> getDocIds(Engine engine, boolean refresh) throws IOException {
+    public static List<DocIdSeqNoAndSource> getDocIds(Engine engine, boolean refresh, boolean columnarId) throws IOException {
         if (refresh) {
             engine.refresh("test_get_doc_ids");
         }
-        final MapperService mapperService = engine.getEngineConfig().getMapperService();
-        final boolean columnarId = mapperService != null && mapperService.isUseColumnarId();
         try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids", Engine.SearcherScope.INTERNAL)) {
             List<DocIdSeqNoAndSource> docs = new ArrayList<>();
             for (LeafReaderContext leafContext : searcher.getIndexReader().leaves()) {

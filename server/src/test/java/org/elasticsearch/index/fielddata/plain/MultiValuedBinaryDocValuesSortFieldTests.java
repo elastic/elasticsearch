@@ -9,10 +9,6 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.BinaryDocValues;
@@ -20,28 +16,18 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.columnar.ColumNARDocValuesFormat;
-import org.elasticsearch.columnar.ColumnarFieldType;
-import org.elasticsearch.columnar.numeric.NumericPipeline;
-import org.elasticsearch.columnar.string.StringColumnSource;
-import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
-import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ValueOrdering;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
 import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL;
-import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.COLUMNAR_PAYLOAD;
 import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.SEPARATE_COUNT;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
 
@@ -353,240 +339,6 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
     }
 
     // =========================================================================
-    // getSortKeyDocValues — ColumnarPayload format (slot count carried in the blob)
-    // =========================================================================
-
-    /** Even a lone value is framed under this format, so the sort key has to be decoded rather than read raw. */
-    public void testColumnarPayload_singleValue_decodesTheLoneSlot() throws IOException {
-        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
-            LuceneDocument doc = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordSingleValue(doc, "name", new BytesRef("alice"), ValueOrdering.UNSORTED);
-            w.addDocument(doc);
-            try (DirectoryReader reader = DirectoryReader.open(w)) {
-                LeafReader leaf = getOnlyLeafReader(reader);
-                for (boolean maxMode : new boolean[] { false, true }) {
-                    BinaryDocValues dvs = columnarSortKeys(leaf, maxMode);
-                    assertTrue(dvs.advanceExact(0));
-                    assertEquals("maxMode=" + maxMode, new BytesRef("alice"), dvs.binaryValue());
-                }
-            }
-        }
-    }
-
-    /** Slots stay in document order, so both modes have to scan all of them. */
-    public void testColumnarPayload_twoValues_returnsTheExtreme() throws IOException {
-        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
-            LuceneDocument doc = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordValue(doc, "name", new BytesRef("zebra"), ValueOrdering.UNSORTED);
-            ColumnarBinaryDocValuesField.recordValue(doc, "name", new BytesRef("bob"), ValueOrdering.UNSORTED);
-            w.addDocument(doc);
-            try (DirectoryReader reader = DirectoryReader.open(w)) {
-                LeafReader leaf = getOnlyLeafReader(reader);
-                BinaryDocValues minDvs = columnarSortKeys(leaf, false);
-                assertTrue(minDvs.advanceExact(0));
-                assertEquals(new BytesRef("bob"), minDvs.binaryValue());
-
-                BinaryDocValues maxDvs = columnarSortKeys(leaf, true);
-                assertTrue(maxDvs.advanceExact(0));
-                assertEquals(new BytesRef("zebra"), maxDvs.binaryValue());
-            }
-        }
-    }
-
-    /** A null slot between two real values ({@code [null, "zebra", "bob"]}) is skipped for both modes. */
-    public void testColumnarPayload_withInlineNull_skipsNullSlot() throws IOException {
-        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
-            LuceneDocument doc = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordNull(doc, "name");
-            ColumnarBinaryDocValuesField.recordValue(doc, "name", new BytesRef("zebra"), ValueOrdering.UNSORTED);
-            ColumnarBinaryDocValuesField.recordValue(doc, "name", new BytesRef("bob"), ValueOrdering.UNSORTED);
-            w.addDocument(doc);
-            try (DirectoryReader reader = DirectoryReader.open(w)) {
-                LeafReader leaf = getOnlyLeafReader(reader);
-                BinaryDocValues minDvs = columnarSortKeys(leaf, false);
-                assertTrue(minDvs.advanceExact(0));
-                assertEquals(new BytesRef("bob"), minDvs.binaryValue());
-
-                BinaryDocValues maxDvs = columnarSortKeys(leaf, true);
-                assertTrue(maxDvs.advanceExact(0));
-                assertEquals(new BytesRef("zebra"), maxDvs.binaryValue());
-            }
-        }
-    }
-
-    /**
-     * An all-null array and an empty one both write a payload, unlike the other formats, which write no blob for them at all. Neither has
-     * a value to sort on, so both must read as missing rather than sorting on the payload's framing bytes.
-     */
-    public void testColumnarPayload_noNonNullSlot_readsAsMissing() throws IOException {
-        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
-            LuceneDocument allNull = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordNull(allNull, "name");
-            ColumnarBinaryDocValuesField.recordNull(allNull, "name");
-            w.addDocument(allNull);
-
-            LuceneDocument emptyArray = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordEmptyArray(emptyArray, "name");
-            w.addDocument(emptyArray);
-
-            try (DirectoryReader reader = DirectoryReader.open(w)) {
-                LeafReader leaf = getOnlyLeafReader(reader);
-                for (boolean maxMode : new boolean[] { false, true }) {
-                    BinaryDocValues dvs = columnarSortKeys(leaf, maxMode);
-                    assertFalse("all-null, maxMode=" + maxMode, dvs.advanceExact(0));
-                    assertNull("no key to read after a document with no value", dvs.binaryValue());
-                    assertFalse("empty array, maxMode=" + maxMode, columnarSortKeys(leaf, maxMode).advanceExact(1));
-                }
-            }
-        }
-    }
-
-    /**
-     * Both index-sort drivers read sort keys with {@code nextDoc()} and take a document the cursor stepped over as having no value, so
-     * the valueless documents have to be skipped by the iterator and not merely reported empty at {@code binaryValue()}.
-     */
-    public void testColumnarPayload_iterationSkipsValuelessDocs() throws IOException {
-        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
-            LuceneDocument first = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordSingleValue(first, "name", new BytesRef("alpha"), ValueOrdering.UNSORTED);
-            w.addDocument(first);
-
-            LuceneDocument allNull = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordNull(allNull, "name");
-            w.addDocument(allNull);
-
-            w.addDocument(new LuceneDocument()); // field absent entirely
-
-            LuceneDocument last = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordSingleValue(last, "name", new BytesRef("omega"), ValueOrdering.UNSORTED);
-            w.addDocument(last);
-
-            try (DirectoryReader reader = DirectoryReader.open(w)) {
-                LeafReader leaf = getOnlyLeafReader(reader);
-                BinaryDocValues dvs = columnarSortKeys(leaf, false);
-                assertEquals(0, dvs.nextDoc());
-                assertEquals(new BytesRef("alpha"), dvs.binaryValue());
-                assertEquals("doc 1 holds only a null slot and doc 2 no field", 3, dvs.nextDoc());
-                assertEquals(new BytesRef("omega"), dvs.binaryValue());
-                assertEquals(DocIdSetIterator.NO_MORE_DOCS, dvs.nextDoc());
-                assertNull("no key to read once exhausted", dvs.binaryValue());
-
-                // advance() lands past a valueless doc the same way.
-                BinaryDocValues advanced = columnarSortKeys(leaf, false);
-                assertEquals(3, advanced.advance(1));
-                assertEquals(new BytesRef("omega"), advanced.binaryValue());
-            }
-        }
-    }
-
-    /**
-     * The sort key taken from a real column rather than from a payload. A column answers {@code extreme} itself,
-     * over ordinals where it keeps a dictionary, so the sort key never goes through the payload the other tests
-     * feed in - and it has to be the same key either way, for every shape a document takes.
-     */
-    public void testColumnarColumnAgreesWithThePayload() throws IOException {
-        final String[][] docs = new String[between(200, 600)][];
-        for (int d = 0; d < docs.length; d++) {
-            docs[d] = switch (d % 7) {
-                case 0 -> new String[] { "term-" + (d % 5) };
-                case 1 -> new String[] { "term-" + (d % 5), "term-" + ((d + 3) % 5) };
-                // A value the dictionary will not name, so the extreme is decided by bytes rather than by ordinal.
-                case 2 -> new String[] { "escaped-" + d, "term-1" };
-                case 3 -> new String[] { null, "term-2" };
-                case 4 -> new String[] { null };
-                case 5 -> new String[0];
-                default -> null;
-            };
-        }
-        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null).setCodec(columnarCodec()))) {
-            for (String[] slots : docs) {
-                final LuceneDocument doc = new LuceneDocument();
-                if (slots != null) {
-                    if (slots.length == 0) {
-                        ColumnarBinaryDocValuesField.recordEmptyArray(doc, "name");
-                    }
-                    for (String slot : slots) {
-                        if (slot == null) {
-                            ColumnarBinaryDocValuesField.recordNull(doc, "name");
-                        } else {
-                            ColumnarBinaryDocValuesField.recordValue(doc, "name", new BytesRef(slot), ValueOrdering.UNSORTED);
-                        }
-                    }
-                }
-                w.addDocument(doc);
-            }
-            w.forceMerge(1);
-            try (DirectoryReader reader = DirectoryReader.open(w)) {
-                final LeafReader leaf = getOnlyLeafReader(reader);
-                assertThat(
-                    "the field has to be a column, or this reads the same payload path as every other test here",
-                    leaf.getBinaryDocValues("name"),
-                    instanceOf(StringColumnSource.class)
-                );
-                for (boolean maxMode : new boolean[] { false, true }) {
-                    final BinaryDocValues keys = columnarSortKeys(leaf, maxMode);
-                    for (int d = 0; d < docs.length; d++) {
-                        final BytesRef expected = expectedExtreme(docs[d], maxMode);
-                        if (keys.advanceExact(d) == false) {
-                            assertNull("doc " + d + " maxMode=" + maxMode + " read as missing", expected);
-                            continue;
-                        }
-                        assertEquals("doc " + d + " maxMode=" + maxMode, expected, keys.binaryValue());
-                    }
-                }
-            }
-        }
-    }
-
-    /** The extreme non-null value of a document, worked out from the values themselves. */
-    private static BytesRef expectedExtreme(String[] slots, boolean maxMode) {
-        if (slots == null) {
-            return null;
-        }
-        BytesRef best = null;
-        for (String slot : slots) {
-            if (slot == null) {
-                continue;
-            }
-            final BytesRef candidate = new BytesRef(slot);
-            if (best == null || (maxMode ? candidate.compareTo(best) > 0 : candidate.compareTo(best) < 0)) {
-                best = candidate;
-            }
-        }
-        return best;
-    }
-
-    private static Codec columnarCodec() {
-        final Codec base = TestUtil.getDefaultCodec();
-        // The type is injected rather than read from a field attribute: these documents are built through
-        // ColumnarBinaryDocValuesField, which is the mapper's field and carries no codec attribute.
-        final DocValuesFormat columnar = new ColumNARDocValuesFormat(
-            (fieldName, fieldType) -> NumericPipeline::defaultPipeline,
-            field -> ColumnarFieldType.STRING,
-            ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE
-        );
-        return new FilterCodec(base.getName(), base) {
-            private final DocValuesFormat perField = new PerFieldDocValuesFormat() {
-                @Override
-                public DocValuesFormat getDocValuesFormatForField(String field) {
-                    return columnar;
-                }
-            };
-
-            @Override
-            public DocValuesFormat docValuesFormat() {
-                return perField;
-            }
-        };
-    }
-
-    private static BinaryDocValues columnarSortKeys(LeafReader leaf, boolean maxMode) throws IOException {
-        return new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, maxMode, COLUMNAR_PAYLOAD).getSortKeyDocValues(
-            leaf
-        );
-    }
-
-    // =========================================================================
     // Provider round-trip serialization
     // =========================================================================
 
@@ -614,20 +366,13 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
         assertRoundTrip(new MultiValuedBinaryDocValuesSortField("host.name", false, SortField.STRING_LAST, true, ARRAY_ORDER_INLINE_NULL));
     }
 
-    public void testProviderRoundTrip_columnarPayload() throws IOException {
-        assertRoundTrip(new MultiValuedBinaryDocValuesSortField("host.name", false, SortField.STRING_LAST, true, COLUMNAR_PAYLOAD));
-    }
-
     /**
-     * The format is written into segment info as an ordinal, so where each constant sits is on-disk state and none of them may move.
-     * The first two have to keep the {@code 0}/{@code 1} of the boolean they replaced, so segments written before the format became
-     * three-valued read back as themselves. {@code COLUMNAR_PAYLOAD} carries no old segments yet, but it does from the release it
-     * ships in, and pinning it now is what stops a fourth format being inserted above it. A new format goes on the end.
+     * The format is written as an ordinal, and has to keep the {@code 0}/{@code 1} the boolean it replaced wrote, so
+     * that segments written before it was an enum still read back as themselves.
      */
-    public void testProviderWireFormatOrdinalsAreStable() {
+    public void testProviderWireFormatIsStableForTheFormatsThatReplacedABoolean() {
         assertEquals(0, SEPARATE_COUNT.ordinal());
         assertEquals(1, ARRAY_ORDER_INLINE_NULL.ordinal());
-        assertEquals(2, COLUMNAR_PAYLOAD.ordinal());
     }
 
     private static void assertRoundTrip(MultiValuedBinaryDocValuesSortField original) throws IOException {

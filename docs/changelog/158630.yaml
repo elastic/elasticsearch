@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 158630
-summary: Support partitioning in `SumInt/SumLong`
-type: enhancement

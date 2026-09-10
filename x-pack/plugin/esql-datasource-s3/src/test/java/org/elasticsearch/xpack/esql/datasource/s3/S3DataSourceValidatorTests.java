@@ -392,18 +392,28 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     /**
      * {@code hive_partitioning} is a deprecated no-op: any value alongside any {@code partition_detection} is
-     * accepted without error, and a deprecation warning is emitted.
+     * accepted without error, and a deprecation warning is emitted. The message is value-aware: {@code false} names
+     * the canonical replacement; any other value tells the user to simply remove the key.
      */
     public void testValidateDatasetAcceptsHivePartitioningWithAnyStrategy() {
-        for (Object value : List.of("false", false, "true", true)) {
-            // alongside an explicit strategy
+        // false: names the replacement setting
+        for (Object value : List.of("false", false)) {
             validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", value));
-            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_DEPRECATION_MESSAGE);
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
             validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "hive_partitioning", value));
-            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_DEPRECATION_MESSAGE);
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
             // alongside a partition_path (formerly rejected when hive_partitioning:false)
             validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", value, "partition_path", "{year}"));
-            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_DEPRECATION_MESSAGE);
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
+        }
+        // non-false: tells the user to remove the key (canonical booleans plus junk values)
+        for (Object value : List.of("true", true, "yes", "banana")) {
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", value));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE);
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "hive_partitioning", value));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE);
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", value, "partition_path", "{year}"));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE);
         }
     }
 
@@ -601,9 +611,9 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
      */
     public void testValidateDatasetHivePartitioningStoredAndWarned() {
         assertEquals(false, validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", false)).get("hive_partitioning"));
-        assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_DEPRECATION_MESSAGE);
+        assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
         assertEquals(true, validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", true)).get("hive_partitioning"));
-        assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_DEPRECATION_MESSAGE);
+        assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE);
     }
 
     public void testValidateDatasetTargetSplitSize() {

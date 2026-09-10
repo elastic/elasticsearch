@@ -41,7 +41,11 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
     public static final String CONFIG_PARTITIONING_PATH = "partition_path";
     public static final String CONFIG_PARTITIONING_HIVE = "hive_partitioning";
 
-    /** Keys recognised by {@link #fromConfig}. */
+    /**
+     * Keys accepted by the dataset CRUD path. {@code hive_partitioning} is kept here so existing PUT requests
+     * and stored datasets are not rejected as unknown settings; it is a deprecated no-op and {@link #fromConfig}
+     * does not read it.
+     */
     public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_PARTITIONING_DETECTION, CONFIG_PARTITIONING_PATH, CONFIG_PARTITIONING_HIVE);
 
     public static final PartitionConfig DEFAULT = new PartitionConfig(Strategy.AUTO, null);

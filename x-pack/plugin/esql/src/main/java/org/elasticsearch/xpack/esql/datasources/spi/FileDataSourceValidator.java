@@ -56,12 +56,25 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FileDataSourceValidator.class);
 
-    /** Stable log key for the {@code hive_partitioning} deprecation warning (deduplicates via {@code ThreadContext}). */
-    public static final String HIVE_PARTITIONING_DEPRECATION_KEY = "esql_dataset_hive_partitioning_deprecated";
+    /**
+     * Stable log key for the {@code hive_partitioning: false} deprecation warning. The value was the only one that
+     * ever did anything (disabling detection); the canonical replacement is {@code partition_detection: none}.
+     */
+    public static final String HIVE_PARTITIONING_FALSE_DEPRECATION_KEY = "esql_dataset_hive_partitioning_false_deprecated";
 
-    /** Deprecation message for {@code hive_partitioning}. */
-    public static final String HIVE_PARTITIONING_DEPRECATION_MESSAGE =
-        "[hive_partitioning] is ignored; use [partition_detection: none] to disable partition detection";
+    /** Deprecation message when {@code hive_partitioning} is {@code false}. */
+    public static final String HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE =
+        "[hive_partitioning: false] is ignored; use [partition_detection: none] to disable partition detection";
+
+    /**
+     * Stable log key for the {@code hive_partitioning: true} (or any non-false) deprecation warning. Those values
+     * were always no-ops — the key should simply be removed.
+     */
+    public static final String HIVE_PARTITIONING_NOOP_DEPRECATION_KEY = "esql_dataset_hive_partitioning_noop_deprecated";
+
+    /** Deprecation message when {@code hive_partitioning} is any value other than {@code false}. */
+    public static final String HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE =
+        "[hive_partitioning] is ignored and has never had any effect for this value; remove it";
 
     /**
      * Error shown when a data source is provisioned with federated authentication settings while the
@@ -301,10 +314,28 @@ public class FileDataSourceValidator implements DataSourceValidator {
             errors
         );
         validate(() -> PartitionConfig.validate(settings), errors);
-        // hive_partitioning is accepted but ignored (deprecated no-op). Warn only at CRUD time — PartitionConfig.fromConfig runs on
-        // every query against every stored dataset; warning there would fire on every read.
-        if (settings.containsKey(PartitionConfig.CONFIG_PARTITIONING_HIVE)) {
-            deprecationLogger.warn(DeprecationCategory.API, HIVE_PARTITIONING_DEPRECATION_KEY, HIVE_PARTITIONING_DEPRECATION_MESSAGE);
+        // hive_partitioning is accepted but ignored (deprecated no-op). Two warning sites:
+        // (1) here, at CRUD time for stored datasets; (2) FileSourceFactory.validateConfig, at schema-resolution
+        // time for inline FROM "..." WITH {...} queries that have no CRUD path (fires only on schema-cache misses,
+        // not on every query). PartitionConfig.fromConfig is intentionally NOT a warning site — it runs on every
+        // query against every stored dataset. The message is value-aware: false was the only value that ever did
+        // anything (it disabled detection), so it names the replacement; any other value was always a no-op and
+        // is told to simply remove the key.
+        Object hivePartitioningValue = settings.get(PartitionConfig.CONFIG_PARTITIONING_HIVE);
+        if (hivePartitioningValue != null) {
+            if ("false".equalsIgnoreCase(hivePartitioningValue.toString())) {
+                deprecationLogger.warn(
+                    DeprecationCategory.API,
+                    HIVE_PARTITIONING_FALSE_DEPRECATION_KEY,
+                    HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE
+                );
+            } else {
+                deprecationLogger.warn(
+                    DeprecationCategory.API,
+                    HIVE_PARTITIONING_NOOP_DEPRECATION_KEY,
+                    HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE
+                );
+            }
         }
         // file_exclusions: array-of-strings shape here, pattern compilation via the owning parser. Stricter than the query path for the
         // same reason as the partition

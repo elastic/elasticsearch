@@ -19,22 +19,31 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRegexMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -71,8 +80,9 @@ import java.util.function.Supplier;
  * {@code date} column must become a {@code datetime} literal here or the evaluator is handed the wrong block type.
  *
  * <p>The supported subset is the structural floor: {@code bool}, {@code term}, {@code terms}, {@code range},
- * {@code exists}, {@code match_all}/{@code match_none}, and {@code match}/{@code match_phrase}/{@code multi_match} as
- * equality on an exact-typed field. We never mis-translate anything outside it — an unhonored option, or an analyzed
+ * {@code exists}, {@code match_all}/{@code match_none}, {@code prefix}/{@code wildcard}/{@code regexp} as pattern
+ * matching on an exact-typed field, and {@code match}/{@code match_phrase}/{@code multi_match} as equality on one.
+ * We never mis-translate anything outside it — an unhonored option, or an analyzed
  * {@code text}-field construct. {@link #translate} is a <em>collecting walk</em>: every unsupported leaf is recorded
  * rather than thrown. The translator only reports; the caller picks what happens next (fail the query, emit a warning,
  * or apply the translatable subset).
@@ -81,7 +91,7 @@ public final class QueryDslTranslator {
 
     /**
      * A DSL clause that could not be translated — the specific offending {@link QueryBuilder} node and the construct
-     * name. Reported at leaf granularity: if {@code C OR D} fails because {@code D} is a wildcard, the clause is
+     * name. Reported at leaf granularity: if {@code C OR D} fails because {@code D} is a {@code fuzzy}, the clause is
      * {@code D}, not {@code C OR D}.
      */
     public record UnsupportedClause(org.elasticsearch.index.query.QueryBuilder clause, String construct) {}
@@ -267,6 +277,15 @@ public final class QueryDslTranslator {
         }
         if (query instanceof RangeQueryBuilder range) {
             return range(range);
+        }
+        if (query instanceof PrefixQueryBuilder prefix) {
+            return prefix(prefix);
+        }
+        if (query instanceof WildcardQueryBuilder wildcard) {
+            return wildcard(wildcard);
+        }
+        if (query instanceof RegexpQueryBuilder regexp) {
+            return regexp(regexp);
         }
         throw new TranslationUnsupportedException(query.getName());
     }
@@ -814,6 +833,79 @@ public final class QueryDslTranslator {
 
     /**
     /** Inclusive DSL bound → {@code include_bound: true}; exclusive omits options (default). */
+    /**
+     * {@code prefix} is the wildcard pattern {@code <literal>*}. The literal is escaped first so a {@code *} or
+     * {@code ?} inside it stays a character rather than becoming a wildcard — {@code prefix} has no metacharacters.
+     */
+    private Expression prefix(PrefixQueryBuilder prefix) {
+        if (prefix.caseInsensitive()) {
+            throw new TranslationUnsupportedException("prefix[case_insensitive]");
+        }
+        return wildcardLeaf(fieldBinder.apply(prefix.fieldName()), StringUtils.escapeWildcardLiteral(prefix.value()) + "*");
+    }
+
+    private Expression wildcard(WildcardQueryBuilder wildcard) {
+        if (wildcard.caseInsensitive()) {
+            throw new TranslationUnsupportedException("wildcard[case_insensitive]");
+        }
+        return wildcardLeaf(fieldBinder.apply(wildcard.fieldName()), wildcard.value());
+    }
+
+    /**
+     * {@code regexp} is Lucene {@code RegExp} syntax, which is exactly what {@code mv_rlike} parses: both build the
+     * automaton with {@code RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT}, the value {@code RegexpFlag.ALL} carries and
+     * the builder's default. A narrowed flag set makes some of that syntax literal instead, which {@code mv_rlike}
+     * has no way to express, so it degrades rather than answering a differently-parsed pattern.
+     */
+    private Expression regexp(RegexpQueryBuilder regexp) {
+        if (regexp.caseInsensitive()) {
+            throw new TranslationUnsupportedException("regexp[case_insensitive]");
+        }
+        if (regexp.flags() != RegexpQueryBuilder.DEFAULT_FLAGS_VALUE) {
+            throw new TranslationUnsupportedException("regexp[flags]");
+        }
+        Expression field = fieldBinder.apply(regexp.fieldName());
+        return checkedLeaf(field, validated(new MvRLike(Source.EMPTY, field, Literal.keyword(Source.EMPTY, regexp.value()))));
+    }
+
+    /**
+     * A Lucene wildcard pattern as an ES|QL predicate. {@code mv_like} speaks that same dialect — {@link
+     * WildcardPattern} builds its automaton with {@code WildcardQuery.toAutomaton}, the very call the index makes — so
+     * the pattern goes across verbatim, which also keeps the affix fast paths ({@code foo*}, the shape a {@code prefix}
+     * always takes). It is narrower in one place: ES|QL rejects a trailing backslash and an escape of anything other
+     * than {@code * ? \}, both of which Lucene reads leniently. Those spellings take {@code mv_rlike} through the
+     * total wildcard-to-RegExp conversion, which reproduces that leniency, so every pattern the index accepts
+     * translates rather than dropping the clause.
+     */
+    private Expression wildcardLeaf(Expression field, String luceneWildcard) {
+        try {
+            new WildcardPattern(luceneWildcard);
+        } catch (InvalidArgumentException notEsqlSpelling) {
+            return checkedLeaf(
+                field,
+                validated(
+                    new MvRLike(Source.EMPTY, field, Literal.keyword(Source.EMPTY, StringUtils.luceneWildcardToRegExp(luceneWildcard)))
+                )
+            );
+        }
+        return checkedLeaf(field, validated(new MvLike(Source.EMPTY, field, Literal.keyword(Source.EMPTY, luceneWildcard))));
+    }
+
+    /**
+     * Builds the pattern's automaton here, where a failure can still degrade the clause. The rewrite inserts these
+     * leaves into the logical plan, so {@code MvRegexMatch.postOptimizationVerification} runs on them later and turns a
+     * malformed or over-complex pattern into a query failure — which is the one outcome an untranslatable DSL clause
+     * must not produce.
+     */
+    private static MvRegexMatch validated(MvRegexMatch patternLeaf) {
+        Failures failures = new Failures();
+        patternLeaf.postOptimizationVerification(failures);
+        if (failures.hasFailures()) {
+            throw new TranslationUnsupportedException(patternLeaf.nodeName() + "[pattern]");
+        }
+        return patternLeaf;
+    }
+
     /**
      * The {@code mv_in_range} options carrying each bound's inclusivity, or {@code null} for the closed interval the
      * function already defaults to. Only a bound that deviates from that default is spelled out, so the common closed

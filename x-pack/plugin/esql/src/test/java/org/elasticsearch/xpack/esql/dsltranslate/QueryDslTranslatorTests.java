@@ -14,6 +14,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.RegexpFlag;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -30,6 +31,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGrea
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -95,21 +98,21 @@ public class QueryDslTranslatorTests extends ESTestCase {
 
     /** An unsupported top-level construct is collected, not thrown; applied() is TRUE (no conjuncts applied). */
     public void testUnsupportedConstructCollected() {
-        QueryDslTranslator.TranslationResult result = translateResult(QueryBuilders.wildcardQuery("tags", "a*"));
+        QueryDslTranslator.TranslationResult result = translateResult(QueryBuilders.fuzzyQuery("tags", "xyz"));
         assertFalse("a wholly unsupported filter is incomplete", result.isComplete());
         assertEquals(1, result.unsupported().size());
-        assertEquals("wildcard", result.unsupported().get(0).construct());
+        assertEquals("fuzzy", result.unsupported().get(0).construct());
         assertEquals(Literal.TRUE, result.applied());
     }
 
     /** A bool with a supported must and an unsupported must_not: the supported conjunct is applied, the unsupported one is collected. */
     public void testPartialBoolCollectsUnsupportedAndAppliesRest() {
         QueryDslTranslator.TranslationResult result = translateResult(
-            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).mustNot(QueryBuilders.wildcardQuery("tags", "a*"))
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).mustNot(QueryBuilders.fuzzyQuery("tags", "xyz"))
         );
         assertFalse("incomplete: mustNot arm is unsupported", result.isComplete());
         assertEquals(1, result.unsupported().size());
-        assertEquals("wildcard", result.unsupported().get(0).construct());
+        assertEquals("fuzzy", result.unsupported().get(0).construct());
         // The supported term conjunct must still be present in applied.
         assertThat(result.applied(), instanceOf(MvContains.class));
     }
@@ -117,7 +120,9 @@ public class QueryDslTranslatorTests extends ESTestCase {
     /** A bool with two unsupported must clauses: both are collected. */
     public void testMultipleUnsupportedClausesAllCollected() {
         QueryDslTranslator.TranslationResult result = translateResult(
-            QueryBuilders.boolQuery().must(QueryBuilders.wildcardQuery("tags", "a*")).must(QueryBuilders.fuzzyQuery("tags", "xyz"))
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.wildcardQuery("tags", "a*").caseInsensitive(true))
+                .must(QueryBuilders.fuzzyQuery("tags", "xyz"))
         );
         assertFalse(result.isComplete());
         assertThat(result.unsupported(), hasSize(2));
@@ -168,9 +173,9 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     public void testUnsupportedConstructCollectedWithConstructName() {
-        var result = translateResult(QueryBuilders.wildcardQuery("status", "2*"));
+        var result = translateResult(QueryBuilders.fuzzyQuery("status", "2"));
         assertFalse(result.isComplete());
-        assertEquals("wildcard", result.unsupported().get(0).construct());
+        assertEquals("fuzzy", result.unsupported().get(0).construct());
     }
 
     public void testRangeTranslation() {
@@ -361,6 +366,88 @@ public class QueryDslTranslatorTests extends ESTestCase {
     /** The literal keys and values of an emitted mv_in_range options map. */
     private static Map<String, Object> optionsOf(MvInRange range) {
         return ((MapExpression) range.children().get(3)).toFoldedMap(FoldContext.small());
+    }
+
+    /** {@code prefix} is the wildcard {@code <literal>*}, which mv_like recognises as its prefix fast-path shape. */
+    public void testPrefixBecomesMvLike() {
+        Expression e = translate(QueryBuilders.prefixQuery("tags", "t1"));
+        assertThat(e, instanceOf(MvLike.class));
+        assertEquals(new BytesRef("t1*"), ((Literal) ((MvLike) e).right()).value());
+    }
+
+    /** A {@code prefix} value has no metacharacters, so a * or ? inside it must be escaped, not become a wildcard. */
+    public void testPrefixEscapesWildcardMetacharactersInTheLiteral() {
+        Expression e = translate(QueryBuilders.prefixQuery("tags", "a*b?c"));
+        assertEquals(new BytesRef("a\\*b\\?c*"), ((Literal) ((MvLike) e).right()).value());
+    }
+
+    /** mv_like speaks the Lucene wildcard dialect, so a pattern in it crosses over verbatim. */
+    public void testWildcardBecomesMvLikeVerbatim() {
+        Expression e = translate(QueryBuilders.wildcardQuery("tags", "t?x*"));
+        assertThat(e, instanceOf(MvLike.class));
+        assertEquals(new BytesRef("t?x*"), ((Literal) ((MvLike) e).right()).value());
+    }
+
+    /**
+     * Lucene reads an escape of a non-metacharacter as that character, and a trailing backslash as a literal one;
+     * ES|QL's LIKE rejects both spellings. They translate through the wildcard-to-RegExp conversion instead, so the
+     * clause is answered rather than dropped.
+     */
+    public void testLenientlyEscapedWildcardBecomesMvRLike() {
+        Expression e = translate(QueryBuilders.wildcardQuery("tags", "a\\-b*"));
+        assertThat(e, instanceOf(MvRLike.class));
+        assertEquals(new BytesRef("a-b.*"), ((Literal) ((MvRLike) e).right()).value());
+
+        Expression trailing = translate(QueryBuilders.wildcardQuery("tags", "ab\\"));
+        assertThat(trailing, instanceOf(MvRLike.class));
+        assertEquals(new BytesRef("ab\\\\"), ((Literal) ((MvRLike) trailing).right()).value());
+    }
+
+    /** {@code regexp} is Lucene RegExp syntax, which is what mv_rlike parses — the pattern crosses over verbatim. */
+    public void testRegexpBecomesMvRLike() {
+        Expression e = translate(QueryBuilders.regexpQuery("tags", "t[0-9]"));
+        assertThat(e, instanceOf(MvRLike.class));
+        assertEquals(new BytesRef("t[0-9]"), ((Literal) ((MvRLike) e).right()).value());
+    }
+
+    /** A narrowed flag set makes some of the syntax literal, which mv_rlike cannot express. */
+    public void testRegexpWithNonDefaultFlagsIsCollected() {
+        var result = translateResult(QueryBuilders.regexpQuery("tags", "t.").flags(RegexpFlag.EMPTY.value()));
+        assertFalse(result.isComplete());
+        assertEquals("regexp[flags]", result.unsupported().get(0).construct());
+    }
+
+    /** Neither mv_like nor mv_rlike takes a case-insensitivity option, so the clause degrades rather than mis-match. */
+    public void testCaseInsensitivePatternsAreCollected() {
+        assertEquals("wildcard[case_insensitive]", constructOf(QueryBuilders.wildcardQuery("tags", "a*").caseInsensitive(true)));
+        assertEquals("prefix[case_insensitive]", constructOf(QueryBuilders.prefixQuery("tags", "a").caseInsensitive(true)));
+        assertEquals("regexp[case_insensitive]", constructOf(QueryBuilders.regexpQuery("tags", "a").caseInsensitive(true)));
+    }
+
+    /** A pattern over a non-string field cannot resolve, and over analyzed text it would compare the raw string. */
+    public void testPatternOnNonStringAndAnalyzedFieldsIsCollected() {
+        assertFalse(translateResult(QueryBuilders.wildcardQuery("status", "2*")).isComplete());
+        assertFalse(translateResult(QueryBuilders.regexpQuery("body", "a.")).isComplete());
+    }
+
+    /** A malformed regexp would fail the query at post-optimization verification; it must degrade the clause instead. */
+    public void testMalformedRegexpIsCollectedNotThrown() {
+        var result = translateResult(QueryBuilders.regexpQuery("tags", "["));
+        assertFalse(result.isComplete());
+        assertEquals("MvRLike[pattern]", result.unsupported().get(0).construct());
+    }
+
+    /** A pattern over a MISSING field stays null-bound and folds to false, like every other leaf. */
+    public void testPatternOnMissingFieldFoldsToFalse() {
+        Expression e = translate(QueryBuilders.wildcardQuery("missing_field", "a*"));
+        assertThat(e, instanceOf(MvLike.class));
+        assertEquals(Literal.NULL, ((MvLike) e).left());
+    }
+
+    private static String constructOf(org.elasticsearch.index.query.QueryBuilder qb) {
+        var result = translateResult(qb);
+        assertFalse(result.isComplete());
+        return result.unsupported().get(0).construct();
     }
 
     /** A terms-lookup has no values to translate (and values() is null — it used to NPE). */
@@ -901,7 +988,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
      */
     public void testNonRequiredShouldFailureNotReported() {
         QueryDslTranslator.TranslationResult result = translateResult(
-            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.wildcardQuery("tags", "a*"))
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.fuzzyQuery("tags", "xyz"))
         );
         assertTrue("non-required should failure must not be reported", result.isComplete());
         assertNotEquals("must arm is applied", Literal.TRUE, result.applied());
@@ -917,7 +1004,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
         QueryDslTranslator.TranslationResult result = translateResult(
             QueryBuilders.boolQuery()
                 .must(
-                    QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.wildcardQuery("tags", "a*"))
+                    QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.fuzzyQuery("tags", "xyz"))
                 )
         );
         assertTrue("non-required nested should failure must not propagate", result.isComplete());
@@ -931,7 +1018,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
      */
     public void testRequiredShouldAnyFailureDropsWholeGroup() {
         QueryDslTranslator.TranslationResult result = translateResult(
-            QueryBuilders.boolQuery().should(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.wildcardQuery("tags", "a*"))
+            QueryBuilders.boolQuery().should(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.fuzzyQuery("tags", "xyz"))
         );
         assertFalse("wildcard arm failure is reported", result.isComplete());
         assertEquals("whole OR group dropped — pre-filter must over-fetch", Literal.TRUE, result.applied());
@@ -991,9 +1078,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
         QueryDslTranslator.TranslationResult result = translateResult(
             QueryBuilders.boolQuery()
                 .must(
-                    QueryBuilders.boolQuery()
-                        .should(QueryBuilders.termQuery("status", 200))
-                        .should(QueryBuilders.wildcardQuery("tags", "a*"))
+                    QueryBuilders.boolQuery().should(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.fuzzyQuery("tags", "xyz"))
                 )
         );
         assertFalse("wildcard arm failure is reported", result.isComplete());
@@ -1011,9 +1096,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
         QueryDslTranslator.TranslationResult result = translateResult(
             QueryBuilders.boolQuery()
                 .must(
-                    QueryBuilders.boolQuery()
-                        .must(QueryBuilders.termQuery("status", 200))
-                        .mustNot(QueryBuilders.wildcardQuery("tags", "a*"))
+                    QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).mustNot(QueryBuilders.fuzzyQuery("tags", "xyz"))
                 )
         );
         assertFalse("wildcard must_not arm failure is reported", result.isComplete());

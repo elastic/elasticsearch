@@ -333,6 +333,37 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         assertSelectsSameRows(QueryBuilders.rangeQuery("quota").gte(500).lte(2000));
     }
 
+    /** A prefix is the wildcard {@code <literal>*}; the literal's own metacharacters must stay literal. */
+    public void testPrefix() {
+        assertSelectsSameRows(QueryBuilders.prefixQuery("tags", "t"));
+        assertSelectsSameRows(QueryBuilders.prefixQuery("tags", "t1"));
+        assertSelectsSameRows(QueryBuilders.prefixQuery("label", "A"));
+        assertSelectsSameRows(QueryBuilders.prefixQuery("tags", "t*")); // no tag is literally "t*", so nothing matches
+    }
+
+    /** mv_like builds its automaton with the same WildcardQuery.toAutomaton call the index makes. */
+    public void testWildcard() {
+        assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", "t?"));
+        assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", "*1"));
+        assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", "t*1"));
+        assertSelectsSameRows(QueryBuilders.wildcardQuery("label", "?e*"));
+    }
+
+    /** Lucene reads an escape of a non-metacharacter as that character; the ES|QL spelling rejects it, so it routes
+     *  through mv_rlike instead — and must still select what the index selects. */
+    public void testLenientlyEscapedWildcard() {
+        assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", "\\t*"));
+        assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", "t1\\"));
+    }
+
+    /** regexp is Lucene RegExp syntax on both sides, with the same RegexpFlag.ALL parse. */
+    public void testRegexp() {
+        assertSelectsSameRows(QueryBuilders.regexpQuery("tags", "t[01]"));
+        assertSelectsSameRows(QueryBuilders.regexpQuery("tags", "t."));
+        assertSelectsSameRows(QueryBuilders.regexpQuery("label", "[A-Z].*"));
+        assertSelectsSameRows(QueryBuilders.regexpQuery("tags", "x.*")); // matches nothing on either side
+    }
+
     public void testExists() {
         assertSelectsSameRows(QueryBuilders.existsQuery("tags"));
     }
@@ -471,10 +502,10 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
      * filter is semantically complete (the must conjunct is the binding constraint; the should is optional).
      */
     public void testNonRequiredShouldUnsupportedDoesNotFailQuery() {
-        // bool { must:[term], should:[wildcard] } — should is non-required because must is present and no msm override.
+        // bool { must:[term], should:[fuzzy] } — should is non-required because must is present and no msm override.
         QueryBuilder filter = QueryBuilders.boolQuery()
             .must(QueryBuilders.termQuery("status", 300))
-            .should(QueryBuilders.wildcardQuery("tags", "t*"));
+            .should(QueryBuilders.fuzzyQuery("tags", "t"));
         // Must not throw; rows matching status=300 must be returned.
         List<Object> ids = selectedIds(dataset, filter);
         assertThat("filter on must=300 must return rows", ids.isEmpty(), equalTo(false));

@@ -69,13 +69,13 @@ public class RequestFilterRewriterTests extends ESTestCase {
         ExternalRelation relation = relation();
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> RequestFilterRewriter.rewrite(relation, QueryBuilders.wildcardQuery("a", "x*"), true, CONFIG, CURRENT, false)
+            () -> RequestFilterRewriter.rewrite(relation, QueryBuilders.fuzzyQuery("a", "x"), true, CONFIG, CURRENT, false)
         );
-        assertThat(e.getMessage(), containsString("[wildcard]"));
+        assertThat(e.getMessage(), containsString("[fuzzy]"));
     }
 
     /**
-     * Fail-closed: a filter that mixes a supported term with an unsupported wildcard fails the whole query — the
+     * Fail-closed: a filter that mixes a supported term with an unsupported fuzzy fails the whole query — the
      * supported clause does not rescue it, and no widened superset is silently applied.
      */
     public void testMixedFilterWithAnUnsupportedClauseFailsTheQuery() {
@@ -84,14 +84,14 @@ public class RequestFilterRewriterTests extends ESTestCase {
             VerificationException.class,
             () -> RequestFilterRewriter.rewrite(
                 relation,
-                QueryBuilders.boolQuery().must(QueryBuilders.termQuery("a", 1)).must(QueryBuilders.wildcardQuery("a", "x*")),
+                QueryBuilders.boolQuery().must(QueryBuilders.termQuery("a", 1)).must(QueryBuilders.fuzzyQuery("a", "x")),
                 true,
                 CONFIG,
                 CURRENT,
                 false
             )
         );
-        assertThat(e.getMessage(), containsString("[wildcard]"));
+        assertThat(e.getMessage(), containsString("[fuzzy]"));
     }
 
     /**
@@ -112,7 +112,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
     /** Disabled short-circuits before translation, so even an unsupported construct cannot fail the query. */
     public void testDisabledDoesNotFailOnUnsupportedConstruct() {
         ExternalRelation relation = relation();
-        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.wildcardQuery("a", "x*"), false, CONFIG, CURRENT, false);
+        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.fuzzyQuery("a", "x"), false, CONFIG, CURRENT, false);
         assertSame(relation, result);
         assertWarnings(
             "The request filter was not applied to external dataset(s) [ds] because applying the request filter to "
@@ -164,14 +164,14 @@ public class RequestFilterRewriterTests extends ESTestCase {
             VerificationException.class,
             () -> RequestFilterRewriter.rewrite(
                 relation,
-                QueryBuilders.boolQuery().mustNot(QueryBuilders.wildcardQuery("a", "x*")),
+                QueryBuilders.boolQuery().mustNot(QueryBuilders.fuzzyQuery("a", "x")),
                 true,
                 CONFIG,
                 CURRENT,
                 false
             )
         );
-        assertThat(e.getMessage(), containsString("[wildcard]"));
+        assertThat(e.getMessage(), containsString("[fuzzy]"));
     }
 
     /** The version-gate warning names every distinct dataset once. */
@@ -243,9 +243,9 @@ public class RequestFilterRewriterTests extends ESTestCase {
         );
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> RequestFilterRewriter.rewrite(union, QueryBuilders.wildcardQuery("a", "x*"), true, CONFIG, CURRENT, false)
+            () -> RequestFilterRewriter.rewrite(union, QueryBuilders.fuzzyQuery("a", "x"), true, CONFIG, CURRENT, false)
         );
-        assertThat(e.getMessage(), containsString("[wildcard]"));
+        assertThat(e.getMessage(), containsString("[fuzzy]"));
         // Each dataset produces one failure entry — both named in the error.
         assertThat(e.getMessage(), containsString("dsA"));
         assertThat(e.getMessage(), containsString("dsB"));
@@ -301,7 +301,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
         ExternalRelation relation = relation("ds", attr("a", DataType.INTEGER));
         LogicalPlan result = RequestFilterRewriter.rewrite(
             relation,
-            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("a", 1)).must(QueryBuilders.wildcardQuery("a", "x*")),
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("a", 1)).must(QueryBuilders.fuzzyQuery("a", "x")),
             true,
             CONFIG,
             CURRENT,
@@ -310,7 +310,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
         // The plan should have a Filter (from the supported term clause) rather than failing.
         assertThat(result, instanceOf(Filter.class));
         // A single warning must be emitted naming the dropped construct.
-        assertWarnings(true, List.of(containsString("[wildcard]")));
+        assertWarnings(true, List.of(containsString("[fuzzy]")));
     }
 
     /**
@@ -319,9 +319,9 @@ public class RequestFilterRewriterTests extends ESTestCase {
      */
     public void testPartialModeWhollyUnsupportedLeavesNodeUnwrappedWithWarning() {
         ExternalRelation relation = relation("ds", attr("a", DataType.INTEGER));
-        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.wildcardQuery("a", "x*"), true, CONFIG, CURRENT, true);
+        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.fuzzyQuery("a", "x"), true, CONFIG, CURRENT, true);
         assertThat("no filter installed when no conjuncts translated", result, sameInstance(relation));
-        assertWarnings(true, List.of(containsString("[wildcard]")));
+        assertWarnings(true, List.of(containsString("[fuzzy]")));
     }
 
     /**
@@ -333,8 +333,8 @@ public class RequestFilterRewriterTests extends ESTestCase {
             List.of(relation("dsA", attr("a", DataType.INTEGER)), relation("dsB", attr("a", DataType.INTEGER))),
             List.of()
         );
-        RequestFilterRewriter.rewrite(union, QueryBuilders.wildcardQuery("a", "x*"), true, CONFIG, CURRENT, true);
+        RequestFilterRewriter.rewrite(union, QueryBuilders.fuzzyQuery("a", "x"), true, CONFIG, CURRENT, true);
         // Both datasets named in a single warning.
-        assertWarnings(true, List.of(allOf(containsString("dsA"), containsString("dsB"), containsString("[wildcard]"))));
+        assertWarnings(true, List.of(allOf(containsString("dsA"), containsString("dsB"), containsString("[fuzzy]"))));
     }
 }

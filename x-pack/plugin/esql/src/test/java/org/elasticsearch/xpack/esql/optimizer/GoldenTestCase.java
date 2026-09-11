@@ -669,12 +669,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             // null datasetMetadata (the default) makes this a no-op, so plain golden tests are unaffected; when a
             // test registers datasets, external relations are excluded from CSV index discovery below.
             // Golden tests that register datasets reach them through wildcards, so resolve with wildcard_datasets on.
-            parsedPlan = DatasetRewriter.rewriteUnsecured(
-                parsedPlan,
-                datasetMetadata,
-                TestIndexNameExpressionResolver.newInstance(),
-                true
-            );
+            parsedPlan = DatasetRewriter.rewriteUnsecured(parsedPlan, datasetMetadata, TestIndexNameExpressionResolver.newInstance(), true);
             String[] queryPathParts = new String[nestedPath.length + 2];
             queryPathParts[0] = testName;
             System.arraycopy(nestedPath, 0, queryPathParts, 1, nestedPath.length);

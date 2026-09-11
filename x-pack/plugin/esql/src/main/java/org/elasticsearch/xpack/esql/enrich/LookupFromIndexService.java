@@ -550,24 +550,34 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
         LookupResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext) throws IOException {
             super(blockFactory);
+            List<Page> readPages;
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
-                this.pages = bsi.readCollectionAsList(Page::new);
+                readPages = bsi.readReleasableCollectionAsList(Page::new);
             }
-            if (in.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
-                this.planString = in.readOptionalString();
-            } else {
-                this.planString = null;
-            }
-            if (in.getTransportVersion().supports(ESQL_LOOKUP_RESPONSE_WARNINGS)) {
-                this.warnings = in.readStringCollectionAsList();
-            } else {
-                // Old nodes send warnings as transport response headers; the transport layer has already
-                // deposited them into the current thread's context before this constructor is called.
-                // Parse the RFC 7234 warning format to extract the plain warning text.
-                this.warnings = threadContext.takeResponseHeaders("Warning")
-                    .stream()
-                    .map(s -> HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(s, false)))
-                    .toList();
+            boolean success = false;
+            try {
+                if (in.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
+                    this.planString = in.readOptionalString();
+                } else {
+                    this.planString = null;
+                }
+                if (in.getTransportVersion().supports(ESQL_LOOKUP_RESPONSE_WARNINGS)) {
+                    this.warnings = in.readStringCollectionAsList();
+                } else {
+                    // Old nodes send warnings as transport response headers; the transport layer has already
+                    // deposited them into the current thread's context before this constructor is called.
+                    // Parse the RFC 7234 warning format to extract the plain warning text.
+                    this.warnings = threadContext.takeResponseHeaders("Warning")
+                        .stream()
+                        .map(s -> HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(s, false)))
+                        .toList();
+                }
+                this.pages = readPages;
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(readPages);
+                }
             }
         }
 

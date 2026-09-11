@@ -68,6 +68,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -327,11 +328,16 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             PlannerSettings.DEFAULTS,
             QueryWarnings.EMIT
         );
-        assertThat(temporalityLoader(provider).loader(), equalTo(ConstantNull.INSTANCE));
-        assertWarnings(
-            "Line -1:-1: warnings during evaluation of []. Only first 20 failures recorded.",
-            "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] has type [long], expected "
-                + "[keyword]; assuming default temporality for all values"
+        DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        assertThat(temporalityLoader(provider, ctx).loader(), equalTo(ConstantNull.INSTANCE));
+        ctx.finish();
+        assertThat(
+            ctx.warnings(),
+            containsInAnyOrder(
+                "Line -1:-1: warnings during evaluation of []. Only first 20 failures recorded.",
+                "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] has type [long], expected "
+                    + "[keyword]; assuming default temporality for all values"
+            )
         );
     }
 
@@ -363,11 +369,16 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             PlannerSettings.DEFAULTS,
             QueryWarnings.EMIT
         );
-        assertThat(temporalityLoader(provider).loader(), equalTo(ConstantNull.INSTANCE));
-        assertWarnings(
-            "Line -1:-1: warnings during evaluation of []. Only first 20 failures recorded.",
-            "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] must be a time-series "
-                + "dimension; assuming default temporality for all values"
+        DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        assertThat(temporalityLoader(provider, ctx).loader(), equalTo(ConstantNull.INSTANCE));
+        ctx.finish();
+        assertThat(
+            ctx.warnings(),
+            containsInAnyOrder(
+                "Line -1:-1: warnings during evaluation of []. Only first 20 failures recorded.",
+                "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] must be a time-series "
+                    + "dimension; assuming default temporality for all values"
+            )
         );
     }
 
@@ -409,6 +420,16 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter temporalityLoader(EsPhysicalOperationProviders provider) {
+        return temporalityLoader(
+            provider,
+            new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null)
+        );
+    }
+
+    private ValuesSourceReaderOperator.LoaderAndConverter temporalityLoader(
+        EsPhysicalOperationProviders provider,
+        DriverContext driverContext
+    ) {
         EsQueryExec queryExec = new EsQueryExec(
             Source.EMPTY,
             "test",
@@ -426,7 +447,6 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             MappedFieldType.FieldExtractPreference.NONE
         );
         var fieldInfo = provider.extractFields(fieldExtractExec).getFirst();
-        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
         return fieldInfo.buildLoader().build(driverContext, 0);
     }
 

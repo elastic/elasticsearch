@@ -29,8 +29,8 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
@@ -71,7 +71,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     public static final String DEFAULT_PROMQL_INDEX_PATTERN = "metrics-*";
     public static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, BUCKETS, SCRAPE_INTERVAL, INDEX);
 
-    /** Synthetic column tagging each union branch with its position, used for left-preferring dedup. */
+    /** Synthetic column tagging each merge branch with its position, used for left-preferring dedup. */
     private static final String BRANCH_COLUMN = "_branch";
 
     /** Synthetic column name for the materialised {@code @timestamp + offset} expression. */
@@ -294,7 +294,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         return STEP;
     }
 
-    /** Name of the synthetic column tagging each union branch with its position, used for left-preferring dedup. */
+    /** Name of the synthetic column tagging each merge branch with its position, used for left-preferring dedup. */
     public String branchColumnName() {
         return BRANCH_COLUMN;
     }
@@ -432,8 +432,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             // into a single UnionAll. Reject chains exceeding the UnionAll branch limit with a clear message here
             // rather than failing later during translation.
             int branchCount = topLevelUnions.size() + 1;
-            if (Fork.exceedsMaxBranches(branchCount)) {
-                failures.add(fail(p, "PromQL set operator [or] supports up to [{}] operands, got [{}]", Fork.MAX_BRANCHES, branchCount));
+            if (MergePlan.exceedsMaxBranches(branchCount)) {
+                failures.add(
+                    fail(p, "PromQL set operator [or] supports up to [{}] operands, got [{}]", MergePlan.MAX_BRANCHES, branchCount)
+                );
             }
         }
         Holder<Boolean> root = new Holder<>(true);

@@ -29,6 +29,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -46,7 +47,7 @@ public class PolicyUtils {
      * {@code pluginName} must be the descriptor {@code name=} value (not the install directory),
      * since the runtime entitlement lookup keys off the descriptor name.
      */
-    public record PluginData(Path pluginPath, String pluginName, boolean isModular, boolean isExternalPlugin) {
+    public record PluginData(Path pluginPath, String pluginName, boolean isModular, boolean isStable, boolean isExternalPlugin) {
         public PluginData {
             requireNonNull(pluginPath);
             requireNonNull(pluginName);
@@ -64,7 +65,7 @@ public class PolicyUtils {
         for (var entry : pluginData) {
             Path pluginRoot = entry.pluginPath();
             String pluginName = entry.pluginName();
-            final Set<String> moduleNames = getModuleNames(pluginRoot, entry.isModular());
+            final Set<String> moduleNames = getModuleNames(entry);
 
             var pluginPolicyPatch = parseEncodedPolicyIfExists(
                 pluginPolicyPatches.get(pluginName),
@@ -74,7 +75,11 @@ public class PolicyUtils {
                 moduleNames
             );
             var pluginPolicy = parsePolicyIfExists(pluginName, pluginRoot, entry.isExternalPlugin());
-            validatePolicyScopes(pluginName, pluginPolicy, moduleNames, pluginRoot.resolve(POLICY_FILE_NAME).toString());
+            // Stable non-modular plugins run in a synthetic named module, but the synthetic name is an
+            // implementation detail. They must use ALL-UNNAMED in their policy, just like any non-modular plugin.
+            // PolicyManager translates ALL-UNNAMED to the synthetic name at load time.
+            Set<String> validationModuleNames = (entry.isStable() && entry.isModular() == false) ? Set.of(ALL_UNNAMED) : moduleNames;
+            validatePolicyScopes(pluginName, pluginPolicy, validationModuleNames, pluginRoot.resolve(POLICY_FILE_NAME).toString());
 
             pluginPolicies.put(
                 pluginName,
@@ -154,15 +159,39 @@ public class PolicyUtils {
         return new Policy(pluginName, List.of());
     }
 
-    private static Set<String> getModuleNames(Path pluginRoot, boolean isModular) {
-        if (isModular) {
-            ModuleFinder moduleFinder = ModuleFinder.of(pluginRoot);
+    private static Set<String> getModuleNames(PluginData entry) {
+        if (entry.isModular()) {
+            ModuleFinder moduleFinder = ModuleFinder.of(entry.pluginPath());
             Set<ModuleReference> moduleReferences = moduleFinder.findAll();
 
             return moduleReferences.stream().map(mr -> mr.descriptor().name()).collect(Collectors.toUnmodifiableSet());
         }
+        if (entry.isStable()) {
+            // Stable plugins are loaded into a named synthetic module by PluginsLoader; mirror that module name here.
+            return Set.of(syntheticModuleName(entry.pluginName()));
+        }
         // When isModular == false we use the same "ALL-UNNAMED" constant as the JDK to indicate (any) unnamed module for this plugin
         return Set.of(ALL_UNNAMED);
+    }
+
+    /**
+     * Returns a map from plugin name to synthetic module name for stable non-modular plugins.
+     * Pass this to {@code PolicyManager} so it can translate {@code ALL-UNNAMED} scopes to the correct synthetic name.
+     */
+    public static Map<String, String> stablePluginSyntheticModuleNames(Collection<PluginData> pluginData) {
+        return pluginData.stream()
+            .filter(e -> e.isStable() && e.isModular() == false)
+            .collect(Collectors.toUnmodifiableMap(PluginData::pluginName, e -> syntheticModuleName(e.pluginName())));
+    }
+
+    /**
+     * Returns the full synthetic module name (including the {@code synthetic.} prefix) for a stable non-modular plugin.
+     * The name transformation mirrors {@code PluginsLoader.toModuleName}, which cannot be referenced here because it
+     * lives in {@code server}.
+     */
+    static String syntheticModuleName(String pluginName) {
+        return "synthetic."
+            + pluginName.replaceAll("\\W+", ".").replaceAll("(^[^A-Za-z_]*)", "").replaceAll("\\.$", "").toLowerCase(Locale.ROOT);
     }
 
     public static List<Scope> mergeScopes(List<Scope> mainScopes, List<Scope> additionalScopes) {

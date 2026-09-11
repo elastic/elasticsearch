@@ -45,10 +45,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class AnalyzerInSubqueryTests extends ESTestCase {
 
-    private static void checkMultiColumnInSubquery() {
-        assumeTrue("multi-column IN subquery", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
-    }
-
     // basic IN and NOT IN subquery, validate JoinConfig
 
     public void testInSubquery() {
@@ -631,7 +627,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     // -- multi-column IN subquery --
 
     public void testMultiColumnInSubqueryWrongColumnCount() {
-        checkMultiColumnInSubquery();
         errorInSubquery("""
             FROM employees
             | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no)
@@ -641,7 +636,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     // -- multi-column IN subquery: data type mismatch --
 
     public void testMultiColumnInSubqueryTypeMismatchFirstColumn() {
-        checkMultiColumnInSubquery();
         errorInSubquery("""
             FROM employees
             | WHERE (emp_no, salary) IN (FROM employees | KEEP first_name, salary)
@@ -649,7 +643,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryTypeMismatchSecondColumn() {
-        checkMultiColumnInSubquery();
         errorInSubquery("""
             FROM employees
             | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, first_name)
@@ -657,7 +650,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnNotInSubqueryTypeMismatch() {
-        checkMultiColumnInSubquery();
         errorInSubquery("""
             FROM employees
             | WHERE (emp_no, salary) NOT IN (FROM employees | KEEP first_name, salary)
@@ -665,7 +657,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryTypeMismatchBothColumns() {
-        checkMultiColumnInSubquery();
         errorInSubquery(
             """
                 FROM employees
@@ -679,7 +670,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryNumericTypeMismatch() {
-        checkMultiColumnInSubquery();
         errorInSubquery("""
             FROM employees
             | WHERE (emp_no, salary) IN (FROM employees | EVAL x = languages::long, y = salary | KEEP x, y)
@@ -689,7 +679,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     // -- multi-column IN subquery: union type tests --
 
     public void testMultiColumnInSubqueryUnionTypeFirstLeftField() {
-        checkMultiColumnInSubquery();
         errorWithUnionIndex(
             """
                 FROM union_index*
@@ -704,7 +693,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryUnionTypeSecondLeftField() {
-        checkMultiColumnInSubquery();
         errorWithUnionIndex(
             """
                 FROM union_index*
@@ -719,7 +707,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryUnionTypeRightField() {
-        checkMultiColumnInSubquery();
         errorWithUnionIndex(
             """
                 FROM employees
@@ -734,7 +721,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnNotInSubqueryUnionTypeLeftField() {
-        checkMultiColumnInSubquery();
         errorWithUnionIndex(
             """
                 FROM union_index*
@@ -749,7 +735,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryFromUnionTypeLeftField() {
-        checkMultiColumnInSubquery();
         errorWithIncompatible("""
             FROM employees, (FROM employees_incompatible | KEEP emp_no, first_name, salary)
             | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
@@ -758,7 +743,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryFromUnionTypeRightField() {
-        checkMultiColumnInSubquery();
         errorWithIncompatible("""
             FROM employees
             | WHERE (emp_no, salary) IN (FROM employees, (FROM employees_incompatible | KEEP emp_no, salary) | KEEP emp_no, salary)

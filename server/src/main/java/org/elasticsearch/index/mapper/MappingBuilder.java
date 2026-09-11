@@ -69,18 +69,19 @@ public class MappingBuilder {
      *
      * @param incoming the incoming mapping builder to merge
      * @param reason the reason for the merge
-     * @param newFieldsBudget how many new fields may be added during the merge
+     * @param budget controls how many new fields may be added and what happens when the limit is hit;
+     *               use {@link NewFieldsBudget#unlimited()}, {@link NewFieldsBudget#dropping(long)},
+     *               or {@link NewFieldsBudget#throwing(long, long)}
      */
-    public void merge(MappingBuilder incoming, MergeReason reason, long newFieldsBudget) {
-        MapperMergeContext mergeContext = MapperMergeContext.root(
-            isSourceSynthetic(),
-            false,
+    public void merge(MappingBuilder incoming, MergeReason reason, NewFieldsBudget budget) {
+        mergeWith(
+            incoming,
             reason,
-            newFieldsBudget,
-            isStrictColumnar,
-            isSourceColumnarStored()
+            MapperMergeContext.root(isSourceSynthetic(), false, reason, budget, isStrictColumnar, isSourceColumnarStored())
         );
+    }
 
+    private void mergeWith(MappingBuilder incoming, MergeReason reason, MapperMergeContext mergeContext) {
         // Merge root object builders
         MapperMergeContext objectMergeContext = mergeContext.createChildContext(null, rootBuilder.dynamic);
         rootBuilder.merge(incoming.rootBuilder, objectMergeContext, rootBuilder.leafName());

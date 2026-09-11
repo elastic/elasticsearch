@@ -103,6 +103,27 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("Limit of total fields [" + totalFieldsLimit + "] has been exceeded"));
     }
 
+    public void testTotalFieldsLimitThrowModeAtParseTime() throws IOException {
+        int totalFieldsLimit = randomIntBetween(1, 10);
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), totalFieldsLimit)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+
+        // parseMappings() only parses — it does not merge or build — so an exception here
+        // means the limit was enforced at parse time, not at build/merge time.
+        XContentBuilder exceedingMapping = mapping(b -> createMappingSpecifyingNumberOfFields(b, totalFieldsLimit + 1));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapperService.parseMappings(new CompressedXContent(BytesReference.bytes(exceedingMapping)))
+        );
+        assertThat(e.getMessage(), containsString("Limit of total fields [" + totalFieldsLimit + "] has been exceeded"));
+
+        // At the limit is fine.
+        XContentBuilder atLimitMapping = mapping(b -> createMappingSpecifyingNumberOfFields(b, totalFieldsLimit));
+        mapperService.parseMappings(new CompressedXContent(BytesReference.bytes(atLimitMapping)));
+    }
+
     private void createMappingSpecifyingNumberOfFields(XContentBuilder b, int numberOfFields) throws IOException {
         for (int i = 0; i < numberOfFields; i++) {
             b.startObject("field" + i);
@@ -116,7 +137,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 1).build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, mapping((b -> {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(mapperService, mapping((b -> {
             b.startObject("object1");
             b.field("type", "object");
             b.endObject();
@@ -291,11 +312,11 @@ public class MapperServiceTests extends MapperServiceTestCase {
             .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfNonAliasFields)
             .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
             .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createMapperService(errorSettings, mapping(b -> {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(errorSettings, mapping(b -> {
             b.startObject("alias").field("type", "alias").field("path", "field").endObject();
             b.startObject("field").field("type", "text").endObject();
         })));
-        assertEquals("Limit of total fields [" + numberOfNonAliasFields + "] has been exceeded", e.getMessage());
+        assertThat(e.getMessage(), containsString("Limit of total fields [" + numberOfNonAliasFields + "] has been exceeded"));
     }
 
     public void testFieldNameLengthLimit() throws Throwable {
@@ -306,12 +327,15 @@ public class MapperServiceTests extends MapperServiceTestCase {
             .build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "text")));
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
             () -> merge(mapperService, mapping(b -> b.startObject(testString).field("type", "text").endObject()))
         );
 
-        assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters", e.getMessage());
+        assertThat(
+            e.getMessage(),
+            containsString("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters")
+        );
     }
 
     public void testObjectNameLengthLimit() throws Throwable {
@@ -322,12 +346,15 @@ public class MapperServiceTests extends MapperServiceTestCase {
             .build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
             () -> merge(mapperService, mapping(b -> b.startObject(testString).field("type", "object").endObject()))
         );
 
-        assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters", e.getMessage());
+        assertThat(
+            e.getMessage(),
+            containsString("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters")
+        );
     }
 
     public void testAliasFieldNameLengthLimit() throws Throwable {
@@ -338,12 +365,15 @@ public class MapperServiceTests extends MapperServiceTestCase {
             .build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, mapping(b -> {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(mapperService, mapping(b -> {
             b.startObject(testString).field("type", "alias").field("path", "field").endObject();
             b.startObject("field").field("type", "text").endObject();
         })));
 
-        assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters", e.getMessage());
+        assertThat(
+            e.getMessage(),
+            containsString("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters")
+        );
     }
 
     public void testMappingRecoverySkipFieldNameLengthLimit() throws Throwable {

@@ -751,9 +751,14 @@ public class ObjectMapper extends Mapper {
                                 + " Check the documentation."
                         );
                     }
+                    // Count multi-fields before parsing so they are claimed atomically with the parent.
+                    int multiFieldCount = propNode.get("fields") instanceof Map<?, ?> fieldsMap ? fieldsMap.size() : 0;
                     Mapper.Builder fieldBuilder;
+                    int parsedFieldsCount;
                     if (objBuilder.subobjects.value() != Subobjects.ENABLED) {
+                        parserContext.checkFieldNameLength(fieldName);
                         fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
+                        parsedFieldsCount = 1 + multiFieldCount;
                     } else {
                         String[] fieldNameParts = fieldName.split("\\.");
                         if (fieldNameParts.length == 0) {
@@ -761,16 +766,21 @@ public class ObjectMapper extends Mapper {
                         }
                         String realFieldName = fieldNameParts[fieldNameParts.length - 1];
                         validateFieldName(realFieldName, parserContext.indexVersionCreated());
+                        parserContext.checkFieldNameLength(realFieldName);
                         fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                         for (int i = fieldNameParts.length - 2; i >= 0; --i) {
                             String intermediateObjectName = fieldNameParts[i];
                             validateFieldName(intermediateObjectName, parserContext.indexVersionCreated());
+                            parserContext.checkFieldNameLength(intermediateObjectName);
                             Builder intermediate = new Builder(intermediateObjectName, Defaults.SUBOBJECTS);
                             intermediate.add(fieldBuilder);
                             fieldBuilder = intermediate;
                         }
+                        parsedFieldsCount = fieldNameParts.length + multiFieldCount;
                     }
-                    objBuilder.add(fieldBuilder);
+                    if (parserContext.tryAddFields(parsedFieldsCount)) {
+                        objBuilder.add(fieldBuilder);
+                    }
                     propNode.remove("type");
                     MappingParser.checkNoRemainingFields(fieldName, propNode);
                     iterator.remove();

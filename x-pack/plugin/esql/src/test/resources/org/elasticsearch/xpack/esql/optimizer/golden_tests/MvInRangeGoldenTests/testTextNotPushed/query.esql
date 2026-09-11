@@ -1,0 +1,2 @@
+    FROM all_types
+    | WHERE mv_in_range(text, "a", "z")

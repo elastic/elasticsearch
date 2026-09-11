@@ -6,14 +6,17 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -266,6 +269,66 @@ public final class ColumnMapping implements Writeable {
     }
 
     /**
+     * Rebuilds a mapping whose width and order match {@code queryDataSchema}, indexing into the
+     * reader's projected page ({@code perFileCols}) rather than the file-natural schema.
+     * <p>
+     * This is the adapter's output contract: {@link SchemaAdaptingIterator} emits
+     * {@code queryDataSchema} order, so the mapping must follow that list even when a
+     * unified-width or file-natural mapping was still attached (zero-split multi-file, Hive
+     * partition keys that are not last, KEEP reorder). Missing query columns become {@code -1}
+     * (null-fill). A file/query type disagreement becomes a cast to the query type when the pair
+     * is a {@link CastType} target that {@link DeclaredTypeCoercions#supports} admits; otherwise
+     * this fails at open rather than on a later page.
+     */
+    static ColumnMapping alignToQuery(
+        ExternalSchema queryDataSchema,
+        @Nullable List<Attribute> perFileReadSchema,
+        List<String> perFileCols
+    ) {
+        assert perFileCols != null : "perFileCols comes from perFileQueryProjection and is never null at adaptSchema";
+        int width = queryDataSchema.size();
+        int[] index = new int[width];
+        DataType[] casts = new DataType[width];
+        boolean anyCasts = false;
+
+        Map<String, DataType> fileTypes = typesByName(perFileReadSchema);
+        Map<String, Integer> colIndex = Maps.newHashMapWithExpectedSize(perFileCols.size());
+        for (int c = 0; c < perFileCols.size(); c++) {
+            colIndex.putIfAbsent(perFileCols.get(c), c);
+        }
+
+        for (int i = 0; i < width; i++) {
+            Attribute queryAttr = queryDataSchema.get(i);
+            String name = queryAttr.name();
+            Integer localObj = colIndex.get(name);
+            int local = localObj == null ? -1 : localObj;
+            index[i] = local;
+            if (local == -1) {
+                continue;
+            }
+            DataType fileType = fileTypes.get(name);
+            DataType queryType = queryAttr.dataType();
+            if (fileType != null && fileType != queryType) {
+                if (DeclaredTypeCoercions.supports(fileType, queryType) == false) {
+                    throw new IllegalArgumentException(
+                        "Cannot align column ["
+                            + name
+                            + "]: file type ["
+                            + fileType.typeName()
+                            + "] cannot be cast to query type ["
+                            + queryType.typeName()
+                            + "]"
+                    );
+                }
+                CastType.fromDataType(queryType);
+                casts[i] = queryType;
+                anyCasts = true;
+            }
+        }
+        return new ColumnMapping(index, anyCasts ? casts : null);
+    }
+
+    /**
      * Produces the output page from a file's page: null-fill for missing columns, cast for
      * widened types, ref-counted pass-through otherwise. On mid-page failure, closes any blocks
      * already built before rethrowing.
@@ -279,9 +342,24 @@ public final class ColumnMapping implements Writeable {
      * {@code warnings} feed the per-value failure handling of the shared coercion engine
      * ({@code DeclaredTypeCoercions.castBlock}): with a live sink a value the cast cannot
      * represent (e.g. a pre-epoch or post-2262 instant under DATETIME&rarr;DATE_NANOS) nulls its
-     * cell and emits a response {@code Warning} header naming the column — identical to the
-     * declared-type coercion the readers run; with a {@code null} sink the failure propagates and
-     * fails the page.
+     * cell and hands a warning naming the column to the sink, which ends in the driver's warning
+     * channel and reaches the client from there — identical to the declared-type coercion the
+     * readers run; with a {@code null} sink the failure propagates and fails the page.
+     * <p>
+     * <b>Known gap — this cast always nulls, never drops.</b> The reconciliation cast is the one coercion site that
+     * does <em>not</em> honour {@code error_mode: skip_row}: a value that fails here nulls its cell and the row
+     * survives, which is {@code null_field} behaviour, and the row is not counted against {@code max_errors}. Two
+     * reasons it is not simply wired to a {@code ColumnarRowDropHelper} like the columnar readers are:
+     * <ul>
+     *   <li>No {@code ErrorPolicy} reaches this layer at all — {@code SchemaAdaptingIterator}'s warning sink is
+     *       unconditionally live, so even {@code fail_fast} warn+nulls here.</li>
+     *   <li>The reader already owns the read's one budget. A second helper in the adapter would give a single read
+     *       two independent {@code max_errors} budgets; making it correct means hoisting the budget to an object
+     *       both layers share, which is a wider change than the drop itself.</li>
+     * </ul>
+     * Reachable only when cross-file unification actually widens a column (a multi-file glob whose files drift), so
+     * it does not affect the single-declared-type reads {@code skip_row} is normally used with. Tracked as
+     * elastic/esql-planning#1824; until then this is the documented behaviour rather than an oversight.
      */
     Page mapPage(
         Page filePage,
@@ -311,6 +389,9 @@ public final class ColumnMapping implements Writeable {
                 }
             }
             return new Page(positions, blocks);
+        } catch (ElasticsearchException e) {
+            Releasables.closeExpectNoException(blocks);
+            throw e;
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
             throw new RuntimeException("Failed to map page", e);
@@ -359,13 +440,21 @@ public final class ColumnMapping implements Writeable {
         if (perFileReadSchema == null || perFileReadSchema.isEmpty() || perFileCols == null || perFileCols.isEmpty()) {
             return null;
         }
-        HashMap<String, DataType> nameToType = new HashMap<>(perFileReadSchema.size());
-        for (Attribute attr : perFileReadSchema) {
-            nameToType.put(attr.name(), attr.dataType());
-        }
+        Map<String, DataType> nameToType = typesByName(perFileReadSchema);
         DataType[] types = new DataType[perFileCols.size()];
         for (int i = 0; i < perFileCols.size(); i++) {
             types[i] = nameToType.get(perFileCols.get(i));
+        }
+        return types;
+    }
+
+    private static Map<String, DataType> typesByName(@Nullable List<Attribute> schema) {
+        if (schema == null || schema.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, DataType> types = Maps.newHashMapWithExpectedSize(schema.size());
+        for (Attribute attr : schema) {
+            types.put(attr.name(), attr.dataType());
         }
         return types;
     }
@@ -424,6 +513,17 @@ public final class ColumnMapping implements Writeable {
      * A pair outside {@link DeclaredTypeCoercions#supports} means the mapping was built against
      * types reconciliation can never produce — fail loud (an ill-formed mapping must not limp
      * along), matching this method's historical contract.
+     * <p>
+     * When {@code sourceType} is unknown and the batch is all-null, skip inference. The reachable
+     * case is an all-null {@link LongBlock} under KEYWORD: {@link #resolveSourceType} asserts a
+     * source type to disambiguate DATETIME / DATE_NANOS / LONG even though all-null data makes
+     * the stringifier moot. {@code ConstantNullBlock} implements every typed interface, so the
+     * {@code instanceof} chain binds {@link IntBlock} first; BOOLEAN/IP targets are not produced
+     * by reconciliation ({@link CastType} cannot encode them) and are covered only defensively.
+     * A known {@code sourceType} still runs {@link DeclaredTypeCoercions#supports} and then the
+     * engine's own all-null short-circuit. An incoming {@code ConstantNullBlock} is
+     * {@code incRef}'d and reused; a typed all-null array block is replaced. Does not close
+     * {@code source}: {@link #mapPage} does not take ownership of file-page blocks.
      *
      * @param sourceType file-side ES|QL type, or {@code null} when unknown. Required to
      *                   disambiguate {@link LongBlock} sources for KEYWORD casts (DATETIME vs
@@ -437,6 +537,13 @@ public final class ColumnMapping implements Writeable {
         @Nullable String columnName,
         @Nullable SkipWarnings warnings
     ) {
+        if (sourceType == null && source.areAllValuesNull()) {
+            if (source instanceof ConstantNullBlock) {
+                source.incRef();
+                return source;
+            }
+            return bf.newConstantNullBlock(source.getPositionCount());
+        }
         DataType from = resolveSourceType(source, sourceType, targetType);
         if (DeclaredTypeCoercions.supports(from, targetType) == false) {
             throw new UnsupportedOperationException(
@@ -453,7 +560,8 @@ public final class ColumnMapping implements Writeable {
      * ES|QL types (LONG, DATETIME, DATE_NANOS). Under a DATE_NANOS target the source is DATETIME
      * (the only pair reconciliation widens into DATE_NANOS); under a KEYWORD target the three
      * stringify differently, so the type must come from the read schema — the assertion tripwires
-     * any caller that forgets to thread it.
+     * any caller that forgets to thread it. All-null sources with a null {@code sourceType} never
+     * reach this method: {@link #castBlock} short-circuits them before inference.
      */
     private static DataType resolveSourceType(Block source, @Nullable DataType sourceType, DataType targetType) {
         if (sourceType != null) {

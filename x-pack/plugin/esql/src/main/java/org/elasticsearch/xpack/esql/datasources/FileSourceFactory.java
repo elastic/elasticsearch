@@ -8,18 +8,27 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
+import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
+import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
+import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
+import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -42,6 +51,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Framework-internal factory that bridges the building-block registries
@@ -54,6 +65,8 @@ import java.util.concurrent.ExecutorService;
  */
 final class FileSourceFactory implements ExternalSourceFactory {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FileSourceFactory.class);
+
     static final String CONFIG_FORMAT = "format";
 
     /**
@@ -61,15 +74,15 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * Built from each component's own {@code CONFIG_KEYS} set so adding a new coordinator-level
      * configuration consumer requires updating only the consumer's own constant — the union here
      * picks it up automatically. Components contributing today: {@link ErrorPolicy},
-     * {@link FileSplitProvider}, {@link PartitionConfig}, the {@link #CONFIG_FORMAT} override read
-     * by this class, and the {@link FormatNameResolver#CONFIG_READER} override read by the
+     * {@link FileSplitProvider}, {@link PartitionConfig}, {@link FileOrderConfig}, the {@link #CONFIG_FORMAT}
+     * override read by this class, and the {@link FormatNameResolver#CONFIG_READER} override read by the
      * format-name resolver.
      */
     static final Set<String> COORDINATOR_KEYS;
 
     /**
      * Coordinator keys deliberately NOT exposed as dataset settings: the
-     * {@link FormatNameResolver#CONFIG_READER} override remains an EXTERNAL-only development knob
+     * {@link FormatNameResolver#CONFIG_READER} override is intentionally not a dataset setting
      * (a reader alias selects between interchangeable readers for one format). {@link #CONFIG_FORMAT}
      * is a first-class dataset setting and is therefore part of the dataset vocabulary, not listed
      * here. Pinned against {@link #COORDINATOR_KEYS} and the dataset key set by
@@ -77,6 +90,16 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * either be added to the dataset vocabulary or explicitly listed here.
      */
     static final Set<String> EXTERNAL_ONLY_KEYS = Set.of(FormatNameResolver.CONFIG_READER);
+
+    /**
+     * Handles existing problematic dataset configurations: before {@code schema_sample_size} became
+     * format-scoped at PUT time, it could be registered on any dataset (e.g. Parquet) and is still stored
+     * in cluster state. When such a stored key reaches a reader that does not consume it, it is ignored
+     * with a warning instead of failing the query as an "unknown option". Applied to every query, because
+     * nothing reliably marks a config as dataset-originated (the {@code _datasource} envelope is absent
+     * when the parent data source has no settings).
+     */
+    static final Set<String> LEGACY_VOCABULARY_KEYS = Set.of(FileDataSourceValidator.SCHEMA_SAMPLE_SIZE);
 
     static {
         Set<String> keys = new HashSet<>();
@@ -86,6 +109,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
         keys.addAll(FileSplitProvider.CONFIG_KEYS);
         keys.addAll(ExternalSourceResolver.CONFIG_KEYS);
         keys.addAll(PartitionConfig.CONFIG_KEYS);
+        keys.addAll(ExclusionConfig.CONFIG_KEYS);
+        keys.addAll(FileOrderConfig.CONFIG_KEYS);
         COORDINATOR_KEYS = Set.copyOf(keys);
     }
 
@@ -93,6 +118,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
     private final FormatReaderRegistry formatRegistry;
     private final DecompressionCodecRegistry codecRegistry;
     private final Settings settings;
+    /**
+     * Executor for Phase-2 split discovery (Parquet/ORC footer fan-out and record-boundary probes).
+     * Production wires {@code esql_external_io}; tests may pass {@code null} and fall back to serial
+     * discovery on the calling thread. Must not be {@code SEARCH} or {@code GENERIC}: those pools must
+     * not issue object-store GETs, and {@code esql_external_io} must not join its own work.
+     */
     @Nullable
     private final ExecutorService splitDiscoveryExecutor;
     /**
@@ -273,10 +304,36 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     @Override
     public void validateConfig(String location, Map<String, Object> config) {
+        // Direct callers run on a request thread, where HeaderWarning targets the caller's own
+        // ThreadContext. The resolver calls the sink variant instead — it validates on the
+        // metadata-read executor, where a direct HeaderWarning call would never reach the client.
+        validateConfig(location, config, HeaderWarning::addWarning);
+    }
+
+    @Override
+    public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
         // Gate file:// reads at planning time so the failure is clean and pre-execution.
         // This check runs before the empty-config early-return so bare file:// reads (no WITH clause)
         // are also validated — resolveMetadata calls validateConfig first, covering both paths.
         localFileAccess.check(location);
+        if (config != null) {
+            Object hivePartitioningValue = config.get(PartitionConfig.CONFIG_PARTITIONING_HIVE);
+            if (hivePartitioningValue != null) {
+                if ("false".equalsIgnoreCase(hivePartitioningValue.toString())) {
+                    deprecationLogger.warn(
+                        DeprecationCategory.API,
+                        FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_KEY,
+                        FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE
+                    );
+                } else {
+                    deprecationLogger.warn(
+                        DeprecationCategory.API,
+                        FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_KEY,
+                        FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE
+                    );
+                }
+            }
+        }
         if (config == null || config.isEmpty()) {
             return;
         }
@@ -286,21 +343,41 @@ final class FileSourceFactory implements ExternalSourceFactory {
             settings,
             ExternalSourceResolver.storageConfig(config)
         );
-        Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(
-            config
-        );
-        ConfigKeyValidator.check(config, List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS));
+        try {
+            Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(
+                config
+            );
+            ConfigKeyValidator.check(
+                config,
+                List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS, LEGACY_VOCABULARY_KEYS)
+            );
+            // Consume-and-warn: a legacy key the reader does not consume does nothing, and the user must be
+            // told. The message goes through the sink, not HeaderWarning directly — the resolver runs this
+            // on its metadata-read executor and flushes the sink under the restored request context.
+            // Identical warnings from per-file re-validation dedupe in the thread context at flush time.
+            for (String key : LEGACY_VOCABULARY_KEYS) {
+                if (config.containsKey(key) && resolvedReader.consumedKeys().contains(key) == false) {
+                    warningSink.accept(
+                        FileDataSourceValidator.notSupportedByFormatError(key, resolvedReader.value().formatName()) + "; ignored"
+                    );
+                }
+            }
+            FileOrderConfig.validate(config);
+        } finally {
+            StorageProviderCache.closeLease(resolvedStorage.value());
+        }
     }
 
     @Override
     public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
+        StorageProvider provider = null;
+        boolean hasConfig = config != null && config.isEmpty() == false;
         try {
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
 
-            StorageProvider provider;
             FormatReader reader;
-            if (config != null && config.isEmpty() == false) {
+            if (hasConfig) {
                 provider = storageRegistry.createProvider(scheme, settings, ExternalSourceResolver.storageConfig(config));
                 reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
             } else {
@@ -318,6 +395,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
             // say anything new. So it keeps the cause's own diagnosis instead of a constant naming only the path —
             // see ExternalFailures#resolutionFailureMessage for why, and for when the path is prepended.
             throw new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e);
+        } finally {
+            StorageProviderCache.closeLease(provider);
         }
     }
 
@@ -334,19 +413,22 @@ final class FileSourceFactory implements ExternalSourceFactory {
         @Nullable ListingHint hint,
         Map<String, Object> config,
         Executor executor,
+        Consumer<String> warningSink,
         ActionListener<SourceMetadata> listener
     ) {
         final StorageObject storageObject;
         final FormatReader reader;
+        StorageProvider provider = null;
+        boolean hasConfig = config != null && config.isEmpty() == false;
+        boolean setupComplete = false;
         try {
             // Reject unknown configuration keys before any provider/reader work — same single source
             // of truth as the synchronous resolveMetadata path.
-            validateConfig(location, config);
+            validateConfig(location, config, warningSink);
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
 
-            StorageProvider provider;
-            if (config != null && config.isEmpty() == false) {
+            if (hasConfig) {
                 provider = storageRegistry.createProviderTrackingConsumedKeys(
                     scheme,
                     settings,
@@ -368,19 +450,38 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     return;
                 }
             }
+            setupComplete = true;
         } catch (Exception e) {
             listener.onFailure(e);
             return;
+        } finally {
+            if (setupComplete == false) {
+                StorageProviderCache.closeLease(provider);
+            }
         }
-        // Map an I/O failure from the async metadata read to the same IllegalArgumentException shape
-        // the synchronous path produces, so callers see identical exceptions regardless of path.
-        reader.metadataAsync(storageObject, executor, listener.delegateResponse((l, e) -> {
+        ActionListener<SourceMetadata> completion = listener.delegateResponse((l, e) -> {
             if (e instanceof IOException) {
                 l.onFailure(new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e));
             } else {
                 l.onFailure(e);
             }
-        }));
+        });
+        if (StorageProviderCache.isPooledLease(provider)) {
+            StorageProvider leased = provider;
+            completion = ActionListener.runAfter(completion, () -> StorageProviderCache.closeLease(leased));
+        }
+        // Map an I/O failure from the async metadata read to the same IllegalArgumentException shape
+        // the synchronous path produces, so callers see identical exceptions regardless of path.
+        boolean started = false;
+        try {
+            reader.metadataAsync(storageObject, executor, completion);
+            started = true;
+        } finally {
+            // metadataAsync may throw Error; runAfter already closed if the listener ran. closeLease is idempotent.
+            if (started == false) {
+                StorageProviderCache.closeLease(provider);
+            }
+        }
     }
 
     @Override
@@ -407,108 +508,149 @@ final class FileSourceFactory implements ExternalSourceFactory {
             localFileAccess.check(path);
 
             StorageProvider storage;
-            if (config != null && config.isEmpty() == false) {
-                storage = storageRegistry.createProvider(path.scheme(), settings, ExternalSourceResolver.storageConfig(config));
-            } else {
-                storage = storageRegistry.provider(path);
-            }
-
-            FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config)
-                .withPushedFilter(context.pushedFilter())
-                .withSchema(context.attributes())
-                // Declared per-column date formats: the spec keys them by logical name, but the reader sees physical
-                // (file) column names, so physicalize the keys through the same `path` renames here at the last mile.
-                .withDeclaredDateFormats(physicalDateFormats(context.declaredReadSpec()))
-                // Declared-type columns (licensed to narrow toward their target): same logical->physical last-mile
-                // translation, so the by-name columnar readers can key their null-fill escape on the physical names.
-                .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()))
-                // Keyed on provenance, not renames: a DECLARED schema binds by name even with no `path`, and an
-                // INFERRED (dynamic) schema must never re-bind at the reader (its positions already came from the file).
-                .withDeclaredPathBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED);
-            ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
-
-            Map<String, Object> partitionValues = Map.of();
-            if (context.split() instanceof FileSplit fileSplit) {
-                partitionValues = fileSplit.partitionValues();
-            }
-
-            List<Expression> pushedExpressions = context.pushedExpressions();
-            FilterPushdownSupport pushdownSupport = (pushedExpressions != null && pushedExpressions.isEmpty() == false)
-                ? format.filterPushdownSupport()
-                : null;
-
-            // Per-query fairness: draw a dynamic slice of the per-scheme permit budget so one query cannot starve the
-            // rest on the same backend. Storage also carries reactive retry/backoff (per-store 503 backoff) from the
-            // registry (see StorageProviderRegistry#wrapProvider), and in-flight reads are additionally bounded by
-            // the per-scheme permit semaphore. Blocking reads run on the dedicated esql_external_io pool.
             Closeable onClose = null;
-            ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
-            if (allocator != null) {
-                QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
-                storage = budgeted;
-                onClose = budgeted;
+            boolean transferred = false;
+            try {
+                if (config != null && config.isEmpty() == false) {
+                    // Borrow on first storage use (operator get()), not at factory build, so a
+                    // planned-but-never-started driver does not pin an SDK client forever.
+                    storage = new DeferredPoolLease(
+                        () -> storageRegistry.createProvider(path.scheme(), settings, ExternalSourceResolver.storageConfig(config))
+                    );
+                    onClose = storage;
+                } else {
+                    storage = storageRegistry.provider(path);
+                }
+
+                FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config)
+                    .withPushedFilter(context.pushedFilter())
+                    .withSchema(context.attributes())
+                    // Declared per-column date formats: the spec keys them by logical name, but the reader sees physical
+                    // (file) column names, so physicalize the keys through the same `path` renames here at the last mile.
+                    .withDeclaredDateFormats(physicalDateFormats(context.declaredReadSpec()))
+                    // Declared-type columns (licensed to narrow toward their target): same logical->physical last-mile
+                    // translation, so the by-name columnar readers can key their null-fill escape on the physical names.
+                    .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()))
+                    // Keyed on provenance, not renames: a DECLARED schema binds by name even with no `path`, and an
+                    // INFERRED (dynamic) schema must never re-bind at the reader (its positions already came from the file).
+                    .withDeclaredProvenanceBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED);
+                ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
+
+                Map<String, Object> partitionValues = Map.of();
+                if (context.split() instanceof FileSplit fileSplit) {
+                    partitionValues = fileSplit.partitionValues();
+                }
+
+                // Whether this read drops whole rows on a coercion failure. The plan already accounted for it:
+                // PushFiltersToSource withheld the pushdown for readers that cannot drop rows once filtered, and
+                // InsertExternalFieldExtraction skipped the extract exec. Recomputed here (rather than trusted from
+                // the plan) so the factory's own deferred-extraction decision cannot drift from the rule's — both
+                // resolve the policy against the same reader default via ErrorPolicy.forReader.
+                boolean dropsRowsOnCoercionFailure = context.declaredReadSpec().dropsRowsOnCoercionFailure(errorPolicy);
+
+                List<Expression> pushedExpressions = context.pushedExpressions();
+                // Note: this only controls the per-file re-mint in AsyncExternalSourceOperatorFactory#readerForFile
+                // (schema-drifted files whose ColumnMapping needs the predicate adapted). It does NOT control whether
+                // the reader sees a pushed filter at all — that rides withPushedFilter above, straight off the plan.
+                // Suppressing it here would strand a drifted file with an un-adapted predicate, so it stays keyed on
+                // the pushed expressions alone.
+                FilterPushdownSupport pushdownSupport = (pushedExpressions != null && pushedExpressions.isEmpty() == false)
+                    ? format.filterPushdownSupport()
+                    : null;
+
+                // Per-query fairness: draw a dynamic slice of the per-scheme permit budget so one query cannot starve the
+                // rest on the same backend. Storage also carries reactive retry/backoff (per-store 503 backoff) from the
+                // registry (see StorageProviderRegistry#wrapProvider), and in-flight reads are additionally bounded by
+                // the per-scheme permit semaphore. Blocking reads run on the dedicated esql_external_io pool.
+                // WITH-config storage is a deferred pool lease: first operator get() borrows, onClose returns it.
+                // QueryBudgetedStorageProvider.close() only releases the budget, so the lease is a sibling Closeable
+                // when both are present.
+                ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
+                if (allocator != null) {
+                    QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
+                    storage = budgeted;
+                    Closeable lease = onClose;
+                    onClose = lease == null ? budgeted : () -> IOUtils.close(budgeted, lease);
+                }
+
+                // Read/parse pool: the dedicated esql_external_io pool (blocking opens + parser workers), falling back to
+                // the compute pool when no distinct file-read pool is wired. The producer/drain loop runs on the compute
+                // pool (context.executor(), esql_worker) instead — see AsyncExternalSourceOperatorFactory — so a full
+                // read/parse pool of blocked parser workers cannot starve the drain that consumes their pages.
+                Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
+                Executor producerExecutor = context.executor();
+                // Deferred extraction fires when both signals are present: the reader is
+                // ColumnExtractorAware AND the plan paired this source with an ExternalFieldExtractExec
+                // (the context flag InsertExternalFieldExtraction sets). _rowPosition presence in the
+                // projection is NOT a valid signal on its own — InjectRowPositionForExternalId also
+                // injects it for plain _id composition, where enabling deferred mode would create a
+                // SourceExtractors registry no extract operator ever closes.
+                // Additionally, deferred extraction is disabled when skip_row is active with declared-type
+                // coercion columns: the extractor runs after the page shape is fixed and cannot drop rows
+                // that fail coercion; the columnar iterator must do the filtering at emit time instead.
+                boolean deferredExtraction = format instanceof ColumnExtractorAware
+                    && context.deferredExtraction()
+                    && dropsRowsOnCoercionFailure == false;
+
+                AsyncExternalSourceOperatorFactory built = AsyncExternalSourceOperatorFactory.builder(
+                    storage,
+                    format,
+                    path,
+                    context.attributes(),
+                    context.batchSize(),
+                    context.maxBufferSize(),
+                    readExecutor
+                )
+                    .producerExecutor(producerExecutor)
+                    .externalSourceMetrics(externalSourceMetrics)
+                    .rowLimit(context.rowLimit())
+                    .fileList(context.fileList())
+                    .schemaMap(context.schemaMap())
+                    .partitionColumnNames(context.partitionColumnNames())
+                    .partitionValues(partitionValues)
+                    .producerBlockFactory(blockFactory)
+                    .sliceQueue(context.sliceQueue())
+                    .errorPolicy(errorPolicy)
+                    .parsingParallelism(context.parsingParallelism())
+                    .maxConcurrentOpenSegments(context.maxConcurrentOpenSegments())
+                    .maxRecordBytes(context.maxRecordBytes())
+                    .statsStripeSize(ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes())
+                    .statsColumnScope(ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings))
+                    .streamingSegmentatorAdmission(segmentatorAdmission)
+                    .parallelism(context.parallelism())
+                    .pushedExpressions(pushedExpressions)
+                    .pushdownSupport(pushdownSupport)
+                    .onClose(onClose)
+                    .deferredExtraction(deferredExtraction)
+                    // datasetName drives the per-file _index synthesizer in
+                    // {@link ExternalMetadataColumns#extractPerFileConstants}; null when the query
+                    // came from a direct-file query (no dataset name), populated when it came from
+                    // FROM <dataset>.
+                    .datasetName(context.datasetName())
+                    // Declared `path` renames, applied to reader-facing names (projection + read schema) at the last mile.
+                    .renames(context.declaredReadSpec().renames())
+                    // How a file's bytes get interpreted, bound to this query's declaration and applied per file by
+                    // the operator factory. Computed here because the declared spec lives here; derived rather than
+                    // shipped, so both sides reach the same value from what the coordinator already minted.
+                    .readConfigFingerprinter(schema -> ReadConfigFingerprint.of(schema, context.declaredReadSpec()))
+                    // For the split-less rails, which read one whole file and so have no per-split schema.
+                    .unifiedReadSchema(context.unifiedSchema() == null ? null : context.unifiedSchema().attributes())
+                    // Declared _id.path (logical column name): stamps _id from that column instead of the synthetic id.
+                    .idPath(context.declaredReadSpec().idPath())
+                    // Single-file producer paths (sync-wrapper, native-async) carry no per-file mtime
+                    // carrier; without this wire-up _version would silently render as SQL NULL even
+                    // on resolved single-file plans. The slice-queue / multi-file paths still source
+                    // mtime from FileSplit.partitionValues / per-FileList entry respectively and
+                    // ignore this builder value.
+                    .lastModifiedMillis(firstFileMtime(context.fileList()))
+                    .build();
+                transferred = true;
+                return built;
+            } finally {
+                if (transferred == false) {
+                    IOUtils.closeWhileHandlingException(onClose);
+                }
             }
-
-            // Read/parse pool: the dedicated esql_external_io pool (blocking opens + parser workers), falling back to
-            // the compute pool when no distinct file-read pool is wired. The producer/drain loop runs on the compute
-            // pool (context.executor(), esql_worker) instead — see AsyncExternalSourceOperatorFactory — so a full
-            // read/parse pool of blocked parser workers cannot starve the drain that consumes their pages.
-            Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
-            Executor producerExecutor = context.executor();
-            // Deferred extraction fires when both signals are present: the reader is
-            // ColumnExtractorAware AND the plan paired this source with an ExternalFieldExtractExec
-            // (the context flag InsertExternalFieldExtraction sets). _rowPosition presence in the
-            // projection is NOT a valid signal on its own — InjectRowPositionForExternalId also
-            // injects it for plain _id composition, where enabling deferred mode would create a
-            // SourceExtractors registry no extract operator ever closes.
-            boolean deferredExtraction = format instanceof ColumnExtractorAware && context.deferredExtraction();
-
-            return AsyncExternalSourceOperatorFactory.builder(
-                storage,
-                format,
-                path,
-                context.attributes(),
-                context.batchSize(),
-                context.maxBufferSize(),
-                readExecutor
-            )
-                .producerExecutor(producerExecutor)
-                .externalSourceMetrics(externalSourceMetrics)
-                .rowLimit(context.rowLimit())
-                .fileList(context.fileList())
-                .schemaMap(context.schemaMap())
-                .partitionColumnNames(context.partitionColumnNames())
-                .partitionValues(partitionValues)
-                .producerBlockFactory(blockFactory)
-                .sliceQueue(context.sliceQueue())
-                .errorPolicy(errorPolicy)
-                .parsingParallelism(context.parsingParallelism())
-                .maxConcurrentOpenSegments(context.maxConcurrentOpenSegments())
-                .maxRecordBytes(context.maxRecordBytes())
-                .statsStripeSize(ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes())
-                .statsColumnScope(ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings))
-                .streamingSegmentatorAdmission(segmentatorAdmission)
-                .parallelism(context.parallelism())
-                .pushedExpressions(pushedExpressions)
-                .pushdownSupport(pushdownSupport)
-                .onClose(onClose)
-                .deferredExtraction(deferredExtraction)
-                // datasetName drives the per-file _index synthesizer in
-                // {@link ExternalMetadataColumns#extractPerFileConstants}; null when the query
-                // came from inline EXTERNAL (no dataset mapping), populated when it came from
-                // FROM <dataset>.
-                .datasetName(context.datasetName())
-                // Declared `path` renames, applied to reader-facing names (projection + read schema) at the last mile.
-                .renames(context.declaredReadSpec().renames())
-                // Declared _id.path (logical column name): stamps _id from that column instead of the synthetic id.
-                .idPath(context.declaredReadSpec().idPath())
-                // Single-file producer paths (sync-wrapper, native-async) carry no per-file mtime
-                // carrier; without this wire-up _version would silently render as SQL NULL even
-                // on resolved single-file plans. The slice-queue / multi-file paths still source
-                // mtime from FileSplit.partitionValues / per-FileList entry respectively and
-                // ignore this builder value.
-                .lastModifiedMillis(firstFileMtime(context.fileList()))
-                .build();
         };
     }
 
@@ -567,13 +709,86 @@ final class FileSourceFactory implements ExternalSourceFactory {
         return physical;
     }
 
-    /** Delegates to {@link ErrorPolicy#fromConfig(Map, ErrorPolicy)} with the format's default
-     *  policy as the fallback. Kept here so existing call sites and tests do not have to change. */
+    /** Delegates to {@link ErrorPolicy#forReader(Map, FormatReader)}, the one resolution the plan-time rules use too.
+     *  Kept here so existing call sites and tests do not have to change. */
     static ErrorPolicy resolveErrorPolicy(Map<String, Object> config, FormatReader format) {
-        return ErrorPolicy.fromConfig(config, format.defaultErrorPolicy());
+        return ErrorPolicy.forReader(config, format);
     }
 
     private FormatReader resolveFormatReader(String objectName, Map<String, Object> config) {
         return FormatNameResolver.resolveReader(config, objectName, formatRegistry);
+    }
+
+    /**
+     * WITH-config pool borrow that does not call {@code createProvider} until the first storage
+     * operation. {@link #close()} is a no-op if the factory never ran {@code get()}.
+     */
+    private static final class DeferredPoolLease implements StorageProvider {
+        private final Supplier<StorageProvider> supplier;
+        private StorageProvider inner;
+        private boolean closed;
+
+        DeferredPoolLease(Supplier<StorageProvider> supplier) {
+            this.supplier = supplier;
+        }
+
+        private StorageProvider inner() {
+            synchronized (this) {
+                if (closed) {
+                    throw new IllegalStateException("storage lease already returned");
+                }
+                if (inner == null) {
+                    inner = supplier.get();
+                }
+                return inner;
+            }
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            return inner().newObject(path);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return inner().newObject(path, length);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return inner().newObject(path, length, lastModified);
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+            return inner().listObjects(prefix, recursive);
+        }
+
+        @Override
+        public boolean exists(StoragePath path) throws IOException {
+            return inner().exists(path);
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return inner().supportedSchemes();
+        }
+
+        @Override
+        public boolean supportsStableMetadata() {
+            return inner().supportsStableMetadata();
+        }
+
+        @Override
+        public void close() {
+            StorageProvider current;
+            synchronized (this) {
+                closed = true;
+                current = inner;
+            }
+            if (current != null) {
+                StorageProviderCache.closeLease(current);
+            }
+        }
     }
 }

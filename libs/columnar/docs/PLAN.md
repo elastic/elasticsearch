@@ -6,11 +6,11 @@ The direction, the decisions that constrain it, and the build order. Update as d
 
 - **Binary format.** One adaptive binary substrate under every field; served through ColumNAR's own
   range-query and block-loader APIs, not Lucene's typed shapes (those throw). No delegate.
-- **Type-tagged, open.** Every field is a `BINARY` field tagged with a `ColumnarFieldType`
-  (`columnar.type`). Numeric (`LONG`/`DOUBLE`) and `STRING` today; more slot in behind the same
-  attribute + framing. How a column encodes within its type (a numeric pipeline, or plain vs.
-  dictionary for a string) is internal to the column and recorded in its own metadata, never in the
-  type tag.
+- **Type-tagged, open.** Every field is a `BINARY` field whose `ColumnarFieldType` is resolved by an
+  injected `ColumnarFieldTypeSelector` at write time and re-read from the column metadata at read time.
+  Numeric (`LONG`/`DOUBLE`) and `STRING` today; more slot in behind the same selector + framing. How a
+  column encodes within its type (a numeric pipeline, or plain vs. dictionary for a string) is internal
+  to the column and recorded in its own metadata, never in the type tag.
 - **Per-field encoding is the driver.** The integration picks the encoding from what it knows about
   the field (type, sorted, metric role). Keep the seam open.
 - **Ordinals are internal.** Ordinals never surface — the read API stays binary and the upper layer sees
@@ -39,6 +39,9 @@ The direction, the decisions that constrain it, and the build order. Update as d
   pipeline, backed by the existing `org.elasticsearch.nativeaccess.Zstd` binding rather than a Java
   LZ4/Zstd (the native codec is faster).
 - **Order preserved; nothing column-sized on the heap.** See `AGENTS.md`.
+- **Metadata separate from content.** `.cnm` holds fixed-size per-column records only (read in full
+  at open, the only part on the heap); everything column-proportional goes to `.cnd`, and a structure
+  read before the values — the skip index — gets its own `.cns`. See `AGENTS.md`.
 
 ## Done
 
@@ -49,7 +52,8 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - `NumericBinaryPayload` seam (payload ↔ longs); `binaryValue()` re-emit.
 - Read fast paths on `ColumnarNumericBinaryDocValues`: `bulkLongs` (block loader) and `rangeIterator`
   (SIMD `inRangeBitmask`, `intoBitSet`/`docIDRunEnd`), skipper-aware and no-skipper.
-- Native multi-level skip index inside the column (`NumericSkipWriter`/`NumericColumnSkipper`).
+- Native multi-level skip index inside the column (`NumericSkipWriter`/`NumericColumnSkipper`),
+  written to its own `.cns` file.
 - `ColumnarNumericRangeQuery`: self-contained Lucene range query over `getBinary`.
 - Tests: round-trip, fast-path + skipper vs brute force, end-to-end range query, multi-segment merge.
 - `SplitDeltaTransform` (frozen id 3) and `AlpDoubleTransform` (frozen id 4) registered in
@@ -65,7 +69,7 @@ The direction, the decisions that constrain it, and the build order. Update as d
   block rather than per value because a per-value table costs a fraction of the column *per value* and
   still leaves the cursor doing a seek and a read each time; a block amortises both across `blockSize`
   values. A value's position inside its block comes from decoding the block, which a read does anyway.
-  Dense and sparse; single-valued only (see Next). The POC's dictionary path is deliberately not carried over —
+  Dense and sparse; single- or multi-valued. The POC's dictionary path is deliberately not carried over —
   the layout is decided from statistics at merge rather than from a per-segment probe, so ordinals arrive
   as a later layout id (see Next).
 - Per-field pipeline selection: `NumericPipelineSelector` (`@FunctionalInterface`
@@ -76,6 +80,14 @@ The direction, the decisions that constrain it, and the build order. Update as d
   `monotonicLongPipeline`, `doubleGaugePipeline`, `doubleCounterPipeline`) are usable as method
   references: `(f, t) -> NumericPipeline::defaultPipeline`. Server-side wiring into
   `PerFieldFormatSupplier` is a follow-up (see Next).
+- Multi-valued string columns, which real keyword fields need. A *slot* is a value or a null. Each layout
+  answers "where does this document's run of slots begin?" with a `DirectMonotonic` table written by
+  `AddressingWriter`; finding the start is the same question regardless of how the layout names the values.
+  Null representation is layout-specific: PLAIN stores null as zero bytes and tables the value addresses
+  that hold one in a `NullSlotWriter` (bytes have no spare value to mean null with); DICTIONARY reserves
+  ordinal zero for null, shifting all terms to ordinal one and above, so nothing null reaches the dictionary
+  or the escape store and a null lies in no term's ordinal range. The null-slot count is shared in the
+  column metadata — a merge reads it off each input and the layout is not chosen until after the count.
 
 ## Next
 
@@ -128,15 +140,11 @@ The direction, the decisions that constrain it, and the build order. Update as d
   walks any multiple of it. Blocks and chunks address **values**, not documents, so sparsity is absorbed
   a level up in docId → rank.
 
-- **Multi-valued string columns** — required for real keyword fields, which are commonly arrays. The
-  column is single-valued today: `ColumNARDocValuesConsumer.writeStringColumn` rejects a document
-  carrying more than one value, and `StringColumnReader` asserts the same. The substrate already supplies
-  presence and a value-address table, so this mirrors what `NumericColumnWriter` does — the string
-  metadata already carries `numValues` separately from `numDocsWithField` for exactly this. One thing to
-  carry over rather than rediscover: `ColumnarStringBinaryDocValues.binaryValue` relies on the reader
-  handing back one reused `BytesRef` per call, so collecting several values before encoding would alias
-  them onto the last one; either copy each value out or encode into the payload while walking the value
-  addresses. An assert marks the spot.
+- **Drop the ordinals column's own value addresses** — `writeDictionary` hands its ordinals to
+  `NumericColumnWriter`, which writes a doc-to-value-address table of its own whenever the column is
+  multi-valued. On a dictionary column that duplicates the string column's table and nothing reads it:
+  `ordinalAt` addresses ordinals by value address directly. Correct, but paid for on every multi-valued
+  dictionary column.
 
 - **Skip index and a string range query** — the string column writes no skip index, so there is no
   `ColumnarStringRangeQuery` counterpart to `ColumnarNumericRangeQuery`. These are two paths, not one
@@ -181,12 +189,25 @@ The direction, the decisions that constrain it, and the build order. Update as d
   (`FIELD_TYPE_PACKED_LONGS_MV`) is implemented in the consumer but has no JMH coverage. A realistic
   multi-value workload (histogram bucket counts, multiple readings per TSDB series) should be designed
   and added before GA.
+- **Numeric merge totals** — the string column no longer counts what it is about to write when the cursor
+  already knows: a merge whose inputs are all ColumNAR columns, none of them dropping a deleted document,
+  sums the totals each segment recorded rather than walking every input's iterator and addressing tables to
+  re-derive per-document counts and add them straight back up. `writeNumericColumn` still counts
+  unconditionally. The same shape applies — a `totals()` opt-in on `NumericColumnValues` defaulting to null,
+  filled in by `numericMergeCursor` under the same `mergeState.liveDocs[i] == null` gate, since a segment
+  with deletions gives up fewer documents than it recorded.
 - Multi-segment merge efficiency (sequential merge reads).
 - Block-loader binding to ES|QL (server-side adapter).
 - **Decompose the write loop**: the single pass in `NumericColumnWriter.write` drives three orthogonal
   consumers (block encoder, skip writer, address table) off shared loop state. A producer/consumer
   split lets each be unit-tested against a controlled `NumericColumnValues` without a `Directory`, and
   removes the round-trip ambiguity where a shared encode/decode bug hides which consumer failed.
+- **Assert which vocabulary a merge takes, not only what it produces**: `mergedVocabulary` returns the
+  terms and which of `DICTIONARY_UNION`, `COMBINED_SUMMARIES` or `SURVEY` found them, and the tests drive
+  all three shapes and read the merged column back value by value. Nothing holds the choice itself, so a
+  column that quietly fell back to a survey would pass all of them while costing the merge the work the
+  other two exist to save. Asserting it needs a `MergeState` a test can build or observe, which is what
+  the seam is meant to make small rather than something to plumb for one assertion.
 
 ## Working agreements
 

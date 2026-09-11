@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -173,8 +173,8 @@ public class GoogleAiStudioService extends SenderService<GoogleAiStudioModel> {
                 getServiceComponents().threadPool(),
                 completionModel,
                 COMPLETION_HANDLER,
-                (chatCompletionInput) -> new GoogleAiStudioCompletionRequest(chatCompletionInput, completionModel),
-                ChatCompletionInput.class
+                (completionInput) -> new GoogleAiStudioCompletionRequest(completionInput, completionModel),
+                CompletionInput.class
             );
             var action = new SingleInputSenderExecutableAction(
                 getSender(),

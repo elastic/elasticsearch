@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -28,9 +29,11 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -62,10 +65,6 @@ import static org.hamcrest.Matchers.containsString;
  * arithmetic operators, etc.).
  */
 public class InSubqueryResolverTests extends ESTestCase {
-
-    private static void checkMultiColumnInSubquery() {
-        assumeTrue("multi-column IN subquery", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
-    }
 
     private static void requireLambda() {
         assumeTrue("Requires Lambda syntax support", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
@@ -743,39 +742,6 @@ public class InSubqueryResolverTests extends ESTestCase {
         MarkJoin xJoin = as(wJoin.left(), MarkJoin.class);
         assertEquals("x", xJoin.config().leftFields().get(0).name());
         assertEquals(xMark.id(), xJoin.markAttribute().id());
-    }
-
-    // ---- negative: IN subquery in SORT ----
-
-    public void testRejectsInSubqueryInSort() {
-        assertResolveError("FROM main | SORT x IN (FROM sub)", "line 1:18: IN subquery is not supported in [SORT x IN (FROM sub)]");
-    }
-
-    // ---- negative: IN subquery in STATS BY ----
-
-    public void testRejectsInSubqueryInStatsBy() {
-        assertResolveError(
-            "FROM main | STATS c = COUNT(*) BY x IN (FROM sub)",
-            "line 1:35: IN subquery is not supported in [STATS c = COUNT(*) BY x IN (FROM sub)]"
-        );
-    }
-
-    // ---- negative: IN subquery in STATS WHERE filter ----
-
-    public void testRejectsInSubqueryInStatsWhereFilter() {
-        assertResolveError(
-            "FROM main | STATS c = COUNT(*) WHERE x IN (FROM sub)",
-            "line 1:38: IN subquery is not supported in [STATS c = COUNT(*) WHERE x IN (FROM sub)]"
-        );
-    }
-
-    // ---- negative: IN subquery in LIMIT BY ----
-
-    public void testRejectsInSubqueryInLimitBy() {
-        assertResolveError(
-            "FROM main | SORT a | LIMIT 10 BY x IN (FROM sub)",
-            "line 1:34: IN subquery is not supported in [LIMIT 10 BY x IN (FROM sub)]"
-        );
     }
 
     /**
@@ -1476,6 +1442,130 @@ public class InSubqueryResolverTests extends ESTestCase {
         assertTrue(filter.condition().anyMatch(e -> e instanceof Attribute a && a.id().equals(markJoin.markAttribute().id())));
     }
 
+    // ---- positive: IN subquery as a direct operand of == / != in WHERE ----
+
+    /**
+     * {@code WHERE (x IN (FROM sub)) == true}: the {@link Equals} operand is an IN subquery, so it is
+     * replaced with a mark attribute:
+     * <pre>
+     * Filter[$$mark == true]
+     *   MarkJoin[x → $$mark, left=main, right=sub]
+     *     UnresolvedRelation[main]
+     * </pre>
+     */
+    public void testInSubqueryInEquals() {
+        Filter filter = as(resolve("FROM main | WHERE (x IN (FROM sub)) == true"), Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        assertEquals(true, as(equals.right(), Literal.class).value());
+        assertMarkJoinReplacedInSubquery(filter, equals.left(), "x", "sub");
+    }
+
+    /**
+     * {@code WHERE (x IN (FROM sub)) != false}: the parser maps {@code !=} to {@code Not(Equals(...))},
+     * so the eligible wrapper is still the {@link Equals} underneath the {@link Not}:
+     * <pre>
+     * Filter[NOT($$mark == false)]
+     *   MarkJoin[x → $$mark, left=main, right=sub]
+     * </pre>
+     */
+    public void testInSubqueryInNotEquals() {
+        Filter filter = as(resolve("FROM main | WHERE (x IN (FROM sub)) != false"), Filter.class);
+        Not not = as(filter.condition(), Not.class);
+        Equals equals = as(not.field(), Equals.class);
+        assertEquals(false, as(equals.right(), Literal.class).value());
+        assertMarkJoinReplacedInSubquery(filter, equals.left(), "x", "sub");
+    }
+
+    /**
+     * {@code WHERE (x NOT IN (FROM sub)) == true}: the negation stays in the condition as {@code NOT($$mark)}
+     * rather than turning the join into an {@link AntiJoin} — the predicate is not a top-level AND conjunct.
+     */
+    public void testNotInSubqueryInEquals() {
+        Filter filter = as(resolve("FROM main | WHERE (x NOT IN (FROM sub)) == true"), Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        Not not = as(equals.left(), Not.class);
+        assertMarkJoinReplacedInSubquery(filter, not.field(), "x", "sub");
+    }
+
+    /**
+     * {@code WHERE true == (x IN (FROM sub))}: either operand of the {@link Equals} may hold the IN subquery.
+     */
+    public void testInSubqueryOnRightHandSideOfEquals() {
+        Filter filter = as(resolve("FROM main | WHERE true == (x IN (FROM sub))"), Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        assertEquals(true, as(equals.left(), Literal.class).value());
+        assertMarkJoinReplacedInSubquery(filter, equals.right(), "x", "sub");
+    }
+
+    /**
+     * {@code WHERE (x IN (FROM sub1)) == (y IN (FROM sub2))}: both operands are IN subqueries, producing two
+     * stacked MarkJoins. The joins are recorded left-to-right, so {@code sub1}'s join ends up innermost:
+     * <pre>
+     * Filter[$$m1 == $$m2]
+     *   MarkJoin[y → $$m2, right=sub2]
+     *     MarkJoin[x → $$m1, right=sub1]
+     *       UnresolvedRelation[main]
+     * </pre>
+     */
+    public void testInSubqueriesOnBothSidesOfEquals() {
+        Filter filter = as(resolve("FROM main | WHERE (x IN (FROM sub1)) == (y IN (FROM sub2))"), Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        Attribute leftMark = as(equals.left(), Attribute.class);
+        Attribute rightMark = as(equals.right(), Attribute.class);
+
+        MarkJoin outer = as(filter.child(), MarkJoin.class);
+        assertEquals(rightMark.id(), assertMarkJoin(outer, "y", "sub2").id());
+        MarkJoin inner = as(outer.left(), MarkJoin.class);
+        assertEquals(leftMark.id(), assertMarkJoin(inner, "x", "sub1").id());
+        assertEquals("main", as(inner.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+        filter.forEachExpression(InSubquery.class, inSub -> fail("InSubquery survived: " + inSub));
+    }
+
+    /**
+     * {@code WHERE (x IN (FROM sub1)) == true AND y IN (FROM sub2)}: the bare conjunct still takes the
+     * efficient row-filtering {@link SemiJoin} shape while the {@code ==} operand becomes a {@link MarkJoin}:
+     * <pre>
+     * SemiJoin[y, right=sub2]
+     *   Filter[$$m1 == true]
+     *     MarkJoin[x → $$m1, right=sub1]
+     *       UnresolvedRelation[main]
+     * </pre>
+     */
+    public void testInSubqueryInEqualsWithBareInSubqueryConjunct() {
+        LogicalPlan plan = resolve("FROM main | WHERE (x IN (FROM sub1)) == true AND y IN (FROM sub2)");
+        SemiJoin semiJoin = as(plan, SemiJoin.class);
+        assertEquals("y", semiJoin.config().leftFields().get(0).name());
+        assertEquals("sub2", as(semiJoin.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        Filter filter = as(semiJoin.left(), Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        assertMarkJoinReplacedInSubquery(filter, equals.left(), "x", "sub1");
+    }
+
+    /**
+     * {@code WHERE (x IN (FROM sub)) == true OR y > 0}: the {@code ==} sits inside an {@link Or}, so the whole
+     * conjunct goes through the MarkJoin path and the mark flows into the disjunction.
+     */
+    public void testInSubqueryInEqualsInsideOr() {
+        Filter filter = as(resolve("FROM main | WHERE (x IN (FROM sub)) == true OR y > 0"), Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        Equals equals = as(or.left(), Equals.class);
+        as(or.right(), GreaterThan.class);
+        assertMarkJoinReplacedInSubquery(filter, equals.left(), "x", "sub");
+    }
+
+    /**
+     * {@code WHERE CASE((x IN (FROM sub)) == true, true, false)}: an {@link Equals} nested inside a CASE arm is
+     * itself an eligible wrapper, so the subquery is rewritten two levels down.
+     */
+    public void testInSubqueryInEqualsNestedInCase() {
+        Filter filter = as(resolve("FROM main | WHERE CASE((x IN (FROM sub)) == true, true, false)"), Filter.class);
+        UnresolvedFunction caseExpr = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("CASE", caseExpr.name());
+        Equals equals = as(caseExpr.children().get(0), Equals.class);
+        assertMarkJoinReplacedInSubquery(filter, equals.left(), "x", "sub");
+    }
+
     // ---- negative: complex LHS inside transparent wrappers ----
 
     /**
@@ -1494,7 +1584,7 @@ public class InSubqueryResolverTests extends ESTestCase {
     /**
      * {@code WHERE (abs(x) IN (FROM sub)) IS NULL}: complex LHS inside IS NULL.
      */
-    public void testRejectsComplexLHSInIsNull() {
+    public void testRejectsComplexLHSExpressionInIsNull() {
         var e = expectThrows(VerificationException.class, () -> resolve("FROM main | WHERE (abs(x) IN (FROM sub)) IS NULL"));
         assertThat(
             e.getMessage(),
@@ -1514,9 +1604,25 @@ public class InSubqueryResolverTests extends ESTestCase {
         );
     }
 
-    public void testRejectsInSubqueryDirectlyNestedInEquals() {
-        var e = expectThrows(VerificationException.class, () -> resolve("FROM main | WHERE (x IN (FROM sub)) == true"));
-        assertThat(e.getMessage(), containsString("IN subquery is not supported within expression [(x IN (FROM sub)) == true]"));
+    /**
+     * Only {@code ==} and {@code !=} are eligible wrappers; the ordering comparisons are not, even though booleans are
+     * orderable in ES|QL.
+     */
+    public void testRejectsInSubqueryDirectlyNestedInGreaterThan() {
+        var e = expectThrows(VerificationException.class, () -> resolve("FROM main | WHERE (x IN (FROM sub)) > true"));
+        assertThat(e.getMessage(), containsString("IN subquery is not supported within expression [(x IN (FROM sub)) > true]"));
+    }
+
+    /**
+     * {@code WHERE (abs(x) IN (FROM sub)) == true}: because {@link Equals} is an eligible wrapper, the resolver
+     * attempts the rewrite and fails on the non-attribute, non-foldable LHS — so this reports "Complicated IN
+     * subquery" against the whole WHERE clause rather than "not supported within expression".
+     */
+    public void testRejectsComplexLHSInSubqueryInEquals() {
+        assertResolveError(
+            "FROM main | WHERE (abs(x) IN (FROM sub)) == true",
+            "line 1:20: Complicated IN subquery is not yet supported in Filter [WHERE (abs(x) IN (FROM sub)) == true]"
+        );
     }
 
     public void testRejectsComplexLHSInCaseNestedInEquals() {
@@ -1526,9 +1632,7 @@ public class InSubqueryResolverTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString(
-                "Complicated IN subquery is not yet supported in Filter " + "[WHERE CASE(abs(x) IN (FROM sub), true, false) == true]"
-            )
+            containsString("Complicated IN subquery is not yet supported in Filter [WHERE CASE(abs(x) IN (FROM sub), true, false) == true]")
         );
     }
 
@@ -1551,7 +1655,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     // ---- positive: multi-column IN subquery → SemiJoin with 2 left fields ----
 
     public void testMultiColumnInSubquerySemiJoin() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | WHERE (f1, f2) IN (FROM sub | KEEP f1, f2)");
         SemiJoin semiJoin = as(plan, SemiJoin.class);
         assertEquals(JoinTypes.SEMI, semiJoin.config().type());
@@ -1569,7 +1672,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     // ---- positive: multi-column NOT IN subquery → AntiJoin with 2 left fields ----
 
     public void testMultiColumnNotInSubqueryAntiJoin() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | WHERE (f1, f2) NOT IN (FROM sub | KEEP f1, f2)");
         AntiJoin antiJoin = as(plan, AntiJoin.class);
         assertEquals(JoinTypes.ANTI, antiJoin.config().type());
@@ -1587,7 +1689,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     // ---- positive: multi-column IN subquery inside OR → MarkJoin with 2 left fields ----
 
     public void testMultiColumnInSubqueryMarkJoin() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | WHERE (f1, f2) IN (FROM sub | KEEP f1, f2) OR f1 > 0");
         Filter filter = as(plan, Filter.class);
         Or or = as(filter.condition(), Or.class);
@@ -1610,7 +1711,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     // ---- positive: mixed single-column and multi-column IN subqueries ----
 
     public void testMixedSingleAndMultiColumnInSubqueryConjunctive() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub1) AND (f1, f2) IN (FROM sub2 | KEEP f1, f2)");
         SemiJoin outer = as(plan, SemiJoin.class);
         assertEquals(JoinTypes.SEMI, outer.config().type());
@@ -1628,7 +1728,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testMixedMultiAndSingleColumnNotInSubqueryConjunctive() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | WHERE (f1, f2) NOT IN (FROM sub1 | KEEP f1, f2) AND x NOT IN (FROM sub2)");
         AntiJoin outer = as(plan, AntiJoin.class);
         assertEquals(JoinTypes.ANTI, outer.config().type());
@@ -1646,7 +1745,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testMixedSingleAndMultiColumnInSubqueryDisjunctive() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub1) OR (f1, f2) IN (FROM sub2 | KEEP f1, f2)");
         Filter filter = as(plan, Filter.class);
         Or or = as(filter.condition(), Or.class);
@@ -1670,7 +1768,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testMixedSemiJoinAndMarkJoinWithMultiColumn() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub1) AND ((f1, f2) IN (FROM sub2 | KEEP f1, f2) OR a > 0)");
         SemiJoin xJoin = as(plan, SemiJoin.class);
         assertEquals(JoinTypes.SEMI, xJoin.config().type());
@@ -1695,7 +1792,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testThreeMixedSubqueriesConjunctive() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("""
             FROM main | WHERE x IN (FROM sub1)
               AND (f1, f2) IN (FROM sub2 | KEEP f1, f2)
@@ -1723,7 +1819,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testMixedMultiAndSingleColumnNotInSubqueryDisjunctive() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | WHERE (f1, f2) NOT IN (FROM sub1 | KEEP f1, f2) OR x NOT IN (FROM sub2)");
         Filter filter = as(plan, Filter.class);
         Or or = as(filter.condition(), Or.class);
@@ -1750,7 +1845,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     // ---- positive: nested multi-column IN subqueries ----
 
     public void testNestedMultiColumnInSubqueryInsideMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("""
             FROM main | WHERE (f1, f2) IN (FROM sub1 | WHERE (g1, g2) IN (FROM sub2 | KEEP g1, g2) | KEEP f1, f2)
             """);
@@ -1773,7 +1867,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testNestedMultiColumnNotInSubqueryInsideMultiColumnNotInSubquery() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("""
             FROM main | WHERE (f1, f2) NOT IN (FROM sub1 | WHERE (g1, g2) NOT IN (FROM sub2 | KEEP g1, g2) | KEEP f1, f2)
             """);
@@ -1796,7 +1889,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testNestedSingleColumnInSubqueryInsideMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("""
             FROM main | WHERE (f1, f2) IN (FROM sub1 | WHERE x IN (FROM sub2 | KEEP b) | KEEP f1, f2)
             """);
@@ -1818,7 +1910,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testNestedMultiColumnNotInSubqueryInsideSingleColumnInSubquery() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("""
             FROM main | WHERE x IN (FROM sub1 | WHERE (g1, g2) NOT IN (FROM sub2 | KEEP g1, g2) | KEEP a)
             """);
@@ -1842,7 +1933,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     // ---- multi-column IN subquery inside CASE, COALESCE, IS [NOT] NULL ----
 
     public void testMultiColumnCaseWhenConditionInSubquery() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | WHERE CASE((f1, f2) IN (FROM sub | KEEP f1, f2), true, false)");
         Filter filter = as(plan, Filter.class);
         UnresolvedFunction caseExpr = as(filter.condition(), UnresolvedFunction.class);
@@ -1856,7 +1946,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testMultiColumnCoalesceInSubquery() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | WHERE COALESCE((f1, f2) IN (FROM sub | KEEP f1, f2), false)");
         Filter filter = as(plan, Filter.class);
         UnresolvedFunction coalesceExpr = as(filter.condition(), UnresolvedFunction.class);
@@ -1867,7 +1956,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testMultiColumnIsNullInSubquery() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | WHERE ((f1, f2) IN (FROM sub | KEEP f1, f2)) IS NULL");
         Filter filter = as(plan, Filter.class);
         IsNull isNull = as(filter.condition(), IsNull.class);
@@ -1878,7 +1966,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testMultiColumnIsNotNullInSubquery() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | WHERE ((f1, f2) IN (FROM sub | KEEP f1, f2)) IS NOT NULL");
         Filter filter = as(plan, Filter.class);
         IsNotNull isNotNull = as(filter.condition(), IsNotNull.class);
@@ -1889,7 +1976,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInCaseAndEquals() {
-        checkMultiColumnInSubquery();
         Filter filter = as(resolve("FROM main | WHERE CASE((f1, f2) IN (FROM sub | KEEP f1, f2), 1, 0) == 1"), Filter.class);
         Equals equals = as(filter.condition(), Equals.class);
         UnresolvedFunction caseExpr = as(equals.left(), UnresolvedFunction.class);
@@ -1900,7 +1986,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInCoalesceAndNotEquals() {
-        checkMultiColumnInSubquery();
         Filter filter = as(resolve("FROM main | WHERE COALESCE((f1, f2) IN (FROM sub | KEEP f1, f2), false) != false"), Filter.class);
         Not not = as(filter.condition(), Not.class);
         Equals equals = as(not.field(), Equals.class);
@@ -1912,7 +1997,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryWithCaseAndGreaterThan() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | WHERE CASE((f1, f2) IN (FROM sub | KEEP f1, f2), true, false) AND f1 > 0");
         Filter filter = as(plan, Filter.class);
         And and = as(filter.condition(), And.class);
@@ -1924,7 +2008,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryWithCoalesceOrLessThan() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | WHERE COALESCE((f1, f2) IN (FROM sub | KEEP f1, f2), false) OR f1 < 0");
         Filter filter = as(plan, Filter.class);
         Or or = as(filter.condition(), Or.class);
@@ -1936,7 +2019,6 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryWithComplexBooleanExpressions() {
-        checkMultiColumnInSubquery();
         String query = """
             FROM main
             | WHERE (f1 > 0
@@ -1971,7 +2053,6 @@ public class InSubqueryResolverTests extends ESTestCase {
 
     public void testRejectsMultiColumnInSubqueryNestedInsideLambda() {
         requireLambda();
-        checkMultiColumnInSubquery();
         assertResolveError(
             "FROM main | WHERE filter(a, x -> (x, f2) IN (FROM sub | KEEP x, f2))",
             "line 1:34: IN subquery is not supported within expression [filter(a, x -> (x, f2) IN (FROM sub | KEEP x, f2))]"
@@ -1980,7 +2061,6 @@ public class InSubqueryResolverTests extends ESTestCase {
 
     public void testRejectsMultiColumnInSubqueryNestedInsideCoalesceAndLambda() {
         requireLambda();
-        checkMultiColumnInSubquery();
         assertResolveError(
             "FROM main | WHERE filter(a, x -> COALESCE((x, f2) IN (FROM sub | KEEP x, f2), false))",
             "line 1:43: IN subquery is not supported within expression "
@@ -1988,16 +2068,28 @@ public class InSubqueryResolverTests extends ESTestCase {
         );
     }
 
-    public void testRejectsMultiColumnInSubqueryDirectlyNestedInEquals() {
-        checkMultiColumnInSubquery();
-        var e = expectThrows(
-            VerificationException.class,
-            () -> resolve("FROM main | WHERE ((f1, f2) IN (FROM sub | KEEP f1, f2)) == true")
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("IN subquery is not supported within expression [((f1, f2) IN (FROM sub | KEEP f1, f2)) == true]")
-        );
+    public void testMultiColumnInSubqueryInEquals() {
+        Filter filter = as(resolve("FROM main | WHERE ((f1, f2) IN (FROM sub | KEEP f1, f2)) == true"), Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+
+        MarkJoin markJoin = as(filter.child(), MarkJoin.class);
+        assertEquals(JoinTypes.MARK, markJoin.config().type());
+        assertEquals(2, markJoin.config().leftFields().size());
+        assertEquals("f1", markJoin.config().leftFields().get(0).name());
+        assertEquals("f2", markJoin.config().leftFields().get(1).name());
+        assertEquals(mark.id(), markJoin.markAttribute().id());
+        assertEquals("sub", as(as(markJoin.right(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    public void testMultiColumnInSubqueryInNotEquals() {
+        Filter filter = as(resolve("FROM main | WHERE ((f1, f2) IN (FROM sub | KEEP f1, f2)) != false"), Filter.class);
+        Equals equals = as(as(filter.condition(), Not.class).field(), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+
+        MarkJoin markJoin = as(filter.child(), MarkJoin.class);
+        assertEquals(2, markJoin.config().leftFields().size());
+        assertEquals(mark.id(), markJoin.markAttribute().id());
     }
 
     // ---- positive: synthetic constant aliases stay unique within one WHERE rewrite ----
@@ -2008,7 +2100,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * references the dropped alias.
      */
     public void testRepeatedConstantsInMultiColumnInSubqueryGetDistinctNames() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | WHERE (1, 1) IN (FROM sub | KEEP a, b)");
         SemiJoin semiJoin = as(plan, SemiJoin.class);
         var leftFields = semiJoin.config().leftFields();
@@ -2357,6 +2448,119 @@ public class InSubqueryResolverTests extends ESTestCase {
         assertEquals(mark.id(), join.markAttribute().id());
         assertEquals("sub", as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern());
         assertEquals("main", as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = (x IN (FROM sub)) == true}: the {@code ==} operand is an IN subquery:
+     * <pre>
+     * Eval[z=$$mark == true]
+     *   MarkJoin[x → $$mark, left=main, right=sub]
+     *     UnresolvedRelation[main]
+     * </pre>
+     */
+    public void testInSubqueryInEqualsInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = (x IN (FROM sub)) == true");
+        Eval eval = as(plan, Eval.class);
+        assertEquals(1, eval.fields().size());
+        assertEquals("z", eval.fields().get(0).name());
+        Equals equals = as(eval.fields().get(0).child(), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        assertEquals(true, as(equals.right(), Literal.class).value());
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(join, "x", "sub").id());
+        assertEquals("main", as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = (x IN (FROM sub)) != false}: {@code !=} arrives as {@code Not(Equals(...))}.
+     */
+    public void testInSubqueryInNotEqualsInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = (x IN (FROM sub)) != false");
+        Eval eval = as(plan, Eval.class);
+        Equals equals = as(as(eval.fields().get(0).child(), Not.class).field(), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(join, "x", "sub").id());
+    }
+
+    /**
+     * {@code FROM main | EVAL a = x + 1, z = (a IN (FROM sub)) == true}: the {@code ==} operand's LHS is an alias
+     * defined by an earlier field of the same EVAL, so the resolver must still split the EVAL to bring {@code a}
+     * into scope below the MarkJoin: {@code Eval[z=$$mark == true] → MarkJoin[left=a] → Eval[a=x+1] → Relation}.
+     */
+    public void testInSubqueryInEqualsInEvalWithLHSDerivedFromAnotherField() {
+        LogicalPlan plan = resolve("FROM main | EVAL a = x + 1, z = (a IN (FROM sub)) == true");
+
+        Eval upperEval = as(plan, Eval.class);
+        assertEquals(1, upperEval.fields().size());
+        assertEquals("z", upperEval.fields().get(0).name());
+        Equals equals = as(upperEval.fields().get(0).child(), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+
+        MarkJoin join = as(upperEval.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(join, "a", "sub").id());
+
+        Eval lowerEval = as(join.left(), Eval.class);
+        assertEquals(1, lowerEval.fields().size());
+        assertEquals("a", lowerEval.fields().get(0).name());
+        assertEquals("main", as(lowerEval.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code EVAL z = CASE((x IN (FROM sub)) == true, true, false)}: the {@link Equals} operand is rewritten
+     * two levels down, inside the CASE condition.
+     */
+    public void testInSubqueryInEqualsNestedInCaseInEval() {
+        boolean notEquals = randomBoolean();
+        LogicalPlan plan = resolve(
+            "FROM main | EVAL z = CASE((x IN (FROM sub)) " + (notEquals ? "!= false" : "== true") + ", true, false)"
+        );
+        Eval eval = as(plan, Eval.class);
+        UnresolvedFunction caseExpr = as(eval.fields().get(0).child(), UnresolvedFunction.class);
+        assertEquals("CASE", caseExpr.name());
+        Equals equals = notEquals
+            ? as(as(caseExpr.children().get(0), Not.class).field(), Equals.class)
+            : as(caseExpr.children().get(0), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(join, "x", "sub").id());
+        assertEquals("main", as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code EVAL z = COALESCE((x IN (FROM sub)) == true, false)}: the {@link Equals} operand is rewritten
+     * inside COALESCE.
+     */
+    public void testInSubqueryInEqualsNestedInCoalesceInEval() {
+        boolean notEquals = randomBoolean();
+        LogicalPlan plan = resolve("FROM main | EVAL z = COALESCE((x IN (FROM sub)) " + (notEquals ? "!= false" : "== true") + ", false)");
+        Eval eval = as(plan, Eval.class);
+        UnresolvedFunction coalesce = as(eval.fields().get(0).child(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesce.name());
+        Equals equals = notEquals
+            ? as(as(coalesce.children().get(0), Not.class).field(), Equals.class)
+            : as(coalesce.children().get(0), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(join, "x", "sub").id());
+    }
+
+    /**
+     * {@code EVAL z = TO_STRING((x IN (FROM sub)) == true)}: {@code TO_STRING} is not itself an eligible
+     * wrapper, but it is transparent, so the {@link Equals} child still rewrites the IN subquery.
+     */
+    public void testInSubqueryInEqualsNestedInToStringInEval() {
+        boolean notEquals = randomBoolean();
+        LogicalPlan plan = resolve("FROM main | EVAL z = TO_STRING((x IN (FROM sub)) " + (notEquals ? "!= false" : "== true") + ")");
+        Eval eval = as(plan, Eval.class);
+        UnresolvedFunction toString = as(eval.fields().get(0).child(), UnresolvedFunction.class);
+        assertEquals("TO_STRING", toString.name());
+        Equals equals = notEquals
+            ? as(as(toString.children().get(0), Not.class).field(), Equals.class)
+            : as(toString.children().get(0), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(join, "x", "sub").id());
     }
 
     /**
@@ -2728,7 +2932,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * {@code FROM main | EVAL z = (f1, f2) IN (TS sub | KEEP f1, f2)}
      */
     public void testMultiColumnInTsSubqueryInEval() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | EVAL z = (f1, f2) IN (TS sub | KEEP f1, f2)");
         Eval eval = as(plan, Eval.class);
         Attribute mark = as(eval.fields().get(0).child(), Attribute.class);
@@ -2759,7 +2962,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * {@code FROM main | EVAL z = (f1, f2) IN (ROW f1 = 1, f2 = 2)}
      */
     public void testMultiColumnInRowSubqueryInEval() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | EVAL z = (f1, f2) IN (ROW f1 = 1, f2 = 2)");
         Eval eval = as(plan, Eval.class);
         Attribute mark = as(eval.fields().get(0).child(), Attribute.class);
@@ -2775,7 +2977,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * {@code FROM main | EVAL z = CASE((f1, f2) IN (FROM sub | KEEP f1, f2), true, false)}
      */
     public void testMultiColumnInSubqueryNestedInCaseInEval() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | EVAL z = CASE((f1, f2) IN (FROM sub | KEEP f1, f2), true, false)");
         Eval eval = as(plan, Eval.class);
         UnresolvedFunction caseExpr = as(eval.fields().get(0).child(), UnresolvedFunction.class);
@@ -2791,7 +2992,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * {@code FROM main | EVAL z = COALESCE((f1, f2) IN (FROM sub | KEEP f1, f2), false)}
      */
     public void testMultiColumnInSubqueryNestedInCoalesceInEval() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | EVAL z = COALESCE((f1, f2) IN (FROM sub | KEEP f1, f2), false)");
         Eval eval = as(plan, Eval.class);
         UnresolvedFunction coalesceExpr = as(eval.fields().get(0).child(), UnresolvedFunction.class);
@@ -2807,7 +3007,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * {@code FROM main | EVAL z = ((f1, f2) IN (FROM sub | KEEP f1, f2)) IS NULL}
      */
     public void testMultiColumnInSubqueryNestedInIsNullInEval() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | EVAL z = ((f1, f2) IN (FROM sub | KEEP f1, f2)) IS NULL");
         Eval eval = as(plan, Eval.class);
         IsNull isNull = as(eval.fields().get(0).child(), IsNull.class);
@@ -2822,7 +3021,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * {@code FROM main | EVAL z = ((f1, f2) IN (FROM sub | KEEP f1, f2)) IS NOT NULL}
      */
     public void testMultiColumnInSubqueryNestedInIsNotNullInEval() {
-        checkMultiColumnInSubquery();
         LogicalPlan plan = resolve("FROM main | EVAL z = ((f1, f2) IN (FROM sub | KEEP f1, f2)) IS NOT NULL");
         Eval eval = as(plan, Eval.class);
         IsNotNull isNotNull = as(eval.fields().get(0).child(), IsNotNull.class);
@@ -2831,6 +3029,70 @@ public class InSubqueryResolverTests extends ESTestCase {
         assertEquals(2, join.config().leftFields().size());
         assertEquals(mark.id(), join.markAttribute().id());
         assertEquals("sub", as(as(join.right(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code EVAL z = CASE(((f1, f2) IN (FROM sub)) == true, true, false)}: multi-column IN subquery
+     * as an {@link Equals} operand nested inside CASE in EVAL.
+     */
+    public void testMultiColumnInSubqueryInEqualsNestedInCaseInEval() {
+        boolean notEquals = randomBoolean();
+        LogicalPlan plan = resolve(
+            "FROM main | EVAL z = CASE(((f1, f2) IN (FROM sub | KEEP f1, f2)) " + (notEquals ? "!= false" : "== true") + ", true, false)"
+        );
+        Eval eval = as(plan, Eval.class);
+        UnresolvedFunction caseExpr = as(eval.fields().get(0).child(), UnresolvedFunction.class);
+        assertEquals("CASE", caseExpr.name());
+        Equals equals = notEquals
+            ? as(as(caseExpr.children().get(0), Not.class).field(), Equals.class)
+            : as(caseExpr.children().get(0), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(2, join.config().leftFields().size());
+        assertEquals(mark.id(), join.markAttribute().id());
+        assertEquals("sub", as(as(join.right(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code EVAL z = COALESCE(((f1, f2) IN (FROM sub)) == true, false)}: multi-column IN subquery
+     * as an {@link Equals} operand nested inside COALESCE in EVAL.
+     */
+    public void testMultiColumnInSubqueryInEqualsNestedInCoalesceInEval() {
+        boolean notEquals = randomBoolean();
+        LogicalPlan plan = resolve(
+            "FROM main | EVAL z = COALESCE(((f1, f2) IN (FROM sub | KEEP f1, f2)) " + (notEquals ? "!= false" : "== true") + ", false)"
+        );
+        Eval eval = as(plan, Eval.class);
+        UnresolvedFunction coalesce = as(eval.fields().get(0).child(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesce.name());
+        Equals equals = notEquals
+            ? as(as(coalesce.children().get(0), Not.class).field(), Equals.class)
+            : as(coalesce.children().get(0), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(2, join.config().leftFields().size());
+        assertEquals(mark.id(), join.markAttribute().id());
+    }
+
+    /**
+     * {@code EVAL z = TO_STRING(((f1, f2) IN (FROM sub)) == true)}: {@code TO_STRING} is transparent,
+     * so the {@link Equals} child still rewrites the multi-column IN subquery.
+     */
+    public void testMultiColumnInSubqueryInEqualsNestedInToStringInEval() {
+        boolean notEquals = randomBoolean();
+        LogicalPlan plan = resolve(
+            "FROM main | EVAL z = TO_STRING(((f1, f2) IN (FROM sub | KEEP f1, f2)) " + (notEquals ? "!= false" : "== true") + ")"
+        );
+        Eval eval = as(plan, Eval.class);
+        UnresolvedFunction toString = as(eval.fields().get(0).child(), UnresolvedFunction.class);
+        assertEquals("TO_STRING", toString.name());
+        Equals equals = notEquals
+            ? as(as(toString.children().get(0), Not.class).field(), Equals.class)
+            : as(toString.children().get(0), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(2, join.config().leftFields().size());
+        assertEquals(mark.id(), join.markAttribute().id());
     }
 
     // ---- negative: IN subquery in EVAL (rejected shapes) ----
@@ -2849,6 +3111,873 @@ public class InSubqueryResolverTests extends ESTestCase {
     public void testRejectsInSubqueryInsideNonAllowlistedFunctionInEval() {
         var e = expectThrows(VerificationException.class, () -> resolve("FROM main | EVAL z = TO_STRING(x IN (FROM sub))"));
         assertThat(e.getMessage(), containsString("IN subquery is not supported within expression [TO_STRING(x IN (FROM sub))]"));
+    }
+
+    // ---- positive: IN subquery in STATS WHERE filter ----
+
+    public void testStatsWhereInSubquery() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE x IN (FROM sub)");
+        Aggregate agg = as(plan, Aggregate.class);
+        Alias alias = as(agg.aggregates().get(0), Alias.class);
+        FilteredExpression filtered = as(alias.child(), FilteredExpression.class);
+        Attribute mark = as(filtered.filter(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(JoinTypes.MARK, mj.config().type());
+        assertEquals("x", mj.config().leftFields().get(0).name());
+        assertTrue(mj.config().rightFields().isEmpty());
+        assertEquals(mark.id(), mj.markAttribute().id());
+        assertEquals("main", as(mj.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("sub", as(mj.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    public void testStatsWhereNotInSubquery() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE x NOT IN (FROM sub)");
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Not not = as(filtered.filter(), Not.class);
+        Attribute mark = as(not.field(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals("x", mj.config().leftFields().get(0).name());
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    public void testStatsWhereInSubqueryWithGrouping() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE x IN (FROM sub) BY g");
+        Aggregate agg = as(plan, Aggregate.class);
+        assertEquals(1, agg.groupings().size());
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Attribute mark = as(filtered.filter(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals("x", mj.config().leftFields().get(0).name());
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    /**
+     * A renamed grouping only blocks the rewrite when it shadows the IN subquery's LHS; an unrelated alias must not trip the guard.
+     */
+    public void testStatsWhereInSubqueryWithUnrelatedGroupingAlias() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE x IN (FROM sub) BY g = y");
+        Aggregate agg = as(plan, Aggregate.class);
+        assertEquals(1, agg.groupings().size());
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Attribute mark = as(filtered.filter(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals("x", mj.config().leftFields().get(0).name());
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    public void testStatsWhereInSubqueryMultipleAggs() {
+        LogicalPlan plan = resolve("FROM main | STATS c1 = COUNT(*) WHERE x IN (FROM sub1), c2 = SUM(y) WHERE z IN (FROM sub2)");
+        Aggregate agg = as(plan, Aggregate.class);
+        Attribute mark1 = as(as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class).filter(), Attribute.class);
+        Attribute mark2 = as(as(as(agg.aggregates().get(1), Alias.class).child(), FilteredExpression.class).filter(), Attribute.class);
+        MarkJoin outer = as(agg.child(), MarkJoin.class);
+        assertEquals("z", outer.config().leftFields().get(0).name());
+        assertEquals("sub2", as(outer.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals(mark2.id(), outer.markAttribute().id());
+        MarkJoin inner = as(outer.left(), MarkJoin.class);
+        assertEquals("x", inner.config().leftFields().get(0).name());
+        assertEquals("sub1", as(inner.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals(mark1.id(), inner.markAttribute().id());
+        assertEquals("main", as(inner.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    public void testStatsWhereInSubqueryTwoAggsSameSubquery() {
+        LogicalPlan plan = resolve("FROM main | STATS c1 = COUNT(*) WHERE x IN (FROM sub), c2 = SUM(y) WHERE x IN (FROM sub)");
+        Aggregate agg = as(plan, Aggregate.class);
+        Attribute mark1 = as(as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class).filter(), Attribute.class);
+        Attribute mark2 = as(as(as(agg.aggregates().get(1), Alias.class).child(), FilteredExpression.class).filter(), Attribute.class);
+        assertNotEquals(mark1.id(), mark2.id());
+        MarkJoin outer = as(agg.child(), MarkJoin.class);
+        MarkJoin inner = as(outer.left(), MarkJoin.class);
+        assertEquals(mark2.id(), outer.markAttribute().id());
+        assertEquals(mark1.id(), inner.markAttribute().id());
+    }
+
+    public void testStatsWhereInSubqueryFoldableLHS() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE 42 IN (FROM sub)");
+        Aggregate agg = as(plan, Aggregate.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertTrue(mj.config().leftFields().get(0).name().startsWith("$$in_subquery_const$"));
+        Eval eval = as(mj.left(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Literal constant = as(eval.fields().get(0).child(), Literal.class);
+        assertEquals(42, constant.value());
+        as(eval.child(), UnresolvedRelation.class);
+    }
+
+    public void testStatsWhereInSubqueryAndPredicate() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE x IN (FROM sub) AND y > 1");
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        And and = as(filtered.filter(), And.class);
+        Attribute mark = as(and.left(), Attribute.class);
+        as(and.right(), GreaterThan.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    public void testStatsWhereInSubqueryOrPredicate() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE x IN (FROM sub) OR y > 1");
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Or or = as(filtered.filter(), Or.class);
+        Attribute mark = as(or.left(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    public void testStatsWhereInSubqueryInCase() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE CASE(x IN (FROM sub), true, false)");
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        UnresolvedFunction caseExpr = as(filtered.filter(), UnresolvedFunction.class);
+        assertEquals("CASE", caseExpr.name());
+        Attribute mark = as(caseExpr.children().get(0), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals("x", mj.config().leftFields().get(0).name());
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    /**
+     * {@code STATS c = COUNT(*) WHERE (x IN (FROM sub)) == true}: the aggregate filter's {@link Equals} operand
+     * becomes a mark attribute fed by a MarkJoin below the aggregate's child.
+     */
+    public void testStatsWhereInSubqueryInEquals() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE (x IN (FROM sub)) == true");
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Equals equals = as(filtered.filter(), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        assertEquals(true, as(equals.right(), Literal.class).value());
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(mj, "x", "sub").id());
+    }
+
+    /**
+     * {@code STATS c = COUNT(*) WHERE (x IN (FROM sub)) != false}: {@code !=} arrives as {@code Not(Equals(...))}.
+     */
+    public void testStatsWhereInSubqueryInNotEquals() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE (x IN (FROM sub)) != false");
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Equals equals = as(as(filtered.filter(), Not.class).field(), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(mj, "x", "sub").id());
+    }
+
+    public void testStatsWhereInSubqueryInEqualsWithGrouping() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE (x IN (FROM sub)) == true BY g");
+        Aggregate agg = as(plan, Aggregate.class);
+        assertEquals(1, agg.groupings().size());
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Attribute mark = as(as(filtered.filter(), Equals.class).left(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(mj, "x", "sub").id());
+    }
+
+    /**
+     * {@code STATS c = COUNT(*) WHERE CASE((x IN (FROM sub)) == true, true, false)}: the {@link Equals}
+     * operand is rewritten inside the CASE condition of the aggregate filter.
+     */
+    public void testStatsWhereInSubqueryInEqualsNestedInCase() {
+        boolean notEquals = randomBoolean();
+        LogicalPlan plan = resolve(
+            "FROM main | STATS c = COUNT(*) WHERE CASE((x IN (FROM sub)) " + (notEquals ? "!= false" : "== true") + ", true, false)"
+        );
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        UnresolvedFunction caseExpr = as(filtered.filter(), UnresolvedFunction.class);
+        assertEquals("CASE", caseExpr.name());
+        Equals equals = notEquals
+            ? as(as(caseExpr.children().get(0), Not.class).field(), Equals.class)
+            : as(caseExpr.children().get(0), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(mj, "x", "sub").id());
+    }
+
+    /**
+     * {@code STATS c = COUNT(*) WHERE COALESCE((x IN (FROM sub)) == true, false)}: the {@link Equals}
+     * operand is rewritten inside COALESCE in the aggregate filter.
+     */
+    public void testStatsWhereInSubqueryInEqualsNestedInCoalesce() {
+        boolean notEquals = randomBoolean();
+        LogicalPlan plan = resolve(
+            "FROM main | STATS c = COUNT(*) WHERE COALESCE((x IN (FROM sub)) " + (notEquals ? "!= false" : "== true") + ", false)"
+        );
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        UnresolvedFunction coalesce = as(filtered.filter(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesce.name());
+        Equals equals = notEquals
+            ? as(as(coalesce.children().get(0), Not.class).field(), Equals.class)
+            : as(coalesce.children().get(0), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(mj, "x", "sub").id());
+    }
+
+    /**
+     * {@code STATS c = COUNT(*) WHERE TO_STRING((x IN (FROM sub)) == true) == "true"}: {@code TO_STRING}
+     * is transparent, so the inner {@link Equals} still rewrites the IN subquery.
+     */
+    public void testStatsWhereInSubqueryInEqualsNestedInToString() {
+        boolean notEquals = randomBoolean();
+        LogicalPlan plan = resolve(
+            "FROM main | STATS c = COUNT(*) WHERE TO_STRING((x IN (FROM sub)) " + (notEquals ? "!= false" : "== true") + ") == \"true\""
+        );
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Equals outerEquals = as(filtered.filter(), Equals.class);
+        UnresolvedFunction toString = as(outerEquals.left(), UnresolvedFunction.class);
+        assertEquals("TO_STRING", toString.name());
+        Equals equals = notEquals
+            ? as(as(toString.children().get(0), Not.class).field(), Equals.class)
+            : as(toString.children().get(0), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(mj, "x", "sub").id());
+    }
+
+    public void testStatsWhereInSubqueryInCoalesce() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE COALESCE(x IN (FROM sub), false)");
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        UnresolvedFunction coalesce = as(filtered.filter(), UnresolvedFunction.class);
+        Attribute mark = as(coalesce.children().get(0), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    public void testStatsWhereInSubqueryInIsNull() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE (x IN (FROM sub)) IS NULL");
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        IsNull isNull = as(filtered.filter(), IsNull.class);
+        Attribute mark = as(isNull.field(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    public void testStatsWhereInSubqueryInIsNotNull() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE (x IN (FROM sub)) IS NOT NULL");
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        IsNotNull isNotNull = as(filtered.filter(), IsNotNull.class);
+        Attribute mark = as(isNotNull.field(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    public void testStatsWhereRowInSubquery() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE x IN (ROW a = 1 | KEEP a)");
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Attribute mark = as(filtered.filter(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals("x", mj.config().leftFields().get(0).name());
+        assertEquals(mark.id(), mj.markAttribute().id());
+        as(as(mj.right(), Keep.class).child(), Row.class);
+    }
+
+    public void testStatsWhereTsInSubquery() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE x IN (TS sub | STATS max(rate(val)) BY ts | KEEP a)");
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Attribute mark = as(filtered.filter(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals("x", mj.config().leftFields().get(0).name());
+        assertEquals(mark.id(), mj.markAttribute().id());
+        as(as(mj.right(), Keep.class).child(), TimeSeriesAggregate.class);
+    }
+
+    public void testStatsWhereMultiColumnRowInSubquery() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE (x, y) IN (ROW a = 1, b = 2 | KEEP a, b)");
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Attribute mark = as(filtered.filter(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(2, mj.config().leftFields().size());
+        assertEquals(mark.id(), mj.markAttribute().id());
+        as(as(mj.right(), Keep.class).child(), Row.class);
+    }
+
+    public void testStatsWhereMultiColumnTsInSubquery() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE (x, y) IN (TS sub | STATS max(rate(val)) BY ts | KEEP a, b)");
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Attribute mark = as(filtered.filter(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(2, mj.config().leftFields().size());
+        assertEquals(mark.id(), mj.markAttribute().id());
+        as(as(mj.right(), Keep.class).child(), TimeSeriesAggregate.class);
+    }
+
+    public void testStatsWhereInSubqueryInComplexNesting() {
+        LogicalPlan plan = resolve("""
+            FROM main
+            | STATS c = COUNT(*) WHERE COALESCE(CASE(x IN (ROW a = 1 | KEEP a),
+                                                     true,
+                                                     (y, z) IN (TS sub | STATS max(rate(val)) BY ts | KEEP b, c)),
+                                                false)
+            """);
+        Aggregate agg = as(plan, Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        UnresolvedFunction coalesce = as(filtered.filter(), UnresolvedFunction.class);
+        UnresolvedFunction caseFunc = as(coalesce.children().get(0), UnresolvedFunction.class);
+        Attribute mark1 = as(caseFunc.children().get(0), Attribute.class);
+        Attribute mark2 = as(caseFunc.children().get(2), Attribute.class);
+
+        MarkJoin mj2 = as(agg.child(), MarkJoin.class);
+        assertEquals(mark2.id(), mj2.markAttribute().id());
+        as(as(mj2.right(), Keep.class).child(), TimeSeriesAggregate.class);
+
+        MarkJoin mj1 = as(mj2.left(), MarkJoin.class);
+        assertEquals(mark1.id(), mj1.markAttribute().id());
+        as(as(mj1.right(), Keep.class).child(), Row.class);
+    }
+
+    public void testNestedSubqueryWithStatsWhereInSubquery() {
+        LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub | STATS m = MAX(y) WHERE z IN (FROM sub2))");
+        SemiJoin semiJoin = as(plan, SemiJoin.class);
+        Aggregate agg = as(semiJoin.right(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Attribute mark = as(filtered.filter(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals("z", mj.config().leftFields().get(0).name());
+        assertEquals(mark.id(), mj.markAttribute().id());
+        assertEquals("sub2", as(mj.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("sub", as(mj.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    // ---- negative: unsupported IN subquery shapes in STATS ----
+
+    public void testRejectsInSubqueryInAggArgs() {
+        assertResolveError(
+            "FROM main | STATS c = SUM(CASE(x IN (FROM sub), 1, 0)) WHERE y > 0",
+            "line 1:32: IN subquery is not supported in [STATS c = SUM(CASE(x IN (FROM sub), 1, 0)) WHERE y > 0]"
+        );
+    }
+
+    public void testRejectsInSubqueryInStatsBy() {
+        assertResolveError(
+            "FROM main | STATS c = COUNT(*) BY x IN (FROM sub)",
+            "line 1:35: IN subquery is not supported in [STATS c = COUNT(*) BY x IN (FROM sub)]"
+        );
+    }
+
+    public void testRejectsMultiColumnInSubqueryInStatsBy() {
+        var e = expectThrows(VerificationException.class, () -> resolve("FROM main | STATS c = COUNT(*) BY (f1, f2) IN (FROM sub)"));
+        assertThat(e.getMessage(), containsString("IN subquery is not supported in [STATS c = COUNT(*) BY (f1, f2) IN (FROM sub)]"));
+    }
+
+    public void testRejectsComplexLHSInStatsWhere() {
+        assertResolveError(
+            "FROM main | STATS c = COUNT(*) WHERE abs(x) IN (FROM sub)",
+            "line 1:38: Complicated IN subquery is not yet supported in Aggregate [STATS c = COUNT(*) WHERE abs(x) IN (FROM sub)]"
+        );
+    }
+
+    public void testRejectsStatsWhereInSubqueryShadowedByGroupingAlias() {
+        assertResolveError(
+            "FROM main | STATS c = COUNT(*) WHERE x IN (FROM sub) BY x = y",
+            "line 1:38: IN subquery is not yet supported in an aggregate WHERE clause that references the grouping alias [x]"
+        );
+    }
+
+    /**
+     * The grouping-alias guard walks the whole filter expression, so it fires just the same when the IN subquery is
+     * an {@link Equals} operand rather than the filter itself.
+     */
+    public void testRejectsStatsWhereInSubqueryInEqualsShadowedByGroupingAlias() {
+        assertResolveError(
+            "FROM main | STATS c = COUNT(*) WHERE (x IN (FROM sub)) == true BY x = y",
+            "line 1:39: IN subquery is not yet supported in an aggregate WHERE clause that references the grouping alias [x]"
+        );
+    }
+
+    public void testRejectsMultiColumnStatsWhereInSubqueryShadowedByGroupingAlias() {
+        var e = expectThrows(
+            VerificationException.class,
+            () -> resolve("FROM main | STATS c = COUNT(*) WHERE (f1, f2) IN (FROM sub) BY f2 = y")
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("IN subquery is not yet supported in an aggregate WHERE clause that references the grouping alias [f2]")
+        );
+    }
+
+    // ---- positive: IN subquery in INLINE STATS WHERE filter ----
+    /**
+     * <pre>
+     * InlineStats
+     *   Aggregate[c = COUNT(*) WHERE $$mark]
+     *     MarkJoin[x → $$mark, left=main, right=sub]
+     *       UnresolvedRelation[main]
+     * </pre>
+     */
+    public void testInSubqueryInInlineStatsWhere() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c = COUNT(*) WHERE x IN (FROM sub)");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Attribute mark = as(filtered.filter(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(JoinTypes.MARK, mj.config().type());
+        assertEquals("x", mj.config().leftFields().get(0).name());
+        assertEquals(mark.id(), mj.markAttribute().id());
+        assertEquals("main", as(mj.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("sub", as(mj.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE x NOT IN (FROM sub)}: negation stays as {@code NOT($$mark)}.
+     */
+    public void testNotInSubqueryInInlineStatsWhere() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c = COUNT(*) WHERE x NOT IN (FROM sub)");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Not not = as(filtered.filter(), Not.class);
+        Attribute mark = as(not.field(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE x IN (FROM sub) BY g}: groupings untouched.
+     */
+    public void testInSubqueryInInlineStatsWhereWithGrouping() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c = COUNT(*) WHERE x IN (FROM sub) BY g");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        assertEquals(1, agg.groupings().size());
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Attribute mark = as(filtered.filter(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE CASE(x IN (FROM sub), true, false)}: CASE wrapper in
+     * the INLINE STATS aggregate filter.
+     */
+    public void testInSubqueryInCaseInInlineStatsWhere() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c = COUNT(*) WHERE CASE(x IN (FROM sub), true, false)");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        UnresolvedFunction caseExpr = as(filtered.filter(), UnresolvedFunction.class);
+        Attribute mark = as(caseExpr.children().get(0), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    /**
+     * {@code WHERE x IN (FROM sub) | INLINE STATS c = COUNT(*) WHERE z IN (FROM sub2)}: both the
+     * WHERE-command subquery (SemiJoin) and the INLINE STATS aggregate-filter subquery (MarkJoin)
+     * are rewritten in the same pass.
+     */
+    public void testWhereInSubqueryBeforeInSubqueryInInlineStatsWhere() {
+        LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub) | INLINE STATS c = COUNT(*) WHERE z IN (FROM sub2)");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Attribute mark = as(filtered.filter(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals("z", mj.config().leftFields().get(0).name());
+        assertEquals(mark.id(), mj.markAttribute().id());
+        assertEquals("sub2", as(mj.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+        SemiJoin semiJoin = as(mj.left(), SemiJoin.class);
+        assertEquals("x", semiJoin.config().leftFields().get(0).name());
+        assertEquals("main", as(semiJoin.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("sub", as(semiJoin.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code INLINE STATS c1 = COUNT(*) WHERE x IN (FROM sub1), c2 = SUM(y) WHERE z IN (FROM sub2)}: each filtered aggregate gets its
+     * own MarkJoin; they stack below the InlineStats-owned Aggregate in reverse encounter order.
+     */
+    public void testInSubqueryInInlineStatsWhereWithMultipleAggs() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c1 = COUNT(*) WHERE x IN (FROM sub1), c2 = SUM(y) WHERE z IN (FROM sub2)");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        Attribute mark1 = as(as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class).filter(), Attribute.class);
+        Attribute mark2 = as(as(as(agg.aggregates().get(1), Alias.class).child(), FilteredExpression.class).filter(), Attribute.class);
+        MarkJoin outer = as(agg.child(), MarkJoin.class);
+        assertEquals("z", outer.config().leftFields().get(0).name());
+        assertEquals("sub2", as(outer.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals(mark2.id(), outer.markAttribute().id());
+        MarkJoin inner = as(outer.left(), MarkJoin.class);
+        assertEquals("x", inner.config().leftFields().get(0).name());
+        assertEquals("sub1", as(inner.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals(mark1.id(), inner.markAttribute().id());
+        assertEquals("main", as(inner.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * Two INLINE STATS aggregates filtered by the textually identical IN subquery: each still gets
+     * its own MarkJoin and mark attribute with distinct {@link NameId}s.
+     */
+    public void testInSubqueryInInlineStatsWhereWithTwoAggsSameSubquery() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c1 = COUNT(*) WHERE x IN (FROM sub), c2 = SUM(y) WHERE x IN (FROM sub)");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        Attribute mark1 = as(as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class).filter(), Attribute.class);
+        Attribute mark2 = as(as(as(agg.aggregates().get(1), Alias.class).child(), FilteredExpression.class).filter(), Attribute.class);
+        assertNotEquals(mark1.id(), mark2.id());
+        MarkJoin outer = as(agg.child(), MarkJoin.class);
+        MarkJoin inner = as(outer.left(), MarkJoin.class);
+        assertEquals(mark2.id(), outer.markAttribute().id());
+        assertEquals(mark1.id(), inner.markAttribute().id());
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE 42 IN (FROM sub)}: a foldable LHS is materialized as
+     * a synthetic Eval column below the MarkJoin.
+     */
+    public void testInSubqueryWithFoldableLHSInInlineStatsWhere() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c = COUNT(*) WHERE 42 IN (FROM sub)");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertTrue(mj.config().leftFields().get(0).name().startsWith("$$in_subquery_const$"));
+        Eval eval = as(mj.left(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Literal constant = as(eval.fields().get(0).child(), Literal.class);
+        assertEquals(42, constant.value());
+        as(eval.child(), UnresolvedRelation.class);
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE x IN (FROM sub) AND y > 1}: the IN subquery is one
+     * conjunct of the aggregate filter; the rest of the condition is preserved around the mark.
+     */
+    public void testInSubqueryAndGreaterThanInInlineStatsWhere() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c = COUNT(*) WHERE x IN (FROM sub) AND y > 1");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        And and = as(filtered.filter(), And.class);
+        Attribute mark = as(and.left(), Attribute.class);
+        as(and.right(), GreaterThan.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE x IN (FROM sub1) OR y IN (FROM sub2)}: two disjunctive
+     * IN subqueries in the aggregate filter, each rewritten to its own MarkJoin.
+     */
+    public void testDisjunctiveInSubqueryInInlineStatsWhere() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c = COUNT(*) WHERE x IN (FROM sub1) OR y IN (FROM sub2)");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Or or = as(filtered.filter(), Or.class);
+        Attribute mark1 = as(or.left(), Attribute.class);
+        Attribute mark2 = as(or.right(), Attribute.class);
+        MarkJoin outer = as(agg.child(), MarkJoin.class);
+        assertEquals("y", outer.config().leftFields().get(0).name());
+        assertEquals(mark2.id(), outer.markAttribute().id());
+        MarkJoin inner = as(outer.left(), MarkJoin.class);
+        assertEquals("x", inner.config().leftFields().get(0).name());
+        assertEquals(mark1.id(), inner.markAttribute().id());
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE COALESCE(x IN (FROM sub), false)}: IN subquery inside
+     * a COALESCE argument of the INLINE STATS aggregate filter.
+     */
+    public void testInSubqueryInCoalesceInInlineStatsWhere() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c = COUNT(*) WHERE COALESCE(x IN (FROM sub), false)");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        UnresolvedFunction coalesce = as(filtered.filter(), UnresolvedFunction.class);
+        Attribute mark = as(coalesce.children().get(0), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE (x IN (FROM sub)) == true}: IN subquery as an {@link Equals}
+     * operand in the INLINE STATS aggregate filter.
+     */
+    public void testInSubqueryInEqualsInInlineStatsWhere() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c = COUNT(*) WHERE (x IN (FROM sub)) == true");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Equals equals = as(filtered.filter(), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        assertEquals(true, as(equals.right(), Literal.class).value());
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(mj, "x", "sub").id());
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE (x IN (FROM sub)) != false}: {@code !=} arrives as
+     * {@code Not(Equals(...))}.
+     */
+    public void testInSubqueryInNotEqualsInInlineStatsWhere() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c = COUNT(*) WHERE (x IN (FROM sub)) != false");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Equals equals = as(as(filtered.filter(), Not.class).field(), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(mj, "x", "sub").id());
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE CASE((x IN (FROM sub)) == true, true, false)}: the
+     * {@link Equals} operand is rewritten inside the CASE condition of the INLINE STATS filter.
+     */
+    public void testInSubqueryInEqualsNestedInCaseInInlineStatsWhere() {
+        boolean notEquals = randomBoolean();
+        LogicalPlan plan = resolve(
+            "FROM main | INLINE STATS c = COUNT(*) WHERE CASE((x IN (FROM sub)) " + (notEquals ? "!= false" : "== true") + ", true, false)"
+        );
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        UnresolvedFunction caseExpr = as(filtered.filter(), UnresolvedFunction.class);
+        assertEquals("CASE", caseExpr.name());
+        Equals equals = notEquals
+            ? as(as(caseExpr.children().get(0), Not.class).field(), Equals.class)
+            : as(caseExpr.children().get(0), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(mj, "x", "sub").id());
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE COALESCE((x IN (FROM sub)) == true, false)}: the
+     * {@link Equals} operand is rewritten inside COALESCE in the INLINE STATS filter.
+     */
+    public void testInSubqueryInEqualsNestedInCoalesceInInlineStatsWhere() {
+        boolean notEquals = randomBoolean();
+        LogicalPlan plan = resolve(
+            "FROM main | INLINE STATS c = COUNT(*) WHERE COALESCE((x IN (FROM sub)) " + (notEquals ? "!= false" : "== true") + ", false)"
+        );
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        UnresolvedFunction coalesce = as(filtered.filter(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesce.name());
+        Equals equals = notEquals
+            ? as(as(coalesce.children().get(0), Not.class).field(), Equals.class)
+            : as(coalesce.children().get(0), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(mj, "x", "sub").id());
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE TO_STRING((x IN (FROM sub)) == true) == "true"}:
+     * {@code TO_STRING} is transparent, so the inner {@link Equals} still rewrites the IN subquery.
+     */
+    public void testInSubqueryInEqualsNestedInToStringInInlineStatsWhere() {
+        boolean notEquals = randomBoolean();
+        LogicalPlan plan = resolve(
+            "FROM main | INLINE STATS c = COUNT(*) WHERE TO_STRING((x IN (FROM sub)) "
+                + (notEquals ? "!= false" : "== true")
+                + ") == \"true\""
+        );
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Equals outerEquals = as(filtered.filter(), Equals.class);
+        UnresolvedFunction toString = as(outerEquals.left(), UnresolvedFunction.class);
+        assertEquals("TO_STRING", toString.name());
+        Equals equals = notEquals
+            ? as(as(toString.children().get(0), Not.class).field(), Equals.class)
+            : as(toString.children().get(0), Equals.class);
+        Attribute mark = as(equals.left(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), assertMarkJoin(mj, "x", "sub").id());
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE (x IN (FROM sub)) IS NULL}: IN subquery under IS NULL
+     * in the INLINE STATS aggregate filter.
+     */
+    public void testInSubqueryInIsNullInInlineStatsWhere() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c = COUNT(*) WHERE (x IN (FROM sub)) IS NULL");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        IsNull isNull = as(filtered.filter(), IsNull.class);
+        Attribute mark = as(isNull.field(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE (x IN (FROM sub)) IS NOT NULL}: IN subquery under
+     * IS NOT NULL in the INLINE STATS aggregate filter.
+     */
+    public void testInSubqueryInIsNotNullInInlineStatsWhere() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c = COUNT(*) WHERE (x IN (FROM sub)) IS NOT NULL");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        IsNotNull isNotNull = as(filtered.filter(), IsNotNull.class);
+        Attribute mark = as(isNotNull.field(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    // ---- positive: IN subquery in INLINE STATS WHERE filter with ROW and TS sources ----
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE x IN (ROW a = 1 | KEEP a)}
+     */
+    public void testInSubqueryInInlineStatsWhereWithRow() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c = COUNT(*) WHERE x IN (ROW a = 1 | KEEP a)");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Attribute mark = as(filtered.filter(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals("x", mj.config().leftFields().get(0).name());
+        assertEquals(mark.id(), mj.markAttribute().id());
+        Keep keep = as(mj.right(), Keep.class);
+        as(keep.child(), Row.class);
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE (x, y) IN (TS sub | STATS r = rate(foo) BY bar | KEEP r, bar)}
+     */
+    public void testMultiColumnInSubqueryInInlineStatsWhereWithTs() {
+        LogicalPlan plan = resolve("""
+            FROM main
+            | INLINE STATS c = COUNT(*) WHERE (x, y) IN (TS sub | STATS r = rate(foo) BY bar | KEEP r, bar)""");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Attribute mark = as(filtered.filter(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(2, mj.config().leftFields().size());
+        assertEquals("x", mj.config().leftFields().get(0).name());
+        assertEquals("y", mj.config().leftFields().get(1).name());
+        assertEquals(mark.id(), mj.markAttribute().id());
+
+        Keep keep = as(mj.right(), Keep.class);
+        Aggregate subAgg = as(keep.child(), Aggregate.class);
+        as(subAgg.child(), UnresolvedRelation.class);
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE CASE(x IN (ROW a = 1 | KEEP a), true, false)}
+     */
+    public void testInSubqueryInCaseInInlineStatsWhereWithRow() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c = COUNT(*) WHERE CASE(x IN (ROW a = 1 | KEEP a), true, false)");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        UnresolvedFunction caseExpr = as(filtered.filter(), UnresolvedFunction.class);
+        assertEquals("CASE", caseExpr.name());
+        Attribute mark = as(caseExpr.children().get(0), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), mj.markAttribute().id());
+        as(as(mj.right(), Keep.class).child(), Row.class);
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE COALESCE(x IN (TS sub | STATS r = avg_over_time(foo) BY bar | KEEP r), false)}
+     */
+    public void testInSubqueryInCoalesceInInlineStatsWhereWithTs() {
+        LogicalPlan plan = resolve("""
+            FROM main
+            | INLINE STATS c = COUNT(*) WHERE COALESCE(x IN (TS sub | STATS r = avg_over_time(foo) BY bar | KEEP r), false)""");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        UnresolvedFunction coalesce = as(filtered.filter(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesce.name());
+        Attribute mark = as(coalesce.children().get(0), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), mj.markAttribute().id());
+        Aggregate subAgg = as(as(mj.right(), Keep.class).child(), Aggregate.class);
+        as(subAgg.child(), UnresolvedRelation.class);
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE (x IN (ROW a = 1 | KEEP a)) IS NULL}
+     */
+    public void testInSubqueryInIsNullInInlineStatsWhereWithRow() {
+        LogicalPlan plan = resolve("FROM main | INLINE STATS c = COUNT(*) WHERE (x IN (ROW a = 1 | KEEP a)) IS NULL");
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        IsNull isNull = as(filtered.filter(), IsNull.class);
+        Attribute mark = as(isNull.field(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    /**
+     * {@code INLINE STATS c = COUNT(*) WHERE (x IN (TS sub | STATS r = rate(foo) BY bar | KEEP r)) IS NOT NULL}
+     */
+    public void testInSubqueryInIsNotNullInInlineStatsWhereWithTs() {
+        LogicalPlan plan = resolve(
+            "FROM main | INLINE STATS c = COUNT(*) WHERE (x IN (TS sub | STATS r = rate(foo) BY bar | KEEP r)) IS NOT NULL"
+        );
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate agg = as(inlineStats.child(), Aggregate.class);
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        IsNotNull isNotNull = as(filtered.filter(), IsNotNull.class);
+        Attribute mark = as(isNotNull.field(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    // negative inline stats aggregate filter tests
+
+    public void testRejectsComplexLHSInSubqueryInInlineStatsWhere() {
+        assertResolveError(
+            "FROM main | INLINE STATS c = COUNT(*) WHERE abs(x) IN (FROM sub)",
+            "line 1:45: Complicated IN subquery is not yet supported in Aggregate "
+                + "[INLINE STATS c = COUNT(*) WHERE abs(x) IN (FROM sub)]"
+        );
+    }
+
+    public void testRejectsInSubqueryInInlineStatsWhereShadowedByGroupingAlias() {
+        assertResolveError(
+            "FROM main | INLINE STATS c = COUNT(*) WHERE x IN (FROM sub) BY x = y",
+            "line 1:45: IN subquery is not yet supported in an aggregate WHERE clause that references the grouping alias [x]"
+        );
+    }
+
+    public void testRejectsMultiColumnInSubqueryInInlineStatsWhereShadowedByGroupingAlias() {
+        var e = expectThrows(
+            VerificationException.class,
+            () -> resolve("FROM main | INLINE STATS c = COUNT(*) WHERE (f1, f2) IN (FROM sub) BY f2 = y")
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("IN subquery is not yet supported in an aggregate WHERE clause that references the grouping alias [f2]")
+        );
+    }
+
+    // ---- negative: IN subquery in SORT ----
+
+    public void testRejectsInSubqueryInSort() {
+        assertResolveError("FROM main | SORT x IN (FROM sub)", "line 1:18: IN subquery is not supported in [SORT x IN (FROM sub)]");
+    }
+
+    // ---- negative: IN subquery in LIMIT BY ----
+
+    public void testRejectsInSubqueryInLimitBy() {
+        assertResolveError(
+            "FROM main | SORT a | LIMIT 10 BY x IN (FROM sub)",
+            "line 1:34: IN subquery is not supported in [LIMIT 10 BY x IN (FROM sub)]"
+        );
     }
 
     // ---- helpers ----

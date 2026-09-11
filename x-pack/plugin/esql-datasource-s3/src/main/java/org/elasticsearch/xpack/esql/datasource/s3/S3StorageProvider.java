@@ -18,6 +18,7 @@ import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvide
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
+import software.amazon.awssdk.core.interceptor.ExecutionInterceptor;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
 import software.amazon.awssdk.identity.spi.IdentityProvider;
@@ -49,12 +50,14 @@ import org.elasticsearch.xpack.esql.datasource.nettycommons.PooledRecvByteBufAll
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -245,13 +248,23 @@ public class S3StorageProvider implements StorageProvider {
         ).build();
     }
 
-    /**
-     * Applies credentials, region, endpoint, and profile settings common to both the sync and async S3 clients.
-     */
     private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(
         B builder,
         S3Configuration config,
         IdentityProvider<? extends AwsCredentialsIdentity> credentials
+    ) {
+        return configureCommon(builder, config, credentials, List.of());
+    }
+
+    /**
+     * Applies credentials, region, endpoint, and profile settings common to both the sync and async S3 clients.
+     * Pass an empty list for {@code interceptors} in production.
+     */
+    static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(
+        B builder,
+        S3Configuration config,
+        IdentityProvider<? extends AwsCredentialsIdentity> credentials,
+        List<ExecutionInterceptor> interceptors
     ) {
         // Disable profile file loading to prevent the AWS SDK from reading ~/.aws/config
         // or the path set via AWS_CONFIG_FILE, which would be blocked by the entitlement system.
@@ -264,6 +277,7 @@ public class S3StorageProvider implements StorageProvider {
             // to Legacy / 4 attempts, or whatever AWS_RETRY_MODE/AWS_MAX_ATTEMPTS happen to be). This is the
             // per-backend, connection-aware retry layer beneath our provider-agnostic RetryPolicy.
             c.retryStrategy(AwsRetryStrategy.standardRetryStrategy());
+            interceptors.forEach(c::addExecutionInterceptor);
         });
 
         // Disable optional response checksum validation. The SDK default (WHEN_SUPPORTED) wraps
@@ -281,7 +295,20 @@ public class S3StorageProvider implements StorageProvider {
 
         if (config != null && config.endpoint() != null) {
             builder.endpointOverride(URI.create(config.endpoint()));
-            builder.forcePathStyle(true);
+        }
+
+        S3Configuration.AddressingStyleMode addressingStyle = config != null
+            ? config.resolveAddressingStyle()
+            : S3Configuration.AddressingStyleMode.AUTO;
+        switch (addressingStyle) {
+            case PATH -> builder.forcePathStyle(true);
+            case VIRTUAL_HOSTED -> builder.forcePathStyle(false);
+            case AUTO -> {
+                // path-style when an endpoint override is set, SDK default otherwise
+                if (config != null && config.endpoint() != null) {
+                    builder.forcePathStyle(true);
+                }
+            }
         }
 
         return builder;
@@ -473,6 +500,10 @@ public class S3StorageProvider implements StorageProvider {
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
                 return existsViaRangeGet(bucket, key, path);
             }
+            ExternalUnavailableException unavailable = mapResolveFailure(path, e);
+            if (unavailable != null) {
+                throw unavailable;
+            }
             throw new IOException("Failed to check existence of " + path + ": " + S3FailureDetail.of(e) + credentialHint(), e);
         }
     }
@@ -486,6 +517,10 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
+            ExternalUnavailableException unavailable = mapResolveFailure(path, e);
+            if (unavailable != null) {
+                throw unavailable;
+            }
             throw new IOException(
                 "Failed to check existence of "
                     + path
@@ -495,6 +530,41 @@ public class S3StorageProvider implements StorageProvider {
                 e
             );
         }
+    }
+
+    /**
+     * Types retryable S3 statuses and SDK transport failures (no HTTP response) before resolution
+     * code can erase them inside an {@link IOException}. The returned exception is both the HTTP 503
+     * surfaced to the caller and the marker consumed by the storage retry policy.
+     */
+    private static ExternalUnavailableException mapResolveFailure(StoragePath path, Exception cause) {
+        if (cause instanceof S3Exception s3 && ExternalUnavailableException.isRetryableStatus(s3.statusCode())) {
+            boolean throttling = ExternalUnavailableException.isThrottlingStatus(s3.statusCode());
+            long retryAfterMs = 0L;
+            if (throttling && s3.awsErrorDetails() != null && s3.awsErrorDetails().sdkHttpResponse() != null) {
+                retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
+                    s3.awsErrorDetails().sdkHttpResponse().firstMatchingHeader("Retry-After").orElse(null)
+                );
+            }
+            return new ExternalUnavailableException(
+                throttling,
+                retryAfterMs,
+                cause,
+                "S3 store unavailable resolving [{}] (HTTP {})",
+                path,
+                s3.statusCode()
+            );
+        }
+        if (S3StorageObject.isSdkClientTransportFailure(cause)) {
+            return new ExternalUnavailableException(
+                false,
+                cause,
+                "S3 store unavailable resolving [{}]: {}",
+                path,
+                S3FailureDetail.of(cause)
+            );
+        }
+        return null;
     }
 
     @Override
@@ -649,6 +719,10 @@ public class S3StorageProvider implements StorageProvider {
                 continuationToken = response.nextContinuationToken();
                 hasMorePages = response.isTruncated();
             } catch (Exception e) {
+                ExternalUnavailableException unavailable = mapResolveFailure(baseDirectory, e);
+                if (unavailable != null) {
+                    throw unavailable;
+                }
                 String msg = (e instanceof S3Exception s3e && s3e.statusCode() == 403)
                     ? "Access denied listing objects in bucket ["
                         + bucket
@@ -658,7 +732,7 @@ public class S3StorageProvider implements StorageProvider {
                         + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
                         + "or use exact file paths instead of glob patterns."
                     : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
-                throw new RuntimeException(msg + ": " + S3FailureDetail.of(e), e);
+                throw new UncheckedIOException(new IOException(msg + ": " + S3FailureDetail.of(e), e));
             }
         }
     }

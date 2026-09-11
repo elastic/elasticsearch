@@ -55,13 +55,17 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -71,6 +75,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -87,6 +92,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -233,6 +239,148 @@ public class BulkOperationTests extends ESTestCase {
     @After
     public void tearDownThreadpool() {
         terminate(threadPool);
+    }
+
+    /**
+     * A document whose {@code @timestamp} falls outside all backing index time ranges of a TSDB data stream with a failure store enabled
+     * should be redirected to the failure store during pre-routing, exercising the {@code catch (DataStream.TimestampError)} path in
+     * {@code groupRequestsByShards}.
+     */
+    public void testTsdbTimestampErrorDuringRoutingRedirectsToFailureStore() throws Exception {
+        Instant start = Instant.parse("2020-01-01T00:00:00Z");
+        Instant end = Instant.parse("2021-01-01T00:00:00Z");
+        String tsdbStreamName = "my_tsdb_stream";
+
+        IndexMetadata tsdbBackingIndex = DataStreamTestHelper.createIndexMetadata(
+            DataStream.getDefaultBackingIndexName(tsdbStreamName, 1, start.toEpochMilli()),
+            true,
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .put("index.routing_path", "uid")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start))
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end))
+                .build(),
+            0
+        );
+        IndexMetadata tsdbFailureStore = DataStreamTestHelper.createFailureStore(tsdbStreamName, 1, millis).numberOfShards(1).build();
+
+        DataStream tsdbDataStream = DataStream.builder(tsdbStreamName, List.of(tsdbBackingIndex.getIndex()))
+            .setGeneration(1)
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
+            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(List.of(tsdbFailureStore.getIndex())).build())
+            .build();
+
+        ClusterState tsdbState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId)
+                    .indices(
+                        Map.of(
+                            tsdbBackingIndex.getIndex().getName(),
+                            tsdbBackingIndex,
+                            tsdbFailureStore.getIndex().getName(),
+                            tsdbFailureStore
+                        )
+                    )
+                    .dataStreams(Map.of(tsdbStreamName, tsdbDataStream), Map.of())
+                    .build()
+            )
+            .build();
+
+        // The @timestamp value is outside the backing index time range [2020, 2021), so getConcreteWriteIndex
+        // throws DataStream.TimestampError, which should be caught and redirect the document to the failure store.
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(
+            new IndexRequest(tsdbStreamName).opType(DocWriteRequest.OpType.CREATE).source(Map.of("@timestamp", "2025-01-01T00:00:00Z"))
+        );
+
+        NodeClient client = getNodeClient(acceptAllShardWrites());
+        BulkResponse response = safeAwait(l -> newBulkOperation(client, bulkRequest, tsdbState, mockObserver(tsdbState), l).run());
+
+        assertThat(response.hasFailures(), is(false));
+        BulkItemResponse redirectedItem = Arrays.stream(response.getItems())
+            .filter(item -> item.getIndex().equals(tsdbFailureStore.getIndex().getName()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find item redirected to the failure store"));
+        assertThat(redirectedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
+    }
+
+    /**
+     * Same scenario as {@link #testTsdbTimestampErrorDuringRoutingRedirectsToFailureStore}, but with the x-content batch path active.
+     * The {@code TimestampError} is thrown from {@code getConcreteWriteIndex} before {@code BatchModeRouter.route} is reached, so both
+     * paths exercise the same {@code catch (DataStream.TimestampError)} block and produce identical behavior.
+     */
+    public void testTsdbTimestampErrorDuringRoutingRedirectsToFailureStoreBatchMode() throws Exception {
+        Instant start = Instant.parse("2020-01-01T00:00:00Z");
+        Instant end = Instant.parse("2021-01-01T00:00:00Z");
+        String tsdbStreamName = "my_tsdb_stream_batch";
+
+        IndexMetadata tsdbBackingIndex = DataStreamTestHelper.createIndexMetadata(
+            DataStream.getDefaultBackingIndexName(tsdbStreamName, 1, start.toEpochMilli()),
+            true,
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .put("index.routing_path", "uid")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start))
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end))
+                .build(),
+            0
+        );
+        IndexMetadata tsdbFailureStore = DataStreamTestHelper.createFailureStore(tsdbStreamName, 1, millis).numberOfShards(1).build();
+
+        DataStream tsdbDataStream = DataStream.builder(tsdbStreamName, List.of(tsdbBackingIndex.getIndex()))
+            .setGeneration(1)
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
+            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(List.of(tsdbFailureStore.getIndex())).build())
+            .build();
+
+        ClusterState tsdbState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId)
+                    .indices(
+                        Map.of(
+                            tsdbBackingIndex.getIndex().getName(),
+                            tsdbBackingIndex,
+                            tsdbFailureStore.getIndex().getName(),
+                            tsdbFailureStore
+                        )
+                    )
+                    .dataStreams(Map.of(tsdbStreamName, tsdbDataStream), Map.of())
+                    .build()
+            )
+            .build();
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(
+            new IndexRequest(tsdbStreamName).opType(DocWriteRequest.OpType.CREATE).source(Map.of("@timestamp", "2025-01-01T00:00:00Z"))
+        );
+
+        BatchIndexingEnabled batchEnabled = new BatchIndexingEnabled(
+            ClusterSettings.createBuiltInClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build())
+        );
+        NodeClient client = getNodeClient(acceptAllShardWrites());
+        BulkResponse response = safeAwait(
+            l -> newBulkOperation(
+                tsdbState,
+                client,
+                bulkRequest,
+                new AtomicArray<>(bulkRequest.numberOfActions()),
+                mockObserver(tsdbState),
+                l,
+                new FailureStoreDocumentConverter(),
+                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                true,
+                batchEnabled
+            ).run()
+        );
+
+        assertThat(response.hasFailures(), is(false));
+        BulkItemResponse redirectedItem = Arrays.stream(response.getItems())
+            .filter(item -> item.getIndex().equals(tsdbFailureStore.getIndex().getName()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find item redirected to the failure store"));
+        assertThat(redirectedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
     }
 
     /**
@@ -622,6 +770,74 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("failure store test failure")));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
+    }
+
+    /**
+     * {@link NodeClient#executeAndReturnTask} throws rather than notifying the listener when it cannot start a shard request at all, so the
+     * ref acquired for that request is never released. On the redirect round the throw escapes into a
+     * {@link org.elasticsearch.action.support.RefCountingRunnable} delegate, which logs and swallows it once assertions are disabled,
+     * leaving the bulk operation to hang and its task registered forever.
+     */
+    public void testShardRequestDispatchFailureDuringRedirectCompletesBulk() throws Exception {
+        // Requests that go to two separate shards, the second of which is redirected to the failure store
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+
+        // The three failures NodeClient#executeLocally documents as escaping instead of reaching the listener
+        RuntimeException dispatchFailure = randomFrom(
+            new TaskCancelledException("parent task was cancelled [request timed out after [2m]]"),
+            new IllegalArgumentException("Request exceeded the maximum size of task headers [16kb]"),
+            new IllegalStateException("failed to find action [indices:data/write/bulk[s]] to execute")
+        );
+        BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> onBackingIndexWrite = thatFailsDocuments(
+            Map.of(new IndexAndId(ds2BackingIndex1.getIndex().getName(), "3"), () -> new MapperException("root cause"))
+        );
+        NodeClient client = new NoOpNodeClient(threadPool) {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> Task executeAndReturnTask(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (TransportShardBulkAction.TYPE.equals(action) == false) {
+                    fail("Unexpected client call to " + action.name());
+                }
+                BulkShardRequest shardRequest = (BulkShardRequest) request;
+                if (shardRequest.shardId().getIndex().equals(ds2FailureStore1.getIndex())) {
+                    throw dispatchFailure;
+                }
+                onBackingIndexWrite.accept(shardRequest, ActionListener.notifyOnce((ActionListener<BulkShardResponse>) listener));
+                return null;
+            }
+
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                try {
+                    executeAndReturnTask(action, request, listener);
+                } catch (TaskCancelledException | IllegalArgumentException | IllegalStateException e) {
+                    listener.onFailure(e);
+                }
+            }
+        };
+
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
+
+        assertThat(bulkItemResponses.hasFailures(), is(true));
+        BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
+            .filter(BulkItemResponse::isFailed)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+        assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
+        assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
+        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
+        assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(sameInstance(dispatchFailure)));
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
     }
 
@@ -1153,7 +1369,7 @@ public class BulkOperationTests extends ESTestCase {
         return new NoOpNodeClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
-            public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
@@ -1167,20 +1383,7 @@ public class BulkOperationTests extends ESTestCase {
                     } catch (Exception responseException) {
                         notifyOnceListener.onFailure(responseException);
                     }
-                } else {
-                    fail("Unexpected client call to " + action.name());
-                }
-                return null;
-            }
-
-            @Override
-            @SuppressWarnings("unchecked")
-            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                if (LazyRolloverAction.INSTANCE.equals(action)) {
+                } else if (LazyRolloverAction.INSTANCE.equals(action)) {
                     ActionListener<RolloverResponse> notifyOnceListener = ActionListener.notifyOnce(
                         (ActionListener<RolloverResponse>) listener
                     );
@@ -1188,6 +1391,12 @@ public class BulkOperationTests extends ESTestCase {
                         onRolloverAction.accept((RolloverRequest) request, notifyOnceListener);
                     } catch (Exception responseException) {
                         notifyOnceListener.onFailure(responseException);
+                    }
+                } else if (TransportShardBulkAction.TYPE.equals(action)) {
+                    try {
+                        executeAndReturnTask(action, request, listener);
+                    } catch (TaskCancelledException | IllegalArgumentException | IllegalStateException e) {
+                        listener.onFailure(e);
                     }
                 } else {
                     fail("Unexpected client call to " + action.name());
@@ -1276,6 +1485,32 @@ public class BulkOperationTests extends ESTestCase {
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         boolean failureStoreNodeFeatureEnabled
     ) {
+        return newBulkOperation(
+            state,
+            client,
+            request,
+            existingResponses,
+            observer,
+            listener,
+            failureStoreDocumentConverter,
+            dataStreamFailureStoreSettings,
+            failureStoreNodeFeatureEnabled,
+            new BatchIndexingEnabled(ClusterSettings.createBuiltInClusterSettings())
+        );
+    }
+
+    private BulkOperation newBulkOperation(
+        ClusterState state,
+        NodeClient client,
+        BulkRequest request,
+        AtomicArray<BulkItemResponse> existingResponses,
+        ClusterStateObserver observer,
+        ActionListener<BulkResponse> listener,
+        FailureStoreDocumentConverter failureStoreDocumentConverter,
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
+        boolean failureStoreNodeFeatureEnabled,
+        BatchIndexingEnabled batchIndexingEnabled
+    ) {
         // Time provision
         long timeZero = TimeUnit.MILLISECONDS.toNanos(randomMillisUpToYear9999() - TimeUnit.DAYS.toMillis(1));
         long duration = TimeUnit.SECONDS.toNanos(randomLongBetween(1, 60));
@@ -1310,7 +1545,8 @@ public class BulkOperationTests extends ESTestCase {
             failureStoreDocumentConverter,
             FailureStoreMetrics.NOOP,
             dataStreamFailureStoreSettings,
-            failureStoreNodeFeatureEnabled
+            failureStoreNodeFeatureEnabled,
+            batchIndexingEnabled
         );
     }
 

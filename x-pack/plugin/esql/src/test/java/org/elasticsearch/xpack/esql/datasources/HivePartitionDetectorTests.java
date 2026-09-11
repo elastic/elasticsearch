@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
@@ -26,7 +28,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/year=2023/month=12/file3.parquet")
         );
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         assertEquals(2, result.partitionColumns().size());
@@ -45,6 +47,17 @@ public class HivePartitionDetectorTests extends ESTestCase {
 
     public void testTypeInferenceLong() {
         assertEquals(DataType.LONG, HivePartitionDetector.inferType(List.of("1", "9999999999")));
+        assertEquals(DataType.LONG, HivePartitionDetector.inferType(List.of(Long.toString(Long.MAX_VALUE))));
+    }
+
+    public void testTypeInferenceUnsignedLong() {
+        assertEquals(DataType.UNSIGNED_LONG, HivePartitionDetector.inferType(List.of("9223372036854775808", "18446744073709551615")));
+        assertEquals(DataType.UNSIGNED_LONG, HivePartitionDetector.inferType(List.of("1", "9999999999", "9223372036854775808")));
+    }
+
+    public void testTypeInferenceMixedNegativeAndUnsignedLongFallsBackToKeyword() {
+        assertEquals(DataType.KEYWORD, HivePartitionDetector.inferType(List.of("-1", "9223372036854775808")));
+        assertEquals(DataType.KEYWORD, HivePartitionDetector.inferType(List.of(Long.toString(Long.MIN_VALUE), "18446744073709551615")));
     }
 
     public void testTypeInferenceDouble() {
@@ -80,7 +93,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/flag=False/file2.parquet")
         );
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         assertEquals(DataType.BOOLEAN, result.partitionColumns().get("flag"));
@@ -100,13 +113,50 @@ public class HivePartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/flag=__HIVE_DEFAULT_PARTITION__/file2.parquet")
         );
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         assertEquals(DataType.BOOLEAN, result.partitionColumns().get("flag"));
         assertEquals(true, result.filePartitionValues().get(StoragePath.of("s3://bucket/data/flag=True/file1.parquet")).get("flag"));
         assertNull(
             result.filePartitionValues().get(StoragePath.of("s3://bucket/data/flag=__HIVE_DEFAULT_PARTITION__/file2.parquet")).get("flag")
+        );
+    }
+
+    public void testUnsignedLongPartitionFoldersInferAndCast() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/id=1/file1.parquet"),
+            entry("s3://bucket/data/id=9223372036854775808/file2.parquet"),
+            entry("s3://bucket/data/id=18446744073709551615/file3.parquet"),
+            entry("s3://bucket/data/id=__HIVE_DEFAULT_PARTITION__/file4.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
+
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.UNSIGNED_LONG, result.partitionColumns().get("id"));
+        assertUnsignedLongPartitionValue(result, "s3://bucket/data/id=1/file1.parquet", "1");
+        assertUnsignedLongPartitionValue(result, "s3://bucket/data/id=9223372036854775808/file2.parquet", "9223372036854775808");
+        assertUnsignedLongPartitionValue(result, "s3://bucket/data/id=18446744073709551615/file3.parquet", "18446744073709551615");
+        assertNull(
+            result.filePartitionValues().get(StoragePath.of("s3://bucket/data/id=__HIVE_DEFAULT_PARTITION__/file4.parquet")).get("id")
+        );
+    }
+
+    public void testMixedNegativeAndUnsignedLongPartitionFoldersInferKeyword() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/id=-1/file1.parquet"),
+            entry("s3://bucket/data/id=9223372036854775808/file2.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
+
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("id"));
+        assertEquals("-1", result.filePartitionValues().get(StoragePath.of("s3://bucket/data/id=-1/file1.parquet")).get("id"));
+        assertEquals(
+            "9223372036854775808",
+            result.filePartitionValues().get(StoragePath.of("s3://bucket/data/id=9223372036854775808/file2.parquet")).get("id")
         );
     }
 
@@ -126,7 +176,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/_index=beta/year=2023/file2.parquet")
         );
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         assertEquals(2, result.partitionColumns().size());
@@ -156,7 +206,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/_tier=cold/file2.parquet")
         );
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         assertFalse("snapshot-gated reserved name must not surface as-is", result.partitionColumns().containsKey("_tier"));
@@ -178,7 +228,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/month=01/file2.parquet")
         );
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
         assertTrue(result.isEmpty());
     }
 
@@ -188,14 +238,14 @@ public class HivePartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/2024/02/file2.parquet")
         );
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
         assertTrue(result.isEmpty());
     }
 
     public void testUrlEncodedValues() {
         List<StorageEntry> files = List.of(entry("s3://bucket/data/city=S%C3%A3o%20Paulo/file.parquet"));
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("city"));
@@ -214,7 +264,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
     public void testLiteralPlusIsNotDecodedToSpace() {
         List<StorageEntry> files = List.of(entry("s3://bucket/data/tag=a+b/file.parquet"));
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("tag"));
@@ -227,7 +277,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
     public void testPercentEncodedPlusDecodesToPlus() {
         List<StorageEntry> files = List.of(entry("s3://bucket/data/tag=a%2Bb/file.parquet"));
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=a%2Bb/file.parquet"));
@@ -238,7 +288,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
     public void testPercentEncodedColonDecodesToColon() {
         List<StorageEntry> files = List.of(entry("s3://bucket/data/tag=ns%3Aclick/file.parquet"));
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=ns%3Aclick/file.parquet"));
@@ -252,7 +302,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
     public void testLiteralPlusAndEscapedSpaceInOneValue() {
         List<StorageEntry> files = List.of(entry("s3://bucket/data/tag=a+b%20c/file.parquet"));
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=a+b%20c/file.parquet"));
@@ -263,7 +313,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
     public void testMalformedPercentEscapeFallsBackToRawValue() {
         List<StorageEntry> files = List.of(entry("s3://bucket/data/tag=a%2/file.parquet"));
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=a%2/file.parquet"));
@@ -277,7 +327,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
     public void testLiteralPlusWithMalformedEscapeFallsBackToRawValue() {
         List<StorageEntry> files = List.of(entry("s3://bucket/data/tag=a+%2/file.parquet"));
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=a+%2/file.parquet"));
@@ -287,7 +337,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
     public void testSingleFile() {
         List<StorageEntry> files = List.of(entry("s3://bucket/data/year=2024/file.parquet"));
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         assertEquals(1, result.partitionColumns().size());
@@ -295,18 +345,18 @@ public class HivePartitionDetectorTests extends ESTestCase {
     }
 
     public void testEmptyFileList() {
-        PartitionMetadata result = HivePartitionDetector.detect(List.of());
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(List.of());
         assertTrue(result.isEmpty());
     }
 
     public void testNullFileList() {
-        PartitionMetadata result = HivePartitionDetector.detect(null);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(null);
         assertTrue(result.isEmpty());
     }
 
     public void testEmptyValues() {
         List<StorageEntry> files = List.of(entry("s3://bucket/data/file.parquet"));
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
         assertTrue(result.isEmpty());
     }
 
@@ -316,7 +366,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/country=UK/state=London/city=Westminster/file.parquet")
         );
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         assertEquals(3, result.partitionColumns().size());
@@ -331,6 +381,11 @@ public class HivePartitionDetectorTests extends ESTestCase {
 
     public void testCastValueLong() {
         assertEquals(9999999999L, HivePartitionDetector.castValue("9999999999", DataType.LONG));
+    }
+
+    public void testCastValueUnsignedLong() {
+        String value = "9999999999999999999";
+        assertEquals(NumericUtils.asLongUnsigned(new BigInteger(value)), HivePartitionDetector.castValue(value, DataType.UNSIGNED_LONG));
     }
 
     public void testCastValueDouble() {
@@ -374,7 +429,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
         // file.parquet contains '=' but is not a partition segment (has a dot)
         List<StorageEntry> files = List.of(entry("s3://bucket/data/year=2024/a=b.parquet"));
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         assertEquals(1, result.partitionColumns().size());
@@ -390,23 +445,24 @@ public class HivePartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/year=2023/file2.parquet")
         );
 
-        PartitionMetadata result = detector.detect(files, Map.of());
+        PartitionMetadata result = detector.detect(files);
         assertFalse(result.isEmpty());
         assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
     }
 
-    public void testDetectViaInterfaceIgnoresConfig() {
+    /** Renamed from testDetectViaInterfaceIgnoresConfig: detect() no longer takes a config map to ignore. */
+    public void testDetectViaInterface() {
         PartitionDetector detector = HivePartitionDetector.INSTANCE;
         List<StorageEntry> files = List.of(entry("s3://bucket/data/year=2024/file.parquet"));
 
-        PartitionMetadata result = detector.detect(files, Map.of("irrelevant", "value"));
+        PartitionMetadata result = detector.detect(files);
         assertFalse(result.isEmpty());
     }
 
     public void testHiveDefaultPartitionAlone() {
         List<StorageEntry> files = List.of(entry("s3://bucket/data/year=2024/month=__HIVE_DEFAULT_PARTITION__/file.parquet"));
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
@@ -426,7 +482,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/year=2024/month=__HIVE_DEFAULT_PARTITION__/f2.parquet")
         );
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         assertEquals(DataType.INTEGER, result.partitionColumns().get("month"));
@@ -445,7 +501,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/region=__HIVE_DEFAULT_PARTITION__/f2.parquet")
         );
 
-        PartitionMetadata result = HivePartitionDetector.detect(files);
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files);
 
         assertFalse(result.isEmpty());
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("region"));
@@ -473,9 +529,33 @@ public class HivePartitionDetectorTests extends ESTestCase {
     public void testCastValueNullReturnsNull() {
         assertNull(HivePartitionDetector.castValue(null, DataType.INTEGER));
         assertNull(HivePartitionDetector.castValue(null, DataType.LONG));
+        assertNull(HivePartitionDetector.castValue(null, DataType.UNSIGNED_LONG));
         assertNull(HivePartitionDetector.castValue(null, DataType.DOUBLE));
         assertNull(HivePartitionDetector.castValue(null, DataType.BOOLEAN));
         assertNull(HivePartitionDetector.castValue(null, DataType.KEYWORD));
+    }
+
+    /**
+     * Mixed partition depth — older data partitioned by year only, newer by year/month/day — yields no partition
+     * columns at all, not even the common {@code year}. The detector requires an identical key set across every
+     * file. Pinned as the current contract: changing it to an intersection, to per-file nulls, or to a loud error
+     * would change results for stored datasets and needs its own design pass.
+     */
+    public void testMixedPartitionDepthReturnsEmpty() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/year=2024/f1.parquet"),
+            entry("s3://bucket/data/year=2024/month=01/f2.parquet"),
+            entry("s3://bucket/data/year=2024/month=01/day=15/f3.parquet")
+        );
+
+        assertTrue("inconsistent key sets across files yield no partition columns", HivePartitionDetector.INSTANCE.detect(files).isEmpty());
+    }
+
+    private static void assertUnsignedLongPartitionValue(PartitionMetadata result, String path, String expected) {
+        Object value = result.filePartitionValues().get(StoragePath.of(path)).get("id");
+        assertTrue(value instanceof Long);
+        Number decoded = NumericUtils.unsignedLongAsNumber((Long) value);
+        assertEquals(new BigInteger(expected), new BigInteger(decoded.toString()));
     }
 
     private static StorageEntry entry(String path) {

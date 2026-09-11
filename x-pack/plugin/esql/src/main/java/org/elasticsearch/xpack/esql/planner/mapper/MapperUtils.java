@@ -168,7 +168,9 @@ public class MapperUtils {
                 denseVector.inferenceId(),
                 denseVector.fields(),
                 denseVector.generatedAttributes(),
-                denseVector.timeout()
+                denseVector.timeout(),
+                denseVector.inputType(),
+                denseVector.endpointTaskType()
             );
         }
 

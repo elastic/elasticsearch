@@ -43,7 +43,7 @@ public final class SecurityCacheMetrics {
             )
         );
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 type.metricsPrefix + ".count.current",
                 "The current number of cache entries.",
                 "count",

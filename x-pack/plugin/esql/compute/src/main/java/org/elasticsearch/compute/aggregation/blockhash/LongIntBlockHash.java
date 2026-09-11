@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -24,13 +25,14 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.LongLongSwissHash;
 
 import java.util.List;
 
 /**
  * Maps a {@link LongBlock} and an {@link IntBlock} to group ids, handling nulls and multivalued fields.
  */
-public final class LongIntBlockHash extends BlockHash {
+public final class LongIntBlockHash extends PartitionedBlockHash {
     private final int longChannel;
     private final int intChannel;
     private final int emitBatchSize;
@@ -551,6 +553,53 @@ public final class LongIntBlockHash extends BlockHash {
     // for testing
     int effectiveEmitBatchSize() {
         return emitBatchSize;
+    }
+
+    @Override
+    public void ensureCapacity(int size) {
+        if (hash instanceof LongLongSwissHash swiss) {
+            swiss.ensureCapacity(size);
+        }
+    }
+
+    @Override
+    public void clear() {
+        hash.clear();
+    }
+
+    private record PartitionedHashKeysWithSeenBlocks(PartitionedHashKeys delegate, boolean seenBlocks) implements PartitionedHashKeys {
+        @Override
+        public int keysInPartition(int partition) {
+            return delegate.keysInPartition(partition);
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            delegate.releasePartition(breaker, partition);
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            delegate.releaseAll(breaker);
+        }
+    }
+
+    @Override
+    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
+        if (hash instanceof LongLongSwissHash swiss) {
+            return new PartitionedHashKeysWithSeenBlocks(swiss.splitPartition(breaker, partitionSplitter), seenBlocks);
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    @Override
+    public boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
+        if (hash instanceof LongLongSwissHash swiss) {
+            PartitionedHashKeysWithSeenBlocks withSeenBlocks = (PartitionedHashKeysWithSeenBlocks) keys;
+            seenBlocks |= withSeenBlocks.seenBlocks;
+            return swiss.combinePartition(withSeenBlocks.delegate, partitionIndex, resultIds);
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
     }
 
     @Override

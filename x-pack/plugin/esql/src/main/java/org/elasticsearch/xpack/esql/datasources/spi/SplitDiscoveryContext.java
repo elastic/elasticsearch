@@ -25,7 +25,7 @@ import java.util.function.BooleanSupplier;
  * @param querySchema the post-prune Query schema (data attributes only, metadata stripped) the
  *        query actually materializes. Empty means either all columns are needed or the projection
  *        is unknown. Split providers use {@link ExternalSchema#names()} for membership tests when pruning
- *        per-file mappings or skipping files with no column overlap.
+ *        per-file mappings.
  * @param unifiedSchema the pre-prune Unified schema, or {@code null} when not available. Together
  *        with {@code querySchema} and each file's schema this lets split providers narrow per-file
  *        {@link org.elasticsearch.xpack.esql.datasources.ColumnMapping}s on the coordinator.

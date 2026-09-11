@@ -8,7 +8,11 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector.TemplateSegment;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -41,7 +45,11 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
     public static final String CONFIG_PARTITIONING_PATH = "partition_path";
     public static final String CONFIG_PARTITIONING_HIVE = "hive_partitioning";
 
-    /** Keys recognised by {@link #fromConfig}. */
+    /**
+     * Keys accepted by the dataset CRUD path. {@code hive_partitioning} is kept here so existing PUT requests
+     * and stored datasets are not rejected as unknown settings; it is a deprecated no-op and {@link #fromConfig}
+     * does not read it.
+     */
     public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_PARTITIONING_DETECTION, CONFIG_PARTITIONING_PATH, CONFIG_PARTITIONING_HIVE);
 
     public static final PartitionConfig DEFAULT = new PartitionConfig(Strategy.AUTO, null);
@@ -52,13 +60,36 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
         }
     }
 
+    /**
+     * Resolves the partition settings into one strategy, leniently: this runs on every query against every
+     * already-stored dataset, so it never throws on a stored value. Contradictions are rejected at registration
+     * instead — see {@link #validate}.
+     *
+     * <p>Resolution order: the strategy is parsed from {@code partition_detection}; an unparseable value, and an
+     * explicit {@code template} with nothing to templatise, fall back to {@code AUTO}. A {@code partition_path} does
+     * NOT promote {@code AUTO} to {@code TEMPLATE} — {@code AUTO} already means Hive first with the template as a
+     * fallback, which is what a dataset carrying only a {@code partition_path} resolved to before this setting reached
+     * the read path.
+     *
+     * <p>{@code hive_partitioning} is accepted but ignored — it is a deprecated no-op. A deprecation warning is
+     * emitted at CRUD time by {@code FileDataSourceValidator}; nothing reads the key here.
+     */
     public static PartitionConfig fromConfig(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             return DEFAULT;
         }
 
         Object detectionValue = config.get(CONFIG_PARTITIONING_DETECTION);
-        Strategy strategy = detectionValue != null ? Strategy.parse(detectionValue.toString()) : Strategy.AUTO;
+        Strategy strategy = null;
+        if (detectionValue != null) {
+            try {
+                strategy = Strategy.parse(detectionValue.toString());
+            } catch (IllegalArgumentException e) {
+                // A value stored before the setting was validated as an enum. Reading must not fail on it; the
+                // registration path rejects it, and validate() reports it with an actionable message.
+                strategy = null;
+            }
+        }
         if (strategy == null) {
             strategy = Strategy.AUTO;
         }
@@ -66,10 +97,158 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
         Object templateValue = config.get(CONFIG_PARTITIONING_PATH);
         String template = templateValue != null ? templateValue.toString() : null;
 
-        if (template != null && Strategy.AUTO == strategy) {
-            strategy = Strategy.TEMPLATE;
+        // AUTO is NOT promoted to TEMPLATE when a partition_path is present. AUTO means "Hive first, template as a
+        // fallback" (see AutoPartitionDetector), and that is exactly what a dataset carrying only a partition_path
+        // resolved to before this setting reached the read path: Hive detection. Promoting here would take the Hive
+        // columns away from every such dataset stored against a key=value layout.
+
+        // An explicit TEMPLATE with nothing to templatise falls back to AUTO rather than detecting nothing, so a
+        // dataset stored before this combination was rejected at registration keeps the Hive columns it had.
+        if (Strategy.TEMPLATE == strategy && (template == null || template.isEmpty())) {
+            strategy = Strategy.AUTO;
         }
 
         return new PartitionConfig(strategy, template);
+    }
+
+    /**
+     * Registration-time validation. Rejects the combinations in which {@code partition_detection} or
+     * {@code partition_path} would be silently ignored, so a new dataset cannot be registered with a setting that
+     * does nothing. Deliberately stricter than {@link #fromConfig}, which must keep reading datasets that were
+     * stored before these checks existed.
+     */
+    public static void validate(Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return;
+        }
+
+        Object detectionValue = config.get(CONFIG_PARTITIONING_DETECTION);
+        Strategy declared;
+        try {
+            declared = detectionValue != null ? Strategy.parse(detectionValue.toString()) : null;
+        } catch (IllegalArgumentException e) {
+            // An unparseable value is already reported by the caller, which validates this key as an enum and
+            // produces an actionable message. Rethrowing here would append Enum.valueOf's raw "No enum constant"
+            // text as a second error on the same setting.
+            return;
+        }
+
+        Object templateValue = config.get(CONFIG_PARTITIONING_PATH);
+        String template = templateValue != null ? templateValue.toString() : null;
+        boolean hasTemplate = template != null && template.isEmpty() == false;
+
+        if (declared == Strategy.TEMPLATE && hasTemplate == false) {
+            throw new IllegalArgumentException(
+                "["
+                    + CONFIG_PARTITIONING_DETECTION
+                    + "] is [template] but no ["
+                    + CONFIG_PARTITIONING_PATH
+                    + "] was given; template detection needs a path template such as [{year}/{month}]"
+            );
+        }
+
+        // The hive strategy never reads a path template, so accepting one would store a setting that does nothing —
+        // and, before the rewrite was gated on the strategy, one that silently steered the glob. AUTO stays legal:
+        // AutoPartitionDetector genuinely consumes the template as its fallback detector.
+        if (declared == Strategy.HIVE && hasTemplate) {
+            throw new IllegalArgumentException(
+                "["
+                    + CONFIG_PARTITIONING_PATH
+                    + "] is set but ["
+                    + CONFIG_PARTITIONING_DETECTION
+                    + "] is [hive], which never reads a path template; set ["
+                    + CONFIG_PARTITIONING_DETECTION
+                    + "] to [template] or remove ["
+                    + CONFIG_PARTITIONING_PATH
+                    + "]"
+            );
+        }
+
+        // A template alongside anything that resolves to "no partitions" is the silent-drop this validation exists
+        // to prevent: the template would be accepted, stored, and never used.
+        if (hasTemplate && declared == Strategy.NONE) {
+            throw new IllegalArgumentException(
+                "["
+                    + CONFIG_PARTITIONING_PATH
+                    + "] is set but partition detection is disabled, so the template would be ignored; remove ["
+                    + CONFIG_PARTITIONING_PATH
+                    + "] or enable partition detection"
+            );
+        }
+
+        if (hasTemplate) {
+            validatePathTemplate(template);
+        }
+    }
+
+    /**
+     * A {@code partition_path} must name each column once as a whole-segment {@code {name}}, and every other
+     * segment must be a concrete directory name. A glob-shaped literal cannot match a real directory. A
+     * repeated placeholder cannot be one column value when the two slots differ.
+     */
+    private static void validatePathTemplate(String template) {
+        List<TemplateSegment> parsed = TemplatePartitionDetector.parseTemplate(template);
+        Set<String> names = new HashSet<>();
+        boolean hasPlaceholder = false;
+        for (TemplateSegment segment : parsed) {
+            if (segment instanceof TemplateSegment.Placeholder(String name)) {
+                hasPlaceholder = true;
+                if (names.add(name) == false) {
+                    throw new IllegalArgumentException(
+                        "["
+                            + CONFIG_PARTITIONING_PATH
+                            + "] ["
+                            + template
+                            + "] names ["
+                            + name
+                            + "] more than once; each partition column must appear once"
+                    );
+                }
+            }
+        }
+        if (hasPlaceholder == false) {
+            throw new IllegalArgumentException(
+                "["
+                    + CONFIG_PARTITIONING_PATH
+                    + "] ["
+                    + template
+                    + "] names no columns; a partition column must be a path segment that is exactly {name}, such as "
+                    + "[{year}/{month}]. For a key=value directory layout set ["
+                    + CONFIG_PARTITIONING_DETECTION
+                    + "] to [hive] instead of a template"
+            );
+        }
+        // year={year} also contains '{', so this scan runs after the empty-column throw: that
+        // template must report that it names no columns, not that a segment is glob-shaped.
+        for (TemplateSegment segment : parsed) {
+            if (segment instanceof TemplateSegment.Literal(String value)) {
+                if (TemplatePartitionDetector.containsEmbeddedPlaceholder(value)) {
+                    throw new IllegalArgumentException(
+                        "["
+                            + CONFIG_PARTITIONING_PATH
+                            + "] ["
+                            + template
+                            + "] has a key=value segment ["
+                            + value
+                            + "]; a partition column must be a path segment that is exactly {name}, such as "
+                            + "[{year}/{month}]. For a key=value directory layout set ["
+                            + CONFIG_PARTITIONING_DETECTION
+                            + "] to [hive] instead of a template"
+                    );
+                }
+                if (StoragePath.containsGlobMetacharacter(value)) {
+                    throw new IllegalArgumentException(
+                        "["
+                            + CONFIG_PARTITIONING_PATH
+                            + "] ["
+                            + template
+                            + "] has a glob-shaped segment ["
+                            + value
+                            + "]; a non-placeholder segment is a required directory name, such as "
+                            + "[junk] in [{year}/junk/{month}]"
+                    );
+                }
+            }
+        }
     }
 }

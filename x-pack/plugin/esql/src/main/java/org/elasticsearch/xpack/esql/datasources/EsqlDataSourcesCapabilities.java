@@ -26,5 +26,11 @@ public final class EsqlDataSourcesCapabilities {
     /** Advertises that this node exposes {@code POST /_query/data_source/{name}/_test_connection}. */
     public static final String DATA_SOURCE_TEST_CONNECTION = "data_source_test_connection";
 
+    /**
+     * Registration rejects a column declared {@code text}. Gates the yaml pin on that rejection, because the suite
+     * also runs mixed-cluster, where a node without this capability accepts the declaration and answers 200.
+     */
+    public static final String DATASET_TEXT_TYPE_NOT_DECLARABLE = "dataset_text_type_not_declarable";
+
     private EsqlDataSourcesCapabilities() {}
 }

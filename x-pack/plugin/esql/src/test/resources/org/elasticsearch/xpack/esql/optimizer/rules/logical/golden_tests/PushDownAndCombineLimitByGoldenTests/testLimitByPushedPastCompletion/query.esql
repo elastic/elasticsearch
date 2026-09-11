@@ -1,0 +1,3 @@
+FROM books
+| COMPLETION result = title WITH { "inference_id": "completion-inference-id" }
+| LIMIT 3 BY author

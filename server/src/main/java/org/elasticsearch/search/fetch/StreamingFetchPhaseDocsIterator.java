@@ -76,6 +76,12 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
     }
 
     /**
+     * Invoked after a hit is serialized into the chunk buffer, including on failure. Subclasses can
+     * override to release per-hit resources; must be idempotent. Default is a no-op.
+     */
+    protected void onHitSerialized() {}
+
+    /**
      * Asynchronous iteration using {@link ThrottledIterator} for streaming mode.
      *
      * @param shardTarget         the shard being fetched from
@@ -355,6 +361,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                         hit.writeTo(chunkBuffer);
                     } finally {
                         hit.decRef();
+                        onHitSerialized();
                     }
                     currentIdx++;
                     hitsInChunk++;

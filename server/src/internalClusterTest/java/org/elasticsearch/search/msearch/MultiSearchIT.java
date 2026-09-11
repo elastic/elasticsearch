@@ -18,13 +18,16 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.SearchService;
@@ -192,6 +195,53 @@ public class MultiSearchIT extends ESIntegTestCase {
         assertBusy(
             () -> assertThat(
                 "request breaker should return to baseline after an all-failure msearch completes",
+                requestBreakerEstimated(coordinatorNode),
+                equalTo(baseline)
+            )
+        );
+    }
+
+    public void testBreakerTripAbortsMsearchWithTopLevel429() throws Exception {
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assumeFalse("coordinator uses a noop request breaker, skipping test", noopBreakerUsed(coordinatorNode));
+
+        String index = "msearch-breaker-abort-it";
+        int numDocs = 50;
+        createIndex(index, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build());
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            indexRequests.add(prepareIndex(index).setId(Integer.toString(i)).setSource("payload", "x".repeat(2_000)));
+        }
+        indexRandom(true, indexRequests);
+        ensureGreen(index);
+
+        assertBusy(
+            () -> assertThat("request breaker should be at baseline before msearch", requestBreakerEstimated(coordinatorNode), equalTo(0L))
+        );
+        long baseline = requestBreakerEstimated(coordinatorNode);
+
+        var coordinatorClient = internalCluster().client(coordinatorNode);
+        updateClusterSettings(Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1b"));
+        try {
+            MultiSearchRequest request = new MultiSearchRequest();
+            request.maxConcurrentSearchRequests(1);
+            for (int i = 0; i < 10; i++) {
+                request.add(coordinatorClient.prepareSearch(index).setSize(numDocs).setQuery(QueryBuilders.matchAllQuery()).request());
+            }
+            CircuitBreakingException e = expectThrows(
+                CircuitBreakingException.class,
+                () -> coordinatorClient.multiSearch(request).actionGet()
+            );
+            assertThat(e.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        } finally {
+            updateClusterSettings(
+                Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
+            );
+        }
+
+        assertBusy(
+            () -> assertThat(
+                "request breaker should return to baseline after an aborted msearch completes",
                 requestBreakerEstimated(coordinatorNode),
                 equalTo(baseline)
             )

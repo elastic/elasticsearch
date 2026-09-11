@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -1303,8 +1304,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
-        if (subQueries.size() > Fork.MAX_BRANCHES) {
-            throw new ParsingException(source(ctx), "Fork supports up to " + Fork.MAX_BRANCHES + " branches");
+        if (subQueries.size() > MergePlan.MAX_BRANCHES) {
+            throw new ParsingException(source(ctx), "Fork supports up to " + MergePlan.MAX_BRANCHES + " branches");
         }
 
         return input -> {
@@ -1558,38 +1559,46 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitDenseVectorCommand(EsqlBaseParser.DenseVectorCommandContext ctx) {
         Source source = source(ctx);
 
+        if (context.inferenceSettings().denseVectorEnabled() == false) {
+            throw new ParsingException(source, "DENSE_VECTOR command is disabled in settings.");
+        }
+
         // Explicit field list; no expressions or renames.
         List<NamedExpression> fields = ctx.qualifiedNames()
             .qualifiedName()
             .stream()
             .map(qn -> (NamedExpression) visitQualifiedName(qn))
             .toList();
-        // Reuse the completion row limit
-        // TODO: Change to own limit
-        Literal rowLimit = Literal.integer(source, context.inferenceSettings().completionRowLimit());
+        Literal rowLimit = Literal.integer(source, context.inferenceSettings().denseVectorRowLimit());
         return p -> applyDenseVectorOptions(new DenseVector(source, p, rowLimit, fields), ctx.commandNamedParameters());
     }
 
     private DenseVector applyDenseVectorOptions(DenseVector denseVector, EsqlBaseParser.CommandNamedParametersContext ctx) {
         MapExpression optionsExpression = (ctx == null) ? null : visitCommandNamedParameters(ctx);
 
-        if (optionsExpression == null || optionsExpression.containsKey(DenseVector.INFERENCE_ID_OPTION_NAME) == false) {
-            throw new ParsingException(
-                denseVector.source(),
-                "Missing mandatory option [{}] in DENSE_VECTOR",
-                DenseVector.INFERENCE_ID_OPTION_NAME
-            );
-        }
+        Map<String, Expression> optionsMap = optionsExpression == null ? new HashMap<>() : optionsExpression.keyFoldedMap();
 
-        Map<String, Expression> optionsMap = optionsExpression.keyFoldedMap();
+        // inference_id resolution precedence: WITH { "inference_id" } > cluster default setting > built-in default.
+        // The built-in default is already baked into the DenseVector node (DenseVector.DEFAULT_INFERENCE_ID), so we only
+        // override it here when the query supplies a WITH id or a cluster-level default is configured.
         Expression inferenceId = optionsMap.remove(DenseVector.INFERENCE_ID_OPTION_NAME);
         if (inferenceId != null) {
             denseVector = applyInferenceId(denseVector, inferenceId);
+        } else {
+            String clusterDefault = context.inferenceSettings().denseVectorDefaultInferenceId();
+            if (clusterDefault.isEmpty() == false) {
+                denseVector = denseVector.withInferenceId(Literal.keyword(denseVector.source(), clusterDefault));
+            }
         }
 
         Expression timeoutExpr = optionsMap.remove(DenseVector.TIMEOUT_OPTION_NAME);
         if (timeoutExpr != null) {
             denseVector = denseVector.withTimeout(parseTimeoutOption(timeoutExpr, DenseVector.TIMEOUT_OPTION_NAME, "DENSE_VECTOR"));
+        }
+
+        Expression typeExpr = optionsMap.remove(DenseVector.TYPE_OPTION_NAME);
+        if (typeExpr != null) {
+            denseVector = denseVector.withInputType(parseDenseVectorType(typeExpr));
         }
 
         if (optionsMap.isEmpty() == false) {
@@ -1598,6 +1607,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 "Invalid option [{}] in DENSE_VECTOR, expected one of [{}]",
                 optionsMap.keySet().stream().findAny().get(),
                 denseVector.validOptionNames()
+            );
+        }
+
+        // Both fallback endpoints embed text, and no multimodal endpoint is a default anywhere in the product, so an image input
+        // has nothing to fall back to. The query text alone settles this, so it is reported before any endpoint is looked up.
+        if (denseVector.inferenceIdIsFallback() && denseVector.inputType() == org.elasticsearch.inference.DataType.IMAGE) {
+            throw new ParsingException(
+                denseVector.source(),
+                "Option [{}] with value [image] in DENSE_VECTOR requires option [{}]",
+                DenseVector.TYPE_OPTION_NAME,
+                DenseVector.INFERENCE_ID_OPTION_NAME
             );
         }
 
@@ -1697,6 +1717,32 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 e.getMessage()
             );
         }
+    }
+
+    /**
+     * Resolves the DENSE_VECTOR {@code type} option to an input modality. Accepts {@code text} and {@code image}, returning the
+     * matching {@link org.elasticsearch.inference.DataType}. Any other value raises a {@link ParsingException}.
+     */
+    private org.elasticsearch.inference.DataType parseDenseVectorType(Expression typeExpr) {
+        if (typeExpr instanceof Literal == false || DataType.isString(typeExpr.dataType()) == false) {
+            throw new ParsingException(
+                typeExpr.source(),
+                "Option [{}] in DENSE_VECTOR must be a string literal (one of [text, image]), found [{}]",
+                DenseVector.TYPE_OPTION_NAME,
+                typeExpr.source().text()
+            );
+        }
+        String typeStr = BytesRefs.toString(((Literal) typeExpr).value());
+        return switch (typeStr.trim().toLowerCase(java.util.Locale.ROOT)) {
+            case "text" -> org.elasticsearch.inference.DataType.TEXT;
+            case "image" -> org.elasticsearch.inference.DataType.IMAGE;
+            default -> throw new ParsingException(
+                typeExpr.source(),
+                "Invalid value [{}] for option [{}] in DENSE_VECTOR, expected one of [text, image]",
+                typeStr,
+                DenseVector.TYPE_OPTION_NAME
+            );
+        };
     }
 
     private <InferencePlanType extends InferencePlan<InferencePlanType>> InferencePlanType applyInferenceId(

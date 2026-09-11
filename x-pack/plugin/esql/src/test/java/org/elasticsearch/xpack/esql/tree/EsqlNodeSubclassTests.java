@@ -580,6 +580,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == JoinType.class) {
             // SemiJoin/AntiJoin/MarkJoin assert on their config type, so feed the matching one.
             return joinTypeFor(toBuildClass);
+        } else if (toBuildClass == ResolvingProject.class && argType == LogicalPlan.class) {
+            // ResolvingProject's ctor asserts at most one $$unmapped_fields in the child output. randomResolvedExpression can draw
+            // UnmappedFieldsAttribute for any Attribute arg, letting the random tree stack two — a shape the analyzer never builds.
+            return randomEsRelation();
         } else if (List.of(Fork.class, MergeExec.class, UnionAll.class, ViewUnionAll.class).contains(toBuildClass)
             && argType == LogicalPlan.class) {
                 // limit recursion of plans, in order to prevent stackoverflow errors

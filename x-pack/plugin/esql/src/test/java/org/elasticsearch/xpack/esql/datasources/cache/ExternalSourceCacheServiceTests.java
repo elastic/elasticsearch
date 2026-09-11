@@ -47,8 +47,6 @@ import static org.hamcrest.Matchers.lessThan;
 public class ExternalSourceCacheServiceTests extends ESTestCase {
     private static final Map<String, Object> HIVE_ON = Map.of();
 
-    private static final Map<String, Object> HIVE_OFF = Map.of("hive_partitioning", "false");
-
     private static Settings defaultSettings() {
         return Settings.builder()
             .put("esql.external.cache.size", "10mb")

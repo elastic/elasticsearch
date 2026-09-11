@@ -51,15 +51,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.ManyRequestsIT
   method: testManyRequests
   issue: https://github.com/elastic/elasticsearch/issues/151627
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
-  issue: https://github.com/elastic/elasticsearch/issues/157941
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
-  issue: https://github.com/elastic/elasticsearch/issues/157942
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Explain data frame analytics}
-  issue: https://github.com/elastic/elasticsearch/issues/157943
 - class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
   issue: https://github.com/elastic/elasticsearch/issues/158094
 - class: org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests
@@ -77,18 +68,9 @@ tests:
 - class: org.elasticsearch.upgrades.XpackSystemIndicesUpgradeIT
   method: testUpgradeSystemIndexAndDataStream {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/158123
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster}
-  issue: https://github.com/elastic/elasticsearch/issues/158132
 - class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
   method: testUniDirectionalIndexFollowing
   issue: https://github.com/elastic/elasticsearch/issues/153050
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=upgraded_cluster/90_ml_data_frame_analytics_crud/Get mixed cluster outlier_detection job stats}
-  issue: https://github.com/elastic/elasticsearch/issues/158136
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=upgraded_cluster/90_ml_data_frame_analytics_crud/Get mixed cluster outlier_detection job}
-  issue: https://github.com/elastic/elasticsearch/issues/158137
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testExchangeSourceContinueOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/157535

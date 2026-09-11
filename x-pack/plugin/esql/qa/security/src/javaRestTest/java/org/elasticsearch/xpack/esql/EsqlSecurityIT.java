@@ -2891,7 +2891,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
      * The gate must hold on a secured cluster, where {@code IndicesAndAliasesResolver} has already replaced the
      * request's wildcards with concrete dataset names before the rewrite runs. It holds because the security filter
      * replaces {@code indices()} but leaves {@code rawPatterns} alone, so the explicit set is still derived from what
-     * the user typed. Every other test of this seam constructs that narrowing by hand; this one drives the real filter.
+     * the user typed. Other tests here already drive the real filter; this is the first to drive the setting through it.
      *
      * <p>The dataset here is authorized, so authorization cannot be what hides it -- only the setting can. Its resource
      * points at a bucket that does not exist, which is what makes the two outcomes unambiguous: reaching the dataset

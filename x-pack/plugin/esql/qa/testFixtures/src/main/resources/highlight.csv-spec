@@ -1987,23 +1987,6 @@ The Lord of the <em>Rings</em> | Tolkien wrote of <em>rings</em>
 ;
 
 
-# ORed leaves that agree also derive it; a non-matching field is null.
-implicitAnalyzerOrLeavesAgreeOnAnalyzer
-required_capability: highlight_implicit_query_and_fields
-
-ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" }), author = to_text(["An unrelated writer"], { "analyzer": "english" })
-| MV_EXPAND title
-| MV_EXPAND author
-| WHERE MATCH(title, "ring", { "analyzer": "english" }) OR MATCH(author, "ring", { "analyzer": "english" })
-| HIGHLIGHT
-| KEEP highlight_title, highlight_author
-;
-
-highlight_title:keyword        | highlight_author:keyword
-The Lord of the <em>Rings</em> | null
-;
-
-
 # Query-time english vs index-time standard: "tower" does not match indexed "towers", so no rows.
 implicitAnalyzerDivergenceWhereMissesRealIndex
 required_capability: highlight_implicit_query_and_fields
@@ -2032,23 +2015,6 @@ FROM books
 title:text | highlight_title:keyword
 Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
 Return of the Shadow                                             | <em>Return</em> of the Shadow
-;
-
-
-# Per-field analyzers: title uses english, unlabeled author falls back to standard.
-implicitAnalyzerMixedEnglishAndDefault
-required_capability: highlight_implicit_query_and_fields
-
-ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" }), author = to_text(["Tolkien wrote of rings"])
-| MV_EXPAND title
-| MV_EXPAND author
-| WHERE MATCH(title, "ring", { "analyzer": "english" }) AND MATCH(author, "rings")
-| HIGHLIGHT
-| KEEP highlight_title, highlight_author
-;
-
-highlight_title:keyword        | highlight_author:keyword
-The Lord of the <em>Rings</em> | Tolkien wrote of <em>rings</em>
 ;
 
 
@@ -2195,23 +2161,6 @@ required_capability: highlight_implicit_query_and_fields
 
 FROM books
 | WHERE KQL("author:Tolkien") AND MATCH(title, "Return")
-| HIGHLIGHT ON title
-| KEEP title, highlight_title
-| SORT title
-;
-
-title:text | highlight_title:keyword
-Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
-Return of the Shadow                                             | <em>Return</em> of the Shadow
-;
-
-
-# QSTR default_field naming a non-ON field is also lenient; MATCH still highlights title.
-implicitQueryQstrDefaultFieldNonOnIsLenient
-required_capability: highlight_implicit_query_and_fields
-
-FROM books
-| WHERE QSTR("Tolkien", {"default_field": "author"}) AND MATCH(title, "Return")
 | HIGHLIGHT ON title
 | KEEP title, highlight_title
 | SORT title

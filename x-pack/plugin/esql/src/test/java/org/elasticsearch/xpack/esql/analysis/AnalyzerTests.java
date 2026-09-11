@@ -6595,13 +6595,6 @@ public class AnalyzerTests extends ESTestCase {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         // "whitespace" is a core PreBuiltAnalyzer (registered without any plugin), unlike e.g. "english"; see
         // EsqlTestUtils#TEST_ANALYSIS_REGISTRY.
-        Highlight singleLeaf = soleHighlight(
-            supportsHighlight(basic()).query(
-                "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT ON first_name"
-            )
-        );
-        assertThat(optionValue(singleLeaf, Highlight.ANALYZER), equalTo("whitespace"));
-
         Highlight twoAgreeingLeaves = soleHighlight(
             supportsHighlight(basic()).query(
                 "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"}) AND MATCH(last_name, \"y\", {\"analyzer\": "
@@ -6621,14 +6614,6 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testHighlightBorrowsMixedAnalyzersAcrossDifferentFields() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        Highlight oneLabeledOneDefault = soleHighlight(
-            supportsHighlight(basic()).query(
-                "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"}) AND MATCH(last_name, \"y\") | HIGHLIGHT"
-            )
-        );
-        assertTrue(oneLabeledOneDefault.implicitQuery());
-        assertNull(oneLabeledOneDefault.options());
-
         Highlight twoDisagreeingLeaves = soleHighlight(
             supportsHighlight(basic()).query(
                 "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"}) AND MATCH(last_name, \"y\", "

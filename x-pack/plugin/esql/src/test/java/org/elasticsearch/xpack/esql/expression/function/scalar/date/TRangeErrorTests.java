@@ -132,6 +132,34 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             );
             trange.surrogate();
         });
+
+        // Start time folds to null in two parameter mode (typed non-null, so it passes resolveType's isNotNull)
+        expectThrows(
+            InvalidArgumentException.class,
+            equalTo("invalid time range for []: Unsupported time value type [null] for parameter [start_time_or_offset]"),
+            () -> {
+                TRange trange = new TRange(
+                    Source.EMPTY,
+                    new Literal(Source.EMPTY, null, DataType.DATETIME),
+                    Literal.keyword(Source.EMPTY, "2024-01-01T12:00:00Z"),
+                    Literal.dateTime(Source.EMPTY, Instant.now()),
+                    EsqlTestUtils.configuration(StringUtils.EMPTY)
+                );
+                trange.surrogate();
+            }
+        );
+
+        // Offset folds to null in single parameter mode
+        expectThrows(InvalidArgumentException.class, equalTo("invalid time range for []: Unsupported offset type [null]"), () -> {
+            TRange trange = new TRange(
+                Source.EMPTY,
+                new Literal(Source.EMPTY, null, DataType.TIME_DURATION),
+                null,
+                Literal.dateTime(Source.EMPTY, Instant.now()),
+                EsqlTestUtils.configuration(StringUtils.EMPTY)
+            );
+            trange.surrogate();
+        });
     }
 
     @Override

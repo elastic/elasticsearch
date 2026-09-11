@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
@@ -92,29 +93,50 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
             )
         );
 
-        if (request.hasParam("wait_for_completion_timeout")) {
-            submit.setWaitForCompletionTimeout(request.paramAsTime("wait_for_completion_timeout", submit.getWaitForCompletionTimeout()));
-        }
-        if (request.hasParam("keep_alive")) {
-            submit.setKeepAlive(request.paramAsTime("keep_alive", submit.getKeepAlive()));
-        }
-        if (request.hasParam("keep_on_completion")) {
-            submit.setKeepOnCompletion(request.paramAsBoolean("keep_on_completion", submit.isKeepOnCompletion()));
-        }
         final SearchSourceBuilder parsedSource = submit.getSearchRequest().source();
-        return channel -> {
-            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            ActionListener<AsyncSearchResponse> completionListener = new RestRefCountedChunkedToXContentListener<>(channel) {
-                @Override
-                protected RestStatus getRestStatus(AsyncSearchResponse asyncSearchResponse) {
-                    return asyncSearchResponse.status();
+        boolean optionsParsed = false;
+        try {
+            if (request.hasParam("wait_for_completion_timeout")) {
+                submit.setWaitForCompletionTimeout(
+                    request.paramAsTime("wait_for_completion_timeout", submit.getWaitForCompletionTimeout())
+                );
+            }
+            if (request.hasParam("keep_alive")) {
+                submit.setKeepAlive(request.paramAsTime("keep_alive", submit.getKeepAlive()));
+            }
+            if (request.hasParam("keep_on_completion")) {
+                submit.setKeepOnCompletion(request.paramAsBoolean("keep_on_completion", submit.isKeepOnCompletion()));
+            }
+            optionsParsed = true;
+        } finally {
+            if (optionsParsed == false && parsedSource != null) {
+                parsedSource.close();
+            }
+        }
+        return new RestChannelConsumer() {
+            @Override
+            public void accept(RestChannel channel) throws Exception {
+                RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+                ActionListener<AsyncSearchResponse> completionListener = new RestRefCountedChunkedToXContentListener<>(channel) {
+                    @Override
+                    protected RestStatus getRestStatus(AsyncSearchResponse asyncSearchResponse) {
+                        return asyncSearchResponse.status();
+                    }
+                };
+                cancelClient.execute(
+                    SubmitAsyncSearchAction.INSTANCE,
+                    submit,
+                    parsedSource != null ? ActionListener.runAfter(completionListener, parsedSource::close) : completionListener
+                );
+            }
+
+            @Override
+            public void close() {
+                // Abandonment path (e.g. unknown-parameter rejection). SearchSourceBuilder.close() is idempotent.
+                if (parsedSource != null) {
+                    parsedSource.close();
                 }
-            };
-            cancelClient.execute(
-                SubmitAsyncSearchAction.INSTANCE,
-                submit,
-                parsedSource != null ? ActionListener.runAfter(completionListener, parsedSource::close) : completionListener
-            );
+            }
         };
     }
 

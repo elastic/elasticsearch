@@ -26,6 +26,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -97,26 +98,39 @@ public class RestMultiSearchAction extends BaseRestHandler {
             clusterSupportsFeature,
             Optional.of(crossProjectEnabled)
         );
-        return channel -> {
-            final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancellableClient.execute(
-                TransportMultiSearchAction.TYPE,
-                multiSearchRequest,
-                ActionListener.runAfter(
-                    RestActions.wrapWithSearchMetricsHeader(
-                        client.threadPool().getThreadContext(),
-                        MultiSearchResponse::mergeDirectoryMetrics,
-                        new RestRefCountedChunkedToXContentListener<>(channel)
-                    ),
-                    () -> {
-                        for (SearchRequest sr : multiSearchRequest.requests()) {
-                            if (sr.source() != null) {
-                                sr.source().close();
+        return new RestChannelConsumer() {
+            @Override
+            public void accept(RestChannel channel) throws Exception {
+                final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+                cancellableClient.execute(
+                    TransportMultiSearchAction.TYPE,
+                    multiSearchRequest,
+                    ActionListener.runAfter(
+                        RestActions.wrapWithSearchMetricsHeader(
+                            client.threadPool().getThreadContext(),
+                            MultiSearchResponse::mergeDirectoryMetrics,
+                            new RestRefCountedChunkedToXContentListener<>(channel)
+                        ),
+                        () -> {
+                            for (SearchRequest sr : multiSearchRequest.requests()) {
+                                if (sr.source() != null) {
+                                    sr.source().close();
+                                }
                             }
                         }
+                    )
+                );
+            }
+
+            @Override
+            public void close() {
+                // Abandonment path (e.g. unknown-parameter rejection). SearchSourceBuilder.close() is idempotent.
+                for (SearchRequest sr : multiSearchRequest.requests()) {
+                    if (sr.source() != null) {
+                        sr.source().close();
                     }
-                )
-            );
+                }
+            }
         };
     }
 

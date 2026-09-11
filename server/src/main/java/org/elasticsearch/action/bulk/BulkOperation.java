@@ -108,8 +108,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final FailureStoreMetrics failureStoreMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final boolean clusterHasFailureStoreFeature;
+    private final boolean batchIndexingSupported;
     @Nullable
-    private final BatchRouterSet router;
+    private BatchRouterSet router;
 
     BulkOperation(
         Task task,
@@ -191,7 +192,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.failureStoreMetrics = failureStoreMetrics;
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
-        this.router = BatchRouterSet.create(bulkRequest, ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService));
+        this.batchIndexingSupported = ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService);
+        this.router = BatchRouterSet.create(bulkRequest, batchIndexingSupported);
     }
 
     @Override
@@ -284,6 +286,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private Map<ShardId, List<BulkItemRequest>> groupBulkRequestsByShards(ClusterState clusterState) {
+        // If no pre-built batches were supplied, try to encode the x-content items into ESCF now,
+        // before the routing pass, so the columnar routing path can be used.
+        if (router == null && batchIndexingSupported) {
+            router = BulkBatchEncoders.encode(bulkRequest, projectResolver.getProjectMetadata(clusterState), indexNameExpressionResolver);
+        }
         return groupRequestsByShards(
             clusterState,
             Iterators.enumerate(bulkRequest.requests.iterator(), BulkItemRequest::new),
@@ -309,8 +316,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     ) {
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         final ConcreteIndices concreteIndices = new ConcreteIndices(project, indexNameExpressionResolver);
-        // Both modes fill the same map: x-content fills it incrementally in route(); provided-batch
-        // fills it in buildGrouping() after the deferred columnar routing pass completes.
+        // Both modes fill the same map: the batch path defers it to buildGrouping() after the
+        // columnar routing pass; the row path fills it incrementally in the per-item loop below.
         Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
 
         // For provided-batch TSDB data streams: resolve @timestamp from the ESCF columns and cache it
@@ -417,8 +424,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return;
         }
 
-        // Build per-shard source batches. For the inline-encoder path, batches are finalized here
-        // (rows were accumulated during routing). For provided-batch mode the source is scattered here.
+        // Scatter the ESCF batch into per-shard sub-batches. Row references on each IndexRequest are
+        // rebound to the sub-batch slice by scatter(). No-op when the bulk took the row path.
         Map<ShardId, SourceBatch> shardBatches = router != null ? router.shardBatches() : Map.of();
         BatchRouterSet.validateBatchAlignment(requestsByShard, shardBatches);
 

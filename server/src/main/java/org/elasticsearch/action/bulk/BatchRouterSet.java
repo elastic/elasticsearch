@@ -241,7 +241,14 @@ final class BatchRouterSet {
         }
     }
 
-    /** No-op: source batches are owned by the caller. */
+    /**
+     * No-op: source batches are owned by the caller (external pre-built) or, for the x-content
+     * encode path, by the {@link org.elasticsearch.escf.EscfBatch} instances that survive in the
+     * scattered sub-batches until the shard responses arrive.
+     *
+     * <p>TODO: introduce recycler-backed encoding and ref-counted batch lifetime so that internally
+     * encoded batches are properly released after {@link BulkOperation#closeBatchEncoders}.
+     */
     void close() {}
 
     /**

@@ -191,6 +191,7 @@ public class HashAggregationOperator implements Operator {
         private AnalysisRegistry analysisRegistry;
         private TopAggregation topAggregation;
         private LimitAggregation limitAggregation;
+        private boolean allowPartitionedOutput;
         private ParallelConfig parallelConfig;
 
         public Builder groups(List<BlockHash.GroupSpec> groups) {
@@ -244,6 +245,11 @@ public class HashAggregationOperator implements Operator {
             return this;
         }
 
+        public Builder allowPartitionedOutput(boolean allowPartitionedOutput) {
+            this.allowPartitionedOutput = allowPartitionedOutput;
+            return this;
+        }
+
         public Factory build() {
             return new Factory(this);
         }
@@ -261,6 +267,7 @@ public class HashAggregationOperator implements Operator {
         private final TopAggregation topAggregation;
         private final LimitAggregation limitAggregation;
         private final ParallelConfig parallelConfig;
+        private final boolean allowPartitionedOutput;
 
         protected Factory(Builder builder) {
             this.groups = requireNonNull(builder.groups, "groups");
@@ -274,6 +281,7 @@ public class HashAggregationOperator implements Operator {
             this.topAggregation = builder.topAggregation;
             this.limitAggregation = builder.limitAggregation;
             this.parallelConfig = builder.parallelConfig;
+            this.allowPartitionedOutput = builder.allowPartitionedOutput;
         }
 
         @Override
@@ -292,7 +300,8 @@ public class HashAggregationOperator implements Operator {
                     topAggregation,
                     limitAggregation,
                     driverContext,
-                    parallelConfig
+                    parallelConfig,
+                    allowPartitionedOutput
                 );
             }
             return new HashAggregationOperator(
@@ -305,7 +314,8 @@ public class HashAggregationOperator implements Operator {
                 topAggregation,
                 limitAggregation,
                 driverContext,
-                parallelConfig
+                parallelConfig,
+                allowPartitionedOutput
             );
         }
 
@@ -375,6 +385,7 @@ public class HashAggregationOperator implements Operator {
 
     private final TopAggregation topAggregation;
     private final LimitAggregation limitAggregation;
+    private final boolean partitionedPartialOutput;
 
     protected long rowsAddedInCurrentBatch;
 
@@ -393,7 +404,8 @@ public class HashAggregationOperator implements Operator {
         TopAggregation topAggregation,
         LimitAggregation limitAggregation,
         DriverContext driverContext,
-        ParallelConfig parallelConfig
+        ParallelConfig parallelConfig,
+        boolean allowPartitionedOutput
     ) {
         if (partialEmitKeysThreshold <= 0) {
             throw new IllegalArgumentException("partialEmitKeysThreshold must be greater than 0; got " + partialEmitKeysThreshold);
@@ -424,6 +436,7 @@ public class HashAggregationOperator implements Operator {
                 && blockHash instanceof PartitionedBlockHash
                 && PartitionedBlockHash.supportPartitioning()
                 && aggregators.stream().allMatch(a -> a.aggregatorFunction().supportPartitioning());
+            this.partitionedPartialOutput = this.supportPartitioning && allowPartitionedOutput && aggregatorMode.isOutputPartial();
             success = true;
         } finally {
             if (success == false) {
@@ -453,7 +466,8 @@ public class HashAggregationOperator implements Operator {
                 topAggregation,
                 null,
                 workerDriverContext,
-                parallelConfig
+                parallelConfig,
+                false
             ) {
                 @Override
                 public void close() {

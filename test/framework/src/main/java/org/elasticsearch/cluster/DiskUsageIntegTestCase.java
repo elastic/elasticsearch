@@ -176,6 +176,12 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
                         return 0L;
                     }
                     throw e;
+                } catch (AssertionError e) {
+                    // An AssertionError can be thrown when file handles are accessed concurrently during test cleanup (in lucene's
+                    // WindowsFS mock). This can happen when periodic background monitoring threads (e.g. AvailableDiskSpacePeriodicMonitor)
+                    // try to enumerate directories while files are being closed/deleted during teardown. Treat this like a transient file
+                    // access issue.
+                    return 0L;
                 }
             }
         }

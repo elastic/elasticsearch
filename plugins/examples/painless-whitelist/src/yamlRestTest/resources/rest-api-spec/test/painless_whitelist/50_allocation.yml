@@ -112,6 +112,20 @@
               lang: painless
 
 ---
+"script completes normally when the context has no allocation limit":
+# No limit is configured for the painless_test context, so the estimator pre-check is not
+# emitted and repeat(10000) runs to completion. In the field context (200b limit) the same
+# call trips the limit — see the test above. Together they prove the limit gates execution,
+# not a bug in the estimator linkage.
+- do:
+    scripts_painless_execute:
+      body:
+        script:
+          source: "return new ExampleWhitelistedClass(1, 2).repeat(10000)"
+          lang: painless
+- match: { result: "/^x{10000}$/" }
+
+---
 "estimator class is not visible to scripts":
 # Each yaml test starts clean, so this one indexes its own document.
 - do:

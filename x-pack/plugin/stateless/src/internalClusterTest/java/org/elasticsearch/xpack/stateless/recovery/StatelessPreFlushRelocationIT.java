@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -25,7 +24,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
@@ -381,7 +379,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         final var relocationStarted = new CountDownLatch(1);
         internalCluster().getInstance(CompositeRecoverySchedulingListener.class, sourceNode).addListener(new RecoverySchedulingListener() {
             @Override
-            public void onPeerRecoveryStartedOnSource() {
+            public void onPeerRecoveryDequeuedAndStartedOnSource() {
                 relocationStarted.countDown();
             }
 

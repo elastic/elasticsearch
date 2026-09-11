@@ -488,7 +488,8 @@ public class NdJsonPageDecoder implements Closeable {
      * Buffered-bytes constructor for the streaming-parallel path: {@code data[offset .. offset+length)}
      * is the entire input. Recovery from a whole-line parse failure stays inside the byte array
      * (no buffered-bytes shuttling through {@link NdJsonUtils#moveToNextLine}) by scanning for the
-     * next {@code '\n'} from the parser's current byte offset.
+     * next {@code '\n'} anchored to the failing token's start byte (via
+     * {@link NdJsonPageDecoder#nextLineStartByteAfter} / {@code getTokenLocation()}).
      */
     /** Test-only: back-compat overload for callers that don't need sink-routed warnings. */
     NdJsonPageDecoder(
@@ -740,7 +741,10 @@ public class NdJsonPageDecoder implements Closeable {
         if (sourceBytes != null) {
             this.parser = factory.createParser(sourceBytes, sourceOffset, sourceLength);
         } else {
-            this.parser = factory.createParser(input);
+            // Wrap the stream so moveToNextLine can detect the invalid-bare-token overshoot
+            // (see NdJsonUtils.LineTerminatorTrackingStream and NdJsonUtils.moveToNextLine).
+            this.input = new NdJsonUtils.LineTerminatorTrackingStream(this.input);
+            this.parser = factory.createParser(this.input);
         }
     }
 
@@ -751,6 +755,8 @@ public class NdJsonPageDecoder implements Closeable {
             this.parserSliceStart = next;
             this.parser = jsonFactory.createParser(sourceBytes, next, sourceEnd - next);
         } else {
+            // moveToNextLine resets the LineTerminatorTrackingStream in-place and returns it,
+            // so this.input continues to be the same tracker (now reset to totalDelivered=0).
             this.input = NdJsonUtils.moveToNextLine(failedParser, this.input);
             this.parser = jsonFactory.createParser(this.input);
             // The fresh parser's byte offsets restart at the recovery point while parserSliceStart stays 0, so

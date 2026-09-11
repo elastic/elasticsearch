@@ -27,23 +27,16 @@ public class CsvReaderStatusTests extends AbstractWireSerializingTestCase<CsvRea
 
     @Override
     protected CsvReaderStatus createTestInstance() {
-        return new CsvReaderStatus(randomFrom("csv", "tsv"), randomNonNegativeLong(), randomNonNegativeLong(), randomBoolean(), 0L, 0L);
+        return new CsvReaderStatus(randomFrom("csv", "tsv"), randomNonNegativeLong(), randomNonNegativeLong(), randomBoolean());
     }
 
     @Override
     protected CsvReaderStatus mutateInstance(CsvReaderStatus instance) {
-        return new CsvReaderStatus(
-            instance.format(),
-            instance.rowsEmitted(),
-            instance.parseErrors(),
-            instance.headerDetected() == false,
-            0L,
-            0L
-        );
+        return new CsvReaderStatus(instance.format(), instance.rowsEmitted(), instance.parseErrors(), instance.headerDetected() == false);
     }
 
     public void testToXContent() throws IOException {
-        CsvReaderStatus status = new CsvReaderStatus("tsv", 100L, 3L, true, 0L, 0L);
+        CsvReaderStatus status = new CsvReaderStatus("tsv", 100L, 3L, true);
         assertThat(toJson(status), equalTo("{\"format\":\"tsv\",\"rows_emitted\":100,\"parse_errors\":3,\"header_detected\":true}"));
     }
 

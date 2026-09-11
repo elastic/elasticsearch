@@ -43,6 +43,6 @@ public final class CsvReaderCounters {
     }
 
     public CsvReaderStatus snapshot() {
-        return new CsvReaderStatus(format, rowsEmitted.sum(), parseErrors.sum(), headerDetected, 0L, 0L);
+        return new CsvReaderStatus(format, rowsEmitted.sum(), parseErrors.sum(), headerDetected);
     }
 }

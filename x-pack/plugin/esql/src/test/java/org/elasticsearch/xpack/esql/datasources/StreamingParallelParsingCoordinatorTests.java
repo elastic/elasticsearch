@@ -1093,7 +1093,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                         StreamingParallelParsingCoordinator.WarningSinks.NONE,
                         admission,
                         new org.elasticsearch.common.breaker.NoopCircuitBreaker("test"),
-                        null
+                        ExternalReadCounters.NOOP
                     )
                 );
             }
@@ -1184,7 +1184,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
                 breaker,
-                null
+                ExternalReadCounters.NOOP
             );
             expectThrows(CircuitBreakingException.class, () -> {
                 while (it.hasNext()) {
@@ -1238,7 +1238,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
                 breaker,
-                null
+                ExternalReadCounters.NOOP
             );
             while (it.hasNext()) {
                 it.next().releaseBlocks();

@@ -84,15 +84,8 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
     private static FormatReaderStatus randomFormatReader() {
         return switch (between(0, 2)) {
             case 0 -> null;
-            case 1 -> new NdJsonReaderStatus(randomNonNegativeLong(), randomNonNegativeLong(), 0L, 0L);
-            case 2 -> new CsvReaderStatus(
-                randomFrom("csv", "tsv"),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomBoolean(),
-                0L,
-                0L
-            );
+            case 1 -> new NdJsonReaderStatus(randomNonNegativeLong(), randomNonNegativeLong());
+            case 2 -> new CsvReaderStatus(randomFrom("csv", "tsv"), randomNonNegativeLong(), randomNonNegativeLong(), randomBoolean());
             default -> throw new UnsupportedOperationException();
         };
     }
@@ -162,7 +155,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
                     3,
                     8192L,
                     ExternalReadCounters.NOOP,
-                    new NdJsonReaderStatus(7L, 0L, 0L, 0L),
+                    new NdJsonReaderStatus(7L, 0L),
                     Map.of(),
                     false
                 )
@@ -260,7 +253,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             3,
             8192L,
             ExternalReadCounters.NOOP,
-            new NdJsonReaderStatus(7L, 0L, 0L, 0L),
+            new NdJsonReaderStatus(7L, 0L),
             Map.of(),
             true
         );
@@ -295,7 +288,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             3,
             8192L,
             ExternalReadCounters.NOOP,
-            new NdJsonReaderStatus(7L, 0L, 0L, 0L),
+            new NdJsonReaderStatus(7L, 0L),
             Map.of(),
             true
         );
@@ -320,7 +313,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             3,
             8192L,
             ExternalReadCounters.fromCounters(42_000L, 777L),
-            new NdJsonReaderStatus(7L, 0L, 0L, 0L),
+            new NdJsonReaderStatus(7L, 0L),
             Map.of(),
             false
         );
@@ -345,12 +338,12 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             8,
             9L,
             ExternalReadCounters.fromCounters(10L, 3L),
-            new CsvReaderStatus("tsv", 42L, 3L, true, 0L, 0L),
+            new CsvReaderStatus("tsv", 42L, 3L, true),
             Map.of(),
             true
         );
         AsyncExternalSourceOperator.Status copy = copyInstance(original);
-        assertThat(copy.formatReader(), equalTo(new CsvReaderStatus("tsv", 42L, 3L, true, 0L, 0L)));
+        assertThat(copy.formatReader(), equalTo(new CsvReaderStatus("tsv", 42L, 3L, true)));
         assertThat(copy.partial(), equalTo(true));
     }
 }

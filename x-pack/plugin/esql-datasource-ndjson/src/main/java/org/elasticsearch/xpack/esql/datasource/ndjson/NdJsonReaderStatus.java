@@ -19,7 +19,7 @@ import java.io.IOException;
 /**
  * Typed {@link FormatReaderStatus} for the NDJSON reader.
  */
-public record NdJsonReaderStatus(long rowsEmitted, long parseErrors, long readNanos, long readCpuNanos) implements FormatReaderStatus {
+public record NdJsonReaderStatus(long rowsEmitted, long parseErrors) implements FormatReaderStatus {
 
     private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
 
@@ -30,27 +30,26 @@ public record NdJsonReaderStatus(long rowsEmitted, long parseErrors, long readNa
     );
 
     public NdJsonReaderStatus(StreamInput in) throws IOException {
-        this(in.readVLong(), in.readVLong(), in.readVLong(), in.getTransportVersion().supports(ESQL_READ_CPU_NANOS) ? in.readVLong() : 0L);
+        this(in.readVLong(), in.readVLong());
+        in.readVLong(); // readNanos: removed field, preserved for wire compatibility
+        if (in.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+            in.readVLong(); // readCpuNanos: removed field, preserved for wire compatibility
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(rowsEmitted);
         out.writeVLong(parseErrors);
-        out.writeVLong(readNanos);
+        out.writeVLong(0L); // readNanos: removed field, preserved for wire compatibility
         if (out.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
-            out.writeVLong(readCpuNanos);
+            out.writeVLong(0L); // readCpuNanos: removed field, preserved for wire compatibility
         }
     }
 
     @Override
     public String format() {
         return "ndjson";
-    }
-
-    @Override
-    public long readCpuNanos() {
-        return readCpuNanos;
     }
 
     @Override

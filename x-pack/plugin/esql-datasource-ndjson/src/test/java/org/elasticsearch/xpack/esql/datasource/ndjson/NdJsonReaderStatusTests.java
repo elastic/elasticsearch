@@ -27,21 +27,16 @@ public class NdJsonReaderStatusTests extends AbstractWireSerializingTestCase<NdJ
 
     @Override
     protected NdJsonReaderStatus createTestInstance() {
-        return new NdJsonReaderStatus(randomNonNegativeLong(), randomNonNegativeLong(), 0L, 0L);
+        return new NdJsonReaderStatus(randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     @Override
     protected NdJsonReaderStatus mutateInstance(NdJsonReaderStatus instance) {
-        return new NdJsonReaderStatus(
-            instance.rowsEmitted(),
-            randomValueOtherThan(instance.parseErrors(), () -> randomNonNegativeLong()),
-            0L,
-            0L
-        );
+        return new NdJsonReaderStatus(instance.rowsEmitted(), randomValueOtherThan(instance.parseErrors(), () -> randomNonNegativeLong()));
     }
 
     public void testToXContent() throws IOException {
-        NdJsonReaderStatus status = new NdJsonReaderStatus(100L, 3L, 0L, 0L);
+        NdJsonReaderStatus status = new NdJsonReaderStatus(100L, 3L);
         assertThat(toJson(status), equalTo("{\"format\":\"ndjson\",\"rows_emitted\":100,\"parse_errors\":3}"));
     }
 

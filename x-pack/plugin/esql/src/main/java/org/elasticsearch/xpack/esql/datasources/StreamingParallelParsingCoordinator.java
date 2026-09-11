@@ -145,7 +145,7 @@ public final class StreamingParallelParsingCoordinator {
             WarningSinks.NONE,
             StreamingSegmentatorAdmission.unbounded(),
             new NoopCircuitBreaker("streaming-parse-test"),
-            null
+            ExternalReadCounters.NOOP
         );
     }
 
@@ -503,7 +503,7 @@ public final class StreamingParallelParsingCoordinator {
                 warningSinks,
                 StreamingSegmentatorAdmission.unbounded(),
                 new NoopCircuitBreaker("streaming-parse-test"),
-                null
+                ExternalReadCounters.NOOP
             );
         }
 

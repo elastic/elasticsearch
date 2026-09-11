@@ -46,8 +46,6 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
             randomBoolean(),
             randomBoolean(),
             randomList(0, 4, () -> randomAlphaOfLength(6)).stream().sorted().toList(),
-            0L,
-            0L,
             randomColumns()
         );
     }
@@ -92,8 +90,6 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
             instance.lateMaterializationEnabled(),
             instance.lateMaterializationUsed(),
             instance.predicateColumns(),
-            0L,
-            0L,
             instance.columns()
         );
     }
@@ -116,8 +112,6 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
             false,
             false,
             List.of("host"),
-            0L,
-            0L,
             Map.of("host", new PerColumnStatus(PerColumnStatus.MATERIALIZATION_LATE))
         );
         assertThat(

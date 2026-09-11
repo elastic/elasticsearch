@@ -187,8 +187,6 @@ public final class ParquetReaderCounters {
             lateMaterializationEnabled,
             lateMaterializationUsed,
             sortedPredicates,
-            0L,
-            0L,
             columnsSnap
         );
     }

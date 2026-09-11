@@ -21,7 +21,7 @@ import java.io.IOException;
  * {@code csv} and {@code tsv}; {@link #format} carries which one produced the snapshot — the
  * format (csv/tsv), not the quoting {@code mode}.
  */
-public record CsvReaderStatus(String format, long rowsEmitted, long parseErrors, boolean headerDetected, long readNanos, long readCpuNanos)
+public record CsvReaderStatus(String format, long rowsEmitted, long parseErrors, boolean headerDetected)
     implements
         FormatReaderStatus {
 
@@ -34,14 +34,11 @@ public record CsvReaderStatus(String format, long rowsEmitted, long parseErrors,
     );
 
     public CsvReaderStatus(StreamInput in) throws IOException {
-        this(
-            in.readString(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readBoolean(),
-            in.readVLong(),
-            in.getTransportVersion().supports(ESQL_READ_CPU_NANOS) ? in.readVLong() : 0L
-        );
+        this(in.readString(), in.readVLong(), in.readVLong(), in.readBoolean());
+        in.readVLong(); // readNanos: removed field, preserved for wire compatibility
+        if (in.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+            in.readVLong(); // readCpuNanos: removed field, preserved for wire compatibility
+        }
     }
 
     @Override
@@ -50,15 +47,10 @@ public record CsvReaderStatus(String format, long rowsEmitted, long parseErrors,
         out.writeVLong(rowsEmitted);
         out.writeVLong(parseErrors);
         out.writeBoolean(headerDetected);
-        out.writeVLong(readNanos);
+        out.writeVLong(0L); // readNanos: removed field, preserved for wire compatibility
         if (out.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
-            out.writeVLong(readCpuNanos);
+            out.writeVLong(0L); // readCpuNanos: removed field, preserved for wire compatibility
         }
-    }
-
-    @Override
-    public long readCpuNanos() {
-        return readCpuNanos;
     }
 
     @Override

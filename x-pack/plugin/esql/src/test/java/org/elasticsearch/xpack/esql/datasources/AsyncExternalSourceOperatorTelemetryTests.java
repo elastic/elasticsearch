@@ -72,7 +72,7 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         buffer.incSplitsProcessed();
         buffer.incSplitsProcessed();
         buffer.addPage(createTestPage(1, 5));
-        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 0L, 0L, 0L));
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 0L));
         // Inject known read/CPU nanos (42 ms wall, 37 ms CPU) so duration assertions are exact.
         buffer.readCounters().add(42_000_000L, 37_000_000L);
 

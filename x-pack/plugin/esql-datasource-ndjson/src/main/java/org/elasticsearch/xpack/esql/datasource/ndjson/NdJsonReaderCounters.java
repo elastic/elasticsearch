@@ -31,6 +31,6 @@ public final class NdJsonReaderCounters {
     }
 
     public NdJsonReaderStatus snapshot() {
-        return new NdJsonReaderStatus(rowsEmitted.sum(), parseErrors.sum(), 0L, 0L);
+        return new NdJsonReaderStatus(rowsEmitted.sum(), parseErrors.sum());
     }
 }

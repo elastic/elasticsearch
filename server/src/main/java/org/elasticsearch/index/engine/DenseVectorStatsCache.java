@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
@@ -101,6 +102,10 @@ final class DenseVectorStatsCache {
             }
             case BYTE -> {
                 ByteVectorValues values = leafReader.getByteVectorValues(info.name);
+                yield values != null ? values.size() : 0;
+            }
+            case FLOAT16 -> {
+                Float16VectorValues values = leafReader.getFloat16VectorValues(info.name);
                 yield values != null ? values.size() : 0;
             }
         };

@@ -450,6 +450,43 @@ public class QueryDslTranslatorTests extends ESTestCase {
         return result.unsupported().get(0).construct();
     }
 
+    /** constant_score and boosting replace the score, not the matching set, so each is its inner/positive query. */
+    public void testScoreOnlyWrappersBecomeTheirInnerQuery() {
+        Expression constantScore = translate(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("status", 200)));
+        assertThat(constantScore, instanceOf(MvContains.class));
+        Expression boosting = translate(
+            QueryBuilders.boostingQuery(QueryBuilders.termQuery("status", 200), QueryBuilders.termQuery("tags", "t1"))
+        );
+        assertThat(boosting, instanceOf(MvContains.class));
+    }
+
+    /** A wrapper is unwrapped inside the collecting walk, so an inner bool still reports one leaf at a time. */
+    public void testWrapperContentsReportPerLeaf() {
+        var result = translateResult(
+            QueryBuilders.constantScoreQuery(
+                QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).must(QueryBuilders.fuzzyQuery("tags", "x"))
+            )
+        );
+        assertFalse(result.isComplete());
+        assertEquals(1, result.unsupported().size());
+        assertEquals("fuzzy", result.unsupported().get(0).construct());
+        assertThat(result.applied(), instanceOf(MvContains.class)); // the term conjunct survived
+    }
+
+    /** dis_max is the union of its arms, and all-or-nothing: dropping an arm would exclude rows it alone matched. */
+    public void testDisMaxIsAnAllOrNothingUnion() {
+        Expression e = translate(
+            QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery("status", 200)).add(QueryBuilders.termQuery("tags", "t1"))
+        );
+        assertThat(e, instanceOf(Or.class));
+        assertEquals(Literal.FALSE, translate(QueryBuilders.disMaxQuery()));
+        assertFalse(
+            translateResult(
+                QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery("status", 200)).add(QueryBuilders.fuzzyQuery("tags", "x"))
+            ).isComplete()
+        );
+    }
+
     /** A terms-lookup has no values to translate (and values() is null — it used to NPE). */
     public void testTermsLookupIsUnsupported() {
         var lookup = new TermsQueryBuilder("status", new TermsLookup("idx", "1", "path"));

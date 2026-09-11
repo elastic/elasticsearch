@@ -395,6 +395,31 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         assertSelectsSameRows(QueryBuilders.regexpQuery("tags", "x.*")); // matches nothing on either side
     }
 
+    /**
+     * The score-only wrappers select what their inner query selects. The differential is the proof: the boosting
+     * negative clause here would exclude two thirds of the rows if it were treated as a filter, and dis_max's arms
+     * overlap so a union is distinguishable from either arm alone.
+     */
+    public void testScoreOnlyWrappers() {
+        assertSelectsSameRows(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("status", 300)));
+        assertSelectsSameRows(QueryBuilders.constantScoreQuery(QueryBuilders.rangeQuery("bytes").gte(5_000).lt(25_000)));
+        assertSelectsSameRows(
+            QueryBuilders.boostingQuery(QueryBuilders.termQuery("status", 300), QueryBuilders.termQuery("tags", "t1")).negativeBoost(0.1f)
+        );
+        assertSelectsSameRows(
+            QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery("status", 300)).add(QueryBuilders.termQuery("tags", "t1"))
+        );
+        assertSelectsSameRows(QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery("status", 300)));
+    }
+
+    /** A wrapper nests and composes: the inner bool still reports per leaf, so only the fuzzy clause is dropped. */
+    public void testWrapperKeepsLeafGranularReporting() {
+        QueryBuilder mixed = QueryBuilders.constantScoreQuery(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 300)).must(QueryBuilders.fuzzyQuery("tags", "t"))
+        );
+        assertEquals(selectedIds(dataset, QueryBuilders.termQuery("status", 300)), selectedIds(dataset, mixed));
+    }
+
     public void testExists() {
         assertSelectsSameRows(QueryBuilders.existsQuery("tags"));
     }

@@ -14,6 +14,9 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.BoostingQueryBuilder;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -84,7 +87,8 @@ import java.util.function.Supplier;
  *
  * <p>The supported subset is the structural floor: {@code bool}, {@code term}, {@code terms}, {@code range},
  * {@code exists}, {@code match_all}/{@code match_none}, {@code prefix}/{@code wildcard}/{@code regexp} as pattern
- * matching on an exact-typed field, and {@code match}/{@code match_phrase}/{@code multi_match} as equality on one.
+ * matching on an exact-typed field, {@code match}/{@code match_phrase}/{@code multi_match} as equality on one, and
+ * {@code constant_score}/{@code boosting}/{@code dis_max}, which only decide a score.
  * We never mis-translate anything outside it — an unhonored option, or an analyzed
  * {@code text}-field construct. {@link #translate} is a <em>collecting walk</em>: every unsupported leaf is recorded
  * rather than thrown. The translator only reports; the caller picks what happens next (fail the query, emit a warning,
@@ -150,6 +154,15 @@ public final class QueryDslTranslator {
     private Expression collectingDispatch(QueryBuilder query, List<UnsupportedClause> unsupported) {
         if (query instanceof BoolQueryBuilder bool) {
             return collectingBool(bool, unsupported);
+        }
+        // The score-only wrappers select exactly what their inner query selects, so unwrap them here rather than in
+        // dispatch: the contents then report at leaf granularity like any other clause, instead of the whole wrapper
+        // being collected because one leaf inside it failed.
+        if (query instanceof ConstantScoreQueryBuilder constantScore) {
+            return collectingDispatch(constantScore.innerQuery(), unsupported);
+        }
+        if (query instanceof BoostingQueryBuilder boosting) {
+            return collectingDispatch(boosting.positiveQuery(), unsupported);
         }
         try {
             return dispatch(query);
@@ -289,6 +302,18 @@ public final class QueryDslTranslator {
         }
         if (query instanceof RegexpQueryBuilder regexp) {
             return regexp(regexp);
+        }
+        // constant_score wraps its filter in a ConstantScoreQuery and boosting wraps its positive clause in a
+        // FunctionScoreQuery; both replace the score and neither changes which documents match, so each is its inner
+        // query. (The collecting walk unwraps them earlier; this arm carries the all-or-nothing contexts.)
+        if (query instanceof ConstantScoreQueryBuilder constantScore) {
+            return dispatch(constantScore.innerQuery());
+        }
+        if (query instanceof BoostingQueryBuilder boosting) {
+            return dispatch(boosting.positiveQuery());
+        }
+        if (query instanceof DisMaxQueryBuilder disMax) {
+            return disMax(disMax);
         }
         throw new TranslationUnsupportedException(query.getName());
     }
@@ -827,6 +852,22 @@ public final class QueryDslTranslator {
 
     private static Literal longLit(long value, DataType type) {
         return new Literal(Source.EMPTY, value, type);
+    }
+
+    /**
+     * {@code dis_max} matches the union of its arms — the tie breaker only picks a score among the arms that matched.
+     * It is all-or-nothing: dropping one arm would exclude rows that matched only that arm, a tighter filter than the
+     * original. An empty arm list is the index's match-no-docs.
+     */
+    private Expression disMax(DisMaxQueryBuilder disMax) {
+        if (disMax.innerQueries().isEmpty()) {
+            return Literal.FALSE;
+        }
+        List<Expression> disjuncts = new ArrayList<>(disMax.innerQueries().size());
+        for (QueryBuilder inner : disMax.innerQueries()) {
+            disjuncts.add(dispatch(inner));
+        }
+        return orAll(disjuncts);
     }
 
     /**

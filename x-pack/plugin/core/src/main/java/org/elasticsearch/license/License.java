@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -518,6 +519,8 @@ public class License implements ToXContentObject {
 
         if (expiryDate != LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
             builder.timestampFieldsFromUnixEpochMillis(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, expiryDate);
+            double daysUntilExpiry = LicenseUtils.getDaysUntilExpiry(this, System.currentTimeMillis());
+            builder.field(Fields.EXPIRY_IN_DAYS, String.format(Locale.ROOT, "%.1f", daysUntilExpiry));
         }
 
         if (licenseVersion >= VERSION_ENTERPRISE) {
@@ -740,6 +743,7 @@ public class License implements ToXContentObject {
         public static final String FEATURE = "feature";
         public static final String EXPIRY_DATE_IN_MILLIS = "expiry_date_in_millis";
         public static final String EXPIRY_DATE = "expiry_date";
+        public static final String EXPIRY_IN_DAYS = "expiry_in_days";
         public static final String START_DATE_IN_MILLIS = "start_date_in_millis";
         public static final String START_DATE = "start_date";
         public static final String MAX_NODES = "max_nodes";

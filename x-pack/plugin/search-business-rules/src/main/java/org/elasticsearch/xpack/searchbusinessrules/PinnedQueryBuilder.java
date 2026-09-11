@@ -276,8 +276,9 @@ public class PinnedQueryBuilder extends LeafQueryBuilder<PinnedQueryBuilder> {
     protected long parseTimeBreakerEstimate() {
         long total = QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
         if (ids != null) {
-            for (String id : ids)
+            for (String id : ids) {
                 total += id.length() * 2L + 64L;
+            }
         }
         if (docs != null) {
             for (SpecifiedDocument doc : docs) {

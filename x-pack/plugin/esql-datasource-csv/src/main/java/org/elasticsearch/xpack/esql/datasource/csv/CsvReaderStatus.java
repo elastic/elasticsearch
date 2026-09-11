@@ -21,9 +21,7 @@ import java.io.IOException;
  * {@code csv} and {@code tsv}; {@link #format} carries which one produced the snapshot — the
  * format (csv/tsv), not the quoting {@code mode}.
  */
-public record CsvReaderStatus(String format, long rowsEmitted, long parseErrors, boolean headerDetected)
-    implements
-        FormatReaderStatus {
+public record CsvReaderStatus(String format, long rowsEmitted, long parseErrors, boolean headerDetected) implements FormatReaderStatus {
 
     private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
 

@@ -134,6 +134,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsGeoGridAggQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.FieldSort;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
@@ -4871,10 +4872,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     assertThat(attribute.name(), equalTo("grid"));
                     assertThat(grouping.dataType(), equalTo(dataType));
                     exchange = as(agg.child(), ExchangeExec.class);
-                    agg = as(exchange.child(), AggregateExec.class);
-                    assertAggregation(agg, "count", Count.class);
-                    var evalExec = as(agg.child(), EvalExec.class);
-                    assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+                    if (withDocValues) {
+                        // With doc values the pushdown rule replaces AggregateExec + EvalExec with EsGeoGridAggQueryExec
+                        var geoGridAgg = as(exchange.child(), EsGeoGridAggQueryExec.class);
+                        assertThat(geoGridAgg.fieldName(), equalTo("location"));
+                        assertThat(geoGridAgg.precision(), equalTo(2));
+                        assertThat(geoGridAgg.gridType(), equalTo(dataType));
+                    } else {
+                        agg = as(exchange.child(), AggregateExec.class);
+                        assertAggregation(agg, "count", Count.class);
+                        var evalExec = as(agg.child(), EvalExec.class);
+                        assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+                    }
                 }
             }
         }

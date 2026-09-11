@@ -9,6 +9,7 @@
 
 package org.elasticsearch.painless;
 
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -17,6 +18,65 @@ import java.util.Locale;
  * String literals in the scripts are constant-pool loads and are not charged, so the observed total is the method's alone.
  */
 public class AllocationStringEstimatorTests extends AllocationTestCase {
+
+    public void testFormatCharged() {
+        // The def[] holding the arguments is charged too, so measure against a script that builds it and stops there.
+        long args = allocatedBytes("def[] a = new def[] {\"a\", \"b\"}; return \"x\";");
+        long withFormat = allocatedBytes("def[] a = new def[] {\"a\", \"b\"}; String.format(\"%s-%s\", a); return \"x\";");
+
+        assertEquals(AllocationEstimators.formatBytes("%s-%s", new Object[] { "a", "b" }), withFormat - args);
+    }
+
+    public void testFormatWithLocaleCharged() {
+        long args = allocatedBytes("def[] a = new def[] {\"a\"}; return \"x\";");
+        long withFormat = allocatedBytes("def[] a = new def[] {\"a\"}; String.format(Locale.ROOT, \"%s\", a); return \"x\";");
+
+        assertEquals(AllocationEstimators.formatBytes(Locale.ROOT, "%s", new Object[] { "a" }), withFormat - args);
+    }
+
+    public void testJoinSizesFromCollectionWithoutConsumingIt() {
+        // An estimator must not iterate its argument, so the count comes from Collection.size().
+        String build = "List l = new ArrayList(); l.add(\"a\"); l.add(\"b\"); l.add(\"c\"); ";
+        long list = allocatedBytes(build + "return \"x\";");
+        long withJoin = allocatedBytes(build + "String.join(\",\", l); return \"x\";");
+
+        assertEquals(AllocationEstimators.joinBytes(",", List.of("a", "b", "c")), withJoin - list);
+    }
+
+    public void testStringBuilderFromCharSequenceCharged() {
+        assertEquals(
+            AllocationEstimators.stringBuilderBytes("hello world"),
+            allocatedBytes("String s = \"hello world\"; new StringBuilder(s); return \"x\";")
+        );
+    }
+
+    public void testStringBufferFromCharSequenceCharged() {
+        assertEquals(
+            AllocationEstimators.stringBufferBytes("hello world"),
+            allocatedBytes("String s = \"hello world\"; new StringBuffer(s); return \"x\";")
+        );
+    }
+
+    public void testStringBuilderSubstringCharged() {
+        long builder = allocatedBytes("StringBuilder b = new StringBuilder(); return \"x\";");
+        long withSubstring = allocatedBytes("StringBuilder b = new StringBuilder(); b.substring(0); return \"x\";");
+
+        assertEquals(AllocationEstimators.substringBytes(new StringBuilder(), 0), withSubstring - builder);
+    }
+
+    public void testStringBuilderSubstringRangeCharged() {
+        long builder = allocatedBytes("StringBuilder b = new StringBuilder(); b.append(\"hello\"); return \"x\";");
+        long withSubstring = allocatedBytes("StringBuilder b = new StringBuilder(); b.append(\"hello\"); b.substring(1, 4); return \"x\";");
+
+        assertEquals(AllocationEstimators.substringBytes(new StringBuilder(), 1, 4), withSubstring - builder);
+    }
+
+    public void testStringBufferSubstringRangeCharged() {
+        long buffer = allocatedBytes("StringBuffer b = new StringBuffer(); b.append(\"hello\"); return \"x\";");
+        long withSubstring = allocatedBytes("StringBuffer b = new StringBuffer(); b.append(\"hello\"); b.substring(1, 4); return \"x\";");
+
+        assertEquals(AllocationEstimators.substringBytes(new StringBuffer(), 1, 4), withSubstring - buffer);
+    }
 
     public void testConcatCharged() {
         assertEquals(

@@ -473,7 +473,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
 
         @Override
         public String toString(String field) {
-            return "UnknownIVFQuery";
+            return "FooIVFQuery";
         }
     }
 }

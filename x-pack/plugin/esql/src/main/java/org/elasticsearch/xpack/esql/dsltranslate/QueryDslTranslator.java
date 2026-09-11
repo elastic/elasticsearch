@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -364,9 +366,15 @@ public final class QueryDslTranslator {
         if (type == DataType.INTEGER || type == DataType.LONG) {
             return integralEquality(field, type, value, lenient);
         }
-        // keyword never fails to coerce; double/boolean fail only on a malformed value; the types coerce's default
-        // rejects (ip, version, unsigned_long) and analyzed text are capability gaps, so they never lenient-fold.
-        boolean encodable = type == DataType.KEYWORD || type == DataType.DOUBLE || type == DataType.BOOLEAN;
+        // keyword never fails to coerce; double/boolean/ip/version/unsigned_long fail only on a value their type
+        // cannot represent, which is exactly what a lenient match folds to false. Analyzed text stays out: it is a
+        // capability gap, and lenient's "skip a bad value" is not a licence to drop a whole capability.
+        boolean encodable = type == DataType.KEYWORD
+            || type == DataType.DOUBLE
+            || type == DataType.BOOLEAN
+            || type == DataType.IP
+            || type == DataType.VERSION
+            || type == DataType.UNSIGNED_LONG;
         if (lenient && encodable && isPresent(field)) {
             return foldMalformedToFalse(() -> checkedLeaf(field, new MvContains(Source.EMPTY, field, literalFor(field, value))));
         }
@@ -937,12 +945,24 @@ public final class QueryDslTranslator {
                 case INTEGER -> value instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(value));
                 case LONG -> value instanceof Number n ? n.longValue() : Long.parseLong(String.valueOf(value));
                 case DOUBLE -> value instanceof Number n ? n.doubleValue() : Double.parseDouble(String.valueOf(value));
-                // ip, version, unsigned_long, dates and friends have encodings we do not reproduce here; rejecting keeps
-                // us from handing the evaluator a value it cannot read.
+                // The planner's own encoders, so a dataset column of these types filters through the same leaves every
+                // other type uses. They are reachable on a dataset by two different routes: ip and unsigned_long are
+                // declarable (DeclaredSchemaValidator.DECLARABLE_TYPES), and version arrives from a CSV typed-schema
+                // header (CsvFormatReader.parseDataType), which never consults that set.
+                case IP -> EsqlDataTypeConverter.stringToIP(String.valueOf(value));
+                case VERSION -> EsqlDataTypeConverter.stringToVersion(String.valueOf(value));
+                case UNSIGNED_LONG -> EsqlDataTypeConverter.stringToUnsignedLong(String.valueOf(value));
+                // Dates never reach here — term/terms/range on a date route through dateBound, which owns the date math
+                // and rounding — and the remaining types have encodings we do not reproduce. Rejecting keeps us from
+                // handing the evaluator a value it cannot read.
                 default -> throw new TranslationUnsupportedException("literal on " + type.typeName());
             };
-        } catch (IllegalArgumentException e) {
-            // An unparseable bound (a non-numeric string) cannot be translated faithfully.
+        } catch (IllegalArgumentException | InvalidArgumentException e) {
+            // A value the type cannot represent cannot be translated faithfully. Both exceptions are needed and neither
+            // is redundant: a non-numeric unsigned_long fails BigDecimal parsing with a NumberFormatException (an
+            // IllegalArgumentException), while one that parses and then does not fit — "-1", or anything above
+            // 2^64-1 — fails DataTypeConverter.safeToUnsignedLong with an InvalidArgumentException, which descends
+            // from QlClientException and would otherwise escape this catch and fail the whole query.
             throw new TranslationUnsupportedException("literal on " + type.typeName());
         }
     }

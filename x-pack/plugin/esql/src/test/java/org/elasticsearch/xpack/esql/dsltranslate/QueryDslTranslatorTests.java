@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -59,6 +60,8 @@ public class QueryDslTranslatorTests extends ESTestCase {
         case "active" -> new ReferenceAttribute(Source.EMPTY, "active", DataType.BOOLEAN);
         case "body" -> new ReferenceAttribute(Source.EMPTY, "body", DataType.TEXT);
         case "client_ip" -> new ReferenceAttribute(Source.EMPTY, "client_ip", DataType.IP);
+        case "quota" -> new ReferenceAttribute(Source.EMPTY, "quota", DataType.UNSIGNED_LONG);
+        case "release" -> new ReferenceAttribute(Source.EMPTY, "release", DataType.VERSION);
         default -> Literal.NULL;
     };
 
@@ -747,11 +750,54 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     /**
-     * A lenient match on a type we cannot encode (ip/version/unsigned_long) is collected — it must not be silently mapped
-     * to match-nothing, because the index would actually match. Regression guard for the lenient-swallows-everything bug.
+     * A lenient match on a capability we do not have — analyzed text — is collected, not silently mapped to
+     * match-nothing, because the index would actually match. Lenient means "skip a value this type cannot hold", never
+     * "drop a whole capability". Regression guard for the lenient-swallows-everything bug.
      */
-    public void testLenientMatchOnUnsupportedTypeDegrades() {
-        assertFalse(translateResult(QueryBuilders.matchQuery("client_ip", "10.0.0.1").lenient(true)).isComplete());
+    public void testLenientMatchOnUnsupportedCapabilityDegrades() {
+        assertFalse(translateResult(QueryBuilders.matchQuery("body", "hello").lenient(true)).isComplete());
+    }
+
+    /**
+     * ip, version and unsigned_long literals encode through the planner's own converters, so a filter on a dataset
+     * column of those types translates like any other. Each literal carries the FIELD's type: the rewrite runs after
+     * the analyzer, so nothing downstream inserts the cast a user-written WHERE would get.
+     */
+    public void testIpVersionAndUnsignedLongLiteralsEncode() {
+        for (var each : List.of(
+            Map.entry(QueryBuilders.termQuery("client_ip", "10.0.0.1"), DataType.IP),
+            Map.entry(QueryBuilders.termQuery("release", "8.19.1"), DataType.VERSION),
+            Map.entry(QueryBuilders.termQuery("quota", "42"), DataType.UNSIGNED_LONG)
+        )) {
+            Expression e = translate(each.getKey());
+            assertThat(each.getKey().getWriteableName() + " on " + each.getValue(), e, instanceOf(MvContains.class));
+            Expression literal = ((MvContains) e).children().get(1);
+            assertThat(literal, instanceOf(Literal.class));
+            assertEquals("the literal takes the field's type", each.getValue(), literal.dataType());
+        }
+    }
+
+    /** A lenient match on an ip the type cannot represent matches nothing, mirroring the index's lenient field query. */
+    public void testLenientMatchOnMalformedIpMatchesNothing() {
+        assertEquals(Literal.FALSE, translate(QueryBuilders.matchQuery("client_ip", "not-an-ip").lenient(true)));
+    }
+
+    /**
+     * An unsigned_long value that parses and then does not fit is reported as an unsupported clause, never thrown.
+     * It is the case that escapes a narrower catch: a non-numeric value fails BigDecimal parsing with a
+     * NumberFormatException (an IllegalArgumentException), while "-1" parses and then fails safeToUnsignedLong with an
+     * InvalidArgumentException, which descends from QlClientException. If that one is not caught it leaves the
+     * collecting walk entirely and takes the whole query down, past the point the drop-and-warn policy can act.
+     */
+    public void testOutOfRangeUnsignedLongIsCollectedNotThrown() {
+        for (String value : List.of("-1", "18446744073709551616")) {
+            QueryDslTranslator.TranslationResult result = translateResult(QueryBuilders.termQuery("quota", value));
+            assertFalse("[" + value + "] must be reported, not applied", result.isComplete());
+            assertEquals(1, result.unsupported().size());
+            assertEquals("literal on unsigned_long", result.unsupported().get(0).construct());
+        }
+        // The neighbouring shape that a narrower catch already handles, so the two cases stay distinguishable.
+        assertFalse(translateResult(QueryBuilders.termQuery("quota", "not-a-number")).isComplete());
     }
 
     /** A match_phrase on an exact field is the whole value — plain equality; a slop or a text field are collected. */

@@ -131,7 +131,10 @@ public class FieldCapsWithFilterIT extends ESIntegTestCase {
             oldTimestamp,
             true
         );
+        int nodeCount = internalCluster().size();
         internalCluster().stopNode(redNode);
+        // Wait for the master to commit redNode's departure before creating the next index
+        ensureStableCluster(nodeCount - 1);
         createIndexAndIndexDocs(
             "index_new",
             indexSettings(between(1, 5), 0).put("index.routing.allocation.include._name", blueNode),

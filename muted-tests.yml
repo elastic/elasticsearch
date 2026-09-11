@@ -726,9 +726,6 @@ tests:
 - class: org.elasticsearch.action.bulk.BulkOperationTests
   method: testTsdbTimestampErrorDuringRoutingRedirectsToFailureStoreBatchMode
   issue: https://github.com/elastic/elasticsearch/issues/159019
-- class: org.elasticsearch.action.fieldcaps.FieldCapsWithFilterIT
-  method: testSkipUnmatchedShards
-  issue: https://github.com/elastic/elasticsearch/issues/159021
 - class: org.elasticsearch.transport.ProxyConnectionStrategyTests
   method: testProxyStrategyWillOpenNewConnectionsOnDisconnect
   issue: https://github.com/elastic/elasticsearch/issues/159027

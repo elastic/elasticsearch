@@ -315,7 +315,7 @@ final class SvdUtil {
      * @param n   number of columns
      * @param k   number of top singular vectors to extract
      * @param seed random seed for initialization
-     * @return top-k right singular vectors as rows, row-major (k x n)
+     * @return top-k right singular vectors as columns, row-major (n x k)
      */
     public static float[] topKRightSingularVectors(float[] a, int m, int n, int k, long seed) {
         // Compute C = A^T A (n x n) -- this is symmetric positive semi-definite
@@ -345,8 +345,7 @@ final class SvdUtil {
             v = vNew;
         }
 
-        // Convert columns of V to rows for return format (k x n)
-        return transposeMatrix(v, n, k);
+        return v;
     }
 
     private static float[] topKEigenvectorsGramTranspose(float[] a, int m, int n, int k, long seed) {
@@ -370,7 +369,7 @@ final class SvdUtil {
         for (int j = 0; j < k; j++) {
             normalizeColumn(v, j, k, n);
         }
-        return transposeMatrix(v, n, k);
+        return v;
     }
 
     /**

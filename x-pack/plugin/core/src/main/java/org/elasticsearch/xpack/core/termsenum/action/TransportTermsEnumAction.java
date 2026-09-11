@@ -327,12 +327,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
     }
 
     private static List<String> mergeResponses(List<List<String>> termsList, int size) {
-        final PriorityQueue<TermIterator> pq = new PriorityQueue<>(termsList.size()) {
-            @Override
-            protected boolean lessThan(TermIterator a, TermIterator b) {
-                return a.compareTo(b) < 0;
-            }
-        };
+        final PriorityQueue<TermIterator> pq = new PriorityQueue<>(termsList.size(), (a, b) -> a.compareTo(b) < 0);
 
         for (List<String> terms : termsList) {
             Iterator<String> it = terms.iterator();

@@ -462,12 +462,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            private final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size) {
-                @Override
-                protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
-                    return a.current().key < b.current().key;
-                }
-            };
+            private final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size, (a, b) -> a.current().key < b.current().key);
             private int reduceRoundingIdx = 0;
             private long min = Long.MAX_VALUE;
             private long max = Long.MIN_VALUE;

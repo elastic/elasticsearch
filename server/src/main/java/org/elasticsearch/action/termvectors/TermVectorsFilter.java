@@ -270,13 +270,8 @@ public class TermVectorsFilter {
         private final int limit;
 
         ScoreTermsQueue(int maxSize) {
-            super(maxSize);
+            super(maxSize, (a, b) -> a.score < b.score);
             this.limit = maxSize;
-        }
-
-        @Override
-        protected boolean lessThan(ScoreTerm a, ScoreTerm b) {
-            return a.score < b.score;
         }
 
         public void addOrUpdate(ScoreTerm scoreTerm) {

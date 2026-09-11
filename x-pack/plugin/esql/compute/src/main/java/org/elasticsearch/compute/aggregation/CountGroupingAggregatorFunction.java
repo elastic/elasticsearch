@@ -327,19 +327,9 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         try {
             final PriorityQueue<GroupIdAndCount> pq;
             if (asc) {
-                pq = new PriorityQueue<>(limit) {
-                    @Override
-                    protected boolean lessThan(GroupIdAndCount a, GroupIdAndCount b) {
-                        return a.count > b.count;
-                    }
-                };
+                pq = new PriorityQueue<>(limit, (a, b) -> a.count > b.count);
             } else {
-                pq = new PriorityQueue<>(limit) {
-                    @Override
-                    protected boolean lessThan(GroupIdAndCount a, GroupIdAndCount b) {
-                        return a.count < b.count;
-                    }
-                };
+                pq = new PriorityQueue<>(limit, (a, b) -> a.count < b.count);
             }
             for (int i = 0; i < positionCount; i++) {
                 final int groupId = selected.getInt(i);

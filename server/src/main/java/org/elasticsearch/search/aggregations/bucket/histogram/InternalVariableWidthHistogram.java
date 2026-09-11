@@ -503,12 +503,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            private final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size) {
-                @Override
-                protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
-                    return Double.compare(a.current().centroid, b.current().centroid) < 0;
-                }
-            };
+            private final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size, (a, b) -> Double.compare(a.current().centroid, b.current().centroid) < 0);
 
             @Override
             public void accept(InternalAggregation aggregation) {

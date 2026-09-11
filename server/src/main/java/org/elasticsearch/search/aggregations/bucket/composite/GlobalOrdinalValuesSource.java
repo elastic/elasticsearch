@@ -480,12 +480,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                     }
                 }
             }
-            disjunction = new PriorityQueue<>(size) {
-                @Override
-                protected boolean lessThan(PostingsEnumAndOrd a, PostingsEnumAndOrd b) {
-                    return a.postings.docID() < b.postings.docID();
-                }
-            };
+            disjunction = new PriorityQueue<>(size, (a, b) -> a.postings.docID() < b.postings.docID());
             disjunction.addAll(postings);
         }
 

@@ -794,7 +794,7 @@ public class Querier {
         private List<Tuple<Integer, Comparator>> sortingColumns;
 
         AggSortingQueue(int maxSize, List<Tuple<Integer, Comparator>> sortingColumns) {
-            super(maxSize);
+            super(maxSize, (l, r) -> lessThan(sortingColumns, l, r));
             this.sortingColumns = sortingColumns;
         }
 
@@ -820,8 +820,11 @@ public class Querier {
          */
         // thanks to @jpountz for the row ordering idea as a way to preserve ordering
         @SuppressWarnings("unchecked")
-        @Override
-        protected boolean lessThan(Tuple<List<?>, Integer> l, Tuple<List<?>, Integer> r) {
+        private static boolean lessThan(
+            List<Tuple<Integer, Comparator>> sortingColumns,
+            Tuple<List<?>, Integer> l,
+            Tuple<List<?>, Integer> r
+        ) {
             for (Tuple<Integer, Comparator> tuple : sortingColumns) {
                 int columnIdx = tuple.v1().intValue();
                 Comparator comparator = tuple.v2();

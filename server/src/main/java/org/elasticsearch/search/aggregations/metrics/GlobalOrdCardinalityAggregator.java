@@ -177,12 +177,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                 }
                 nonVisitedOrds.put(ord, indexTerms.postings(null, PostingsEnum.NONE));
             }
-            nonVisitedPostings = new PriorityQueue<>(nonVisitedOrds.size()) {
-                @Override
-                protected boolean lessThan(PostingsEnum a, PostingsEnum b) {
-                    return a.docID() < b.docID();
-                }
-            };
+            nonVisitedPostings = new PriorityQueue<>(nonVisitedOrds.size(), (a, b) -> a.docID() < b.docID());
             for (PostingsEnum pe : nonVisitedOrds.values()) {
                 nonVisitedPostings.add(pe);
             }

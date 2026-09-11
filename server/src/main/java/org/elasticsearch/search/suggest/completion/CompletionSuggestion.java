@@ -110,11 +110,10 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
     private static final class OptionPriorityQueue extends PriorityQueue<ShardOptions> {
         OptionPriorityQueue(int maxSize) {
-            super(maxSize);
+            super(maxSize, OptionPriorityQueue::lessThan);
         }
 
-        @Override
-        protected boolean lessThan(ShardOptions a, ShardOptions b) {
+        private static boolean lessThan(ShardOptions a, ShardOptions b) {
             int compare = COMPARATOR.compare(a.current, b.current);
             if (compare != 0) {
                 return compare < 0;

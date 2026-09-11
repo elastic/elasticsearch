@@ -36,14 +36,9 @@ class TopNQueue extends PriorityQueue<TopNRow> implements Accountable, Releasabl
     }
 
     private TopNQueue(CircuitBreaker breaker, int topCount) {
-        super(topCount);
+        super(topCount, (lhs, rhs) -> lhs.compareTo(rhs) < 0);
         this.breaker = breaker;
         this.topCount = topCount;
-    }
-
-    @Override
-    protected boolean lessThan(TopNRow lhs, TopNRow rhs) {
-        return lhs.compareTo(rhs) < 0;
     }
 
     /**
@@ -56,7 +51,7 @@ class TopNQueue extends PriorityQueue<TopNRow> implements Accountable, Releasabl
         if (size() < topCount) {
             add(row);
             return null;
-        } else if (lessThan(top(), row)) {
+        } else if (top().compareTo(row) < 0) {
             TopNRow evicted = top();
             updateTop(row);
             return evicted;

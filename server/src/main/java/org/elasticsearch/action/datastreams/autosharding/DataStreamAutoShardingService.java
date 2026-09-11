@@ -718,12 +718,7 @@ public class DataStreamAutoShardingService {
 
         DecisionBuffer(int maxSize, Comparator<Decision> comparator) {
             this.comparator = comparator;
-            this.queue = new PriorityQueue<>(maxSize) {
-                @Override
-                protected boolean lessThan(Decision decision1, Decision decision2) {
-                    return comparator.compare(decision1, decision2) < 0;
-                }
-            };
+            this.queue = new PriorityQueue<>(maxSize, (decision1, decision2) -> comparator.compare(decision1, decision2) < 0);
         }
 
         /**

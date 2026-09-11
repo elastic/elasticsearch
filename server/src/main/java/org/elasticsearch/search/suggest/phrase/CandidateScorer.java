@@ -29,12 +29,7 @@ final class CandidateScorer {
         if (sets.length == 0) {
             return Correction.EMPTY;
         }
-        PriorityQueue<Correction> corrections = new PriorityQueue<>(maxNumCorrections) {
-            @Override
-            protected boolean lessThan(Correction a, Correction b) {
-                return a.compareTo(b) < 0;
-            }
-        };
+        PriorityQueue<Correction> corrections = new PriorityQueue<>(maxNumCorrections, (a, b) -> a.compareTo(b) < 0);
         final int numMissspellings;
         if (errorFraction >= 1.0) {
             numMissspellings = (int) errorFraction;

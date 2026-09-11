@@ -653,12 +653,7 @@ public final class XMoreLikeThis {
      */
     private static class FreqQ extends PriorityQueue<ScoreTerm> {
         FreqQ(int maxSize) {
-            super(maxSize);
-        }
-
-        @Override
-        protected boolean lessThan(ScoreTerm a, ScoreTerm b) {
-            return a.score < b.score;
+            super(maxSize, (a, b) -> a.score < b.score);
         }
     }
 

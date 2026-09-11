@@ -104,12 +104,22 @@ public final class TopFieldGroups extends TopFieldDocs {
         final int[] reverseMul;
 
         MergeSortQueue(Sort sort, TopFieldGroups[] shardHits) {
-            super(shardHits.length);
-            this.shardHits = new ScoreDoc[shardHits.length][];
+            this(shardHits.length, copyShardHits(shardHits), buildComparators(sort), buildReverseMul(sort));
+        }
+
+        private MergeSortQueue(int maxSize, ScoreDoc[][] shardHits, FieldComparator<?>[] comparators, int[] reverseMul) {
+            super(maxSize, (first, second) -> lessThan(shardHits, comparators, reverseMul, first, second));
+            this.shardHits = shardHits;
+            this.comparators = comparators;
+            this.reverseMul = reverseMul;
+        }
+
+        private static ScoreDoc[][] copyShardHits(TopFieldGroups[] shardHits) {
+            ScoreDoc[][] copies = new ScoreDoc[shardHits.length][];
             for (int shardIDX = 0; shardIDX < shardHits.length; shardIDX++) {
                 final ScoreDoc[] shard = shardHits[shardIDX].scoreDocs;
                 if (shard != null) {
-                    this.shardHits[shardIDX] = shard;
+                    copies[shardIDX] = shard;
                     // Fail gracefully if API is misused:
                     for (int hitIDX = 0; hitIDX < shard.length; hitIDX++) {
                         final ScoreDoc sd = shard[hitIDX];
@@ -118,21 +128,36 @@ public final class TopFieldGroups extends TopFieldDocs {
                     }
                 }
             }
+            return copies;
+        }
 
+        private static FieldComparator<?>[] buildComparators(Sort sort) {
             final SortField[] sortFields = sort.getSort();
-            comparators = new FieldComparator[sortFields.length];
-            reverseMul = new int[sortFields.length];
+            FieldComparator<?>[] comparators = new FieldComparator[sortFields.length];
             for (int compIDX = 0; compIDX < sortFields.length; compIDX++) {
-                final SortField sortField = sortFields[compIDX];
-                comparators[compIDX] = sortField.getComparator(1, Pruning.NONE);
-                reverseMul[compIDX] = sortField.getReverse() ? -1 : 1;
+                comparators[compIDX] = sortFields[compIDX].getComparator(1, Pruning.NONE);
             }
+            return comparators;
+        }
+
+        private static int[] buildReverseMul(Sort sort) {
+            final SortField[] sortFields = sort.getSort();
+            int[] reverseMul = new int[sortFields.length];
+            for (int compIDX = 0; compIDX < sortFields.length; compIDX++) {
+                reverseMul[compIDX] = sortFields[compIDX].getReverse() ? -1 : 1;
+            }
+            return reverseMul;
         }
 
         // Returns true if first is < second
-        @Override
         @SuppressWarnings({ "rawtypes", "unchecked" })
-        public boolean lessThan(ShardRef first, ShardRef second) {
+        private static boolean lessThan(
+            ScoreDoc[][] shardHits,
+            FieldComparator<?>[] comparators,
+            int[] reverseMul,
+            ShardRef first,
+            ShardRef second
+        ) {
             assert first != second;
             final FieldDoc firstFD = (FieldDoc) shardHits[first.shardIndex][first.hitIndex];
             final FieldDoc secondFD = (FieldDoc) shardHits[second.shardIndex][second.hitIndex];

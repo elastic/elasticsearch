@@ -447,12 +447,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            private final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size) {
-                @Override
-                protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
-                    return a.current().key < b.current().key;
-                }
-            };
+            private final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size, (a, b) -> a.current().key < b.current().key);
 
             @Override
             public void accept(InternalAggregation aggregation) {

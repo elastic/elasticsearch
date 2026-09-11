@@ -194,7 +194,7 @@ class AbstractRateGroupingFunction {
         int valueCount;
 
         FlushQueue(int maxSize) {
-            super(maxSize);
+            super(maxSize, (a, b) -> a.nextTimestamp > b.nextTimestamp); // want the latest timestamp first
         }
 
         /**
@@ -210,11 +210,6 @@ class AbstractRateGroupingFunction {
             } else {
                 return Long.MIN_VALUE;
             }
-        }
-
-        @Override
-        protected boolean lessThan(Slice a, Slice b) {
-            return a.nextTimestamp > b.nextTimestamp; // want the latest timestamp first
         }
     }
 

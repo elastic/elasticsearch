@@ -376,12 +376,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     new QueryPhaseRankCoordinatorContext(windowSize) {
                         @Override
                         public ScoreDoc[] rankQueryPhaseResults(List<QuerySearchResult> querySearchResults, TopDocsStats topDocStats) {
-                            PriorityQueue<RankDoc> queue = new PriorityQueue<>(windowSize) {
-                                @Override
-                                protected boolean lessThan(RankDoc a, RankDoc b) {
-                                    return a.score < b.score;
-                                }
-                            };
+                            PriorityQueue<RankDoc> queue = new PriorityQueue<>(windowSize, (a, b) -> a.score < b.score);
                             for (QuerySearchResult qsr : querySearchResults) {
                                 RankShardResult rsr = qsr.getRankShardResult();
                                 if (rsr != null) {

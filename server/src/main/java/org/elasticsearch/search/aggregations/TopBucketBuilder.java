@@ -117,14 +117,8 @@ public abstract class TopBucketBuilder<B extends InternalMultiBucketAggregation.
             }
             this.reduce = reduce;
             this.reduceContext = reduceContext;
-            queue = new PriorityQueue<>(size) {
-                private final Comparator<DelayedBucket<B>> comparator = order.delayedBucketComparator(reduce, reduceContext);
-
-                @Override
-                protected boolean lessThan(DelayedBucket<B> a, DelayedBucket<B> b) {
-                    return comparator.compare(a, b) > 0;
-                }
-            };
+            Comparator<DelayedBucket<B>> comparator = order.delayedBucketComparator(reduce, reduceContext);
+            queue = new PriorityQueue<>(size, (a, b) -> comparator.compare(a, b) > 0);
         }
 
         @Override

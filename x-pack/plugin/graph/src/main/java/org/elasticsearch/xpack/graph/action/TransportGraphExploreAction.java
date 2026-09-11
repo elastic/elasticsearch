@@ -80,12 +80,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
     static class VertexPriorityQueue extends PriorityQueue<Vertex> {
 
         VertexPriorityQueue(int maxSize) {
-            super(maxSize);
-        }
-
-        @Override
-        protected boolean lessThan(Vertex a, Vertex b) {
-            return a.getWeight() < b.getWeight();
+            super(maxSize, (a, b) -> a.getWeight() < b.getWeight());
         }
 
     }

@@ -296,12 +296,7 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
     static class ScoreAndIndicesPriorityQueue extends PriorityQueue<ScoreAndIndices> {
 
         ScoreAndIndicesPriorityQueue(int maxSize) {
-            super(maxSize);
-        }
-
-        @Override
-        protected boolean lessThan(ScoreAndIndices a, ScoreAndIndices b) {
-            return a.compareTo(b) < 0;
+            super(maxSize, (a, b) -> a.compareTo(b) < 0);
         }
     }
 

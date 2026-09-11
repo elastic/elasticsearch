@@ -222,11 +222,10 @@ public final class FrequentItemSetCollector {
 
     static class FrequentItemSetPriorityQueue extends PriorityQueue<FrequentItemSetCandidate> {
         FrequentItemSetPriorityQueue(int size) {
-            super(size);
+            super(size, FrequentItemSetPriorityQueue::lessThan);
         }
 
-        @Override
-        protected boolean lessThan(FrequentItemSetCandidate a, FrequentItemSetCandidate b) {
+        private static boolean lessThan(FrequentItemSetCandidate a, FrequentItemSetCandidate b) {
             if (a.docCount == b.docCount) {
                 return ItemSetBitSet.compare(a.items, b.items) < 0;
             }

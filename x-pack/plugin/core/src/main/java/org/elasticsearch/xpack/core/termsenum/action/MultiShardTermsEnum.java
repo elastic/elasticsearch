@@ -132,13 +132,8 @@ public final class MultiShardTermsEnum {
         final int[] stack;
 
         TermMergeQueue(int size) {
-            super(size);
+            super(size, (termsA, termsB) -> termsA.current.compareTo(termsB.current) < 0);
             this.stack = new int[size];
-        }
-
-        @Override
-        protected boolean lessThan(TermsEnumWithCurrent termsA, TermsEnumWithCurrent termsB) {
-            return termsA.current.compareTo(termsB.current) < 0;
         }
 
         /**

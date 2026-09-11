@@ -22,7 +22,7 @@ set SERVER_CLI_CLASSPATH=!ES_CLASSPATH!;!ES_HOME!\lib\tools\server-cli\*
 rem If ES_TOOLS_DEBUG is set, emit the resolved ES_HOME and the contents of
 rem the launcher classpath directories to stderr before launching any tool.
 if defined ES_TOOLS_DEBUG (
-  echo [es-tools-debug] ES_HOME=%ES_HOME% 1>&2
+  echo [es-tools-debug] ES_HOME=!ES_HOME! 1>&2
   for %%D in ("lib" "lib\java-version-checker" "lib\cli-launcher" "lib\tools\server-launcher") do (
     echo [es-tools-debug] contents of "%ES_HOME%\%%~D": 1>&2
     dir /b "%ES_HOME%\%%~D" 1>&2
@@ -70,25 +70,25 @@ if defined ES_JAVA_HOME (
 
 rem do not let JAVA_TOOL_OPTIONS or _JAVA_OPTIONS slip in (as the JVM does by default)
 if defined JAVA_TOOL_OPTIONS (
-  (echo|set /p=ignoring JAVA_TOOL_OPTIONS=%JAVA_TOOL_OPTIONS%; )
+  (echo|set /p=ignoring JAVA_TOOL_OPTIONS=!JAVA_TOOL_OPTIONS!; )
   echo pass JVM parameters via ES_JAVA_OPTS
   set JAVA_TOOL_OPTIONS=
 )
 if defined _JAVA_OPTIONS (
-  (echo|set /p=ignoring _JAVA_OPTIONS=%_JAVA_OPTIONS%; )
+  (echo|set /p=ignoring _JAVA_OPTIONS=!_JAVA_OPTIONS!; )
   echo pass JVM parameters via ES_JAVA_OPTS
   set _JAVA_OPTIONS=
 )
 
 rem warn that we are not observing the value of $JAVA_HOME
 if defined JAVA_HOME (
-  echo warning: ignoring JAVA_HOME=%JAVA_HOME%; using %JAVA_TYPE% >&2
+  echo warning: ignoring JAVA_HOME=!JAVA_HOME!; using !JAVA_TYPE! >&2
 )
 
 rem JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we
 rem warn them that we are not observing the value of %JAVA_OPTS%
 if defined JAVA_OPTS (
-  (echo|set /p=warning: ignoring JAVA_OPTS=%JAVA_OPTS%; )
+  (echo|set /p=warning: ignoring JAVA_OPTS=!JAVA_OPTS!; )
   echo pass JVM parameters via ES_JAVA_OPTS
 )
 

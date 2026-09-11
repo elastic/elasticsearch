@@ -433,6 +433,55 @@ public class ArchiveTests extends PackagingTestCase {
         stopElasticsearch();
     }
 
+    /**
+     * Checks that a <code>JAVA_HOME</code> whose value contains parentheses -- for example
+     * <code>C:\Program Files (x86)\jdk</code> -- does not break the Windows scripts.
+     * <code>JAVA_HOME</code> is ignored (only a warning is emitted), so it must never abort a tool.
+     * <p>
+     * {@link #test64JavaHomeWithSpecialCharacters} covers <code>ES_JAVA_HOME</code>; this covers
+     * <code>JAVA_HOME</code>. Windows only.
+     */
+    public void test67JavaHomeWithParenthesesIgnored() throws Exception {
+        assumeTrue(distribution().hasJdk);
+
+        Platforms.onWindows(() -> {
+            String javaPath = "C:\\Program Files (x86)\\jdk";
+            try {
+                // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
+                sh.run("cmd /c mklink /D '" + javaPath + "' $Env:SYSTEM_JAVA_HOME");
+
+                sh.getEnv().put("JAVA_HOME", javaPath);
+                // ensure that ES_JAVA_HOME is not set for the test, so that the bundled JDK is used
+                sh.getEnv().remove("ES_JAVA_HOME");
+
+                // the script must survive the parentheses and still emit the warning that JAVA_HOME is ignored
+                final Installation.Executables bin = installation.executables();
+                final Result runResult = sh.run(bin.elasticsearch.toString() + " -V");
+                assertThat(runResult.exitCode(), equalTo(0));
+                assertThat(runResult.stderr(), containsString("warning: ignoring JAVA_HOME=" + javaPath + "; using bundled JDK"));
+
+                // verify ES can start, stop and run plugin list
+                startElasticsearch();
+                runElasticsearchTests();
+                stopElasticsearch();
+
+                String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
+                Result result = sh.run(pluginListCommand);
+                assertThat(result.exitCode(), equalTo(0));
+
+                // JAVA_HOME points at the symlinked JDK above, a different JDK than the bundled one; the
+                // bundled JDK path in the startup log therefore confirms JAVA_HOME was ignored, not honoured
+                String bundledJdk = installation.bundledJdk.toString();
+                assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(bundledJdk));
+            } finally {
+                // clean up sym link
+                if (Files.exists(Paths.get(javaPath))) {
+                    sh.run("cmd /c rmdir '" + javaPath + "' ");
+                }
+            }
+        });
+    }
+
     public void test70CustomPathConfAndJvmOptions() throws Exception {
         withCustomConfig(tempConf -> {
             setHeap("512m", tempConf);

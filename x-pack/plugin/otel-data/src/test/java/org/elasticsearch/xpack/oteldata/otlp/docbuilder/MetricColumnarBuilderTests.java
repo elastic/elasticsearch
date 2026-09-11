@@ -60,8 +60,7 @@ public class MetricColumnarBuilderTests extends ESTestCase {
                 assertEquals(EscfColumnKind.STRING, batch.column(i).leafValueKind());
                 ObjectTupleCursor<BytesRef> cursor = batch.column(i).bytesRefCursor(false);
                 List<String> values = new ArrayList<>();
-                int row;
-                while ((row = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                while (cursor.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     values.add(cursor.value().utf8ToString());
                 }
                 return values;
@@ -77,8 +76,7 @@ public class MetricColumnarBuilderTests extends ESTestCase {
             if (path.equals(schema.getFullPath(i))) {
                 LongTupleCursor cursor = batch.column(i).longCursor();
                 List<Long> values = new ArrayList<>();
-                int row;
-                while ((row = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                while (cursor.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     values.add(cursor.longValue());
                 }
                 return values;

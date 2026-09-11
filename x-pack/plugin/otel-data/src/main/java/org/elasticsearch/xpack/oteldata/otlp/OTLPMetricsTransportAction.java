@@ -121,8 +121,6 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             return context;
         }
 
-        MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
-        MetricColumnarBuilder columnarDocumentBuilder = new MetricColumnarBuilder(defaultMappingHints);
         ProjectMetadata projectMetadata = clusterService.state().projectState(ProjectId.DEFAULT).metadata();
 
         // Collect all groups in a single pass so we can check ESCF eligibility before committing any rows.
@@ -137,13 +135,15 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         boolean singleTarget = firstTarget != null && allGroups.stream().allMatch(g -> firstTarget.equals(g.targetIndex().index()));
 
         if (singleTarget && resolveEscfEligible(projectMetadata, firstTarget, allGroups) && isEscfEligible(allGroups)) {
-            addEscfBatch(bulkRequestBuilder, columnarDocumentBuilder, allGroups, firstTarget);
+            MetricColumnarBuilder metricColumnarBuilder = new MetricColumnarBuilder(defaultMappingHints);
+            addEscfBatch(bulkRequestBuilder, metricColumnarBuilder, allGroups, firstTarget);
             return context;
         }
 
         long totalExpandedBytes = 0;
         for (DataPointGroupingContext.DataPointGroup group : allGroups) {
             IndexVersion indexVersion = resolveIndexVersion(projectMetadata, group);
+            MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
             totalExpandedBytes = addIndexRequestDocMode(bulkRequestBuilder, metricDocumentBuilder, group, indexVersion, totalExpandedBytes);
         }
 
@@ -180,7 +180,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
 
     private void addEscfBatch(
         BulkRequestBuilder bulkRequestBuilder,
-        MetricColumnarBuilder columnarDocumentBuilder,
+        MetricColumnarBuilder metricColumnarBuilder,
         List<DataPointGroupingContext.DataPointGroup> groups,
         String target
     ) throws IOException {
@@ -191,7 +191,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                 var dynamicTemplates = Maps.<String, String>newHashMapWithExpectedSize(group.dataPoints().size());
                 var dynamicTemplateParams = Maps.<String, Map<String, String>>newHashMapWithExpectedSize(group.dataPoints().size());
 
-                boolean ok = columnarDocumentBuilder.buildMetricRow(batchBuilder, group, dynamicTemplates, dynamicTemplateParams);
+                boolean ok = metricColumnarBuilder.buildMetricRow(batchBuilder, group, dynamicTemplates, dynamicTemplateParams);
                 if (ok == false) {
                     // Eligibility pre-check should have prevented this; fail loudly.
                     throw new IllegalStateException(
@@ -207,13 +207,16 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                     .setRequireDataStream(true)
                     .setIncludeSourceOnError(false)
                     .setDynamicTemplates(dynamicTemplates)
-                    .setDynamicTemplateParams(dynamicTemplateParams);
-                indexRequest.setTimeSeriesTimestamp(tsTimestamp);
+                    .setDynamicTemplateParams(dynamicTemplateParams)
+                    .setTimeSeriesTimestamp(tsTimestamp);
                 // Source row will be attached after buildPartition below.
                 rowRequests.put(rowIndex, indexRequest);
                 bulkRequestBuilder.add(indexRequest);
             }
 
+            // Partition 0 is the only partition: EscfBatchBuilder supports multiple keyed partitions
+            // for producers that pre-split rows by shard, but we keep all rows in one flat batch and
+            // let BatchModeRouter / EscfBatchScatterer handle shard scatter downstream.
             EscfBatch batch = batchBuilder.buildPartition(0);
 
             // Attach source rows now that the batch object is stable.
@@ -315,9 +318,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         }
         for (Index index : dataStream.selectTimeSeriesWriteIndices(timestamps, projectMetadata)) {
             IndexMetadata im = projectMetadata.getIndexSafe(index);
-            if (im.getTimeSeriesDimensions().isEmpty()
-                || im.getCreationVersion().before(IndexVersions.TSID_CREATED_DURING_ROUTING)
-                || BatchIndexingEnabled.INDEX_BATCH_INDEXING.get(im.getSettings()) == false) {
+            if (im.getTimeSeriesDimensions().isEmpty() || BatchIndexingEnabled.INDEX_BATCH_INDEXING.get(im.getSettings()) == false) {
                 return false;
             }
         }

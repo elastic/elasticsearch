@@ -23,27 +23,27 @@ import io.opentelemetry.sdk.metrics.internal.data.ImmutableSumData;
 import io.opentelemetry.sdk.resources.Resource;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Integration test that sends identical OTLP metric payloads to two data streams: one using the traditional
@@ -63,8 +63,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  */
 public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
 
-    private static final String USER = "test_admin";
-    private static final String PASS = "x-pack-test-password";
+    private static final Logger logger = LogManager.getLogger(OTLPMetricsEscfComparisonRestIT.class);
 
     // Dataset base names passed as the data_stream.dataset resource attribute.
     // TargetIndex.sanitizeDataset appends ".otel" automatically, so "docmode" → "docmode.otel"
@@ -72,19 +71,9 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     private static final String DOCMODE_DATASET = "docmode";
     private static final String ESCF_DATASET = "escf";
 
-    // Workload dimensions
-    private static final int NUM_RESOURCES = 5;
-    private static final int NUM_DP_ATTR_SETS = 5;
-    private static final int NUM_TIMESTAMPS = 100;
-    // 5 gauges + 5 monotonic counters per data-point group.
-    // Gauges (temporality=null) and cumulative counters (temporality=cumulative) end up in separate
-    // document groups because DataPointGroupingContext groups by temporality as part of the grouping key.
-    // That produces 2 documents per (resource, dp-attr-set, timestamp) triple.
-    private static final int NUM_GAUGES = 5;
-    private static final int NUM_COUNTERS = 5;
-    private static final int GROUPS_PER_SERIES = 2; // one gauge group + one counter group
-    // Expected doc count per stream = NUM_RESOURCES * NUM_DP_ATTR_SETS * NUM_TIMESTAMPS * GROUPS_PER_SERIES
-    private static final int EXPECTED_DOCS = NUM_RESOURCES * NUM_DP_ATTR_SETS * NUM_TIMESTAMPS * GROUPS_PER_SERIES;
+    private static final int NUM_RESOURCES = 3;
+    private static final int NUM_DP_ATTR_SETS = 3;
+    // numGauges, numCounters, and numTimestamps are randomised per test run.
 
     private static final InstrumentationScopeInfo SCOPE = InstrumentationScopeInfo.create("io.opentelemetry.escf.comparison.test");
 
@@ -93,10 +82,8 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .feature(FeatureFlag.BATCH_INDEXING)
         .feature(FeatureFlag.INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG)
-        .user(USER, PASS, "superuser", false)
-        .setting("xpack.security.enabled", "true")
-        .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "false")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
         .setting("indices.batch_indexing", "true")
@@ -107,37 +94,27 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
+    // Shared across all iterations: created on the first @Before, shut down in @AfterClass.
+    // Templates are also installed once and deleted in @AfterClass.
+    private static OtlpHttpMetricExporter exporter;
+    private static volatile boolean classSetupDone = false;
+
+    /**
+     * Skip ESRestTestCase's between-iteration cluster wipe (wipeCluster, resetFeatureStates, etc.).
+     * We manage our own cleanup — data streams are deleted in {@link #teardown()}, templates and the
+     * exporter are torn down in {@link #teardownClass()}.
+     */
     @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
-        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+    protected boolean preserveClusterUponCompletion() {
+        return true;
     }
 
-    private OtlpHttpMetricExporter exporter;
-
-    @Before
-    public void setup() throws Exception {
-        // Wait for OTel managed templates to be installed by the plugin.
-        assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/metrics-otel@template"))));
-
-        // Install a doc-mode template at priority 200 (above metrics-otel@template's 120).
-        // Uses the same component templates as metrics-otel@template so mappings are identical.
-        installTemplate("metrics-docmode.otel-template", "metrics-docmode.otel-*", false);
-
-        // Install the ESCF template — same as doc-mode but with index.time_series.batch_indexing: true
-        // so that backing indices created from this template are eligible for the ESCF columnar path.
-        installTemplate("metrics-escf.otel-template", "metrics-escf.otel-*", true);
-
-        exporter = OtlpHttpMetricExporter.builder()
-            .setEndpoint(getClusterHosts().getFirst().toURI() + "/_otlp/v1/metrics")
-            .addHeader("Authorization", "ApiKey " + createApiKey("metrics-docmode.otel-*", "metrics-escf.otel-*"))
-            .build();
-    }
-
-    @After
-    public void teardown() throws Exception {
+    @AfterClass
+    public static void teardownClass() throws Exception {
+        classSetupDone = false;
         if (exporter != null) {
             exporter.shutdown();
+            exporter = null;
         }
         try {
             client().performRequest(new Request("DELETE", "_index_template/metrics-docmode.otel-template"));
@@ -145,13 +122,54 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         try {
             client().performRequest(new Request("DELETE", "_index_template/metrics-escf.otel-template"));
         } catch (Exception ignored) {}
+        deleteDataStreams();
+    }
+
+    @Before
+    public void setup() throws Exception {
+        // Drop leftover data streams from a previous iteration (no-op on first run).
+        // This prevents segments from accumulating across iterations
+        deleteDataStreams();
+
+        if (classSetupDone == false) {
+            // Wait for OTel managed templates to be installed by the plugin.
+            assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/metrics-otel@template"))));
+
+            // Install a doc-mode template at priority 200 (above metrics-otel@template's 120).
+            installTemplate("metrics-docmode.otel-template", "metrics-docmode.otel-*", false);
+
+            // Install the ESCF template — same but with index.time_series.batch_indexing: true.
+            installTemplate("metrics-escf.otel-template", "metrics-escf.otel-*", true);
+
+            // Build the exporter once. Security is disabled so no auth header is needed.
+            String firstHost = cluster.getHttpAddresses().split(",")[0].trim();
+            exporter = OtlpHttpMetricExporter.builder().setEndpoint("http://" + firstHost + "/_otlp/v1/metrics").build();
+
+            classSetupDone = true;
+        }
+    }
+
+    @After
+    public void teardown() {
+        deleteDataStreams();
+    }
+
+    private static void deleteDataStreams() {
+        for (String ds : List.of("metrics-docmode.otel-default", "metrics-escf.otel-default")) {
+            try {
+                client().performRequest(new Request("DELETE", "_data_stream/" + ds));
+                logger.info("Deleted data stream [{}]", ds);
+            } catch (Exception e) {
+                logger.debug("Could not delete data stream [{}] (may not exist yet): {}", ds, e.getMessage());
+            }
+        }
     }
 
     /**
      * Sends identical OTLP payloads (differentiated only by {@code data_stream.dataset} resource attribute)
      * to a doc-mode stream and an ESCF-enabled stream, then verifies:
      * <ol>
-     *   <li>Both streams contain exactly {@link #EXPECTED_DOCS} documents.</li>
+     *   <li>Both streams contain exactly {@code expectedDocs} documents (randomised per run).</li>
      *   <li>Sorted by {@code @timestamp} + {@code _tsid}, every document in the doc-mode stream has the
      *       same {@code _id}, {@code _tsid}, and {@code _source} as the corresponding document in the ESCF
      *       stream.</li>
@@ -159,74 +177,140 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
      * </ol>
      */
     public void testEscfProducesSameDocumentsAsDocMode() throws Exception {
-        // Timestamps: NUM_TIMESTAMPS points, 60 seconds apart, ending ~2 minutes before now.
-        // All timestamps are within the default 2-hour look_back_time window.
+        int numGauges = randomIntBetween(1, 3);
+        int numCounters = randomIntBetween(1, 3);
+        int numTimestamps = randomIntBetween(100, 1000);
+        // Each OTLP message (MetricData) covers 1–5 consecutive timestamps: NUM_DP_ATTR_SETS × numTimestampsPerMsg
+        // data points per metric, varying per run. This tests that the ingest pipeline correctly
+        // separates multi-timestamp messages into one TSDB document per (timestamp, attr-set).
+        int numTimestampsPerMsg = randomIntBetween(1, 5);
+        // Each timestamp batch is split into 1–3 separate OTLP exports (each covering a disjoint
+        // subset of metric names for all resources at all timestamps in the batch).
+        int numSplits = randomIntBetween(1, 3);
+        int expectedDocs = NUM_RESOURCES * (numGauges + numCounters) * NUM_DP_ATTR_SETS * numTimestamps;
+
+        // Timestamps: numTimestamps points, 5 seconds apart, ending ~2 minutes before now.
+        // 1000 × 5 s = 5000 s ≈ 83 minutes, safely within the default 2-hour look_back_time window.
         long nowNanos = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
         long endNanos = nowNanos - TimeUnit.MINUTES.toNanos(2);
-        long[] timestamps = new long[NUM_TIMESTAMPS];
-        for (int t = 0; t < NUM_TIMESTAMPS; t++) {
-            // timestamps[0] is oldest (≈ now - 100 minutes), timestamps[99] is newest (≈ now - 2 minutes)
-            timestamps[t] = endNanos - TimeUnit.SECONDS.toNanos(60L * (NUM_TIMESTAMPS - 1 - t));
+        long[] timestamps = new long[numTimestamps];
+        for (int t = 0; t < numTimestamps; t++) {
+            timestamps[t] = endNanos - TimeUnit.SECONDS.toNanos(5L * (numTimestamps - 1 - t));
         }
+
+        // Timestamps are grouped into export batches (EXPORT_BATCH timestamps) to bound each HTTP payload.
+        // Within each batch, timestamps are further grouped into messages of numTimestampsPerMsg.
+        // Max index ops per export: EXPORT_BATCH × NUM_RESOURCES × (numGauges + numCounters) × NUM_DP_ATTR_SETS
+        // = 10 × 3 × 6 × 3 = 540 (EXPORT_BATCH is in timestamps, so numTimestampsPerMsg does not affect this).
+        final int EXPORT_BATCH = 10;
+        // Periodic refresh (every REFRESH_EVERY batches) clears the Lucene LiveVersionMap so that
+        // heap usage stays bounded even with refresh_interval=-1.
+        final int REFRESH_EVERY = 10;
 
         // Populate the doc-mode stream. The doc-mode template has no index.time_series.batch_indexing
         // setting, so all exports take the XContent path even though indices.batch_indexing is enabled
         // cluster-wide.
-        for (int r = 0; r < NUM_RESOURCES; r++) {
-            exportSync(buildResourceBatch(DOCMODE_DATASET, r, timestamps));
+        // Within each timestamp batch, timestamps are grouped into messages of numTimestampsPerMsg.
+        // Each message group is then distributed round-robin across numSplits sub-batches to exercise
+        // multiple OTLP exports per data stream.
+        for (int tStart = 0; tStart < numTimestamps; tStart += EXPORT_BATCH) {
+            int tEnd = Math.min(tStart + EXPORT_BATCH, numTimestamps);
+            List<List<MetricData>> splits = new ArrayList<>(numSplits);
+            for (int s = 0; s < numSplits; s++) {
+                splits.add(new ArrayList<>());
+            }
+            for (int msgStart = tStart; msgStart < tEnd; msgStart += numTimestampsPerMsg) {
+                long[] msgTs = Arrays.copyOfRange(timestamps, msgStart, Math.min(msgStart + numTimestampsPerMsg, tEnd));
+                for (int r = 0; r < NUM_RESOURCES; r++) {
+                    List<MetricData> metrics = buildResourceBatch(DOCMODE_DATASET, r, msgTs, numGauges, numCounters);
+                    for (int m = 0; m < metrics.size(); m++) {
+                        splits.get(m % numSplits).add(metrics.get(m));
+                    }
+                }
+            }
+            for (List<MetricData> split : splits) {
+                if (split.isEmpty() == false) {
+                    exportSync(split);
+                }
+            }
+            if ((tStart / EXPORT_BATCH + 1) % REFRESH_EVERY == 0) {
+                refreshAll();
+            }
         }
 
-        // Warm up the ESCF stream: the write index does not yet exist on the first export, so
-        // resolveEscfEligible falls back to doc-mode (creating the backing index). Once the
-        // backing index exists with index.time_series.batch_indexing: true, subsequent exports
-        // take the ESCF columnar path.
-        exportSync(buildResourceBatch(ESCF_DATASET, 0, timestamps));
-        assertBusy(() -> {
-            ObjectPath count = ObjectPath.createFromResponse(
-                client().performRequest(new Request("GET", "metrics-escf.otel-default/_count"))
-            );
-            assertThat((int) count.evaluate("count"), greaterThanOrEqualTo(1));
-        });
-        for (int r = 1; r < NUM_RESOURCES; r++) {
-            exportSync(buildResourceBatch(ESCF_DATASET, r, timestamps));
+        // Populate the ESCF stream. The first export naturally falls back to doc-mode (resolveEscfEligible
+        // returns false when the data stream does not yet exist) which creates the backing index; all
+        // subsequent exports take the ESCF path. No explicit warm-up is needed.
+        for (int tStart = 0; tStart < numTimestamps; tStart += EXPORT_BATCH) {
+            int tEnd = Math.min(tStart + EXPORT_BATCH, numTimestamps);
+            List<List<MetricData>> splits = new ArrayList<>(numSplits);
+            for (int s = 0; s < numSplits; s++) {
+                splits.add(new ArrayList<>());
+            }
+            for (int msgStart = tStart; msgStart < tEnd; msgStart += numTimestampsPerMsg) {
+                long[] msgTs = Arrays.copyOfRange(timestamps, msgStart, Math.min(msgStart + numTimestampsPerMsg, tEnd));
+                for (int r = 0; r < NUM_RESOURCES; r++) {
+                    List<MetricData> metrics = buildResourceBatch(ESCF_DATASET, r, msgTs, numGauges, numCounters);
+                    for (int m = 0; m < metrics.size(); m++) {
+                        splits.get(m % numSplits).add(metrics.get(m));
+                    }
+                }
+            }
+            for (List<MetricData> split : splits) {
+                if (split.isEmpty() == false) {
+                    exportSync(split);
+                }
+            }
+            if ((tStart / EXPORT_BATCH + 1) % REFRESH_EVERY == 0) {
+                refreshAll();
+            }
         }
         refreshAll();
 
         // -----------------------------------------------------------------------
         // Assertion 1: document counts
         // -----------------------------------------------------------------------
-        assertDocCount("metrics-docmode.otel-default", EXPECTED_DOCS);
-        assertDocCount("metrics-escf.otel-default", EXPECTED_DOCS);
+        assertDocCount("metrics-docmode.otel-default", expectedDocs);
+        assertDocCount("metrics-escf.otel-default", expectedDocs);
 
         // -----------------------------------------------------------------------
-        // Assertion 2: sorted document comparison
-        // Sort by @timestamp ASC, _tsid ASC and compare every document pairwise.
-        // Equal _id values are the strongest signal: TSDB _id = hash(_tsid + @timestamp),
-        // so identical _ids prove ColumnarTsidCalculator and the per-document tsid funnels agree.
+        // Assertion 2: per-range document comparison.
+        // Timestamps are batched into groups of batchTimestamps. For each batch we issue one range
+        // query per stream, capping the response at batchTimestamps * docsPerTimestamp docs — well
+        // within the default max_result_window.
         // -----------------------------------------------------------------------
-        List<Map<String, Object>> docmodeDocs = fetchAllSorted("metrics-docmode.otel-default");
-        List<Map<String, Object>> escfDocs = fetchAllSorted("metrics-escf.otel-default");
-
-        assertThat("doc count must match", docmodeDocs.size(), equalTo(escfDocs.size()));
-        assertThat("doc count must equal EXPECTED_DOCS", docmodeDocs.size(), equalTo(EXPECTED_DOCS));
-
-        for (int i = 0; i < docmodeDocs.size(); i++) {
-            Map<String, Object> docmodeDoc = docmodeDocs.get(i);
-            Map<String, Object> escfDoc = escfDocs.get(i);
-            String rank = "rank " + i;
-            // _id = hash(_tsid + @timestamp): equal _ids prove that ColumnarTsidCalculator
-            // and the per-document tsid funnels produce identical _tsid values.
-            assertThat(rank + ": _id must match", escfDoc.get("_id"), equalTo(docmodeDoc.get("_id")));
-            assertThat(rank + ": _tsid must match", escfDoc.get("_tsid"), equalTo(docmodeDoc.get("_tsid")));
-            // Compare _source after stripping data_stream.dataset, which is a constant_keyword whose
-            // value is the data-stream's own dataset name and therefore differs between the two streams
-            // by construction. Everything else must be byte-for-byte equal.
-            @SuppressWarnings("unchecked")
-            Map<String, Object> docmodeSource = stripDataStreamDataset((Map<String, Object>) docmodeDoc.get("_source"));
-            @SuppressWarnings("unchecked")
-            Map<String, Object> escfSource = stripDataStreamDataset((Map<String, Object>) escfDoc.get("_source"));
-            assertThat(rank + ": _source (minus data_stream.dataset) must match", escfSource, equalTo(docmodeSource));
+        final int docsPerTimestamp = NUM_RESOURCES * (numGauges + numCounters) * NUM_DP_ATTR_SETS;
+        final int batchTimestamps = 10;
+        int docsCompared = 0;
+        for (int batchStart = 0; batchStart < timestamps.length; batchStart += batchTimestamps) {
+            int batchEnd = Math.min(batchStart + batchTimestamps - 1, timestamps.length - 1);
+            long startMillis = TimeUnit.NANOSECONDS.toMillis(timestamps[batchStart]);
+            long endMillis = TimeUnit.NANOSECONDS.toMillis(timestamps[batchEnd]);
+            int expectedBatchDocs = (batchEnd - batchStart + 1) * docsPerTimestamp;
+            List<Map<String, Object>> docmodeDocs = fetchSortedForRange("metrics-docmode.otel-default", startMillis, endMillis);
+            List<Map<String, Object>> escfDocs = fetchSortedForRange("metrics-escf.otel-default", startMillis, endMillis);
+            String rangeCtx = "[" + startMillis + "," + endMillis + "]";
+            assertThat("doc count must match for range " + rangeCtx, escfDocs.size(), equalTo(docmodeDocs.size()));
+            assertThat("doc count for range " + rangeCtx, docmodeDocs.size(), equalTo(expectedBatchDocs));
+            for (int i = 0; i < docmodeDocs.size(); i++) {
+                Map<String, Object> docmodeDoc = docmodeDocs.get(i);
+                Map<String, Object> escfDoc = escfDocs.get(i);
+                String ctx = rangeCtx + " rank=" + i;
+                assertThat(ctx + ": _id must match", escfDoc.get("_id"), equalTo(docmodeDoc.get("_id")));
+                assertThat(ctx + ": _tsid must match", escfDoc.get("_tsid"), equalTo(docmodeDoc.get("_tsid")));
+                @SuppressWarnings("unchecked")
+                Map<String, Object> docmodeRawSource = (Map<String, Object>) docmodeDoc.get("_source");
+                @SuppressWarnings("unchecked")
+                Map<String, Object> escfRawSource = (Map<String, Object>) escfDoc.get("_source");
+                assertSourceShape(ctx + " docmode", docmodeRawSource);
+                assertSourceShape(ctx + " escf", escfRawSource);
+                Map<String, Object> docmodeSource = stripDataStreamDataset(docmodeRawSource);
+                Map<String, Object> escfSource = stripDataStreamDataset(escfRawSource);
+                assertThat(ctx + ": _source (minus data_stream.dataset) must match", escfSource, equalTo(docmodeSource));
+            }
+            docsCompared += docmodeDocs.size();
         }
+        assertThat("total docs compared must equal expectedDocs", docsCompared, equalTo(expectedDocs));
 
         // -----------------------------------------------------------------------
         // Assertion 3: per-shard doc-count equality
@@ -246,11 +330,18 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     // -------------------------------------------------------------------------
 
     /**
-     * Builds all {@link MetricData} records for one resource (identified by {@code resourceIdx}).
-     * Each MetricData record contains {@link #NUM_DP_ATTR_SETS} × {@link #NUM_TIMESTAMPS} data points.
-     * The {@code data_stream.dataset} resource attribute controls which data stream the export targets.
+     * Builds all {@link MetricData} records for one resource (identified by {@code resourceIdx})
+     * covering the timestamps in {@code msgTimestamps}. Each MetricData contains
+     * {@link #NUM_DP_ATTR_SETS} × {@code msgTimestamps.length} data points — one per (attr-set, timestamp)
+     * pair. The {@code data_stream.dataset} resource attribute controls which data stream the export targets.
      */
-    private static List<MetricData> buildResourceBatch(String dataset, int resourceIdx, long[] timestamps) {
+    private static List<MetricData> buildResourceBatch(
+        String dataset,
+        int resourceIdx,
+        long[] msgTimestamps,
+        int numGauges,
+        int numCounters
+    ) {
         Resource resource = Resource.create(
             Attributes.builder()
                 .put(stringKey("service.name"), "elasticsearch")
@@ -260,27 +351,20 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
                 .build()
         );
 
-        // Pre-build the per-dp-attr-set Attributes objects.
-        // attributes.http.method and attributes.http.status_code land under the top-level attributes
-        // passthrough object, which also carries time_series_dimension: true.
-        Attributes[] dpAttrSets = new Attributes[NUM_DP_ATTR_SETS];
-        for (int a = 0; a < NUM_DP_ATTR_SETS; a++) {
-            dpAttrSets[a] = Attributes.builder()
-                .put(stringKey("http.method"), "METHOD-" + a)
-                .put(stringKey("http.status_code"), String.valueOf(200 + a))
-                .build();
-        }
+        List<MetricData> batch = new ArrayList<>(numGauges + numCounters);
 
-        List<MetricData> batch = new ArrayList<>(NUM_GAUGES + NUM_COUNTERS);
-
-        // Gauges (double)
-        for (int g = 0; g < NUM_GAUGES; g++) {
-            List<DoublePointData> points = new ArrayList<>(NUM_DP_ATTR_SETS * NUM_TIMESTAMPS);
-            for (int a = 0; a < NUM_DP_ATTR_SETS; a++) {
-                for (int t = 0; t < NUM_TIMESTAMPS; t++) {
-                    // Unique but deterministic value per (resource, dp-attrs, timestamp)
-                    double value = resourceIdx * 10_000.0 + a * 100.0 + t + g * 0.001;
-                    points.add(ImmutableDoublePointData.create(timestamps[t], timestamps[t], dpAttrSets[a], value));
+        // Gauges (double). Each gauge gets its own set of attribute values (metric index embedded) so
+        // every (gauge, attr-set) pair is a distinct time series / TSDB document group.
+        for (int g = 0; g < numGauges; g++) {
+            List<DoublePointData> points = new ArrayList<>(NUM_DP_ATTR_SETS * msgTimestamps.length);
+            for (long timestamp : msgTimestamps) {
+                for (int a = 0; a < NUM_DP_ATTR_SETS; a++) {
+                    Attributes dpAttrs = Attributes.builder()
+                        .put(stringKey("http.method"), "G" + g + "-METHOD-" + a)
+                        .put(stringKey("http.status_code"), String.valueOf(200 + g * NUM_DP_ATTR_SETS + a))
+                        .build();
+                    double value = resourceIdx * 10_000.0 + a * 100.0 + g * 0.001;
+                    points.add(ImmutableDoublePointData.create(timestamp, timestamp, dpAttrs, value));
                 }
             }
             batch.add(
@@ -295,13 +379,17 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
             );
         }
 
-        // Counters (long, monotonic, cumulative)
-        for (int c = 0; c < NUM_COUNTERS; c++) {
-            List<LongPointData> points = new ArrayList<>(NUM_DP_ATTR_SETS * NUM_TIMESTAMPS);
-            for (int a = 0; a < NUM_DP_ATTR_SETS; a++) {
-                for (int t = 0; t < NUM_TIMESTAMPS; t++) {
-                    long value = (long) resourceIdx * 10_000L + a * 100L + t + c;
-                    points.add(ImmutableLongPointData.create(timestamps[t], timestamps[t], dpAttrSets[a], value));
+        // Counters (long, monotonic, cumulative). Same uniqueness guarantee as gauges.
+        for (int c = 0; c < numCounters; c++) {
+            List<LongPointData> points = new ArrayList<>(NUM_DP_ATTR_SETS * msgTimestamps.length);
+            for (long timestamp : msgTimestamps) {
+                for (int a = 0; a < NUM_DP_ATTR_SETS; a++) {
+                    Attributes dpAttrs = Attributes.builder()
+                        .put(stringKey("http.method"), "C" + c + "-METHOD-" + a)
+                        .put(stringKey("http.status_code"), String.valueOf(300 + c * NUM_DP_ATTR_SETS + a))
+                        .build();
+                    long value = (long) resourceIdx * 10_000L + a * 100L + c;
+                    points.add(ImmutableLongPointData.create(timestamp, timestamp, dpAttrs, value));
                 }
             }
             batch.add(
@@ -377,7 +465,11 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
                 "settings": {
                   "index.mode": "time_series",
                   "index.number_of_shards": 3,
-                  "index.lifecycle.name": null$BATCH_INDEXING_SETTING
+                  "index.number_of_replicas": 0,
+                  "index.refresh_interval": "-1",
+                  "index.translog.durability": "async",
+                  "index.lifecycle.name": null,
+                  "index.requests.cache.enable": false$BATCH_INDEXING_SETTING
                 },
                 "mappings": {
                   "properties": {
@@ -402,6 +494,19 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         assertThat("doc count for " + target, (int) response.evaluate("count"), equalTo(expected));
     }
 
+    /** Asserts that {@code source} is a well-formed OTel metric document with top-level {@code attributes}
+     * and a {@code resource} object that itself contains {@code attributes}. */
+    @SuppressWarnings("unchecked")
+    private static void assertSourceShape(String ctx, Map<String, Object> source) {
+        assertFalse(ctx + ": _source must not be empty", source.isEmpty());
+        assertTrue(ctx + ": _source must contain top-level 'attributes'", source.containsKey("attributes"));
+        Object resourceRaw = source.get("resource");
+        assertNotNull(ctx + ": _source must contain 'resource'", resourceRaw);
+        assertThat(ctx + ": 'resource' must be a map", resourceRaw, org.hamcrest.Matchers.instanceOf(Map.class));
+        Map<String, Object> resource = (Map<String, Object>) resourceRaw;
+        assertTrue(ctx + ": 'resource' must contain 'attributes'", resource.containsKey("attributes"));
+    }
+
     /**
      * Returns a copy of {@code source} with the {@code data_stream.dataset} leaf removed.
      * {@code data_stream.dataset} is a constant_keyword whose value is the data-stream's own dataset name,
@@ -421,28 +526,28 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     }
 
     /**
-     * Fetches all documents from {@code target} sorted by {@code @timestamp} ASC then {@code _tsid} ASC.
+     * Fetches all documents from {@code target} whose {@code @timestamp} falls in
+     * {@code [startMillis, endMillis]}, sorted by {@code @timestamp} ASC then {@code _tsid} ASC.
      * Each element in the returned list is a map with keys {@code _id}, {@code _tsid}, and {@code _source}.
      */
     @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> fetchAllSorted(String target) throws IOException {
+    private static List<Map<String, Object>> fetchSortedForRange(String target, long startMillis, long endMillis) throws IOException {
         Request request = new Request("GET", target + "/_search");
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(java.util.Locale.ROOT, """
             {
               "size": 10000,
+              "query": {"range": {"@timestamp": {"gte": %d, "lte": %d}}},
               "sort": [{"@timestamp": "asc"}, {"_tsid": "asc"}],
               "docvalue_fields": ["_tsid"],
-              "_source": true,
-              "track_total_hits": true
+              "_source": true
             }
-            """);
+            """, startMillis, endMillis));
         ObjectPath response = ObjectPath.createFromResponse(client().performRequest(request));
         List<Object> rawHits = response.evaluate("hits.hits");
         List<Map<String, Object>> result = new ArrayList<>(rawHits.size());
         for (Object rawHit : rawHits) {
             Map<String, Object> hit = (Map<String, Object>) rawHit;
             String id = (String) hit.get("_id");
-            // _tsid is returned as a docvalue_fields entry (a list with one element)
             List<Object> tsidList = (List<Object>) ((Map<String, Object>) hit.get("fields")).get("_tsid");
             Object tsid = tsidList != null && tsidList.isEmpty() == false ? tsidList.get(0) : null;
             Map<String, Object> source = (Map<String, Object>) hit.get("_source");
@@ -481,37 +586,5 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
             }
         }
         return counts;
-    }
-
-    // -------------------------------------------------------------------------
-    // API-key helper (mirrors AbstractOTLPIndexingRestIT)
-    // -------------------------------------------------------------------------
-
-    private static String createApiKey(String... indexPatterns) throws IOException {
-        StringBuilder indexPatternsJson = new StringBuilder();
-        for (int i = 0; i < indexPatterns.length; i++) {
-            if (i > 0) {
-                indexPatternsJson.append(", ");
-            }
-            indexPatternsJson.append('"').append(indexPatterns[i]).append('"');
-        }
-        Request createApiKeyRequest = new Request("POST", "/_security/api_key");
-        createApiKeyRequest.setJsonEntity("""
-            {
-              "name": "otel-escf-test-key",
-              "role_descriptors": {
-                "writer": {
-                  "index": [
-                    {
-                      "names": [$INDEX_PATTERNS],
-                      "privileges": ["create_doc", "auto_configure"]
-                    }
-                  ]
-                }
-              }
-            }
-            """.replace("$INDEX_PATTERNS", indexPatternsJson.toString()));
-        ObjectPath createApiKeyResponse = ObjectPath.createFromResponse(client().performRequest(createApiKeyRequest));
-        return createApiKeyResponse.evaluate("encoded");
     }
 }

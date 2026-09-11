@@ -50,7 +50,7 @@ class SpatialGeometryBlockProcessor {
     }
 
     BytesRef processSingleGeometry(Geometry jtsGeometry, double parameter) {
-        Geometry result = operation.apply(jtsGeometry, parameter);
+        Geometry result = applyOperation(jtsGeometry, parameter);
         return UNSPECIFIED.jtsGeometryToWkb(result);
     }
 
@@ -59,7 +59,7 @@ class SpatialGeometryBlockProcessor {
             builder.appendNull();
         } else {
             final Geometry jtsGeometry = asJtsMultiPoint(left, p, spatialCoordinateType::longAsPoint);
-            Geometry result = operation.apply(jtsGeometry, parameter);
+            Geometry result = applyOperation(jtsGeometry, parameter);
             builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(result));
         }
     }
@@ -69,8 +69,27 @@ class SpatialGeometryBlockProcessor {
             builder.appendNull();
         } else {
             final Geometry jtsGeometry = asJtsGeometry(left, p);
-            Geometry result = operation.apply(jtsGeometry, parameter);
+            Geometry result = applyOperation(jtsGeometry, parameter);
             builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(result));
+        }
+    }
+
+    private Geometry applyOperation(Geometry jtsGeometry, double parameter) {
+        try {
+            return operation.apply(jtsGeometry, parameter);
+        } catch (StackOverflowError e) {
+            // ST_SIMPLIFY (DouglasPeuckerSimplifier) uses IterativeDouglasPeuckerSimplifier,
+            // which is heap-allocated and cannot cause StackOverflowError. This catch exists
+            // for ST_SIMPLIFYPRESERVETOPOLOGY, whose JTS implementation (TaggedLineStringSimplifier)
+            // uses call-stack recursion proportional to vertex count. Porting that algorithm to an
+            // iterative form would require reimplementing ~500 lines of topology-aware JTS internals,
+            // so catching StackOverflowError here is the pragmatic safety net for that function only.
+            throw new IllegalArgumentException(
+                "geometry processing failed due to excessive recursion depth; the geometry has "
+                    + jtsGeometry.getNumPoints()
+                    + " vertices which may be too complex for the given parameter value. "
+                    + "Consider reducing the number of vertices or using a larger tolerance."
+            );
         }
     }
 

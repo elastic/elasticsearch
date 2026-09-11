@@ -3958,6 +3958,34 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(as(estimated.children().get(1), FragmentExec.class).estimatedRowSize(), equalTo(0));
     }
 
+    public void testEstimateRowSizeIsolatedAcrossForkAndFanIn() {
+        Attribute value = new ReferenceAttribute(Source.EMPTY, "value", DataType.KEYWORD);
+        LocalSourceExec localSource = new LocalSourceExec(Source.EMPTY, List.of(value), EmptyLocalSupplier.EMPTY);
+        EvalExec localBranch = new EvalExec(
+            Source.EMPTY,
+            localSource,
+            List.of(new Alias(Source.EMPTY, "added", new Literal(Source.EMPTY, 1, DataType.INTEGER)))
+        );
+        FragmentExec firstProducer = new FragmentExec(new LocalRelation(Source.EMPTY, List.of(value), EmptyLocalSupplier.EMPTY));
+        FragmentExec secondProducer = new FragmentExec(new LocalRelation(Source.EMPTY, List.of(value), EmptyLocalSupplier.EMPTY));
+        SourceFanInExec fanIn = new SourceFanInExec(Source.EMPTY, List.of(firstProducer, secondProducer), List.of(value), false);
+
+        for (List<PhysicalPlan> branches : List.of(List.of(localBranch, fanIn), List.of(fanIn, localBranch))) {
+            MergeExec merge = new MergeExec(Source.EMPTY, branches, List.of(value));
+            MergeExec estimated = as(EstimatesRowSize.estimateRowSize(0, merge), MergeExec.class);
+            SourceFanInExec estimatedFanIn = null;
+            for (PhysicalPlan child : estimated.children()) {
+                if (child instanceof SourceFanInExec found) {
+                    estimatedFanIn = found;
+                }
+            }
+            assertNotNull(estimatedFanIn);
+            for (PhysicalPlan producer : estimatedFanIn.producers()) {
+                assertThat(as(producer, FragmentExec.class).estimatedRowSize(), equalTo(0));
+            }
+        }
+    }
+
     /**
      * Expects
      * ProjectExec[[avg(emp_no){r}#3]]

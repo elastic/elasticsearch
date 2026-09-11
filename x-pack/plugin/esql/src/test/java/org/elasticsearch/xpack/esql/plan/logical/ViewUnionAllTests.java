@@ -75,6 +75,20 @@ public class ViewUnionAllTests extends ESTestCase {
         assertThat(refreshed, instanceOf(ViewUnionAll.class));
     }
 
+    public void testRefreshOutputPreservesNestedSourceFanIn() {
+        LogicalPlan first = relation("ds1");
+        LogicalPlan second = relation("ds2");
+        SourceFanInUnionAll fanIn = new SourceFanInUnionAll(Source.EMPTY, List.of(first, second), List.of());
+        ViewUnionAll original = new ViewUnionAll(Source.EMPTY, viewMap(fanIn, relation("idx")), List.of());
+
+        ViewUnionAll refreshed = original.refreshOutput();
+
+        assertThat(refreshed, instanceOf(ViewUnionAll.class));
+        assertThat(refreshed.namedSubqueries().keySet(), equalTo(original.namedSubqueries().keySet()));
+        assertTrue(refreshed.children().stream().anyMatch(SourceFanInUnionAll.class::isInstance));
+        assertFalse(refreshed.children().stream().anyMatch(child -> child.getClass() == UnionAll.class));
+    }
+
     public void testEqualsAndHashCode() {
         LogicalPlan child1 = relation("index1");
         LogicalPlan child2 = relation("index2");

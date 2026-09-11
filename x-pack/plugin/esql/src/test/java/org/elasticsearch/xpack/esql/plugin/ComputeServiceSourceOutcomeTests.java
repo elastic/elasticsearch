@@ -11,11 +11,24 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.SourceOutcomeAccumulator.SourceClusterKey;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -27,6 +40,41 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
         assertTrue(ComputeService.shouldSkipRemoteCluster(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
         assertTrue(ComputeService.shouldSkipRemoteCluster(EsqlExecutionInfo.Cluster.Status.SKIPPED));
         assertTrue(ComputeService.shouldSkipRemoteCluster(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+    }
+
+    /**
+     * The source-producer path looks up {@code initialClusterStatuses.get(clusterAlias)}
+     * and skips only a terminal snapshot. A missing map entry is the same as a
+     * still-RUNNING snapshot: the remote {@code ExchangeSinkExec} producer plan
+     * stays eligible to run.
+     */
+    public void testMissingSnapshotDoesNotSkipRemoteProducerPlan() {
+        EsField field = new EsField("emp_no", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        FieldAttribute attr = new FieldAttribute(Source.EMPTY, "emp_no", field);
+        EsRelation remoteRelation = new EsRelation(
+            Source.EMPTY,
+            "remote:test",
+            IndexMode.STANDARD,
+            Map.of("remote", List.of("test")),
+            Map.of("remote", List.of("test")),
+            Map.of("test", new IndexProperties(IndexMode.STANDARD, 1)),
+            List.of(attr)
+        );
+        ExchangeSinkExec producer = new ExchangeSinkExec(Source.EMPTY, remoteRelation.output(), false, new FragmentExec(remoteRelation));
+
+        Set<String> remoteAliases = new HashSet<>();
+        PlannerUtils.forEachRelation(producer, relation -> remoteAliases.addAll(relation.concreteIndices().keySet()));
+        remoteAliases.remove("");
+        assertThat(remoteAliases, equalTo(Set.of("remote")));
+
+        Map<String, EsqlExecutionInfo.Cluster.Status> missing = Map.of();
+        Map<String, EsqlExecutionInfo.Cluster.Status> heldRunning = Map.of("remote", EsqlExecutionInfo.Cluster.Status.RUNNING);
+        Map<String, EsqlExecutionInfo.Cluster.Status> alreadyDone = Map.of("remote", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+        for (String alias : remoteAliases) {
+            assertFalse(ComputeService.shouldSkipRemoteCluster(missing.get(alias)));
+            assertFalse(ComputeService.shouldSkipRemoteCluster(heldRunning.get(alias)));
+            assertTrue(ComputeService.shouldSkipRemoteCluster(alreadyDone.get(alias)));
+        }
     }
 
     public void testRepeatedProducerAttemptsDoNotMultiplyShardCounts() {

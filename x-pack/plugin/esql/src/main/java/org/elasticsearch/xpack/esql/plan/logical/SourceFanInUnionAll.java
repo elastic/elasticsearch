@@ -184,6 +184,9 @@ public class SourceFanInUnionAll extends UnionAll {
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
+        if (branchKeys == null) {
+            return NodeInfo.create(this, SourceFanInUnionAll::new, children(), output());
+        }
         return NodeInfo.create(this, SourceFanInUnionAll::new, children(), output(), branchKeys);
     }
 

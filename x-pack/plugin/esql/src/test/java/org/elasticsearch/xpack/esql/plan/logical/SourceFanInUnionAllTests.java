@@ -11,6 +11,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -40,6 +41,17 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         assertThat(union.replaceSubPlansAndOutput(List.of(second, first), List.of(output)), instanceOf(SourceFanInUnionAll.class));
         assertThat(union.refreshOutput(), instanceOf(SourceFanInUnionAll.class));
         assertThat(union.pruneEmptyBranches(plan -> plan == second), instanceOf(SourceFanInUnionAll.class));
+    }
+
+    public void testFinalFanInSurvivesExpressionTransform() {
+        LogicalPlan first = relation("first");
+        LogicalPlan second = relation("second");
+        SourceFanInUnionAll fanIn = new SourceFanInUnionAll(Source.EMPTY, List.of(first, second), List.of());
+
+        LogicalPlan transformed = fanIn.transformExpressionsUp(Expression.class, e -> e);
+        assertThat(transformed, instanceOf(SourceFanInUnionAll.class));
+        assertFalse(((SourceFanInUnionAll) transformed).isProvisional());
+        assertThat(transformed.children(), equalTo(List.of(first, second)));
     }
 
     public void testNotEqualToPlainUnionAll() {

@@ -298,6 +298,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "employees_ndjson_absent_warn",
         "drift_pq_type_ffw",
         "widen_pq_type_ffw",
+        "warnscope_pq_ffw",
         "drift_csv_type_ffw",
         "ul_pq_type_ffw",
         "ul_pq_neg_ffw",
@@ -6345,6 +6346,31 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
     }
 
+    /**
+     * The incompatibility notice is scoped to queries that actually read the drifting column. The resolve-time
+     * fold inspects every column of every file, so without scoping a warm {@code COUNT(*)} — which reads no
+     * column at all — would warn about a column the user never mentioned, while the same query on the cold path
+     * stays silent because the readers only warn per projected column.
+     */
+    public void testFirstFileWinsColumnWarningOnlyWhenTheColumnIsRead() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        putFirstFileWinsGlob("warnscope_pq_ffw", dir);
+
+        // Reading x: the notice is relevant and emitted, warm.
+        assertThat(collectWarningsContaining("FROM warnscope_pq_ffw | STATS c = COUNT(x)", "incompatible with planner type"), not(empty()));
+        assertThat(documentsReadBy("FROM warnscope_pq_ffw | STATS c = COUNT(x)"), equalTo(0L));
+
+        // COUNT(*) reads no column, so there is nothing to warn about even though the fold saw the clash.
+        assertThat(firstRowOf("FROM warnscope_pq_ffw | STATS c = COUNT(*)"), equalTo(List.of(4L)));
+        assertThat(
+            collectWarningsContaining("FROM warnscope_pq_ffw | STATS c = COUNT(*)", "incompatible with planner type"),
+            equalTo(List.of())
+        );
+    }
+
     public void testFirstFileWinsWarmAggregateKeepsWideningFileValues() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path dir = createTempDir();
@@ -6404,7 +6430,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Path dir = createTempDir();
         writeInt64Parquet(dir.resolve("part-a.parquet"), true, 1L, 2L);
         writeInt64Parquet(dir.resolve("part-b.parquet"), false, -10L, 200L);
-        putFirstFileWinsGlob("ul_pq_neg_ffw", dir);
+        // null_field is required, not incidental: -10 cannot be coerced into the UINT_64 anchor's domain, and
+        // under the default strict policy the scan FAILS the query rather than nulling the cell, so there would
+        // be no scan answer to compare the warm one against.
+        putFirstFileWinsGlob("ul_pq_neg_ffw", dir, "parquet", Map.of("error_mode", "null_field"));
 
         // -10 is out of the unsigned_long domain, so the scan nulls that cell: 1, 2, null, 200.
         // The fold cannot encode that file's extrema and must not let split merge serve the raw harvest.

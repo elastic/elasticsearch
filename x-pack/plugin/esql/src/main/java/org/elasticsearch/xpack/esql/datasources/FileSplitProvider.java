@@ -2229,14 +2229,18 @@ public class FileSplitProvider implements SplitProvider {
             return stats;
         }
         if (readSchema == null || reconciledTypes == null) {
-            // The rewrite compares file types to the schema the reader is pinned to, not the unified
-            // output type. UNION_BY_NAME widens DATETIME+DATE_NANOS in the output and converts after
-            // the read; treating the unified type as the planner would null-fill a valid conversion.
-            Map<String, DataType> planner = readSchema != null ? attributesToTypeMap(readSchema) : reconciledTypes;
+            // Nothing to unit-normalize against, but the fold's unservability still has to land. The rewrite
+            // compares file types to the schema the reader is PINNED to, never the unified output type:
+            // UNION_BY_NAME widens DATETIME+DATE_NANOS in the output and converts after the read, so passing
+            // the unified type as the planner would null-fill a valid conversion. readSchema is therefore the
+            // only admissible authority here -- when it is absent we pass null and skip the rewrite rather
+            // than substituting reconciledTypes. (buildFileTasks sets readSchema and inferredFileTypes from
+            // the same FileSchemaInfo, so a null readSchema already implies null inferredFileTypes and the
+            // rewrite would no-op regardless; passing null keeps that true if either ever changes.)
             stats = ExternalSourceResolver.alignHarvestWithAnchorTypes(
                 stats,
                 inferredFileTypes,
-                planner,
+                readSchema != null ? attributesToTypeMap(readSchema) : null,
                 implicitNulls,
                 declaredTypeColumnsOf(declaredReadSpec)
             );
@@ -2310,6 +2314,15 @@ public class FileSplitProvider implements SplitProvider {
      * Footer implicit-nulls for this file's configured reader. Resolved the same way
      * {@link #peekCachedSplitRanges} is, so an extensionless object with an explicit
      * {@code format} still applies the footer all-null rewrite.
+     * <p>
+     * An unresolvable reader answers {@code false}, the OPPOSITE of the resolve-side default in
+     * {@code ExternalSourceResolver#foldsAbsentColumnAsImplicitNull} (which answers {@code true}). That is
+     * deliberate: the two defaults protect against different mistakes. On the resolve side the flag tells
+     * {@code mergeStatistics} how to read an ABSENT per-column stat, where "all rows null" is the footer
+     * contract. Here it licenses REWRITING a present harvest to {@code value_count = 0}, so guessing wrong
+     * would manufacture an undercount out of real values. Failing closed is the safe direction on this side.
+     * Unreachable today — every caller has already resolved a {@link RangeAwareFormatReader} for this file
+     * (see {@link #peekCachedSplitRanges}), so the resolve here cannot newly fail.
      */
     private boolean implicitNullsFor(FileTask task) {
         FormatReader reader = resolveConfiguredReader(task.filePath(), task.config());

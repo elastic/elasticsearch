@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtracto
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -161,6 +162,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -241,12 +243,27 @@ public class EsqlSession {
     private final ProjectMetadata projectMetadata;
 
     /**
-     * Hive-partition shadow-column warning bodies from the most recent {@link ExternalSourceResolver#resolve}.
+     * The external-source resolution's warning channel from the most recent {@link ExternalSourceResolver#resolve}.
      * Written when pre-analysis completes (often on the external blob-store pool) and read in
-     * {@link #attachAdditionalData} so they can be merged into {@link DriverCompletionInfo} for
-     * {@code toResponse} to emit. This session is one-shot per query.
+     * {@link #attachAdditionalData} so it can be merged into {@link DriverCompletionInfo} for {@code toResponse}
+     * to emit. Snapshotted here rather than re-read off the resolver at the end because the resolver clears its
+     * buffers at the start of every {@code resolve} call. This session is one-shot per query.
      */
-    private volatile List<String> externalSourceWarnings = List.of();
+    private volatile ExternalSourceResolution externalSourceWarningSource = ExternalSourceResolution.EMPTY;
+
+    /**
+     * Which external-source columns each read FILE contributes to the query, keyed by the file path string the
+     * resolve-time fold reports ({@code StoragePath#toString()}), accumulated across every executed plan (each
+     * subplan and the final main plan). Selects which of the resolution's column-scoped notices are relevant: the
+     * fold inspects every column of every file, but a warning about a column the query never projects is noise the
+     * scan-side readers would never produce.
+     * <p>
+     * Keyed per file, not as one flat set of column names, because a query can read several external sources and
+     * one resolution covers all of them. Two sources may both have an {@code x}; a flat set would let a source
+     * whose {@code x} is never read warn because the other one's is. Same correlation
+     * {@link #collectPinnedReads} performs for the cache-commit side.
+     */
+    private final Map<String, Set<String>> externalSourceReadColumnsByFile = new ConcurrentHashMap<>();
 
     /**
      * Mutable state accumulated during EXPLAIN mode execution. All fields are written before
@@ -747,7 +764,10 @@ public class EsqlSession {
         if (completionInfo == null) {
             completionInfo = DriverCompletionInfo.EMPTY;
         }
-        completionInfo = completionInfo.withAdditionalWarnings(externalSourceWarnings);
+        completionInfo = completionInfo.withAdditionalWarnings(externalSourceWarningSource.warningsMatching((column, fileLocation) -> {
+            Set<String> columns = externalSourceReadColumnsByFile.get(fileLocation);
+            return columns != null && columns.contains(column);
+        }));
         return new Versioned<>(
             new Result(
                 result.schema(),
@@ -903,6 +923,10 @@ public class EsqlSession {
         var subPlansResults = new HashSet<LocalRelation>();
         var subPlan = firstSubPlan(optimizedPlan, configuration, approximation, subPlansResults);
 
+        // Before either branch, so subplan and main-plan executions both contribute. Column-scoped
+        // external-source notices are filtered against this in attachAdditionalData.
+        collectExternalSourceReads(optimizedPlan);
+
         // TODO: merge into one method
         if (subPlan != null) {
             // code-path to execute subplans. The pinned-read accumulator gathers union_by_name widened reads across
@@ -941,10 +965,40 @@ public class EsqlSession {
     }
 
     /**
-     * A file's columns whose read type was pinned above their inferred type for a {@code union_by_name} widening read,
-     * plus whether that read's error policy drops whole rows ({@code skip_row}). Collected from the executed plan's
-     * {@link ExternalRelation} nodes and used to strip a widening read's polluting stat deltas off the captured
-     * contributions before commit. See {@link SourceStatisticsSerializer#removeColumnStatFamilies}.
+     * Records which columns {@code plan} reads from each external file, merging into
+     * {@link #externalSourceReadColumnsByFile}. For every {@link ExternalRelation}, its output — the post-pruning
+     * set of columns that relation's scan would actually produce — is attributed to each file in that relation's
+     * {@code schemaMap}. A column the projection dropped is not read, so a resolve-time notice about it would
+     * describe nulls the query can never observe; and attributing per file keeps one source's notices from being
+     * unlocked by a same-named column in another. Accumulates across plans because a column may only be
+     * referenced inside a subquery.
+     */
+    private void collectExternalSourceReads(LogicalPlan plan) {
+        plan.forEachDown(ExternalRelation.class, relation -> {
+            var schemaMap = relation.schemaMap();
+            if (schemaMap.isEmpty()) {
+                return;
+            }
+            List<String> columns = new ArrayList<>(relation.output().size());
+            for (Attribute attribute : relation.output()) {
+                columns.add(attribute.name());
+            }
+            if (columns.isEmpty()) {
+                return;
+            }
+            for (StoragePath path : schemaMap.keySet()) {
+                externalSourceReadColumnsByFile.computeIfAbsent(path.toString(), k -> ConcurrentHashMap.newKeySet()).addAll(columns);
+            }
+        });
+    }
+
+    /**
+     * A file's columns read at a type its own harvest does not describe — a {@code union_by_name} widening pin, or a
+     * {@code first_file_wins} file whose footer type differs from the anchor the read is pinned to — plus whether that
+     * read's error policy drops whole rows ({@code skip_row}). Collected from the executed plan's
+     * {@link ExternalRelation} nodes and used to strip such a read's polluting stat deltas off the captured
+     * contributions before commit. See {@link SourceStatisticsSerializer#removeColumnStatFamilies} and
+     * {@link ExternalSourceResolver#pinnedColumnsOf} for which reads qualify.
      */
     private record PinnedColumns(Set<String> columns, boolean dropRowCount) {
         PinnedColumns mergedWith(PinnedColumns other) {
@@ -955,11 +1009,12 @@ public class EsqlSession {
     }
 
     /**
-     * Collects the {@code union_by_name} pinned reads in {@code plan}, keyed by the file path string the data-node
-     * capture uses ({@code StoragePath#toString()}), merging into {@code into}. A pinned read of a file harvests
-     * {@code value_count}/{@code null_count}/extrema the same file's solo narrow read never produces, so those deltas
-     * must not commit into the read-schema-blind shared cache entry. Accumulates across every executed plan (each
-     * subplan and the final main plan) because a file may be read pinned inside a subquery.
+     * Collects the pinned reads in {@code plan} — {@code union_by_name} widening pins and {@code first_file_wins}
+     * anchor pins alike — keyed by the file path string the data-node capture uses ({@code StoragePath#toString()}),
+     * merging into {@code into}. A pinned read of a file harvests {@code value_count}/{@code null_count}/extrema the
+     * same file's solo unpinned read never produces, so those deltas must not commit into the read-schema-blind shared
+     * cache entry. Accumulates across every executed plan (each subplan and the final main plan) because a file may be
+     * read pinned inside a subquery.
      */
     private void collectPinnedReads(LogicalPlan plan, Map<String, PinnedColumns> into) {
         plan.forEachDown(ExternalRelation.class, relation -> {
@@ -1694,7 +1749,7 @@ public class EsqlSession {
             .<PreAnalysisResult>andThen(
                 (l, r) -> preAnalyzeExternalSources(externalSourceResolver, parsed, preAnalysis, r, l.map(preAnalysisResult -> {
                     ExternalSourceResolution resolution = preAnalysisResult.externalSourceResolution();
-                    externalSourceWarnings = resolution == null ? List.of() : resolution.warnings();
+                    externalSourceWarningSource = resolution == null ? ExternalSourceResolution.EMPTY : resolution;
                     return preAnalysisResult;
                 }))
             )

@@ -69,7 +69,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -216,18 +216,43 @@ public class ExternalSourceResolver {
      * {@code TransportEsqlQueryAction#toResponse} to emit on the thread that builds the client response.
      * Cleared at the start of each {@link #resolve} call; safe for concurrent per-file callbacks (see
      * {@link #metadataReadConcurrency}) since it is append-only until the single attach at completion.
-     * Every append must go through {@link #recordPendingWarning} so {@link #pendingWarningBudget}
-     * caps the whole resolve the way {@link AsyncExternalSourceOperatorFactory} caps the later scan.
+     * <p>
+     * These are UNCONDITIONAL: they describe the source, not one column, so they are emitted however the query
+     * projects. Column-scoped notices go to {@link #pendingColumnWarnings} instead.
+     * <p>
+     * Every append goes through {@link #recordPendingWarning}, which de-duplicates and bounds collection. No
+     * {@link InformationalWarningBudget} is spent here: the ONE budget for this channel is applied at emission by
+     * {@link ExternalSourceResolution#warningsMatching}, which offers this list first. Budgeting at collection
+     * cannot work — {@link #resolveWithFactory} feeds this sink once per FILE, so a wide glob would spend every
+     * slot before the column notices were even bucketed, and a column the query never reads would starve the ones
+     * it does. Bounding replaces that: de-duplication collapses the identical per-file body a glob repeats, and
+     * the cap stops at one more than the budget can admit so the "further warnings suppressed" marker is still
+     * reachable.
      */
-    private final List<String> pendingShadowWarnings = new CopyOnWriteArrayList<>();
+    private final Set<String> pendingShadowWarnings = Collections.synchronizedSet(new LinkedHashSet<>());
 
     /**
-     * One budget for every resolve-time informational warning of the current {@link #resolve} call
-     * (Hive-partition shadows and FIRST_FILE_WINS footer rewrites). Replaced at the start of each
-     * {@link #resolve}, matching {@link #pendingShadowWarnings}. {@code volatile} so per-file
-     * callbacks on {@link #metadataReadExecutor} see the budget this resolve installed.
+     * Collection cap for {@link #pendingShadowWarnings}: one MORE than the budget can admit, so that a resolve
+     * which produced more than the cap still hands the emission budget enough to trip its overflow marker,
+     * while nothing is retained that could never be emitted.
      */
-    private volatile InformationalWarningBudget pendingWarningBudget = new InformationalWarningBudget(SkipWarnings.MAX_ADDED_WARNINGS);
+    private static final int PENDING_WARNING_COLLECTION_CAP = SkipWarnings.MAX_ADDED_WARNINGS + 1;
+
+    /**
+     * Column-scoped incompatibility notices collected during this {@link #resolve}: physical column name, then
+     * the file the clash was found in, then that file's summary and detail lines. Deferred rather than emitted
+     * because the FIRST_FILE_WINS fold inspects every column of every file while the readers only warn about
+     * projected columns — see {@link ExternalSourceResolution#deferredColumnWarnings()}.
+     * <p>
+     * Keyed by BOTH coordinates because one {@link #resolve} covers every path in the query. A column name is not
+     * unique across sources, so column alone cannot answer "did the query read this"; the file pins the notice to
+     * the one source it came from.
+     * <p>
+     * Bounded at {@link SkipWarnings#MAX_ADDED_WARNINGS} files per column — a glob can drift across thousands of
+     * files, and no more than that many can ever be emitted anyway. The real cap is applied at emission, once
+     * filtering is possible. Cleared at the start of each {@link #resolve}.
+     */
+    private final Map<String, Map<String, List<String>>> pendingColumnWarnings = new ConcurrentHashMap<>();
 
     /**
      * The {@link #executor} decorated so that every task it runs has the query cancellation signal installed as the
@@ -446,11 +471,11 @@ public class ExternalSourceResolver {
         // clearing here (rather than after the previous call's attach) also covers a resolver instance reused
         // across resolve() calls in tests.
         pendingShadowWarnings.clear();
-        pendingWarningBudget = new InformationalWarningBudget(SkipWarnings.MAX_ADDED_WARNINGS);
+        pendingColumnWarnings.clear();
 
         // Once per query, before the per-path recursion: one warning per column however many paths and files the
         // resource expands to, and on the strict rail, which never reaches the non-strict overlay.
-        warnOnSubstitutedDeclaredTypes(declaredMappings, pendingShadowWarnings::add);
+        warnOnSubstitutedDeclaredTypes(declaredMappings, this::recordPendingWarning);
 
         // Resolution runs on the caller-supplied executor (esql_worker in production, isolated from SEARCH so a wide
         // wildcard cannot starve regular ES searches). The initial dispatch performs the cheap synchronous prep (glob
@@ -497,7 +522,7 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (index == paths.size()) {
-            listener.onResponse(new ExternalSourceResolution(resolved, List.copyOf(pendingShadowWarnings)));
+            listener.onResponse(new ExternalSourceResolution(resolved, List.copyOf(pendingShadowWarnings), snapshotColumnWarnings()));
             return;
         }
         String path = paths.get(index);
@@ -883,15 +908,10 @@ public class ExternalSourceResolver {
                 // a subset COUNT/MIN/MAX (see foldsAbsentColumnAsImplicitNull / SourceStatisticsSerializer).
                 boolean implicitNulls = foldsAbsentColumnAsImplicitNull(base.sourceType());
                 Set<String> declaredTypeColumns = physicalDeclaredTypeColumnsOf(declaredMapping);
-                // Hive-partition shadows are resolve-only and are not re-emitted at scan. Record them
-                // before the footer fold so a many-file type clash cannot starve those slots.
-                PartitionMetadata eagerPartitions = listing.partitionMetadata();
-                if (eagerPartitions != null && eagerPartitions.isEmpty() == false) {
-                    warnOnShadowedColumns(
-                        shadowedPhysicalColumns(anchorMetadata.schema(), eagerPartitions.partitionColumns().keySet()),
-                        this::recordPendingWarning
-                    );
-                }
+                // No eager Hive-shadow reservation is needed here. Shadow notices are unconditional and
+                // ExternalSourceResolution#warningsMatching offers them BEFORE any column notice, so the
+                // budget cannot be exhausted by a wide type clash ahead of them. finishFirstFileWins ->
+                // enrichSchemaWithPartitionColumns remains their single emission point.
                 // Prefetch the dataset-level aggregate BEFORE the per-file stats gather — see
                 // applyDatasetAggregate for why post-gather reads self-defeat under cache pressure.
                 DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(listing, config, cacheable);
@@ -1591,7 +1611,7 @@ public class ExternalSourceResolver {
                 if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
                     result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
                 } else {
-                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingShadowWarnings::add);
+                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, this::recordPendingWarning);
                 }
 
                 // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
@@ -1954,16 +1974,29 @@ public class ExternalSourceResolver {
     static Map<String, Object> aggregateFileStatistics(
         List<SourceMetadata> allMetadata,
         boolean implicitNullsForAbsentColumn,
-        @Nullable Consumer<String> warningSink
+        @Nullable ColumnWarningSink warningSink
     ) {
         return aggregateFileStatistics(allMetadata, implicitNullsForAbsentColumn, warningSink, Set.of());
+    }
+
+    /**
+     * Receives one column-scoped incompatibility notice: the file it was found in, the column it concerns, the
+     * per-file summary line and the per-column detail line. Both coordinates matter. The notice is only relevant
+     * if the query reads that column, which is not known until the plan is optimized; and it must be attributed
+     * to the FILE, because one query can read several external sources and a column name is not unique across
+     * them -- filtering on the name alone would let a source whose {@code x} the query never touches warn just
+     * because a different source's {@code x} is read. See {@link ExternalSourceResolution#warningsMatching}.
+     */
+    @FunctionalInterface
+    interface ColumnWarningSink {
+        void accept(String fileLocation, String column, String fileSummary, String detail);
     }
 
     @Nullable
     static Map<String, Object> aggregateFileStatistics(
         List<SourceMetadata> allMetadata,
         boolean implicitNullsForAbsentColumn,
-        @Nullable Consumer<String> warningSink,
+        @Nullable ColumnWarningSink warningSink,
         Set<String> declaredTypeColumns
     ) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
@@ -1986,7 +2019,6 @@ public class ExternalSourceResolver {
             } else {
                 List<String> rewriteColumns = null;
                 List<String> encodeColumns = null;
-                SkipWarnings fileSkipWarnings = null;
                 for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
                     DataType anchorType = anchorTypes.get(entry.getKey());
                     DataType fileType = entry.getValue();
@@ -1998,21 +2030,25 @@ public class ExternalSourceResolver {
                                 rewriteColumns = new ArrayList<>();
                             }
                             rewriteColumns.add(entry.getKey());
+                            // Column-scoped, NOT emitted here. This loop walks every column of every file, but the
+                            // readers only warn about columns the query projects; emitting now would make a warm
+                            // COUNT(*) warn about an unrelated column and spend the shared budget on it. The sink
+                            // buckets the pair by column so EsqlSession can keep only what the plan actually reads
+                            // (see ExternalSourceResolution#warningsMatching). The summary rides along
+                            // per column rather than once per file so it survives whichever column is kept; the
+                            // budget's value dedup collapses the repeats.
                             if (warningSink != null) {
-                                if (fileSkipWarnings == null) {
-                                    fileSkipWarnings = new SkipWarnings(
-                                        SkipWarnings.incompatiblePlannerTypeFileSummary(meta.sourceType(), meta.location()),
-                                        warningSink
-                                    );
-                                }
-                                fileSkipWarnings.add(
+                                warningSink.accept(
+                                    meta.location(),
+                                    entry.getKey(),
+                                    SkipWarnings.incompatiblePlannerTypeFileSummary(meta.sourceType(), meta.location()),
                                     SkipWarnings.incompatiblePlannerTypeColumnMessage(entry.getKey(), meta.location(), fileType, anchorType)
                                 );
                             }
                         } else {
                             unrepresentableColumns.add(entry.getKey());
                         }
-                    } else if (isUnsignedLongVersusSignedInteger(anchorType, fileType)) {
+                    } else if (signedHarvestUnderUnsignedPlanner(anchorType, fileType)) {
                         if (implicitNullsForAbsentColumn) {
                             if (encodeColumns == null) {
                                 encodeColumns = new ArrayList<>();
@@ -2091,7 +2127,7 @@ public class ExternalSourceResolver {
                     }
                     rewriteColumns.add(entry.getKey());
                 }
-            } else if (isUnsignedLongVersusSignedInteger(plannerType, fileType) && implicitNullsForAbsentColumn) {
+            } else if (signedHarvestUnderUnsignedPlanner(plannerType, fileType) && implicitNullsForAbsentColumn) {
                 if (encodeColumns == null) {
                     encodeColumns = new ArrayList<>();
                 }
@@ -2102,7 +2138,15 @@ public class ExternalSourceResolver {
             harvest = SourceStatisticsSerializer.rewriteColumnsAsAllNull(harvest, rewriteColumns);
         }
         if (encodeColumns != null) {
-            harvest = SourceStatisticsSerializer.encodeColumnExtremaAsUnsignedLong(harvest, encodeColumns);
+            // Mirror the fold's failed-encode handling. An extremum that cannot be moved into the planner's
+            // domain also invalidates this file's COUNTS: the scan nulls the offending cells while the harvest
+            // counted them, so summing the raw counts across splits would over-count (a negative under a
+            // UNSIGNED_LONG anchor reads as null, yet value_count still says the cell had a value). Poisoning
+            // only the extrema would leave COUNT(col) warm and wrong -- the exact divergence this class exists
+            // to close -- so the failures come back and their counts are dropped too.
+            Set<String> failedEncodes = new HashSet<>();
+            harvest = SourceStatisticsSerializer.encodeColumnExtremaAsUnsignedLong(harvest, encodeColumns, failedEncodes);
+            harvest = SourceStatisticsSerializer.removeColumnCounts(harvest, failedEncodes);
         }
         return harvest;
     }
@@ -2138,12 +2182,16 @@ public class ExternalSourceResolver {
         }
     }
 
-    private static boolean isUnsignedLongVersusSignedInteger(DataType left, DataType right) {
-        return (left == DataType.UNSIGNED_LONG && isSignedInteger(right)) || (right == DataType.UNSIGNED_LONG && isSignedInteger(left));
-    }
-
-    private static boolean isSignedInteger(DataType type) {
-        return type == DataType.LONG || type == DataType.INTEGER;
+    /**
+     * Whether a signed-integer harvest needs encoding into the planner's {@code UNSIGNED_LONG} in-memory domain.
+     * Directional on purpose: only an {@code UNSIGNED_LONG} planner over a signed file reaches here. The mirror
+     * case (a signed planner over an {@code UNSIGNED_LONG} file) is never representable — {@code commonType} of
+     * any whole number with {@code UNSIGNED_LONG} is {@code UNSIGNED_LONG}, so a {@code LONG}/{@code INTEGER}
+     * anchor fails {@link #unrepresentableUnderAnchor} and is handled before this test runs. Writing it
+     * symmetrically would imply coverage that cannot be exercised from either call site.
+     */
+    private static boolean signedHarvestUnderUnsignedPlanner(DataType plannerType, DataType fileType) {
+        return plannerType == DataType.UNSIGNED_LONG && (fileType == DataType.LONG || fileType == DataType.INTEGER);
     }
 
     /** A file's flat stat map — cached in sourceMetadata(), or embedded from typed statistics() — or null if absent. */
@@ -2178,10 +2226,19 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * The columns a UNION_BY_NAME pin retyped above their inferred type for this file, i.e. the columns whose read-time
-     * type differs from the type their cached stats were harvested at. Derived as {@code inferredTypes != fileSchema}:
-     * {@link SchemaReconciliation.FileSchemaInfo#inferredTypes()} snapshots the pre-pin types and is populated only when
-     * the pin actually retyped a column, so a null (nothing retyped) or type-equal entry yields the empty set.
+     * The columns this file is READ at a different type than its own stats were harvested at, i.e. the columns whose
+     * read-time type differs from the type their cached stats describe. Derived as {@code inferredTypes != fileSchema}:
+     * {@link SchemaReconciliation.FileSchemaInfo#inferredTypes()} snapshots the pre-retype types, so a null snapshot
+     * (nothing retyped) or a type-equal entry yields the empty set.
+     * <p>
+     * Two rails reach here. A {@code UNION_BY_NAME} pin retypes a column above its inferred type for a widening read.
+     * FIRST_FILE_WINS pins every file to the ANCHOR's schema, so any file whose footer type differs from the anchor's
+     * -- whether it widens into the anchor (read and coerced) or the anchor cannot represent it (read as null) -- is
+     * equally "read at a type its harvest does not describe". Both must be treated as pinned by the commit-side
+     * stripping in {@code EsqlSession#collectPinnedReads}: the per-file cache identity is read-schema-blind, so an
+     * anchor-pinned read's {@code value_count}/extrema would otherwise pollute the entry a solo read of that same
+     * file serves. A FIRST_FILE_WINS file that agrees with the anchor retypes nothing and yields the empty set, so
+     * uniform globs are unaffected.
      */
     public static Set<String> pinnedColumnsOf(SchemaReconciliation.FileSchemaInfo info) {
         Map<String, DataType> inferred = info.inferredTypes();
@@ -2231,16 +2288,53 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Gates one resolve-time informational warning through {@link #pendingWarningBudget} and, if
-     * admitted, appends it to {@link #pendingShadowWarnings}. Hive-partition shadows and
-     * FIRST_FILE_WINS footer rewrites both use this, so one budget bounds the whole {@link #resolve}
-     * call the way {@link AsyncExternalSourceOperatorFactory} bounds the later scan.
+     * Collects one unconditional resolve-time warning into {@link #pendingShadowWarnings}, de-duplicated and
+     * bounded by {@link #PENDING_WARNING_COLLECTION_CAP}. Deliberately NOT budget-gated: the single budget for
+     * this channel is applied at emission ({@link ExternalSourceResolution#warningsMatching}), which is the only
+     * point that knows which column notices are relevant and can therefore order unconditional warnings ahead of
+     * them. Every append site routes here, including the per-file ones, which is what makes the cap hold for a
+     * wide glob.
      */
     private void recordPendingWarning(String warning) {
-        String accepted = pendingWarningBudget.accept(warning);
-        if (accepted != null) {
-            pendingShadowWarnings.add(accepted);
+        synchronized (pendingShadowWarnings) {
+            if (pendingShadowWarnings.size() < PENDING_WARNING_COLLECTION_CAP) {
+                pendingShadowWarnings.add(warning);
+            }
         }
+    }
+
+    /**
+     * Buckets one column-scoped notice under {@code column}, unbudgeted. The budget is deliberately NOT applied
+     * here: at fold time we cannot yet tell whether the query reads this column, and spending a slot on a column
+     * that is later filtered out is exactly the starvation this split avoids.
+     */
+    private void recordColumnWarning(String fileLocation, String column, String fileSummary, String detail) {
+        Map<String, List<String>> byFile = pendingColumnWarnings.computeIfAbsent(
+            column,
+            c -> Collections.synchronizedMap(new LinkedHashMap<>())
+        );
+        synchronized (byFile) {
+            // A LinkedHashMap keeps listing order across files, and the cap keeps a wide glob from growing this
+            // past what emission could ever use. putIfAbsent: one notice per (column, file).
+            if (byFile.size() < SkipWarnings.MAX_ADDED_WARNINGS || byFile.containsKey(fileLocation)) {
+                byFile.putIfAbsent(fileLocation, List.of(fileSummary, detail));
+            }
+        }
+    }
+
+    /** Snapshot of {@link #pendingColumnWarnings} for the completed {@link ExternalSourceResolution}. */
+    private Map<String, Map<String, List<String>>> snapshotColumnWarnings() {
+        if (pendingColumnWarnings.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Map<String, List<String>>> out = Maps.newHashMapWithExpectedSize(pendingColumnWarnings.size());
+        for (Map.Entry<String, Map<String, List<String>>> e : pendingColumnWarnings.entrySet()) {
+            Map<String, List<String>> byFile = e.getValue();
+            synchronized (byFile) {
+                out.put(e.getKey(), Collections.unmodifiableMap(new LinkedHashMap<>(byFile)));
+            }
+        }
+        return out;
     }
 
     /**
@@ -2262,7 +2356,7 @@ public class ExternalSourceResolver {
         gatherPerFile(listing, config, false, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
             collectInferredTypes(listing, allMeta, inferredTypesOut);
-            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, this::recordPendingWarning, declaredTypeColumns));
+            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, this::recordColumnWarning, declaredTypeColumns));
         }, e -> {
             // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
             // instead of silently degrading to partial stats and continuing. A read that failed *because* the query
@@ -2333,7 +2427,7 @@ public class ExternalSourceResolver {
         gatherPerFile(listing, config, true, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
             collectInferredTypes(listing, allMeta, inferredTypesOut);
-            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, this::recordPendingWarning, declaredTypeColumns));
+            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, this::recordColumnWarning, declaredTypeColumns));
         }, e -> {
             // A bare cancellation, or a read that failed because the query was cancelled mid-flight (the cache wraps
             // loader failures, so consult the state directly), must abort rather than degrade to partial stats.
@@ -2470,7 +2564,7 @@ public class ExternalSourceResolver {
                 // immediately rather than being swallowed as a factory failure and retried against
                 // the next factory in the registry. Warnings are buffered, not emitted here: this
                 // runs on the metadata-read executor, whose ThreadContext never reaches the client.
-                factory.validateConfig(path, config, pendingShadowWarnings::add);
+                factory.validateConfig(path, config, this::recordPendingWarning);
                 try {
                     return factory.resolveMetadata(path, config);
                 } catch (Exception e) {
@@ -2583,7 +2677,7 @@ public class ExternalSourceResolver {
             resolveWithFactory(path, hint, config, candidates, index + 1, e, listener);
         });
         try {
-            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, pendingShadowWarnings::add, next);
+            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, this::recordPendingWarning, next);
         } catch (Exception e) {
             // A factory that throws synchronously from dispatch (before invoking the listener) must not abort the
             // whole resolve: fall through to the next candidate exactly as the async onFailure path does.

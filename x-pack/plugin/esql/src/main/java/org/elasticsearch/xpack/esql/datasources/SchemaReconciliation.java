@@ -131,12 +131,17 @@ public final class SchemaReconciliation {
         @Nullable ColumnMapping mapping,
         @Nullable SourceStatistics statistics,
         // PRE-retype file types, physical-keyed; null means fileSchema IS the inferred schema (nothing retyped this file),
-        // so callers fall back to the fileSchema attributes' types (today's behavior). Populated by the UNION_BY_NAME pin
-        // (reconcileUnionByName / pinToReconciledTypes) with the full pre-pin type map, and by the declared overlay
-        // (ExternalSourceResolver.applyNonStrictOverlay), which preserves an upstream pin's snapshot when present and
-        // otherwise snapshots its own pre-overlay types. It lets stats boundaries recover the file's real inferred types:
-        // the split-level boundary normalizes footer range stats with them instead of the retyped types, and the
-        // resolve/commit boundaries identify the retyped (pinned) column set to safe-miss its read-schema-blind cached stats.
+        // so callers fall back to the fileSchema attributes' types (today's behavior). Three populating sites:
+        // - the UNION_BY_NAME pin (reconcileUnionByName / pinToReconciledTypes), with the full pre-pin type map;
+        // - the declared overlay (ExternalSourceResolver.applyNonStrictOverlay), which preserves an upstream pin's
+        // snapshot when present and otherwise snapshots its own pre-overlay types;
+        // - FIRST_FILE_WINS (ExternalSourceResolver.finishFirstFileWins), which pins EVERY file's fileSchema to the
+        // anchor and so snapshots each file's own footer types here. Unlike the other two this is populated for
+        // every file in the listing, including files that agree with the anchor -- those simply yield no retyped
+        // columns, so pinnedColumnsOf returns empty for them.
+        // It lets stats boundaries recover the file's real inferred types: the split-level boundary normalizes footer
+        // range stats with them instead of the retyped types, and the resolve/commit boundaries identify the retyped
+        // (pinned) column set to safe-miss its read-schema-blind cached stats.
         @Nullable Map<String, DataType> inferredTypes
     ) {
         public FileSchemaInfo(ExternalSchema fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {

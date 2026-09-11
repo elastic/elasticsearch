@@ -100,10 +100,12 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -581,6 +583,38 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(2L, ((Number) aligned.get(SourceStatisticsSerializer.columnValueCountKey("x"))).longValue());
     }
 
+    /**
+     * A split-level harvest whose extremum cannot be encoded into the {@code UNSIGNED_LONG} planner domain must
+     * lose its COUNTS too, not just its extrema. The scan nulls the offending cell while the harvest still counted
+     * it, so leaving {@code value_count} behind lets split merge sum a value the scan never produces and serve
+     * {@code COUNT(col)} warm and too high. Mirrors the fold's failed-encode handling.
+     */
+    public void testAlignHarvestWithAnchorTypesDropsCountsWhenUnsignedEncodeFails() {
+        Map<String, Object> harvest = new HashMap<>();
+        harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        harvest.put(SourceStatisticsSerializer.columnMinKey("x"), -10L);
+        harvest.put(SourceStatisticsSerializer.columnMaxKey("x"), 200L);
+        harvest.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        harvest.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+
+        Map<String, Object> aligned = ExternalSourceResolver.alignHarvestWithAnchorTypes(
+            Map.copyOf(harvest),
+            Map.of("x", DataType.LONG),
+            Map.of("x", DataType.UNSIGNED_LONG),
+            true,
+            Set.of()
+        );
+
+        assertNull(aligned.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(aligned.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertEquals(Boolean.TRUE, aligned.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(Boolean.TRUE, aligned.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertNull("a failed encode invalidates the counts too", aligned.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertNull("a failed encode invalidates the counts too", aligned.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        // row_count is the file's shape, not a per-column claim, so it survives.
+        assertEquals(2L, ((Number) aligned.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+    }
+
     public void testAlignHarvestWithAnchorTypesLeavesTextUnrepresentableForFold() {
         Map<String, Object> later = new HashMap<>();
         later.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
@@ -672,7 +706,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
+    /**
+     * The fold reports an incompatible column as a COLUMN-SCOPED notice, carrying the column it concerns
+     * alongside the file summary and detail. It is not a flat string: the fold sees every column of every file,
+     * so only the caller — once the plan says which columns are read — can decide whether it is worth emitting.
+     */
     public void testFfwFooterAggregateEmitsIncompatibleColumnWarnings() {
+        List<String> files = new ArrayList<>();
+        List<String> columns = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
         Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
             List.of(
@@ -680,11 +721,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 fileWithColumn("file:///part-b.parquet", DataType.LONG, -10L, 20L)
             ),
             true,
-            warnings::add
+            (file, column, summary, detail) -> {
+                files.add(file);
+                columns.add(column);
+                warnings.add(summary);
+                warnings.add(detail);
+            }
         );
         assertNotNull(agg);
         assertEquals(2L, ((Number) agg.get(SourceStatisticsSerializer.columnValueCountKey("x"))).longValue());
-        assertThat(warnings.isEmpty(), equalTo(false));
+        assertThat(columns, equalTo(List.of("x")));
+        assertThat("the notice is attributed to the file the clash was found in", files, equalTo(List.of("file:///part-b.parquet")));
         assertThat(warnings.toString(), containsString("incompatible with planner type"));
         assertThat(warnings.toString(), containsString("part-b.parquet"));
         assertThat(warnings, hasItem(SkipWarnings.incompatiblePlannerTypeFileSummary("parquet", "file:///part-b.parquet")));
@@ -698,7 +745,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 fileWithColumn("file:///part-b.parquet", DataType.LONG, -10L, 20L)
             ),
             true,
-            warnings::add,
+            (file, column, summary, detail) -> warnings.add(detail),
             Set.of("x")
         );
         assertNotNull(agg);
@@ -810,7 +857,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
-    public void testResolveTimeWarningsShareOneBudget() throws Exception {
+    /**
+     * A column-incompatibility notice is only emitted when the query actually reads that column. The fold walks
+     * every column of every file, so emitting eagerly would make a warm {@code COUNT(*)} warn about a column the
+     * user never asked for — and, on a wide clash, would spend the whole shared budget doing it. Hive-partition
+     * shadows are unconditional and must survive either way.
+     */
+    public void testFfwColumnWarningsAreDeferredUntilTheColumnIsRead() throws Exception {
         int mismatchedFiles = SkipWarnings.MAX_ADDED_WARNINGS + 5;
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
         Map<String, Long> rowCounts = new HashMap<>();
@@ -834,13 +887,204 @@ public class ExternalSourceResolverTests extends ESTestCase {
             listing,
             configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
         );
-        List<String> warnings = resolution.warnings();
-        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, warnings.size());
-        assertThat(warnings.get(warnings.size() - 1), equalTo(SkipWarnings.overflowMessage()));
-        assertThat(warnings.toString(), containsString("incompatible with planner type"));
-        // Hive-partition shadows are recorded before the footer fold so a many-file type clash
-        // cannot starve them. The pair still shares the resolve-wide budget with the fold.
-        assertThat(warnings.toString(), containsString("shadowed by same-named Hive partition keys"));
+
+        // The unconditional channel carries the Hive shadow only; the type clash is parked per (column, file).
+        assertThat(resolution.warnings().toString(), containsString("shadowed by same-named Hive partition keys"));
+        assertThat(resolution.warnings().toString(), not(containsString("incompatible with planner type")));
+        assertEquals(Set.of("x"), resolution.deferredColumnWarnings().keySet());
+        Map<String, List<String>> perFile = resolution.deferredColumnWarnings().get("x");
+        assertThat(perFile.toString(), containsString("incompatible with planner type"));
+        assertThat("every drifting file is attributed, capped", perFile.size(), equalTo(SkipWarnings.MAX_ADDED_WARNINGS));
+        for (String file : perFile.keySet()) {
+            assertThat("notices are keyed by the file they were found in", file, startsWith("s3://bucket/data/year=2024/part-"));
+        }
+
+        // A query that reads no external column (e.g. COUNT(*)) sees only the unconditional warnings.
+        List<String> unreferenced = resolution.warningsMatching((column, file) -> false);
+        assertThat(unreferenced.toString(), containsString("shadowed by same-named Hive partition keys"));
+        assertThat(unreferenced.toString(), not(containsString("incompatible with planner type")));
+
+        // A query that reads an unrelated column likewise does not hear about x.
+        assertThat(
+            resolution.warningsMatching((column, file) -> column.equals("year")).toString(),
+            not(containsString("incompatible with planner type"))
+        );
+
+        // Reading x surfaces the notice, capped by the shared budget, with the shadow warnings never starved.
+        List<String> referenced = resolution.warningsMatching((column, file) -> column.equals("x"));
+        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, referenced.size());
+        assertThat(referenced.get(referenced.size() - 1), equalTo(SkipWarnings.overflowMessage()));
+        assertThat(referenced.toString(), containsString("incompatible with planner type"));
+        assertThat(referenced.toString(), containsString("shadowed by same-named Hive partition keys"));
+        assertThat(
+            "unconditional warnings are offered first, so a wide clash cannot starve them",
+            referenced.subList(0, resolution.warnings().size()),
+            equalTo(resolution.warnings())
+        );
+    }
+
+    /**
+     * Two columns drift in the same glob but the query only needs one of them — {@code COUNT(x)} reads {@code x}
+     * and never touches {@code y}. Only {@code x}'s notice may be emitted, and it must be emitted in FULL.
+     * <p>
+     * The second half is the point of budgeting at emission rather than at fold time. Here {@code y} drifts in far
+     * more files than the budget has slots. If the budget were spent while folding — as it was before the notices
+     * became column-scoped — {@code y}'s files would have consumed every slot and {@code x}'s notice, the only one
+     * the query cares about, would have been replaced by an overflow marker or dropped outright. Deferring the
+     * budget means an unread column costs nothing.
+     */
+    public void testDeferredColumnWarningsEmitOnlyTheReadColumnAndCostNothingForTheRest() throws Exception {
+        int yDriftingFiles = SkipWarnings.MAX_ADDED_WARNINGS + 5;
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        Map<String, Long> rowCounts = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>();
+
+        // Zero-padded so name order is list order: part-000 is the anchor and pins both columns to INTEGER.
+        String anchorPath = "s3://bucket/data/part-000.parquet";
+        schemasByPath.put(anchorPath, List.of(attr("x", DataType.INTEGER), attr("y", DataType.INTEGER)));
+        rowCounts.put(anchorPath, 2L);
+        listing.add(entry(anchorPath, 100));
+
+        // y drifts to LONG in many files; x agrees with the anchor in all of them.
+        for (int i = 1; i <= yDriftingFiles; i++) {
+            String path = String.format(Locale.ROOT, "s3://bucket/data/part-%03d.parquet", i);
+            schemasByPath.put(path, List.of(attr("x", DataType.INTEGER), attr("y", DataType.LONG)));
+            rowCounts.put(path, 2L);
+            listing.add(entry(path, 100));
+        }
+
+        // x drifts in exactly one file, discovered last.
+        String xDriftPath = String.format(Locale.ROOT, "s3://bucket/data/part-%03d.parquet", yDriftingFiles + 1);
+        schemasByPath.put(xDriftPath, List.of(attr("x", DataType.LONG), attr("y", DataType.INTEGER)));
+        rowCounts.put(xDriftPath, 2L);
+        listing.add(entry(xDriftPath, 100));
+
+        ExternalSourceResolution resolution = resolveMultiFileWithStats(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            rowCounts,
+            listing,
+            configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
+        );
+
+        // Both columns are bucketed; y's bucket is capped at what emission could ever use.
+        assertEquals(Set.of("x", "y"), resolution.deferredColumnWarnings().keySet());
+        assertEquals(Set.of(xDriftPath), resolution.deferredColumnWarnings().get("x").keySet());
+        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS, resolution.deferredColumnWarnings().get("y").size());
+        // Nothing is emitted unconditionally: a column notice is never in the always-on channel.
+        assertThat(resolution.warnings().toString(), not(containsString("incompatible with")));
+
+        // COUNT(x): exactly x's notice -- the one file summary plus x's one detail -- and nothing else.
+        List<String> onlyX = resolution.warningsMatching((column, file) -> column.equals("x"));
+        List<String> xNotices = incompatibilityNotices(onlyX);
+        assertEquals("one shared file summary plus one column detail", 2, xNotices.size());
+        assertThat(xNotices.get(0), containsString("has columns whose on-disk type is incompatible"));
+        assertThat(xNotices.get(0), containsString(xDriftPath));
+        assertThat(
+            xNotices.get(1),
+            equalTo(SkipWarnings.incompatiblePlannerTypeColumnMessage("x", xDriftPath, DataType.LONG, DataType.INTEGER))
+        );
+        assertThat("the unread column must not be mentioned", onlyX.toString(), not(containsString("Column [y]")));
+        assertThat(
+            "an unread column must not spend budget: x's notice survives in full, unmarked",
+            onlyX,
+            not(hasItem(SkipWarnings.overflowMessage()))
+        );
+
+        // For contrast: y alone genuinely exhausts the budget, which is what x was competing against.
+        List<String> onlyY = resolution.warningsMatching((column, file) -> column.equals("y"));
+        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, onlyY.size());
+        assertThat(onlyY.get(onlyY.size() - 1), equalTo(SkipWarnings.overflowMessage()));
+    }
+
+    /**
+     * The incompatibility notices among emitted warnings, in order, ignoring any unrelated resolve-time bodies.
+     * Matches on {@code "incompatible with"}: the per-file summary reads "incompatible with THE planner type"
+     * while the per-column detail reads "incompatible with planner type [..]", so the longer substring would
+     * silently drop every summary.
+     */
+    private static List<String> incompatibilityNotices(List<String> warnings) {
+        return warnings.stream().filter(w -> w.contains("incompatible with")).toList();
+    }
+
+    /**
+     * The resolve-time channel is capped by exactly ONE budget, applied at emission. The resolver only collects
+     * (de-duplicated and bounded) because at collection time it cannot know which column notices are relevant --
+     * {@code resolveWithFactory} feeds the unconditional sink once per FILE, so budgeting there would let a wide
+     * glob spend every slot before the column notices existed.
+     * <p>
+     * Two properties follow, and both are asserted here:
+     * <ul>
+     *   <li>unconditional warnings are themselves capped at emission, so a per-file producer cannot deliver an
+     *       unbounded header set;</li>
+     *   <li>unconditional warnings are offered FIRST, so a column notice can never displace one. That ordering is
+     *       what let the eager Hive-shadow budget reservation in {@code completeFirstFileWins} be deleted.</li>
+     * </ul>
+     */
+    public void testResolveTimeWarningsAreCappedOnceAtEmissionWithUnconditionalFirst() {
+        // More unconditional warnings than the budget can admit.
+        List<String> many = new ArrayList<>();
+        for (int i = 0; i < SkipWarnings.MAX_ADDED_WARNINGS + 5; i++) {
+            many.add("unconditional warning " + i);
+        }
+        List<String> cappedAlone = new ExternalSourceResolution(Map.of(), many, Map.of()).warningsMatching((column, file) -> true);
+        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, cappedAlone.size());
+        assertThat(cappedAlone.get(cappedAlone.size() - 1), equalTo(SkipWarnings.overflowMessage()));
+        assertThat(
+            "the admitted slots are the first unconditional warnings, in order",
+            cappedAlone.subList(0, SkipWarnings.MAX_ADDED_WARNINGS),
+            equalTo(many.subList(0, SkipWarnings.MAX_ADDED_WARNINGS))
+        );
+
+        // Exactly a full budget of unconditional warnings, plus a column notice the query DOES read.
+        List<String> full = many.subList(0, SkipWarnings.MAX_ADDED_WARNINGS);
+        ExternalSourceResolution contended = new ExternalSourceResolution(
+            Map.of(),
+            full,
+            Map.of("x", Map.of("file:///part-b.parquet", List.of("column summary", "column detail")))
+        );
+        List<String> emitted = contended.warningsMatching((column, file) -> true);
+        assertThat(
+            "a column notice must not displace an unconditional warning",
+            emitted.subList(0, SkipWarnings.MAX_ADDED_WARNINGS),
+            equalTo(full)
+        );
+        assertThat(emitted.toString(), not(containsString("column detail")));
+        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, emitted.size());
+        assertThat(emitted.get(emitted.size() - 1), equalTo(SkipWarnings.overflowMessage()));
+    }
+
+    /**
+     * One resolution covers every external source in the query, and column names are not unique across them.
+     * Reading {@code x} from one source must not unlock another source's notice about its own {@code x} --
+     * the notice names a file the query never touches, so the user would be told about nulls they cannot observe.
+     * This is why the deferred notices are keyed by {@code (column, file)} and the predicate takes both.
+     */
+    public void testDeferredColumnWarningsAreScopedToTheirOwnSource() {
+        String readFile = "s3://bucket/read/part-b.parquet";
+        String unreadFile = "s3://bucket/unread/part-b.parquet";
+        ExternalSourceResolution resolution = new ExternalSourceResolution(
+            Map.of(),
+            List.of(),
+            Map.of(
+                "x",
+                Map.of(
+                    readFile,
+                    List.of("summary for the source the query reads", "detail for the source the query reads"),
+                    unreadFile,
+                    List.of("summary for the OTHER source", "detail for the OTHER source")
+                )
+            )
+        );
+
+        // The relation that reads readFile produces x; nothing in the query reads unreadFile.
+        List<String> emitted = resolution.warningsMatching((column, file) -> column.equals("x") && file.equals(readFile));
+        assertThat(emitted.toString(), containsString("the source the query reads"));
+        assertThat("a same-named column elsewhere must not unlock another source", emitted.toString(), not(containsString("OTHER")));
+
+        // Filtering on the column name alone -- the bug this keying prevents -- would emit both.
+        List<String> nameOnly = resolution.warningsMatching((column, file) -> column.equals("x"));
+        assertThat(nameOnly.toString(), containsString("OTHER"));
     }
 
     /**
@@ -967,6 +1211,82 @@ public class ExternalSourceResolverTests extends ESTestCase {
             null
         );
         assertEquals(Map.of("val", DataType.LONG), ExternalSourceResolver.statsFileTypesOf(nothingRetyped));
+    }
+
+    /**
+     * A FIRST_FILE_WINS file is read at the ANCHOR's type, so any column whose footer type differs from the
+     * anchor is "read at a type its own harvest does not describe" — exactly what a UNION_BY_NAME pin is — and
+     * must be classified as pinned so {@code EsqlSession#collectPinnedReads} strips it off the read-schema-blind
+     * cache commit. Both directions qualify: a column the anchor cannot represent (read as null) and one that
+     * widens into the anchor (read and coerced). A file that agrees with the anchor retypes nothing.
+     */
+    public void testPinnedColumnsOfTreatsFirstFileWinsAnchorPinAsPinned() {
+        ExternalSchema anchorPinned = new ExternalSchema(List.of(attr("x", DataType.INTEGER), attr("keep", DataType.KEYWORD)));
+
+        // The anchor cannot represent LONG, so the scan nulls x; the harvest describes the file's own LONG read.
+        SchemaReconciliation.FileSchemaInfo unrepresentable = new SchemaReconciliation.FileSchemaInfo(
+            anchorPinned,
+            null,
+            null,
+            Map.of("x", DataType.LONG, "keep", DataType.KEYWORD)
+        );
+        assertEquals(Set.of("x"), ExternalSourceResolver.pinnedColumnsOf(unrepresentable));
+
+        // A widening file is kept by the read but still coerced away from its harvest type.
+        SchemaReconciliation.FileSchemaInfo widening = new SchemaReconciliation.FileSchemaInfo(
+            new ExternalSchema(List.of(attr("x", DataType.LONG))),
+            null,
+            null,
+            Map.of("x", DataType.INTEGER)
+        );
+        assertEquals(Set.of("x"), ExternalSourceResolver.pinnedColumnsOf(widening));
+
+        // A file that matches the anchor is read at its own type: nothing to strip, so uniform globs are unaffected.
+        SchemaReconciliation.FileSchemaInfo agrees = new SchemaReconciliation.FileSchemaInfo(
+            anchorPinned,
+            null,
+            null,
+            Map.of("x", DataType.INTEGER, "keep", DataType.KEYWORD)
+        );
+        assertEquals(Set.of(), ExternalSourceResolver.pinnedColumnsOf(agrees));
+    }
+
+    /**
+     * The resolve-level half of {@link #testPinnedColumnsOfTreatsFirstFileWinsAnchorPinAsPinned}: an eager
+     * FIRST_FILE_WINS resolve must snapshot each file's OWN footer types onto {@code FileSchemaInfo.inferredTypes},
+     * not the anchor schema it pins every file to. Without that snapshot the split-level stats boundary cannot tell
+     * a drifting file from an agreeing one, and the commit-side stripping sees nothing to strip.
+     */
+    public void testFirstFileWinsPopulatesPerFileInferredTypes() throws Exception {
+        String anchorPath = "s3://bucket/data/a.parquet";
+        String driftPath = "s3://bucket/data/b.parquet";
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put(anchorPath, List.of(attr("x", DataType.INTEGER)));
+        schemasByPath.put(driftPath, List.of(attr("x", DataType.LONG)));
+        Map<String, Long> rowCounts = Map.of(anchorPath, 2L, driftPath, 2L);
+
+        ExternalSourceResolution resolution = resolveMultiFileWithStats(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            rowCounts,
+            List.of(entry(anchorPath, 100), entry(driftPath, 200)),
+            configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
+        assertEquals(2, schemaMap.size());
+
+        SchemaReconciliation.FileSchemaInfo anchorInfo = schemaMap.get(StoragePath.of(anchorPath));
+        assertNotNull(anchorInfo);
+        assertEquals(Map.of("x", DataType.INTEGER), anchorInfo.inferredTypes());
+        assertEquals("the anchor is read at its own type", Set.of(), ExternalSourceResolver.pinnedColumnsOf(anchorInfo));
+
+        SchemaReconciliation.FileSchemaInfo driftInfo = schemaMap.get(StoragePath.of(driftPath));
+        assertNotNull(driftInfo);
+        assertEquals("the drifting file keeps its own LONG footer type", Map.of("x", DataType.LONG), driftInfo.inferredTypes());
+        assertEquals(Set.of("x"), ExternalSourceResolver.pinnedColumnsOf(driftInfo));
     }
 
     // ===== Stats partial / file-count flag tests =====
@@ -4271,6 +4591,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
         return new ReferenceAttribute(Source.EMPTY, null, name, type);
     }
 
+    /**
+     * A one-column footer harvest. The source type is derived from the location's extension so a {@code .csv}
+     * fixture does not claim to be Parquet — {@code aggregateFileStatistics} reads {@code sourceType()} to pick
+     * the warning summary's file-kind prefix, so a mismatched fixture would assert against the wrong message.
+     */
     private static SourceMetadata fileWithColumn(String location, DataType type, long min, long max) {
         Map<String, Object> stats = new HashMap<>();
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
@@ -4278,7 +4603,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         stats.put(SourceStatisticsSerializer.columnMaxKey("x"), max);
         stats.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
         stats.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
-        return new SimpleSourceMetadata(List.of(attr("x", type)), "parquet", location, null, null, stats, null);
+        return new SimpleSourceMetadata(List.of(attr("x", type)), sourceTypeOf(location), location, null, null, stats, null);
     }
 
     private static SourceMetadata fileWithAllNullColumn(String location, DataType type) {
@@ -4286,7 +4611,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
         stats.put(SourceStatisticsSerializer.columnValueCountKey("x"), 0L);
         stats.put(SourceStatisticsSerializer.columnNullCountKey("x"), 2L);
-        return new SimpleSourceMetadata(List.of(attr("x", type)), "parquet", location, null, null, stats, null);
+        return new SimpleSourceMetadata(List.of(attr("x", type)), sourceTypeOf(location), location, null, null, stats, null);
+    }
+
+    /** The fixture's format, taken from its extension, so a harvest never misreports which reader produced it. */
+    private static String sourceTypeOf(String location) {
+        int dot = location.lastIndexOf('.');
+        assertThat("fixture location must carry a format extension: " + location, dot, greaterThan(0));
+        return location.substring(dot + 1);
     }
 
     private static int[] identityIndex(int size) {

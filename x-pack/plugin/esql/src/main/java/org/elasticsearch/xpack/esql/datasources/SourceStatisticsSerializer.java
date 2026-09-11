@@ -185,16 +185,10 @@ public final class SourceStatisticsSerializer {
             public Optional<Map<String, ColumnStatistics>> columnStatistics() {
                 Map<String, ColumnStatistics> cols = new HashMap<>();
                 for (String key : sourceMetadata.keySet()) {
-                    if (key.startsWith(STATS_COL_PREFIX) == false) {
-                        continue;
+                    String colName = columnNameOfStatKey(key);
+                    if (colName != null) {
+                        cols.computeIfAbsent(colName, n -> new DeserializedColumnStatistics(sourceMetadata, n));
                     }
-                    String rest = key.substring(STATS_COL_PREFIX.length());
-                    int dotIdx = rest.lastIndexOf('.');
-                    if (dotIdx <= 0) {
-                        continue;
-                    }
-                    String colName = rest.substring(0, dotIdx);
-                    cols.computeIfAbsent(colName, n -> new DeserializedColumnStatistics(sourceMetadata, n));
                 }
                 return cols.isEmpty() ? Optional.empty() : Optional.of(cols);
             }
@@ -338,18 +332,36 @@ public final class SourceStatisticsSerializer {
         return out != null ? out : harvest;
     }
 
+    /**
+     * The column name a flat {@code _stats.columns.<name>.<suffix>} key belongs to, or {@code null} when
+     * {@code key} is not a per-column stat key. Splits on the LAST dot, so a dotted column name
+     * ({@code _stats.columns.a.b.min} -> {@code a.b}) survives; the suffix is always dot-prefixed and
+     * dot-free. The one parser for this key shape — {@link #extractStatistics}, {@link #columnNamesIn} and
+     * {@code SplitStats#of} all route through it so the three cannot drift apart on a name like {@code a.b}.
+     */
+    @Nullable
+    static String columnNameOfStatKey(String key) {
+        if (key.startsWith(STATS_COL_PREFIX) == false) {
+            return null;
+        }
+        String rest = key.substring(STATS_COL_PREFIX.length());
+        int dotIdx = rest.lastIndexOf('.');
+        return dotIdx <= 0 ? null : rest.substring(0, dotIdx);
+    }
+
+    /** The per-column stat suffix (dot-prefixed, e.g. {@code .min}) of a key {@link #columnNameOfStatKey} accepted. */
+    static String statSuffixOf(String key, String columnName) {
+        return key.substring(STATS_COL_PREFIX.length() + columnName.length());
+    }
+
+    /** Every column name mentioned by a per-column stat key in {@code statsMap}. */
     private static Set<String> columnNamesIn(Map<String, Object> statsMap) {
         Set<String> names = new HashSet<>();
         for (String key : statsMap.keySet()) {
-            if (key.startsWith(STATS_COL_PREFIX) == false) {
-                continue;
+            String name = columnNameOfStatKey(key);
+            if (name != null) {
+                names.add(name);
             }
-            String rest = key.substring(STATS_COL_PREFIX.length());
-            int dotIdx = rest.lastIndexOf('.');
-            if (dotIdx <= 0) {
-                continue;
-            }
-            names.add(rest.substring(0, dotIdx));
         }
         return names;
     }
@@ -382,6 +394,26 @@ public final class SourceStatisticsSerializer {
             out.remove(columnMaxKey(columnName));
             out.remove(columnMinUnservableKey(columnName));
             out.remove(columnMaxUnservableKey(columnName));
+        }
+        return out;
+    }
+
+    /**
+     * Drops each named column's count family ({@code value_count} / {@code null_count}), leaving extrema,
+     * the unservable markers and {@code row_count} untouched. Used when a harvest counted cells the scan
+     * will not produce, so the counts describe a read that never happens: summing them would under- or
+     * over-count. The column family itself survives via whatever extrema keys remain, which is what keeps
+     * {@code SplitStats} reporting {@code -1} (unknown, safe-miss) rather than treating the column as absent
+     * and serving {@code rowCount - rowCount = 0}. Returns a new map; {@code statsMap} is not mutated.
+     */
+    public static Map<String, Object> removeColumnCounts(Map<String, Object> statsMap, Collection<String> columnNames) {
+        if (statsMap == null || statsMap.isEmpty() || columnNames == null || columnNames.isEmpty()) {
+            return statsMap;
+        }
+        Map<String, Object> out = new HashMap<>(statsMap);
+        for (String columnName : columnNames) {
+            out.remove(columnValueCountKey(columnName));
+            out.remove(columnNullCountKey(columnName));
         }
         return out;
     }

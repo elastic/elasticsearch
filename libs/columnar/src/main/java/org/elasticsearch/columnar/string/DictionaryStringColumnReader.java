@@ -332,8 +332,8 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     }
 
     /**
-     * Fills a window from the ordinals alone, testing a decoded block of them at a time. Sound only where
-     * nothing escaped: an escaped ordinal says the value is elsewhere, so its bytes still decide it.
+     * Fills a window from the ordinals alone, testing a decoded block of them at a time. Valid only where no
+     * escaped value can match, since the escape ordinal says nothing about the bytes behind it.
      *
      * <p>A document matches on any one of its slots, so this walks the slots the way {@link #matchesRank}
      * does. They are contiguous, so a document's run of them almost always falls inside the block already
@@ -375,8 +375,12 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         final int from = firstTermAtLeast(target, end);
         final int lowOrdinal = from;
         final int highOrdinal = endOfRun(prefix, exact, from, end);
-        // Nothing in the dictionary matches, and nothing escaped, so nothing can.
-        if (lowOrdinal == highOrdinal && escapeCount == 0) {
+        // A value escapes only when no term names it, so an escaped value is never a term the dictionary
+        // holds. An exact term that is in the dictionary is decided by the ordinals alone. A prefix, or an
+        // exact term the dictionary does not hold, can still be carried by an escaped value.
+        final boolean escapesCanMatch = escapeCount > 0 && (exact == null || lowOrdinal == highOrdinal);
+        // Nothing in the dictionary matches, and no escape can, so nothing can.
+        if (lowOrdinal == highOrdinal && escapesCanMatch == false) {
             return DocIdSetIterator.empty();
         }
         final ColumnIterator presence = iterator();
@@ -386,7 +390,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
 
             @Override
             public boolean matches() throws IOException {
-                return matchesRank(presence.rank(), value, prefix, exact, lowOrdinal, highOrdinal);
+                return matchesRank(presence.rank(), value, prefix, exact, lowOrdinal, highOrdinal, escapesCanMatch);
             }
 
             @Override
@@ -396,7 +400,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
 
             @Override
             public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
-                if (escapeCount > 0) {
+                if (escapesCanMatch) {
                     super.intoBitSet(upTo, bitSet, offset);
                     return;
                 }
@@ -406,11 +410,18 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     }
 
     /**
-     * Whether any of a document's values matches. The ordinals answer for every value the dictionary holds,
-     * and only an escaped one is resolved to its bytes.
+     * Whether any of a document's values matches. The ordinals decide every value the dictionary names, and
+     * an escaped value is read only when {@code escapesCanMatch}.
      */
-    private boolean matchesRank(int rank, BytesRef value, BytesRef prefix, BytesRef exact, int lowOrdinal, int highOrdinal)
-        throws IOException {
+    private boolean matchesRank(
+        int rank,
+        BytesRef value,
+        BytesRef prefix,
+        BytesRef exact,
+        int lowOrdinal,
+        int highOrdinal,
+        boolean escapesCanMatch
+    ) throws IOException {
         final long first = firstValueAddress(rank);
         final long count = valueCount(rank);
         for (long i = 0; i < count; i++) {
@@ -422,6 +433,9 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
                 if (ordinal >= lowOrdinal && ordinal < highOrdinal) {
                     return true;
                 }
+                continue;
+            }
+            if (escapesCanMatch == false) {
                 continue;
             }
             // Escaped, so only its bytes say what it is.

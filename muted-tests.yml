@@ -526,9 +526,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/156655
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecLookupJoinExpressionIT
   issue: https://github.com/elastic/elasticsearch/issues/156658
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDateIT
-  method: test {csv-spec:date.dateDiffUnitFromField}
-  issue: https://github.com/elastic/elasticsearch/issues/156698
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/CASE}
   issue: https://github.com/elastic/elasticsearch/issues/156729
@@ -723,9 +720,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testBlobsNotDeletedDuringFailedRelocation
   issue: https://github.com/elastic/elasticsearch/issues/158959
-- class: org.elasticsearch.action.bulk.BulkOperationTests
-  method: testTsdbTimestampErrorDuringRoutingRedirectsToFailureStoreBatchMode
-  issue: https://github.com/elastic/elasticsearch/issues/159019
 - class: org.elasticsearch.action.fieldcaps.FieldCapsWithFilterIT
   method: testSkipUnmatchedShards
   issue: https://github.com/elastic/elasticsearch/issues/159021

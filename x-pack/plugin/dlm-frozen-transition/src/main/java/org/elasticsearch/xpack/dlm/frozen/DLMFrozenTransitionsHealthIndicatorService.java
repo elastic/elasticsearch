@@ -73,8 +73,8 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
             NAME,
             FROZEN_TRANSITION_BLOCKED_IMPACT_ID,
             3,
-            "Data streams backing indices cannot transition to the frozen tier. Data retention and storage cost "
-                + "management could be impacted.",
+            "Data stream backing indices may be delayed or blocked from transitioning to the frozen tier. Data retention and storage "
+                + "cost management could be impacted.",
             List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
         )
     );
@@ -83,7 +83,8 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
         NAME,
         "transitions_disabled",
         "DLM frozen transitions are disabled, but some indices have frozen-tier transitions that are queued or in progress.",
-        "Enable frozen transitions using a cluster settings update on [dlm.frozen_transitions.enabled].",
+        "Wait for queued and running frozen transitions to complete. If they remain overdue, inspect the "
+            + "[dlm_frozen_transition] thread pool and the current master node's logs.",
         HELP_URL
     );
 
@@ -181,9 +182,9 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
         boolean transitionsEnabled = info.transitionsEnabled();
         HealthIndicatorDetails details = createDetails(verbose, info, supportsMultipleProjects);
 
-        // The scheduler check is meaningful only while transitions are enabled. When the feature is off the
-        // scheduler's only job is to keep publishing health snapshots, which it still does; a stopped scheduler.
-        // while disabled is not actionable noise for the operator.
+        // The scheduler check is meaningful only while transitions are enabled. When the feature is off, the transition
+        // service's scheduled scan exits without submitting work, so a stopped transition scheduler while disabled is
+        // not actionable noise for the operator. Health snapshots are published by a separate scheduler.
         if (transitionsEnabled && info.serviceRunning() == false) {
             return createIndicator(
                 HealthStatus.YELLOW,

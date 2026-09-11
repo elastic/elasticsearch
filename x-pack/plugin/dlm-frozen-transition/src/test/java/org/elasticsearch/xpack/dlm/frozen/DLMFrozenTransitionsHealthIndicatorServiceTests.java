@@ -92,9 +92,9 @@ public class DLMFrozenTransitionsHealthIndicatorServiceTests extends ESTestCase 
     }
 
     /**
-     * The scheduler running check is gated on transitions being enabled. A stopped scheduler while the feature is
-     * disabled is not actionable: the scheduler's only job is to keep publishing health snapshots, which it still
-     * does while the transition executor is idle.
+     * The scheduler-running check is gated on transitions being enabled. While disabled, the transition service's
+     * scheduled scan exits without submitting work; health snapshots are published by an independent scheduler.
+     * A stopped transition scheduler is therefore not actionable until transitions are re-enabled.
      */
     public void testGreenWhenDisabledWithMarkedIndicesAndServiceNotRunning() {
         HealthIndicatorResult result = service.calculate(

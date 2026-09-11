@@ -35,6 +35,7 @@ import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.logging.LogManager;
@@ -255,6 +256,7 @@ public class DLMFrozenTransitionHealthIT extends ESIntegTestCase {
             ).actionGet();
             HealthIndicatorResult indicator = healthResponse.findIndicator(DLMFrozenTransitionsHealthIndicatorService.NAME);
             assertThat(indicator.status(), is(HealthStatus.GREEN));
+            assertEquals(0, ((SimpleHealthIndicatorDetails) indicator.details()).details().get("overdue_indices_count"));
         }, 60, TimeUnit.SECONDS);
 
         logger.info("--> confirmed dlm_frozen_transitions indicator returned to GREEN once the transition completed");

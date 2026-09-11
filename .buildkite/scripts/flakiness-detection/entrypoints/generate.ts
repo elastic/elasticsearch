@@ -4,7 +4,7 @@ import { resolve } from "path";
 
 import { planCommandsToRunnable, planEntryToSkippedTest } from "../commands.ts";
 import { uploadBuildkitePipeline } from "../runners/buildkite.ts";
-import { DEFAULT_AGENT_CONFIG, type FlakinessPlan, type RunnableCommand } from "../domain.ts";
+import { DEFAULT_AGENT_CONFIG, type FlakinessPlan, type PlanUnresolved, type RunnableCommand } from "../domain.ts";
 
 const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
 
@@ -92,7 +92,8 @@ function defaultIO(): GenerateIO {
  * annotation WHEN non-empty: a silently-unresolved unmute is a real false-negative (a test we meant to
  * re-check but never did). When there are no unresolved refs, no annotation is emitted.
  */
-function reportEnrichment(plan: FlakinessPlan, io: GenerateIO): void {
+/** Reports the resolver's enrichment decisions and returns the unresolved refs that must fail the step. */
+function reportEnrichment(plan: FlakinessPlan, io: GenerateIO): PlanUnresolved[] {
   for (const e of plan.expansions ?? []) {
     io.log(`expanded abstract ${e.abstractFqcn} -> ran ${e.ran} of ${e.total} concrete subclasses (cap ${e.cap})`);
   }
@@ -105,21 +106,34 @@ function reportEnrichment(plan: FlakinessPlan, io: GenerateIO): void {
   }
 
   const unresolved = plan.unresolved ?? [];
-  if (unresolved.length > 0) {
-    const lines = unresolved.map((u) => {
-      const ref = u.ref.spec ?? u.ref.className ?? u.ref.path ?? JSON.stringify(u.ref);
-      return `- unresolved (${u.reason}): \`${ref}\``;
-    });
-    io.annotate("warning", ["**Flakiness: unresolved references**", ...lines].join("\n"));
+  if (unresolved.length === 0) {
+    return [];
   }
+
+  // A ref that NAMES a class - an unmute entry or a FLAKINESS_CLASSES spec - is a request that someone
+  // expected to be honoured, so failing to resolve it is an error: a misspelt class name would otherwise
+  // produce a green run that tested nothing. A changed-file ref is different; most changed files are not
+  // tests, so those stay informational.
+  const named = unresolved.filter((u) => u.ref.source === "unmute" || u.ref.source === "explicit");
+  const lines = unresolved.map((u) => {
+    const ref = u.ref.spec ?? u.ref.className ?? u.ref.path ?? JSON.stringify(u.ref);
+    return `- unresolved (${u.reason}): \`${ref}\``;
+  });
+  io.annotate(named.length > 0 ? "error" : "warning", ["**Flakiness: unresolved references**", ...lines].join("\n"));
+  return named;
 }
 
-export function run(io: GenerateIO = defaultIO()): void {
+/**
+ * Returns `false` when the step must fail: a ref that named a class did not resolve. Everything resolvable
+ * is uploaded first regardless, so a request mixing good and bad class names still runs the good ones - the
+ * batch steps do not `depends_on` this step, so they survive its failure.
+ */
+export function run(io: GenerateIO = defaultIO()): boolean {
   const plan = io.readPlan();
 
   if (plan === undefined) {
     io.log(`No ${PLAN_FILE}; upstream orchestration failed - nothing to upload.`);
-    return;
+    return true;
   }
 
   if (plan.buildFailed) {
@@ -130,7 +144,7 @@ export function run(io: GenerateIO = defaultIO()): void {
     // hasNotApplicable forces the analyze step to be emitted with zero batches, so it can record the
     // build_failed outcome from the marker above.
     io.upload([], { hasNotApplicable: true });
-    return;
+    return true;
   }
 
   const runEntries = plan.entries.filter((e) => e.disposition === "run");
@@ -142,7 +156,7 @@ export function run(io: GenerateIO = defaultIO()): void {
       `${(plan.unresolved ?? []).length} unresolved`
   );
 
-  reportEnrichment(plan, io);
+  const unresolvedNamed = reportEnrichment(plan, io);
 
   // Written even when empty. A conditional write leaves whatever was there before, so on any workspace that
   // is not pristine a previous run's skip list would be re-uploaded by `artifact_paths` and folded into
@@ -154,11 +168,15 @@ export function run(io: GenerateIO = defaultIO()): void {
 
   if (runnable.length === 0 && skipEntries.length === 0) {
     io.log("No runnable or skipped tests in plan");
-    return;
+    return unresolvedNamed.length === 0;
   }
 
   // hasNotApplicable emits the analyze step even when every entry was skipped (zero batches).
   io.upload(runnable, { hasNotApplicable: skipEntries.length > 0 });
+  return unresolvedNamed.length === 0;
 }
 
-if (import.meta.main) run();
+if (import.meta.main && run() === false) {
+  console.error("Some flakiness references named a class that could not be resolved; see the annotation.");
+  process.exit(1);
+}

@@ -191,7 +191,7 @@ describe("generate run() - no plan", () => {
 });
 
 describe("generate run() - enrichment reporting", () => {
-  test("non-empty unresolved emits exactly one warning annotation", () => {
+  test("non-empty unresolved emits exactly one annotation listing every ref", () => {
     const plan: FlakinessPlan = {
       buildFailed: false,
       entries: [
@@ -205,7 +205,8 @@ describe("generate run() - enrichment reporting", () => {
     run(io);
 
     expect(rec.annotations).toHaveLength(1);
-    expect(rec.annotations[0].style).toBe("warning");
+    // `error` because an unmute NAMES a class; the style-per-source rule is covered on its own below.
+    expect(rec.annotations[0].style).toBe("error");
     expect(rec.annotations[0].body).toContain("org.foo.GoneTests");
     expect(rec.annotations[0].body).toContain("class not found");
   });
@@ -242,5 +243,63 @@ describe("generate run() - enrichment reporting", () => {
     // Expansions go to the log, not to any annotation.
     expect(rec.annotations).toEqual([]);
     expect(rec.logs.some((l) => l.includes("org.foo.AbstractTests"))).toBe(true);
+  });
+});
+
+describe("generate run() - unresolved references", () => {
+  const RUN_ENTRY = {
+    gradleProject: ":server",
+    sourceSet: "test",
+    kind: "test" as const,
+    fqcn: "org.foo.FooTests",
+    disposition: "run" as const,
+  };
+
+  test("a ref that named a class and did not resolve fails the step", () => {
+    const plan: FlakinessPlan = {
+      buildFailed: false,
+      entries: [],
+      commands: [],
+      unresolved: [{ ref: { source: "explicit", spec: "org.foo.MisspeltTests" }, reason: "no-source-file" }],
+    };
+    const { io, rec } = fakeIO(plan);
+
+    // A typo in FLAKINESS_CLASSES used to exit 1 from the bootstrap step. Resolution moved to the resolver,
+    // so the check lands here instead - but it must still fail, or the run is green having tested nothing.
+    expect(run(io)).toBe(false);
+    expect(rec.annotations).toHaveLength(1);
+    expect(rec.annotations[0].style).toBe("error");
+    expect(rec.annotations[0].body).toContain("org.foo.MisspeltTests");
+  });
+
+  test("the resolvable part of a mixed request is still uploaded", () => {
+    const plan: FlakinessPlan = {
+      buildFailed: false,
+      entries: [RUN_ENTRY],
+      commands: [UNIT_CMD],
+      unresolved: [{ ref: { source: "unmute", className: "org.foo.GoneTests" }, reason: "no-source-file" }],
+    };
+    const { io, rec } = fakeIO(plan);
+
+    // Upload happens before the verdict: the batch steps do not depend_on generate, so they run even though
+    // this step goes red. Failing without uploading would punish the good half of the request.
+    expect(run(io)).toBe(false);
+    expect(rec.uploads).toHaveLength(1);
+    expect(rec.uploads[0].commands).toHaveLength(1);
+  });
+
+  test("an unresolved changed-file ref stays a warning and passes", () => {
+    const plan: FlakinessPlan = {
+      buildFailed: false,
+      entries: [RUN_ENTRY],
+      commands: [UNIT_CMD],
+      unresolved: [{ ref: { source: "changed-file", path: "server/src/test/java/org/foo/Odd.java" }, reason: "no-source-file" }],
+    };
+    const { io, rec } = fakeIO(plan);
+
+    // Nobody asserted that file was a test, so it cannot fail the run.
+    expect(run(io)).toBe(true);
+    expect(rec.annotations).toHaveLength(1);
+    expect(rec.annotations[0].style).toBe("warning");
   });
 });

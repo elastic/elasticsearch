@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -62,6 +64,8 @@ import java.util.function.Supplier;
  * fallback entry (key {@code "file"}) in the sourceFactories map.
  */
 final class FileSourceFactory implements ExternalSourceFactory {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FileSourceFactory.class);
 
     static final String CONFIG_FORMAT = "format";
 
@@ -312,6 +316,24 @@ final class FileSourceFactory implements ExternalSourceFactory {
         // This check runs before the empty-config early-return so bare file:// reads (no WITH clause)
         // are also validated — resolveMetadata calls validateConfig first, covering both paths.
         localFileAccess.check(location);
+        if (config != null) {
+            Object hivePartitioningValue = config.get(PartitionConfig.CONFIG_PARTITIONING_HIVE);
+            if (hivePartitioningValue != null) {
+                if ("false".equalsIgnoreCase(hivePartitioningValue.toString())) {
+                    deprecationLogger.warn(
+                        DeprecationCategory.API,
+                        FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_KEY,
+                        FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE
+                    );
+                } else {
+                    deprecationLogger.warn(
+                        DeprecationCategory.API,
+                        FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_KEY,
+                        FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE
+                    );
+                }
+            }
+        }
         if (config == null || config.isEmpty()) {
             return;
         }

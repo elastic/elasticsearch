@@ -161,6 +161,7 @@ c:long  | x:double  | y:double
 
 values
 required_capability: agg_values_spatial
+skip_columnar: columnar rebuilds point coordinates from quantized doc values, so rendered coordinates differ from the _source values in the last decimals
 
 FROM airports
 | WHERE scalerank == 9
@@ -174,6 +175,7 @@ locations:keyword
 
 valuesGrouped
 required_capability: agg_values_spatial
+skip_columnar: columnar rebuilds point coordinates from quantized doc values, so rendered coordinates differ from the _source values in the last decimals
 
 FROM airports
 | WHERE scalerank == 9
@@ -207,6 +209,7 @@ Z                    | POINT (60.900708564915 29.4752941956573)
 
 valuesGroupedByOrdinals
 required_capability: agg_values_spatial
+skip_columnar: columnar rebuilds point coordinates from quantized doc values, so rendered coordinates differ from the _source values in the last decimals
 
 FROM airports
 | WHERE scalerank == 9
@@ -1789,6 +1792,7 @@ BRE      | Bremen                  | POINT(8.7858617703132 53.052287104156)   | 
 
 airportsSortDistanceFromCopenhagenTrainStationDetailsAndNonPushableEval
 required_capability: st_distance
+skip_columnar: columnar rebuilds point coordinates from quantized doc values, so rendered coordinates differ from the _source values in the last decimals
 
 FROM airports
 | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")), position = location::keyword

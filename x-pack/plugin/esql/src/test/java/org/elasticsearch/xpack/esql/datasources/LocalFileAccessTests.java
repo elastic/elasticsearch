@@ -163,7 +163,7 @@ public class LocalFileAccessTests extends ESTestCase {
 
     public void testCommaListingAllSegmentsUnderAllowedRootSucceeds() throws IOException {
         Path allowed = createTempDir();
-        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
+        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
         LocalFileAccess access = LocalFileAccess.create(settings);
 
         Path a = allowed.resolve("a.csv");
@@ -179,7 +179,7 @@ public class LocalFileAccessTests extends ESTestCase {
 
     public void testDuplicateListingUnderAllowedRootSucceeds() throws IOException {
         Path allowed = createTempDir();
-        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
+        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
         LocalFileAccess access = LocalFileAccess.create(settings);
 
         Path file = allowed.resolve("dupes.csv");
@@ -193,7 +193,7 @@ public class LocalFileAccessTests extends ESTestCase {
     public void testCommaListingWithOneSegmentOutsideRootRejected() throws IOException {
         Path allowed = createTempDir();
         Path outside = createTempDir();
-        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
+        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
         LocalFileAccess access = LocalFileAccess.create(settings);
 
         Path allowedFile = allowed.resolve("a.csv");
@@ -204,13 +204,13 @@ public class LocalFileAccessTests extends ESTestCase {
         // one. Validating only the whole (or first) string left this gap.
         String listing = "file://" + allowedFile.toAbsolutePath() + ",file://" + outsideFile.toAbsolutePath();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> access.check(StoragePath.of(listing)));
-        assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
+        assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
         assertThat(e.getMessage(), containsString(outsideFile.toAbsolutePath().toString()));
     }
 
     public void testCommaListingMixingLiteralAndGlobUnderRootSucceeds() throws IOException {
         Path allowed = createTempDir();
-        Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", allowed.toString()).build();
+        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
         LocalFileAccess access = LocalFileAccess.create(settings);
 
         Path literal = allowed.resolve("a.csv");
@@ -226,7 +226,7 @@ public class LocalFileAccessTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> access.check(StoragePath.of("file:///some/a.csv,file:///some/b.csv"))
         );
-        assertThat(e.getMessage(), containsString("esql.external.local_allowed_paths"));
+        assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
     }
 
     // --- UNRESTRICTED sentinel ---

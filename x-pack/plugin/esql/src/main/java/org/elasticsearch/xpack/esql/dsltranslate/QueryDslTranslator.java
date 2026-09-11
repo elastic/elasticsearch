@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
@@ -372,8 +373,8 @@ public final class QueryDslTranslator {
      * value of the type can equal (a decimal or out-of-range number on an integral field) → {@code false}, matching the
      * index's match-no-docs; a value the field's type cannot even represent → degrade (the term precedent), unless the
      * caller is {@code lenient} <em>and</em> the type is one we fully encode, in which case a malformed value matches
-     * nothing (the index's {@code newLenientFieldQuery}). Analyzed {@code text} and types we cannot encode at all (ip,
-     * version, unsigned_long) always degrade — lenient's "skip a bad value" is not a licence to drop a whole capability.
+     * nothing (the index's {@code newLenientFieldQuery}). Analyzed {@code text} always degrades — lenient's "skip a bad
+     * value" is not a licence to drop a whole capability.
      */
     private Expression equality(Expression field, Object value, boolean lenient) {
         DataType type = field.dataType();
@@ -382,18 +383,17 @@ public final class QueryDslTranslator {
                 ? foldMalformedToFalse(() -> checkedLeaf(field, dateTermRange(field, type, value, null)))
                 : checkedLeaf(field, dateTermRange(field, type, value, null));
         }
-        if (type == DataType.INTEGER || type == DataType.LONG) {
+        if (isIntegral(type)) {
             return integralEquality(field, type, value, lenient);
         }
-        // keyword never fails to coerce; double/boolean/ip/version/unsigned_long fail only on a value their type
-        // cannot represent, which is exactly what a lenient match folds to false. Analyzed text stays out: it is a
+        // keyword, boolean and version never fail to coerce; double and ip fail only on a value their type cannot
+        // represent, which is exactly what a lenient match folds to false. Analyzed text stays out: it is a
         // capability gap, and lenient's "skip a bad value" is not a licence to drop a whole capability.
         boolean encodable = type == DataType.KEYWORD
             || type == DataType.DOUBLE
             || type == DataType.BOOLEAN
             || type == DataType.IP
-            || type == DataType.VERSION
-            || type == DataType.UNSIGNED_LONG;
+            || type == DataType.VERSION;
         if (lenient && encodable && isPresent(field)) {
             return foldMalformedToFalse(() -> checkedLeaf(field, new MvContains(Source.EMPTY, field, literalFor(field, value))));
         }
@@ -427,14 +427,10 @@ public final class QueryDslTranslator {
             }
             throw new TranslationUnsupportedException("match[integral value on " + type.typeName() + "]");
         }
-        BigDecimal min = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MIN_VALUE) : BigDecimal.valueOf(Long.MIN_VALUE);
-        BigDecimal max = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MAX_VALUE) : BigDecimal.valueOf(Long.MAX_VALUE);
-        if (number.stripTrailingZeros().scale() > 0 || number.compareTo(min) < 0 || number.compareTo(max) > 0) {
+        if (number.stripTrailingZeros().scale() > 0 || number.compareTo(integralMin(type)) < 0 || number.compareTo(integralMax(type)) > 0) {
             return Literal.FALSE;
         }
-        // Box each branch to Number separately — a bare int/long ternary would promote the int to long.
-        Number literal = type == DataType.INTEGER ? (Number) number.intValueExact() : (Number) number.longValueExact();
-        return checkedLeaf(field, new MvContains(Source.EMPTY, field, new Literal(Source.EMPTY, literal, type)));
+        return checkedLeaf(field, new MvContains(Source.EMPTY, field, new Literal(Source.EMPTY, integralLiteral(type, number), type)));
     }
 
     /**
@@ -561,20 +557,20 @@ public final class QueryDslTranslator {
         // every shape: a whole in-range value (including the string "300.0", which the index coerces to 300) becomes
         // that integer, and a value no value of the type can equal (a decimal, out of range) is dropped because it
         // matches nothing — as the index path's terms query does. If that empties the set, the clause matches nothing.
-        if (isPresent(field)) {
-            if (field.dataType() == DataType.INTEGER || field.dataType() == DataType.LONG) {
-                List<Object> narrowed = new ArrayList<>(values.size());
-                for (Object v : values) {
-                    Number n = narrowIntegralValue(field.dataType(), v);
-                    if (n != null) {
-                        narrowed.add(n);
-                    }
+        if (isPresent(field) && isIntegral(field.dataType())) {
+            List<Object> narrowed = new ArrayList<>(values.size());
+            for (Object v : values) {
+                Number n = narrowIntegralValue(field.dataType(), v);
+                if (n != null) {
+                    narrowed.add(n);
                 }
-                values = narrowed;
             }
-            if (values.isEmpty()) {
+            if (narrowed.isEmpty()) {
                 return Literal.FALSE;
             }
+            // Narrowing already produced the field's internal representation. Running these back through coerce would
+            // re-read them as JSON values, and a biased unsigned_long read that way is a different number.
+            return checkedLeaf(field, new MvIntersects(Source.EMPTY, field, new Literal(Source.EMPTY, narrowed, field.dataType())));
         }
         // any-value set membership: the field's values intersect the term set
         return checkedLeaf(field, new MvIntersects(Source.EMPTY, field, listLiteralFor(field, values)));
@@ -646,7 +642,7 @@ public final class QueryDslTranslator {
         // down, an exclusive whole bound nudges one — never truncate toward zero, which would silently over-match a
         // fractional bound (`gte 300.5` must not include 300). A MISSING field has NULL type, so it stays on the generic
         // path below and folds to false (leniency); only a present integral field takes this route.
-        if (type == DataType.INTEGER || type == DataType.LONG) {
+        if (isIntegral(type)) {
             return integralRange(field, type, range, hasLower, hasUpper);
         }
 
@@ -692,17 +688,15 @@ public final class QueryDslTranslator {
      * FALSE} — the index's match-no-docs.
      */
     private Expression integralRange(Expression field, DataType type, RangeQueryBuilder range, boolean hasLower, boolean hasUpper) {
-        BigDecimal min = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MIN_VALUE) : BigDecimal.valueOf(Long.MIN_VALUE);
-        BigDecimal max = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MAX_VALUE) : BigDecimal.valueOf(Long.MAX_VALUE);
-        BigDecimal lo = hasLower ? effectiveIntegralBound(type, range.from(), true, range.includeLower()) : min;
-        BigDecimal hi = hasUpper ? effectiveIntegralBound(type, range.to(), false, range.includeUpper()) : max;
-        lo = lo.max(min);
-        hi = hi.min(max);
+        BigDecimal min = integralMin(type);
+        BigDecimal max = integralMax(type);
+        BigDecimal lo = (hasLower ? effectiveIntegralBound(type, range.from(), true, range.includeLower()) : min).max(min);
+        BigDecimal hi = (hasUpper ? effectiveIntegralBound(type, range.to(), false, range.includeUpper()) : max).min(max);
         if (lo.compareTo(hi) > 0) {
             return Literal.FALSE; // the interval is empty — no value of the type lies inside it
         }
-        Number loValue = type == DataType.INTEGER ? (Number) lo.intValueExact() : (Number) lo.longValueExact();
-        Number hiValue = type == DataType.INTEGER ? (Number) hi.intValueExact() : (Number) hi.longValueExact();
+        Number loValue = integralLiteral(type, lo);
+        Number hiValue = integralLiteral(type, hi);
         return checkedLeaf(
             field,
             new MvInRange(Source.EMPTY, field, new Literal(Source.EMPTY, loValue, type), new Literal(Source.EMPTY, hiValue, type))
@@ -970,6 +964,48 @@ public final class QueryDslTranslator {
     }
 
     /**
+     * The integral types, the ones whose every value is a whole number in a fixed range. They share one path: a
+     * fractional or out-of-range value can equal no value of the type, and a bound is rounded inward rather than
+     * encoded as given. {@code unsigned_long} belongs here despite being stored biased — the bias is order-preserving,
+     * so the arithmetic is done on the true value and only the final literal is biased.
+     */
+    private static boolean isIntegral(DataType type) {
+        return type == DataType.INTEGER || type == DataType.LONG || type == DataType.UNSIGNED_LONG;
+    }
+
+    private static BigDecimal integralMin(DataType type) {
+        return switch (type) {
+            case INTEGER -> BigDecimal.valueOf(Integer.MIN_VALUE);
+            case LONG -> BigDecimal.valueOf(Long.MIN_VALUE);
+            case UNSIGNED_LONG -> BigDecimal.ZERO;
+            default -> throw new IllegalStateException("not an integral type [" + type + "]");
+        };
+    }
+
+    private static BigDecimal integralMax(DataType type) {
+        return switch (type) {
+            case INTEGER -> BigDecimal.valueOf(Integer.MAX_VALUE);
+            case LONG -> BigDecimal.valueOf(Long.MAX_VALUE);
+            case UNSIGNED_LONG -> new BigDecimal(NumericUtils.UNSIGNED_LONG_MAX);
+            default -> throw new IllegalStateException("not an integral type [" + type + "]");
+        };
+    }
+
+    /**
+     * The internal literal for a whole value already known to be in the type's range. Each branch is boxed to
+     * {@link Number} separately — a bare int/long ternary would promote the int to long — and {@code unsigned_long}
+     * takes the biased form {@code asLongUnsigned} produces, which is what its blocks hold.
+     */
+    private static Number integralLiteral(DataType type, BigDecimal number) {
+        return switch (type) {
+            case INTEGER -> (Number) number.intValueExact();
+            case LONG -> (Number) number.longValueExact();
+            case UNSIGNED_LONG -> (Number) NumericUtils.asLongUnsigned(number.toBigIntegerExact());
+            default -> throw new IllegalStateException("not an integral type [" + type + "]");
+        };
+    }
+
+    /**
      * Narrow one value against an integral field the way {@link #integralEquality} does, so {@code terms} and
      * {@code term} agree on every shape rather than only on numeric ones. Computed on {@link BigDecimal} so nothing is
      * lost: a whole in-range value — including a string like {@code "300.0"} or {@code " 300"}, which the index coerces
@@ -984,13 +1020,10 @@ public final class QueryDslTranslator {
         } catch (NumberFormatException e) {
             throw new TranslationUnsupportedException("terms[integral value on " + type.typeName() + "]");
         }
-        BigDecimal min = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MIN_VALUE) : BigDecimal.valueOf(Long.MIN_VALUE);
-        BigDecimal max = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MAX_VALUE) : BigDecimal.valueOf(Long.MAX_VALUE);
-        if (number.stripTrailingZeros().scale() > 0 || number.compareTo(min) < 0 || number.compareTo(max) > 0) {
+        if (number.stripTrailingZeros().scale() > 0 || number.compareTo(integralMin(type)) < 0 || number.compareTo(integralMax(type)) > 0) {
             return null;
         }
-        // Box each branch to Number separately — a bare int/long ternary would promote the int to long.
-        return type == DataType.INTEGER ? (Number) number.intValueExact() : (Number) number.longValueExact();
+        return integralLiteral(type, number);
     }
 
     private Literal literalFor(Expression field, Object value) {
@@ -1034,23 +1067,21 @@ public final class QueryDslTranslator {
                 case LONG -> value instanceof Number n ? n.longValue() : Long.parseLong(String.valueOf(value));
                 case DOUBLE -> value instanceof Number n ? n.doubleValue() : Double.parseDouble(String.valueOf(value));
                 // The planner's own encoders, so a dataset column of these types filters through the same leaves every
-                // other type uses. They are reachable on a dataset by two different routes: ip and unsigned_long are
-                // declarable (DeclaredSchemaValidator.DECLARABLE_TYPES), and version arrives from a CSV typed-schema
-                // header (CsvFormatReader.parseDataType), which never consults that set.
+                // other type uses. Both are reachable on a dataset: ip is declarable
+                // (DeclaredSchemaValidator.DECLARABLE_TYPES), and version arrives from a CSV typed-schema header
+                // (CsvFormatReader.parseDataType), which never consults that set.
                 case IP -> EsqlDataTypeConverter.stringToIP(String.valueOf(value));
                 case VERSION -> EsqlDataTypeConverter.stringToVersion(String.valueOf(value));
-                case UNSIGNED_LONG -> EsqlDataTypeConverter.stringToUnsignedLong(String.valueOf(value));
                 // Dates never reach here — term/terms/range on a date route through dateBound, which owns the date math
-                // and rounding — and the remaining types have encodings we do not reproduce. Rejecting keeps us from
-                // handing the evaluator a value it cannot read.
+                // and rounding. Neither does unsigned_long, which is integral: it is narrowed on the integral path,
+                // where a fractional or out-of-range value matches nothing instead of being truncated into a match.
+                // The remaining types have encodings we do not reproduce; rejecting keeps us from handing the
+                // evaluator a value it cannot read.
                 default -> throw new TranslationUnsupportedException("literal on " + type.typeName());
             };
-        } catch (IllegalArgumentException | InvalidArgumentException e) {
-            // A value the type cannot represent cannot be translated faithfully. Both exceptions are needed and neither
-            // is redundant: a non-numeric unsigned_long fails BigDecimal parsing with a NumberFormatException (an
-            // IllegalArgumentException), while one that parses and then does not fit — "-1", or anything above
-            // 2^64-1 — fails DataTypeConverter.safeToUnsignedLong with an InvalidArgumentException, which descends
-            // from QlClientException and would otherwise escape this catch and fail the whole query.
+        } catch (IllegalArgumentException e) {
+            // A value the type cannot represent cannot be translated faithfully — an unparseable boolean, a malformed
+            // ip. Every encoder above reports that as an IllegalArgumentException.
             throw new TranslationUnsupportedException("literal on " + type.typeName());
         }
     }

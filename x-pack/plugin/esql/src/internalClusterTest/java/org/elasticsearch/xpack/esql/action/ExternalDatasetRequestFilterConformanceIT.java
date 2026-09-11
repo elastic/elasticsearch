@@ -333,6 +333,20 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         assertSelectsSameRows(QueryBuilders.rangeQuery("quota").gte(500).lte(2000));
     }
 
+    /**
+     * unsigned_long is integral, so a value it cannot hold matches nothing and a bound is rounded inward — not
+     * truncated toward zero, which would make 700.9 select the rows equal to 700 and 0.5 admit 0.
+     */
+    public void testUnsignedLongUnmatchableValuesAndInwardBounds() {
+        assertSelectsSameRows(QueryBuilders.termQuery("quota", 700.9));
+        assertSelectsSameRows(QueryBuilders.termQuery("quota", -5));
+        assertSelectsSameRows(QueryBuilders.termsQuery("quota", List.of(700.9, 800)));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("quota").gte(0.5));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("quota").lte(700.5));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("quota").gte(-5));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("quota").lte(-5));
+    }
+
     /** A prefix is the wildcard {@code <literal>*}; the literal's own metacharacters must stay literal. */
     public void testPrefix() {
         assertSelectsSameRows(QueryBuilders.prefixQuery("tags", "t"));

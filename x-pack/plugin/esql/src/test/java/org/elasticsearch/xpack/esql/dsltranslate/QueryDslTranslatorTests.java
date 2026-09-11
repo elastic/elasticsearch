@@ -12,6 +12,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RegexpFlag;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.Instant;
 import java.util.List;
@@ -346,9 +348,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
             "client_ip",
             QueryBuilders.rangeQuery("client_ip").gt("10.0.0.1").lt("10.0.0.9"),
             "release",
-            QueryBuilders.rangeQuery("release").gt("1.0.0").lt("2.0.0"),
-            "quota",
-            QueryBuilders.rangeQuery("quota").gt("1").lt("9")
+            QueryBuilders.rangeQuery("release").gt("1.0.0").lt("2.0.0")
         );
         for (var entry : byField.entrySet()) {
             Expression e = translate(entry.getValue());
@@ -883,17 +883,40 @@ public class QueryDslTranslatorTests extends ESTestCase {
      * the analyzer, so nothing downstream inserts the cast a user-written WHERE would get.
      */
     public void testIpVersionAndUnsignedLongLiteralsEncode() {
-        for (var each : List.of(
-            Map.entry(QueryBuilders.termQuery("client_ip", "10.0.0.1"), DataType.IP),
-            Map.entry(QueryBuilders.termQuery("release", "8.19.1"), DataType.VERSION),
-            Map.entry(QueryBuilders.termQuery("quota", "42"), DataType.UNSIGNED_LONG)
+        record Case(QueryBuilder query, DataType type, Object encoded) {}
+        for (Case each : List.of(
+            new Case(QueryBuilders.termQuery("client_ip", "10.0.0.1"), DataType.IP, EsqlDataTypeConverter.stringToIP("10.0.0.1")),
+            new Case(QueryBuilders.termQuery("release", "8.19.1"), DataType.VERSION, EsqlDataTypeConverter.stringToVersion("8.19.1")),
+            new Case(QueryBuilders.termQuery("quota", "42"), DataType.UNSIGNED_LONG, EsqlDataTypeConverter.stringToUnsignedLong("42"))
         )) {
-            Expression e = translate(each.getKey());
-            assertThat(each.getKey().getWriteableName() + " on " + each.getValue(), e, instanceOf(MvContains.class));
-            Expression literal = ((MvContains) e).children().get(1);
-            assertThat(literal, instanceOf(Literal.class));
-            assertEquals("the literal takes the field's type", each.getValue(), literal.dataType());
+            Expression e = translate(each.query());
+            assertThat(each.type().toString(), e, instanceOf(MvContains.class));
+            Literal literal = (Literal) ((MvContains) e).children().get(1);
+            assertEquals("the literal takes the field's type", each.type(), literal.dataType());
+            // The value, not just the type: the encoding is the whole claim, and a plausible wrong one types the same.
+            assertEquals("the literal is encoded as the compute engine reads it", each.encoded(), literal.value());
         }
+    }
+
+    /**
+     * {@code terms} and {@code range} reach the same encodings as {@code term}, so they translate rather than degrade.
+     * An unsigned_long is compared in its biased form, which is what makes the ordering below the true ordering.
+     */
+    public void testIpVersionAndUnsignedLongTermsAndRangesTranslate() {
+        assertThat(translate(QueryBuilders.termsQuery("client_ip", List.of("10.0.0.1", "10.0.0.2"))), instanceOf(MvIntersects.class));
+        assertThat(translate(QueryBuilders.termsQuery("release", List.of("8.1.0", "9.0.0"))), instanceOf(MvIntersects.class));
+        MvIntersects quotaTerms = (MvIntersects) translate(QueryBuilders.termsQuery("quota", List.of(1, 2)));
+        assertEquals(
+            List.of(EsqlDataTypeConverter.stringToUnsignedLong("1"), EsqlDataTypeConverter.stringToUnsignedLong("2")),
+            ((Literal) quotaTerms.children().get(1)).value()
+        );
+
+        MvInRange ips = (MvInRange) translate(QueryBuilders.rangeQuery("client_ip").gte("10.0.0.1").lte("10.0.0.9"));
+        assertEquals(EsqlDataTypeConverter.stringToIP("10.0.0.1"), ((Literal) ips.lower()).value());
+        MvInRange quotas = (MvInRange) translate(QueryBuilders.rangeQuery("quota").gte(1).lte(10));
+        assertEquals(EsqlDataTypeConverter.stringToUnsignedLong("1"), ((Literal) quotas.lower()).value());
+        assertEquals(EsqlDataTypeConverter.stringToUnsignedLong("10"), ((Literal) quotas.upper()).value());
+        assertThat(translate(QueryBuilders.rangeQuery("release").gte("8.0.0").lte("9.0.0")), instanceOf(MvInRange.class));
     }
 
     /** A lenient match on an ip the type cannot represent matches nothing, mirroring the index's lenient field query. */
@@ -908,15 +931,32 @@ public class QueryDslTranslatorTests extends ESTestCase {
      * InvalidArgumentException, which descends from QlClientException. If that one is not caught it leaves the
      * collecting walk entirely and takes the whole query down, past the point the drop-and-warn policy can act.
      */
-    public void testOutOfRangeUnsignedLongIsCollectedNotThrown() {
-        for (String value : List.of("-1", "18446744073709551616")) {
-            QueryDslTranslator.TranslationResult result = translateResult(QueryBuilders.termQuery("quota", value));
-            assertFalse("[" + value + "] must be reported, not applied", result.isComplete());
-            assertEquals(1, result.unsupported().size());
-            assertEquals("literal on unsigned_long", result.unsupported().get(0).construct());
+    /**
+     * unsigned_long is an integral type, so it takes the integral narrowing rather than the generic encoding: a
+     * fractional, negative or over-range value can equal no unsigned_long and matches nothing, exactly as the index's
+     * {@code UnsignedLongFieldType.parseTerm} returns NO_DOCS for each. Truncating instead — which the generic
+     * encoding does, {@code new BigDecimal("42.9").toBigInteger()} being 42 — would silently match 42.
+     */
+    public void testUnmatchableUnsignedLongTermMatchesNothing() {
+        for (Object value : List.of("-1", "18446744073709551616", 42.9d, "0.5", -5)) {
+            assertEquals("[" + value + "] can equal no unsigned_long", Literal.FALSE, translate(QueryBuilders.termQuery("quota", value)));
         }
-        // The neighbouring shape that a narrower catch already handles, so the two cases stay distinguishable.
+        // A whole in-range value still matches, so the assertions above are not vacuous.
+        assertThat(translate(QueryBuilders.termQuery("quota", 42)), instanceOf(MvContains.class));
+        // Whitespace around a numeric string is ignored by the index's parse, so it must not degrade here either.
+        assertThat(translate(QueryBuilders.termQuery("quota", " 42")), instanceOf(MvContains.class));
+        // A non-numeric value is malformed, not unmatchable: it degrades, as on every other integral type.
         assertFalse(translateResult(QueryBuilders.termQuery("quota", "not-a-number")).isComplete());
+    }
+
+    /** A bound outside the unsigned_long range clamps rather than degrading, so gte -5 keeps matching everything. */
+    public void testUnsignedLongRangeBoundsClampAndRoundInward() {
+        MvInRange all = (MvInRange) translate(QueryBuilders.rangeQuery("quota").gte(-5));
+        assertEquals(EsqlDataTypeConverter.stringToUnsignedLong("0"), ((Literal) all.lower()).value());
+        assertEquals(Literal.FALSE, translate(QueryBuilders.rangeQuery("quota").lte(-5)));
+        // A fractional lower bound rounds UP into the interval — gte 0.5 must not admit 0.
+        MvInRange rounded = (MvInRange) translate(QueryBuilders.rangeQuery("quota").gte(0.5));
+        assertEquals(EsqlDataTypeConverter.stringToUnsignedLong("1"), ((Literal) rounded.lower()).value());
     }
 
     /** A match_phrase on an exact field is the whole value — plain equality; a slop or a text field are collected. */

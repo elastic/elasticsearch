@@ -1921,6 +1921,169 @@ The Lord of the <em>Rings</em>
 ;
 
 
+# The WITH analyzer overrides the MATCH leaf analyzer for highlighting: english re-tokenizes the document and stems
+# "Rings" to "ring", so "ring" matches. The leaf's own "standard" analyzer does not stem, so before the override won
+# by WITH the highlight was null (see highlightAnalyzerDefaultMissesStem).
+highlightAnalyzerWithOverridesMatchLeafAnalyzer
+required_capability: highlight_implicit_query_and_fields
+
+ROW title = to_text("The Lord of the Rings")
+| HIGHLIGHT MATCH(title, "ring", { "analyzer": "standard" }) ON title WITH { "analyzer": "english" }
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
+;
+
+
+# Implicit HIGHLIGHT derives the borrowed MATCH analyzer. TO_TEXT+MV_EXPAND keep that analyzer attached for WHERE.
+implicitAnalyzerSynthesizesFromSingleLeaf
+required_capability: highlight_implicit_query_and_fields
+
+ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" })
+| MV_EXPAND title
+| WHERE MATCH(title, "ring", { "analyzer": "english" })
+| HIGHLIGHT
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
+;
+
+
+# An unlabeled MATCH over a TO_TEXT column runs with the column's values analyzer (english), which stems "Rings" to
+# "ring" so the row matches. HIGHLIGHT must reuse that values analyzer or the snippet comes back empty.
+implicitAnalyzerUnlabeledLeafUsesValuesAnalyzer
+required_capability: highlight_implicit_query_and_fields
+
+ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" })
+| MV_EXPAND title
+| WHERE MATCH(title, "ring")
+| HIGHLIGHT
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
+;
+
+
+# ANDed leaves that agree on one analyzer derive it once.
+implicitAnalyzerAndBothLeavesAgreeOnAnalyzer
+required_capability: highlight_implicit_query_and_fields
+
+ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" }), author = to_text(["Tolkien wrote of rings"], { "analyzer": "english" })
+| MV_EXPAND title
+| MV_EXPAND author
+| WHERE MATCH(title, "ring", { "analyzer": "english" }) AND MATCH(author, "ring", { "analyzer": "english" })
+| HIGHLIGHT
+| KEEP highlight_title, highlight_author
+;
+
+highlight_title:keyword        | highlight_author:keyword
+The Lord of the <em>Rings</em> | Tolkien wrote of <em>rings</em>
+;
+
+
+# ORed leaves that agree also derive it; a non-matching field is null.
+implicitAnalyzerOrLeavesAgreeOnAnalyzer
+required_capability: highlight_implicit_query_and_fields
+
+ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" }), author = to_text(["An unrelated writer"], { "analyzer": "english" })
+| MV_EXPAND title
+| MV_EXPAND author
+| WHERE MATCH(title, "ring", { "analyzer": "english" }) OR MATCH(author, "ring", { "analyzer": "english" })
+| HIGHLIGHT
+| KEEP highlight_title, highlight_author
+;
+
+highlight_title:keyword        | highlight_author:keyword
+The Lord of the <em>Rings</em> | null
+;
+
+
+# Query-time english vs index-time standard: "tower" does not match indexed "towers", so no rows.
+implicitAnalyzerDivergenceWhereMissesRealIndex
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "tower", { "analyzer": "english" })
+| HIGHLIGHT
+| KEEP title, highlight_title
+;
+
+title:text | highlight_title:keyword
+;
+
+
+# quote_analyzer on a borrowed QSTR resolves instead of throwing.
+implicitAnalyzerQuoteAnalyzerResolves
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE QSTR("title:\"return\"", { "analyzer": "standard", "quote_analyzer": "keyword" })
+| HIGHLIGHT
+| KEEP title, highlight_title
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
+# Per-field analyzers: title uses english, unlabeled author falls back to standard.
+implicitAnalyzerMixedEnglishAndDefault
+required_capability: highlight_implicit_query_and_fields
+
+ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" }), author = to_text(["Tolkien wrote of rings"])
+| MV_EXPAND title
+| MV_EXPAND author
+| WHERE MATCH(title, "ring", { "analyzer": "english" }) AND MATCH(author, "rings")
+| HIGHLIGHT
+| KEEP highlight_title, highlight_author
+;
+
+highlight_title:keyword        | highlight_author:keyword
+The Lord of the <em>Rings</em> | Tolkien wrote of <em>rings</em>
+;
+
+
+# Mixed non-default analyzers: whitespace keeps the hyphenated author token whole.
+implicitAnalyzerMixedEnglishAndWhitespace
+required_capability: highlight_implicit_query_and_fields
+
+ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" }), author = to_text(["Tolkien-wrote-of-rings"], { "analyzer": "whitespace" })
+| MV_EXPAND title
+| MV_EXPAND author
+| WHERE MATCH(title, "ring", { "analyzer": "english" }) AND MATCH(author, "Tolkien-wrote-of-rings", { "analyzer": "whitespace" })
+| HIGHLIGHT
+| KEEP highlight_title, highlight_author
+;
+
+highlight_title:keyword        | highlight_author:keyword
+The Lord of the <em>Rings</em> | <em>Tolkien-wrote-of-rings</em>
+;
+
+
+# QSTR analyzer applies to every ON field; MATCH on an off-ON field still has to resolve its analyzer.
+implicitAnalyzerFieldLessLeafSpansTwoFields
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE book_no == "2936" AND QSTR("title:ring OR author:tolkien", { "analyzer": "english" }) AND MATCH(publisher, "harpercollins", { "analyzer": "whitespace" })
+| HIGHLIGHT ON title, author
+| KEEP title, author, highlight_title, highlight_author
+;
+
+title:text                         | author:text               | highlight_title:keyword                     | highlight_author:keyword
+Fellowship of the Ring 2ND Edition | John Ronald Reuel Tolkien | Fellowship of the <em>Ring</em> 2ND Edition | John Ronald Reuel <em>Tolkien</em>
+;
+
+
 implicitQueryBareForm
 required_capability: highlight_implicit_query_and_fields
 
@@ -2032,6 +2195,23 @@ required_capability: highlight_implicit_query_and_fields
 
 FROM books
 | WHERE KQL("author:Tolkien") AND MATCH(title, "Return")
+| HIGHLIGHT ON title
+| KEEP title, highlight_title
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
+# QSTR default_field naming a non-ON field is also lenient; MATCH still highlights title.
+implicitQueryQstrDefaultFieldNonOnIsLenient
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE QSTR("Tolkien", {"default_field": "author"}) AND MATCH(title, "Return")
 | HIGHLIGHT ON title
 | KEEP title, highlight_title
 | SORT title

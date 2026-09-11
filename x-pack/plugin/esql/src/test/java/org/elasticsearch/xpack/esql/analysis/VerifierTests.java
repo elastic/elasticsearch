@@ -4921,6 +4921,114 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testHighlightBareBorrowSynthesizesAnalyzerFromNullOptions() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT");
+    }
+
+    public void testHighlightAllowsWithAnalyzerDisagreeingWithBorrow() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        // The command-level WITH analyzer overrides the borrowed leaf analyzer, so a registered name that differs from
+        // the borrow is accepted (title is highlighted with the WITH analyzer, not "whitespace").
+        supportsHighlightImplicit(fullText()).query(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"})"
+                + " | HIGHLIGHT ON title WITH { \"analyzer\": \"keyword\" }"
+        );
+        supportsHighlightImplicit(fullText()).query(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"})"
+                + " | HIGHLIGHT ON title WITH { \"analyzer\": \"whitespace\" }"
+        );
+    }
+
+    public void testHighlightWithAnalyzerOverridesBorrowAndRejectsInvalid() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        // A borrowed leaf analyzer on the ON field must not mask an invalid command-level WITH analyzer: the WITH
+        // overrides the borrow, so an unregistered name is reported instead of silently passing verification. The
+        // user typed the name in WITH, so it keeps the raw failure rather than the borrowed-from-WHERE framing.
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"})"
+                + " | HIGHLIGHT ON title WITH { \"analyzer\": \"not_a_real_analyzer\" }",
+            allOf(
+                containsString("[not_a_real_analyzer] is not a registered analyzer"),
+                not(containsString("Per-index custom analyzers cannot be used in HIGHLIGHT"))
+            )
+        );
+        // Even when every ON field is labelled by a leaf, so the command analyzer would otherwise never be resolved.
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) AND MATCH(body, \"bar\", {\"analyzer\": \"english\"})"
+                + " | HIGHLIGHT ON title, body WITH { \"analyzer\": \"not_a_real_analyzer\" }",
+            containsString("[not_a_real_analyzer] is not a registered analyzer")
+        );
+    }
+
+    public void testHighlightDerivedAnalyzerNotFoundGetsTargetedMessage() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"my_custom_analyzer\"}) | HIGHLIGHT ON title",
+            allOf(
+                containsString("HIGHLIGHT derived its query from a preceding WHERE"),
+                containsString("refers to analyzer [my_custom_analyzer]"),
+                containsString("Per-index custom analyzers cannot be used in HIGHLIGHT"),
+                containsString("WITH analyzer does not override it"),
+                not(containsString("[my_custom_analyzer] is not a registered analyzer"))
+            )
+        );
+        // Off-ON leaf analyzers are extras resolved inside verify, not resolveFieldAnalyzers.
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"my_custom_analyzer\"}) AND MATCH(body, \"bar\") | HIGHLIGHT ON body",
+            allOf(
+                containsString("HIGHLIGHT derived its query from a preceding WHERE"),
+                containsString("refers to analyzer [my_custom_analyzer]"),
+                containsString("Per-index custom analyzers cannot be used in HIGHLIGHT"),
+                not(containsString("[my_custom_analyzer] is not a registered analyzer"))
+            )
+        );
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE QSTR(\"title:\\\"return\\\"\", {\"analyzer\": \"standard\", \"quote_analyzer\": \"my_custom_analyzer\"})"
+                + " | HIGHLIGHT ON title",
+            allOf(
+                containsString("HIGHLIGHT derived its query from a preceding WHERE"),
+                containsString("refers to analyzer [my_custom_analyzer]"),
+                containsString("Per-index custom analyzers cannot be used in HIGHLIGHT"),
+                not(containsString("[my_custom_analyzer] is not a registered analyzer"))
+            )
+        );
+    }
+
+    public void testHighlightUserWithAnalyzerMatchingBorrowKeepsRawFailure() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        // The user's WITH analyzer coincides with the borrowed leaf's (unregistered) name. Because the user wrote it in
+        // WITH rather than us deriving it, keep the raw failure instead of the borrowed-from-WHERE framing that would
+        // tell them WITH does not override an analyzer they typed themselves. Contrast with the no-WITH case in
+        // testHighlightDerivedAnalyzerNotFoundGetsTargetedMessage, where the same name is genuinely derived.
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"my_custom_analyzer\"})"
+                + " | HIGHLIGHT ON title WITH { \"analyzer\": \"my_custom_analyzer\" }",
+            allOf(
+                containsString("[my_custom_analyzer] is not a registered analyzer"),
+                not(containsString("Per-index custom analyzers cannot be used in HIGHLIGHT"))
+            )
+        );
+    }
+
+    public void testHighlightValidUserWithDoesNotMaskBorrowedCustomAnalyzer() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        // The user wrote a valid WITH analyzer (whitespace), but the borrowed WHERE leaf uses a custom per-index
+        // analyzer. WITH cannot rescue it - the leaf's own analyzer is still resolved to translate the query - so the
+        // message must not tell the user to add a WITH they already have; it points them at an explicit query instead.
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"my_custom_analyzer\"})"
+                + " | HIGHLIGHT ON title WITH { \"analyzer\": \"whitespace\" }",
+            allOf(
+                containsString("HIGHLIGHT derived its query from a preceding WHERE"),
+                containsString("refers to analyzer [my_custom_analyzer]"),
+                containsString("Per-index custom analyzers cannot be used in HIGHLIGHT"),
+                containsString("Provide an explicit HIGHLIGHT query that does not use analyzer [my_custom_analyzer]"),
+                containsString("WITH analyzer does not override it")
+            )
+        );
+    }
+
     public void testHighlightImplicitRejectedOnOlderTransportVersion() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         defaultAnalyzer().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT)
@@ -5013,6 +5121,14 @@ public class VerifierTests extends ESTestCase {
         supportsHighlight(fullText()).query(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title WITH { \"analyzer\": \"standard\" }"
         );
+        supportsHighlight(fullText()).query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title");
+        supportsHighlight(fullText()).query(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title WITH { \"analyzer\": \"keyword\" }"
+        );
+        supportsHighlight(fullText()).query(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"})"
+                + " OR MATCH(body, \"bar\", {\"analyzer\": \"standard\"}) ON title, body"
+        );
     }
 
     public void testHighlightAnalyzerOption() {
@@ -5063,14 +5179,9 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT category > 5 ON title",
             containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL) or a boolean combination of them")
         );
-        // A nested full-text function must use the same analyzer as HIGHLIGHT.
         supportsHighlight(fullText()).error(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title",
-            allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [whitespace] not found"))
-        );
-        supportsHighlight(fullText()).error(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title WITH { \"analyzer\": \"keyword\" }",
-            allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [whitespace] not found"))
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"not_a_real_analyzer\"}) ON title",
+            containsString("[not_a_real_analyzer] is not a registered analyzer")
         );
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\") ON body",

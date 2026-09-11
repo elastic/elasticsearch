@@ -32,7 +32,10 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class IteratorsTests extends ESTestCase {
     public void testConcatentation() {
@@ -325,6 +328,69 @@ public class IteratorsTests extends ESTestCase {
             assertThat(iterator.next(), equalTo(5));
             assertThat(iterator.next(), equalTo(100));
             assertThat(iterator.next(), equalTo(20));
+        }
+    }
+
+    public void testBatching() {
+        assertFalse(Iterators.batching(between(1, 100), Collections.emptyIterator()).hasNext());
+
+        final var batchSize = between(1, 10);
+        final var lowerBoundInclusive = between(1, 10000);
+        final var upperBoundExclusive = lowerBoundInclusive + scaledRandomIntBetween(0, 10000);
+        assertTrue(
+            Iterators.equals(
+                Iterators.forRange(lowerBoundInclusive, upperBoundExclusive, Integer::valueOf),
+                Iterators.flatMap(
+                    Iterators.batching(batchSize, Iterators.forRange(lowerBoundInclusive, upperBoundExclusive, Integer::valueOf)),
+                    batch -> {
+                        assertThat(batch, not(empty()));
+                        assertThat(
+                            batch,
+                            hasSize(batch.getLast() == upperBoundExclusive - 1 ? lessThanOrEqualTo(batchSize) : equalTo(batchSize))
+                        );
+                        return batch.iterator();
+                    }
+                ),
+                Objects::equals
+            )
+        );
+
+        final var reusableBatch = new ArrayList<Integer>();
+        final var sentinel = randomInt();
+        reusableBatch.add(sentinel);
+        assertTrue(
+            Iterators.equals(
+                Iterators.forRange(lowerBoundInclusive, upperBoundExclusive, Integer::valueOf),
+                Iterators.flatMap(
+                    Iterators.batching(batchSize, Iterators.forRange(lowerBoundInclusive, upperBoundExclusive, Integer::valueOf), () -> {
+                        reusableBatch.clear();
+                        return reusableBatch;
+                    }),
+                    batch -> {
+                        assertSame(reusableBatch, batch);
+                        assertThat(batch, not(empty()));
+                        assertThat(
+                            batch,
+                            hasSize(batch.getLast() == upperBoundExclusive - 1 ? lessThanOrEqualTo(batchSize) : equalTo(batchSize))
+                        );
+                        return batch.iterator();
+                    }
+                ),
+                Objects::equals
+            )
+        );
+        if (lowerBoundInclusive == upperBoundExclusive) {
+            assertThat(reusableBatch, contains(sentinel));
+        } else {
+            final var notLastBatches = (upperBoundExclusive - lowerBoundInclusive - 1) / batchSize;
+            assertThat(
+                reusableBatch,
+                equalTo(
+                    Iterators.toList(
+                        Iterators.forRange(lowerBoundInclusive + batchSize * notLastBatches, upperBoundExclusive, Integer::valueOf)
+                    )
+                )
+            );
         }
     }
 

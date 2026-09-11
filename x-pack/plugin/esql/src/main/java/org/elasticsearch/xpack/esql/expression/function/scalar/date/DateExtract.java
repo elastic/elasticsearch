@@ -128,11 +128,14 @@ public class DateExtract extends EsqlConfigurationFunction implements AnyNullIsN
         boolean isNanos = switch (field().dataType()) {
             case DATETIME -> false;
             case DATE_NANOS -> true;
+            // resolveType accepts NULL because a null argument is assignable to any type, and
+            // FoldNull is what removes the expression before it reaches here.
             default -> throw new UnsupportedOperationException(
                 "Unsupported field type ["
                     + field().dataType().name()
                     + "]. "
-                    + "If you're seeing this, there’s a bug in DateExtract.resolveType"
+                    + "If you're seeing this, DateExtract.resolveType or FoldNull let a "
+                    + "non-date argument through"
             );
         };
 

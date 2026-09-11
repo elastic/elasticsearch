@@ -1787,3 +1787,74 @@ FROM sample_data
 @timestamp:date          | client_ip:ip | event_duration:long
 2023-10-23T13:55:01.543Z | 172.21.3.15  | 1756467
 ;
+
+// COALESCE, CASE and MV_UNION over exclusively nullified fields are NULL-typed but report UNKNOWN
+// nullability, so they used to survive optimization and reach an evaluator that has no NULL branch.
+dateExtractOverCoalesceOfNullifiedFields
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fold_null_args_to_null_propagating_functions
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| EVAL year = DATE_EXTRACT("year", COALESCE(no_such_date, other_missing_date))
+| KEEP year
+| LIMIT 3
+;
+
+year:long
+null
+null
+null
+;
+
+arithmeticOverCaseOfNullifiedFields
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fold_null_args_to_null_propagating_functions
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| EVAL total = CASE(emp_no > 0, no_such_number, other_missing_number) + 1
+| KEEP total
+| LIMIT 3
+;
+
+total:integer
+null
+null
+null
+;
+
+absOverMvUnionOfNullifiedFields
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fold_null_args_to_null_propagating_functions
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| EVAL magnitude = ABS(MV_UNION(no_such_number, other_missing_number))
+| KEEP magnitude
+| LIMIT 3
+;
+
+magnitude:null
+null
+null
+null
+;
+
+// Conversion functions inherit AnyNullIsNull from AbstractConvertFunction rather than declaring it.
+toStringOverCoalesceOfNullifiedFields
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fold_null_args_to_null_propagating_functions
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| EVAL text = TO_STRING(COALESCE(no_such_field, other_missing_field))
+| KEEP text
+| LIMIT 3
+;
+
+text:keyword
+null
+null
+null
+;

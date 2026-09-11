@@ -158,7 +158,7 @@ public class KeywordSearchAfterBenchmark {
     private void setupLogsdb() throws IOException {
         indexSort = new Sort(new SortedSetSortField(HOST_NAME, false), timestampIndexSort());
         querySort = new Sort(new SortedSetSortField(HOST_NAME, false));
-        buildIndex(doc -> doc.add(new SortedSetDocValuesField(HOST_NAME, hostValue())));
+        buildIndex((doc, i) -> doc.add(new SortedSetDocValuesField(HOST_NAME, hostValue(i))));
     }
 
     private void setupColumnar() throws IOException {
@@ -170,7 +170,7 @@ public class KeywordSearchAfterBenchmark {
         );
         indexSort = new Sort(hostIndexSort, timestampIndexSort());
         querySort = new Sort(new MultiValuedBinaryDocValuesSortField(HOST_NAME, false, SortField.STRING_LAST, false));
-        buildIndex(doc -> doc.add(new BinaryDocValuesField(HOST_NAME, hostValue())));
+        buildIndex((doc, i) -> doc.add(new BinaryDocValuesField(HOST_NAME, hostValue(i))));
     }
 
     private void buildIndex(DocConsumer addHostField) throws IOException {
@@ -178,7 +178,7 @@ public class KeywordSearchAfterBenchmark {
         try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int i = 0; i < numDocs; i++) {
                 final Document doc = new Document();
-                addHostField.accept(doc);
+                addHostField.accept(doc, i);
                 doc.add(new SortedNumericDocValuesField(TIMESTAMP, (long) i * 1_000L));
                 writer.addDocument(doc);
             }
@@ -186,10 +186,8 @@ public class KeywordSearchAfterBenchmark {
         }
     }
 
-    private int docCounter = 0;
-
-    private BytesRef hostValue() {
-        return new BytesRef(String.format(Locale.ROOT, "host-%06d", (docCounter++) % CARDINALITY));
+    private static BytesRef hostValue(int index) {
+        return new BytesRef(String.format(Locale.ROOT, "host-%06d", index % CARDINALITY));
     }
 
     private static SortedNumericSortField timestampIndexSort() {
@@ -198,6 +196,6 @@ public class KeywordSearchAfterBenchmark {
 
     @FunctionalInterface
     private interface DocConsumer {
-        void accept(Document doc) throws IOException;
+        void accept(Document doc, int index) throws IOException;
     }
 }

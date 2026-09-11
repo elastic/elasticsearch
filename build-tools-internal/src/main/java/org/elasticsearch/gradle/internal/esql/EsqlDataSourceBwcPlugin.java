@@ -72,29 +72,23 @@ public class EsqlDataSourceBwcPlugin implements Plugin<Project> {
         extension.getSystemProperties().convention(Map.of());
 
         project.getPluginManager().apply("elasticsearch.bwc-test");
-        project.afterEvaluate(ignored -> configureTasks(project, extension));
+        project.getPluginManager().withPlugin("elasticsearch.internal-java-rest-test", ignored -> configureTasks(project, extension));
     }
 
     private static void configureTasks(Project project, EsqlDataSourceBwcExtension extension) {
-        validate(extension);
-
-        SourceSet sourceSet = project.getExtensions()
-            .getByType(JavaPluginExtension.class)
-            .getSourceSets()
-            .getByName(extension.getSourceSetName().get());
         BuildParameterExtension buildParams = loadBuildParams(project).get();
         BwcVersions bwcVersions = buildParams.getBwcVersions();
 
         TaskProvider<Task> all = registerAggregate(project, "esqlDataSourceBwc", "Runs ES|QL data-source BWC coverage.");
 
         for (Version version : bwcVersions.getWireCompatible()) {
-            if (version.before(extension.getMinimumVersion().get()) || version.equals(bwcVersions.getCurrentVersion())) {
+            if (version.equals(bwcVersions.getCurrentVersion())) {
                 continue;
             }
 
             List<TaskProvider<StandaloneRestIntegTestTask>> tasks = new ArrayList<>();
-            for (String coordinator : normalizedCoordinators(extension)) {
-                tasks.add(registerTestTask(project, sourceSet, extension, buildParams, bwcVersions, version, coordinator));
+            for (String coordinator : List.of("current", "old")) {
+                tasks.add(registerTestTask(project, extension, buildParams, bwcVersions, version, coordinator));
             }
 
             TaskProvider<Task> versionAggregate = registerAggregate(
@@ -115,7 +109,6 @@ public class EsqlDataSourceBwcPlugin implements Plugin<Project> {
 
     private static TaskProvider<StandaloneRestIntegTestTask> registerTestTask(
         Project project,
-        SourceSet sourceSet,
         EsqlDataSourceBwcExtension extension,
         BuildParameterExtension buildParams,
         BwcVersions bwcVersions,
@@ -125,6 +118,15 @@ public class EsqlDataSourceBwcPlugin implements Plugin<Project> {
         String coordinatorName = coordinator.substring(0, 1).toUpperCase(Locale.ROOT) + coordinator.substring(1);
         String taskName = "v" + version + "#esqlDataSourceBwc" + coordinatorName + "Coordinator";
         return project.getTasks().register(taskName, StandaloneRestIntegTestTask.class, task -> {
+            validate(extension);
+            if (version.before(extension.getMinimumVersion().get()) || normalizedCoordinators(extension).contains(coordinator) == false) {
+                task.setEnabled(false);
+                return;
+            }
+            SourceSet sourceSet = project.getExtensions()
+                .getByType(JavaPluginExtension.class)
+                .getSourceSets()
+                .getByName(extension.getSourceSetName().get());
             useBwcDistribution(task, version);
             // The mixed cluster runs current-version nodes alongside the old ones, and the
             // data-source plugins ship only in the default distribution.

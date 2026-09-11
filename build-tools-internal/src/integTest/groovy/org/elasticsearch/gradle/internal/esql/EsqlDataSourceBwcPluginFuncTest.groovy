@@ -46,7 +46,6 @@ class EsqlDataSourceBwcPluginFuncTest extends AbstractGradleInternalPluginFuncTe
 
     def "registers isolated coordinator tasks while preserving current tasks"() {
         given:
-        disableConfigurationCache("assertion task inspects the live Gradle task model")
         buildFile << """
             import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -94,19 +93,16 @@ class EsqlDataSourceBwcPluginFuncTest extends AbstractGradleInternalPluginFuncTe
               exclude 'org.example.ExcludedIT', 'example', 'covered by a specialized suite'
             }
 
-            tasks.register('assertDataSourceBwcConvention') {
-              doLast {
-                assert tasks.named('test').get().enabled
-                assert tasks.named('javaRestTest').get().enabled == false
+            assert tasks.named('test').get().enabled
+            assert tasks.named('javaRestTest').get().enabled == false
 
-                def bwcTasks = tasks.withType(StandaloneRestIntegTestTask).findAll {
-                  it.name.contains('#esqlDataSourceBwc') && it.name.endsWith('Coordinator')
-                }
-                assert bwcTasks.empty == false
-                // A release build must not pick these up through check -> bwcTestSnapshots; the func
-                // test harness builds snapshots, so here they are enabled.
-                assert bwcTasks.every { it.enabled }
-                assert bwcTasks.every { task ->
+            def bwcTasks = tasks.withType(StandaloneRestIntegTestTask).findAll {
+              it.name.contains('#esqlDataSourceBwc') && it.name.endsWith('Coordinator') && it.enabled
+            }
+            assert bwcTasks.empty == false
+            // A release build must not pick these up through check -> bwcTestSnapshots; the func
+            // test harness builds snapshots, so here they are enabled.
+            assert bwcTasks.every { task ->
                   task.testClassesDirs.files == sourceSets.csvSpecTest.output.classesDirs.files &&
                     task.classpath.files == sourceSets.csvSpecTest.runtimeClasspath.files &&
                     task.maxParallelForks == 1 &&
@@ -117,46 +113,44 @@ class EsqlDataSourceBwcPluginFuncTest extends AbstractGradleInternalPluginFuncTe
                     task.systemProperties.containsKey('tests.esql.datasource.current_snapshot') &&
                     task.systemProperties.containsKey('tests.esql.datasource.old_snapshot') &&
                     ['old', 'current'].contains(task.systemProperties['tests.esql.datasource.coordinator'])
-                }
-
-                // elasticsearch.bwc-test would otherwise select the default distribution for every
-                // standalone REST task here, including ownerSpecTests above, which already selects
-                // it and would then have its default_distro inputs registered twice. The convention
-                // opts out and selects it per task instead.
-                assert project.bwcTestApplyDefaultDistribution == false
-
-                def versions = bwcTasks.collect {
-                  def match = it.name =~ /^v([^#]+)#/
-                  assert match.find()
-                  org.elasticsearch.gradle.Version.fromString(match.group(1))
-                }
-                assert versions.every { it.onOrAfter(org.elasticsearch.gradle.Version.fromString('9.0.0')) }
-                assert bwcTasks.find { it.name.startsWith('v9.0.2#') }
-                  .systemProperties['tests.esql.datasource.old_snapshot'] == 'false'
-                assert bwcTasks.find { it.name.startsWith('v9.0.9#') }
-                  .systemProperties['tests.esql.datasource.old_snapshot'] == 'true'
-
-                def bwcTask = bwcTasks.first()
-                assert bwcTask.getDependsOn().any { it.is(sourceSets.csvSpecTest.output) }
-                def processResources = tasks.named('processCsvSpecTestResources').get()
-                assert processResources.taskDependencies.getDependencies(processResources)
-                  .any { it.name == 'prepareCsvFixture' }
-
-                def version = (bwcTask.name =~ /^v([^#]+)#/)[0][1]
-                def versionAggregate = tasks.named("v\${version}#esqlDataSourceBwc").get()
-                def standardBwc = tasks.named("v\${version}#bwcTest").get()
-                assert standardBwc.taskDependencies.getDependencies(standardBwc).contains(versionAggregate)
-                assert tasks.named('esqlDataSourceBwc').get().taskDependencies
-                  .getDependencies(tasks.named('esqlDataSourceBwc').get()).contains(versionAggregate)
-              }
             }
+
+            // elasticsearch.bwc-test would otherwise select the default distribution for every
+            // standalone REST task here, including ownerSpecTests above, which already selects
+            // it and would then have its default_distro inputs registered twice. The convention
+            // opts out and selects it per task instead.
+            assert project.bwcTestApplyDefaultDistribution == false
+
+            def versions = bwcTasks.collect {
+              def match = it.name =~ /^v([^#]+)#/
+              assert match.find()
+              org.elasticsearch.gradle.Version.fromString(match.group(1))
+            }
+            assert versions.every { it.onOrAfter(org.elasticsearch.gradle.Version.fromString('9.0.0')) }
+            assert bwcTasks.find { it.name.startsWith('v9.0.2#') }
+              .systemProperties['tests.esql.datasource.old_snapshot'] == 'false'
+            assert bwcTasks.find { it.name.startsWith('v9.0.9#') }
+              .systemProperties['tests.esql.datasource.old_snapshot'] == 'true'
+
+            def bwcTask = bwcTasks.first()
+            assert bwcTask.getDependsOn().any { it.is(sourceSets.csvSpecTest.output) }
+            def processResources = tasks.named('processCsvSpecTestResources').get()
+            assert processResources.taskDependencies.getDependencies(processResources)
+              .any { it.name == 'prepareCsvFixture' }
+
+            def version = (bwcTask.name =~ /^v([^#]+)#/)[0][1]
+            def versionAggregate = tasks.named("v\${version}#esqlDataSourceBwc").get()
+            def standardBwc = tasks.named("v\${version}#bwcTest").get()
+            assert standardBwc.taskDependencies.getDependencies(standardBwc).contains(versionAggregate)
+            assert tasks.named('esqlDataSourceBwc').get().taskDependencies
+              .getDependencies(tasks.named('esqlDataSourceBwc').get()).contains(versionAggregate)
         """
 
         when:
-        def result = gradleRunner('assertDataSourceBwcConvention').build()
+        def result = gradleRunner('help').build()
 
         then:
-        result.task(':assertDataSourceBwcConvention').outcome == TaskOutcome.SUCCESS
+        result.task(':help').outcome == TaskOutcome.SUCCESS
     }
 
     def "rejects exclusions without owner and reason"() {

@@ -69,6 +69,15 @@ public abstract class EsqlDataSourceBwcExtension {
      * Excludes a class pattern with an explicit owner and reason.
      */
     public void exclude(String pattern, String owner, String reason) {
+        if (pattern == null || pattern.isBlank()) {
+            throw new IllegalArgumentException("A BWC exclusion must have a class pattern");
+        }
+        if (owner == null || owner.isBlank()) {
+            throw new IllegalArgumentException("BWC exclusion [" + pattern + "] must have an owner");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("BWC exclusion [" + pattern + "] must have a reason");
+        }
         exclusions.add(new Exclusion(pattern, owner, reason));
     }
 

@@ -16,7 +16,7 @@ resolve_java_home() {
     echo "$adoptium_home"
     return
   fi
-  echo "$JAVA_HOME"
+  echo "${JAVA_HOME:?JAVA_HOME not set}"
 }
 
 cd "$WORKSPACE/plugins/examples"

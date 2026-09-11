@@ -1835,19 +1835,27 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         @Override
         public void onFailure(Exception e) {
             // Might be 100 files only log when debug enabled
+            final var level = lifecycle.started() ? Level.WARN : Level.DEBUG;
             if (logger.isDebugEnabled()) {
-                logger.warn(() -> format("exception while attempting to delete blob files [%s]", toDeleteInThisTask), e);
+                logger.log(level, () -> format("exception while attempting to delete blob files [%s]", toDeleteInThisTask), e);
             } else {
-                logger.warn("exception while attempting to delete blob files", e);
+                logger.log(level, () -> "exception while attempting to delete blob files", e);
             }
         }
 
         @Override
         public void onAfter() {
             translogDeleteSchedulePermit.release();
-            if (translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
+            if (isRunning() && translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
                 threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
             }
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+            assert lifecycle.closed() : lifecycle;
+            // no need to retry or even log, we're shutting down
         }
 
         @Override

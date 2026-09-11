@@ -42,7 +42,8 @@ public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializat
             DenseVector.generatedAttributesFor(source, fields),
             randomTimeout(),
             randomInputType(),
-            randomEndpointTaskType()
+            randomEndpointTaskType(),
+            randomBoolean()
         );
     }
 
@@ -56,8 +57,9 @@ public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializat
         TimeValue timeout = instance.timeout();
         org.elasticsearch.inference.DataType inputType = instance.inputType();
         org.elasticsearch.inference.TaskType endpointTaskType = instance.endpointTaskType();
+        boolean inferenceIdIsFallback = instance.inferenceIdIsFallback();
 
-        switch (between(0, 6)) {
+        switch (between(0, 7)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, this::randomInferenceId);
             case 2 -> rowLimit = randomValueOtherThan(rowLimit, this::randomRowLimit);
@@ -69,6 +71,7 @@ public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializat
             case 4 -> timeout = randomValueOtherThan(timeout, this::randomTimeout);
             case 5 -> inputType = randomValueOtherThan(inputType, this::randomInputType);
             case 6 -> endpointTaskType = randomValueOtherThan(endpointTaskType, this::randomEndpointTaskType);
+            case 7 -> inferenceIdIsFallback = inferenceIdIsFallback == false;
         }
         return new DenseVector(
             instance.source(),
@@ -79,7 +82,8 @@ public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializat
             generatedFields,
             timeout,
             inputType,
-            endpointTaskType
+            endpointTaskType,
+            inferenceIdIsFallback
         );
     }
 
@@ -99,13 +103,39 @@ public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializat
             List.of(),
             randomTimeout(),
             org.elasticsearch.inference.DataType.IMAGE,
-            org.elasticsearch.inference.TaskType.EMBEDDING
+            org.elasticsearch.inference.TaskType.EMBEDDING,
+            false
         );
 
         DenseVector roundTripped = copyInstance(original, before);
 
         assertThat(roundTripped.inputType(), equalTo(org.elasticsearch.inference.DataType.TEXT));
         assertThat(roundTripped.endpointTaskType(), equalTo(org.elasticsearch.inference.TaskType.TEXT_EMBEDDING));
+    }
+
+    /**
+     * Plans from a node without the {@code esql_dense_vector_fallback_inference_id} transport version carry no fallback marker,
+     * so the endpoint they name is read as chosen. Reading it as a fallback would let this node substitute an endpoint the
+     * sending node had already settled on.
+     */
+    public void testOlderTransportVersionMeansInferenceIdIsNotFallback() throws IOException {
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(InferencePlan.ESQL_DENSE_VECTOR_FALLBACK_INFERENCE_ID);
+        DenseVector original = new DenseVector(
+            randomSource(),
+            new EsRelation(randomSource(), randomIdentifier(), IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of()),
+            randomInferenceId(),
+            randomRowLimit(),
+            List.of(),
+            List.of(),
+            randomTimeout(),
+            org.elasticsearch.inference.DataType.TEXT,
+            org.elasticsearch.inference.TaskType.TEXT_EMBEDDING,
+            true
+        );
+
+        DenseVector roundTripped = copyInstance(original, before);
+
+        assertFalse(roundTripped.inferenceIdIsFallback());
     }
 
     private org.elasticsearch.inference.DataType randomInputType() {

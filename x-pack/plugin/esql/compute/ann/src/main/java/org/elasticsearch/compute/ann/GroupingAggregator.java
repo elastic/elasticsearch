@@ -38,4 +38,9 @@ public @interface GroupingAggregator {
      * </p>
      */
     boolean processNulls() default false;
+
+    /**
+     * Whether the generated grouping aggregator function support partitioning
+     */
+    boolean supportsPartitioning() default false;
 }

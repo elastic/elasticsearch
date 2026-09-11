@@ -730,44 +730,44 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(9, org.elasticsearch.node.NodeClosedException.class);
         ids.put(10, null); // SnapshotFailedEngineException, never instantiated in 6.2.0+ and never thrown across clusters
         ids.put(11, org.elasticsearch.index.shard.ShardNotFoundException.class);
-        ids.put(12, org.elasticsearch.transport.ConnectTransportException.class);
+        ids.put(12, ConnectTransportException.class);
         ids.put(13, org.elasticsearch.transport.NotSerializableTransportException.class);
         ids.put(14, org.elasticsearch.transport.ResponseHandlerFailureTransportException.class);
         ids.put(15, org.elasticsearch.indices.IndexCreationException.class);
         ids.put(16, org.elasticsearch.index.IndexNotFoundException.class);
-        ids.put(17, org.elasticsearch.cluster.routing.IllegalShardRoutingStateException.class);
+        ids.put(17, IllegalShardRoutingStateException.class);
         ids.put(18, org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException.class);
         ids.put(19, org.elasticsearch.ResourceNotFoundException.class);
-        ids.put(20, org.elasticsearch.transport.ActionTransportException.class);
+        ids.put(20, ActionTransportException.class);
         ids.put(21, org.elasticsearch.ElasticsearchGenerationException.class);
         ids.put(22, null); // was CreateFailedEngineException
         ids.put(23, org.elasticsearch.index.shard.IndexShardStartedException.class);
-        ids.put(24, org.elasticsearch.search.SearchContextMissingException.class);
+        ids.put(24, SearchContextMissingException.class);
         ids.put(25, org.elasticsearch.script.GeneralScriptException.class);
         ids.put(26, null);
         ids.put(27, null); // was SnapshotCreationException
         ids.put(28, null); // was DeleteFailedEngineException, deprecated in 6.0 and removed in 7.0
         ids.put(29, org.elasticsearch.index.engine.DocumentMissingException.class);
-        ids.put(30, org.elasticsearch.snapshots.SnapshotException.class);
+        ids.put(30, SnapshotException.class);
         ids.put(31, org.elasticsearch.indices.InvalidAliasNameException.class);
         ids.put(32, org.elasticsearch.indices.InvalidIndexNameException.class);
         ids.put(33, org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException.class);
         ids.put(34, org.elasticsearch.transport.TransportException.class);
         ids.put(35, org.elasticsearch.ElasticsearchParseException.class);
-        ids.put(36, org.elasticsearch.search.SearchException.class);
+        ids.put(36, SearchException.class);
         ids.put(37, org.elasticsearch.index.mapper.MapperException.class);
         ids.put(38, org.elasticsearch.indices.InvalidTypeNameException.class);
         ids.put(39, org.elasticsearch.snapshots.SnapshotRestoreException.class);
-        ids.put(40, org.elasticsearch.common.ParsingException.class);
+        ids.put(40, ParsingException.class);
         ids.put(41, org.elasticsearch.index.shard.IndexShardClosedException.class);
-        ids.put(42, org.elasticsearch.indices.recovery.RecoverFilesRecoveryException.class);
+        ids.put(42, RecoverFilesRecoveryException.class);
         ids.put(43, org.elasticsearch.index.translog.TruncatedTranslogException.class);
         ids.put(44, org.elasticsearch.indices.recovery.RecoveryFailedException.class);
         ids.put(45, org.elasticsearch.index.shard.IndexShardRelocatedException.class);
         ids.put(46, null); // NodeShouldNotConnectException, never instantiated in 5.0+
         ids.put(47, null);
         ids.put(48, org.elasticsearch.index.translog.TranslogCorruptedException.class);
-        ids.put(49, org.elasticsearch.cluster.block.ClusterBlockException.class);
+        ids.put(49, ClusterBlockException.class);
         ids.put(50, org.elasticsearch.search.fetch.FetchPhaseExecutionException.class);
         ids.put(51, null);
         ids.put(52, org.elasticsearch.index.engine.VersionConflictEngineException.class);
@@ -775,12 +775,12 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(54, null); // was DocumentAlreadyExistsException, which is superseded with VersionConflictEngineException
         ids.put(55, org.elasticsearch.action.NoSuchNodeException.class);
         ids.put(56, org.elasticsearch.common.settings.SettingsException.class);
-        ids.put(57, org.elasticsearch.indices.IndexTemplateMissingException.class);
+        ids.put(57, IndexTemplateMissingException.class);
         ids.put(58, org.elasticsearch.transport.SendRequestTransportException.class);
         ids.put(59, null); // was EsRejectedExecutionException, which is no longer an instance of ElasticsearchException
         ids.put(60, null); // EarlyTerminationException was removed in 6.0
         ids.put(61, null); // RoutingValidationException was removed in 5.0
-        ids.put(62, org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class);
+        ids.put(62, NotSerializableExceptionWrapper.class);
         ids.put(63, org.elasticsearch.indices.AliasFilterParsingException.class);
         ids.put(64, null); // DeleteByQueryFailedEngineException was removed in 3.0
         ids.put(65, null); // GatewayException, never instantiated in 5.0+
@@ -789,34 +789,34 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(68, org.elasticsearch.ElasticsearchException.class);
         ids.put(69, org.elasticsearch.snapshots.SnapshotMissingException.class);
         ids.put(70, org.elasticsearch.action.PrimaryMissingActionException.class);
-        ids.put(71, org.elasticsearch.action.FailedNodeException.class);
+        ids.put(71, FailedNodeException.class);
         ids.put(72, null); // was SearchParseException, only used in tests since 7.11
         ids.put(73, org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException.class);
         ids.put(74, org.elasticsearch.common.blobstore.BlobStoreException.class);
         ids.put(75, org.elasticsearch.cluster.IncompatibleClusterStateVersionException.class);
-        ids.put(76, org.elasticsearch.index.engine.RecoveryEngineException.class);
+        ids.put(76, RecoveryEngineException.class);
         ids.put(77, org.elasticsearch.common.util.concurrent.UncategorizedExecutionException.class);
-        ids.put(78, org.elasticsearch.action.TimestampParsingException.class);
-        ids.put(79, org.elasticsearch.action.RoutingMissingException.class);
+        ids.put(78, TimestampParsingException.class);
+        ids.put(79, RoutingMissingException.class);
         ids.put(80, null); // was IndexFailedEngineException, deprecated in 6.0 and removed in 7.0
         ids.put(81, org.elasticsearch.index.snapshots.IndexShardRestoreFailedException.class);
-        ids.put(82, org.elasticsearch.repositories.RepositoryException.class);
+        ids.put(82, RepositoryException.class);
         ids.put(83, org.elasticsearch.transport.ReceiveTimeoutTransportException.class);
         ids.put(84, org.elasticsearch.transport.NodeDisconnectedException.class);
         ids.put(85, null);
-        ids.put(86, org.elasticsearch.search.aggregations.AggregationExecutionException.class);
-        ids.put(88, org.elasticsearch.indices.InvalidIndexTemplateException.class);
+        ids.put(86, AggregationExecutionException.class);
+        ids.put(88, InvalidIndexTemplateException.class);
         ids.put(90, org.elasticsearch.index.engine.RefreshFailedEngineException.class);
         ids.put(91, org.elasticsearch.search.aggregations.AggregationInitializationException.class);
         ids.put(92, org.elasticsearch.indices.recovery.DelayRecoveryException.class);
         ids.put(94, org.elasticsearch.client.internal.transport.NoNodeAvailableException.class);
         ids.put(95, null);
         ids.put(96, org.elasticsearch.snapshots.InvalidSnapshotNameException.class);
-        ids.put(97, org.elasticsearch.index.shard.IllegalIndexShardStateException.class);
+        ids.put(97, IllegalIndexShardStateException.class);
         ids.put(98, org.elasticsearch.index.snapshots.IndexShardSnapshotException.class);
         ids.put(99, org.elasticsearch.index.shard.IndexShardNotStartedException.class);
-        ids.put(100, org.elasticsearch.action.search.SearchPhaseExecutionException.class);
-        ids.put(101, org.elasticsearch.transport.ActionNotFoundTransportException.class);
+        ids.put(100, SearchPhaseExecutionException.class);
+        ids.put(101, ActionNotFoundTransportException.class);
         ids.put(102, org.elasticsearch.transport.TransportSerializationException.class);
         ids.put(103, org.elasticsearch.transport.RemoteTransportException.class);
         ids.put(104, org.elasticsearch.index.engine.EngineCreationFailureException.class);
@@ -828,7 +828,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(110, null); // FlushNotAllowedEngineException was removed in 5.0
         ids.put(111, org.elasticsearch.common.settings.NoClassSettingsException.class);
         ids.put(112, org.elasticsearch.transport.BindTransportException.class);
-        ids.put(113, org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException.class);
+        ids.put(113, AliasesNotFoundException.class);
         ids.put(114, org.elasticsearch.index.shard.IndexShardRecoveringException.class);
         ids.put(115, org.elasticsearch.index.translog.TranslogException.class);
         ids.put(116, org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException.class);
@@ -848,7 +848,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(130, org.elasticsearch.action.NoShardAvailableActionException.class);
         ids.put(131, org.elasticsearch.action.UnavailableShardsException.class);
         ids.put(132, org.elasticsearch.index.engine.FlushFailedEngineException.class);
-        ids.put(133, org.elasticsearch.common.breaker.CircuitBreakingException.class);
+        ids.put(133, CircuitBreakingException.class);
         ids.put(134, org.elasticsearch.transport.NodeNotConnectedException.class);
         ids.put(135, org.elasticsearch.index.mapper.StrictDynamicMappingException.class);
         ids.put(136, org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnReplicaException.class);
@@ -856,13 +856,13 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(138, null);
         ids.put(139, null);
         ids.put(140, org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException.class);
-        ids.put(141, org.elasticsearch.index.query.QueryShardException.class);
+        ids.put(141, QueryShardException.class);
         ids.put(142, NoLongerPrimaryShardException.class);
         ids.put(143, org.elasticsearch.script.ScriptException.class);
         ids.put(144, org.elasticsearch.cluster.NotMasterException.class);
         ids.put(145, org.elasticsearch.ElasticsearchStatusException.class);
         ids.put(146, org.elasticsearch.tasks.TaskCancelledException.class);
-        ids.put(147, org.elasticsearch.env.ShardLockObtainFailedException.class);
+        ids.put(147, ShardLockObtainFailedException.class);
         ids.put(148, null);
         ids.put(149, MultiBucketConsumerService.TooManyBucketsException.class);
         ids.put(150, CoordinationStateRejectedException.class);
@@ -909,7 +909,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(191, org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException.class);
         ids.put(192, org.elasticsearch.search.crossproject.InvalidProjectRoutingException.class);
         ids.put(193, org.elasticsearch.index.reindex.TaskRelocatedException.class);
-        ids.put(194, org.elasticsearch.action.SliceMissingException.class);
+        ids.put(194, SliceMissingException.class);
         ids.put(195, org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException.class);
         ids.put(196, org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException.class);
         ids.put(197, org.elasticsearch.indices.recovery.RecoveryCancelledException.class);

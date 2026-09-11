@@ -90,8 +90,8 @@ final class JdbcTestUtils {
         aMap.put(Calendar.class, EsType.DATETIME);
         aMap.put(GregorianCalendar.class, EsType.DATETIME);
         aMap.put(java.util.Date.class, EsType.DATETIME);
-        aMap.put(java.sql.Date.class, EsType.DATETIME);
-        aMap.put(java.sql.Time.class, EsType.TIME);
+        aMap.put(Date.class, EsType.DATETIME);
+        aMap.put(Time.class, EsType.TIME);
         aMap.put(LocalDateTime.class, EsType.DATETIME);
         CLASS_TO_ES_TYPE = Collections.unmodifiableMap(aMap);
     }

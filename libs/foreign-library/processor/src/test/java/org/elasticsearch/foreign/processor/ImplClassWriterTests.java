@@ -163,7 +163,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
 
         // The $mh field must exist
         java.lang.reflect.Field mhField = implClass.getDeclaredField("getErrorName$mh");
-        assertEquals("getErrorName$mh must be a MethodHandle", java.lang.invoke.MethodHandle.class, mhField.getType());
+        assertEquals("getErrorName$mh must be a MethodHandle", MethodHandle.class, mhField.getType());
 
         // The generated method must have return type String
         java.lang.reflect.Method method = implClass.getMethod("getErrorName", long.class);
@@ -202,7 +202,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
 
         // The $mh field must exist
         java.lang.reflect.Field mhField = implClass.getDeclaredField("sandboxInit$mh");
-        assertEquals("sandboxInit$mh must be a MethodHandle", java.lang.invoke.MethodHandle.class, mhField.getType());
+        assertEquals("sandboxInit$mh must be a MethodHandle", MethodHandle.class, mhField.getType());
 
         // The generated method must accept String, long, MemorySegment (not MemorySegment, long, MemorySegment)
         java.lang.reflect.Method method = implClass.getMethod("sandboxInit", String.class, long.class, MemorySegment.class);

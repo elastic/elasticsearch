@@ -465,7 +465,7 @@ public class HttpStorageObjectTests extends ESTestCase {
         HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
 
         org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException eue = expectThrows(
-            org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException.class,
+            ExternalUnavailableException.class,
             () -> obj.newStream()
         );
         assertTrue("exception must be flagged as throttling", eue.throttling());
@@ -495,7 +495,7 @@ public class HttpStorageObjectTests extends ESTestCase {
         }));
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
-        assertThat(error.get(), instanceOf(org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException.class));
+        assertThat(error.get(), instanceOf(ExternalUnavailableException.class));
         org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException eue =
             (org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException) error.get();
         assertTrue("exception must be flagged as throttling", eue.throttling());
@@ -528,7 +528,7 @@ public class HttpStorageObjectTests extends ESTestCase {
         }));
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
-        assertThat(error.get(), instanceOf(org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException.class));
+        assertThat(error.get(), instanceOf(ExternalUnavailableException.class));
         org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException eue =
             (org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException) error.get();
         assertFalse("500 is retryable but not throttling", eue.throttling());

@@ -1434,7 +1434,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         // 60 used to be for EarlyTerminationException
         // 61 used to be for RoutingValidationException
         NOT_SERIALIZABLE_EXCEPTION_WRAPPER(
-            org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class,
+            NotSerializableExceptionWrapper.class,
             org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper::new,
             62,
             TransportVersion.minimumCompatible()
@@ -1553,7 +1553,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         ),
         // 85 used to be for AlreadyExpiredException
         AGGREGATION_EXECUTION_EXCEPTION(
-            org.elasticsearch.search.aggregations.AggregationExecutionException.class,
+            AggregationExecutionException.class,
             org.elasticsearch.search.aggregations.AggregationExecutionException::new,
             86,
             TransportVersion.minimumCompatible()

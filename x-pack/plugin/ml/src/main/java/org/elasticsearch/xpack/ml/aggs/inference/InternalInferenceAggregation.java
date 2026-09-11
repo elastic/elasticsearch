@@ -33,7 +33,7 @@ public class InternalInferenceAggregation extends InternalAggregation {
 
     public InternalInferenceAggregation(StreamInput in) throws IOException {
         super(in);
-        inferenceResult = in.readNamedWriteable(org.elasticsearch.inference.InferenceResults.class);
+        inferenceResult = in.readNamedWriteable(InferenceResults.class);
     }
 
     public InferenceResults getInferenceResult() {

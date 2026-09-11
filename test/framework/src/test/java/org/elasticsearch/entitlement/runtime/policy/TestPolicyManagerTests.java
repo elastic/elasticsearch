@@ -79,7 +79,7 @@ public class TestPolicyManagerTests extends ESTestCase {
 
     public void testIsTriviallyAllowed() {
         assertTrue(policyManager.isTriviallyAllowed(String.class));
-        assertTrue(policyManager.isTriviallyAllowed(org.junit.Before.class));
+        assertTrue(policyManager.isTriviallyAllowed(Before.class));
         assertTrue(policyManager.isTriviallyAllowed(PolicyManager.class));
 
         assertTrue(policyManager.isTriviallyAllowed(getClass()));

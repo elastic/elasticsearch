@@ -15,9 +15,14 @@ import org.elasticsearch.core.SuppressForbidden;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
@@ -25,6 +30,21 @@ import java.util.stream.Collectors;
  * shallow instance size is a complete accounting of retained heap. Assertions fire only when assertions are enabled.
  */
 public final class RamUsageEstimates {
+
+    /** Shallow instance size of an empty {@link HashMap}. */
+    public static final long HASH_MAP_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HashMap.class);
+
+    /** Shallow instance size of an empty {@link HashSet} (includes its backing {@link HashMap}). */
+    public static final long HASH_SET_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HashSet.class);
+
+    /** Shallow instance size of an empty {@link LinkedHashMap}. */
+    public static final long LINKED_HASH_MAP_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(LinkedHashMap.class);
+
+    /** Shallow instance size of an empty {@link ArrayList}. */
+    public static final long ARRAY_LIST_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ArrayList.class);
+
+    /** Shallow instance size of an empty {@link TreeMap}. */
+    public static final long TREE_MAP_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TreeMap.class);
 
     private RamUsageEstimates() {}
 

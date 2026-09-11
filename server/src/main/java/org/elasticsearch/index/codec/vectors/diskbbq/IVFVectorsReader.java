@@ -31,6 +31,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
@@ -245,7 +246,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             }
 
             E fieldEntry = readField(meta, info, versionMeta);
-            genericFields.loadField(fieldNumber, fieldEntry, loadReader);
+            // the merge flag rides on the field info, not in this meta
+            genericFields.loadField(fieldNumber, fieldEntry, DirectIOCapableFlatVectorsFormat.onDiskMerge(info), loadReader);
 
             fields.put(info.number, fieldEntry);
         }

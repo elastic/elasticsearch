@@ -167,6 +167,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature COLUMNAR_SUPPORTS_SHAPE_FIELDS = new NodeFeature("mapper.columnar.supports_shape_fields");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
     static final NodeFeature DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING = new NodeFeature("mapper.dynamic_template.warn_on_duplicate_names");
+    public static final NodeFeature DENSE_VECTOR_ON_DISK_MERGE = new NodeFeature("mapper.vectors.on_disk_merge");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -212,6 +213,7 @@ public class MapperFeatures implements FeatureSpecification {
             MATCH_ONLY_TEXT_DOC_VALUES_PREFIX_WILDCARD_REGEXP,
             PATTERN_TEXT_RENAME,
             DISKBBQ_ON_DISK_RESCORING,
+            DENSE_VECTOR_ON_DISK_MERGE,
             PROVIDE_INDEX_SORT_SETTING_DEFAULTS,
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
             EXCLUDE_VECTORS_DOCVALUE_BUGFIX,

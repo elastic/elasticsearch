@@ -95,39 +95,11 @@ public class FsDirectoryFactoryTests extends ESTestCase {
     }
 
     /**
-     * {@code index.store.fs.direct_io.vector_merge} decides whether merge-context opens of hinted
-     * files get a direct I/O delegate; rescore reads (DEFAULT context) keep theirs regardless, since
-     * that is {@code on_disk_rescore}'s job, not this setting's. Asserted structurally so the test
-     * runs on filesystems without direct I/O support too.
+     * A hybrid fs directory carries a merge-sized direct I/O delegate next to the rescore one whenever direct I/O
+     * can be initialized; whether a merge uses it is the field's {@code on_disk_merge} option, decided in the codec.
+     * Asserted structurally so the test runs on filesystems without direct I/O support too.
      */
-    public void testDirectIOVectorMergeSetting() throws IOException {
-        for (boolean merges : new boolean[] { true, false }) {
-            Settings settings = Settings.builder()
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
-                .put(FsDirectoryFactory.DIRECT_IO_VECTOR_MERGE_SETTING.getKey(), merges)
-                .build();
-            try (Directory directory = newDirectory(settings)) {
-                Directory unwrapped = FilterDirectory.unwrap(directory);
-                assumeTrue("test requires hybridfs", unwrapped instanceof FsDirectoryFactory.HybridDirectory);
-                FsDirectoryFactory.HybridDirectory hybrid = (FsDirectoryFactory.HybridDirectory) unwrapped;
-                assumeTrue("test requires direct I/O support", hybrid.hasDirectIODelegate(IOContext.Context.DEFAULT));
-                assertEquals(
-                    "vector_merge=" + merges + ": merge delegate presence",
-                    merges,
-                    hybrid.hasDirectIODelegate(IOContext.Context.MERGE)
-                );
-                assertEquals(
-                    "vector_merge=" + merges + ": isDirectIOForVectorMerges",
-                    merges,
-                    FsDirectoryFactory.isDirectIOForVectorMerges(directory)
-                );
-                assertTrue("rescore reads keep their delegate either way", hybrid.hasDirectIODelegate(IOContext.Context.DEFAULT));
-            }
-        }
-    }
-
-    /** Off by default: an unconfigured index merges through the page cache exactly as before. */
-    public void testDirectIOVectorMergeDefaultsOff() throws IOException {
+    public void testMergeDelegatePresentOnHybridFs() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
             .build();
@@ -135,8 +107,8 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             Directory unwrapped = FilterDirectory.unwrap(directory);
             assumeTrue("test requires hybridfs", unwrapped instanceof FsDirectoryFactory.HybridDirectory);
             FsDirectoryFactory.HybridDirectory hybrid = (FsDirectoryFactory.HybridDirectory) unwrapped;
-            assertFalse(hybrid.hasDirectIODelegate(IOContext.Context.MERGE));
-            assertFalse(FsDirectoryFactory.isDirectIOForVectorMerges(directory));
+            assumeTrue("test requires direct I/O support", hybrid.hasDirectIODelegate(IOContext.Context.DEFAULT));
+            assertTrue("the merge delegate exists alongside the rescore delegate", hybrid.hasDirectIODelegate(IOContext.Context.MERGE));
         }
     }
 
@@ -298,8 +270,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
                 NativeFSLockFactory.INSTANCE,
                 new MMapDirectory(path),
-                0,
-                true
+                0
             )
         ) {
             boolean direct = mergeCreatesAreDirect(dir);
@@ -377,8 +348,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
                 NativeFSLockFactory.INSTANCE,
                 new MMapDirectory(path),
-                0,
-                true
+                0
             )
         ) {
             byte[] existing = new byte[randomIntBetween(1, 512)];
@@ -427,8 +397,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
                 NativeFSLockFactory.INSTANCE,
                 new MMapDirectory(root),
-                0,
-                true
+                0
             )
         ) {
             try (IndexOutput out = dir.createOutput("_0.vec", directIOMergeContext())) {

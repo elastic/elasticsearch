@@ -68,35 +68,47 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
 
     private final DirectIOCapableFlatVectorsFormat writeFormat;
     private final boolean useDirectIO;
+    private final boolean onDiskMerge;
     private final boolean directIOMergeWrites;
 
     public ES93GenericFlatVectorsFormat() {
-        this(DenseVectorFieldMapper.ElementType.FLOAT, false);
+        this(DenseVectorFieldMapper.ElementType.FLOAT, false, false);
     }
 
     public ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO) {
-        this(elementType, useDirectIO, true);
+        this(elementType, useDirectIO, false);
     }
 
     /**
-     * A format whose merges write the raw vectors through the page cache even under
-     * {@code index.store.fs.direct_io.vector_merge}. Plain HNSW needs this: right after a merge writes
+     * @param useDirectIO whether searches read the raw vectors with direct I/O (the field's {@code on_disk_rescore} option)
+     * @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option)
+     */
+    public ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO, boolean onDiskMerge) {
+        this(elementType, useDirectIO, onDiskMerge, true);
+    }
+
+    /**
+     * A format whose merges write the raw vectors through the page cache even with {@code on_disk_merge}
+     * on. Plain HNSW needs this: right after a merge writes
      * the merged raw vectors, it builds the graph from them by random access, and searches then score
      * against the same file, so the file ends up in the page cache either way. Writing it with direct
      * I/O would only make that read-back cold. Merge reads of the sources still use direct I/O.
      * Searches read through the page cache too: plain HNSW has no {@code on_disk_rescore}.
      */
-    static ES93GenericFlatVectorsFormat withBufferedMergeWrites(DenseVectorFieldMapper.ElementType elementType) {
-        return new ES93GenericFlatVectorsFormat(elementType, false, false);
+    static ES93GenericFlatVectorsFormat withBufferedMergeWrites(DenseVectorFieldMapper.ElementType elementType, boolean onDiskMerge) {
+        return new ES93GenericFlatVectorsFormat(elementType, false, onDiskMerge, false);
     }
 
     /**
-     * @param useDirectIO         whether searches read the raw vectors with direct I/O (the field's
-     *                            {@code on_disk_rescore} option)
-     * @param directIOMergeWrites whether a merge may write the raw vectors with direct I/O, see
-     *                            {@link #withBufferedMergeWrites}
+     * @param directIOMergeWrites whether a merge may write the raw vectors with direct I/O when the field asks
+     *                            for it, see {@link #withBufferedMergeWrites}
      */
-    private ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO, boolean directIOMergeWrites) {
+    private ES93GenericFlatVectorsFormat(
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        boolean onDiskMerge,
+        boolean directIOMergeWrites
+    ) {
         super(NAME);
         writeFormat = switch (elementType) {
             case FLOAT, BYTE -> defaultVectorFormat;
@@ -104,6 +116,7 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
             case BFLOAT16 -> bfloat16VectorFormat;
         };
         this.useDirectIO = useDirectIO;
+        this.onDiskMerge = onDiskMerge;
         this.directIOMergeWrites = directIOMergeWrites;
     }
 
@@ -114,24 +127,26 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        // the raw format decides for itself whether a merge writes its files with direct I/O
-        // (DirectIOCapableFlatVectorsFormat#directIOMergeWriteState); this format's own metadata
-        // file and everything else written for the field keep the original context
+        // this format decides whether a merge writes the raw files with direct I/O (the field's on_disk_merge,
+        // unless the format declines the write side); the raw format applies it, see
+        // DirectIOCapableFlatVectorsFormat#directIOMergeWriteState. This format's own metadata file and
+        // everything else written for the field keep the original context
         return new ES93GenericFlatVectorsWriter(
             META,
             writeFormat.getName(),
             useDirectIO,
+            onDiskMerge,
             state,
-            writeFormat.fieldsWriter(state, directIOMergeWrites)
+            writeFormat.fieldsWriter(state, onDiskMerge && directIOMergeWrites)
         );
     }
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES93GenericFlatVectorsReader(META, state, (f, dio) -> {
+        return new ES93GenericFlatVectorsReader(META, state, (f, dio, odm) -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;
-            return format.fieldsReader(state, dio);
+            return format.fieldsReader(state, dio, odm);
         });
     }
 

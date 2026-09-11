@@ -33,6 +33,9 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.DirectIOHint;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
@@ -132,7 +135,7 @@ public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
         // the raw reader, so merge-hinted opens cannot be asserted for this format; merge-time direct
         // I/O writes of the raw vectors do not depend on getMergeInstance, so they can be
         runMergeTest(
-            new ES94HnswScalarQuantizedVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.FLOAT, 7, true),
+            new ES94HnswScalarQuantizedVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.FLOAT, 7, true, 1, null, 0, true),
             true,
             true,
             false,
@@ -140,39 +143,65 @@ public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
         );
     }
 
-    /** on_disk_rescore on, vector_merge on: direct I/O everywhere, the configuration we run. */
+    /** on_disk_rescore on, on_disk_merge on: direct I/O everywhere, the configuration we run. */
     public void testBbqHnswMergeReaderUsesMergeSizedDirectIO() throws IOException {
-        runMergeTest(new ES93HnswBinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, true), true, true, true, true);
+        runMergeTest(
+            new ES93HnswBinaryQuantizedVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.FLOAT, true, 1, null, 0, true),
+            true,
+            true,
+            true,
+            true
+        );
     }
 
-    /** on_disk_rescore off, vector_merge off: stock behaviour, nothing touches direct I/O. */
+    /** on_disk_rescore off, on_disk_merge off: stock behaviour, nothing touches direct I/O. */
     public void testBbqHnswWithoutDirectIOStaysBuffered() throws IOException {
         runMergeTest(new ES93HnswBinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false), false, false, false, false);
     }
 
     /**
-     * on_disk_rescore off, vector_merge on: rescoring keeps the page cache, merges bypass it. The
+     * on_disk_rescore off, on_disk_merge on: rescoring keeps the page cache, merges bypass it. The
      * two decisions are independent, so the merge side must engage without the field asking for
      * direct I/O reads.
      */
     public void testBbqHnswDirectIOMergesWithoutOnDiskRescore() throws IOException {
-        runMergeTest(new ES93HnswBinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false), true, false, true, true);
+        runMergeTest(
+            new ES93HnswBinaryQuantizedVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.FLOAT, false, 1, null, 0, true),
+            true,
+            false,
+            true,
+            true
+        );
     }
 
-    /** on_disk_rescore on, vector_merge off: direct I/O rescoring, merges through the page cache. */
+    /** on_disk_rescore on, on_disk_merge off: direct I/O rescoring, merges through the page cache. */
     public void testBbqHnswOnDiskRescoreWithoutDirectIOMerges() throws IOException {
         runMergeTest(new ES93HnswBinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, true), false, true, false, false);
     }
 
     /**
      * bbq_disk holds its raw vector format directly rather than through the generic wrapper, so it
-     * is the format that would silently get the read side of the setting without the write side if
-     * the two were not tied together at the raw format. With vector_merge on and no
+     * is the format that would silently get the read side without the write side if
+     * the two were not tied together at the raw format. With on_disk_merge on and no
      * on_disk_rescore, merges must read the sources and write the merged raw vectors with direct I/O.
      */
     public void testBbqDiskMergeUsesDirectIOReadsAndWrites() throws IOException {
         runMergeTest(
-            new ES950DiskBBQVectorsFormat(64, ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER),
+            new ES950DiskBBQVectorsFormat(
+                QuantEncoding.ONE_BIT_4BIT_QUERY,
+                64,
+                ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                false,
+                null,
+                1,
+                false,
+                ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                ES950DiskBBQVectorsFormat.defaultFlatThreshold(64),
+                IvfFlushConfigSource.empty(),
+                IvfMergeConfigResolver.useCodecDefault(),
+                true
+            ),
             true,
             false,
             true,
@@ -188,34 +217,113 @@ public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
      * element types with their own raw writer.
      */
     public void testFloat32HnswMergeUsesDirectIOReadsAndBufferedWrites() throws IOException {
-        runMergeTest(new ES93HnswVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.FLOAT, 1, null, 0), true, false, true, false);
+        runMergeTest(
+            new ES93HnswVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.FLOAT, 1, null, 0, true),
+            true,
+            false,
+            true,
+            false
+        );
     }
 
     public void testBfloat16HnswMergeUsesDirectIOReadsAndBufferedWrites() throws IOException {
-        runMergeTest(new ES93HnswVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.BFLOAT16, 1, null, 0), true, false, true, false);
+        runMergeTest(
+            new ES93HnswVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.BFLOAT16, 1, null, 0, true),
+            true,
+            false,
+            true,
+            false
+        );
     }
 
     /**
      * The flat type's reader does not hand the merge a direct I/O reader (no getMergeInstance
      * override), so its merges read the sources through the page cache and write the merged raw
-     * vectors with direct I/O; both raw writers take the write side. bbq_flat's reader chain
-     * propagates, so both sides engage.
+     * vectors with direct I/O. Both raw writers take the write side.
      */
     public void testFlatMergeReadsBufferedWritesDirect() throws IOException {
-        runMergeTest(new ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType.FLOAT), true, false, false, true);
+        runMergeTest(new ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType.FLOAT, true), true, false, false, true);
     }
 
     public void testFlatBfloat16MergeReadsBufferedWritesDirect() throws IOException {
-        runMergeTest(new ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType.BFLOAT16), true, false, false, true);
+        runMergeTest(new ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, true), true, false, false, true);
     }
 
+    /** bbq_flat's reader chain propagates getMergeInstance, so both sides engage. */
     public void testBbqFlatMergeUsesDirectIOReadsAndWrites() throws IOException {
-        runMergeTest(new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false), true, false, true, true);
+        runMergeTest(new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false, true), true, false, true, true);
     }
 
+    /**
+     * The flag travels with the segment: a segment written with {@code on_disk_merge} on records it on its field info,
+     * a later merge reads that source with direct I/O whatever the mapping says by then, and the merged segment records
+     * the flag the current mapping carries.
+     */
+    public void testOnDiskMergeIsRecordedPerSegmentAndFollowsTheCurrentMapping() throws IOException {
+        int dims = 64;
+        Path path = createTempDir("onDiskMergeAttribute");
+        KnnVectorsFormat writtenWith = new ES93HnswVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.FLOAT, 1, null, 0, true);
+        KnnVectorsFormat mergedWith = new ES93HnswVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.FLOAT, 1, null, 0, false);
+        try (
+            IORecordingDirectory dir = new IORecordingDirectory(
+                new FsDirectoryFactory.HybridDirectory(NativeFSLockFactory.INSTANCE, new MMapDirectory(path), 64)
+            )
+        ) {
+            IndexWriterConfig writeConfig = new IndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(writtenWith));
+            writeConfig.setUseCompoundFile(false);
+            writeConfig.getMergePolicy().setNoCFSRatio(0.0);
+            try (IndexWriter writer = new IndexWriter(dir, writeConfig)) {
+                for (int segment = 0; segment < 2; segment++) {
+                    for (int i = 0; i < 20; i++) {
+                        Document doc = new Document();
+                        doc.add(new KnnFloatVectorField("v", randomVector(dims), VectorSimilarityFunction.EUCLIDEAN));
+                        writer.addDocument(doc);
+                    }
+                    writer.commit();
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals(2, reader.leaves().size());
+                for (var leaf : reader.leaves()) {
+                    assertEquals(
+                        "true",
+                        leaf.reader().getFieldInfos().fieldInfo("v").getAttribute(DirectIOCapableFlatVectorsFormat.ON_DISK_MERGE_ATTRIBUTE)
+                    );
+                }
+            }
+            dir.recorded.clear();
+            // the mapping has been flipped off: the merge runs with a format that carries false
+            IndexWriterConfig mergeConfig = new IndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(mergedWith));
+            mergeConfig.setUseCompoundFile(false);
+            mergeConfig.getMergePolicy().setNoCFSRatio(0.0);
+            try (IndexWriter writer = new IndexWriter(dir, mergeConfig)) {
+                try (DirectoryReader held = DirectoryReader.open(writer)) {
+                    writer.forceMerge(1);
+                }
+                writer.commit();
+                try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                    assertEquals(
+                        "false",
+                        getOnlyLeafReader(reader).getFieldInfos()
+                            .fieldInfo("v")
+                            .getAttribute(DirectIOCapableFlatVectorsFormat.ON_DISK_MERGE_ATTRIBUTE)
+                    );
+                }
+            }
+            assertTrue(
+                "the sources were written with the flag on, so the merge must have read them with direct I/O",
+                dir.recorded.stream().anyMatch(io -> io.op() == Op.OPEN && io.name().endsWith(".vec") && io.directIO())
+            );
+        }
+    }
+
+    /**
+     * @param onDiskMerge must match the {@code on_disk_merge} flag the format was built with: the format decides, this
+     *                    only selects which expectations apply
+     */
     private void runMergeTest(
         KnnVectorsFormat format,
-        boolean directIOForVectorMerges,
+        boolean onDiskMerge,
         boolean expectDirectIOReads,
         boolean expectMergeHintedOpen,
         boolean expectDirectIOWrites
@@ -236,7 +344,7 @@ public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
 
         try (
             IORecordingDirectory dir = new IORecordingDirectory(
-                new FsDirectoryFactory.HybridDirectory(NativeFSLockFactory.INSTANCE, new MMapDirectory(path), 64, directIOForVectorMerges)
+                new FsDirectoryFactory.HybridDirectory(NativeFSLockFactory.INSTANCE, new MMapDirectory(path), 64)
             );
             IndexWriter writer = new IndexWriter(dir, config)
         ) {
@@ -287,7 +395,7 @@ public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
                             assertTrue("raw vector file [" + open.name() + "] was opened without requesting direct IO", open.directIO());
                         }
                     }
-                } else if (directIOForVectorMerges == false) {
+                } else if (onDiskMerge == false) {
                     // direct I/O rescoring with page-cache merges: the merge must not borrow the
                     // random-access direct I/O reader, it reads the sources through a plain reader
                     // of its own, opened from the pooled (DEFAULT context) reader's state. The

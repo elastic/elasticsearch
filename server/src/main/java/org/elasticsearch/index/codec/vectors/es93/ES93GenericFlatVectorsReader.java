@@ -24,6 +24,7 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 
 import java.io.IOException;
@@ -89,7 +90,8 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
             }
 
             FieldEntry entry = new FieldEntry(meta.readString(), meta.readByte() == 1);
-            fieldHelper.loadField(fieldNumber, entry, loadReader);
+            // the merge flag rides on the field info, not in this meta
+            fieldHelper.loadField(fieldNumber, entry, DirectIOCapableFlatVectorsFormat.onDiskMerge(info), loadReader);
         }
     }
 

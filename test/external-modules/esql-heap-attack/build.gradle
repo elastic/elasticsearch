@@ -59,7 +59,7 @@ tasks.named('compileJavaRestTestJava').configure {
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
-  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+  buildParams.withSnapshotBuildOnly(it)
   // HeapAttackExternalIT materializes payloads (multi-GB Parquet/NDJSON/CSV byte arrays)
   // inside the test JVM before pushing them into the in-memory S3 fixture.
   maxHeapSize = '4G'

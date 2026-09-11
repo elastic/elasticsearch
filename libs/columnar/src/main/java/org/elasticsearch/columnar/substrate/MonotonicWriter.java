@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.ReadOnceHint;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 
@@ -69,7 +70,7 @@ public final class MonotonicWriter implements Closeable {
         dataTemp.close();
         dataClosed = true;
         long dataOffset = data.getFilePointer();
-        try (IndexInput in = directory.openInput(tempName, context)) {
+        try (IndexInput in = directory.openInput(tempName, context.withHints(ReadOnceHint.INSTANCE))) {
             data.copyBytes(in, in.length());
         }
         return new Table(dataOffset, data.getFilePointer() - dataOffset, metaBuffer.toArrayCopy());

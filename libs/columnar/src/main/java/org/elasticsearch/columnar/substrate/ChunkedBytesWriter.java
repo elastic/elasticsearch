@@ -13,6 +13,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.ReadOnceHint;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IOUtils;
 
@@ -133,7 +134,7 @@ public final class ChunkedBytesWriter implements Closeable {
         final MonotonicWriter.Table startsTable;
         final MonotonicWriter.Table offsetsTable;
         try (
-            IndexInput staged = directory.openInput(chunkTempName, context);
+            IndexInput staged = directory.openInput(chunkTempName, context.withHints(ReadOnceHint.INSTANCE));
             MonotonicWriter startsOut = new MonotonicWriter(directory, context, prefix, numChunks + 1L);
             MonotonicWriter offsetsOut = new MonotonicWriter(directory, context, prefix, numChunks + 1L)
         ) {

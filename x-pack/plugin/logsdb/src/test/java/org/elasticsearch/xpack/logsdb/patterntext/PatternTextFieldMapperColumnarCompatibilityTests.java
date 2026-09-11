@@ -257,4 +257,25 @@ public class PatternTextFieldMapperColumnarCompatibilityTests extends AbstractCo
             )
         );
     }
+
+    /**
+     * A {@code pattern_text} field carrying a keyword multi-field. Parity here covers the removal of this mapper's multi-field
+     * gate: the sub-mapper is driven from the parent's own source column, alongside pattern_text's own template/args columns.
+     */
+    public void testKeywordSubField() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "pattern_text");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "pattern_text parent, keyword sub-field",
+                1L,
+                doc("d1", 1L, "{\"f\":\"Error 123 at line 456\"}"),
+                doc("d2", 2L, "{\"f\":\"No numbers here\"}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
 }

@@ -64,6 +64,16 @@ public class FeatureFlagTests extends ESTestCase {
         assertThat(flag.isEnabled(), is(false));
     }
 
+    public void testPermanentlyEnabled() {
+        final FeatureFlag flag = FeatureFlag.enabled("test");
+        assertThat(flag.isEnabled(), is(true));
+    }
+
+    public void testPermanentlyEnabledToString() {
+        final FeatureFlag flag = FeatureFlag.enabled("test");
+        assertThat(flag.toString(), is("Feature-Flag(test=true)"));
+    }
+
     private static FeatureFlag newFeatureFlag(Properties properties, boolean isSnapshot) {
         final Build build = randomBuild(isSnapshot);
         return new FeatureFlag("test", "enabled", build, properties::getProperty);

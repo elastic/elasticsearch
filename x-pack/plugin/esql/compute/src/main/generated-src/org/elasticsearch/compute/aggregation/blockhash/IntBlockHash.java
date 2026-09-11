@@ -190,10 +190,9 @@ final class IntBlockHash extends PartitionedBlockHash {
      * was emitted as one extra entry in partition 0 of the aggregation split, and {@link #keysInPartition(int)}
      * returns +1 for partition 0 so the combiner allocates space for it.
      */
-    private record PartitionedHashKeysWithSeenNull(
-        PartitionedHashTable.PartitionedHashKeys delegate,
-        boolean seenNull
-    ) implements PartitionedHashTable.PartitionedHashKeys {
+    private record PartitionedHashKeysWithSeenNull(PartitionedHashTable.PartitionedHashKeys delegate, boolean seenNull)
+        implements
+            PartitionedHashTable.PartitionedHashKeys {
 
         @Override
         public int keysInPartition(int partition) {

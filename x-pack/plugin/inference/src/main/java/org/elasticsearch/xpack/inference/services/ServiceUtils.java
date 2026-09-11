@@ -1067,16 +1067,20 @@ public final class ServiceUtils {
         throwUnsupportedTaskOperation(serviceName, "unified completion with session id");
     }
 
-    public static void throwUnsupportedNonStreamingChatCompletionOperation(String serviceName) {
-        throwUnsupportedTaskOperation(serviceName, "non-streaming unified completion");
-    }
-
     public static void throwUnsupportedEmbeddingOperation(String serviceName) {
         throwUnsupportedTaskOperation(serviceName, "embedding");
     }
 
     private static void throwUnsupportedTaskOperation(String serviceName, String taskName) {
         throw new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
+    }
+
+    public static ElasticsearchStatusException createUnsupportedNonStreamingChatCompletionException(String serviceName) {
+        return new ElasticsearchStatusException(
+            "The [{}] service does not support non-streaming for the chat completion task type",
+            RestStatus.BAD_REQUEST,
+            serviceName
+        );
     }
 
     public static ElasticsearchStatusException createUnsupportedMultimodalRerankException(String serviceName) {

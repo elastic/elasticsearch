@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -31,6 +32,7 @@ import org.elasticsearch.inference.completion.CacheControl;
 import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -419,8 +421,12 @@ public class SenderServiceTests extends ESTestCase {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
 
-            var exception = assertThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(exception.getMessage(), is("The test service service does not support non-streaming unified completion"));
+            var exception = assertThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(
+                exception.getMessage(),
+                is("The [test service] service does not support non-streaming for the chat completion task type")
+            );
+            assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
         }
     }
 

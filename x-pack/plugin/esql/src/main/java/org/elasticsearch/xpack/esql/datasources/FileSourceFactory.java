@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
@@ -50,6 +51,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -88,6 +90,16 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * either be added to the dataset vocabulary or explicitly listed here.
      */
     static final Set<String> EXTERNAL_ONLY_KEYS = Set.of(FormatNameResolver.CONFIG_READER);
+
+    /**
+     * Handles existing problematic dataset configurations: before {@code schema_sample_size} became
+     * format-scoped at PUT time, it could be registered on any dataset (e.g. Parquet) and is still stored
+     * in cluster state. When such a stored key reaches a reader that does not consume it, it is ignored
+     * with a warning instead of failing the query as an "unknown option". Applied to every query, because
+     * nothing reliably marks a config as dataset-originated (the {@code _datasource} envelope is absent
+     * when the parent data source has no settings).
+     */
+    static final Set<String> LEGACY_VOCABULARY_KEYS = Set.of(FileDataSourceValidator.SCHEMA_SAMPLE_SIZE);
 
     static {
         Set<String> keys = new HashSet<>();
@@ -292,6 +304,14 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     @Override
     public void validateConfig(String location, Map<String, Object> config) {
+        // Direct callers run on a request thread, where HeaderWarning targets the caller's own
+        // ThreadContext. The resolver calls the sink variant instead — it validates on the
+        // metadata-read executor, where a direct HeaderWarning call would never reach the client.
+        validateConfig(location, config, HeaderWarning::addWarning);
+    }
+
+    @Override
+    public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
         // Gate file:// reads at planning time so the failure is clean and pre-execution.
         // This check runs before the empty-config early-return so bare file:// reads (no WITH clause)
         // are also validated — resolveMetadata calls validateConfig first, covering both paths.
@@ -327,7 +347,21 @@ final class FileSourceFactory implements ExternalSourceFactory {
             Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(
                 config
             );
-            ConfigKeyValidator.check(config, List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS));
+            ConfigKeyValidator.check(
+                config,
+                List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS, LEGACY_VOCABULARY_KEYS)
+            );
+            // Consume-and-warn: a legacy key the reader does not consume does nothing, and the user must be
+            // told. The message goes through the sink, not HeaderWarning directly — the resolver runs this
+            // on its metadata-read executor and flushes the sink under the restored request context.
+            // Identical warnings from per-file re-validation dedupe in the thread context at flush time.
+            for (String key : LEGACY_VOCABULARY_KEYS) {
+                if (config.containsKey(key) && resolvedReader.consumedKeys().contains(key) == false) {
+                    warningSink.accept(
+                        FileDataSourceValidator.notSupportedByFormatError(key, resolvedReader.value().formatName()) + "; ignored"
+                    );
+                }
+            }
             FileOrderConfig.validate(config);
         } finally {
             StorageProviderCache.closeLease(resolvedStorage.value());
@@ -379,6 +413,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         @Nullable ListingHint hint,
         Map<String, Object> config,
         Executor executor,
+        Consumer<String> warningSink,
         ActionListener<SourceMetadata> listener
     ) {
         final StorageObject storageObject;
@@ -389,7 +424,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         try {
             // Reject unknown configuration keys before any provider/reader work — same single source
             // of truth as the synchronous resolveMetadata path.
-            validateConfig(location, config);
+            validateConfig(location, config, warningSink);
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
 

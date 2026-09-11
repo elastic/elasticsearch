@@ -646,9 +646,36 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     public void testValidateDatasetPartitionPath() {
         assertEquals(
-            "year=*/month=*",
-            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "year=*/month=*")).get("partition_path")
+            "{year}/{month}",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "{year}/{month}")).get("partition_path")
         );
+    }
+
+    public void testValidateDatasetRejectsPlaceholderlessPartitionPath() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "year={year}"))
+        );
+        assertThat(e.getMessage(), containsString("partition_path"));
+        assertThat(e.getMessage(), containsString("{name}"));
+    }
+
+    public void testValidateDatasetRejectsGlobShapedPartitionPath() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "{year}/{month}/*.csv"))
+        );
+        assertThat(e.getMessage(), containsString("partition_path"));
+        assertThat(e.getMessage(), containsString("*.csv"));
+    }
+
+    public void testValidateDatasetRejectsDuplicatePlaceholderPartitionPath() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "{year}/junk/{year}"))
+        );
+        assertThat(e.getMessage(), containsString("partition_path"));
+        assertThat(e.getMessage(), containsString("more than once"));
     }
 
     /**
@@ -659,7 +686,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
      * and inside the CAS task), so the warning fires twice; {@code ThreadContext.putResponse} then deduplicates it to
      * a single response header. That dedup is not exercised here — it requires a full REST integration test.
      */
-    public void testValidateDatasetHivePartitioningStoredAndWarned() {
+    public void testValidateDatasetHivePartitioning() {
         assertEquals(false, validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", false)).get("hive_partitioning"));
         assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
         assertEquals(true, validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", true)).get("hive_partitioning"));
@@ -877,7 +904,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
                 containsString(
                     "known settings: [error_mode, file_exclusions, file_order, file_sort_by, format, hive_partitioning, "
                         + "max_error_ratio, max_errors, max_split_probes, partition_detection, partition_path, "
-                        + "schema_resolution, schema_sample_size, split_probe_window, target_split_size]"
+                        + "schema_resolution, split_probe_window, target_split_size]"
                 )
             )
         );

@@ -204,8 +204,10 @@ public class ExternalSourceResolver {
 
     /**
      * Resolve-time warning messages collected during one {@link #resolve} call: Hive-partition
-     * shadow-column notices (see {@link #warnOnShadowedColumns}) and {@code UNION_BY_NAME}
-     * schema-reconciliation notices (keyword fallback and long/double precision loss). That chain
+     * shadow-column notices (see {@link #warnOnShadowedColumns}), {@code UNION_BY_NAME}
+     * schema-reconciliation notices (keyword fallback and long/double precision loss), and
+     * the factories' config-validation warnings
+     * (see {@code ExternalSourceFactory#validateConfig(String, Map, Consumer)}). That chain
      * runs on {@link #metadataReadExecutor}, a real thread pool in production, so a direct
      * {@code HeaderWarning.addWarning} call from inside it would land on that executor thread's
      * {@link ThreadContext} rather than the originating request's, and never reach the client.
@@ -2210,8 +2212,9 @@ public class ExternalSourceResolver {
             if (factory.canHandle(path, config)) {
                 // Validate outside the try block so a user config error (unknown key) propagates
                 // immediately rather than being swallowed as a factory failure and retried against
-                // the next factory in the registry.
-                factory.validateConfig(path, config);
+                // the next factory in the registry. Warnings are buffered, not emitted here: this
+                // runs on the metadata-read executor, whose ThreadContext never reaches the client.
+                factory.validateConfig(path, config, pendingShadowWarnings::add);
                 try {
                     return factory.resolveMetadata(path, config);
                 } catch (Exception e) {
@@ -2324,7 +2327,7 @@ public class ExternalSourceResolver {
             resolveWithFactory(path, hint, config, candidates, index + 1, e, listener);
         });
         try {
-            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, next);
+            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, pendingShadowWarnings::add, next);
         } catch (Exception e) {
             // A factory that throws synchronously from dispatch (before invoking the listener) must not abort the
             // whole resolve: fall through to the next candidate exactly as the async onFailure path does.

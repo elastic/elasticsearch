@@ -64,6 +64,17 @@ esplugin.bundleSpec.filesMatching("platform/**/lib/*") { details ->
 // they get combined into the top level NOTICES file we ship
 esplugin.bundleSpec.exclude 'platform/licenses/**'
 
+// The controller-protocol.version marker (see verifyControllerProtocolVersion below) is
+// deliberately published in BOTH the deps and nodeps nativeBundle artifacts so that either one
+// alone is sufficient for the build-time compatibility check. Once both zips resolve
+// successfully, esplugin.bundleSpec merges their trees via a single Copy task, and a file
+// present at the same path in both zips is a duplicate Gradle refuses to copy without an
+// explicit strategy. The marker is build-time-only metadata for verifyControllerProtocolVersion
+// (which reads it directly from configurations.nativeBundle, not from this bundleSpec) and has
+// no runtime purpose in the shipped plugin, so exclude it here rather than pick a duplicates
+// strategy that would silently prefer one artifact's copy over the other.
+esplugin.bundleSpec.exclude 'controller-protocol.version'
+
 ["bundlePlugin", "explodedBundlePlugin"].each { bundleTaskName ->
     tasks.named(bundleTaskName).configure {
         dependsOn configurations.nativeBundle

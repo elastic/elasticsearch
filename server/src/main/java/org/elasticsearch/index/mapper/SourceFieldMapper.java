@@ -644,7 +644,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final XContentType[] contentTypes = context.contentTypes();
         final BytesReference[] sources = context.sources();
         for (int d = 0; d < docCount; d++) {
-            ByteUtils.writeLongLE(SourceToParse.Source.fromBytes(sources[d], contentTypes[d]).estimatedSizeInBytes(), sizes, d * 8);
+            // A batch replayed from the translog has no request bytes; estimate from the source row instead,
+            // as the row path does for a row-backed SourceToParse.
+            final int size = sources[d] != null
+                ? SourceToParse.Source.fromBytes(sources[d], contentTypes[d]).estimatedSizeInBytes()
+                : context.sourceRow(d).sizeInBytes();
+            ByteUtils.writeLongLE(size, sizes, d * 8);
         }
         context.addColumn(
             MappedColumns.longColumn(

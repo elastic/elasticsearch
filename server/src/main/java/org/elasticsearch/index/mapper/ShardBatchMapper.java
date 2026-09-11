@@ -14,8 +14,10 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
@@ -52,6 +54,9 @@ import java.util.function.IntPredicate;
  *     {@link Engine.Index} operations plus the resulting {@link EngineBatch}. After the per-leaf loop, each group mapper is dispatched via
  *     {@link FieldMapper#mapColumnGroupBatch}.</li>
  * </ol>
+ *
+ * <p>{@link #mapTranslogBatch} runs the same two steps for a batch record replayed from the translog, so recovery indexes the
+ * record as one batch rather than one exploded row at a time.
  */
 public final class ShardBatchMapper {
 
@@ -399,9 +404,6 @@ public final class ShardBatchMapper {
         Engine.Operation.Origin origin,
         Recycler<BytesRef> recycler
     ) {
-        final MappingLookup mappingLookup = shard.mapperService().mappingLookup();
-        final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
-
         final IndexOperationBatch indexBatch = IndexOperationBatch.initFromBulk(
             items,
             chunkStart,
@@ -411,6 +413,59 @@ public final class ShardBatchMapper {
             shard.getOperationPrimaryTerm(),
             shard.getRelativeTimeInNanos()
         );
+        return mapColumnBatch(indexBatch, shard, resolution, recycler);
+    }
+
+    /**
+     * Columnar mapping for a batch record replayed from the translog during recovery. Resolves the record's
+     * schema against the current mapping and maps every row of {@code sourceBatch} (the parsed
+     * {@link IndexOperationBatch.TranslogRecord#batchData()}), including rows recovery will not index, so
+     * the resulting {@link EngineBatch} lines up with the record and can be sliced per run of indexed rows.
+     * Returns {@code null} when the batch cannot be mapped columnar and the caller must replay the record
+     * row by row: the mapping is outside the batch support matrix (see {@link #resolveMappers}), mapping
+     * failed, or the index is in {@code time_series} mode, whose {@code _id} and {@code _tsid} columns need
+     * the coordinator-computed routing hash and tsid that the translog does not carry.
+     */
+    @Nullable
+    public static EngineBatch mapTranslogBatch(
+        IndexOperationBatch.TranslogRecord record,
+        SourceBatch sourceBatch,
+        IndexShard shard,
+        Engine.Operation.Origin origin,
+        Recycler<BytesRef> recycler
+    ) {
+        final IndexSettings indexSettings = shard.indexSettings();
+        if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+            logger.debug("batch replay disabled: time_series indices derive _id from request-only data");
+            return null;
+        }
+        final BatchMapperResolution resolution = resolveMappers(sourceBatch.schema(), shard.mapperService().mappingLookup(), indexSettings);
+        if (resolution == null) {
+            return null;
+        }
+        final IndexOperationBatch indexBatch = IndexOperationBatch.initFromTranslog(
+            record,
+            sourceBatch,
+            origin,
+            shard.getRelativeTimeInNanos()
+        );
+        return mapColumnBatch(indexBatch, shard, resolution, recycler);
+    }
+
+    /**
+     * Shared mapping core: invokes the metadata and field mappers once over {@code indexBatch} and its
+     * {@link SourceBatch}. Returns {@code null} if mapping hits an unexpected exception.
+     */
+    @Nullable
+    private static EngineBatch mapColumnBatch(
+        IndexOperationBatch indexBatch,
+        IndexShard shard,
+        BatchMapperResolution resolution,
+        Recycler<BytesRef> recycler
+    ) {
+        final MappingLookup mappingLookup = shard.mapperService().mappingLookup();
+        final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
+        final Engine.Operation.Origin origin = indexBatch.origin();
         final BatchMappingContext context = new BatchMappingContext(indexBatch, mappingLookup, shard.indexSettings(), recycler);
 
         try {

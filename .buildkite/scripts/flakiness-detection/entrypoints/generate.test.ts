@@ -205,8 +205,8 @@ describe("generate run() - enrichment reporting", () => {
     run(io);
 
     expect(rec.annotations).toHaveLength(1);
-    // `error` because an unmute NAMES a class; the style-per-source rule is covered on its own below.
-    expect(rec.annotations[0].style).toBe("error");
+    // `warning`: an unmute is not fatal. The style-per-source rule is covered on its own below.
+    expect(rec.annotations[0].style).toBe("warning");
     expect(rec.annotations[0].body).toContain("org.foo.GoneTests");
     expect(rec.annotations[0].body).toContain("class not found");
   });
@@ -277,7 +277,7 @@ describe("generate run() - unresolved references", () => {
       buildFailed: false,
       entries: [RUN_ENTRY],
       commands: [UNIT_CMD],
-      unresolved: [{ ref: { source: "unmute", className: "org.foo.GoneTests" }, reason: "no-source-file" }],
+      unresolved: [{ ref: { source: "explicit", spec: "org.foo.GoneTests" }, reason: "no-source-file" }],
     };
     const { io, rec } = fakeIO(plan);
 
@@ -286,6 +286,22 @@ describe("generate run() - unresolved references", () => {
     expect(run(io)).toBe(false);
     expect(rec.uploads).toHaveLength(1);
     expect(rec.uploads[0].commands).toHaveLength(1);
+  });
+
+  test("deleting a muted test and its mute entry does not fail the run", () => {
+    const plan: FlakinessPlan = {
+      buildFailed: false,
+      entries: [],
+      commands: [],
+      unresolved: [{ ref: { source: "unmute", className: "org.foo.DeletedTests" }, reason: "no-source-file" }],
+    };
+    const { io, rec } = fakeIO(plan);
+
+    // `--diff-filter=d` means the deletion produces no changed-file ref, while removing the mute still
+    // produces an unmute ref for a class that is gone. That is routine cleanup, not a defect, so it must
+    // annotate and pass rather than red the PR.
+    expect(run(io)).toBe(true);
+    expect(rec.annotations[0].style).toBe("warning");
   });
 
   test("an unresolved changed-file ref stays a warning and passes", () => {

@@ -91,10 +91,15 @@ function defaultIO(): GenerateIO {
  * flakiness-plan.json, so an annotation would just be noise.
  *
  * Unresolved refs get one annotation listing all of them, and none at all when there are none. Both its
- * style and the return value turn on whether any of them NAMED a class: an unresolved unmute or explicit
- * spec is a real false-negative - a test we meant to re-check and never did - so it annotates `error` and is
- * returned for the caller to fail on. A run where only changed-file refs went unresolved annotates
- * `warning` and returns nothing, because most changed files are not tests.
+ * style and the return value turn on whether any of them is an `explicit` spec - a class a developer typed
+ * into FLAKINESS_CLASSES or the local CLI. Those annotate `error` and are returned for the caller to fail
+ * on, because a typo there produces a run that tests nothing while looking green.
+ *
+ * An unresolved `unmute` is NOT fatal, even though someone named the class. Deleting a test and removing its
+ * mute entry in the same PR is routine cleanup, and it lands here every time: the changed-file query passes
+ * `--diff-filter=d`, so the deletion produces no changed-file ref, while the mute removal still produces an
+ * unmute ref for a class that no longer exists. Failing on that would red every such PR. A `changed-file`
+ * ref is not fatal either, because most changed files are not tests.
  */
 function reportEnrichment(plan: FlakinessPlan, io: GenerateIO): PlanUnresolved[] {
   for (const e of plan.expansions ?? []) {
@@ -113,22 +118,21 @@ function reportEnrichment(plan: FlakinessPlan, io: GenerateIO): PlanUnresolved[]
     return [];
   }
 
-  // A ref that NAMES a class - an unmute entry or a FLAKINESS_CLASSES spec - is a request that someone
-  // expected to be honoured, so failing to resolve it is an error: a misspelt class name would otherwise
-  // produce a green run that tested nothing. A changed-file ref is different; most changed files are not
-  // tests, so those stay informational.
-  const named = unresolved.filter((u) => u.ref.source === "unmute" || u.ref.source === "explicit");
+  // Only an `explicit` spec is fatal; see the javadoc for why an unresolved unmute is routine rather than a
+  // defect. This is also exactly where the check used to live, in manual.ts, which only ever saw explicit
+  // specs.
+  const fatal = unresolved.filter((u) => u.ref.source === "explicit");
   const lines = unresolved.map((u) => {
     const ref = u.ref.spec ?? u.ref.className ?? u.ref.path ?? JSON.stringify(u.ref);
     return `- unresolved (${u.reason}): \`${ref}\``;
   });
-  io.annotate(named.length > 0 ? "error" : "warning", ["**Flakiness: unresolved references**", ...lines].join("\n"));
-  return named;
+  io.annotate(fatal.length > 0 ? "error" : "warning", ["**Flakiness: unresolved references**", ...lines].join("\n"));
+  return fatal;
 }
 
 /**
- * Returns `false` when the step must fail: a ref that named a class did not resolve. Everything resolvable
- * is uploaded first regardless, so a request mixing good and bad class names still runs the good ones - the
+ * Returns `false` when the step must fail: an `explicit` spec did not resolve. Everything resolvable is
+ * uploaded first regardless, so a request mixing good and bad class names still runs the good ones - the
  * batch steps do not `depends_on` this step, so they survive its failure.
  */
 export function run(io: GenerateIO = defaultIO()): boolean {
@@ -159,7 +163,7 @@ export function run(io: GenerateIO = defaultIO()): boolean {
       `${(plan.unresolved ?? []).length} unresolved`
   );
 
-  const unresolvedNamed = reportEnrichment(plan, io);
+  const unresolvedFatal = reportEnrichment(plan, io);
 
   // Written even when empty. A conditional write leaves whatever was there before, so on any workspace that
   // is not pristine a previous run's skip list would be re-uploaded by `artifact_paths` and folded into
@@ -171,15 +175,15 @@ export function run(io: GenerateIO = defaultIO()): boolean {
 
   if (runnable.length === 0 && skipEntries.length === 0) {
     io.log("No runnable or skipped tests in plan");
-    return unresolvedNamed.length === 0;
+    return unresolvedFatal.length === 0;
   }
 
   // hasNotApplicable emits the analyze step even when every entry was skipped (zero batches).
   io.upload(runnable, { hasNotApplicable: skipEntries.length > 0 });
-  return unresolvedNamed.length === 0;
+  return unresolvedFatal.length === 0;
 }
 
 if (import.meta.main && run() === false) {
-  console.error("Some flakiness references named a class that could not be resolved; see the annotation.");
+  console.error("Some explicitly requested classes could not be resolved; see the annotation.");
   process.exit(1);
 }

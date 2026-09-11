@@ -10,21 +10,14 @@
 package org.elasticsearch.indices.recovery;
 
 public enum FailureStrategy {
-    ABORT(true, false),
-    FAIL_SILENT(false, false),
-    FAIL_SEND(false, true);
+    ABORT(false),
+    FAIL_SILENT(false),
+    FAIL_SEND(true);
 
-    private final boolean aborted;
     private final boolean notifyMaster;
 
-    FailureStrategy(boolean aborted, boolean notifyMaster) {
-        if (aborted) assert !notifyMaster : "never notify master on aborted recovery";
-        this.aborted = aborted;
+    FailureStrategy(boolean notifyMaster) {
         this.notifyMaster = notifyMaster;
-    }
-
-    public boolean aborted() {
-        return aborted;
     }
 
     public boolean notifyMaster() {

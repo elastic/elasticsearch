@@ -84,7 +84,7 @@ public final class StoreRecovery {
      * @see Store
      */
     void recoverFromStore(final IndexShard indexShard, ActionListener<Void> listener) {
-        assertCanRecover(indexShard);
+        ensureCanRecover(indexShard);
         RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
         assert recoveryType == RecoverySource.Type.EMPTY_STORE
             || recoveryType == RecoverySource.Type.EXISTING_STORE
@@ -104,7 +104,7 @@ public final class StoreRecovery {
         final List<LocalShardSnapshot> shards,
         ActionListener<Void> outerListener
     ) {
-        assertCanRecover(indexShard);
+        ensureCanRecover(indexShard);
         RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
         assert recoveryType == RecoverySource.Type.LOCAL_SHARDS : "expected local shards recovery type: " + recoveryType;
         if (shards.isEmpty()) {
@@ -304,7 +304,7 @@ public final class StoreRecovery {
      */
     void recoverFromRepository(final IndexShard indexShard, Repository repository, ActionListener<Void> listener) {
         try {
-            assertCanRecover(indexShard);
+            ensureCanRecover(indexShard);
             RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
             assert recoveryType == RecoverySource.Type.SNAPSHOT : "expected snapshot recovery type: " + recoveryType;
             SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) indexShard.recoveryState().getRecoverySource();
@@ -314,7 +314,7 @@ public final class StoreRecovery {
         }
     }
 
-    private void assertCanRecover(IndexShard indexShard) {
+    private void ensureCanRecover(IndexShard indexShard) {
         if (indexShard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(shardId);
         }
@@ -369,14 +369,15 @@ public final class StoreRecovery {
             }
             listener.onResponse(null);
         }, ex -> {
-            Exception finalException = ex;
             if (indexShard.state() == IndexShardState.CLOSED) {
-                finalException = new IndexShardClosedException(shardId);
-                finalException.addSuppressed(ex);
-            } else if (ex instanceof IndexShardRecoveryException == false) {
-                finalException = new IndexShardRecoveryException(shardId, "failed recovery", ex);
+                var closedException = new IndexShardClosedException(shardId);
+                closedException.addSuppressed(ex);
+                listener.onFailure(closedException);
+            } else if (ex instanceof IndexShardRecoveryException recoveryException) {
+                listener.onFailure(recoveryException);
+            } else {
+                listener.onFailure(new IndexShardRecoveryException(shardId, "failed recovery", ex));
             }
-            listener.onFailure(finalException);
         });
     }
 

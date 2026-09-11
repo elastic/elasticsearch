@@ -183,10 +183,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         }
         if (pendingRecovery == null) {
             if (serviceClosed) {
-                String message = "service is closed, aborting recovery: " + recoveryState;
-                logger.debug(message);
+                logger.debug("service is closed, aborting recovery: " + recoveryState);
                 RecoveryListener.wrapPreservingContext(recoveryListener, context)
-                    .onRecoveryFailure(new RecoveryFailedException(recoveryState, message, null), ABORT);
+                    .onRecoveryFailure(new RecoveryFailedException(recoveryState, "service is closed", null), ABORT);
             } else {
                 logger.debug("recovery cancelled at enqueue time: {}", recoveryState);
                 final RecoverySource.Type recoveryType = recoveryState.getRecoverySource().getType();
@@ -331,10 +330,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             }
         }
         for (PendingRecovery pending : recoveriesToAbort) {
-            String message = "service closing, aborting recovery: " + pending.recoveryState();
-            logger.trace(message);
+            logger.trace("service closing, aborting recovery: " + pending.recoveryState());
             RecoveryListener.wrapPreservingContext(pending.listener, pending.context)
-                .onRecoveryFailure(new RecoveryFailedException(pending.recoveryState(), message, null), ABORT);
+                .onRecoveryFailure(new RecoveryFailedException(pending.recoveryState(), "service closing", null), ABORT);
             schedulingListener.onQueuedRecoveryDiscardedOnTarget(
                 pending.recoveryState().getRecoverySource().getType(),
                 pending.priorityGroup()

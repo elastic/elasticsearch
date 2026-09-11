@@ -23,7 +23,13 @@ import java.nio.ByteBuffer;
 public class Streams {
 
     private static final ThreadLocal<byte[]> LOCAL_READ_BUFFER = ThreadLocal.withInitial(() -> new byte[8 * 1024]);
+    // Separate buffer for copy since a nested read within a copy on the same thread can overwrite the buffer
     private static final ThreadLocal<byte[]> LOCAL_COPY_BUFFER = ThreadLocal.withInitial(() -> new byte[8 * 1024]);
+
+    // Buffer used by read on this thread, if any. Used to assert buffer isn't used reentrantly
+    private static final ThreadLocal<byte[]> BUFFER_IN_USE_BY_READ = new ThreadLocal<>();
+    // Buffer used by copy on this thread, if any. Used to assert buffer isn't used reentrantly
+    private static final ThreadLocal<byte[]> BUFFER_IN_USE_BY_COPY = new ThreadLocal<>();
 
     private Streams() {
 
@@ -40,6 +46,9 @@ public class Streams {
      * @throws IOException in case of I/O errors
      */
     public static long copy(final InputStream in, final OutputStream out, byte[] buffer, boolean close) throws IOException {
+        final byte[] previouslyInUseByCopy = BUFFER_IN_USE_BY_COPY.get();
+        assert previouslyInUseByCopy != buffer : "Streams.copy re-entered with the same buffer on " + Thread.currentThread().getName();
+        BUFFER_IN_USE_BY_COPY.set(buffer);
         Exception err = null;
         try {
             long byteCount = 0;
@@ -54,6 +63,11 @@ public class Streams {
             err = e;
             throw e;
         } finally {
+            if (previouslyInUseByCopy == null) {
+                BUFFER_IN_USE_BY_COPY.remove();
+            } else {
+                BUFFER_IN_USE_BY_COPY.set(previouslyInUseByCopy);
+            }
             if (close) {
                 IOUtils.close(err, in, out);
             }
@@ -107,18 +121,29 @@ public class Streams {
     }
 
     private static int readToDirectBuffer(InputStream input, ByteBuffer b, int count) throws IOException {
-        int totalRead = 0;
         final byte[] buffer = LOCAL_READ_BUFFER.get();
-        while (totalRead < count) {
-            final int len = Math.min(count - totalRead, buffer.length);
-            final int read = input.read(buffer, 0, len);
-            if (read == -1) {
-                break;
+        final byte[] previouslyInUseByRead = BUFFER_IN_USE_BY_READ.get();
+        assert previouslyInUseByRead != buffer : "Streams.read re-entered with the same buffer on " + Thread.currentThread().getName();
+        BUFFER_IN_USE_BY_READ.set(buffer);
+        try {
+            int totalRead = 0;
+            while (totalRead < count) {
+                final int len = Math.min(count - totalRead, buffer.length);
+                final int read = input.read(buffer, 0, len);
+                if (read == -1) {
+                    break;
+                }
+                b.put(buffer, 0, read);
+                totalRead += read;
             }
-            b.put(buffer, 0, read);
-            totalRead += read;
+            return totalRead;
+        } finally {
+            if (previouslyInUseByRead == null) {
+                BUFFER_IN_USE_BY_READ.remove();
+            } else {
+                BUFFER_IN_USE_BY_READ.set(previouslyInUseByRead);
+            }
         }
-        return totalRead;
     }
 
     public static int readFully(InputStream reader, byte[] dest) throws IOException {

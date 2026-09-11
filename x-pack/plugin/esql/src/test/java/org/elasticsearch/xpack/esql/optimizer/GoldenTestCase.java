@@ -139,6 +139,8 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     private final Path baseFile;
+    /** The sources of this test class and its abstract parents, which {@code -Dgolden.gc.fix} edits to drop dead declarations. */
+    private final List<Path> sourceFiles;
     private final String goldenMode;
 
     public GoldenTestCase() {
@@ -154,6 +156,13 @@ public abstract class GoldenTestCase extends ESTestCase {
             String path = PathUtils.get(getClass().getResource(".").toURI()).toAbsolutePath().normalize().toString();
             var inSrc = path.replace('\\', '/').replaceFirst("build/classes/java/test", "src/test/resources");
             baseFile = PathUtils.get(Strings.format("%s/golden_tests/%s/", inSrc, getClass().getSimpleName()));
+            List<Path> sources = new ArrayList<>();
+            for (Class<?> c = getClass(); c != GoldenTestCase.class; c = c.getSuperclass()) {
+                var classDir = PathUtils.get(c.getResource(".").toURI()).toAbsolutePath().normalize().toString();
+                var inJava = classDir.replace('\\', '/').replaceFirst("build/classes/java/test", "src/test/java");
+                sources.add(PathUtils.get(inJava, c.getSimpleName() + ".java"));
+            }
+            sourceFiles = List.copyOf(sources);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -203,6 +212,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private TransportVersion transportVersion;
         private boolean explicitTransportVersion;
         private TransportVersion since;
+        private String sinceName;
         private final List<Label> labels = new ArrayList<>();
         private Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory;
         private AliasFilter aliasFilter;
@@ -291,6 +301,7 @@ public abstract class GoldenTestCase extends ESTestCase {
          * the feature under test. Distinct from {@link #expectationChangesAt}, which splits coverage instead of removing it.
          */
         public TestBuilder since(String transportVersionName) {
+            sinceName = transportVersionName;
             return since(resolve(transportVersionName));
         }
 
@@ -372,6 +383,10 @@ public abstract class GoldenTestCase extends ESTestCase {
             if (since != null && labels.isEmpty() == false && labels.getFirst().version().id() <= since.id()) {
                 throw new IllegalArgumentException(Strings.format("label [%s] must be above since [%s]", labels.getFirst().name(), since));
             }
+            if (since != null && COMPATIBLE_VERSIONS.stream().allMatch(version -> version.supports(since))) {
+                reportDeadSince(testName);
+                since = null;
+            }
             List<VersionRange> ranges = explicitTransportVersion
                 ? List.of(new VersionRange(null, transportVersion, List.of(transportVersion)))
                 : liveRanges(testName);
@@ -429,18 +444,68 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         private void reportDeadRange(String testName, VersionRange range, String nextLabel) {
             String message = Strings.format(
-                "test [%s]: golden range [%s] is dead — every version that can be sampled is past [%s]. "
-                    + "Remove expectationChangesAt(\"%s\") and delete the [%s] directory. See GoldenTestsReadme.MD.",
+                "test [%s]: golden range [%s] is dead — every version that can be sampled is past [%s] (compatibility floor [%s]). "
+                    + "Remove expectationChangesAt(\"%s\") and delete the [%s] directory, or run [%s] to do it. See GoldenTestsReadme.MD.",
                 testName,
                 range.dir(),
                 nextLabel,
+                TransportVersion.minimumCompatible(),
                 nextLabel,
-                range.dir()
+                range.dir(),
+                GC_TASK
             );
-            if (System.getProperty("golden.gc.strict") != null) {
+            if (GoldenGc.fixMode() == false) {
                 fail(message);
-            } else {
-                logger.warn(message);
+            }
+            try {
+                repair(nextLabel, message);
+                // the label is dead for every test in this class, muted and skipped ones included
+                GoldenGc.deleteDirectoriesNamed(baseFile, range.dir());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        /**
+         * Removes {@code versionName}'s declarations from the class's sources. Nothing changing is normal for the second mode of
+         * the same test; nothing changing while a declaration still resembles the name is a shape the rewrite refused, which
+         * only a human can settle.
+         */
+        private void repair(String versionName, String message) throws IOException {
+            for (Path source : sourceFiles) {
+                if (Files.exists(source) && GoldenGc.removeDeclarations(source, versionName)) {
+                    logger.info("repaired: {}", message);
+                    return;
+                }
+            }
+            for (Path source : sourceFiles) {
+                if (Files.exists(source) && GoldenGc.mentions(Files.readString(source), versionName)) {
+                    fail(message + " The repair could not rewrite the declaration in " + source + "; remove it by hand.");
+                }
+            }
+        }
+
+        /** A {@code since} at or below the compatibility floor no longer removes any coverage. */
+        private void reportDeadSince(String testName) {
+            String message = Strings.format(
+                "test [%s]: since [%s] is dead — it is at or below the compatibility floor [%s], so it drops no coverage. "
+                    + "Remove it, or run [%s] to do it. See GoldenTestsReadme.MD.",
+                testName,
+                since,
+                TransportVersion.minimumCompatible(),
+                GC_TASK
+            );
+            if (GoldenGc.fixMode() == false) {
+                fail(message);
+            }
+            String name = sinceName != null ? sinceName : since.name();
+            if (name == null) {
+                fail(message + " The version has no name to search for; remove the declaration by hand.");
+            }
+            try {
+                repair(name, message);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
 
@@ -619,6 +684,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         .stream()
         .filter(TransportVersion::isCompatible)
         .toList();
+
+    private static final String GC_TASK = "./gradlew :x-pack:plugin:esql:goldenGc";
 
     private static boolean overwriteMode() {
         return System.getProperty("golden.overwrite") != null;

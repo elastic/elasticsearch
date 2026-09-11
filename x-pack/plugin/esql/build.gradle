@@ -632,10 +632,26 @@ tasks.named("test").configure {
   if (System.getProperty("golden.overwrite") != null || project.hasProperty("golden.overwrite")) {
     systemProperty "golden.overwrite", "true"
   }
-  if (System.getProperty("golden.gc.strict") != null || project.hasProperty("golden.gc.strict")) {
-    systemProperty "golden.gc.strict", "true"
-  }
+}
 
+// Repairs golden tests whose version declarations the compatibility floor has passed: deletes their before_<version>
+// directories and removes the declarations from the test sources, then reformats. Run it on the PR that moved the floor.
+tasks.register('goldenGc', Test) {
+  description = 'Removes dead version declarations and directories from the ES|QL golden tests'
+  group = 'verification'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  systemProperty 'arrow.memory.debug.allocator', 'true'
+  systemProperty 'es.esql_remote_fetch_topn_feature_flag_enabled', 'false'
+  systemProperty 'golden.gc.fix', 'true'
+  // it edits its own inputs: never skip it, never restore it from the cache, never let two forks edit one source
+  outputs.upToDateWhen { false }
+  outputs.cacheIf { false }
+  maxParallelForks = 1
+  filter {
+    includeTestsMatching '*GoldenTests'
+  }
+  finalizedBy tasks.named('spotlessJavaApply')
 }
 
 /**

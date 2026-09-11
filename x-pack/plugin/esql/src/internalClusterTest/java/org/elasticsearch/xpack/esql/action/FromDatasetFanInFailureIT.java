@@ -57,6 +57,7 @@ public class FromDatasetFanInFailureIT extends AbstractExternalDataSourceIT {
     private static final String GOOD_CSV = "v:integer,name:keyword\n1,a\n2,b\n";
     private static final String BAD_CSV = "v:integer,name:keyword\nnot-a-number,x\n";
     private static final String EMPTY_CSV = "v:integer,name:keyword\n";
+    private static final String GOOD_THEN_BAD_CSV = "v:integer,name:keyword\n1,a\n2,b\nnot-a-number,x\n";
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -221,6 +222,58 @@ public class FromDatasetFanInFailureIT extends AbstractExternalDataSourceIT {
         try (EsqlQueryResponse response = runStats("round_robin", mixed, true)) {
             assertPartial(response);
             assertThat(getValuesList(response), equalTo(List.of(List.of(3L, 2L))));
+        }
+    }
+
+    public void testRawRowsThenFailureOnSingleProducerFailsRequest() throws Exception {
+        String mixed = registerCsv("good_then_bad_raw", GOOD_THEN_BAD_CSV);
+        for (String strategy : STRATEGIES) {
+            Exception failure = expectThrows(
+                Exception.class,
+                () -> run(queryRequest(strategy, "FROM " + mixed + " | WHERE v IS NOT NULL | KEEP v", true), TIMEOUT).close()
+            );
+            assertAllSourcesFailed(failure);
+        }
+    }
+
+    public void testAggregateStateThenFailureOnSingleProducerFailsRequest() throws Exception {
+        String mixed = registerCsv("good_then_bad_agg", GOOD_THEN_BAD_CSV);
+        for (String strategy : STRATEGIES) {
+            Exception failure = expectThrows(Exception.class, () -> runStats(strategy, mixed, true).close());
+            assertAllSourcesFailed(failure);
+        }
+    }
+
+    public void testIndexForkAllBranchesFailedIsTheControl() throws Exception {
+        createFailingIndex("fail_fork_idx");
+        try {
+            // Ordinary index execution with partial results does not abort when every shard
+            // fails to load fail_me. Dataset all-failed cases above stay failed; this pins
+            // the already-supported shape rather than copying it onto datasets.
+            try (EsqlQueryResponse raw = run(queryRequest("coordinator_only", "FROM fail_fork_idx | KEEP fail_me", true), TIMEOUT)) {
+                assertPartial(raw);
+            }
+
+            try (
+                EsqlQueryResponse aggregate = run(
+                    queryRequest("coordinator_only", "FROM fail_fork_idx | STATS c = COUNT(fail_me)", true),
+                    TIMEOUT
+                )
+            ) {
+                assertPartial(aggregate);
+            }
+
+            try (EsqlQueryResponse fork = run(queryRequest("coordinator_only", """
+                FROM fail_fork_idx
+                | FORK
+                    (KEEP fail_me)
+                    (WHERE fail_me IS NOT NULL | KEEP fail_me)
+                | KEEP _fork, fail_me
+                """, true), TIMEOUT)) {
+                assertPartial(fork);
+            }
+        } finally {
+            wipeTestIndex("fail_fork_idx");
         }
     }
 

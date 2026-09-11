@@ -194,6 +194,16 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
         assertSame(failure, thrown);
     }
 
+    public void testPipelineBreakerOutputDoesNotMaskAllExternalSourceFailures() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS);
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
+        IllegalStateException failure = new IllegalStateException("failed external source");
+        outcomes.recordExternalFailure(failure);
+
+        Exception thrown = expectThrows(Exception.class, () -> outcomes.failIfAllSourcesFailed(executionInfo, List.of(new Page(1))));
+        assertSame(failure, thrown);
+    }
+
     public void testSuccessfulSourceAllowsOtherSourceFailures() {
         EsqlExecutionInfo executionInfo = executionInfo();
         SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();

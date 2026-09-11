@@ -128,6 +128,64 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
         }
     }
 
+    public void testLaterForkBranchDoesNotFinalizeClusterEarly() throws Exception {
+        scriptPermits.drainPermits();
+        EsqlQueryRequest request = asyncEsqlQueryRequest("""
+            FROM test
+            | FORK
+                (WHERE foo < 0 | KEEP foo)
+                (STATS s = SUM(pause_me))
+            | KEEP _fork, s
+            """);
+        request.includeExecutionMetadata(true);
+        request.pragmas(
+            new QueryPragmas(
+                Settings.builder()
+                    .put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1)
+                    .put("data_partitioning", "shard")
+                    .put("page_size", pageSize())
+                    .build()
+            )
+        );
+        request.acceptedPragmaRisks(true);
+        request.waitForCompletionTimeout(TimeValue.timeValueNanos(1));
+        request.keepOnCompletion(true);
+        request.keepAlive(randomKeepAlive());
+        try (EsqlQueryResponse initial = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
+            assertThat(initial.isRunning(), is(true));
+            String id = initial.asyncExecutionId().get();
+            assertTrue(scriptWaits.tryAcquire(1, TimeUnit.MINUTES));
+
+            var getHeld = new GetAsyncResultRequest(id);
+            getHeld.setWaitForCompletionTimeout(timeValueMillis(10));
+            try (EsqlQueryResponse held = client().execute(EsqlAsyncGetResultAction.INSTANCE, getHeld).get()) {
+                assertThat(held.isRunning(), is(true));
+                EsqlExecutionInfo.Cluster local = held.getExecutionInfo().getCluster("");
+                assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+            }
+
+            scriptPermits.release(numberOfDocs());
+
+            var getDone = new GetAsyncResultRequest(id);
+            getDone.setWaitForCompletionTimeout(timeValueSeconds(60));
+            try (EsqlQueryResponse done = client().execute(EsqlAsyncGetResultAction.INSTANCE, getDone).get()) {
+                assertThat(done.isRunning(), is(false));
+                EsqlExecutionInfo info = done.getExecutionInfo();
+                EsqlExecutionInfo.Cluster local = info.getCluster("");
+                assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                assertThat(local.getTotalShards(), equalTo(shardCount()));
+                assertThat(local.getSuccessfulShards(), equalTo(shardCount()));
+                assertThat(local.getSkippedShards(), equalTo(0));
+                assertThat(local.getFailedShards(), equalTo(0));
+                assertThat(local.getTook().millis(), greaterThanOrEqualTo(0L));
+                assertThat(info.overallTook().millis(), greaterThanOrEqualTo(0L));
+            }
+            assertThat(deleteAsyncId(id).isAcknowledged(), equalTo(true));
+        } finally {
+            scriptPermits.drainPermits();
+        }
+    }
+
     public void testGetAsyncWhileQueryTaskIsBeingCancelled() throws Exception {
         try (var initialResponse = sendAsyncQuery()) {
             assertThat(initialResponse.asyncExecutionId(), isPresent());

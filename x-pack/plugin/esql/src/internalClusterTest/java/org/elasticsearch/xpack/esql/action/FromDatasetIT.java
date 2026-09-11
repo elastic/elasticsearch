@@ -5928,6 +5928,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             """;
         EsqlQueryRequest request = syncEsqlQueryRequest(query);
         request.acceptedPragmaRisks(true);
+        request.includeExecutionMetadata(true);
         request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build()));
         try (var response = run(request, TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
@@ -5936,6 +5937,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(0).get(1), equalTo(5L));
             assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
             assertThat(rows.get(1).get(1), equalTo(2L));
+            EsqlExecutionInfo executionInfo = response.getExecutionInfo();
+            assertThat(executionInfo.clusterAliases(), empty());
+            assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
         }
     }
 
@@ -5965,8 +5969,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
             assertThat(rows.get(1).get(1), equalTo(2L));
             EsqlExecutionInfo.Cluster localCluster = response.getExecutionInfo().getCluster("");
+            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
             assertThat(localCluster.getTotalShards(), equalTo(indexShards));
             assertThat(localCluster.getSuccessfulShards(), equalTo(indexShards));
+            assertThat(localCluster.getSkippedShards(), equalTo(0));
+            assertThat(localCluster.getFailedShards(), equalTo(0));
+            assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
+            assertThat(response.getExecutionInfo().overallTook().millis(), greaterThanOrEqualTo(0L));
         }
     }
 

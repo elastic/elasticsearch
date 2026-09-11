@@ -759,15 +759,14 @@ public class PruningMergePolicyTests extends ESTestCase {
                 )
             );
         }
-        var sortOnTsId = new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING);
-        sortOnTsId.setMissingValue(SortField.STRING_LAST);
+        var sortOnTsId = new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false, SortField.STRING_LAST);
         var sortOnTimestamp = new SortedNumericSortField(
             DataStreamTimestampFieldMapper.DEFAULT_PATH,
             SortField.Type.LONG,
             true,
-            SortedNumericSelector.Type.MAX
+            SortedNumericSelector.Type.MAX,
+            Long.MIN_VALUE
         );
-        sortOnTimestamp.setMissingValue(Long.MIN_VALUE);
         iwc.setIndexSort(new Sort(sortOnTsId, sortOnTimestamp));
         iwc.setMergedSegmentWarmer(reader -> {});
         return iwc;

@@ -38,6 +38,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
@@ -612,11 +613,9 @@ public class LuceneTests extends ESTestCase {
                 if ((type == SortField.Type.SCORE || type == SortField.Type.DOC) && randomBoolean()) {
                     field = null;
                 }
-                SortField sortField = new SortField(field, type, randomBoolean());
-                Object missingValue = randomMissingValue(sortField.getType());
-                if (missingValue != null) {
-                    sortField.setMissingValue(missingValue);
-                }
+                boolean reverse = randomBoolean();
+                Object missingValue = randomMissingValue(type);
+                SortField sortField = new SortField(field, type, reverse, missingValue);
                 return Tuple.tuple(sortField, sortField);
             default:
                 throw new UnsupportedOperationException();
@@ -666,8 +665,7 @@ public class LuceneTests extends ESTestCase {
             default -> throw new UnsupportedOperationException();
         }
         SortField sortField = new SortField(field, comparatorSource, reverse);
-        SortField expected = new SortField(field, comparatorSource.reducedType(), reverse);
-        expected.setMissingValue(missingValue);
+        SortField expected = new SortField(field, comparatorSource.reducedType(), reverse, missingValue);
         return Tuple.tuple(sortField, expected);
     }
 
@@ -676,27 +674,32 @@ public class LuceneTests extends ESTestCase {
         switch (randomIntBetween(0, 3)) {
             case 0 -> {
                 SortField sortField = LatLonDocValuesField.newDistanceSort(field, 0, 0);
-                SortField expected = new SortField(field, SortField.Type.DOUBLE);
-                expected.setMissingValue(Double.POSITIVE_INFINITY);
+                SortField expected = new SortField(field, SortField.Type.DOUBLE, false, Double.POSITIVE_INFINITY);
                 return Tuple.tuple(sortField, expected);
             }
             case 1 -> {
-                SortedSetSortField sortField = new SortedSetSortField(field, randomBoolean(), randomFrom(SortedSetSelector.Type.values()));
-                SortField expected = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
                 Object missingValue = randomMissingValue(SortField.Type.STRING);
-                sortField.setMissingValue(missingValue);
-                expected.setMissingValue(missingValue);
+                SortedSetSortField sortField = new SortedSetSortField(
+                    field,
+                    randomBoolean(),
+                    randomFrom(SortedSetSelector.Type.values()),
+                    missingValue
+                );
+                SortField expected = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse(), missingValue);
                 return Tuple.tuple(sortField, expected);
             }
             case 2 -> {
                 SortField.Type type = randomFrom(SortField.Type.DOUBLE, SortField.Type.INT, SortField.Type.FLOAT, SortField.Type.LONG);
-                SortedNumericSortField sortField = new SortedNumericSortField(field, type, randomBoolean());
-                SortField expected = new SortField(sortField.getField(), sortField.getNumericType(), sortField.getReverse());
+                boolean reverse = randomBoolean();
                 Object missingValue = randomMissingValue(type);
-                if (missingValue != null) {
-                    sortField.setMissingValue(missingValue);
-                    expected.setMissingValue(missingValue);
-                }
+                SortedNumericSortField sortField = new SortedNumericSortField(
+                    field,
+                    type,
+                    reverse,
+                    SortedNumericSelector.Type.MIN,
+                    missingValue
+                );
+                SortField expected = new SortField(sortField.getField(), sortField.getNumericType(), reverse, missingValue);
                 return Tuple.tuple(sortField, expected);
             }
             case 3 -> {

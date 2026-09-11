@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
@@ -32,6 +33,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.isOneOf;
 
 public class MlAssignmentPlannerUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
 
@@ -134,7 +136,15 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractXpackRollingUpgradeTes
     @SuppressWarnings("unchecked")
     private void waitForDeploymentStarted(String modelId) throws Exception {
         assertBusy(() -> {
-            var response = getTrainedModelStats(modelId);
+            Response response;
+            try {
+                response = getTrainedModelStats(modelId);
+            } catch (ResponseException e) {
+                if (e.getResponse().getStatusLine().getStatusCode() == 404) {
+                    throw new AssertionError(Strings.format("trained model stats not yet available for [%s]", modelId), e);
+                }
+                throw e;
+            }
             Map<String, Object> map = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
@@ -147,12 +157,14 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractXpackRollingUpgradeTes
     private void assertOldMemoryFormat(String modelId) throws Exception {
         // There was a change in the MEMORY_OVERHEAD value in 8.3.0, see #86416
         long memoryOverheadMb = clusterHasFeature(RestTestLegacyFeatures.ML_MEMORY_OVERHEAD_FIXED) ? 240 : 270;
+        int expectedMemoryUsage = Math.toIntExact(ByteSizeValue.ofMb(memoryOverheadMb).getBytes() + RAW_MODEL_SIZE * 2);
+        int expectedMemoryUsageAt240MbOverhead = Math.toIntExact(ByteSizeValue.ofMb(240).getBytes() + RAW_MODEL_SIZE * 2);
+        int expectedMemoryUsageAt270MbOverhead = Math.toIntExact(ByteSizeValue.ofMb(270).getBytes() + RAW_MODEL_SIZE * 2);
         var response = getTrainedModelStats(modelId);
         Map<String, Object> map = entityAsMap(response);
         List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
         assertThat(stats, hasSize(1));
         var stat = stats.get(0);
-        Long expectedMemoryUsage = ByteSizeValue.ofMb(memoryOverheadMb).getBytes() + RAW_MODEL_SIZE * 2;
         Integer actualMemoryUsage = (Integer) XContentMapValues.extractValue("model_size_stats.required_native_memory_bytes", stat);
         assertThat(
             Strings.format(
@@ -161,7 +173,9 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractXpackRollingUpgradeTes
                 isOldCluster() ? "old" : isMixedCluster() ? "mixed" : "updated"
             ),
             actualMemoryUsage,
-            equalTo(expectedMemoryUsage.intValue())
+            isMixedCluster()
+                ? isOneOf(expectedMemoryUsageAt240MbOverhead, expectedMemoryUsageAt270MbOverhead)
+                : equalTo(expectedMemoryUsage)
         );
     }
 

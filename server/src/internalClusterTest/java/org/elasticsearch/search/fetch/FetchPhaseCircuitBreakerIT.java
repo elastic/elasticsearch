@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.logging.log4j.util.Strings;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -23,20 +24,30 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.rank.FieldBasedRerankerIT;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -50,6 +61,45 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
     private static final String INDEX = "test_idx";
     private static final String SORT_FIELD = "sort_field";
+    private static final String LARGE_LIST_SCRIPT = "build_large_list";
+    private static final int LARGE_LIST_ENTRIES = 5_000;
+
+    private static final String FAIL_AFTER_FIRST_CALL_SCRIPT = "fail_after_first_call";
+    private static final AtomicInteger FAIL_AFTER_FIRST_CALL_COUNT = new AtomicInteger(0);
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(ScriptFieldsTestPlugin.class, FieldBasedRerankerIT.FieldBasedRerankerPlugin.class);
+    }
+
+    public static class ScriptFieldsTestPlugin extends MockScriptPlugin {
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+            scripts.put(LARGE_LIST_SCRIPT, vars -> {
+                List<Object> values = new ArrayList<>(LARGE_LIST_ENTRIES);
+                for (int i = 0; i < LARGE_LIST_ENTRIES; i++) {
+                    // strings dominate the retained heap; the exact contents are irrelevant
+                    values.add("entry-" + i);
+                }
+                return values;
+            });
+            // Succeeds on the first invocation (returns a large list, charging CB bytes) then throws
+            // on every subsequent invocation. Used to verify that CB bytes charged before an exception
+            // are properly released. Reset FAIL_AFTER_FIRST_CALL_COUNT to 0 before each use.
+            scripts.put(FAIL_AFTER_FIRST_CALL_SCRIPT, vars -> {
+                if (FAIL_AFTER_FIRST_CALL_COUNT.incrementAndGet() > 1) {
+                    throw new RuntimeException("script_field fetch failure");
+                }
+                List<Object> values = new ArrayList<>(LARGE_LIST_ENTRIES);
+                for (int i = 0; i < LARGE_LIST_ENTRIES; i++) {
+                    values.add("entry-" + i);
+                }
+                return values;
+            });
+            return scripts;
+        }
+    }
 
     public void testSimpleFetchReleasesCircuitBreaker() throws Exception {
         String dataNode = startDataNode("100mb");
@@ -231,6 +281,8 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     }
 
     public void testCircuitBreakerReleasedOnException() throws Exception {
+        FAIL_AFTER_FIRST_CALL_COUNT.set(0);
+
         String dataNode = startDataNode("100mb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assertThat(internalCluster().size(), equalTo(2));
@@ -239,26 +291,30 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
             INDEX,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
-        populateIndex(INDEX, 50, 10_000);
+        populateIndex(INDEX, 10, 100);
         ensureSearchable(INDEX);
 
         long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        Script failAfterFirstScript = new Script(
+            ScriptType.INLINE,
+            MockScriptPlugin.NAME,
+            FAIL_AFTER_FIRST_CALL_SCRIPT,
+            Collections.emptyMap()
+        );
 
         expectThrows(
             Exception.class,
             () -> client(coordinatorNode).prepareSearch(INDEX)
                 .setQuery(matchAllQuery())
-                .addScriptField(
-                    "failing_script",
-                    new Script(ScriptType.INLINE, "painless", "throw new RuntimeException('fetch failure')", Collections.emptyMap())
-                )
-                .setSize(10)
+                .addScriptField("failing_script", failAfterFirstScript)
+                .setSize(2)
                 .get()
         );
 
         assertBusy(() -> {
             assertThat(
-                "Circuit breaker should be released even after exception",
+                "Circuit breaker should be released even after exception, including bytes charged before the failure",
                 getRequestBreakerUsed(dataNode),
                 lessThanOrEqualTo(breakerBeforeSearch)
             );
@@ -352,6 +408,84 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
+    public void testScriptFieldsBytesReleasedAfterSearch() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 50, 10_000);
+        ensureSearchable(INDEX);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        Script largeScript = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, LARGE_LIST_SCRIPT, Collections.emptyMap());
+
+        assertNoFailuresAndResponse(
+            client(coordinatorNode).prepareSearch(INDEX).setQuery(matchAllQuery()).addScriptField("expanded", largeScript).setSize(20),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(20));
+                assertThat(response.getHits().getHits()[0].getFields().get("expanded"), notNullValue());
+            }
+        );
+
+        assertBusy(() -> {
+            assertThat(
+                "Circuit breaker should be released after script_fields search completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            );
+        });
+    }
+
+    public void testCircuitBreakerTripsOnSingleHitScriptField() throws Exception {
+        String dataNode = startDataNode("100kb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 10, 5);
+        ensureSearchable(INDEX);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        Script largeScript = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, LARGE_LIST_SCRIPT, Collections.emptyMap());
+
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> client(coordinatorNode).prepareSearch(INDEX)
+                .setQuery(matchAllQuery())
+                .addScriptField("expanded", largeScript)
+                .setSize(1)
+                .get()
+        );
+
+        assertThat(
+            "Should contain CircuitBreakingException",
+            ExceptionsHelper.unwrap(exception, CircuitBreakingException.class),
+            notNullValue()
+        );
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
+        assertBusy(() -> {
+            assertThat(
+                "Circuit breaker should be released after single-hit script_field tripped",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            );
+        });
+    }
+
     public void testCircuitBreakerTripsOnScrollFetch() throws Exception {
         String dataNode = startDataNode("50kb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -396,10 +530,104 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
-    private String startDataNode(String cbRequestLimit) {
-        return internalCluster().startNode(
-            Settings.builder().put("indices.breaker.request.type", "memory").put("indices.breaker.request.limit", cbRequestLimit).build()
+    public void testInnerHitsReleasesCircuitBreaker() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String nestedIndex = "nested_test_idx";
+        assertAcked(
+            prepareCreate(nestedIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("children", "type=nested")
         );
+
+        String largeChildText = Strings.repeat("nested inner hit content ", 12_000);
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            List<Map<String, Object>> children = new ArrayList<>();
+            for (int c = 0; c < 5; c++) {
+                children.add(Map.of("text", largeChildText));
+            }
+            builders.add(prepareIndex(nestedIndex).setId(Integer.toString(i)).setSource(Map.of("children", children)));
+        }
+        indexRandom(true, builders);
+        ensureSearchable(nestedIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        assertNoFailuresAndResponse(
+            client(coordinatorNode).prepareSearch(nestedIndex)
+                .setQuery(nestedQuery("children", matchAllQuery(), ScoreMode.Avg).innerHit(new InnerHitBuilder().setSize(5)))
+                .setSize(5),
+            response -> assertThat(response.getHits().getHits().length, equalTo(5))
+        );
+
+        assertBusy(() -> {
+            assertThat(
+                "Circuit breaker should be released after inner_hits search completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            );
+        });
+    }
+
+    public void testRankFeaturePhaseReleasesCircuitBreaker() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String rankIndex = "rank_feature_test_idx";
+        String rankFeatureField = "rank_feature_field";
+        String fillerField = "filler_field";
+        assertAcked(
+            prepareCreate(rankIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping(rankFeatureField, "type=text,store=false", fillerField, "type=text,store=false")
+        );
+
+        String largeFillerText = Strings.repeat("rank feature phase filler content ", 30_000);
+        int numDocs = 5;
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            builders.add(
+                prepareIndex(rankIndex).setId(Integer.toString(i)).setSource(rankFeatureField, "0." + (i + 1), fillerField, largeFillerText)
+            );
+        }
+        indexRandom(true, builders);
+        ensureSearchable(rankIndex);
+
+        client(coordinatorNode).prepareGet(rankIndex, "0").get();
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        Script largeScript = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, LARGE_LIST_SCRIPT, Collections.emptyMap());
+
+        assertNoFailuresAndResponse(
+            client(coordinatorNode).prepareSearch(rankIndex)
+                .setQuery(matchAllQuery())
+                .setRankBuilder(new FieldBasedRerankerIT.FieldBasedRankBuilder(numDocs, rankFeatureField))
+                .addScriptField("expanded", largeScript)
+                .setSize(numDocs),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(numDocs));
+                assertThat(response.getHits().getHits()[0].getFields().get("expanded"), notNullValue());
+            }
+        );
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after rank_feature phase completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    private String startDataNode(String cbRequestLimit) {
+        Settings.Builder settings = Settings.builder()
+            .put("indices.breaker.request.type", "memory")
+            .put("indices.breaker.request.limit", cbRequestLimit);
+        return internalCluster().startNode(settings.build());
     }
 
     private long getRequestBreakerUsed(String node) {

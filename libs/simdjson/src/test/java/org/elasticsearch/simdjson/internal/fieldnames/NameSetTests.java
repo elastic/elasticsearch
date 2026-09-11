@@ -9,8 +9,8 @@
 
 package org.elasticsearch.simdjson.internal.fieldnames;
 
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable.Child.NameSet;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.HashSet;

@@ -58,8 +58,7 @@ import java.util.concurrent.TimeUnit;
  * a blend of states rather than the one it set up.
  *
  * <pre>{@code
- * cd benchmarks
- * ../gradlew run --args "org.elasticsearch.benchmark.simdjson.FieldNameCacheBenchmark \
+ * ./gradlew :libs:simdjson:benchmark --args "FieldNameCacheBenchmark \
  *   -prof gc -rf json -rff build/jmh-fieldnames.json"
  * }</pre>
  */

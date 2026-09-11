@@ -195,6 +195,11 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
+    public int sortHash() {
+        return Objects.hash(dataType(), name(), qualifier(), nullability, synthetic());
+    }
+
+    @Override
     public boolean semanticEquals(Expression other) {
         return other instanceof Attribute otherAttr && id().equals(otherAttr.id());
     }

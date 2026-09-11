@@ -205,6 +205,21 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         return canonical().hashCode();
     }
 
+    /**
+     * A stable hash code for canonical ordering of commutative expressions.
+     * Unlike {@link #semanticHash()}, this does not include runtime-assigned {@link NameId}s,
+     * ensuring the same ordering across JVM runs regardless of test execution order.
+     * The default implementation recurses over children using their {@code sortHash()}.
+     * {@link Attribute} overrides this to use name and type instead of the NameId.
+     */
+    public int sortHash() {
+        int h = getClass().hashCode();
+        for (Expression child : children()) {
+            h = 31 * h + child.sortHash();
+        }
+        return h;
+    }
+
     @Override
     public boolean resolved() {
         return childrenResolved() && typeResolved().resolved();

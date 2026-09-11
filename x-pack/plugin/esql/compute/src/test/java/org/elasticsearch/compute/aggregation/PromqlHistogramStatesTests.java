@@ -47,6 +47,40 @@ public class PromqlHistogramStatesTests extends ComputeTestCase {
         assertThat(result, equalTo(1.5));
     }
 
+    public void testBucketFractionInterpolatesWithinBuckets() {
+        List<Bucket> buckets = List.of(new Bucket(1.0, 1.0), new Bucket(2.0, 3.0), new Bucket(Double.POSITIVE_INFINITY, 4.0));
+
+        assertThat(PromqlHistogramStates.Fraction.bucketFraction(0.5, 1.5, buckets), equalTo(0.375));
+        assertThat(PromqlHistogramStates.Fraction.bucketFraction(Double.NEGATIVE_INFINITY, 1.5, buckets), equalTo(0.5));
+        assertThat(PromqlHistogramStates.Fraction.bucketFraction(1.5, Double.POSITIVE_INFINITY, buckets), equalTo(0.5));
+    }
+
+    public void testBucketFractionPositiveBucketsAssumeZeroLowerBound() {
+        List<Bucket> buckets = List.of(new Bucket(1.0, 2.0), new Bucket(Double.POSITIVE_INFINITY, 2.0));
+
+        assertThat(PromqlHistogramStates.Fraction.bucketFraction(0.25, 0.75, buckets), equalTo(0.5));
+    }
+
+    public void testBucketFractionDoesNotInterpolateInfiniteWidthBuckets() {
+        List<Bucket> buckets = List.of(new Bucket(-1.0, 1.0), new Bucket(1.0, 3.0), new Bucket(Double.POSITIVE_INFINITY, 4.0));
+
+        assertThat(PromqlHistogramStates.Fraction.bucketFraction(-2.0, 2.0, buckets), equalTo(0.5));
+    }
+
+    public void testBucketFractionHandlesPrometheusEdgeCases() {
+        List<Bucket> buckets = List.of(new Bucket(1.0, 1.0), new Bucket(Double.POSITIVE_INFINITY, 2.0));
+
+        assertTrue(Double.isNaN(PromqlHistogramStates.Fraction.bucketFraction(0, 1, List.of())));
+        assertTrue(Double.isNaN(PromqlHistogramStates.Fraction.bucketFraction(0, 1, List.of(new Bucket(1.0, 1.0)))));
+        assertTrue(Double.isNaN(PromqlHistogramStates.Fraction.bucketFraction(Double.NaN, 1, buckets)));
+        assertTrue(Double.isNaN(PromqlHistogramStates.Fraction.bucketFraction(0, Double.NaN, buckets)));
+        assertThat(PromqlHistogramStates.Fraction.bucketFraction(1, 1, buckets), equalTo(0.0));
+        assertThat(
+            PromqlHistogramStates.Fraction.bucketFraction(0, 1, List.of(new Bucket(1.0, 0.0), new Bucket(Double.POSITIVE_INFINITY, 0.0))),
+            equalTo(Double.NaN)
+        );
+    }
+
     public void testBucketQuantileRepairsNonMonotonicBuckets() {
         List<Bucket> brokenBuckets = List.of(
             new Bucket(1.0, 2.0),
@@ -319,6 +353,18 @@ public class PromqlHistogramStatesTests extends ComputeTestCase {
             try (DoubleBlock result = (DoubleBlock) state.evaluateFinal(driverContext)) {
                 assertThat(result.getDouble(0), equalTo(0.5));
             }
+        }
+    }
+
+    public void testSingleStateNormalizesNegativeZeroBound() {
+        try (var state = new PromqlHistogramStates.Quantile.SingleState(blockFactory().breaker(), 0.5)) {
+            state.add(-0.0, 1.0);
+            state.add(0.0, 2.0);
+
+            List<Bucket> buckets = state.toBuckets();
+            assertThat(buckets.size(), equalTo(1));
+            assertThat(Double.doubleToLongBits(buckets.getFirst().upperBound()), equalTo(Double.doubleToLongBits(0.0)));
+            assertThat(buckets.getFirst().count(), equalTo(3.0));
         }
     }
 

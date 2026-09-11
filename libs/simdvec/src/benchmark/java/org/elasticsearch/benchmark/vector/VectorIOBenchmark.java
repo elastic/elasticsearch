@@ -69,6 +69,7 @@ public class VectorIOBenchmark {
 
     static {
         BenchmarkLogging.configure();
+        VectorizationInfo.printOnce();
     }
 
     private static final String TEST_DIR = "/home/esbench/.rally/benchmarks/races/index";

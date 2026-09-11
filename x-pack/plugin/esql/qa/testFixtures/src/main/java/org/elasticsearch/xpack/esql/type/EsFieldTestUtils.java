@@ -148,7 +148,11 @@ public class EsFieldTestUtils {
         int maxPropertiesDepth,
         TransportVersion supportedOn
     ) {
-        return new PotentiallyUnmappedKeywordEsField(randomAlphaOfLength(4), randomProperties(maxPropertiesDepth, supportedOn));
+        return new PotentiallyUnmappedKeywordEsField(
+            randomAlphaOfLength(4),
+            randomBoolean(),
+            randomProperties(maxPropertiesDepth, supportedOn)
+        );
     }
 
     /**

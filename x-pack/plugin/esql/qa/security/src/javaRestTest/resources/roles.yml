@@ -117,7 +117,7 @@ fls_cross_index:
     - names: [ 'index' ]
       privileges: [ 'read' ]
       field_security:
-        grant: [ value, org ]
+        grant: [ value, org, test_constant ]
     - names: [ 'index-user1' ]
       privileges: [ 'read' ]
       field_security:

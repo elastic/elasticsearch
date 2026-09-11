@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.mockito.Mockito;
@@ -185,7 +186,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             searchExecutionContext,
             AliasFilter.EMPTY
         );
-        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "resource.attributes.host.name");
+        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "resource.attributes.host.name", true);
 
         MappedFieldType fieldType = unmappedCtx.fieldType("resource.attributes.host.name");
         assertThat(
@@ -225,7 +226,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             searchExecutionContext,
             AliasFilter.EMPTY
         );
-        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "unmapped_kw");
+        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "unmapped_kw", true);
 
         BlockLoader blockLoader = unmappedCtx.blockLoader(
             "unmapped_kw",
@@ -345,6 +346,33 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         assertThat("exactly 2 fields survive", result.size(), equalTo(2));
     }
 
+    public void testFieldHiddenFromFieldCapsIgnoresLocalMapping() throws IOException {
+        var result = mappedKeywordLoader(false, true);
+
+        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE.isEnabled()) {
+            assertThat(result.loader(), instanceOf(UnmappedKeywordBlockLoader.class));
+        } else {
+            assertThat(result.loader(), not(instanceOf(UnmappedKeywordBlockLoader.class)));
+        }
+    }
+
+    public void testFieldReportedByFieldCapsUsesLocalMapping() throws IOException {
+        var result = mappedKeywordLoader(true, true);
+        assertThat(result.loader(), instanceOf(BytesRefsFromOrdsBlockLoader.class));
+    }
+
+    public void testFieldHiddenByFlsReturnsNullWhenReportedByFieldCaps() throws IOException {
+        var result = mappedKeywordLoader(true, false);
+
+        assertThat(result.loader(), equalTo(ConstantNull.INSTANCE));
+    }
+
+    public void testFieldHiddenByFlsReturnsNullWhenMissingFromFieldCaps() throws IOException {
+        var result = mappedKeywordLoader(false, false);
+
+        assertThat(result.loader(), equalTo(ConstantNull.INSTANCE));
+    }
+
     private ValuesSourceReaderOperator.LoaderAndConverter temporalityLoader(EsPhysicalOperationProviders provider) {
         EsQueryExec queryExec = new EsQueryExec(
             Source.EMPTY,
@@ -364,6 +392,46 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         );
         var fieldInfo = provider.extractFields(fieldExtractExec).getFirst();
         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        return fieldInfo.buildLoader().build(driverContext, 0);
+    }
+
+    private ValuesSourceReaderOperator.LoaderAndConverter mappedKeywordLoader(boolean mappedInFieldCaps, boolean fieldVisible)
+        throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext(
+            createMapperService(mapping(b -> b.startObject("hidden").field("type", "keyword").endObject())),
+            null
+        );
+        context.setFieldVisibilityPredicate(field -> field.equals("hidden") == false || fieldVisible);
+
+        var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(0, new NoOpReleasable(), context, AliasFilter.EMPTY);
+        var provider = new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            new IndexedByShardIdFromSingleton<>(shardContext),
+            null,
+            PlannerSettings.DEFAULTS,
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
+
+        var query = new EsQueryExec(
+            Source.EMPTY,
+            "test",
+            IndexMode.STANDARD,
+            List.of(),
+            null,
+            null,
+            10,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+        var extract = new FieldExtractExec(
+            Source.EMPTY,
+            query,
+            List.of(new FieldAttribute(Source.EMPTY, "hidden", new PotentiallyUnmappedKeywordEsField("hidden", mappedInFieldCaps))),
+            MappedFieldType.FieldExtractPreference.NONE
+        );
+
+        var fieldInfo = provider.extractFields(extract).getFirst();
+        var driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
         return fieldInfo.buildLoader().build(driverContext, 0);
     }
 

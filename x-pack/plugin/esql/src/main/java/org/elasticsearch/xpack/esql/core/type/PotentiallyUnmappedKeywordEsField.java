@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * This class is used as a marker for fields that may be unmapped, where an unmapped field is a field which exists in the _source but is not
@@ -21,26 +22,37 @@ import java.util.Map;
  */
 public class PotentiallyUnmappedKeywordEsField extends KeywordEsField {
     private static final TransportVersion ESQL_UNMAPPED_KEYWORD_LEAF_NAME = TransportVersion.fromName("esql_unmapped_keyword_leaf_name");
+    private static final TransportVersion ESQL_UNMAPPED_KEYWORD_MAPPED_IN_FIELD_CAPS = TransportVersion.fromName(
+        "esql_unmapped_keyword_mapped_in_field_caps"
+    );
 
-    public PotentiallyUnmappedKeywordEsField(String name) {
+    private final boolean mappedInFieldCaps;
+
+    public PotentiallyUnmappedKeywordEsField(String name, boolean mappedInFieldCaps) {
         // Use a mutable map: IndexResolver may add child fields into the properties when the keyword field
         // has multi-fields (e.g. "my_field.analyzed") that are also partially unmapped.
-        this(name, new HashMap<>());
+        this(name, mappedInFieldCaps, new HashMap<>());
     }
 
     // Visible for testing
-    public PotentiallyUnmappedKeywordEsField(String name, Map<String, EsField> properties) {
+    public PotentiallyUnmappedKeywordEsField(String name, boolean mappedInFieldCaps, Map<String, EsField> properties) {
         super(name, properties, true, Short.MAX_VALUE, false, false, TimeSeriesFieldType.UNKNOWN);
+        this.mappedInFieldCaps = mappedInFieldCaps;
     }
 
     public PotentiallyUnmappedKeywordEsField(StreamInput in) throws IOException {
         super(in);
+        if (in.getTransportVersion().supports(ESQL_UNMAPPED_KEYWORD_MAPPED_IN_FIELD_CAPS)) {
+            this.mappedInFieldCaps = in.readBoolean();
+        } else {
+            this.mappedInFieldCaps = true;
+        }
     }
 
     @Override
     public EsField withProperties(Map<String, EsField> newProperties) {
         // Preserve the unmapped marker so data nodes still load this field from _source where it is unmapped.
-        return new PotentiallyUnmappedKeywordEsField(getName(), newProperties);
+        return new PotentiallyUnmappedKeywordEsField(getName(), mappedInFieldCaps, newProperties);
     }
 
     /**
@@ -53,7 +65,15 @@ public class PotentiallyUnmappedKeywordEsField extends KeywordEsField {
         if (out.getTransportVersion().supports(ESQL_UNMAPPED_KEYWORD_LEAF_NAME)) {
             writeTo(out);
         } else {
-            new PotentiallyUnmappedKeywordEsField(fullName, getProperties()).writeTo(out);
+            new PotentiallyUnmappedKeywordEsField(fullName, mappedInFieldCaps, getProperties()).writeTo(out);
+        }
+    }
+
+    @Override
+    public void writeContent(StreamOutput out) throws IOException {
+        super.writeContent(out);
+        if (out.getTransportVersion().supports(ESQL_UNMAPPED_KEYWORD_MAPPED_IN_FIELD_CAPS)) {
+            out.writeBoolean(mappedInFieldCaps);
         }
     }
 
@@ -64,5 +84,26 @@ public class PotentiallyUnmappedKeywordEsField extends KeywordEsField {
     @Override
     public String getNodeStringName() {
         return "PotentiallyUnmappedKeywordEsField";
+    }
+
+    public boolean mappedInFieldCaps() {
+        return this.mappedInFieldCaps;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (super.equals(other) == false) {
+            return false;
+        }
+        var that = (PotentiallyUnmappedKeywordEsField) other;
+        return mappedInFieldCaps == that.mappedInFieldCaps;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), mappedInFieldCaps);
     }
 }

@@ -258,6 +258,21 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
         }
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (!super.equals(obj)) return false;
+        final MultiValuedBinaryDocValuesSortField other = (MultiValuedBinaryDocValuesSortField) obj;
+        return maxMode == other.maxMode && binaryFormat == other.binaryFormat;
+    }
+
+    @Override
+    public int hashCode() {
+        int h = super.hashCode();
+        h = 31 * h + Boolean.hashCode(maxMode);
+        h = 31 * h + binaryFormat.hashCode();
+        return h;
+    }
+
     /** SPI provider so this sort field can be serialized to and deserialized from segment info. */
     public static final class Provider extends SortFieldProvider {
 

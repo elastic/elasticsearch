@@ -834,6 +834,15 @@ public class LuceneTests extends ESTestCase {
         }
     }
 
+    public void testRewriteMergeSortFieldForBinaryDocValues() {
+        final SortField bsf = new MultiValuedBinaryDocValuesSortField("kw", true, SortField.STRING_FIRST, false);
+        final SortField rewritten = Lucene.rewriteMergeSortField(bsf);
+        assertEquals(SortField.Type.STRING, rewritten.getType());
+        assertEquals("kw", rewritten.getField());
+        assertTrue(rewritten.getReverse());
+        assertSame(SortField.STRING_FIRST, rewritten.getMissingValue());
+    }
+
     public void testCanEarlyTerminateColumnarKeywordIndexSort() {
         SortField indexField = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
         SortField queryFieldAsc = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
@@ -856,6 +865,12 @@ public class LuceneTests extends ESTestCase {
         SortField queryTs = new MultiValuedBinaryDocValuesSortField("ts", false, SortField.STRING_LAST, false);
         assertTrue(Lucene.canEarlyTerminate(new Sort(queryFieldAsc), new Sort(indexField, secondField)));
         assertFalse(Lucene.canEarlyTerminate(new Sort(queryFieldAsc, queryTs), new Sort(indexField)));
+
+        // MIN and MAX modes must not be treated as equivalent: a MAX query sort against a MIN index sort is
+        // a different ordering and early termination must not fire.
+        SortField indexFieldMin = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        SortField queryFieldMax = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, true);
+        assertFalse(Lucene.canEarlyTerminate(new Sort(queryFieldMax), new Sort(indexFieldMin)));
     }
 
     private static Object randomMissingValue(SortField.Type type) {

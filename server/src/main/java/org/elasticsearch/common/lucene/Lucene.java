@@ -38,6 +38,7 @@ import org.apache.lucene.index.NoMergeScheduler;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.search.BinarySortField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
@@ -647,6 +648,8 @@ public class Lucene {
         if (sortField.getClass() == GEO_DISTANCE_SORT_TYPE_CLASS) {
             return new SortField(sortField.getField(), SortField.Type.DOUBLE, false, sortField.getMissingValue());
         } else if (sortField.getClass() == SortedSetSortField.class) {
+            return new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse(), sortField.getMissingValue());
+        } else if (sortField instanceof BinarySortField) {
             return new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse(), sortField.getMissingValue());
         } else if (sortField instanceof SortedNumericSortField snsf) {
             return new SortField(sortField.getField(), snsf.getNumericType(), sortField.getReverse(), sortField.getMissingValue());

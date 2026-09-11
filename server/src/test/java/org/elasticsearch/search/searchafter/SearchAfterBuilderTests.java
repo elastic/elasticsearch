@@ -23,6 +23,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
@@ -256,6 +257,9 @@ public class SearchAfterBuilderTests extends ESTestCase {
         assertThat(type, equalTo(SortField.Type.DOUBLE));
 
         type = extractSortType(new SortedSetSortField("field", false));
+        assertThat(type, equalTo(SortField.Type.STRING));
+
+        type = extractSortType(new MultiValuedBinaryDocValuesSortField("field", false, SortField.STRING_LAST, false));
         assertThat(type, equalTo(SortField.Type.STRING));
     }
 

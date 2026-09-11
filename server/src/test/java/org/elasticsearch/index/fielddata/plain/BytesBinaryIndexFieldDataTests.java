@@ -50,4 +50,23 @@ public class BytesBinaryIndexFieldDataTests extends ESTestCase {
         assertSame(SortField.STRING_FIRST, fd.sortField("_first", MultiValueMode.MIN, null, false).getMissingValue());
         assertSame(SortField.STRING_LAST, fd.sortField("_first", MultiValueMode.MIN, null, true).getMissingValue());
     }
+
+    public void testSortFieldEqualityDistinguishesMaxMode() {
+        final BytesBinaryIndexFieldData fd = fieldData(BinaryDocValuesFormat.SEPARATE_COUNT);
+        final SortField min = fd.sortField("_last", MultiValueMode.MIN, null, false);
+        final SortField max = fd.sortField("_last", MultiValueMode.MAX, null, false);
+        assertNotEquals("MIN and MAX sort fields must not be equal", min, max);
+        assertNotEquals("MIN and MAX sort field hashCodes should differ", min.hashCode(), max.hashCode());
+    }
+
+    public void testSortFieldEqualityDistinguishesBinaryFormat() {
+        final SortField separateCount = fieldData(BinaryDocValuesFormat.SEPARATE_COUNT).sortField("_last", MultiValueMode.MIN, null, false);
+        final SortField inlineNull = fieldData(BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL).sortField(
+            "_last",
+            MultiValueMode.MIN,
+            null,
+            false
+        );
+        assertNotEquals("Different binary formats must not be equal", separateCount, inlineNull);
+    }
 }

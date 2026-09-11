@@ -124,10 +124,11 @@ public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicM
             return;
         }
         String healthNodeId = healthNode.getId();
+        String masterNodeId = state.nodes().getLocalNodeId();
         DlmFrozenTransitionsHealthInfo info = buildHealthInfo(state);
         client.execute(
             UpdateHealthInfoCacheAction.INSTANCE,
-            new UpdateHealthInfoCacheAction.Request.Builder().nodeId(healthNodeId).dlmFrozenTransitionsHealthInfo(info).build(),
+            new UpdateHealthInfoCacheAction.Request.Builder().nodeId(masterNodeId).dlmFrozenTransitionsHealthInfo(info).build(),
             ActionListener.wrap(
                 resp -> logger.trace("published DLM frozen transition health info to health node [{}]", healthNodeId),
                 e -> logger.debug(

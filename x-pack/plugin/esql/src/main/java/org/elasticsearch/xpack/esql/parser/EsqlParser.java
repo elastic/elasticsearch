@@ -19,7 +19,6 @@ import org.antlr.v4.runtime.atn.PredictionMode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -151,25 +150,17 @@ public class EsqlParser {
     /**
      * Parse a view query with the given view name. The view name is used to tag all Source objects
      * so they can be correctly deserialized when the view positions exceed the outer query's length.
-     *
-     * <p>Unlike the top-level query, which is validated inside {@link EsqlQueryRequest#parse}, view
-     * bodies are parsed inside a callback that has no request object — so settings validation is
-     * performed here, where the {@link SettingsValidationContext} is available, rather than at the
-     * call site.
+     * SET statements are not allowed in view bodies and are rejected with a {@link ParsingException}.
      */
-    public EsqlStatement parseView(
-        String query,
-        QueryParams params,
-        SettingsValidationContext settingsValidationCtx,
-        InferenceSettings inferenceSettings,
-        String viewName
-    ) {
+    public EsqlStatement parseView(String query, QueryParams params, InferenceSettings inferenceSettings, String viewName) {
         var parsed = createStatement(query, params, inferenceSettings, viewName);
         if (log.isDebugEnabled()) {
             log.debug("Parsed view '{}' logical plan:\n{}", viewName, parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
         }
-        QuerySettings.validate(parsed, settingsValidationCtx);
+        if (parsed.settings() != null && parsed.settings().isEmpty() == false) {
+            throw new ParsingException(parsed.settings().getFirst().source(), "SET statements are not allowed in views");
+        }
         return parsed;
     }
 

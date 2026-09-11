@@ -7,6 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.elasticsearch.jdk.ModuleQualifiedExportsService;
+import org.elasticsearch.zstd.exports.ZstdModuleExportsService;
+
 module org.elasticsearch.zstd {
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
@@ -18,6 +21,10 @@ module org.elasticsearch.zstd {
             org.elasticsearch.server,
             org.elasticsearch.columnar,
             org.elasticsearch.xpack.esql.datasource.compress;
+
+    // Re-applies the qualified export above to esql.datasource.compress, a plugin module created after
+    // the boot layer is sealed.
+    provides ModuleQualifiedExportsService with ZstdModuleExportsService;
 
     // `provides org.elasticsearch.foreign.LibraryProvider with ...ZstdLibrary$Provider` is
     // injected into module-info.class by the build's augmentForeignModuleInfo task after

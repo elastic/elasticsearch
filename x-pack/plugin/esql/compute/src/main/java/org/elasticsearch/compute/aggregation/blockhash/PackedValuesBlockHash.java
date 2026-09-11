@@ -15,9 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHashTable;
-import org.elasticsearch.common.util.PartitionedHashTable.PartitionedHashKeys;
-import org.elasticsearch.common.util.PartitionedHashTable.PartitionedHashKeysWithSeenNull;
-import org.elasticsearch.common.util.PartitionedHashTable.PartitionSplitter;
+import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -537,8 +535,28 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         bytesRefHash.clear();
     }
 
+    private record PartitionedHashKeysWithSeenNull(PartitionedHashKeys delegate, boolean seenNull) implements PartitionedHashKeys {
+        @Override
+        public int keysInPartition(int partition) {
+            return delegate.keysInPartition(partition);
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            delegate.releasePartition(breaker, partition);
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            delegate.releaseAll(breaker);
+        }
+    }
+
     @Override
-    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
+    public PartitionedHashTable.PartitionedHashKeys splitPartition(
+        CircuitBreaker breaker,
+        PartitionedHashTable.PartitionSplitter partitionSplitter
+    ) {
         if (bytesRefHash instanceof BytesRefSwissHash swiss) {
             PartitionedHashKeys keys = swiss.splitPartition(breaker, partitionSplitter);
             return new PartitionedHashKeysWithSeenNull(keys, seenNull);
@@ -547,11 +565,11 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
     }
 
     @Override
-    public boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
+    public boolean combinePartition(PartitionedHashTable.PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
         if (bytesRefHash instanceof BytesRefSwissHash swiss) {
             PartitionedHashKeysWithSeenNull withSeenNull = (PartitionedHashKeysWithSeenNull) keys;
-            seenNull |= withSeenNull.seenNull();
-            return swiss.combinePartition(withSeenNull.delegate(), partitionIndex, resultIds);
+            seenNull |= withSeenNull.seenNull;
+            return swiss.combinePartition(withSeenNull.delegate, partitionIndex, resultIds);
         }
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
     }

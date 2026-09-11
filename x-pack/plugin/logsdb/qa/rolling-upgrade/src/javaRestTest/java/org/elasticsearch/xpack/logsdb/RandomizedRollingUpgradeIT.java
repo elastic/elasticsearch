@@ -189,7 +189,7 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
             return true;
         }
         Version oldVersion = Version.fromString(oldVersionProp);
-        return oldVersion.before("9.4.0") || oldVersion.onOrAfter(Version.fromString("9.5.0"));
+        return oldVersion.before(Version.fromString("9.4.0")) || oldVersion.onOrAfter(Version.fromString("9.5.0"));
     }
 
     private void indexDocuments(TestIndexConfig indexConfig) throws IOException {

@@ -63,7 +63,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -310,8 +309,16 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     ) {
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         final ConcreteIndices concreteIndices = new ConcreteIndices(project, indexNameExpressionResolver);
-        // Group the requests by ShardId -> Operations mapping
+        // Both modes fill the same map: x-content fills it incrementally in route(); provided-batch
+        // fills it in buildGrouping() after the deferred columnar routing pass completes.
         Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
+
+        // For provided-batch TSDB data streams: resolve @timestamp from the ESCF columns and cache it
+        // on each IndexRequest before the per-item loop, so DataStream#getWriteIndex can select the
+        // correct backing index.
+        if (batchRouter != null) {
+            batchRouter.preResolveTimestamps(project, bulkRequest.requests());
+        }
 
         while (it.hasNext()) {
             BulkItemRequest bulkItemRequest = it.next();
@@ -345,19 +352,14 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     continue;
                 }
                 IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
-                int shardId;
-                if (batchRouter == null) {
-                    docWriteRequest.preRoutingProcess(indexRouting);
-                    shardId = docWriteRequest.route(indexRouting);
-                    docWriteRequest.postRoutingProcess(indexRouting);
+                if (batchRouter != null) {
+                    batchRouter.route(bulkItemRequest, docWriteRequest, ia, concreteIndex, indexRouting, project, requestsByShard);
                 } else {
-                    shardId = batchRouter.route(docWriteRequest, ia, concreteIndex, indexRouting, project);
+                    docWriteRequest.preRoutingProcess(indexRouting);
+                    int shardId = docWriteRequest.route(indexRouting);
+                    docWriteRequest.postRoutingProcess(indexRouting);
+                    requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), shard -> new ArrayList<>()).add(bulkItemRequest);
                 }
-                List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
-                    new ShardId(concreteIndex, shardId),
-                    shard -> new ArrayList<>()
-                );
-                shardRequests.add(bulkItemRequest);
             } catch (DataStream.TimestampError timestampError) {
                 IndexDocFailureStoreStatus failureStoreStatus = processFailure(bulkItemRequest, project, timestampError);
                 if (IndexDocFailureStoreStatus.USED.equals(failureStoreStatus) == false) {
@@ -372,7 +374,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 addFailureAndDiscardRequest(docWriteRequest, bulkItemRequest.id(), name, e, failureStoreStatus);
             }
         }
-        return requestsByShard;
+        return batchRouter != null ? batchRouter.buildGrouping(requestsByShard, this::onBatchRoutingFailure) : requestsByShard;
     }
 
     /**
@@ -417,8 +419,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
         // Build per-shard source batches. For the inline-encoder path, batches are finalized here
         // (rows were accumulated during routing). For provided-batch mode the source is scattered here.
-        Map<ShardId, SourceBatch> shardBatches = router != null ? router.shardBatches() : Collections.emptyMap();
-
+        Map<ShardId, SourceBatch> shardBatches = router != null ? router.shardBatches() : Map.of();
         BatchModeRouter.validateBatchAlignment(requestsByShard, shardBatches);
 
         String nodeId = clusterService.localNode().getId();
@@ -528,7 +529,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             );
             releaseOnFinish.close();
         } else {
-            client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
+            client.execute(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
                 // Lazily get the project metadata to avoid keeping it around longer than it is needed
                 private ProjectMetadata projectMetadata = null;
 
@@ -867,6 +868,22 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     private static boolean isFailureStoreRequest(DocWriteRequest<?> request) {
         return request instanceof IndexRequest ir && ir.isWriteToFailureStore();
+    }
+
+    /**
+     * Per-item failure handler passed to {@link BatchModeRouter#buildGrouping} for the columnar routing
+     * path. Mirrors the {@code catch (IllegalArgumentException | ...)} block in
+     * {@link #groupRequestsByShards}: marks the item failed and discards it from the working request
+     * list. All items in the deferred batch receive the same exception because the columnar routing
+     * trio ({@link org.elasticsearch.cluster.routing.IndexRouting#indexShard}) does not expose which
+     * row caused the failure.
+     */
+    private void onBatchRoutingFailure(BulkItemRequest item, Exception e) {
+        DocWriteRequest<?> request = item.request();
+        var failureStoreStatus = isFailureStoreRequest(request)
+            ? IndexDocFailureStoreStatus.FAILED
+            : IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
+        addFailureAndDiscardRequest(request, item.id(), request.index(), e, failureStoreStatus);
     }
 
     /**

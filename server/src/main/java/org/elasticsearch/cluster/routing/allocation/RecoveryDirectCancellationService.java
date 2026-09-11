@@ -66,8 +66,9 @@ import java.util.concurrent.Semaphore;
 /// - Snapshot-blocking cancellations ([cancelRecoveriesBlockingSnapshots]): when a snapshot has
 ///   [SnapshotsInProgress.ShardState#WAITING] shards blocked by a primary relocation, we attempt to cancel the
 ///   relocation target recovery if it has not started yet, so the snapshot can proceed. Relocations driven by node
-///   removal are left untouched. Skipped on stateless nodes, unless [ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOT_STATELESS_SETTING]
-///   is enabled as an override. This path is driven by [ClusterStateListener#clusterChanged].
+///   removal are left untouched. Enabled by default on stateful nodes and disabled by default on stateless nodes
+///   (where recoveries are generally quick), controllable via [ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING].
+///   This path is driven by [ClusterStateListener#clusterChanged].
 ///
 /// Every operation in this service is fire-and-forget. Errors are logged as warnings or silently ignored; in all
 /// failure cases the affected shards are eventually reassigned through the normal reroute/shard-failed path.
@@ -92,11 +93,11 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         Setting.Property.NodeScope
     );
 
-    /// Allows direct cancellation of recoveries blocking snapshots in stateless mode. By default, snapshot-blocking
-    /// recovery cancellations are skipped on stateless nodes because we expect recoveries to be generally quick.
-    public static final Setting<Boolean> ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOT_STATELESS_SETTING = Setting.boolSetting(
-        "indices.recovery.enable_direct_cancellations_for_snapshots_stateless",
-        false,
+    /// Allows direct cancellation of recoveries blocking snapshots. Enabled by default on stateful nodes,
+    /// disabled by default on stateless nodes (where recoveries are expected to be generally quick).
+    public static final Setting<Boolean> ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING = Setting.boolSetting(
+        "indices.recovery.enable_direct_cancellations_for_snapshots",
+        settings -> DiscoveryNode.isStateless(settings) ? "false" : "true",
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -105,9 +106,8 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     private final ClusterService clusterService;
     private final MasterServiceTaskQueue<ShardFailedTaskExecutor.Task> failedShardTaskQueue;
     private final Executor genericExecutor;
-    private final boolean isStateless;
     private volatile boolean enableDirectRecoveryCancellations = false;
-    private volatile boolean enableDirectCancellationsForSnapshotsInStateless = false;
+    private volatile boolean enableDirectCancellationsForSnapshots;
 
     /// Single permit used to coalesce snapshot-cancellation runs.
     /// Acquired when a run is queued, released at the start of each run (or on rejection).
@@ -139,7 +139,7 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
             .setMaximumWeight(MAX_CANCELLATIONS_CACHE_SIZE)
             .setExpireAfterWrite(CANCELLATION_CACHE_TTL)
             .build();
-        this.isStateless = DiscoveryNode.isStateless(clusterService.getSettings());
+        this.enableDirectCancellationsForSnapshots = DiscoveryNode.isStateless(clusterService.getSettings()) == false;
     }
 
     @Override
@@ -149,11 +149,10 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
             ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
             value -> this.enableDirectRecoveryCancellations = value
         );
-        // Only registered on stateless (via the stateless plugin).
-        clusterSettings.initializeAndWatchIfRegistered(ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOT_STATELESS_SETTING, enabled -> {
-            final boolean wasEnabled = enableDirectCancellationsForSnapshotsInStateless;
-            enableDirectCancellationsForSnapshotsInStateless = enabled;
-            if (isStateless && wasEnabled == false && enabled && clusterService.state().nodes().isLocalNodeElectedMaster()) {
+        clusterSettings.initializeAndWatchIfRegistered(ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING, enabled -> {
+            final boolean wasEnabled = enableDirectCancellationsForSnapshots;
+            enableDirectCancellationsForSnapshots = enabled;
+            if (wasEnabled == false && enabled && clusterService.state().nodes().isLocalNodeElectedMaster()) {
                 cancelRecoveriesBlockingSnapshots();
             }
         });
@@ -173,7 +172,7 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         if (event.localNodeMaster() == false) {
             return;
         }
-        if (enableDirectRecoveryCancellations == false || (isStateless && enableDirectCancellationsForSnapshotsInStateless == false)) {
+        if (enableDirectRecoveryCancellations == false || enableDirectCancellationsForSnapshots == false) {
             return;
         }
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(event.state());

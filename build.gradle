@@ -54,6 +54,7 @@ plugins {
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
   id 'com.gradleup.nmcp.aggregation'
+  id 'elasticsearch.dra-maven-aggregation'
 }
 
 version = VersionProperties.elasticsearch
@@ -303,9 +304,6 @@ if (project.gradle.startParameter.taskNames.any(isCiSplitTask)) {
   bwc_tests_enabled = false
 }
 
-subprojects { proj ->
-  apply plugin: 'elasticsearch.base'
-}
 
 allprojects {
   // We disable this plugin for now till we shaked out the issues we see
@@ -442,8 +440,6 @@ allprojects {
       integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
     }
   }
-
-  apply plugin: 'elasticsearch.formatting'
 }
 
 tasks.named("updateDaemonJvm") {

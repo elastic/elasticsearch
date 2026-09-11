@@ -1036,6 +1036,7 @@ public class StatelessPlugin extends Plugin
         final StatelessPrimaryRelocationSourceService primaryRelocationSourceService = setAndGet(
             this.primaryRelocationSourceService,
             new StatelessPrimaryRelocationSourceService(
+                settings,
                 clusterService,
                 threadPool,
                 indicesService,
@@ -1508,6 +1509,7 @@ public class StatelessPlugin extends Plugin
             PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_OBJECT_STORE_PREFETCH_ENABLED_SETTING,
             DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING,
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_ENABLED,
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEXING_THROTTLING_ENABLED,
@@ -1588,6 +1590,7 @@ public class StatelessPlugin extends Plugin
                     relocationMetricsCollector.get()
                 )
             );
+            indexModule.addIndexEventListener(this.primaryRelocationSourceService.get().indexEventListener());
         }
         if (hasSearchRole) {
             indexModule.addIndexEventListener(

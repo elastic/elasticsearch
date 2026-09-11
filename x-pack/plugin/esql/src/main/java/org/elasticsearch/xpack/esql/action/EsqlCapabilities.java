@@ -1330,6 +1330,13 @@ public class EsqlCapabilities {
          */
         DENSE_VECTOR_COMMAND_V2(Build.current().isSnapshot()),
         /**
+         * Adds custom output naming to the DENSE_VECTOR command: {@code vec = field} names a single generated column, and
+         * {@code suffix = "_dv" ON f1, f2} replaces the default {@code _dense_vector} suffix on every listed field. Also covers
+         * the warning emitted when an input position holds more than one value, which ships alongside the naming forms.
+         * Dev/snapshot-only, like {@link #DENSE_VECTOR_COMMAND}.
+         */
+        DENSE_VECTOR_COMMAND_V3(Build.current().isSnapshot()),
+        /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
         MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,

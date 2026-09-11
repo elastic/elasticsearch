@@ -4756,7 +4756,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testDenseVectorMissingFieldList() {
         assumeDenseVectorCommandEnabled();
-        expectError("FROM foo* | DENSE_VECTOR WITH { \"inference_id\" : \"my-id\" }", "mismatched input 'WITH' expecting {");
+        expectError("FROM foo* | DENSE_VECTOR WITH { \"inference_id\" : \"my-id\" }", "DENSE_VECTOR requires at least one input field");
+        expectError("FROM foo* | DENSE_VECTOR", "DENSE_VECTOR requires at least one input field");
+        expectError("FROM foo* | DENSE_VECTOR vec =", "DENSE_VECTOR requires at least one input field");
     }
 
     public void testDenseVectorWithPositionalParameters() {
@@ -4779,6 +4781,234 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
         assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+    }
+
+    private static void assumeDenseVectorNamingEnabled() {
+        assumeTrue("DENSE_VECTOR naming requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND_V3.isEnabled());
+    }
+
+    public void testDenseVectorDefaultNaming() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR title, author WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.DEFAULT));
+        assertThat(plan.naming().nameFor(attribute("title")), equalTo("title_dense_vector"));
+    }
+
+    public void testDenseVectorExplicitOutputName() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR vec = title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+        assertThat(plan.naming().nameFor(attribute("title")), equalTo("vec"));
+    }
+
+    public void testDenseVectorSuffixOverMultipleFields() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(
+            processingCommand("DENSE_VECTOR suffix = \"_dv\" ON title, author WITH { \"inference_id\" : \"my-id\" }"),
+            DenseVector.class
+        );
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"), attribute("author"))));
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.suffixed("_dv")));
+        assertThat(plan.naming().nameFor(attribute("title")), equalTo("title_dv"));
+        assertThat(plan.naming().nameFor(attribute("author")), equalTo("author_dv"));
+    }
+
+    public void testDenseVectorSuffixOverSingleField() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR suffix = \"_dv\" ON title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.naming().nameFor(attribute("title")), equalTo("title_dv"));
+    }
+
+    public void testDenseVectorSuffixKeywordIsCaseInsensitive() {
+        assumeDenseVectorNamingEnabled();
+        for (String keyword : List.of("suffix", "SUFFIX", "Suffix", "sUfFiX")) {
+            var plan = as(
+                processingCommand("DENSE_VECTOR " + keyword + " = \"_dv\" ON title WITH { \"inference_id\" : \"my-id\" }"),
+                DenseVector.class
+            );
+            assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.suffixed("_dv")));
+        }
+    }
+
+    /**
+     * {@code suffix} is a contextual keyword, never reserved: only a string closed by {@code ON} starts a suffix clause, so an
+     * identifier after {@code =} is an ordinary output name and the word stays usable as a column name everywhere else.
+     */
+    public void testDenseVectorSuffixIsNotAReservedWord() {
+        assumeDenseVectorNamingEnabled();
+        var asOutputName = as(processingCommand("DENSE_VECTOR suffix = title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(asOutputName.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(asOutputName.naming(), equalTo(DenseVector.OutputNaming.explicit("suffix")));
+
+        var asInputField = as(processingCommand("DENSE_VECTOR vec = suffix WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(asInputField.fields(), equalToIgnoringIds(List.of(attribute("suffix"))));
+        assertThat(asInputField.naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+
+        var bare = as(processingCommand("DENSE_VECTOR suffix WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(bare.fields(), equalToIgnoringIds(List.of(attribute("suffix"))));
+        assertThat(bare.naming(), equalTo(DenseVector.OutputNaming.DEFAULT));
+
+        var inList = as(processingCommand("DENSE_VECTOR suffix, title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(inList.fields(), equalToIgnoringIds(List.of(attribute("suffix"), attribute("title"))));
+        assertThat(inList.naming(), equalTo(DenseVector.OutputNaming.DEFAULT));
+    }
+
+    public void testDenseVectorQuotedOutputName() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR `weird name` = title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.explicit("weird name")));
+    }
+
+    public void testDenseVectorNamingWithChainedClauses() {
+        assumeDenseVectorNamingEnabled();
+        var outer = as(
+            processingCommand(
+                "DENSE_VECTOR vec = title WITH { \"inference_id\" : \"endpoint-a\" } "
+                    + "| DENSE_VECTOR suffix = \"_dv\" ON author WITH { \"inference_id\" : \"endpoint-b\" }"
+            ),
+            DenseVector.class
+        );
+        assertThat(outer.naming(), equalTo(DenseVector.OutputNaming.suffixed("_dv")));
+        assertThat(as(outer.child(), DenseVector.class).naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+    }
+
+    public void testDenseVectorNamingCombinedWithOptions() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(
+            processingCommand("DENSE_VECTOR vec = title WITH { \"inference_id\" : \"my-id\", \"timeout\" : \"30s\", \"type\" : \"text\" }"),
+            DenseVector.class
+        );
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+        assertThat(plan.timeout(), equalTo(TimeValue.timeValueSeconds(30)));
+    }
+
+    public void testDenseVectorInvalidSuffixKeyword() {
+        assumeDenseVectorNamingEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR prefix = \"_dv\" ON title WITH { \"inference_id\" : \"my-id\" }",
+            "Invalid modifier [prefix] in DENSE_VECTOR, expected [suffix]"
+        );
+    }
+
+    public void testDenseVectorExplicitNameRejectsMultipleFields() {
+        assumeDenseVectorNamingEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR vec = title, author WITH { \"inference_id\" : \"my-id\" }",
+            "Naming a single output column with [=] in DENSE_VECTOR requires exactly one input field, found [2]"
+        );
+    }
+
+    public void testDenseVectorSuffixRequiresOn() {
+        assumeDenseVectorNamingEnabled();
+        expectError("FROM books | DENSE_VECTOR suffix = \"_dv\" title", "Missing [ON] after [suffix = \"_dv\"] in DENSE_VECTOR");
+        expectError("FROM books | DENSE_VECTOR suffix = \"_dv\"", "Missing [ON] after [suffix = \"_dv\"] in DENSE_VECTOR");
+    }
+
+    /**
+     * A whitespace-only suffix is rejected alongside the empty one: it would produce a column differing from its input only by
+     * trailing spaces. Mirrors {@code esql.command.dense_vector.default_inference_id}, which rejects blank-but-non-empty.
+     */
+    public void testBlankSuffixRejected() {
+        assumeDenseVectorNamingEnabled();
+        for (String suffix : List.of("", " ", "   ", "\t")) {
+            expectError(
+                "FROM books | DENSE_VECTOR suffix = \"" + suffix + "\" ON title WITH { \"inference_id\" : \"my-id\" }",
+                "Option [suffix] in DENSE_VECTOR must not be blank"
+            );
+        }
+    }
+
+    /**
+     * {@code qualifiedName} reaches {@code parameter} through {@code identifierOrParameter}, so a parameter can name the output;
+     * {@code string} is {@code QUOTED_STRING} only, so a suffix cannot be parameterised. Pinned because the asymmetry surprises.
+     */
+    public void testDenseVectorNamingWithParameters() {
+        assumeDenseVectorNamingEnabled();
+        var params = new QueryParams(List.of(paramAsIdentifier("name", "vec")));
+        var plan = as(
+            TEST_PARSER.parseQuery("row a = 1 | DENSE_VECTOR ?name = title WITH { \"inference_id\" : \"my-id\" }", params),
+            DenseVector.class
+        );
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+
+        // A parameter is a qualifiedName, so this reads as the target form naming `suffix` from field `?s`; the trailing ON is
+        // then unexpected, which is how a parameterised suffix fails.
+        expectError("FROM books | DENSE_VECTOR suffix = ?s ON title", "mismatched input 'ON'");
+    }
+
+    /** {@code visitIdentifier} unquotes, so a backticked keyword still starts the suffix clause. Same as HIGHLIGHT's prefix. */
+    public void testDenseVectorQuotedSuffixKeyword() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(
+            processingCommand("DENSE_VECTOR `suffix` = \"_dv\" ON title WITH { \"inference_id\" : \"my-id\" }"),
+            DenseVector.class
+        );
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.suffixed("_dv")));
+    }
+
+    public void testDenseVectorNonStringSuffixRejected() {
+        assumeDenseVectorNamingEnabled();
+        expectError("FROM books | DENSE_VECTOR suffix = 3 ON title", "mismatched input '3'");
+    }
+
+    /** Wildcards stay unsupported in the field list whichever naming form introduces it. */
+    public void testDenseVectorWildcardNotSupportedWithNaming() {
+        assumeDenseVectorNamingEnabled();
+        expectError("FROM books | DENSE_VECTOR vec = titl*", "extraneous input '*'");
+        expectError("FROM books | DENSE_VECTOR suffix = \"_dv\" ON titl*", "extraneous input '*'");
+    }
+
+    /**
+     * A literal is not accepted as input. {@code name = "text"} shares its head with the suffix clause, so the grammar carries a
+     * dedicated alternative for it purely to let the builder report the literal rather than a missing {@code ON}.
+     */
+    public void testDenseVectorLiteralInputNotSupported() {
+        assumeDenseVectorNamingEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR vec = \"some text\"",
+            "DENSE_VECTOR input must be a field name, found string literal [\"some text\"]"
+        );
+        expectError(
+            "FROM books | DENSE_VECTOR vec = \"some text\" WITH { \"inference_id\" : \"my-id\" }",
+            "DENSE_VECTOR input must be a field name, found string literal [\"some text\"]"
+        );
+        expectError(
+            "FROM books | DENSE_VECTOR \"some text\"",
+            "DENSE_VECTOR input must be a field name, found string literal [\"some text\"]"
+        );
+    }
+
+    /**
+     * A qualifier identifies where a column came from, so it is meaningful on the input side and is carried through to the
+     * attribute. Only the output name rejects it, since that name is being defined rather than referenced.
+     */
+    public void testDenseVectorInputAcceptsQualifiers() {
+        assumeDenseVectorNamingEnabled();
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
+        var plan = as(processingCommand("DENSE_VECTOR vec = [idx].[title] WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), hasSize(1));
+        UnresolvedAttribute field = as(plan.fields().get(0), UnresolvedAttribute.class);
+        assertThat(field.qualifier(), equalTo("idx"));
+        assertThat(field.name(), equalTo("title"));
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+    }
+
+    public void testDenseVectorOutputNameRejectsQualifiers() {
+        assumeDenseVectorNamingEnabled();
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
+        expectError(
+            "FROM books | DENSE_VECTOR [idx].[vec] = title WITH { \"inference_id\" : \"my-id\" }",
+            "Qualified names are not supported in field definitions, found [[idx].[vec]]"
+        );
+    }
+
+    public void testDenseVectorNamingMissingOperands() {
+        assumeDenseVectorNamingEnabled();
+        expectError("FROM books | DENSE_VECTOR vec = ", "DENSE_VECTOR requires at least one input field");
+        expectError("FROM books | DENSE_VECTOR suffix = \"_dv\" ON ", "DENSE_VECTOR requires at least one input field");
     }
 
     public void testSample() {

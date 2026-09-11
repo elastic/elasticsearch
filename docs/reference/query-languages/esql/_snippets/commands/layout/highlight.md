@@ -92,10 +92,11 @@ resolve to a literal are accepted; column references are not.
     but `HTML` is rejected. `boundary_scanner` and `order` are case-insensitive.
 
 `analyzer`
-:   (Optional) Analyzer used on both the query and field text. Defaults to the
-    `standard` analyzer. Only built-in and node-level plugin analyzers are
-    supported. If a full-text search function specifies its own `analyzer`, it
-    must match the analyzer specified here.
+:   (Optional) The analyzer used to process query terms and field values. Defaults
+    to `standard`. Only built-in and node-level plugin analyzers are supported;
+    analyzers defined in index settings cannot be used. If individual full-text
+    search functions specify their own `analyzer`, each function's analyzer applies
+    to its targeted field, while this option acts as the default for any remaining fields.
 
 `number_of_fragments`
 :   (Optional) Maximum number of snippets (fragments) to return per field. Set to `0` to return the entire
@@ -185,17 +186,33 @@ If your query contains multiple `WHERE` clauses, `HIGHLIGHT` combines all of
 their full-text search conditions so that every searched field can produce
 snippets, even though the `WHERE` clauses filter your rows together using `AND`.
 
+When a reused search condition specifies an `analyzer` or `quote_analyzer`,
+`HIGHLIGHT` retains those settings. Each highlighted column uses the analyzer
+from the condition that searched it, defaulting to `standard` if no analyzer was
+specified. If you also configure `WITH { "analyzer": ... }`, that analyzer serves
+as the fallback for any columns not explicitly targeted by a search condition.
+
 The following search conditions cannot be automatically reused:
 
 * Negated conditions, such as `NOT MATCH(...)` (there are no positive matches to highlight)
 * Conditions combined with non-text filters using `OR`, such as `MATCH(title, "fox") OR year > 2020`
-* Search functions that specify an `analyzer` or `quote_analyzer`
+* Conflicting analyzers targeting the same column, such as
+  `MATCH(title, "fox", {"analyzer": "english"}) OR MATCH(title, "fox", {"analyzer": "whitespace"})`.
+  A single column cannot use multiple analyzers during highlighting. However,
+  using different analyzers across *different* columns (such as `english` on `title`
+  and `whitespace` on `author`) is supported.
 
 If your query relies solely on conditions that cannot be reused, specify the
 query explicitly in `HIGHLIGHT`.
 
 If you provide an explicit query in `HIGHLIGHT`, it takes precedence, and any
 conditions from earlier `WHERE` commands are ignored for highlighting.
+
+When checking the execution plan with `EXPLAIN`, if all reused conditions share
+the same non-default analyzer, the plan shows that analyzer configured on
+`HIGHLIGHT` (such as `WITH {"analyzer": "english"}`). When conditions specify
+different analyzers for different columns, the execution plan lists the analyzers
+per column instead (for example, `{title=english, author=standard}`).
 
 ### Choose fields with ON [esql-highlight-on-fields]
 
@@ -228,13 +245,13 @@ Learn more about using [ES|QL for search use cases](docs-content://solutions/sea
 
 ## Limitations
 
-* `HIGHLIGHT` re-analyzes text with the `standard` analyzer by default, rather than the analyzer configured in the index mapping. If your field uses a custom or language analyzer, specify it with the `analyzer` option in the `WITH` clause.
-* The `analyzer` option only supports built-in and node-level plugin analyzers. Analyzers configured in index settings are not supported.
+* `HIGHLIGHT` re-analyzes text with the `standard` analyzer by default, rather than the analyzer configured in the index mapping. If your field uses a custom or language analyzer, specify it with the `analyzer` option in the `WITH` clause, or reuse it from a `WHERE` condition that specifies an `analyzer`.
+* `HIGHLIGHT` only supports built-in and node-level plugin analyzers. Custom analyzers defined in index settings cannot be used with `HIGHLIGHT`, whether specified in `WITH` or reused from `WHERE`. If an index-level custom analyzer shares a name with a built-in analyzer (such as `english`), `HIGHLIGHT` uses the built-in definition.
+* Highlight analysis runs at query time across both the search query and the row values, which can diverge from how fields were originally indexed in the mapping. For example, if a field is indexed using `standard` and queried using `MATCH(title, "tower", {"analyzer": "english"})`, `WHERE` will not match documents containing `"towers"` because `standard` indexed them without stemming. If a document matches through other criteria, however, `HIGHLIGHT` with `english` will highlight `"towers"` because it stems both the query term and snippet text.
 * On `keyword` fields, `HIGHLIGHT` tokenizes text and breaks it into snippets like a text field, rather than treating the value as a single term.
 * On `semantic_text` fields, `HIGHLIGHT` performs lexical matching against the underlying text. Semantic vector matches without literal keyword overlap are not highlighted.
 * Fields are analyzed up to a maximum of 1 million characters. Text beyond this limit is not analyzed or highlighted.
 * `HIGHLIGHT` cannot automatically reuse a `WHERE` query across commands that aggregate, summarize, or join rows, such as `STATS`, `LOOKUP JOIN`, or `FORK`. In those queries, specify the query directly on `HIGHLIGHT`.
-* `WHERE` conditions that specify an `analyzer` or `quote_analyzer` cannot be automatically reused for highlighting. Specify the query directly on `HIGHLIGHT` instead.
 * If you rename or drop a field between `WHERE` and `HIGHLIGHT`, the reused `WHERE` query still refers to the original field name. Provide an explicit query and `ON` clause that match the new column names in scope.
 
 ## Examples
@@ -319,6 +336,65 @@ Use [`KQL`](/reference/query-languages/esql/functions-operators/search-functions
 Use the `analyzer` option to apply language-specific stemming rules. In this example, the `english` analyzer stems `Rings` to `ring`:
 
 :::{include} ../../generated/x-pack-esql/commands/examples/highlight.csv-spec/highlightAnalyzerEnglishStemsMatchForDocs.md
+:::
+
+### Reuse analyzers from WHERE
+
+When a `WHERE` condition specifies an analyzer, `HIGHLIGHT` automatically applies
+that analyzer to highlight matches. In this example, the `english` analyzer in
+`MATCH` stems `Rings` to match `ring`:
+
+:::{include} ../../generated/x-pack-esql/commands/examples/highlight.csv-spec/implicitAnalyzerSynthesizesFromSingleLeafForDocs.md
+:::
+
+When multiple search conditions combined with `AND` or `OR` share the same
+analyzer, that analyzer applies across all matched fields:
+
+:::{include} ../../generated/x-pack-esql/commands/examples/highlight.csv-spec/implicitAnalyzerAndBothLeavesAgreeOnAnalyzerForDocs.md
+:::
+
+Fields without matching terms evaluate to `null`:
+
+:::{include} ../../generated/x-pack-esql/commands/examples/highlight.csv-spec/implicitAnalyzerOrLeavesAgreeOnAnalyzerForDocs.md
+:::
+
+When using [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md)
+with a `quote_analyzer`, `HIGHLIGHT` preserves both the primary search analyzer
+and the quote analyzer for phrase parsing:
+
+:::{include} ../../generated/x-pack-esql/commands/examples/highlight.csv-spec/implicitAnalyzerQuoteAnalyzerResolvesForDocs.md
+:::
+
+### Highlight multiple fields with different analyzers
+
+When search conditions specify different analyzers for different fields,
+`HIGHLIGHT` analyzes each field using its respective analyzer.
+
+In this example, `title` uses the `english` analyzer specified in `MATCH`, while
+`author` defaults to `standard`:
+
+:::{include} ../../generated/x-pack-esql/commands/examples/highlight.csv-spec/implicitAnalyzerMixedEnglishAndDefaultForDocs.md
+:::
+
+You can also combine different non-default analyzers across fields. Here, `title`
+uses `english` stemming, while `author` uses the `whitespace` analyzer to keep
+hyphenated words intact:
+
+:::{include} ../../generated/x-pack-esql/commands/examples/highlight.csv-spec/implicitAnalyzerMixedEnglishAndWhitespaceForDocs.md
+:::
+
+### Query-time and index-time analyzer differences
+
+Setting an `analyzer` on a search function like `MATCH` only changes how the
+query string is analyzed; the match itself runs against the terms created when
+the document was indexed. Because `HIGHLIGHT` re-analyzes text at query time
+using the query's analyzer, highlight behavior can differ from the initial filter.
+
+In this example against the `books` index (where `title` was indexed using the
+`standard` analyzer), searching for `"tower"` with the `english` analyzer does
+not match `"towers"` at index time, so no rows are returned:
+
+:::{include} ../../generated/x-pack-esql/commands/examples/highlight.csv-spec/implicitAnalyzerDivergenceWhereMissesRealIndexForDocs.md
 :::
 
 ### Highlight multiple fields

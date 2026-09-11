@@ -1925,15 +1925,19 @@ The Lord of the <em>Rings</em>
 implicitAnalyzerSynthesizesFromSingleLeaf
 required_capability: highlight_implicit_query_and_fields
 
+// tag::implicitAnalyzerSynthesizesFromSingleLeafForDocs[]
 ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" })
 | MV_EXPAND title
 | WHERE MATCH(title, "ring", { "analyzer": "english" })
 | HIGHLIGHT
 | KEEP highlight_title
+// end::implicitAnalyzerSynthesizesFromSingleLeafForDocs[]
 ;
 
+// tag::implicitAnalyzerSynthesizesFromSingleLeafForDocs-result[]
 highlight_title:keyword
 The Lord of the <em>Rings</em>
+// end::implicitAnalyzerSynthesizesFromSingleLeafForDocs-result[]
 ;
 
 
@@ -1941,16 +1945,20 @@ The Lord of the <em>Rings</em>
 implicitAnalyzerAndBothLeavesAgreeOnAnalyzer
 required_capability: highlight_implicit_query_and_fields
 
+// tag::implicitAnalyzerAndBothLeavesAgreeOnAnalyzerForDocs[]
 ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" }), author = to_text(["Tolkien wrote of rings"], { "analyzer": "english" })
 | MV_EXPAND title
 | MV_EXPAND author
 | WHERE MATCH(title, "ring", { "analyzer": "english" }) AND MATCH(author, "ring", { "analyzer": "english" })
 | HIGHLIGHT
 | KEEP highlight_title, highlight_author
+// end::implicitAnalyzerAndBothLeavesAgreeOnAnalyzerForDocs[]
 ;
 
+// tag::implicitAnalyzerAndBothLeavesAgreeOnAnalyzerForDocs-result[]
 highlight_title:keyword        | highlight_author:keyword
 The Lord of the <em>Rings</em> | Tolkien wrote of <em>rings</em>
+// end::implicitAnalyzerAndBothLeavesAgreeOnAnalyzerForDocs-result[]
 ;
 
 
@@ -1958,16 +1966,20 @@ The Lord of the <em>Rings</em> | Tolkien wrote of <em>rings</em>
 implicitAnalyzerOrLeavesAgreeOnAnalyzer
 required_capability: highlight_implicit_query_and_fields
 
+// tag::implicitAnalyzerOrLeavesAgreeOnAnalyzerForDocs[]
 ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" }), author = to_text(["An unrelated writer"], { "analyzer": "english" })
 | MV_EXPAND title
 | MV_EXPAND author
 | WHERE MATCH(title, "ring", { "analyzer": "english" }) OR MATCH(author, "ring", { "analyzer": "english" })
 | HIGHLIGHT
 | KEEP highlight_title, highlight_author
+// end::implicitAnalyzerOrLeavesAgreeOnAnalyzerForDocs[]
 ;
 
+// tag::implicitAnalyzerOrLeavesAgreeOnAnalyzerForDocs-result[]
 highlight_title:keyword        | highlight_author:keyword
 The Lord of the <em>Rings</em> | null
+// end::implicitAnalyzerOrLeavesAgreeOnAnalyzerForDocs-result[]
 ;
 
 
@@ -1975,13 +1987,17 @@ The Lord of the <em>Rings</em> | null
 implicitAnalyzerDivergenceWhereMissesRealIndex
 required_capability: highlight_implicit_query_and_fields
 
+// tag::implicitAnalyzerDivergenceWhereMissesRealIndexForDocs[]
 FROM books
 | WHERE MATCH(title, "tower", { "analyzer": "english" })
 | HIGHLIGHT
 | KEEP title, highlight_title
+// end::implicitAnalyzerDivergenceWhereMissesRealIndexForDocs[]
 ;
 
+// tag::implicitAnalyzerDivergenceWhereMissesRealIndexForDocs-result[]
 title:text | highlight_title:keyword
+// end::implicitAnalyzerDivergenceWhereMissesRealIndexForDocs-result[]
 ;
 
 
@@ -1989,16 +2005,20 @@ title:text | highlight_title:keyword
 implicitAnalyzerQuoteAnalyzerResolves
 required_capability: highlight_implicit_query_and_fields
 
+// tag::implicitAnalyzerQuoteAnalyzerResolvesForDocs[]
 FROM books
 | WHERE QSTR("title:\"return\"", { "analyzer": "standard", "quote_analyzer": "keyword" })
 | HIGHLIGHT
 | KEEP title, highlight_title
 | SORT title
+// end::implicitAnalyzerQuoteAnalyzerResolvesForDocs[]
 ;
 
+// tag::implicitAnalyzerQuoteAnalyzerResolvesForDocs-result[]
 title:text | highlight_title:keyword
 Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
 Return of the Shadow                                             | <em>Return</em> of the Shadow
+// end::implicitAnalyzerQuoteAnalyzerResolvesForDocs-result[]
 ;
 
 
@@ -2006,16 +2026,20 @@ Return of the Shadow                                             | <em>Return</e
 implicitAnalyzerMixedEnglishAndDefault
 required_capability: highlight_implicit_query_and_fields
 
+// tag::implicitAnalyzerMixedEnglishAndDefaultForDocs[]
 ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" }), author = to_text(["Tolkien wrote of rings"])
 | MV_EXPAND title
 | MV_EXPAND author
 | WHERE MATCH(title, "ring", { "analyzer": "english" }) AND MATCH(author, "rings")
 | HIGHLIGHT
 | KEEP highlight_title, highlight_author
+// end::implicitAnalyzerMixedEnglishAndDefaultForDocs[]
 ;
 
+// tag::implicitAnalyzerMixedEnglishAndDefaultForDocs-result[]
 highlight_title:keyword        | highlight_author:keyword
 The Lord of the <em>Rings</em> | Tolkien wrote of <em>rings</em>
+// end::implicitAnalyzerMixedEnglishAndDefaultForDocs-result[]
 ;
 
 
@@ -2023,16 +2047,20 @@ The Lord of the <em>Rings</em> | Tolkien wrote of <em>rings</em>
 implicitAnalyzerMixedEnglishAndWhitespace
 required_capability: highlight_implicit_query_and_fields
 
+// tag::implicitAnalyzerMixedEnglishAndWhitespaceForDocs[]
 ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" }), author = to_text(["Tolkien-wrote-of-rings"], { "analyzer": "whitespace" })
 | MV_EXPAND title
 | MV_EXPAND author
 | WHERE MATCH(title, "ring", { "analyzer": "english" }) AND MATCH(author, "Tolkien-wrote-of-rings", { "analyzer": "whitespace" })
 | HIGHLIGHT
 | KEEP highlight_title, highlight_author
+// end::implicitAnalyzerMixedEnglishAndWhitespaceForDocs[]
 ;
 
+// tag::implicitAnalyzerMixedEnglishAndWhitespaceForDocs-result[]
 highlight_title:keyword        | highlight_author:keyword
 The Lord of the <em>Rings</em> | <em>Tolkien-wrote-of-rings</em>
+// end::implicitAnalyzerMixedEnglishAndWhitespaceForDocs-result[]
 ;
 
 

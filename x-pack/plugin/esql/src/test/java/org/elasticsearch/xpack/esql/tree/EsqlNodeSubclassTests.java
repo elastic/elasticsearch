@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
@@ -549,6 +550,15 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             ElementType type = randomFrom(ElementType.LONG, ElementType.INT, ElementType.DOUBLE, ElementType.FLOAT);
             Object value = type == ElementType.LONG && randomBoolean() ? randomLong() : null;
             return new DefaultValue(type, value);
+        } else if (argClass == DenseVector.OutputNaming.class) {
+            // DenseVector.OutputNaming is a record and cannot be mocked. Build it through its factories so the value is a
+            // legitimate naming — the explicit-name and suffix forms are mutually exclusive — with enough variety that a
+            // caller needing a value different from the current one does not run out of retries.
+            return randomFrom(
+                DenseVector.OutputNaming.DEFAULT,
+                DenseVector.OutputNaming.explicit(randomAlphaOfLength(5)),
+                DenseVector.OutputNaming.suffixed(randomAlphaOfLength(4))
+            );
         } else if (argClass == ResolvingProject.Command.class) {
             return RESOLVING_PROJECT_COMMAND;
         } else if (argClass == AttributeSet.class) {

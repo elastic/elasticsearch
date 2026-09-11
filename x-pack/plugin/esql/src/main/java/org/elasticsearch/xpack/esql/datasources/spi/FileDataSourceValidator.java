@@ -108,6 +108,20 @@ public class FileDataSourceValidator implements DataSourceValidator {
     }
 
     /**
+     * Full set of base dataset fields accepted by every file-based source, independent of file format:
+     * the {@link #COORDINATOR_DATASET_KEYS} (which includes the {@code format} selector) plus the
+     * format-agnostic {@code schema_sample_size} sampling bound (which is consumed by the format
+     * readers, not the coordinator). Format-specific fields are unioned on per-resource against the
+     * resolved format in {@link #validateDataset}.
+     */
+    static final Set<String> DATASET_FIELDS;
+    static {
+        Set<String> fields = new HashSet<>(COORDINATOR_DATASET_KEYS);
+        fields.add(SCHEMA_SAMPLE_SIZE);
+        DATASET_FIELDS = Set.copyOf(fields);
+    }
+
+    /**
      * {@link #COORDINATOR_DATASET_KEYS} plus {@link #SCHEMA_SAMPLE_SIZE} minus the {@code format} selector,
      * used only by the no-resolver path: with no format names to validate against it rejects {@code format}
      * and every format-specific key, but keeps accepting {@code schema_sample_size} (bounded-int validated)

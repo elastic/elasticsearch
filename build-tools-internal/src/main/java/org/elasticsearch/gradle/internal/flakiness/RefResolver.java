@@ -143,6 +143,14 @@ public final class RefResolver {
      *
      * <p>The extension decided the dispatch, but it does <em>not</em> decide the kind - the claiming source set
      * does. A java file in the {@code yamlRestTest} source set is a runner, not a class to filter on.
+     *
+     * <p>A file whose class name is not something a {@code Test} task could run is left <em>unresolved</em>
+     * here rather than claimed and reported. This is the one place that distinction is available: only
+     * {@code changed-file} refs reach this method (see {@link #resolve}), and for them a non-test is the
+     * ordinary case - a PR touching a test fixture or a {@code package-info.java} should produce nothing at
+     * all, not a {@code not-a-test-class} record for every such file. A ref that <em>names</em> a class
+     * ({@code unmute} / {@code explicit}) goes through {@link #resolveClassRef} instead and is still claimed
+     * and reported, because there a non-test means someone expected a test that is not one.
      */
     private Optional<BaseTarget> resolveChangedJavaSource(Path abs) {
         // Fixed kind order so resolution is deterministic even in the (improbable) case of overlapping dirs.
@@ -162,6 +170,11 @@ public final class RefResolver {
                     return Optional.of(target(ss, Kinds.YAML_REST_TEST_RUNNER, null, null, null));
                 }
                 String fqcn = stripSuffix(rel.toString(), JAVA_SUFFIX).replace('/', '.').replace('\\', '.');
+                if (TestClassNames.isRunnableTestClass(fqcn) == false) {
+                    // Not a test, and nobody claimed it was: unresolved, which the merge step drops silently
+                    // for this ref source.
+                    return Optional.empty();
+                }
                 return Optional.of(target(ss, e.getValue(), fqcn, null, null));
             }
         }

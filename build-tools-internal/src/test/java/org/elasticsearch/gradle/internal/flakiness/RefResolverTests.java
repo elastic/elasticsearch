@@ -76,6 +76,40 @@ public class RefResolverTests {
     }
 
     /**
+     * A test source set holds more than tests. A changed fixture or {@code package-info.java} is left
+     * unresolved, which the merge step drops silently for a {@code changed-file} ref: nobody claimed the file
+     * was a test, so there is nothing to report. Reporting them would add a {@code not_applicable} record for
+     * every such file in every PR.
+     */
+    @Test
+    public void testDoesNotClaimAChangedNonTestFileInATestSourceSet() {
+        Path repo = tmp.getRoot().toPath();
+        RefResolver server = membershipResolver(repo, project(repo, ":server", "server", "test"));
+
+        assertThat(server.resolve(changedFile("server/src/test/java/org/foo/TestUtils.java")).isPresent(), is(false));
+        assertThat(server.resolve(changedFile("server/src/test/java/org/foo/MockFooPlugin.java")).isPresent(), is(false));
+        assertThat(server.resolve(changedFile("server/src/test/java/org/foo/package-info.java")).isPresent(), is(false));
+        // The same source set still claims a real test, so this is a filter and not a broken path match.
+        assertThat(server.resolve(changedFile("server/src/test/java/org/foo/BarTests.java")).isPresent(), is(true));
+    }
+
+    /**
+     * The other half of that rule: a ref that <em>names</em> a class is claimed even when the name is not a
+     * test, so the plan can report it rather than drop it. Someone expected a test here, and staying silent
+     * would turn their typo into a missing check.
+     */
+    @Test
+    public void testClaimsANamedNonTestClassSoItCanBeReported() throws IOException {
+        Path repo = tmp.getRoot().toPath();
+        writeJava(repo, "server/src/test/java/org/foo/TestUtils.java");
+        RefResolver server = membershipResolver(repo, project(repo, ":server", "server", "test"));
+
+        BaseTarget target = server.resolve(unmute("org.foo.TestUtils", null)).orElseThrow();
+
+        assertThat(target.fqcn(), equalTo("org.foo.TestUtils"));
+    }
+
+    /**
      * The case a directory-prefix or nearest-ancestor heuristic cannot get right: the two projects'
      * directories are nested, but their {@code srcDirs} are disjoint, so exactly one of them claims the file.
      */

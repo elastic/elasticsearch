@@ -309,4 +309,10 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
         }
     }
 
+    @Override
+    public void clear() {
+        bytesRefs.truncateTo(0);
+        ids.fill(0, ids.size(), 0);
+        size = 0;
+    }
 }

@@ -2502,6 +2502,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     /**
      * One decodable JSON token per declarable type, so a test can sweep {@link DeclaredSchemaValidator#declarableTypes()}
      * and fail loudly when a newly declarable type has no fixture rather than silently skipping it.
+     * <p>
+     * A superset: it carries {@code TEXT}, which is not declarable but is still a type this decoder handles. The
+     * sweeps index by declarable type, so the extra entry is inert.
      */
     private static final Map<DataType, String> DECLARABLE_TOKEN = Map.of(
         DataType.KEYWORD,

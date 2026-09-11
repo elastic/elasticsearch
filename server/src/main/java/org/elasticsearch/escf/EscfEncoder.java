@@ -22,10 +22,8 @@ import org.elasticsearch.simdjson.JsonDocumentParser;
 import org.elasticsearch.simdjson.JsonParsingException;
 import org.elasticsearch.simdjson.SimdJsonParserPool;
 import org.elasticsearch.simdjson.SimdJsonSupport;
-import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceBatchEncoder;
-import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -42,10 +40,9 @@ import java.util.List;
  * {@link EscfColumnKind#UNION}. Fixed primitive arrays are stored in a columnar list layout;
  * other arrays (heterogeneous, nested, object-bearing) are stored inline on a union column.
  *
- * <p>This class is the x-content frontend: it walks an {@link XContentParser}, populates an
- * {@link EscfRowBuffer}, and delegates all column-building to the shared {@link EscfBatchBuilder}
- * backend. Implements {@link SourceBatchEncoder}. Single-partition convenience:
- * {@link #encode(List, XContentType)}.
+ * <p>This class is the x-content frontend: it walks an {@link XContentParser}, and delegates all
+ * column-building to the shared {@link EscfBatchBuilder} backend. Implements {@link SourceBatchEncoder}.
+ * Single-partition convenience: {@link #encode(List, XContentType)}.
  *
  * <p><strong>Parser dispatch:</strong>
  * <ol>
@@ -108,32 +105,43 @@ public final class EscfEncoder implements SourceBatchEncoder {
         return SimdJsonSupport.isSupported() && SIMDJSON_ESCF_FEATURE_FLAG.isEnabled();
     }
 
-    public void parseToScratch(BytesReference source, XContentType xContentType) throws IOException {
-        parseToScratch(source, xContentType, LeafSink.NO_OP);
-    }
-
+    /**
+     * Encodes one document into the batch and returns its zero-based row index.
+     *
+     * <p>On success, the row is finalized and the index is ready to be bound to the originating
+     * {@link org.elasticsearch.action.index.IndexRequest} via
+     * {@link org.elasticsearch.action.index.IndexSource#setSourceRow}.
+     *
+     * <p>When the SIMD path throws {@link JsonParsingException} mid-walk, that partial row is
+     * committed as an orphan (via {@link EscfBatchBuilder#abortRow()}) and the Jackson path
+     * re-parses the document from scratch. The orphan row is routed to the discard partition during
+     * scatter and does not affect the returned row index.
+     */
     @Override
-    public void parseToScratch(BytesReference source, XContentType xContentType, LeafSink sink) throws IOException {
-        if (tryDirectWalkSingle(source, xContentType, sink)) {
-            return;
+    public int addDocument(BytesReference source, XContentType xContentType) throws IOException {
+        if (tryDirectWalkSingle(source, xContentType)) {
+            return backend.docCount() - 1;
         }
-        EscfRowBuffer row = backend.beginRow();
+        backend.beginRow();
         try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, xContentType)) {
             if (xContentType == XContentType.JSON) {
                 parser.allowDuplicateKeys(true);
             }
             parser.nextToken(); // START_OBJECT
-            flattenObject(row, parser, parser.nextToken(), sink);
+            flattenObject(parser, parser.nextToken());
         }
-        row.finishRow();
+        return backend.finishRow();
     }
 
     /**
      * Attempts to parse a single document using the direct walker (SIMD stage 1 + fused walk).
      * Returns true if successful, false if the document is ineligible or parsing failed
      * (in which case the caller falls back to Jackson).
+     *
+     * <p>On a {@link JsonParsingException}, calls {@link EscfBatchBuilder#abortRow()} to seal the
+     * partial row before returning false.
      */
-    private boolean tryDirectWalkSingle(BytesReference source, XContentType xContentType, LeafSink sink) {
+    private boolean tryDirectWalkSingle(BytesReference source, XContentType xContentType) {
         if (docParser == null || xContentType.canonical() != XContentType.JSON || source.length() > docParser.maxDocumentBytes()) {
             return false;
         }
@@ -154,17 +162,19 @@ public final class EscfEncoder implements SourceBatchEncoder {
         int len = source.length();
 
         try {
-            EscfRowBuffer row = backend.beginRow();
-            boolean rawTextMode = sink != LeafSink.NO_OP && sink.passRawText();
-            EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, rawTextMode);
+            backend.beginRow();
+            EscfDocumentHandler handler = new EscfDocumentHandler(backend);
             docParser.parseDocument(buf, offset, len, handler);
-            row.finishRow();
+            backend.finishRow();
             return true;
         } catch (JsonParsingException e) {
-            // The handler may have written part of the row already; the next beginRow() discards it.
+            // The handler may have written part of the row already. Seal the partial row as an
+            // orphan so the column builders remain consistent, then let Jackson retry.
+            backend.abortRow();
             logger.debug(() -> "Direct walk failed, falling back to Jackson: " + e.getMessage());
             return false;
         } catch (RuntimeException e) {
+            backend.abortRow();
             logger.warn("Unexpected direct walk failure, falling back to Jackson", e);
             return false;
         }
@@ -193,28 +203,13 @@ public final class EscfEncoder implements SourceBatchEncoder {
     }
 
     @Override
-    public int commitScratchTo(int partitionKey) {
-        return backend.commit(partitionKey);
+    public EscfBatch build() {
+        return backend.build();
     }
 
     @Override
-    public EscfBatch buildPartition(int partitionKey) {
-        return backend.buildPartition(partitionKey);
-    }
-
-    @Override
-    public int docCount(int partitionKey) {
-        return backend.docCount(partitionKey);
-    }
-
-    @Override
-    public boolean hasPartition(int partitionKey) {
-        return backend.hasPartition(partitionKey);
-    }
-
-    @Override
-    public String columnPath(int columnIndex) {
-        return backend.columnPath(columnIndex);
+    public int docCount() {
+        return backend.docCount();
     }
 
     /**
@@ -232,18 +227,17 @@ public final class EscfEncoder implements SourceBatchEncoder {
         }
     }
 
-    /** Convenience: encodes all {@code sources} into a single-partition batch. */
+    /** Convenience: encodes all {@code sources} into a single batch. */
     public static EscfBatch encode(List<BytesReference> sources, XContentType xContentType) throws IOException {
         try (EscfEncoder encoder = new EscfEncoder()) {
             for (BytesReference source : sources) {
-                encoder.addDocument(source, xContentType, 0);
+                encoder.addDocument(source, xContentType);
             }
-            return encoder.buildPartition(0);
+            return encoder.build();
         }
     }
 
-    private void flattenObject(EscfRowBuffer row, XContentParser parser, XContentParser.Token firstToken, LeafSink sink)
-        throws IOException {
+    private void flattenObject(XContentParser parser, XContentParser.Token firstToken) throws IOException {
         XContentParser.Token token = firstToken;
         while (token != XContentParser.Token.END_OBJECT) {
             if (token != XContentParser.Token.FIELD_NAME) {
@@ -257,77 +251,35 @@ public final class EscfEncoder implements SourceBatchEncoder {
                 // it stays distinguishable from an absent field; non-empty objects flatten recursively.
                 XContentParser.Token inner = parser.nextToken();
                 if (inner == XContentParser.Token.END_OBJECT) {
-                    row.emptyObject(fieldName);
+                    backend.emptyObject(fieldName);
                 } else {
-                    row.startObject(fieldName);
-                    flattenObject(row, parser, inner, sink);
-                    row.endObject();
+                    backend.startObject(fieldName);
+                    flattenObject(parser, inner);
+                    backend.endObject();
                 }
                 token = parser.nextToken();
                 continue;
             }
 
-            final boolean firePathSink = sink != LeafSink.NO_OP;
-            final boolean rawTextMode = firePathSink && sink.passRawText();
             switch (token) {
                 case START_ARRAY -> {
                     SourceBatchEncodeHelper.PackedArray arr = SourceBatchEncodeHelper.packArray(parser);
-                    int colIdx = row.arrayField(fieldName, arr.arrayType(), arr.packed());
-                    if (firePathSink) {
-                        sink.onArrayLeaf(colIdx, backend.columnPath(colIdx));
-                    }
+                    backend.arrayField(fieldName, arr.arrayType(), arr.packed());
                 }
                 case VALUE_STRING -> {
                     XContentString.UTF8Bytes str = parser.optimizedText().bytes();
-                    int colIdx = row.stringField(fieldName, str);
-                    if (firePathSink) {
-                        sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), SourceValueType.STRING, str);
-                    }
+                    backend.stringField(fieldName, str);
                 }
                 case VALUE_NUMBER -> {
                     XContentParser.NumberType numType = parser.numberType();
                     switch (numType) {
-                        case INT, LONG -> {
-                            long val = parser.longValue();
-                            byte type = (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) ? SourceValueType.INT : SourceValueType.LONG;
-                            int colIdx = row.longField(fieldName, val);
-                            if (rawTextMode) {
-                                sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, parser.optimizedText().bytes());
-                            } else if (firePathSink) {
-                                sink.onLongPrimitive(colIdx, backend.columnPath(colIdx), type, val);
-                            }
-                        }
-                        case FLOAT, DOUBLE -> {
-                            double val = parser.doubleValue();
-                            float fval = (float) val;
-                            byte type = ((double) fval == val) ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
-                            int colIdx = row.doubleField(fieldName, val);
-                            if (rawTextMode) {
-                                sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, parser.optimizedText().bytes());
-                            } else if (firePathSink) {
-                                sink.onDoublePrimitive(colIdx, backend.columnPath(colIdx), type, val);
-                            }
-                        }
-                        default -> {
-                            XContentString.UTF8Bytes str = parser.optimizedText().bytes();
-                            int colIdx = row.stringField(fieldName, str);
-                            if (firePathSink) {
-                                sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), SourceValueType.STRING, str);
-                            }
-                        }
+                        case INT, LONG -> backend.longField(fieldName, parser.longValue());
+                        case FLOAT, DOUBLE -> backend.doubleField(fieldName, parser.doubleValue());
+                        default -> backend.stringField(fieldName, parser.optimizedText().bytes());
                     }
                 }
-                case VALUE_BOOLEAN -> {
-                    boolean v = parser.booleanValue();
-                    byte type = v ? SourceValueType.TRUE : SourceValueType.FALSE;
-                    int colIdx = row.booleanField(fieldName, v);
-                    if (rawTextMode) {
-                        sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, parser.optimizedText().bytes());
-                    } else if (firePathSink) {
-                        sink.onBooleanPrimitive(colIdx, backend.columnPath(colIdx), v);
-                    }
-                }
-                case VALUE_NULL -> row.nullField(fieldName);
+                case VALUE_BOOLEAN -> backend.booleanField(fieldName, parser.booleanValue());
+                case VALUE_NULL -> backend.nullField(fieldName);
                 default -> throw new IllegalStateException("Unexpected token: " + token);
             }
             token = parser.nextToken();

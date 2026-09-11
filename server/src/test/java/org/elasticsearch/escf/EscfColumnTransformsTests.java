@@ -277,9 +277,9 @@ public class EscfColumnTransformsTests extends ESTestCase {
         Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         try (EscfEncoder encoder = new EscfEncoder(recycler)) {
             for (String doc : jsonDocs) {
-                encoder.addDocument(new BytesArray(doc), XContentType.JSON, 0);
+                encoder.addDocument(new BytesArray(doc), XContentType.JSON);
             }
-            return encoder.buildPartition(0);
+            return encoder.build();
         }
     }
 

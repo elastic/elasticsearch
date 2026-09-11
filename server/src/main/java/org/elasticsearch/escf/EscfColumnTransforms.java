@@ -45,7 +45,7 @@ public final class EscfColumnTransforms {
 
     /**
      * Returns {@code true} when every present row is JSON {@code null} or an empty object ({@code {}},
-     * the zero-entry {@link EscfRowBuffer#emptyObject} {@code KEY_VALUE} row). Used by object-valued
+     * the zero-entry {@link EscfBatchBuilder#emptyObject} {@code KEY_VALUE} row). Used by object-valued
      * mappers such as {@code flattened}: a leaf column at the field's own path can only contain these
      * two no-op shapes; anything else is unexpected.
      */

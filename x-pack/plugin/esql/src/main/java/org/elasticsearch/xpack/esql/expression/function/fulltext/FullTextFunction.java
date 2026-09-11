@@ -521,6 +521,12 @@ public abstract class FullTextFunction extends Function
                 // When LogicalVerifier checks the plan, LookupJoin becomes Join.
                 return;
             }
+            // Full-text functions inside a HIGHLIGHT query expression are used to define highlighting
+            // terms, not as Lucene filter predicates. HIGHLIGHT works against stored source for any
+            // index mode, so the non-STANDARD restriction does not apply here.
+            if (plan instanceof Highlight) {
+                return;
+            }
             // Traverse the plan to find the EsRelation outputting the field
             plan.forEachDown(p -> {
                 if (p instanceof EsRelation esRelation && esRelation.indexMode() != IndexMode.STANDARD) {

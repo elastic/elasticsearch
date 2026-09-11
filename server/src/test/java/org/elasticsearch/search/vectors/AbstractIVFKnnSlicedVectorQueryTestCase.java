@@ -19,9 +19,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
+import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -143,6 +145,9 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
         sliceSort.setMissingValue(SortField.STRING_LAST);
         iwc.setIndexSort(new Sort(sliceSort));
         iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
+        // Retain soft-deleted tombstones through merges, as Elasticsearch does. Otherwise a randomized merge policy
+        // can expunge every tombstone before the reader opens and no leaf remains sparse.
+        iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, iwc.getMergePolicy()));
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         // Keep segments small enough to exercise both single- and multi-segment readers. Tombstones are interleaved
         // with routed documents below, so at least one segment contains both kinds of documents.
@@ -166,6 +171,10 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
                     writer.addDocument(tombstone);
                     tombstonesAdded++;
                 }
+            }
+            if (random().nextBoolean()) {
+                // Also cover a single merged segment; the retention merge policy keeps its tombstones as a trailing suffix.
+                writer.forceMerge(1);
             }
             writer.commit();
 

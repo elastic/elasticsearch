@@ -56,7 +56,6 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInt
 import org.elasticsearch.xpack.inference.services.validation.ModelValidationResult;
 import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -415,7 +414,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     }
 
     private boolean isInClusterService(String name) {
-        return List.of(ElasticsearchInternalService.NAME, ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME).contains(name);
+        return ElasticsearchInternalService.isServiceNameOrAlias(name);
     }
 
     private String getDeploymentIdForInClusterEndpoint(Model model) {

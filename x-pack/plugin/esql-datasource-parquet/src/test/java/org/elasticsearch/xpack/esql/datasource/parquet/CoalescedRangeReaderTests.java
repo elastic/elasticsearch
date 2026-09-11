@@ -325,8 +325,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
             ) {
                 requestLengths.add(length);
                 try {
-                    DirectReadBuffer buffer = factory.allocate((int) length);
-                    buffer.buffer().position(0).limit((int) length);
+                    DirectReadBuffer buffer = factory.allocateWritableWindow((int) length);
                     listener.onResponse(buffer);
                 } catch (Exception e) {
                     listener.onFailure(e);
@@ -520,7 +519,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
                 executor.execute(() -> {
                     final DirectReadBuffer drb;
                     try {
-                        drb = factory.allocate((int) length);
+                        drb = factory.allocateWritableWindow((int) length);
                     } catch (IOException e) {
                         listener.onFailure(e);
                         return;
@@ -635,7 +634,7 @@ public class CoalescedRangeReaderTests extends ESTestCase {
                             }
                             final DirectReadBuffer drb;
                             try {
-                                drb = factory.allocate((int) length);
+                                drb = factory.allocateWritableWindow((int) length);
                             } catch (IOException e) {
                                 listener.onFailure(e);
                                 return;

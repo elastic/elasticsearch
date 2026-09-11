@@ -170,7 +170,7 @@ final class PrefetchedRowGroupBuilder {
                     throw t;
                 }
             }
-            PrefetchedPageReadStore store = new PrefetchedPageReadStore(readers, block.getRowCount());
+            PrefetchedPageReadStore store = new PrefetchedPageReadStore(readers, block.getRowCount(), rowRanges);
             success = true;
             return store;
         } finally {
@@ -209,7 +209,7 @@ final class PrefetchedRowGroupBuilder {
         CircuitBreaker breaker,
         int rowGroupOrdinal
     ) {
-        DictionaryPage dictPage = readDictionaryPageIfPresent(column, source, rowGroupOrdinal);
+        DictionaryPage dictPage = readDictionaryPageIfPresent(column, source, rowGroupOrdinal, offsetIndex);
         long valueCount = 0;
         List<PrefetchedPageReader.CompressedPage> pages = new ArrayList<>();
         int pageCount = offsetIndex.getPageCount();
@@ -297,23 +297,20 @@ final class PrefetchedRowGroupBuilder {
         }
     }
 
-    private static DictionaryPage readDictionaryPageIfPresent(ColumnChunkMetaData column, PrefetchedSource source, int rowGroupOrdinal) {
-        if (column.hasDictionaryPage() == false) {
+    private static DictionaryPage readDictionaryPageIfPresent(
+        ColumnChunkMetaData column,
+        PrefetchedSource source,
+        int rowGroupOrdinal,
+        OffsetIndex offsetIndex
+    ) {
+        if (offsetIndex.getPageCount() <= 0) {
             return null;
         }
-        long dictOffset = column.getDictionaryPageOffset();
-        // The dictionary slice extends from dictOffset up to the first data page; the prefetcher
-        // includes the whole [dictOffset, firstDataPageOffset) span so the slice is safe. We
-        // always use getFirstDataPageOffset() rather than getStartingPos() because (a) when the
-        // dictionary precedes the data, getStartingPos() returns the dictionary offset (which
-        // would yield a 0-byte span here), and (b) we need the data-page boundary as the upper
-        // bound of the dictionary slice regardless.
-        long firstDataOffset = column.getFirstDataPageOffset();
-        long dictSpan = firstDataOffset - dictOffset;
-        if (dictSpan <= 0) {
+        CoalescedRangeReader.ByteRange dictRange = ColumnChunkPrefetcher.dictionaryPageRange(column, offsetIndex.getOffset(0));
+        if (dictRange == null) {
             return null;
         }
-        ByteBuffer dictSlice = source.slice(dictOffset, (int) dictSpan, column.getPath().toDotString(), -1);
+        ByteBuffer dictSlice = source.slice(dictRange.offset(), (int) dictRange.length(), column.getPath().toDotString(), -1);
         InputStream stream = bufferAsStream(dictSlice);
         try {
             int before = stream.available();
@@ -324,7 +321,7 @@ final class PrefetchedRowGroupBuilder {
             if (header.type != PageType.DICTIONARY_PAGE) {
                 throw new IllegalStateException(
                     "Expected dictionary page at offset ["
-                        + dictOffset
+                        + dictRange.offset()
                         + "] for column ["
                         + column.getPath().toDotString()
                         + "] in row group ["

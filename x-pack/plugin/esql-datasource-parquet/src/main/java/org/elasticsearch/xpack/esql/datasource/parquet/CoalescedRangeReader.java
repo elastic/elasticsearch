@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -43,12 +45,14 @@ final class CoalescedRangeReader {
      * Upper bound on how far coalescing may extend a merged range, so a densely packed wide row
      * group does not become one very large contiguous array and request. This is a coalescing
      * bound, not an allocation bound: a single constituent larger than this keeps its own
-     * oversized range. The 16 MiB value mirrors {@link ParquetStorageObjectAdapter#MAX_WINDOW_SIZE}
-     * as a familiar single-read ceiling, but the two constants govern unrelated paths. Using the
-     * adapter's 4 MiB {@link ParquetStorageObjectAdapter#DEFAULT_WINDOW_SIZE} here would turn a
-     * representative 152 MiB row group from roughly 10 requests into roughly 38.
+     * oversized range. Matches {@link ParquetStorageObjectAdapter#MAX_WINDOW_SIZE} so merge GETs
+     * and window GETs share the same 10 MiB in-flight ceiling. Permits drop when the GET completes;
+     * coalesced buffers stay until that row group is decoded. {@code C × B} budgets concurrent GET
+     * size, not retained prefetch. Using the adapter's 4 MiB
+     * {@link ParquetStorageObjectAdapter#DEFAULT_WINDOW_SIZE} here would turn a representative
+     * 152 MiB row group from roughly 16 requests into roughly 38.
      */
-    static final long MAX_MERGED_RANGE_BYTES = 16L * 1024 * 1024;
+    static final long MAX_MERGED_RANGE_BYTES = ParquetStorageObjectAdapter.MAX_WINDOW_SIZE;
 
     /**
      * A byte range within a file: {@code [offset, offset + length)}.
@@ -102,8 +106,9 @@ final class CoalescedRangeReader {
      * @param breaker circuit breaker charged for each merged-range buffer
      * @param executor executor for async dispatch
      * @param listener receives the per-range slices plus the composite {@link Releasable}
+     * @return a handle that cancels in-flight range GETs; no-op after the reads complete
      */
-    static void readCoalesced(
+    static Releasable readCoalesced(
         StorageObject storageObject,
         List<ByteRange> ranges,
         long maxCoalesceGap,
@@ -111,9 +116,34 @@ final class CoalescedRangeReader {
         Executor executor,
         ActionListener<CoalescedRangeResult> listener
     ) {
+        return readCoalesced(storageObject, ranges, maxCoalesceGap, breaker, null, null, executor, listener);
+    }
+
+    static Releasable readCoalesced(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        Executor executor,
+        ActionListener<CoalescedRangeResult> listener
+    ) {
+        return readCoalesced(storageObject, ranges, maxCoalesceGap, breaker, ioWatermark, null, executor, listener);
+    }
+
+    static Releasable readCoalesced(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable ParquetIoWatermark.AdmitHold admitHold,
+        Executor executor,
+        ActionListener<CoalescedRangeResult> listener
+    ) {
         if (ranges.isEmpty()) {
             listener.onResponse(new CoalescedRangeResult(Map.of(), () -> {}));
-            return;
+            return () -> {};
         }
 
         List<MergedRange> merged = mergeRanges(ranges, maxCoalesceGap);
@@ -124,15 +154,17 @@ final class CoalescedRangeReader {
         // CoalescedRangeResult's release; on overall failure each successful buffer is closed
         // immediately so the failure path leaves no outstanding breaker reservation.
         List<Releasable> buffers = new ArrayList<>(merged.size());
+        List<Releasable> inflight = Collections.synchronizedList(new ArrayList<>(merged.size()));
         AtomicInteger remaining = new AtomicInteger(merged.size());
         AtomicReference<Exception> firstFailure = new AtomicReference<>();
 
         // Bridge the circuit breaker to the SPI's factory once, here at the boundary, so
-        // backends do not need to know about CircuitBreaker at all.
-        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
+        // backends do not need to know about CircuitBreaker at all. The watermark wrapper
+        // charges actual allocated bytes beside REQUEST so footer estimates cannot drift.
+        DirectBufferFactory factory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark, admitHold);
 
         for (MergedRange mr : merged) {
-            storageObject.readBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
+            inflight.add(storageObject.startReadBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {
                     try {
@@ -181,8 +213,9 @@ final class CoalescedRangeReader {
                         }
                     }
                 }
-            });
+            }));
         }
+        return () -> Releasables.close(inflight);
     }
 
     /**
@@ -198,6 +231,16 @@ final class CoalescedRangeReader {
         long maxCoalesceGap,
         CircuitBreaker breaker
     ) throws IOException {
+        return readCoalescedSync(storageObject, ranges, maxCoalesceGap, breaker, null);
+    }
+
+    static CoalescedRangeResult readCoalescedSync(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark
+    ) throws IOException {
         if (ranges.isEmpty()) {
             return new CoalescedRangeResult(Map.of(), () -> {});
         }
@@ -211,19 +254,13 @@ final class CoalescedRangeReader {
 
         Map<ByteRange, ByteBuffer> results = new HashMap<>(ranges.size());
         List<Releasable> buffers = new ArrayList<>(merged.size());
-        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
+        DirectBufferFactory factory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark);
         try {
             for (MergedRange mr : merged) {
                 int length = (int) mr.length();
-                DirectReadBuffer result = factory.allocate(length);
+                DirectReadBuffer result = factory.allocateWritableWindow(length);
                 buffers.add(result);
                 ByteBuffer buffer = result.buffer();
-                if (buffer.capacity() < length) {
-                    throw new IllegalArgumentException(
-                        "Allocated buffer capacity [" + buffer.capacity() + "] is smaller than merged range length [" + length + "]"
-                    );
-                }
-                buffer.position(0).limit(length);
                 int read = 0;
                 while (read < length) {
                     int currentRead = storageObject.readBytes(mr.offset() + read, buffer);

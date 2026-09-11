@@ -54,10 +54,6 @@ public class FieldNameUtilsTests extends ESTestCase {
      */
     private final boolean includePrefixFields;
 
-    private static void checkMultiColumnInSubquery() {
-        assumeTrue("multi-column IN subquery", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
-    }
-
     public FieldNameUtilsTests(@Name("unmappedFieldLoad") boolean includePrefixFields) {
         this.includePrefixFields = includePrefixFields;
     }
@@ -3580,7 +3576,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     // Multi-column IN subquery tests
 
     public void testMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM employees | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary) | KEEP emp_no, first_name",
             Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*")
@@ -3588,7 +3583,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnNotInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames("""
             FROM employees
             | WHERE (emp_no, salary) NOT IN (FROM employees | WHERE languages == 4 | KEEP emp_no, salary)
@@ -3597,7 +3591,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryNoFieldReduction() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             """
                 FROM employees
@@ -3613,7 +3606,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBeforeMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames("""
             FROM employees
             | KEEP emp_no, first_name, salary, languages
@@ -3624,7 +3616,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFromSubqueryBeforeMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames("""
             FROM
               (FROM employees | SORT emp_no | LIMIT 50 | KEEP emp_no, first_name, salary),
@@ -3637,7 +3628,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     // Mixed single-column and multi-column IN subquery tests
 
     public void testMixedSingleAndMultiColumnInSubqueryWithAnd() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             """
                 FROM employees
@@ -3664,7 +3654,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     // Nested multi-column IN subquery tests
 
     public void testNestedMultiColumnInSubqueryInsideMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames("""
             FROM employees
             | WHERE (emp_no, salary) IN (
@@ -3677,7 +3666,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testNestedSingleColumnInSubqueryInsideMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames("""
             FROM employees
             | WHERE (emp_no, salary) IN (
@@ -3690,7 +3678,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testNestedMultiColumnInSubqueryInsideSingleColumnInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames("""
             FROM employees
             | WHERE emp_no IN (
@@ -3894,7 +3881,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnTsInSubqueryInEval() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM main | EVAL z = (f1, f2) IN (TS sub | KEEP f1, f2) | KEEP f1",
             Set.of("_index", "f1", "f1.*", "f2", "f2.*", "@timestamp", "@timestamp.*")
@@ -3902,7 +3888,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnRowInSubqueryInEval() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM main | EVAL z = (f1, f2) IN (ROW f1 = 1, f2 = 2 | KEEP f1, f2) | KEEP f1",
             Set.of("_index", "f1", "f1.*", "f2", "f2.*")
@@ -3910,7 +3895,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInCaseInEval() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM main | EVAL z = CASE((f1, f2) IN (FROM sub | KEEP f1, f2), true, false) | KEEP f1",
             Set.of("_index", "f1", "f1.*", "f2", "f2.*")
@@ -3918,7 +3902,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInCoalesceInEval() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM main | EVAL z = COALESCE((f1, f2) IN (TS sub | KEEP f1, f2), false) | KEEP f1",
             Set.of("_index", "f1", "f1.*", "f2", "f2.*", "@timestamp", "@timestamp.*")
@@ -3926,7 +3909,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInIsNullInEval() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM main | EVAL z = ((f1, f2) IN (FROM sub | KEEP f1, f2)) IS NULL | KEEP f1",
             Set.of("_index", "f1", "f1.*", "f2", "f2.*")
@@ -4205,7 +4187,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testStatsWhereMultiColumnRowInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames("""
             FROM employees
             | STATS count = COUNT(*) WHERE (emp_no, salary) IN (ROW a = 1, b = 2 | KEEP a, b)
@@ -4213,7 +4194,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testStatsWhereMultiColumnTsInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             """
                 FROM employees
@@ -4240,7 +4220,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testStatsWhereInSubqueryInComplexNesting() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             """
                 FROM employees
@@ -4275,6 +4254,70 @@ public class FieldNameUtilsTests extends ESTestCase {
                 "@timestamp.*"
             )
         );
+    }
+
+    // IN subqueries in INLINE STATS WHERE filter tests
+
+    public void testInSubqueryInInlineStatsWhereWithRow() {
+        assertFieldNames("""
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE salary IN (ROW a = 1 | KEEP a)
+            | KEEP emp_no""", Set.of("_index", "salary", "salary.*", "emp_no", "emp_no.*"));
+    }
+
+    public void testMultiColumnInSubqueryInInlineStatsWhereWithRow() {
+        assertFieldNames("""
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE (salary, languages) IN (ROW a = 1, b = 2 | KEEP a, b)
+            | KEEP emp_no""", Set.of("_index", "salary", "salary.*", "languages", "languages.*", "emp_no", "emp_no.*"));
+    }
+
+    public void testInSubqueryInInlineStatsWhereWithTs() {
+        String query = """
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE emp_no IN (TS metrics | STATS r = rate(foo.baz) BY bar | KEEP r)
+            | KEEP emp_no""";
+        Set<String> expected = Set.of("_index", "emp_no", "emp_no.*", "foo.baz", "foo.baz.*", "bar", "bar.*", "@timestamp", "@timestamp.*");
+        if (includePrefixFields) {
+            expected = new HashSet<>(expected);
+            expected.add("foo");
+        }
+        assertFieldNames(query, expected);
+    }
+
+    public void testInSubqueryInCaseInInlineStatsWhereWithRow() {
+        assertFieldNames("""
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE CASE(emp_no IN (ROW a = 1 | KEEP a), true, false)
+            | KEEP emp_no""", Set.of("_index", "emp_no", "emp_no.*"));
+    }
+
+    public void testInSubqueryInCoalesceInInlineStatsWhereWithTs() {
+        String query = """
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE COALESCE(emp_no IN (TS metrics | STATS r = avg_over_time(foo.baz) BY bar | KEEP r), false)
+            | KEEP emp_no""";
+        Set<String> expected = Set.of("_index", "emp_no", "emp_no.*", "foo.baz", "foo.baz.*", "bar", "bar.*", "@timestamp", "@timestamp.*");
+        if (includePrefixFields) {
+            expected = new HashSet<>(expected);
+            expected.add("foo");
+        }
+        assertFieldNames(query, expected);
+    }
+
+    public void testInSubqueryInIsNullInInlineStatsWhereWithTs() {
+        String query = """
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE (emp_no IN (TS metrics | KEEP emp_no)) IS NULL
+            | KEEP emp_no""";
+        assertFieldNames(query, Set.of("_index", "emp_no", "emp_no.*", "@timestamp", "@timestamp.*"));
+    }
+
+    public void testInSubqueryInIsNotNullInInlineStatsWhereWithRow() {
+        assertFieldNames("""
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE (emp_no IN (ROW a = 1 | KEEP a)) IS NOT NULL
+            | KEEP emp_no""", Set.of("_index", "emp_no", "emp_no.*"));
     }
 
     /**

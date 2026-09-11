@@ -58,6 +58,26 @@ first_name:keyword | emp_no:long
 "Parto"            | 10003
 ;
 
+// A declared `path` naming a DOTTED physical column, on every format. A dot is an ordinary character in a column
+// name: a text header, a columnar footer and a JSON key all carry "languages.long" and "salary_change.keyword"
+// literally, so the declaration binds to each one directly. Neither prefix ("languages", "salary_change") is
+// declared, so the binding cannot lean on a sibling column being present. NDJSON is the discriminating format
+// here, since it is the only one where a dot could plausibly mean nesting instead; its capability gates the case.
+sharedStrictDeclaredSchemaBindsDottedColumnName
+required_capability: dataset_in_from_command
+required_capability: external_ndjson_dotted_field_resolution
+dataset: shared_declared_dotted: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "langs": {"type": "long", "path": "languages.long"}, "change": {"type": "keyword", "path": "salary_change.keyword"}}}}
+
+FROM shared_declared_dotted
+| SORT id
+| LIMIT 3;
+
+id:long | langs:long | change:keyword
+10001   | 2          | "1.19"
+10002   | 5          | "-7.23"
+10003   | 4          | "14.68"
+;
+
 // Coercion that every format must perform identically. An undeclared read reports salary as an integer and
 // still_hired as a boolean, so neither declared type is what inference would pick -- these are real casts, not
 // identity. Two logical columns may not share one physical column, so each reads its own.

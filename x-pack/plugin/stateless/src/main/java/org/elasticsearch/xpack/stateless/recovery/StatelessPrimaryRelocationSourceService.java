@@ -14,13 +14,15 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersions;
@@ -58,36 +60,22 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.Strings.format;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.BlobFileWithLength;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PrewarmRelocationRequest;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PrimaryContextHandoffRequest;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 
 /// Source-side stateless primary relocation protocol. Mirrors [PeerRecoverySourceService].
-///
-/// Transport sends (prewarm / primary-context handoff) are supplied as callbacks by [TransportStatelessPrimaryRelocationAction].
-/// Target-side handlers live on [StatelessPrimaryRelocationTargetService].
+/// See [StatelessPrimaryRelocationTargetService] for target side logic.
 public class StatelessPrimaryRelocationSourceService {
 
+    public static final Setting<TimeValue> PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING = Setting.timeSetting(
+        "stateless.cluster.primary_relocation.pre_flush_slow_upload_queue_threshold",
+        TimeValue.timeValueSeconds(10),
+        TimeValue.ZERO,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(StatelessPrimaryRelocationSourceService.class);
-
-    /// Triggers a prewarm request on the relocation target. Implemented by [TransportStatelessPrimaryRelocationAction].
-    @FunctionalInterface
-    public interface TargetPrewarmTrigger {
-        void sendToTarget(Task task, DiscoveryNode targetNode, PrewarmRelocationRequest request);
-    }
-
-    /// Triggers a primary-context handoff on the relocation target. Implemented by [TransportStatelessPrimaryRelocationAction].
-    @FunctionalInterface
-    public interface PrimaryContextHandoffTrigger {
-        void sendToTarget(
-            Task task,
-            DiscoveryNode targetNode,
-            PrimaryContextHandoffRequest request,
-            ActionListener<ActionResponse.Empty> listener
-        );
-    }
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -98,12 +86,12 @@ public class StatelessPrimaryRelocationSourceService {
     private final StatelessCommitServiceProvider statelessCommitServiceProvider;
     private final IndexShardCacheWarmer indexShardCacheWarmer;
     private final HollowShardsMetrics hollowShardsMetrics;
-    private volatile TargetPrewarmTrigger targetPrewarmTrigger;
-    private volatile PrimaryContextHandoffTrigger primaryContextHandoffTrigger;
+    private final Client client;
     private volatile CompositeRecoverySchedulingListener schedulingListeners;
 
     private volatile TimeValue slowRelocationWarningThreshold;
     private volatile TimeValue idLookupRecencyThreshold;
+    private volatile TimeValue preFlushSlowUploadQueueThreshold;
 
     public StatelessPrimaryRelocationSourceService(
         ClusterService clusterService,
@@ -112,7 +100,8 @@ public class StatelessPrimaryRelocationSourceService {
         HollowShardsService hollowShardsService,
         StatelessCommitServiceProvider statelessCommitServiceProvider,
         IndexShardCacheWarmer indexShardCacheWarmer,
-        HollowShardsMetrics hollowShardsMetrics
+        HollowShardsMetrics hollowShardsMetrics,
+        Client client
     ) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -123,11 +112,14 @@ public class StatelessPrimaryRelocationSourceService {
         this.statelessCommitServiceProvider = statelessCommitServiceProvider;
         this.indexShardCacheWarmer = indexShardCacheWarmer;
         this.hollowShardsMetrics = hollowShardsMetrics;
+        this.client = client;
 
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
         clusterService.getClusterSettings()
             .initializeAndWatch(ID_LOOKUP_RECENCY_THRESHOLD_SETTING, value -> this.idLookupRecencyThreshold = value);
+        clusterService.getClusterSettings()
+            .initializeAndWatch(PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING, value -> this.preFlushSlowUploadQueueThreshold = value);
     }
 
     /// Registers the shared recovery scheduling listeners (available via Guice when the transport action is constructed).
@@ -138,19 +130,9 @@ public class StatelessPrimaryRelocationSourceService {
         this.schedulingListeners = schedulingListeners;
     }
 
-    /// Register the target-side transport triggers (available when the transport action is constructed).
-    public void registerTargetTriggers(
-        TargetPrewarmTrigger targetPrewarmTrigger,
-        PrimaryContextHandoffTrigger primaryContextHandoffTrigger
-    ) {
-        // Same Guice singleton guarantee as registerRecoverySchedulingListeners: called exactly once.
-        assert this.targetPrewarmTrigger == null && this.primaryContextHandoffTrigger == null : "already registered target triggers";
-        this.targetPrewarmTrigger = targetPrewarmTrigger;
-        this.primaryContextHandoffTrigger = primaryContextHandoffTrigger;
-    }
-
     void startRelocation(Task task, StatelessPrimaryRelocationAction.Request request, ActionListener<StartRelocationResponse> listener) {
-        initiatePrewarm(task, request);
+        final var parentClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
+        initiatePrewarm(parentClient, request);
 
         RecoveryClusterStateDelay.ensureClusterStateVersion(
             request.clusterStateVersion(),
@@ -164,7 +146,7 @@ public class StatelessPrimaryRelocationSourceService {
             new Consumer<>() {
                 @Override
                 public void accept(ActionListener<StartRelocationResponse> l) {
-                    startRelocationWithFreshClusterState(task, request, l);
+                    startRelocationWithFreshClusterState(parentClient, request, l);
                 }
 
                 @Override
@@ -175,7 +157,7 @@ public class StatelessPrimaryRelocationSourceService {
         );
     }
 
-    private void initiatePrewarm(Task task, StatelessPrimaryRelocationAction.Request request) {
+    private void initiatePrewarm(Client parentClient, StatelessPrimaryRelocationAction.Request request) {
         try {
             final ShardId shardId = request.shardId();
             final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
@@ -193,14 +175,18 @@ public class StatelessPrimaryRelocationSourceService {
             // If the shard is not about to be hollowed, then send an action to the target node to begin warming the cache immediately.
             // Note that if the shard is already hollow, the target warming will just read a single region.
             if (hollowShardsService.isHollowableIndexShard(indexShard) == false) {
-                targetPrewarmTrigger.sendToTarget(
-                    task,
-                    request.targetNode(),
-                    new PrewarmRelocationRequest(
-                        shardId,
-                        new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength()),
-                        hasRecentIdLookup
-                    )
+                parentClient.execute(
+                    TransportStatelessPrimaryRelocationPrewarmAction.TYPE,
+                    new TransportStatelessPrimaryRelocationPrewarmAction.PrewarmRequest(
+                        request.targetNode(),
+                        new TransportStatelessPrimaryRelocationPrewarmAction.Request(
+                            shardId,
+                            new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength()),
+                            hasRecentIdLookup
+                        )
+                    ),
+                    // Prewarm failures are non-fatal, the relocation continues without the benefit of prewarming.
+                    ActionListener.wrap(ignored -> {}, e -> logger.debug(format("%s ignoring prewarm action failure", shardId), e))
                 );
             }
         } catch (Exception e) {
@@ -209,7 +195,7 @@ public class StatelessPrimaryRelocationSourceService {
     }
 
     private void startRelocationWithFreshClusterState(
-        Task task,
+        Client parentClient,
         StatelessPrimaryRelocationAction.Request request,
         ActionListener<StartRelocationResponse> listener
     ) {
@@ -235,8 +221,9 @@ public class StatelessPrimaryRelocationSourceService {
         indexShard.recoveryStats().sourceRecoveryStarted();
         schedulingListeners.onPeerRecoveryStartedOnSource();
 
-        // Flushing before blocking operations because we expect this to reduce the amount of work done by the flush that happens while
-        // operations are blocked. NB the flush has force=false so may do nothing.
+        // Wait for the current commit to be durably uploaded before acquiring permits so the upload queue drains first.
+        // If this takes longer than preFlushSlowUploadQueueThreshold set waitIfOnGoing=true so the accumulated BCC uploads
+        // in the queue are uploaded before we acquire the permits. NB the flush has force=false so may do nothing.
         final var preFlushStep = new SubscribableListener<Engine.FlushResult>();
 
         logShardStats("flushing before acquiring all primary operation permits", indexShard, preFlushEngine);
@@ -250,12 +237,21 @@ public class StatelessPrimaryRelocationSourceService {
         );
 
         final long beforeInitialFlush = threadPool.relativeTimeInMillis();
-        if (hollowShardsService.isHollowShard(indexShard.shardId())) {
-            preFlushStep.onResponse(Engine.FlushResult.FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED);
+        if (preFlushEngine instanceof IndexEngine indexEngine) {
+            SubscribableListener.<Void>newForked(indexEngine::waitForCurrentCommitDurability).<Engine.FlushResult>andThen(
+                recoveryExecutor,
+                threadContext,
+                (l, unused) -> {
+                    assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+                    long elapsed = threadPool.relativeTimeInMillis() - beforeInitialFlush;
+                    boolean waitIfOngoing = elapsed >= preFlushSlowUploadQueueThreshold.millis();
+                    indexEngine.flush(false, waitIfOngoing, l);
+                }
+            ).addListener(preFlushStep);
         } else {
-            ActionListener.run(preFlushStep, l -> preFlushEngine.flush(false, false, l));
+            // HollowIndexEngine (hollow shards) and NoOpEngine (closed indices) have nothing to flush or wait for.
+            preFlushStep.onResponse(Engine.FlushResult.FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED);
         }
-        logger.debug("[{}] completed the flush, waiting to upload", request.shardId());
 
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
         preFlushStep.addListener(ActionListener.runAfter(listener, () -> {
@@ -451,24 +447,26 @@ public class StatelessPrimaryRelocationSourceService {
                     latestBccBlobLength.set(blobLength);
                     otherBlobFilesCount.set(otherBlobFiles.size());
 
-                    primaryContextHandoffTrigger.sendToTarget(
-                        task,
-                        request.targetNode(),
-                        new PrimaryContextHandoffRequest(
-                            request.recoveryId(),
-                            request.shardId(),
-                            new ReplicationTracker.PrimaryContext(
-                                primaryContext.clusterStateVersion(),
-                                localCheckpoints,
-                                primaryContext.getRoutingTable()
-                            ),
-                            retentionLeases,
-                            statelessCommitService.getSearchNodesPerCommit(indexShard.shardId()),
-                            new BlobFileWithLength(latestBccBlob, blobLength),
-                            otherBlobFiles,
-                            hasRecentIdLookup,
-                            lastCommitBlobs,
-                            lastCommitIsHollow
+                    parentClient.execute(
+                        TransportStatelessPrimaryRelocationHandoffAction.TYPE,
+                        new TransportStatelessPrimaryRelocationHandoffAction.HandoffRequest(
+                            request.targetNode(),
+                            new TransportStatelessPrimaryRelocationHandoffAction.Request(
+                                request.recoveryId(),
+                                request.shardId(),
+                                new ReplicationTracker.PrimaryContext(
+                                    primaryContext.clusterStateVersion(),
+                                    localCheckpoints,
+                                    primaryContext.getRoutingTable()
+                                ),
+                                retentionLeases,
+                                statelessCommitService.getSearchNodesPerCommit(indexShard.shardId()),
+                                new BlobFileWithLength(latestBccBlob, blobLength),
+                                otherBlobFiles,
+                                hasRecentIdLookup,
+                                lastCommitBlobs,
+                                lastCommitIsHollow
+                            )
                         ),
                         finalHandoffListener
                     );

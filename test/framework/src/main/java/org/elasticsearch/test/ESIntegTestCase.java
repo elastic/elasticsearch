@@ -239,7 +239,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -1633,29 +1632,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
                             + nbDocsOnReplica
                             + "]";
 
-                        if (nbDocsOnPrimary != nbDocsOnReplica) {
-                            // Number of docs is the same on primary/replica so compare and prints the complete list of docs
-                            assertThat(message, docsOnReplica, equalTo(docsOnPrimary));
-                        } else {
-                            // Primary/replica don't have the same number of docs, compare each doc and only prints the different docs
-                            // This can help when only a subset of documents are different, but it can print all remaining docs if a doc
-                            // is missing in one of the shard.
-                            var diffOnPrimary = new ArrayList<DocIdSeqNoAndSource>();
-                            var diffOnReplica = new ArrayList<DocIdSeqNoAndSource>();
-                            for (int doc = 0; doc < nbDocsOnPrimary; doc++) {
-                                var docOnPrimary = docsOnPrimary.get(doc);
-                                var docOnReplica = docsOnReplica.get(doc);
-                                if (Objects.equals(docOnPrimary, docOnReplica) == false) {
-                                    diffOnPrimary.add(docOnPrimary);
-                                    diffOnReplica.add(docOnReplica);
-                                    break;
-                                }
-                            }
-                            assertThat(
-                                message + ", num_docs_different=[" + diffOnPrimary.size() + "]",
-                                diffOnReplica,
-                                equalTo(diffOnPrimary)
-                            );
+                        if (docsOnPrimary.equals(docsOnReplica) == false) {
+                            // Only compute and print docs missing from either shard when the complete lists differ.
+                            final var primaryDocs = new HashSet<>(docsOnPrimary);
+                            final var replicaDocs = new HashSet<>(docsOnReplica);
+                            final var docsOnlyOnPrimary = docsOnPrimary.stream().filter(doc -> replicaDocs.contains(doc) == false).toList();
+                            final var docsOnlyOnReplica = docsOnReplica.stream().filter(doc -> primaryDocs.contains(doc) == false).toList();
+                            fail(message + ", docs_only_on_primary=" + docsOnlyOnPrimary + ", docs_only_on_replica=" + docsOnlyOnReplica);
                         }
                     }
                 }

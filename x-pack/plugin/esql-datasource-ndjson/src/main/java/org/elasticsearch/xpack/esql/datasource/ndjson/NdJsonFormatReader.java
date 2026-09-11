@@ -252,16 +252,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             // Empty schema means the optimizer pruned every column (COUNT(*) etc.); skip inference
             // entirely. The decoder treats an empty projection list as "structure-only", so there
             // is nothing to type-check against.
-            if (attributes.isEmpty()) {
-                return attributes;
-            }
-            if (needsFullSchemaSupplement(attributes)) {
-                List<Attribute> inferred;
-                try (var stream = openForSchemaInference(object, skipFirstLine)) {
-                    inferred = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize, datetimeFormatter);
-                }
-                return mergeInferredWithPreferred(inferred, attributes);
-            }
             return attributes;
         }
 
@@ -323,33 +313,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Coordinator-supplied schemas may only list projected columns. Dotted columns such as {@code languages.long}
-     * need their prefix column ({@code languages}) present for NDJSON decoding; detect that case and merge with a
-     * fresh file inference pass.
-     */
-    private static boolean needsFullSchemaSupplement(List<Attribute> attributes) {
-        for (Attribute a : attributes) {
-            String name = a.name();
-            int dot = name.indexOf('.');
-            if (dot <= 0) {
-                continue;
-            }
-            String prefix = name.substring(0, dot);
-            boolean hasPrefix = false;
-            for (Attribute o : attributes) {
-                if (o.name().equals(prefix)) {
-                    hasPrefix = true;
-                    break;
-                }
-            }
-            if (hasPrefix == false) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * Resolve the effective schema when the planner has bound a read schema for this file.
      * <p>
      * <b>The bound schema wins on type.</b> It is the planner's read contract — a declared type, or a type
@@ -376,20 +339,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         for (Attribute p : projection) {
             Attribute existing = byName.get(p.name());
             byName.put(p.name(), existing == null ? p : existing.withNullability(p.nullable()));
-        }
-        return List.copyOf(byName.values());
-    }
-
-    /**
-     * Union by column name: inferred file order first, then overlay coordinator types/nullability for matching names.
-     */
-    private static List<Attribute> mergeInferredWithPreferred(List<Attribute> inferred, List<Attribute> preferred) {
-        Map<String, Attribute> byName = new LinkedHashMap<>();
-        for (Attribute a : inferred) {
-            byName.put(a.name(), a);
-        }
-        for (Attribute p : preferred) {
-            byName.put(p.name(), p);
         }
         return List.copyOf(byName.values());
     }

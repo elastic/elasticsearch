@@ -37,9 +37,8 @@ import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
-import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -77,16 +76,16 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  * <ul>
  *   <li>{@link UnresolvedRelation}: Resolves views and replaces them with their query plans, then recursively processes those
  *       plans</li>
- *   <li>{@link Fork}: Recursively processes each child branch</li>
- *   <li>{@code UnionAll}: Skipped (assumes rewriting is already complete)</li>
+ *   <li>{@link MergePlan}: Recursively processes each child branch. This includes {@code Fork}
+ *       and user-written {@code UnionAll}; {@link ViewUnionAll} is handled separately below</li>
  *   <li>{@link AbstractSubqueryJoin}: Recursively processes the left and right sides</li>
  *   <li>{@link Filter}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} into a {@code SemiJoin}/{@code AntiJoin}/
  *       {@code MarkJoin}, then recurses into the newly created subquery plans to resolve view references nested there</li>
- *   <li>{@link Eval}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} in field definitions into a {@code MarkJoin}
- *       , then recurses into the newly created subquery plans</li>
+ *   <li>{@link Eval}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} in field definitions into a {@code MarkJoin},
+ *       then recurses into the newly created subquery plans</li>
  *   <li>{@link Aggregate}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} inside a per-aggregate {@code WHERE}
- *       filter into a {@code MarkJoin} below the aggregate, then recurses like the {@link Filter} case. Aggregates owned by an
- *       {@link InlineStats} are skipped — INLINE STATS does not support IN subqueries</li>
+ *       filter (of a {@code STATS} or {@code INLINE STATS}) into a {@code MarkJoin} below the aggregate, then recurses like the
+ *       {@link Filter} case</li>
  *   <li>{@link ViewUnionAll}: Skipped (already the result of view resolution)</li>
  * </ul>
  * <p>
@@ -237,16 +236,11 @@ public class ViewResolver {
         LinkedHashSet<String> seenInner = new LinkedHashSet<>(seenViews);
         // Tracks wildcard patterns already resolved within this transformDown traversal to prevent duplicate processing
         HashSet<String> seenWildcards = new HashSet<>();
-        // Tracks plans already resolved by view handlers (Fork, UnresolvedRelation) to prevent double-processing.
+        // Tracks plans already resolved by view handlers (MergePlan, UnresolvedRelation) to prevent double-processing.
         // Without this, transformDown recurses into the children of resolved plans, causing wildcards
         // in view subqueries to be re-resolved against sibling view names, producing false circular
         // reference errors and deeply nested duplicate resolution.
         Set<LogicalPlan> resolvedPlans = Collections.newSetFromMap(new IdentityHashMap<>());
-        // Aggregates owned by an InlineStats must not have their inline agg filters rewritten (INLINE STATS does not support IN
-        // subqueries yet; InSubqueryResolver#verify rejects them). Identity-based tracking is safe here: transformDown is pre-order, so
-        // the InlineStats is visited (and its aggregate registered) before the aggregate itself, and returning a node unchanged makes
-        // transformDown recurse into the same child instances (see Node#transformDown).
-        Set<Aggregate> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
 
         plan.transformDown((p, planListener) -> {
             if (resolvedPlans.contains(p)) {
@@ -257,11 +251,11 @@ public class ViewResolver {
             switch (p) {
                 case ViewUnionAll viewUnion ->
                     // ViewUnionAll is the result of view resolution, so we skip it.
-                    // Plain UnionAll (from user-written subqueries) matches the Fork case below
+                    // Plain UnionAll (from user-written subqueries) matches the MergePlan case below
                     // and its children are recursed into with proper seen-set scoping.
                     planListener.onResponse(viewUnion);
-                case Fork fork -> replaceViewsFork(
-                    fork,
+                case MergePlan mergePlan -> replaceViewsMergePlan(
+                    mergePlan,
                     projectRouting,
                     parser,
                     seenInner,
@@ -322,17 +316,8 @@ public class ViewResolver {
                         );
                     }
                 }
-                case InlineStats inlineStats -> {
-                    // Register the owned aggregate so the Aggregate case below skips it; INLINE STATS does not support IN subqueries
-                    // and InSubqueryResolver#verify rejects them. Children (including the owned aggregate's subtree) are still
-                    // traversed normally so views and Filter-level IN subqueries below it keep resolving.
-                    inlineStatsAggregates.add(inlineStats.aggregate());
-                    planListener.onResponse(inlineStats);
-                }
                 case Aggregate aggregate -> {
-                    LogicalPlan resolved = inlineStatsAggregates.contains(aggregate)
-                        ? aggregate
-                        : InSubqueryResolver.resolveInSubqueryInAggregate(aggregate);
+                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInAggregate(aggregate);
                     if (resolved == aggregate) {
                         // No InSubquery in the aggregate filters — let transformDown process its children normally.
                         planListener.onResponse(aggregate);
@@ -387,11 +372,11 @@ public class ViewResolver {
                 );
                 default -> planListener.onResponse(p);
             }
-        }, listener);
+        }, executor, listener);
     }
 
-    private void replaceViewsFork(
-        Fork fork,
+    private void replaceViewsMergePlan(
+        MergePlan mergePlan,
         String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
@@ -400,7 +385,7 @@ public class ViewResolver {
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
-        var currentSubplans = fork.children();
+        var currentSubplans = mergePlan.children();
         SubscribableListener<List<LogicalPlan>> chain = SubscribableListener.newForked(l -> l.onResponse(null));
         for (int i = 0; i < currentSubplans.size(); i++) {
             var index = i;
@@ -434,9 +419,9 @@ public class ViewResolver {
         }
         chain.andThenApply(updatedSubplans -> {
             if (updatedSubplans != null) {
-                return fork.replaceSubPlans(updatedSubplans);
+                return mergePlan.replaceSubPlans(updatedSubplans);
             }
-            return (LogicalPlan) fork;
+            return (LogicalPlan) mergePlan;
         }).addListener(listener);
     }
 
@@ -933,7 +918,7 @@ public class ViewResolver {
         // compaction work has moved to the {@link ViewCompaction} analyzer rule, but a per-level merge
         // here keeps the resolved plan compact: a wide branching level (e.g. {@code FROM v1, v2, ... v9}
         // of compactable views) folds into a single {@link UnresolvedRelation} entry rather than a
-        // ViewUnionAll that would later trip {@link Fork#MAX_BRANCHES} at post-analysis verification.
+        // ViewUnionAll that would later trip {@link MergePlan#MAX_BRANCHES} at post-analysis verification.
         mergeCompatibleUnresolvedRelations(plans, buildAliasResolver());
 
         if (plans.size() == 1) {
@@ -970,7 +955,7 @@ public class ViewResolver {
      * Merges bare UnresolvedRelation entries that don't share index patterns into a single entry.
      * Those that cannot be merged are wrapped in NamedSubquery nodes to preserve data duplication
      * semantics. The full broader-scope compaction lives in {@link ViewCompaction}; this is the
-     * per-level merge that keeps the resolved tree small enough to pass {@link Fork#MAX_BRANCHES}
+     * per-level merge that keeps the resolved tree small enough to pass {@link MergePlan#MAX_BRANCHES}
      * at post-analysis verification.
      */
     private static void mergeCompatibleUnresolvedRelations(

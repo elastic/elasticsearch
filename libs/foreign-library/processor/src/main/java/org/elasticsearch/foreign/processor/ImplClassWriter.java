@@ -120,7 +120,15 @@ class ImplClassWriter {
         CD_Linker,
         CD_LinkerOptionArray
     );
-    private static final MethodTypeDesc MTD_getString = MethodTypeDesc.of(CD_String, CD_long);
+    private static final MethodTypeDesc MTD_adaptCritical = MethodTypeDesc.of(
+        CD_MethodHandle,
+        CD_Lookup,
+        CD_MethodHandle,
+        CD_Class,
+        CD_String
+    );
+    private static final MethodTypeDesc MTD_unsupportedFallback = MethodTypeDesc.of(CD_MethodHandle, CD_MethodHandle, CD_String);
+    private static final MethodTypeDesc MTD_LinkerHelper_readString = MethodTypeDesc.of(CD_String, CD_MemorySegment);
     private static final MethodTypeDesc MTD_Arena_ofConfined = MethodTypeDesc.of(CD_Arena);
     private static final MethodTypeDesc MTD_Arena_close = MethodTypeDesc.of(CD_void);
     private static final MethodTypeDesc MTD_Arena_allocateFrom_String = MethodTypeDesc.of(CD_MemorySegment, CD_String);
@@ -990,24 +998,15 @@ class ImplClassWriter {
     /**
      * Marshals a {@code MemorySegment} returned by the native call into a Java {@code String},
      * returning {@code null} for a null pointer. Stack on entry: {@code [segment]}.
+     *
+     * <p>The whole null-check + reinterpret + UTF-8 read is delegated to {@code LinkerHelper.readString}
+     * rather than inlined here so the restricted {@code MemorySegment.reinterpret} runs in the entitled
+     * {@code org.elasticsearch.foreign} module. Inlining it would attribute the {@code load_native_libraries}
+     * check to this generated {@code $Impl}, forcing every library that binds a string-returning function to
+     * hold that entitlement.
      */
     private static void emitStringReturn(CodeBuilder cb) {
-        var notNull = cb.newLabel();
-        cb.dup();
-        cb.invokeinterface(CD_MemorySegment, "address", MethodTypeDesc.of(CD_long));
-        cb.lconst_0();
-        cb.lcmp();
-        cb.ifne(notNull);
-        // null pointer path: pop segment, return null
-        cb.pop();
-        cb.aconst_null();
-        cb.areturn();
-        cb.labelBinding(notNull);
-        // Otherwise reinterpret the segment to a known size and read it as a UTF-8 string.
-        cb.ldc(Long.MAX_VALUE);
-        cb.invokeinterface(CD_MemorySegment, "reinterpret", MethodTypeDesc.of(CD_MemorySegment, CD_long));
-        cb.ldc(0L);
-        cb.invokeinterface(CD_MemorySegment, "getString", MTD_getString);
+        cb.invokestatic(CD_LinkerHelper, "readString", MTD_LinkerHelper_readString);
         cb.areturn();
     }
 

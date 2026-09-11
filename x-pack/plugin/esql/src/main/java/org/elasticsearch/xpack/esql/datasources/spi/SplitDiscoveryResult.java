@@ -29,18 +29,16 @@ import java.util.List;
  * {@code SplitDiscoveryPhase} may trust them as "read nothing". An empty result that is not a
  * proven filter contradiction — unresolved glob, empty file list, or a provider that cannot certify
  * the prune — reports {@code false} and must fall back to a full read.
+ *
+ * <p>{@code cpuNanos} is the CPU time (excluding IO wait) consumed by the split discovery phase,
+ * accumulated across all files and any background threads. Zero when not measured or not supported.
  */
-public record SplitDiscoveryResult(List<ExternalSplit> splits, int filesScanned, boolean exhaustivelyPruned) {
+public record SplitDiscoveryResult(List<ExternalSplit> splits, int filesScanned, boolean exhaustivelyPruned, long cpuNanos) {
 
-    public static final SplitDiscoveryResult EMPTY = new SplitDiscoveryResult(List.of(), 0, false);
+    public static final SplitDiscoveryResult EMPTY = new SplitDiscoveryResult(List.of(), 0, false, 0L);
 
     public SplitDiscoveryResult {
         splits = List.copyOf(splits);
-    }
-
-    /** Splits with the given {@code filesScanned}; not an exhaustive prune (there are splits to read). */
-    public SplitDiscoveryResult(List<ExternalSplit> splits, int filesScanned) {
-        this(splits, filesScanned, false);
     }
 
     /**
@@ -48,6 +46,6 @@ public record SplitDiscoveryResult(List<ExternalSplit> splits, int filesScanned,
      * {@code filesScanned} of {@code 0}.
      */
     public static SplitDiscoveryResult of(List<ExternalSplit> splits) {
-        return splits.isEmpty() ? EMPTY : new SplitDiscoveryResult(splits, 0);
+        return splits.isEmpty() ? EMPTY : new SplitDiscoveryResult(splits, 0, false, 0L);
     }
 }

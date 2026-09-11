@@ -4536,6 +4536,78 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.timeout(), equalTo(TimeValue.timeValueSeconds(30)));
     }
 
+    public void testDenseVectorType() {
+        assumeDenseVectorCommandEnabled();
+        var text = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"text\" }"),
+            DenseVector.class
+        );
+        assertThat(text.inputType(), equalTo(org.elasticsearch.inference.DataType.TEXT));
+
+        var image = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"image\" }"),
+            DenseVector.class
+        );
+        assertThat(image.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+    }
+
+    public void testDenseVectorTypeIsCaseInsensitive() {
+        assumeDenseVectorCommandEnabled();
+        for (String value : List.of("image", "IMAGE", "Image", "iMaGe")) {
+            var plan = as(
+                processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"" + value + "\" }"),
+                DenseVector.class
+            );
+            assertThat(plan.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+        }
+    }
+
+    public void testDenseVectorDefaultType() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.inputType(), equalTo(org.elasticsearch.inference.DataType.TEXT));
+    }
+
+    /**
+     * The fallback endpoints embed text, so an image input has nothing to fall back to and must name an endpoint.
+     */
+    public void testDenseVectorImageRequiresInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR title WITH { \"type\" : \"image\" }",
+            "Option [type] with value [image] in DENSE_VECTOR requires option [inference_id]"
+        );
+    }
+
+    /**
+     * A cluster-level default is an administrator naming an endpoint, so it satisfies an image input the same way {@code WITH}
+     * does. Whether that endpoint is multimodal is checked during analysis.
+     */
+    public void testDenseVectorImageAcceptsClusterDefaultInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "cluster-default-id")
+            .build();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"type\" : \"image\" }", new QueryParams(), settings),
+            DenseVector.class
+        );
+        assertThat(plan.inferenceId(), equalTo(literalString("cluster-default-id")));
+        assertThat(plan.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+    }
+
+    public void testDenseVectorInvalidType() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"audio\" }",
+            "Invalid value [audio] for option [type] in DENSE_VECTOR, expected one of [text, image]"
+        );
+        expectError(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"nonsense\" }",
+            "Invalid value [nonsense] for option [type] in DENSE_VECTOR, expected one of [text, image]"
+        );
+    }
+
     public void testDenseVectorDefaultTimeout() {
         assumeDenseVectorCommandEnabled();
         // When no timeout option is given, the plan carries a null timeout; the inference layer then applies its
@@ -4549,6 +4621,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // No WITH: falls through to the built-in default endpoint.
         var plan = as(processingCommand("DENSE_VECTOR title"), DenseVector.class);
         assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+        assertTrue(plan.inferenceIdIsFallback());
     }
 
     public void testDenseVectorEmptyOptionsUsesDefaultInferenceId() {
@@ -4556,6 +4629,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // Empty WITH: still falls through to the built-in default endpoint.
         var plan = as(processingCommand("DENSE_VECTOR title WITH { }"), DenseVector.class);
         assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+        assertTrue(plan.inferenceIdIsFallback());
+    }
+
+    /**
+     * Naming the built-in default endpoint explicitly yields the same {@code inferenceId} as omitting the option, so the id alone
+     * cannot distinguish the two; only {@code inferenceIdIsFallback} does.
+     */
+    public void testDenseVectorExplicitBuiltInInferenceIdIsNotFallback() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \".multilingual-e5-small-elasticsearch\" }"),
+            DenseVector.class
+        );
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+        assertFalse(plan.inferenceIdIsFallback());
     }
 
     public void testDenseVectorClusterDefaultInferenceId() {
@@ -4566,6 +4654,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
             .build();
         var plan = as(processingCommand("DENSE_VECTOR title", new QueryParams(), settings), DenseVector.class);
         assertThat(plan.inferenceId(), equalTo(literalString("cluster-default-id")));
+        assertFalse(plan.inferenceIdIsFallback());
+    }
+
+    /**
+     * A cluster-level default that happens to name the built-in default endpoint is still an administrator's choice, not a
+     * fallback.
+     */
+    public void testDenseVectorClusterDefaultNamingBuiltInIsNotFallback() {
+        assumeDenseVectorCommandEnabled();
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), ".multilingual-e5-small-elasticsearch")
+            .build();
+        var plan = as(processingCommand("DENSE_VECTOR title", new QueryParams(), settings), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+        assertFalse(plan.inferenceIdIsFallback());
     }
 
     public void testDenseVectorBlankClusterDefaultInferenceIdIsRejected() {
@@ -4595,6 +4698,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             DenseVector.class
         );
         assertThat(plan.inferenceId(), equalTo(literalString("with-id")));
+        assertFalse(plan.inferenceIdIsFallback());
     }
 
     public void testDenseVectorRowLimitOverride() {
@@ -4622,7 +4726,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assumeDenseVectorCommandEnabled();
         expectError(
             "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"foo\" : 3 }",
-            "Invalid option [foo] in DENSE_VECTOR, expected one of [[inference_id, timeout]]"
+            "Invalid option [foo] in DENSE_VECTOR, expected one of [[inference_id, timeout, type]]"
         );
     }
 

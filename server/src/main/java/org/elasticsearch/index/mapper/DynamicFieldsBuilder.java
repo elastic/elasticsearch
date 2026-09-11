@@ -333,12 +333,11 @@ final class DynamicFieldsBuilder {
             } else {
                 var indexSettings = context.indexSettings();
                 if (indexSettings.getDynamicStringsAutoText()) {
-                    return createDynamicField(
-                        new TextFieldMapper.Builder(name, indexSettings, context.indexAnalyzers(), false).addMultiField(
-                            new KeywordFieldMapper.Builder("keyword", context.indexSettings(), true).ignoreAbove(256)
-                        ),
-                        context
-                    );
+                    var textBuilder = new TextFieldMapper.Builder(name, indexSettings, context.indexAnalyzers(), false);
+                    if (indexSettings.getDynamicStringsAutoKeywordSubfield()) {
+                        textBuilder.addMultiField(new KeywordFieldMapper.Builder("keyword", indexSettings, true).ignoreAbove(256));
+                    }
+                    return createDynamicField(textBuilder, context);
                 } else {
                     return createDynamicField(new KeywordFieldMapper.Builder(name, indexSettings, false), context);
                 }

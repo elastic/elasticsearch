@@ -1,0 +1,195 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities]
+      cluster_features: ["index.slice_indexing", "search.point_in_time_slice", "gte_v7.13.0"]
+      reason: needs slice indexing, point-in-time slice support, and point in time support
+  - do:
+      indices.create:
+        index: slice_pit_index
+        body:
+          settings:
+            number_of_shards: 1
+            index.slice.enabled: true
+          mappings:
+            properties:
+              value:
+                type: keyword
+
+  - do:
+      index:
+        index: slice_pit_index
+        id: "1"
+        slice: a
+        body: { value: va }
+
+  - do:
+      index:
+        index: slice_pit_index
+        id: "1"
+        slice: b
+        body: { value: vb }
+
+  - do:
+      indices.refresh:
+        index: slice_pit_index
+
+---
+"PIT search respects slice scoping":
+  - do:
+      open_point_in_time:
+        index: slice_pit_index
+        slice: _all
+        keep_alive: 5m
+  - set: { id: point_in_time_all_id }
+
+  - do:
+      search:
+        body:
+          size: 10
+          query:
+            match_all: {}
+          pit:
+            id: "$point_in_time_all_id"
+            keep_alive: 1m
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        slice: _all
+        body:
+          size: 10
+          query:
+            match_all: {}
+          pit:
+            id: "$point_in_time_all_id"
+            keep_alive: 1m
+  - match: { hits.total.value: 2 }
+
+  - do:
+      close_point_in_time:
+        body:
+          id: "$point_in_time_all_id"
+
+  - do:
+      open_point_in_time:
+        index: slice_pit_index
+        slice: a
+        keep_alive: 5m
+  - set: { id: point_in_time_a_id }
+
+  - do:
+      search:
+        slice: a
+        body:
+          size: 10
+          query:
+            match_all: {}
+          pit:
+            id: "$point_in_time_a_id"
+            keep_alive: 1m
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._source.value: va }
+
+  - do:
+      close_point_in_time:
+        body:
+          id: "$point_in_time_a_id"
+
+  - do:
+      open_point_in_time:
+        index: slice_pit_index
+        slice: b
+        keep_alive: 5m
+  - set: { id: point_in_time_b_id }
+
+  - do:
+      search:
+        slice: b
+        body:
+          size: 10
+          query:
+            match_all: {}
+          pit:
+            id: "$point_in_time_b_id"
+            keep_alive: 1m
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._source.value: vb }
+
+  - do:
+      close_point_in_time:
+        body:
+          id: "$point_in_time_b_id"
+
+---
+"PIT open with slice scopes shards":
+  - do:
+      indices.create:
+        index: slice_pit_open_index
+        body:
+          settings:
+            number_of_shards: 2
+            index.slice.enabled: true
+          mappings:
+            properties:
+              value:
+                type: keyword
+
+  - do:
+      index:
+        index: slice_pit_open_index
+        id: "1"
+        slice: a
+        body: { value: va }
+
+  - do:
+      index:
+        index: slice_pit_open_index
+        id: "2"
+        slice: b
+        body: { value: vb }
+
+  - do:
+      indices.refresh:
+        index: slice_pit_open_index
+
+  - do:
+      open_point_in_time:
+        index: slice_pit_open_index
+        slice: a
+        keep_alive: 5m
+  - match: { _shards.total: 1 }
+  - set: { id: slice_a_pit_id }
+
+  - do:
+      search:
+        slice: a
+        body:
+          size: 10
+          query:
+            match_all: {}
+          pit:
+            id: "$slice_a_pit_id"
+            keep_alive: 1m
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._source.value: va }
+
+  - do:
+      close_point_in_time:
+        body:
+          id: "$slice_a_pit_id"
+
+  - do:
+      open_point_in_time:
+        index: slice_pit_open_index
+        slice: _all
+        keep_alive: 5m
+  - match: { _shards.total: 2 }
+  - set: { id: slice_all_pit_id }
+
+  - do:
+      close_point_in_time:
+        body:
+          id: "$slice_all_pit_id"

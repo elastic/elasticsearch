@@ -9,7 +9,7 @@
 
 package org.elasticsearch.benchmark.script;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -71,7 +71,7 @@ import java.util.concurrent.atomic.LongAdder;
 public class PainlessAllocationTrackingBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     /**

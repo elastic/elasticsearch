@@ -127,12 +127,13 @@ public final class RangeReadContext {
 
     /**
      * Optional relay for client-visible lenient-policy warnings (see {@code SkipWarnings}) raised
-     * while reading this range. {@code null} means the reader should fall back to emitting warnings
-     * directly via {@link org.elasticsearch.common.logging.HeaderWarning}, which is only correct when
-     * the read runs on the request/driver thread. Callers that dispatch {@code readRange} to a
-     * background thread (e.g. {@code AsyncExternalSourceOperatorFactory}) must set this to a sink so
-     * the warning is relayed back and re-emitted on the correct thread instead of being silently
-     * dropped. See {@link FormatReadContext#informationalWarningSink()} for the non-range-read counterpart.
+     * while reading this range. {@code null} disables sink-only informational warnings;
+     * {@code SkipWarnings}-based paths use their legacy direct
+     * {@link org.elasticsearch.common.logging.HeaderWarning} fallback on the invoking thread. This is
+     * retained for standalone tests and benchmarks. Driver-associated production reads must provide an explicit
+     * structured or buffered sink; merely running on the driver thread does not make direct headers part
+     * of ES|QL's structured warning transport. See {@link FormatReadContext#informationalWarningSink()}
+     * for the non-range-read counterpart.
      */
     @Nullable
     public Consumer<String> informationalWarningSink() {

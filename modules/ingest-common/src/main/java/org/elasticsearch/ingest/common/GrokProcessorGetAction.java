@@ -174,7 +174,7 @@ public class GrokProcessorGetAction {
                 throw new IllegalArgumentException("unsupported ECS compatibility mode [" + ecsCompatibility + "]");
             }
             Request grokPatternsRequest = new Request(sorted, ecsCompatibility);
-            return channel -> client.executeLocally(INSTANCE, grokPatternsRequest, new RestToXContentListener<>(channel));
+            return channel -> client.execute(INSTANCE, grokPatternsRequest, new RestToXContentListener<>(channel));
         }
     }
 }

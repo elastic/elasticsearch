@@ -319,6 +319,32 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
         assertThat(copy.partial(), equalTo(false));
     }
 
+    public void testReadFromBwcVersionPriorToReadCpuNanos() throws IOException {
+        AsyncExternalSourceOperator.Status original = new AsyncExternalSourceOperator.Status(
+            5,
+            10,
+            111,
+            2048,
+            null,
+            1_000_000L,
+            2,
+            4,
+            3,
+            8192L,
+            42_000L,
+            777L,
+            new NdJsonReaderStatus(7L, 0L, 0L, 0L),
+            Map.of(),
+            false
+        );
+        TransportVersion preReadCpuNanos = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_read_cpu_nanos"));
+        AsyncExternalSourceOperator.Status copy = copyInstance(original, preReadCpuNanos);
+        // readNanos still round-trips (ESQL_EXTERNAL_SOURCE_PROFILE predates ESQL_READ_CPU_NANOS)
+        assertThat(copy.readNanos(), equalTo(42_000L));
+        // readCpuNanos was not on the wire yet, defaults to 0
+        assertThat(copy.readCpuNanos(), equalTo(0L));
+    }
+
     public void testTypedFormatReaderRoundTrip() throws IOException {
         AsyncExternalSourceOperator.Status original = new AsyncExternalSourceOperator.Status(
             1,

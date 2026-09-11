@@ -48,8 +48,9 @@ import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAS
 /**
  * Base class for IVF kNN vector queries. {@link #k} is the final result size (after any outer rescore) - callers
  * must pass the user's {@code k}, never a pre-oversampled one, because this class expands the candidate pool
- * itself from the per-segment oversample resolved by {@link IvfQueryConfigResolver#resolve}. The pool that
- * expansion produces is reported by {@link #postFilterExpectedBaseQueryDocMatches(List)}.
+ * itself from the per-segment oversample resolved by {@link IvfQueryConfigResolver#resolve}.
+ * Each implementation should also register to {@code IVFKnnQueryFactory#cloneWithParams} to ensure that post-filtering
+ * is properly supported.
  */
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider, PostFilterableKnnQuery {
 
@@ -301,8 +302,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
      * Rebuilds this query as a new instance of the same concrete type via {@link IVFKnnQueryFactory}.
      * Everything the source carries - query vector, slice ids, parents filter, visit ratio, config
      * resolver - is copied across; only {@code filter}, {@code k}, {@code numCands} and
-     * {@code postFilterDelegate} are taken from the arguments. Final so a subclass cannot inherit a
-     * sibling's reconstruction by forgetting to override.
+     * {@code postFilterDelegate} are taken from the arguments.
+     * Final so a subclass cannot inherit a sibling's reconstruction by forgetting to override. It has
+     * however to register to {@code IVFKnnQueryFactory.cloneWithParams}
      */
     final AbstractIVFKnnVectorQuery clone(Query filter, int k, int numCands, boolean postFilterDelegate) {
         var query = IVFKnnQueryFactory.cloneWithParams(this, filter, k, numCands, postFilterDelegate);

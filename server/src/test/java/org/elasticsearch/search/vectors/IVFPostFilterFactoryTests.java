@@ -22,6 +22,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
@@ -29,8 +30,15 @@ import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.lang.reflect.Modifier;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -63,19 +71,19 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
     private static final int EXPECTED_SCALED_K = 22; // clamp(ceil((10 + 5.175)/0.7)=22, ceil(10*1.2)=12, NUM_CANDS_LIMIT) = 22
     private static final int EXPECTED_SCALED_NUM_CANDS = 44; // clamp(ceil(20 * 22/10)=44, 22, NUM_CANDS_LIMIT) = 44
 
-    private IVFKnnFloatVectorQuery plain() {
+    private IVFKnnFloatVectorQuery floatPlain() {
         return new IVFKnnFloatVectorQuery(FIELD, QUERY.clone(), K, NUM_CANDS, filter(), VISIT_RATIO, RESOLVER);
     }
 
-    private IVFKnnFloatSlicedVectorQuery sliced() {
+    private IVFKnnFloatSlicedVectorQuery floatSliced() {
         return new IVFKnnFloatSlicedVectorQuery(FIELD, QUERY.clone(), K, NUM_CANDS, filter(), VISIT_RATIO, RESOLVER, SLICE_FIELD, SLICE_ID);
     }
 
-    private DiversifyingChildrenIVFKnnFloatVectorQuery diversifying() {
+    private DiversifyingChildrenIVFKnnFloatVectorQuery floatDiversifying() {
         return new DiversifyingChildrenIVFKnnFloatVectorQuery(FIELD, QUERY.clone(), K, NUM_CANDS, filter(), PARENTS, VISIT_RATIO, RESOLVER);
     }
 
-    private DiversifyingChildrenIVFKnnFloatSlicedVectorQuery diversifyingSliced() {
+    private DiversifyingChildrenIVFKnnFloatSlicedVectorQuery floatDiversifyingSliced() {
         return new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
             FIELD,
             QUERY.clone(),
@@ -90,47 +98,58 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
         );
     }
 
+    private IVFKnnByteVectorQuery bytePlain() {
+        return new IVFKnnByteVectorQuery(FIELD, BYTE_QUERY.clone(), K, NUM_CANDS, filter(), VISIT_RATIO, RESOLVER);
+    }
+
+    private IVFKnnByteSlicedVectorQuery byteSliced() {
+        return new IVFKnnByteSlicedVectorQuery(
+            FIELD,
+            BYTE_QUERY.clone(),
+            K,
+            NUM_CANDS,
+            filter(),
+            VISIT_RATIO,
+            RESOLVER,
+            SLICE_FIELD,
+            SLICE_ID
+        );
+    }
+
+    private DiversifyingChildrenIVFKnnByteVectorQuery byteDiversifying() {
+        return new DiversifyingChildrenIVFKnnByteVectorQuery(
+            FIELD,
+            BYTE_QUERY.clone(),
+            K,
+            NUM_CANDS,
+            filter(),
+            PARENTS,
+            VISIT_RATIO,
+            RESOLVER
+        );
+    }
+
+    private DiversifyingChildrenIVFKnnByteSlicedVectorQuery byteDiversifyingSliced() {
+        return new DiversifyingChildrenIVFKnnByteSlicedVectorQuery(
+            FIELD,
+            BYTE_QUERY.clone(),
+            K,
+            NUM_CANDS,
+            filter(),
+            PARENTS,
+            VISIT_RATIO,
+            RESOLVER,
+            SLICE_FIELD,
+            SLICE_ID
+        );
+    }
+
     private List<IVFKnnFloatVectorQuery> allFloatSubtypes() {
-        return Arrays.asList(plain(), sliced(), diversifying(), diversifyingSliced());
+        return Arrays.asList(floatPlain(), floatSliced(), floatDiversifying(), floatDiversifyingSliced());
     }
 
     private List<IVFKnnByteVectorQuery> allByteSubtypes() {
-        return Arrays.asList(
-            new IVFKnnByteVectorQuery(FIELD, BYTE_QUERY.clone(), K, NUM_CANDS, filter(), VISIT_RATIO, RESOLVER),
-            new IVFKnnByteSlicedVectorQuery(
-                FIELD,
-                BYTE_QUERY.clone(),
-                K,
-                NUM_CANDS,
-                filter(),
-                VISIT_RATIO,
-                RESOLVER,
-                SLICE_FIELD,
-                SLICE_ID
-            ),
-            new DiversifyingChildrenIVFKnnByteVectorQuery(
-                FIELD,
-                BYTE_QUERY.clone(),
-                K,
-                NUM_CANDS,
-                filter(),
-                PARENTS,
-                VISIT_RATIO,
-                RESOLVER
-            ),
-            new DiversifyingChildrenIVFKnnByteSlicedVectorQuery(
-                FIELD,
-                BYTE_QUERY.clone(),
-                K,
-                NUM_CANDS,
-                filter(),
-                PARENTS,
-                VISIT_RATIO,
-                RESOLVER,
-                SLICE_FIELD,
-                SLICE_ID
-            )
-        );
+        return Arrays.asList(bytePlain(), byteSliced(), byteDiversifying(), byteDiversifyingSliced());
     }
 
     private static Query filter() {
@@ -173,7 +192,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
      * query-time override if there is one, otherwise the mapping default
      */
     public void testCandidatePoolSizeFallsBackToDeclaredOversample() throws IOException {
-        assertEquals("oversample 1.0 -> pool is k", K, plain().postFilterExpectedBaseQueryDocMatches(List.of()));
+        assertEquals("oversample 1.0 -> pool is k", K, floatPlain().postFilterExpectedBaseQueryDocMatches(List.of()));
 
         IvfQueryConfigResolver oversampling = IvfQueryConfigResolver.from(false, false, 1, 3.0f, null);
         IVFKnnFloatVectorQuery q = new IVFKnnFloatVectorQuery(FIELD, QUERY.clone(), K, NUM_CANDS, filter(), VISIT_RATIO, oversampling);
@@ -241,7 +260,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
     }
 
     public void testCreatePostFilterDelegatePreservesSliceRange() {
-        for (IVFKnnFloatSlicedVectorQuery original : Arrays.asList(sliced(), diversifyingSliced())) {
+        for (IVFKnnFloatSlicedVectorQuery original : Arrays.asList(floatSliced(), floatDiversifyingSliced())) {
             IVFKnnFloatSlicedVectorQuery delegate = (IVFKnnFloatSlicedVectorQuery) postFilterDelegateFor(original, SELECTIVITY);
             assertEquals(SLICE_FIELD, delegate.sliceField);
             assertArrayEquals(new BytesRef[] { SLICE_ID }, delegate.sliceIds);
@@ -261,9 +280,40 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
         }
     }
 
+    public void testEveryConcreteSubtypeIsExercisedThroughCloneWithParams() throws Exception {
+        List<AbstractIVFKnnVectorQuery> exercised = new ArrayList<>();
+        exercised.addAll(allFloatSubtypes());
+        exercised.addAll(allByteSubtypes());
+        Set<Class<?>> exercisedTypes = new HashSet<>();
+        for (AbstractIVFKnnVectorQuery query : exercised) {
+            exercisedTypes.add(query.getClass());
+        }
+
+        assertEquals(
+            "The set of concrete AbstractIVFKnnVectorQuery subtypes changed. Each subtype must be built here "
+                + "(allFloatSubtypes()/allByteSubtypes()) and handled by a switch arm in IVFKnnQueryFactory.cloneWithParams.",
+            exercisedTypes,
+            concreteIvfQuerySubtypes()
+        );
+
+        for (AbstractIVFKnnVectorQuery original : exercised) {
+            AbstractIVFKnnVectorQuery respawn = original.clone(
+                original.filter,
+                original.k(),
+                original.numCands(),
+                original.postFilterDelegate
+            );
+            assertSame(
+                "cloneWithParams must rebuild " + original.getClass().getSimpleName() + " as its own type",
+                original.getClass(),
+                respawn.getClass()
+            );
+        }
+    }
+
     /** The delegate flag changes results, so it must take part in equality. */
     public void testPostFilterDelegateFlagParticipatesInEquality() {
-        IVFKnnFloatVectorQuery original = plain();
+        IVFKnnFloatVectorQuery original = floatPlain();
         AbstractIVFKnnVectorQuery asDelegate = original.clone(original.filter, original.k(), original.numCands(), true);
         assertNotEquals(original, asDelegate);
         assertNotEquals(original.hashCode(), asDelegate.hashCode());
@@ -278,7 +328,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
     }
 
     public void testGetPostFilterCandidatesBeforeRewriteIsEmpty() {
-        ScoreDoc[][] candidates = plain().getPostFilterCandidates();
+        ScoreDoc[][] candidates = floatPlain().getPostFilterCandidates();
         assertEquals(0, candidates.length);
     }
 
@@ -339,7 +389,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                 w.addDocument(new Document());
             }
             try (IndexReader reader = DirectoryReader.open(dir)) {
-                AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) postFilterDelegateFor(plain(), SELECTIVITY);
+                AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) postFilterDelegateFor(floatPlain(), SELECTIVITY);
                 AbstractIVFKnnVectorQuery retry = (AbstractIVFKnnVectorQuery) delegate.createRetryQuery(
                     reader,
                     new int[0],
@@ -350,5 +400,29 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                 assertEquals(4, retry.k());
             }
         }
+    }
+
+    private static Set<Class<?>> concreteIvfQuerySubtypes() throws Exception {
+        Class<AbstractIVFKnnVectorQuery> base = AbstractIVFKnnVectorQuery.class;
+        Path pkgRoot = PathUtils.get(base.getProtectionDomain().getCodeSource().getLocation().toURI())
+            .resolve("org")
+            .resolve("elasticsearch")
+            .resolve("search")
+            .resolve("vectors");
+        Set<Class<?>> subtypes = new HashSet<>();
+        try (Stream<Path> classFiles = Files.list(pkgRoot)) {
+            for (Path classFile : (Iterable<Path>) classFiles::iterator) {
+                String fileName = classFile.getFileName().toString();
+                if (fileName.endsWith(".class") == false) {
+                    continue;
+                }
+                String className = base.getPackageName() + "." + fileName.substring(0, fileName.length() - ".class".length());
+                Class<?> clazz = base.getClassLoader().loadClass(className);
+                if (base.isAssignableFrom(clazz) && base != clazz && Modifier.isAbstract(clazz.getModifiers()) == false) {
+                    subtypes.add(clazz);
+                }
+            }
+        }
+        return subtypes;
     }
 }

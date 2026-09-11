@@ -223,19 +223,9 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     @Override
     public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
-        // Mirrors Directory#copyFrom: FilterDirectory delegates to in.copyFrom(), which would bypass
-        // createOutput() and leave the file untracked in localFiles.
-        try (IndexInput is = from.openInput(src, IOContext.READONCE); IndexOutput os = createOutput(dest, context)) {
-            os.copyBytes(is, is.length());
-        } catch (Throwable t) {
-            // don't leave a partially-copied file tracked in localFiles
-            try {
-                deleteFile(dest);
-            } catch (Exception e) {
-                t.addSuppressed(e);
-            }
-            throw t;
-        }
+        // Route through createOutput so dest is tracked in localFiles. FilterDirectory.copyFrom
+        // now does the same, but keep the override so a delegated/optimized inner copy cannot skip it.
+        copyThroughCreateOutput(from, src, dest, context);
     }
 
     @Override

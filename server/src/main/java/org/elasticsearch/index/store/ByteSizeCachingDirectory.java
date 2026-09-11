@@ -175,7 +175,8 @@ public final class ByteSizeCachingDirectory extends ByteSizeDirectory {
         try {
             super.copyFrom(from, src, dest, context);
         } finally {
-            // the copy bypasses the wrapped outputs that bump modCount
+            // FilterDirectory.copyFrom now goes through createOutput (which bumps modCount on close).
+            // Still mark stale in case an inner copy skips that path.
             markEstimatedSizeAsStale();
         }
     }

@@ -214,6 +214,11 @@ public class ShardSnapshotsService {
         }
 
         @Override
+        public void copyFrom(Directory from, String src, String dest, IOContext context) {
+            throw new UnsupportedOperationException("this directory is read-only");
+        }
+
+        @Override
         public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) {
             throw new UnsupportedOperationException("this directory is read-only");
         }

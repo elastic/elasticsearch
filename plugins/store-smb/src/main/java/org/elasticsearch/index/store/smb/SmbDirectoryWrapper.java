@@ -13,7 +13,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 
@@ -47,17 +46,9 @@ public final class SmbDirectoryWrapper extends FilterDirectory {
 
     @Override
     public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
-        // FilterDirectory delegates to in.copyFrom(), bypassing createOutput() and the SMB-chunked writes.
-        try (IndexInput is = from.openInput(src, IOContext.READONCE); IndexOutput os = createOutput(dest, context)) {
-            os.copyBytes(is, is.length());
-        } catch (Throwable t) {
-            try {
-                deleteFile(dest);
-            } catch (Exception e) {
-                t.addSuppressed(e);
-            }
-            throw t;
-        }
+        // Route through createOutput so copies use SMB-chunked writes. FilterDirectory.copyFrom
+        // now does the same, but keep the override so a delegated/optimized inner copy cannot skip it.
+        copyThroughCreateOutput(from, src, dest, context);
     }
 
     final class SmbFSIndexOutput extends OutputStreamIndexOutput {

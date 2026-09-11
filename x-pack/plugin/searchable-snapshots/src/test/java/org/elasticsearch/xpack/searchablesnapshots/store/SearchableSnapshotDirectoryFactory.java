@@ -269,6 +269,11 @@ public class SearchableSnapshotDirectoryFactory {
         }
 
         @Override
+        public void copyFrom(Directory from, String src, String dest, IOContext context) {
+            throw new UnsupportedOperationException("read-only directory");
+        }
+
+        @Override
         public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) {
             throw new UnsupportedOperationException("read-only directory");
         }
@@ -354,6 +359,11 @@ public class SearchableSnapshotDirectoryFactory {
             this.dataFile = Files.createTempFile(path, "snap_", ".tmp");
             OutputStream out = Files.newOutputStream(dataFile);
             return new SnapIndexOutput(name, out);
+        }
+
+        @Override
+        public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
+            copyThroughCreateOutput(from, src, dest, context);
         }
 
         @Override

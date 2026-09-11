@@ -103,6 +103,11 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         Float similarity
     );
 
+    @Override
+    protected KnnVectorQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        return createKnnVectorQueryBuilder(VECTOR_FIELD, 1, 10, null, null, null).addFilterQuery(queryBuilder);
+    }
+
     protected boolean isQuantizedElementType() {
         return QUANTIZED_INDEX_TYPES.contains(indexType);
     }

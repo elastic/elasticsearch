@@ -26,6 +26,7 @@
 | ip | keyword |
 | keyword | keyword |
 | long | keyword |
+| tdigest {applies_to}`stack: ga 9.6.0` | keyword |
 | text | keyword |
 | unsigned_long | keyword |
 | version | keyword |

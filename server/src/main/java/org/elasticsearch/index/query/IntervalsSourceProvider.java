@@ -431,8 +431,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public long estimateBytes() {
             long cost = 32L + subSources.size() * 8L;
-            for (IntervalsSourceProvider s : subSources)
+            for (IntervalsSourceProvider s : subSources) {
                 cost += s.estimateBytes();
+            }
             if (filter != null) cost += filter.estimateBytes();
             return cost;
         }
@@ -570,8 +571,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public long estimateBytes() {
             long cost = 32L + subSources.size() * 8L;
-            for (IntervalsSourceProvider s : subSources)
+            for (IntervalsSourceProvider s : subSources) {
                 cost += s.estimateBytes();
+            }
             if (filter != null) cost += filter.estimateBytes();
             return cost;
         }

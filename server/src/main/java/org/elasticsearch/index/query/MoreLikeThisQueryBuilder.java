@@ -1067,22 +1067,28 @@ public class MoreLikeThisQueryBuilder extends LeafQueryBuilder<MoreLikeThisQuery
     @Override
     protected long parseTimeBreakerEstimate() {
         long total = QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
-        for (String t : likeTexts)
+        for (String t : likeTexts) {
             total += t.length() * 2L + 64L;
-        for (String t : unlikeTexts)
-            total += t.length() * 2L + 64L;
-        if (fields != null) {
-            for (String f : fields)
-                total += f.length() * 2L + 64L;
         }
-        for (Item item : likeItems)
+        for (String t : unlikeTexts) {
+            total += t.length() * 2L + 64L;
+        }
+        if (fields != null) {
+            for (String f : fields) {
+                total += f.length() * 2L + 64L;
+            }
+        }
+        for (Item item : likeItems) {
             total += estimateItemCost(item);
-        for (Item item : unlikeItems)
+        }
+        for (Item item : unlikeItems) {
             total += estimateItemCost(item);
+        }
         if (stopWords != null) {
             total += stopWords.length * 8L;
-            for (String s : stopWords)
+            for (String s : stopWords) {
                 total += s.length() * 2L + 64L;
+            }
         }
         return total;
     }
@@ -1098,8 +1104,9 @@ public class MoreLikeThisQueryBuilder extends LeafQueryBuilder<MoreLikeThisQuery
         if (item.routing() != null) cost += item.routing().length() * 2L + 64L;
         if (item.fields != null) {
             cost += item.fields.length * 8L;
-            for (String f : item.fields)
+            for (String f : item.fields) {
                 cost += f.length() * 2L + 64L;
+            }
         }
         if (item.perFieldAnalyzer != null) {
             cost += 32L + item.perFieldAnalyzer.size() * 48L;

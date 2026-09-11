@@ -22,7 +22,8 @@ import java.nio.ByteBuffer;
  */
 public class Streams {
 
-    private static final ThreadLocal<byte[]> LOCAL_BUFFER = ThreadLocal.withInitial(() -> new byte[8 * 1024]);
+    private static final ThreadLocal<byte[]> LOCAL_READ_BUFFER = ThreadLocal.withInitial(() -> new byte[8 * 1024]);
+    private static final ThreadLocal<byte[]> LOCAL_COPY_BUFFER = ThreadLocal.withInitial(() -> new byte[8 * 1024]);
 
     private Streams() {
 
@@ -63,7 +64,7 @@ public class Streams {
      * @see #copy(InputStream, OutputStream, byte[], boolean)
      */
     public static long copy(final InputStream in, final OutputStream out, boolean close) throws IOException {
-        return copy(in, out, LOCAL_BUFFER.get(), close);
+        return copy(in, out, LOCAL_COPY_BUFFER.get(), close);
     }
 
     /**
@@ -77,7 +78,7 @@ public class Streams {
      * @see #copy(InputStream, OutputStream, byte[], boolean)
      */
     public static long copy(final InputStream in, final OutputStream out) throws IOException {
-        return copy(in, out, LOCAL_BUFFER.get(), true);
+        return copy(in, out, LOCAL_COPY_BUFFER.get(), true);
     }
 
     /**
@@ -107,7 +108,7 @@ public class Streams {
 
     private static int readToDirectBuffer(InputStream input, ByteBuffer b, int count) throws IOException {
         int totalRead = 0;
-        final byte[] buffer = LOCAL_BUFFER.get();
+        final byte[] buffer = LOCAL_READ_BUFFER.get();
         while (totalRead < count) {
             final int len = Math.min(count - totalRead, buffer.length);
             final int read = input.read(buffer, 0, len);

@@ -16,32 +16,34 @@ import org.elasticsearch.core.Releasable;
 import java.util.concurrent.atomic.AtomicLongArray;
 
 /**
- * Tracks point-range execution RAM charged to a single request's circuit breaker, releasing it once each
- * leaf finishes scoring. One instance is owned by a single {@link ContextIndexSearcher}. Attribution is per
- * leaf rather than per scope: releasing a leaf drains everything currently charged to it, however it got
- * there, so an out-of-band charge on a leaf (e.g. a filter bitset materialised ahead of collection) is
- * released as soon as that leaf is next scored rather than only at {@link #close()}.
+ * Tracks per-leaf execution RAM charged to a single request's circuit breaker, releasing it once each
+ * leaf finishes scoring. One instance is owned by a single {@link ContextIndexSearcher} and shared by
+ * every leaf-execution charge source registered with it (currently {@link PointRangeBreakerWeight} and
+ * {@link MultiTermBreakerWeight}, each charging under its own label). Attribution is per leaf rather
+ * than per scope: releasing a leaf drains everything currently charged to it, however it got there, so
+ * an out-of-band charge on a leaf (e.g. a filter bitset materialised ahead of collection) is released
+ * as soon as that leaf is next scored rather than only at {@link #close()}.
  */
-final class PointRangeExecutionAccounting implements Releasable {
+final class LeafExecutionAccounting implements Releasable {
 
     private final CircuitBreaker breaker;
     private final AtomicLongArray perLeafBytes;
 
-    PointRangeExecutionAccounting(CircuitBreaker breaker, int leafCount) {
+    LeafExecutionAccounting(CircuitBreaker breaker, int leafCount) {
         this.breaker = breaker;
         this.perLeafBytes = new AtomicLongArray(leafCount);
     }
 
     /**
-     * Reserves {@code bytes} on the request breaker, attributed to {@code ctx}'s leaf. No-op when
-     * {@code bytes <= 0}. Propagates {@link org.elasticsearch.common.breaker.CircuitBreakingException}
+     * Reserves {@code bytes} on the request breaker under {@code label}, attributed to {@code ctx}'s leaf.
+     * No-op when {@code bytes <= 0}. Propagates {@link org.elasticsearch.common.breaker.CircuitBreakingException}
      * without recording anything if the reservation trips the breaker.
      */
-    void charge(LeafReaderContext ctx, long bytes) {
+    void charge(LeafReaderContext ctx, long bytes, String label) {
         if (bytes <= 0L) {
             return;
         }
-        breaker.addEstimateBytesAndMaybeBreak(bytes, "pointrange-execution");
+        breaker.addEstimateBytesAndMaybeBreak(bytes, label);
         perLeafBytes.addAndGet(ctx.ord, bytes);
     }
 

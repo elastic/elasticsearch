@@ -14,11 +14,13 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.cost.TermsQueryCostEstimator;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -205,7 +207,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+        public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
             failIfNotIndexed();
             List<BytesRef> bytesRefs = values.stream().map(v -> {
                 Object idObject = v;
@@ -214,11 +216,19 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
                 }
                 return Uid.encodeId(idObject.toString());
             }).toList();
-            return new TermInSetQuery(name(), bytesRefs);
+            TermInSetQuery query = new TermInSetQuery(name(), bytesRefs);
+            if (context != null) {
+                context.addCircuitBreakerMemory(
+                    new TermsQueryCostEstimator(query.ramBytesUsed()).estimate(),
+                    ChildMemoryCircuitBreaker.CATEGORY_TERMS
+                );
+                context.markQueryMemoryPreCharged(query);
+            }
+            return query;
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
+        public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
             return termsQuery(Arrays.asList(value), context);
         }
 

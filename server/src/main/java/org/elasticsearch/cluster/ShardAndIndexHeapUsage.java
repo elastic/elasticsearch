@@ -20,7 +20,8 @@ import java.io.IOException;
  * Tracks the heap usage inputs for a shard when deriving node-level heap estimates.
  *
  * @param shardHeapUsageBytes heap usage attributed directly to the shard, excluding postings heap that must be handled separately
- * @param indexHeapUsageBytes heap usage attributed to the shard's index; counted once per index on each node that hosts a shard of the index
+ * @param indexHeapUsageBytes heap usage attributed to the shard's index; counted once per index on each node that hosts a shard of the
+ *                            index
  * @param shardPostingsHeapUsageBytes postings heap usage attributed to the shard; tracked separately because total heap usage uses the
  *                                    maximum hosted postings heap across the estimated nodes, while hosted-shards usage uses the node-local
  *                                    postings value

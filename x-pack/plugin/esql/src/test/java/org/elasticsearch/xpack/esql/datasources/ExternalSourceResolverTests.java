@@ -101,11 +101,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -707,45 +705,44 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The fold reports an incompatible column as a COLUMN-SCOPED notice, carrying the column it concerns
-     * alongside the file summary and detail. It is not a flat string: the fold sees every column of every file,
-     * so only the caller — once the plan says which columns are read — can decide whether it is worth emitting.
+     * A footer file whose type the INTEGER anchor cannot represent is discarded as all-null.
+     * Widening into the anchor, and a declared coercion that licenses a per-value cast, are not.
      */
-    public void testFfwFooterAggregateEmitsIncompatibleColumnWarnings() {
-        List<String> files = new ArrayList<>();
-        List<String> columns = new ArrayList<>();
-        List<String> warnings = new ArrayList<>();
-        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
-            List.of(
-                fileWithColumn("file:///part-a.parquet", DataType.INTEGER, 1L, 2L),
-                fileWithColumn("file:///part-b.parquet", DataType.LONG, -10L, 20L)
-            ),
-            true,
-            (file, column, summary, detail) -> {
-                files.add(file);
-                columns.add(column);
-                warnings.add(summary);
-                warnings.add(detail);
-            }
+    public void testFooterDiscardedColumns() {
+        Map<String, DataType> integerAnchor = Map.of("x", DataType.INTEGER);
+        Map<String, DataType> longFile = Map.of("x", DataType.LONG);
+        Map<String, DataType> integerFile = Map.of("x", DataType.INTEGER);
+        Map<String, DataType> longAnchor = Map.of("x", DataType.LONG);
+
+        assertEquals(Map.of("x", DataType.LONG), ExternalSourceResolver.footerDiscardedColumns(integerAnchor, longFile, Set.of()));
+        assertEquals(Map.of(), ExternalSourceResolver.footerDiscardedColumns(longAnchor, integerFile, Set.of()));
+        assertEquals(Map.of(), ExternalSourceResolver.footerDiscardedColumns(integerAnchor, longFile, Set.of("x")));
+        assertEquals(Map.of(), ExternalSourceResolver.footerDiscardedColumns(integerAnchor, integerFile, Set.of()));
+
+        SchemaReconciliation.FileSchemaInfo agrees = new SchemaReconciliation.FileSchemaInfo(
+            new ExternalSchema(List.of(attr("x", DataType.INTEGER))),
+            null,
+            null,
+            null
         );
-        assertNotNull(agg);
-        assertEquals(2L, ((Number) agg.get(SourceStatisticsSerializer.columnValueCountKey("x"))).longValue());
-        assertThat(columns, equalTo(List.of("x")));
-        assertThat("the notice is attributed to the file the clash was found in", files, equalTo(List.of("file:///part-b.parquet")));
-        assertThat(warnings.toString(), containsString("incompatible with planner type"));
-        assertThat(warnings.toString(), containsString("part-b.parquet"));
-        assertThat(warnings, hasItem(SkipWarnings.incompatiblePlannerTypeFileSummary("parquet", "file:///part-b.parquet")));
+        assertEquals(Map.of(), ExternalSourceResolver.footerDiscardedColumns(agrees, Set.of()));
+
+        SchemaReconciliation.FileSchemaInfo drift = new SchemaReconciliation.FileSchemaInfo(
+            new ExternalSchema(List.of(attr("x", DataType.INTEGER))),
+            null,
+            null,
+            Map.of("x", DataType.LONG)
+        );
+        assertEquals(Map.of("x", DataType.LONG), ExternalSourceResolver.footerDiscardedColumns(drift, Set.of()));
     }
 
     public void testFfwFooterAggregateSafeMissesDeclaredCoercibleColumn() {
-        List<String> warnings = new ArrayList<>();
         Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
             List.of(
                 fileWithColumn("file:///part-a.parquet", DataType.INTEGER, 1L, 2L),
                 fileWithColumn("file:///part-b.parquet", DataType.LONG, -10L, 20L)
             ),
             true,
-            (file, column, summary, detail) -> warnings.add(detail),
             Set.of("x")
         );
         assertNotNull(agg);
@@ -756,7 +753,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertNull(agg.get(SourceStatisticsSerializer.columnValueCountKey("x")));
         assertNull(agg.get(SourceStatisticsSerializer.columnNullCountKey("x")));
         assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
-        assertThat(warnings, equalTo(List.of()));
     }
 
     public void testPhysicalDeclaredTypeColumnsUseFileNamesForPathRename() {
@@ -769,7 +765,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("x", new DatasetFieldMapping("integer", null)))
         );
         assertEquals(Set.of("x"), ExternalSourceResolver.physicalDeclaredTypeColumnsOf(sameName));
-        assertEquals(Set.of(), ExternalSourceResolver.physicalDeclaredTypeColumnsOf(null));
+        assertEquals(Set.of(), ExternalSourceResolver.physicalDeclaredTypeColumnsOf((DatasetMapping) null));
 
         Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
             List.of(
@@ -777,7 +773,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 fileWithColumn("file:///part-b.parquet", DataType.LONG, -10L, 20L)
             ),
             true,
-            null,
             ExternalSourceResolver.physicalDeclaredTypeColumnsOf(renamed)
         );
         assertNotNull(agg);
@@ -858,176 +853,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A column-incompatibility notice is only emitted when the query actually reads that column. The fold walks
-     * every column of every file, so emitting eagerly would make a warm {@code COUNT(*)} warn about a column the
-     * user never asked for — and, on a wide clash, would spend the whole shared budget doing it. Hive-partition
-     * shadows are unconditional and must survive either way.
-     */
-    public void testFfwColumnWarningsAreDeferredUntilTheColumnIsRead() throws Exception {
-        int mismatchedFiles = SkipWarnings.MAX_ADDED_WARNINGS + 5;
-        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
-        Map<String, Long> rowCounts = new HashMap<>();
-        List<StorageEntry> listing = new ArrayList<>();
-        List<Attribute> anchor = List.of(attr("year", DataType.KEYWORD), attr("x", DataType.INTEGER));
-        List<Attribute> later = List.of(attr("year", DataType.KEYWORD), attr("x", DataType.LONG));
-        String anchorPath = "s3://bucket/data/year=2024/part-0.parquet";
-        schemasByPath.put(anchorPath, anchor);
-        rowCounts.put(anchorPath, 2L);
-        listing.add(entry(anchorPath, 100));
-        for (int i = 1; i <= mismatchedFiles; i++) {
-            String path = "s3://bucket/data/year=2024/part-" + i + ".parquet";
-            schemasByPath.put(path, later);
-            rowCounts.put(path, 2L);
-            listing.add(entry(path, 100));
-        }
-        ExternalSourceResolution resolution = resolveMultiFileWithStats(
-            "s3://bucket/data/year=*/*.parquet",
-            schemasByPath,
-            rowCounts,
-            listing,
-            configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
-        );
-
-        // The unconditional channel carries the Hive shadow only; the type clash is parked per (column, file).
-        assertThat(resolution.warnings().toString(), containsString("shadowed by same-named Hive partition keys"));
-        assertThat(resolution.warnings().toString(), not(containsString("incompatible with planner type")));
-        assertEquals(Set.of("x"), resolution.deferredColumnWarnings().keySet());
-        Map<String, List<String>> perFile = resolution.deferredColumnWarnings().get("x");
-        assertThat(perFile.toString(), containsString("incompatible with planner type"));
-        assertThat("every drifting file is attributed, capped", perFile.size(), equalTo(SkipWarnings.MAX_ADDED_WARNINGS));
-        for (String file : perFile.keySet()) {
-            assertThat("notices are keyed by the file they were found in", file, startsWith("s3://bucket/data/year=2024/part-"));
-        }
-
-        // A query that reads no external column (e.g. COUNT(*)) sees only the unconditional warnings.
-        List<String> unreferenced = resolution.warningsMatching((column, file) -> false);
-        assertThat(unreferenced.toString(), containsString("shadowed by same-named Hive partition keys"));
-        assertThat(unreferenced.toString(), not(containsString("incompatible with planner type")));
-
-        // A query that reads an unrelated column likewise does not hear about x.
-        assertThat(
-            resolution.warningsMatching((column, file) -> column.equals("year")).toString(),
-            not(containsString("incompatible with planner type"))
-        );
-
-        // Reading x surfaces the notice, capped by the shared budget, with the shadow warnings never starved.
-        List<String> referenced = resolution.warningsMatching((column, file) -> column.equals("x"));
-        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, referenced.size());
-        assertThat(referenced.get(referenced.size() - 1), equalTo(SkipWarnings.overflowMessage()));
-        assertThat(referenced.toString(), containsString("incompatible with planner type"));
-        assertThat(referenced.toString(), containsString("shadowed by same-named Hive partition keys"));
-        assertThat(
-            "unconditional warnings are offered first, so a wide clash cannot starve them",
-            referenced.subList(0, resolution.warnings().size()),
-            equalTo(resolution.warnings())
-        );
-    }
-
-    /**
-     * Two columns drift in the same glob but the query only needs one of them — {@code COUNT(x)} reads {@code x}
-     * and never touches {@code y}. Only {@code x}'s notice may be emitted, and it must be emitted in FULL.
-     * <p>
-     * The second half is the point of budgeting at emission rather than at fold time. Here {@code y} drifts in far
-     * more files than the budget has slots. If the budget were spent while folding — as it was before the notices
-     * became column-scoped — {@code y}'s files would have consumed every slot and {@code x}'s notice, the only one
-     * the query cares about, would have been replaced by an overflow marker or dropped outright. Deferring the
-     * budget means an unread column costs nothing.
-     */
-    public void testDeferredColumnWarningsEmitOnlyTheReadColumnAndCostNothingForTheRest() throws Exception {
-        int yDriftingFiles = SkipWarnings.MAX_ADDED_WARNINGS + 5;
-        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
-        Map<String, Long> rowCounts = new HashMap<>();
-        List<StorageEntry> listing = new ArrayList<>();
-
-        // Zero-padded so name order is list order: part-000 is the anchor and pins both columns to INTEGER.
-        String anchorPath = "s3://bucket/data/part-000.parquet";
-        schemasByPath.put(anchorPath, List.of(attr("x", DataType.INTEGER), attr("y", DataType.INTEGER)));
-        rowCounts.put(anchorPath, 2L);
-        listing.add(entry(anchorPath, 100));
-
-        // y drifts to LONG in many files; x agrees with the anchor in all of them.
-        for (int i = 1; i <= yDriftingFiles; i++) {
-            String path = String.format(Locale.ROOT, "s3://bucket/data/part-%03d.parquet", i);
-            schemasByPath.put(path, List.of(attr("x", DataType.INTEGER), attr("y", DataType.LONG)));
-            rowCounts.put(path, 2L);
-            listing.add(entry(path, 100));
-        }
-
-        // x drifts in exactly one file, discovered last.
-        String xDriftPath = String.format(Locale.ROOT, "s3://bucket/data/part-%03d.parquet", yDriftingFiles + 1);
-        schemasByPath.put(xDriftPath, List.of(attr("x", DataType.LONG), attr("y", DataType.INTEGER)));
-        rowCounts.put(xDriftPath, 2L);
-        listing.add(entry(xDriftPath, 100));
-
-        ExternalSourceResolution resolution = resolveMultiFileWithStats(
-            "s3://bucket/data/*.parquet",
-            schemasByPath,
-            rowCounts,
-            listing,
-            configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
-        );
-
-        // Both columns are bucketed; y's bucket is capped at what emission could ever use.
-        assertEquals(Set.of("x", "y"), resolution.deferredColumnWarnings().keySet());
-        assertEquals(Set.of(xDriftPath), resolution.deferredColumnWarnings().get("x").keySet());
-        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS, resolution.deferredColumnWarnings().get("y").size());
-        // Nothing is emitted unconditionally: a column notice is never in the always-on channel.
-        assertThat(resolution.warnings().toString(), not(containsString("incompatible with")));
-
-        // COUNT(x): exactly x's notice -- the one file summary plus x's one detail -- and nothing else.
-        List<String> onlyX = resolution.warningsMatching((column, file) -> column.equals("x"));
-        List<String> xNotices = incompatibilityNotices(onlyX);
-        assertEquals("one shared file summary plus one column detail", 2, xNotices.size());
-        assertThat(xNotices.get(0), containsString("has columns whose on-disk type is incompatible"));
-        assertThat(xNotices.get(0), containsString(xDriftPath));
-        assertThat(
-            xNotices.get(1),
-            equalTo(SkipWarnings.incompatiblePlannerTypeColumnMessage("x", xDriftPath, DataType.LONG, DataType.INTEGER))
-        );
-        assertThat("the unread column must not be mentioned", onlyX.toString(), not(containsString("Column [y]")));
-        assertThat(
-            "an unread column must not spend budget: x's notice survives in full, unmarked",
-            onlyX,
-            not(hasItem(SkipWarnings.overflowMessage()))
-        );
-
-        // For contrast: y alone genuinely exhausts the budget, which is what x was competing against.
-        List<String> onlyY = resolution.warningsMatching((column, file) -> column.equals("y"));
-        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, onlyY.size());
-        assertThat(onlyY.get(onlyY.size() - 1), equalTo(SkipWarnings.overflowMessage()));
-    }
-
-    /**
-     * The incompatibility notices among emitted warnings, in order, ignoring any unrelated resolve-time bodies.
-     * Matches on {@code "incompatible with"}: the per-file summary reads "incompatible with THE planner type"
-     * while the per-column detail reads "incompatible with planner type [..]", so the longer substring would
-     * silently drop every summary.
-     */
-    private static List<String> incompatibilityNotices(List<String> warnings) {
-        return warnings.stream().filter(w -> w.contains("incompatible with")).toList();
-    }
-
-    /**
      * The resolve-time channel is capped by exactly ONE budget, applied at emission. The resolver only collects
-     * (de-duplicated and bounded) because at collection time it cannot know which column notices are relevant --
-     * {@code resolveWithFactory} feeds the unconditional sink once per FILE, so budgeting there would let a wide
-     * glob spend every slot before the column notices existed.
-     * <p>
-     * Two properties follow, and both are asserted here:
-     * <ul>
-     *   <li>unconditional warnings are themselves capped at emission, so a per-file producer cannot deliver an
-     *       unbounded header set;</li>
-     *   <li>unconditional warnings are offered FIRST, so a column notice can never displace one. That ordering is
-     *       what let the eager Hive-shadow budget reservation in {@code completeFirstFileWins} be deleted.</li>
-     * </ul>
+     * (de-duplicated and bounded) because {@code resolveWithFactory} feeds the unconditional sink once per FILE,
+     * so budgeting there would let a wide glob spend every slot on repeated per-file bodies.
      */
     public void testResolveTimeWarningsAreCappedOnceAtEmissionWithUnconditionalFirst() {
-        // More unconditional warnings than the budget can admit.
         List<String> many = new ArrayList<>();
         for (int i = 0; i < SkipWarnings.MAX_ADDED_WARNINGS + 5; i++) {
             many.add("unconditional warning " + i);
         }
-        List<String> cappedAlone = new ExternalSourceResolution(Map.of(), many, Map.of()).warningsMatching((column, file) -> true);
+        List<String> cappedAlone = new ExternalSourceResolution(Map.of(), many).budgetedWarnings();
         assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, cappedAlone.size());
         assertThat(cappedAlone.get(cappedAlone.size() - 1), equalTo(SkipWarnings.overflowMessage()));
         assertThat(
@@ -1035,56 +870,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
             cappedAlone.subList(0, SkipWarnings.MAX_ADDED_WARNINGS),
             equalTo(many.subList(0, SkipWarnings.MAX_ADDED_WARNINGS))
         );
-
-        // Exactly a full budget of unconditional warnings, plus a column notice the query DOES read.
-        List<String> full = many.subList(0, SkipWarnings.MAX_ADDED_WARNINGS);
-        ExternalSourceResolution contended = new ExternalSourceResolution(
-            Map.of(),
-            full,
-            Map.of("x", Map.of("file:///part-b.parquet", List.of("column summary", "column detail")))
-        );
-        List<String> emitted = contended.warningsMatching((column, file) -> true);
-        assertThat(
-            "a column notice must not displace an unconditional warning",
-            emitted.subList(0, SkipWarnings.MAX_ADDED_WARNINGS),
-            equalTo(full)
-        );
-        assertThat(emitted.toString(), not(containsString("column detail")));
-        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, emitted.size());
-        assertThat(emitted.get(emitted.size() - 1), equalTo(SkipWarnings.overflowMessage()));
-    }
-
-    /**
-     * One resolution covers every external source in the query, and column names are not unique across them.
-     * Reading {@code x} from one source must not unlock another source's notice about its own {@code x} --
-     * the notice names a file the query never touches, so the user would be told about nulls they cannot observe.
-     * This is why the deferred notices are keyed by {@code (column, file)} and the predicate takes both.
-     */
-    public void testDeferredColumnWarningsAreScopedToTheirOwnSource() {
-        String readFile = "s3://bucket/read/part-b.parquet";
-        String unreadFile = "s3://bucket/unread/part-b.parquet";
-        ExternalSourceResolution resolution = new ExternalSourceResolution(
-            Map.of(),
-            List.of(),
-            Map.of(
-                "x",
-                Map.of(
-                    readFile,
-                    List.of("summary for the source the query reads", "detail for the source the query reads"),
-                    unreadFile,
-                    List.of("summary for the OTHER source", "detail for the OTHER source")
-                )
-            )
-        );
-
-        // The relation that reads readFile produces x; nothing in the query reads unreadFile.
-        List<String> emitted = resolution.warningsMatching((column, file) -> column.equals("x") && file.equals(readFile));
-        assertThat(emitted.toString(), containsString("the source the query reads"));
-        assertThat("a same-named column elsewhere must not unlock another source", emitted.toString(), not(containsString("OTHER")));
-
-        // Filtering on the column name alone -- the bug this keying prevents -- would emit both.
-        List<String> nameOnly = resolution.warningsMatching((column, file) -> column.equals("x"));
-        assertThat(nameOnly.toString(), containsString("OTHER"));
     }
 
     /**

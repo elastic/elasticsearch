@@ -86,7 +86,6 @@ import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtracto
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -162,7 +161,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -250,20 +248,6 @@ public class EsqlSession {
      * buffers at the start of every {@code resolve} call. This session is one-shot per query.
      */
     private volatile ExternalSourceResolution externalSourceWarningSource = ExternalSourceResolution.EMPTY;
-
-    /**
-     * Which external-source columns each read FILE contributes to the query, keyed by the file path string the
-     * resolve-time fold reports ({@code StoragePath#toString()}), accumulated across every executed plan (each
-     * subplan and the final main plan). Selects which of the resolution's column-scoped notices are relevant: the
-     * fold inspects every column of every file, but a warning about a column the query never projects is noise the
-     * scan-side readers would never produce.
-     * <p>
-     * Keyed per file, not as one flat set of column names, because a query can read several external sources and
-     * one resolution covers all of them. Two sources may both have an {@code x}; a flat set would let a source
-     * whose {@code x} is never read warn because the other one's is. Same correlation
-     * {@link #collectPinnedReads} performs for the cache-commit side.
-     */
-    private final Map<String, Set<String>> externalSourceReadColumnsByFile = new ConcurrentHashMap<>();
 
     /**
      * Mutable state accumulated during EXPLAIN mode execution. All fields are written before
@@ -764,10 +748,10 @@ public class EsqlSession {
         if (completionInfo == null) {
             completionInfo = DriverCompletionInfo.EMPTY;
         }
-        completionInfo = completionInfo.withAdditionalWarnings(externalSourceWarningSource.warningsMatching((column, fileLocation) -> {
-            Set<String> columns = externalSourceReadColumnsByFile.get(fileLocation);
-            return columns != null && columns.contains(column);
-        }));
+        completionInfo = completionInfo.withAdditionalWarnings(externalSourceWarningSource.budgetedWarnings());
+        if (result.executionInfo() != null) {
+            completionInfo = completionInfo.withAdditionalWarnings(result.executionInfo().warmDiscardNotices());
+        }
         return new Versioned<>(
             new Result(
                 result.schema(),
@@ -923,10 +907,6 @@ public class EsqlSession {
         var subPlansResults = new HashSet<LocalRelation>();
         var subPlan = firstSubPlan(optimizedPlan, configuration, approximation, subPlansResults);
 
-        // Before either branch, so subplan and main-plan executions both contribute. Column-scoped
-        // external-source notices are filtered against this in attachAdditionalData.
-        collectExternalSourceReads(optimizedPlan);
-
         // TODO: merge into one method
         if (subPlan != null) {
             // code-path to execute subplans. The pinned-read accumulator gathers union_by_name widened reads across
@@ -962,34 +942,6 @@ public class EsqlSession {
                 next.onResponse(result);
             }));
         }
-    }
-
-    /**
-     * Records which columns {@code plan} reads from each external file, merging into
-     * {@link #externalSourceReadColumnsByFile}. For every {@link ExternalRelation}, its output — the post-pruning
-     * set of columns that relation's scan would actually produce — is attributed to each file in that relation's
-     * {@code schemaMap}. A column the projection dropped is not read, so a resolve-time notice about it would
-     * describe nulls the query can never observe; and attributing per file keeps one source's notices from being
-     * unlocked by a same-named column in another. Accumulates across plans because a column may only be
-     * referenced inside a subquery.
-     */
-    private void collectExternalSourceReads(LogicalPlan plan) {
-        plan.forEachDown(ExternalRelation.class, relation -> {
-            var schemaMap = relation.schemaMap();
-            if (schemaMap.isEmpty()) {
-                return;
-            }
-            List<String> columns = new ArrayList<>(relation.output().size());
-            for (Attribute attribute : relation.output()) {
-                columns.add(attribute.name());
-            }
-            if (columns.isEmpty()) {
-                return;
-            }
-            for (StoragePath path : schemaMap.keySet()) {
-                externalSourceReadColumnsByFile.computeIfAbsent(path.toString(), k -> ConcurrentHashMap.newKeySet()).addAll(columns);
-            }
-        });
     }
 
     /**

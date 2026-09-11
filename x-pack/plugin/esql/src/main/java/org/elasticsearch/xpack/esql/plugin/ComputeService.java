@@ -69,9 +69,13 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
@@ -80,9 +84,14 @@ import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
@@ -92,6 +101,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -117,6 +127,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -574,7 +585,7 @@ public class ComputeService {
                 // Warm short-circuit: every external aggregate is answered from stripe / whole-file stats and
                 // the scan is skipped. Record the affirmative "served from stripes" signal on the profile
                 // here, the one place it is observable — no scan operator runs for a warm relation.
-                recordExternalWarmAggregates(execInfo, plan);
+                recordExternalWarmAggregates(execInfo, plan, formatReaderRegistry);
             } else {
                 PhysicalPlan rewritten = discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled);
                 if (SplitCoalescer.shouldCoalesce(splits.size())) {
@@ -609,7 +620,7 @@ public class ComputeService {
             return;
         }
         if (canSkipSplitDiscovery(plan, formatReaderRegistry)) {
-            recordExternalWarmAggregates(execInfo, plan);
+            recordExternalWarmAggregates(execInfo, plan, formatReaderRegistry);
             listener.onResponse(new CollectedSplits(plan, splits));
             return;
         }
@@ -634,21 +645,125 @@ public class ComputeService {
      * Records, on the query profile, that the warm short-circuit fired for this plan — counting the
      * external-relation aggregate fragments that were served from statistics rather than scanned. Only
      * invoked when {@link #canSkipSplitDiscovery} returned {@code true}, so every {@link ExternalRelation}
-     * fragment is an ungrouped {@code Aggregate -> ExternalRelation} the optimizer will fold to constants.
+     * fragment is an ungrouped {@code Aggregate} over that relation, optionally through a bare
+     * {@link Project}. Also records reader-identical FIRST_FILE_WINS discard notices on
+     * {@code execInfo} for columns those aggregates consume. Notices cannot go through
+     * {@code HeaderWarning} here: the async skip sits in a listener chain that may complete on
+     * SDK/Netty threads without the inbound user. {@code EsqlSession#attachAdditionalData} merges
+     * them into {@link DriverCompletionInfo} on the response thread.
      */
-    private static void recordExternalWarmAggregates(EsqlExecutionInfo execInfo, PhysicalPlan plan) {
+    private static void recordExternalWarmAggregates(
+        EsqlExecutionInfo execInfo,
+        PhysicalPlan plan,
+        FormatReaderRegistry formatReaderRegistry
+    ) {
         if (execInfo == null) {
             return;
         }
         int[] warm = { 0 };
+        List<String> notices = new ArrayList<>();
         plan.forEachDown(FragmentExec.class, fragment -> {
-            if (fragment.fragment() instanceof Aggregate agg && agg.groupings().isEmpty() && agg.child() instanceof ExternalRelation) {
-                warm[0]++;
+            LogicalPlan logical = fragment.fragment();
+            ExternalRelation ext = warmAggregateRelation(logical);
+            if (ext == null) {
+                return;
             }
+            warm[0]++;
+            FormatReader reader = formatReaderRegistry == null ? null : formatReaderRegistry.findByName(ext.sourceType());
+            if (reader == null || reader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn() == false) {
+                return;
+            }
+            notices.addAll(
+                warmDiscardNotices((Aggregate) logical, ext, ExternalSourceResolver.physicalDeclaredTypeColumnsOf(ext.declaredReadSpec()))
+            );
         });
         if (warm[0] > 0) {
             execInfo.queryProfile().addExternalWarmAggregates(warm[0]);
         }
+        execInfo.addWarmDiscardNotices(ExternalSourceResolution.budgeted(notices));
+    }
+
+    /**
+     * The {@link ExternalRelation} an ungrouped {@link Aggregate} is served from when the skip-discovery
+     * gate matches: either directly, or through a bare {@link Project} ({@code KEEP x | STATS}).
+     * A projection changes neither stats nor servability.
+     */
+    @Nullable
+    static ExternalRelation warmAggregateRelation(LogicalPlan logical) {
+        if (logical instanceof Aggregate agg && agg.groupings().isEmpty()) {
+            if (agg.child() instanceof ExternalRelation ext) {
+                return ext;
+            }
+            if (agg.child() instanceof Project project && project.child() instanceof ExternalRelation ext) {
+                return ext;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Reader-identical notices for every drifting footer column a WARM aggregate consumes.
+     * {@code COUNT(*)} contributes no column. The per-query informational warning budget is
+     * applied when these are recorded on {@link EsqlExecutionInfo}, not here, so one relation's
+     * notices cannot take a second budget.
+     */
+    static List<String> warmDiscardNotices(Aggregate agg, ExternalRelation ext, Set<String> declaredPhysical) {
+        Set<String> consumed = consumedAggregateColumns(agg);
+        if (consumed.isEmpty() || ext.schemaMap().isEmpty()) {
+            return List.of();
+        }
+        Set<String> declared = declaredPhysical == null ? Set.of() : declaredPhysical;
+        List<String> notices = new ArrayList<>();
+        for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : ext.schemaMap().entrySet()) {
+            SchemaReconciliation.FileSchemaInfo info = e.getValue();
+            Map<String, DataType> discarded = ExternalSourceResolver.footerDiscardedColumns(info, declared);
+            boolean anyConsumed = false;
+            for (String col : discarded.keySet()) {
+                if (consumed.contains(col)) {
+                    anyConsumed = true;
+                    break;
+                }
+            }
+            if (anyConsumed == false) {
+                continue;
+            }
+            String path = e.getKey().toString();
+            notices.add(SkipWarnings.incompatiblePlannerTypeFileSummary(ext.sourceType(), path));
+            Map<String, DataType> anchorTypes = anchorTypesOf(info);
+            for (Map.Entry<String, DataType> d : discarded.entrySet()) {
+                if (consumed.contains(d.getKey()) == false) {
+                    continue;
+                }
+                notices.add(SkipWarnings.incompatiblePlannerTypeColumnMessage(d.getKey(), path, d.getValue(), anchorTypes.get(d.getKey())));
+            }
+        }
+        return notices;
+    }
+
+    private static Set<String> consumedAggregateColumns(Aggregate agg) {
+        Set<String> consumed = new LinkedHashSet<>();
+        for (Expression fn : ExternalSourceAggregatePushdown.extractAggregateFunctions(agg.aggregates())) {
+            Expression field = null;
+            if (fn instanceof Count count) {
+                field = count.field();
+            } else if (fn instanceof Min min) {
+                field = min.field();
+            } else if (fn instanceof Max max) {
+                field = max.field();
+            }
+            if (field instanceof Attribute attribute) {
+                consumed.add(attribute.name());
+            }
+        }
+        return consumed;
+    }
+
+    private static Map<String, DataType> anchorTypesOf(SchemaReconciliation.FileSchemaInfo info) {
+        Map<String, DataType> types = new HashMap<>();
+        for (Attribute attribute : info.fileSchema().attributes()) {
+            types.put(attribute.name(), attribute.dataType());
+        }
+        return types;
     }
 
     /**
@@ -667,8 +782,9 @@ public class ComputeService {
      * <p>
      * This method is conservative: if the registry has no reader for the source type, if any
      * fragment containing an {@link ExternalRelation} does not match the
-     * {@code Aggregate -> ExternalRelation} shape, or if any required statistic is missing,
-     * it returns {@code false} so that normal split discovery proceeds.
+     * {@code Aggregate -> ExternalRelation} (or {@code Aggregate -> Project -> ExternalRelation})
+     * shape, or if any required statistic is missing, it returns {@code false} so that normal
+     * split discovery proceeds.
      */
     public static boolean canSkipSplitDiscovery(PhysicalPlan plan, FormatReaderRegistry formatReaderRegistry) {
         boolean[] foundAny = { false };
@@ -676,9 +792,10 @@ public class ComputeService {
 
         plan.forEachDown(FragmentExec.class, fragment -> {
             LogicalPlan logical = fragment.fragment();
-            if (logical instanceof Aggregate agg && agg.groupings().isEmpty() && agg.child() instanceof ExternalRelation ext) {
+            ExternalRelation ext = warmAggregateRelation(logical);
+            if (ext != null) {
                 foundAny[0] = true;
-                if (canSkipForAggregateOverExternal(agg, ext, formatReaderRegistry) == false) {
+                if (canSkipForAggregateOverExternal((Aggregate) logical, ext, formatReaderRegistry) == false) {
                     allCanSkip[0] = false;
                 }
             } else if (logical.anyMatch(ExternalRelation.class::isInstance)) {
@@ -1253,7 +1370,7 @@ public class ComputeService {
             return;
         }
         if (canSkipSplitDiscovery(physicalPlan, formatReaderRegistry)) {
-            recordExternalWarmAggregates(execInfo, physicalPlan);
+            recordExternalWarmAggregates(execInfo, physicalPlan, formatReaderRegistry);
             afterDiscovery.onResponse(new CollectedSplits(physicalPlan, List.of()));
             return;
         }

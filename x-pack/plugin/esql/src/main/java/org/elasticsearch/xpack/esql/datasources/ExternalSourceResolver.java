@@ -69,7 +69,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -218,16 +217,14 @@ public class ExternalSourceResolver {
      * {@link #metadataReadConcurrency}) since it is append-only until the single attach at completion.
      * <p>
      * These are UNCONDITIONAL: they describe the source, not one column, so they are emitted however the query
-     * projects. Column-scoped notices go to {@link #pendingColumnWarnings} instead.
+     * projects.
      * <p>
      * Every append goes through {@link #recordPendingWarning}, which de-duplicates and bounds collection. No
      * {@link InformationalWarningBudget} is spent here: the ONE budget for this channel is applied at emission by
-     * {@link ExternalSourceResolution#warningsMatching}, which offers this list first. Budgeting at collection
-     * cannot work — {@link #resolveWithFactory} feeds this sink once per FILE, so a wide glob would spend every
-     * slot before the column notices were even bucketed, and a column the query never reads would starve the ones
-     * it does. Bounding replaces that: de-duplication collapses the identical per-file body a glob repeats, and
-     * the cap stops at one more than the budget can admit so the "further warnings suppressed" marker is still
-     * reachable.
+     * {@link ExternalSourceResolution#budgetedWarnings}. {@link #resolveWithFactory} feeds this sink once per
+     * FILE, so budgeting at collection would let a wide glob spend every slot on repeated per-file bodies.
+     * Bounding replaces that: de-duplication collapses the identical per-file body a glob repeats, and the cap
+     * stops at one more than the budget can admit so the "further warnings suppressed" marker is still reachable.
      */
     private final Set<String> pendingShadowWarnings = Collections.synchronizedSet(new LinkedHashSet<>());
 
@@ -237,22 +234,6 @@ public class ExternalSourceResolver {
      * while nothing is retained that could never be emitted.
      */
     private static final int PENDING_WARNING_COLLECTION_CAP = SkipWarnings.MAX_ADDED_WARNINGS + 1;
-
-    /**
-     * Column-scoped incompatibility notices collected during this {@link #resolve}: physical column name, then
-     * the file the clash was found in, then that file's summary and detail lines. Deferred rather than emitted
-     * because the FIRST_FILE_WINS fold inspects every column of every file while the readers only warn about
-     * projected columns — see {@link ExternalSourceResolution#deferredColumnWarnings()}.
-     * <p>
-     * Keyed by BOTH coordinates because one {@link #resolve} covers every path in the query. A column name is not
-     * unique across sources, so column alone cannot answer "did the query read this"; the file pins the notice to
-     * the one source it came from.
-     * <p>
-     * Bounded at {@link SkipWarnings#MAX_ADDED_WARNINGS} files per column — a glob can drift across thousands of
-     * files, and no more than that many can ever be emitted anyway. The real cap is applied at emission, once
-     * filtering is possible. Cleared at the start of each {@link #resolve}.
-     */
-    private final Map<String, Map<String, List<String>>> pendingColumnWarnings = new ConcurrentHashMap<>();
 
     /**
      * The {@link #executor} decorated so that every task it runs has the query cancellation signal installed as the
@@ -471,7 +452,6 @@ public class ExternalSourceResolver {
         // clearing here (rather than after the previous call's attach) also covers a resolver instance reused
         // across resolve() calls in tests.
         pendingShadowWarnings.clear();
-        pendingColumnWarnings.clear();
 
         // Once per query, before the per-path recursion: one warning per column however many paths and files the
         // resource expands to, and on the strict rail, which never reaches the non-strict overlay.
@@ -522,7 +502,7 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (index == paths.size()) {
-            listener.onResponse(new ExternalSourceResolution(resolved, List.copyOf(pendingShadowWarnings), snapshotColumnWarnings()));
+            listener.onResponse(new ExternalSourceResolution(resolved, List.copyOf(pendingShadowWarnings)));
             return;
         }
         String path = paths.get(index);
@@ -909,8 +889,8 @@ public class ExternalSourceResolver {
                 boolean implicitNulls = foldsAbsentColumnAsImplicitNull(base.sourceType());
                 Set<String> declaredTypeColumns = physicalDeclaredTypeColumnsOf(declaredMapping);
                 // No eager Hive-shadow reservation is needed here. Shadow notices are unconditional and
-                // ExternalSourceResolution#warningsMatching offers them BEFORE any column notice, so the
-                // budget cannot be exhausted by a wide type clash ahead of them. finishFirstFileWins ->
+                // ExternalSourceResolution#budgetedWarnings applies the single emission budget, so a
+                // wide glob cannot deliver an unbounded header set. finishFirstFileWins ->
                 // enrichSchemaWithPartitionColumns remains their single emission point.
                 // Prefetch the dataset-level aggregate BEFORE the per-file stats gather — see
                 // applyDatasetAggregate for why post-gather reads self-defeat under cache pressure.
@@ -1967,36 +1947,13 @@ public class ExternalSourceResolver {
      */
     @Nullable
     static Map<String, Object> aggregateFileStatistics(List<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
-        return aggregateFileStatistics(allMetadata, implicitNullsForAbsentColumn, null, Set.of());
+        return aggregateFileStatistics(allMetadata, implicitNullsForAbsentColumn, Set.of());
     }
 
     @Nullable
     static Map<String, Object> aggregateFileStatistics(
         List<SourceMetadata> allMetadata,
         boolean implicitNullsForAbsentColumn,
-        @Nullable ColumnWarningSink warningSink
-    ) {
-        return aggregateFileStatistics(allMetadata, implicitNullsForAbsentColumn, warningSink, Set.of());
-    }
-
-    /**
-     * Receives one column-scoped incompatibility notice: the file it was found in, the column it concerns, the
-     * per-file summary line and the per-column detail line. Both coordinates matter. The notice is only relevant
-     * if the query reads that column, which is not known until the plan is optimized; and it must be attributed
-     * to the FILE, because one query can read several external sources and a column name is not unique across
-     * them -- filtering on the name alone would let a source whose {@code x} the query never touches warn just
-     * because a different source's {@code x} is read. See {@link ExternalSourceResolution#warningsMatching}.
-     */
-    @FunctionalInterface
-    interface ColumnWarningSink {
-        void accept(String fileLocation, String column, String fileSummary, String detail);
-    }
-
-    @Nullable
-    static Map<String, Object> aggregateFileStatistics(
-        List<SourceMetadata> allMetadata,
-        boolean implicitNullsForAbsentColumn,
-        @Nullable ColumnWarningSink warningSink,
         Set<String> declaredTypeColumns
     ) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
@@ -2019,32 +1976,20 @@ public class ExternalSourceResolver {
             } else {
                 List<String> rewriteColumns = null;
                 List<String> encodeColumns = null;
+                Map<String, DataType> discarded = implicitNullsForAbsentColumn
+                    ? footerDiscardedColumns(anchorTypes, fileTypes, declaredColumns)
+                    : Map.of();
                 for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
                     DataType anchorType = anchorTypes.get(entry.getKey());
                     DataType fileType = entry.getValue();
-                    if (unrepresentableUnderAnchor(anchorType, fileType)) {
+                    if (discarded.containsKey(entry.getKey())) {
+                        if (rewriteColumns == null) {
+                            rewriteColumns = new ArrayList<>();
+                        }
+                        rewriteColumns.add(entry.getKey());
+                    } else if (unrepresentableUnderAnchor(anchorType, fileType)) {
                         if (declaredCoercible(declaredColumns, entry.getKey(), fileType, anchorType)) {
                             safeMissColumns.add(entry.getKey());
-                        } else if (implicitNullsForAbsentColumn) {
-                            if (rewriteColumns == null) {
-                                rewriteColumns = new ArrayList<>();
-                            }
-                            rewriteColumns.add(entry.getKey());
-                            // Column-scoped, NOT emitted here. This loop walks every column of every file, but the
-                            // readers only warn about columns the query projects; emitting now would make a warm
-                            // COUNT(*) warn about an unrelated column and spend the shared budget on it. The sink
-                            // buckets the pair by column so EsqlSession can keep only what the plan actually reads
-                            // (see ExternalSourceResolution#warningsMatching). The summary rides along
-                            // per column rather than once per file so it survives whichever column is kept; the
-                            // budget's value dedup collapses the repeats.
-                            if (warningSink != null) {
-                                warningSink.accept(
-                                    meta.location(),
-                                    entry.getKey(),
-                                    SkipWarnings.incompatiblePlannerTypeFileSummary(meta.sourceType(), meta.location()),
-                                    SkipWarnings.incompatiblePlannerTypeColumnMessage(entry.getKey(), meta.location(), fileType, anchorType)
-                                );
-                            }
                         } else {
                             unrepresentableColumns.add(entry.getKey());
                         }
@@ -2149,6 +2094,51 @@ public class ExternalSourceResolver {
             harvest = SourceStatisticsSerializer.removeColumnCounts(harvest, failedEncodes);
         }
         return harvest;
+    }
+
+    /**
+     * The columns of one FIRST_FILE_WINS file that a FOOTER read returns as all-null, with the
+     * file's own type for each: the anchor cannot represent the file type, and no declared
+     * coercion licenses a per-value cast. Same decision as the Parquet/ORC readers
+     * (plannerTypeCompatibleWithFileDerivedType + DeclaredTypeCoercions#supports).
+     * Empty for a file that agrees with or widens into the anchor.
+     */
+    public static Map<String, DataType> footerDiscardedColumns(
+        Map<String, DataType> anchorTypes,
+        Map<String, DataType> fileTypes,
+        Set<String> declaredPhysicalColumns
+    ) {
+        if (anchorTypes == null || anchorTypes.isEmpty() || fileTypes == null || fileTypes.isEmpty()) {
+            return Map.of();
+        }
+        Set<String> declared = declaredPhysicalColumns == null ? Set.of() : declaredPhysicalColumns;
+        Map<String, DataType> discarded = new LinkedHashMap<>();
+        for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
+            DataType anchorType = anchorTypes.get(entry.getKey());
+            DataType fileType = entry.getValue();
+            if (unrepresentableUnderAnchor(anchorType, fileType)
+                && declaredCoercible(declared, entry.getKey(), fileType, anchorType) == false) {
+                discarded.put(entry.getKey(), fileType);
+            }
+        }
+        return discarded.isEmpty() ? Map.of() : discarded;
+    }
+
+    /**
+     * {@link #footerDiscardedColumns(Map, Map, Set)} for one reconciled file: {@code info.fileSchema()}
+     * is the planner / pinned (anchor) schema and {@code info.inferredTypes()} is the file's own
+     * footer types. A null inferred snapshot means the file agrees with the anchor, so nothing is
+     * discarded. That snapshot is populated for every FIRST_FILE_WINS file by
+     * {@code finishFirstFileWins}.
+     */
+    public static Map<String, DataType> footerDiscardedColumns(
+        SchemaReconciliation.FileSchemaInfo info,
+        Set<String> declaredPhysicalColumns
+    ) {
+        if (info == null || info.inferredTypes() == null) {
+            return Map.of();
+        }
+        return footerDiscardedColumns(attributesToTypeMap(info.fileSchema().attributes()), info.inferredTypes(), declaredPhysicalColumns);
     }
 
     /**
@@ -2290,10 +2280,8 @@ public class ExternalSourceResolver {
     /**
      * Collects one unconditional resolve-time warning into {@link #pendingShadowWarnings}, de-duplicated and
      * bounded by {@link #PENDING_WARNING_COLLECTION_CAP}. Deliberately NOT budget-gated: the single budget for
-     * this channel is applied at emission ({@link ExternalSourceResolution#warningsMatching}), which is the only
-     * point that knows which column notices are relevant and can therefore order unconditional warnings ahead of
-     * them. Every append site routes here, including the per-file ones, which is what makes the cap hold for a
-     * wide glob.
+     * this channel is applied at emission ({@link ExternalSourceResolution#budgetedWarnings}). Every append
+     * site routes here, including the per-file ones, which is what makes the cap hold for a wide glob.
      */
     private void recordPendingWarning(String warning) {
         synchronized (pendingShadowWarnings) {
@@ -2301,40 +2289,6 @@ public class ExternalSourceResolver {
                 pendingShadowWarnings.add(warning);
             }
         }
-    }
-
-    /**
-     * Buckets one column-scoped notice under {@code column}, unbudgeted. The budget is deliberately NOT applied
-     * here: at fold time we cannot yet tell whether the query reads this column, and spending a slot on a column
-     * that is later filtered out is exactly the starvation this split avoids.
-     */
-    private void recordColumnWarning(String fileLocation, String column, String fileSummary, String detail) {
-        Map<String, List<String>> byFile = pendingColumnWarnings.computeIfAbsent(
-            column,
-            c -> Collections.synchronizedMap(new LinkedHashMap<>())
-        );
-        synchronized (byFile) {
-            // A LinkedHashMap keeps listing order across files, and the cap keeps a wide glob from growing this
-            // past what emission could ever use. putIfAbsent: one notice per (column, file).
-            if (byFile.size() < SkipWarnings.MAX_ADDED_WARNINGS || byFile.containsKey(fileLocation)) {
-                byFile.putIfAbsent(fileLocation, List.of(fileSummary, detail));
-            }
-        }
-    }
-
-    /** Snapshot of {@link #pendingColumnWarnings} for the completed {@link ExternalSourceResolution}. */
-    private Map<String, Map<String, List<String>>> snapshotColumnWarnings() {
-        if (pendingColumnWarnings.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, Map<String, List<String>>> out = Maps.newHashMapWithExpectedSize(pendingColumnWarnings.size());
-        for (Map.Entry<String, Map<String, List<String>>> e : pendingColumnWarnings.entrySet()) {
-            Map<String, List<String>> byFile = e.getValue();
-            synchronized (byFile) {
-                out.put(e.getKey(), Collections.unmodifiableMap(new LinkedHashMap<>(byFile)));
-            }
-        }
-        return out;
     }
 
     /**
@@ -2356,7 +2310,7 @@ public class ExternalSourceResolver {
         gatherPerFile(listing, config, false, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
             collectInferredTypes(listing, allMeta, inferredTypesOut);
-            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, this::recordColumnWarning, declaredTypeColumns));
+            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, declaredTypeColumns));
         }, e -> {
             // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
             // instead of silently degrading to partial stats and continuing. A read that failed *because* the query
@@ -2427,7 +2381,7 @@ public class ExternalSourceResolver {
         gatherPerFile(listing, config, true, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
             collectInferredTypes(listing, allMeta, inferredTypesOut);
-            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, this::recordColumnWarning, declaredTypeColumns));
+            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, declaredTypeColumns));
         }, e -> {
             // A bare cancellation, or a read that failed because the query was cancelled mid-flight (the cache wraps
             // loader failures, so consult the state directly), must abort rather than degrade to partial stats.
@@ -2978,6 +2932,26 @@ public class ExternalSourceResolver {
         }
         Set<String> physical = new HashSet<>(logical.size());
         for (String col : logical) {
+            physical.add(PhysicalNames.translate(col, renames));
+        }
+        return Set.copyOf(physical);
+    }
+
+    /**
+     * Declared-type columns as the physical file names a FIRST_FILE_WINS fold and the warm-gate
+     * notices see. {@link DeclaredReadSpec#declaredTypeColumns()} is logical; a {@code path} rename
+     * is applied here so membership matches the harvest.
+     */
+    public static Set<String> physicalDeclaredTypeColumnsOf(@Nullable DeclaredReadSpec spec) {
+        if (spec == null || spec.declaredTypeColumns().isEmpty()) {
+            return Set.of();
+        }
+        Map<String, String> renames = spec.renames();
+        if (renames.isEmpty()) {
+            return spec.declaredTypeColumns();
+        }
+        Set<String> physical = new HashSet<>(spec.declaredTypeColumns().size());
+        for (String col : spec.declaredTypeColumns()) {
             physical.add(PhysicalNames.translate(col, renames));
         }
         return Set.copyOf(physical);

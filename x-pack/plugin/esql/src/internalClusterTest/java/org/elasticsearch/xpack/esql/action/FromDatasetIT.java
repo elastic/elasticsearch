@@ -6369,6 +6369,20 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             collectWarningsContaining("FROM warnscope_pq_ffw | STATS c = COUNT(*)", "incompatible with planner type"),
             equalTo(List.of())
         );
+
+        // KEEP leaves a Project between STATS and the relation; the gate must still serve warm and warn.
+        assertThat(documentsReadBy("FROM warnscope_pq_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(0L));
+        assertThat(
+            collectWarningsContaining("FROM warnscope_pq_ffw | KEEP x | STATS c = COUNT(x)", "incompatible with planner type"),
+            not(empty())
+        );
+
+        // A scanning shape emits the reader's notice once: warm and cold are mutually exclusive.
+        List<String> scanWarnings = collectWarningsContaining(
+            "FROM warnscope_pq_ffw | WHERE x IS NOT NULL | STATS c = COUNT(x)",
+            "Column [x]"
+        );
+        assertThat(scanWarnings, hasSize(1));
     }
 
     public void testFirstFileWinsWarmAggregateKeepsWideningFileValues() throws Exception {

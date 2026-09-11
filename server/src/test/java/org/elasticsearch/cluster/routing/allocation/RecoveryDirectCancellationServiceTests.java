@@ -1476,6 +1476,70 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         assertThat(capturedCancellations.getFirst().cancelIfStarted(), equalTo(false));
     }
 
+    public void testDynamicallyEnablingSnapshotCancellationSchedulesCancellation() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        final var index = indexMetadata.getIndex();
+        final var waitingShardId = new ShardId(index, 0);
+        final var initShardId = new ShardId(index, 1);
+        final var sourceAllocationId = AllocationId.newRelocation(AllocationId.newInitializing(randomIdentifier("source-")));
+        final var targetAllocationId = AllocationId.newTargetRelocation(sourceAllocationId);
+
+        final var indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(
+                TestShardRouting.shardRoutingBuilder(waitingShardId, "node-0", true, RELOCATING)
+                    .withAllocationId(sourceAllocationId)
+                    .withRelocatingNodeId("node-1")
+                    .build()
+            )
+            .addShard(newShardRouting(initShardId, "node-2", true, STARTED));
+        final var snapshot = snapshotWithShards(
+            Map.of(
+                waitingShardId,
+                new SnapshotsInProgress.ShardSnapshotStatus("node-0", SnapshotsInProgress.ShardState.WAITING, null),
+                initShardId,
+                new SnapshotsInProgress.ShardSnapshotStatus("node-2", SnapshotsInProgress.ShardState.INIT, null)
+            )
+        );
+        final var compatVersions = new CompatibilityVersions(TransportVersion.current(), Map.of());
+        final var clusterState = ClusterState.builder(clusterStateWithSnapshot(indexMetadata, indexRoutingTable, snapshot))
+            .putCompatibilityVersions("node-0", compatVersions)
+            .putCompatibilityVersions("node-1", compatVersions)
+            .putCompatibilityVersions("node-2", compatVersions)
+            .build();
+
+        final var taskQueue = new DeterministicTaskQueue();
+        final var transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(taskQueue.getThreadPool());
+        final var capturedCancellations = new CopyOnWriteArrayList<ShardRecoveryCancellation>();
+        doAnswer(invocation -> {
+            final CancelRecoveriesAction.Request req = invocation.getArgument(2);
+            capturedCancellations.addAll(req.cancellations());
+            return null;
+        }).when(transportService).sendRequest(any(DiscoveryNode.class), anyString(), any(), any());
+
+        final var clusterService = createMockClusterService(clusterState, true, true, false);
+        final var service = new RecoveryDirectCancellationService(
+            transportService,
+            // isStateless=true, enableDirectCancellationsForSnapshots=false
+            clusterService,
+            mock(AllocationService.class),
+            mock(RerouteService.class)
+        );
+        service.start();
+
+        clusterService.getClusterSettings()
+            .applySettings(
+                Settings.builder()
+                    .put(RecoveryDirectCancellationService.ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING.getKey(), true)
+                    .build()
+            );
+        taskQueue.runAllRunnableTasks();
+
+        assertThat(capturedCancellations, hasSize(1));
+        assertThat(capturedCancellations.getFirst().allocationId(), equalTo(targetAllocationId.getId()));
+        assertThat(capturedCancellations.getFirst().cancelIfStarted(), equalTo(false));
+    }
+
     public void testSnapshotCancellationRunsAreCoalesced() {
         final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 2, 0)).build();
         final var index = indexMetadata.getIndex();

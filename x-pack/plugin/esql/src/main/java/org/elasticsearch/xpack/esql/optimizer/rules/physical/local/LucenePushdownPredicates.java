@@ -75,6 +75,16 @@ public interface LucenePushdownPredicates {
      */
     boolean isIndexed(FieldAttribute attr);
 
+    /**
+     * True when the field stores values in binary doc values on every relevant shard.
+     * Used to block empty-string {@code ==}/{@code !=} predicates from being pushed to Lucene:
+     * binary DV encodes both the empty string and {@code null} as a zero-length BytesRef, so
+     * pushing such a predicate would incorrectly match null-valued documents.
+     */
+    default boolean usesBinaryDocValues(FieldAttribute attr) {
+        return false;
+    }
+
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value);
 
     /**
@@ -235,6 +245,11 @@ public interface LucenePushdownPredicates {
             @Override
             public boolean isIndexed(FieldAttribute attr) {
                 return stats.isIndexed(new FieldAttribute.FieldName(attr.name()));
+            }
+
+            @Override
+            public boolean usesBinaryDocValues(FieldAttribute attr) {
+                return stats.usesBinaryDocValues(new FieldAttribute.FieldName(attr.name()));
             }
 
             @Override

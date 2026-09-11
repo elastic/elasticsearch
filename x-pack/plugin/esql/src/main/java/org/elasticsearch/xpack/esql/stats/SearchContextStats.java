@@ -163,6 +163,24 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
+    public boolean usesBinaryDocValues(FieldName field) {
+        // All mapped contexts must agree: mixing binary and sorted-set means we cannot safely skip
+        // Lucene pushdown (sorted-set empty-string checks are cheap term queries).
+        boolean seen = false;
+        for (SearchExecutionContext context : contexts) {
+            if (context.isMappedField(field.string()) == false) {
+                return false;
+            }
+            MappedFieldType type = context.getFieldType(field.string());
+            if (type.usesBinaryDocValues() == false) {
+                return false;
+            }
+            seen = true;
+        }
+        return seen;
+    }
+
+    @Override
     public boolean supportsLoaderConfig(
         FieldName name,
         BlockLoaderFunctionConfig config,

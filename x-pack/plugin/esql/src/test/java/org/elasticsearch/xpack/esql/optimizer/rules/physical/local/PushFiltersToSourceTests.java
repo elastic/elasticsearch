@@ -248,4 +248,5 @@ public class PushFiltersToSourceTests extends ESTestCase {
             return true;
         }
     }
+
 }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.lucene;
 
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.SuppressForbidden;
@@ -17,17 +18,19 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * Assert-guarded helpers for {@link RamUsageEstimator#shallowSizeOf(Object)} at {@link Accountable#ramBytesUsed()} call sites where the
- * shallow instance size is a complete accounting of retained heap. Assertions fire only when assertions are enabled.
+ * Assert-guarded helpers for {@link RamUsageEstimator} at {@link Accountable#ramBytesUsed()} call sites. Assertions fire only when
+ * assertions are enabled.
  */
 public final class RamUsageEstimates {
 
@@ -68,6 +71,39 @@ public final class RamUsageEstimates {
         assert objectHasOnlyShallowCompleteFields(o.getClass())
             : shallowCompleteAssertionMessage(o.getClass(), ReferenceFieldPolicy.SHALLOW_COMPLETE);
         return RamUsageEstimator.shallowSizeOf(o);
+    }
+
+    /**
+     * Like {@link RamUsageEstimator#sizeOfObject(Object)}, but asserts {@code object}'s type is one Lucene estimates accurately rather
+     * than substituting {@link RamUsageEstimator#UNKNOWN_DEFAULT_RAM_BYTES_USED}.
+     */
+    public static long safeSizeOfObject(Object object) {
+        assert objectSizeCanBeEstimatedAccurately(object) : inaccurateObjectSizeMessage(object);
+        return RamUsageEstimator.sizeOfObject(object);
+    }
+
+    /**
+     * {@code true} if {@link RamUsageEstimator#sizeOfObject(Object)} will use a type-specific formula instead of the default 256-byte
+     * unknown-object estimate. Nested map/collection values are not inspected.
+     */
+    public static boolean objectSizeCanBeEstimatedAccurately(Object object) {
+        return object == null
+            || object instanceof Accountable
+            || object instanceof String
+            || object instanceof Integer
+            || object instanceof Long
+            || object instanceof Query
+            || object instanceof Map
+            || object instanceof Collection
+            || object instanceof boolean[]
+            || object instanceof byte[]
+            || object instanceof char[]
+            || object instanceof double[]
+            || object instanceof float[]
+            || object instanceof int[]
+            || object instanceof long[]
+            || object instanceof short[]
+            || object instanceof String[];
     }
 
     /**
@@ -149,5 +185,10 @@ public final class RamUsageEstimates {
                 + fields
                 + "]; implement Accountable or account explicitly";
         };
+    }
+
+    private static String inaccurateObjectSizeMessage(Object object) {
+        return object.getClass().getName()
+            + " is not a type RamUsageEstimator.sizeOfObject estimates accurately; implement Accountable or account explicitly";
     }
 }

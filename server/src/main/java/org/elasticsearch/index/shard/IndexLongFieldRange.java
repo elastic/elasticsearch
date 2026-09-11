@@ -79,6 +79,11 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment, Accou
 
     @Override
     public long ramBytesUsed() {
+        // Shared static sentinels are reused across indices (and often both range fields on one IndexMetadata). Charging their size
+        // per reference would over-count; the IndexMetadata shallow size already covers the field references.
+        if (this == NO_SHARDS || this == EMPTY || this == UNKNOWN) {
+            return 0L;
+        }
         // shards is null once the range is complete (covers all shards); when non-null it holds the tracked shard ids.
         return BASE_RAM_BYTES_USED + (shards == null ? 0L : RamUsageEstimator.sizeOf(shards));
     }

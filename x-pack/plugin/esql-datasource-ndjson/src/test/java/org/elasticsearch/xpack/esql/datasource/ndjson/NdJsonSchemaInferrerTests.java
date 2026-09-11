@@ -250,6 +250,22 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         check(ndjson, field("name", DataType.KEYWORD), field("age", DataType.INTEGER));
     }
 
+    /**
+     * A bare JSON number on its own line must not cause the following record to be dropped from the
+     * inference sample (elastic/esql-planning#1731). The record after the bare number is the only
+     * one that carries {@code email}, so if it is silently skipped the inferred schema omits it.
+     * <p>
+     * The bug: {@code nextToken()} succeeds (returning {@code VALUE_NUMBER_INT}), then
+     * {@code inferObjectSchema} throws because the token is not {@code START_OBJECT}. By that point
+     * Jackson has consumed the line terminator as a lookahead byte, leaving the parser positioned at
+     * the start of the following record. The old {@code moveToNextLine} call then scanned forward and
+     * consumed the following record through its own terminator, silently dropping it.
+     */
+    public void testBareNumberDropsSelfDuringInference() throws IOException {
+        String ndjson = "{\"name\":\"John\"}\n42\n{\"email\":\"jane@x.com\"}\n";
+        check(ndjson, field("name", DataType.KEYWORD, true), field("email", DataType.KEYWORD, true));
+    }
+
     /** The same skip for the name-length limit, which trips in a different scanner call than the number limit. */
     public void testOversizedFieldNameSkippedDuringInference() throws IOException {
         String ndjson = "{\"name\": \"John\", \"age\": 30}\n"
@@ -480,6 +496,24 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             {"v": 1}
             {"v": "not a number"}
             """, field("v", DataType.KEYWORD));
+    }
+
+    /**
+     * An invalid bare token (e.g. {@code not_json}) immediately followed by a valid record — with no blank
+     * cushion line between them — must not cause the following record's columns to be lost from the inferred
+     * schema. Exercises the streaming-path guard added for elastic/esql-planning#1704: without the fix,
+     * {@link NdJsonUtils#moveToNextLine} consumes the following record as the remainder of the bad line, so
+     * its columns never reach the schema sampler.
+     * <p>
+     * The existing {@link #testIgnoreEmptyAndInvalidLines} and {@link #testLineEndingVariations} tests do not
+     * catch this because their bad-line fixtures are followed by a blank line (the cushion), which is what
+     * the over-eager forward scan eats — the subsequent good record is unharmed.
+     */
+    public void testInvalidBareTokenWithoutCushionLine() throws IOException {
+        // https://github.com/elastic/esql-planning/issues/1704
+        // {"a":1} and {"b":2} are on consecutive lines with no blank between them.
+        // Without the fix, "b" is never seen by the inferrer.
+        check("{\"a\":1}\nnot_json\n{\"b\":2}\n", field("a", DataType.INTEGER, true), field("b", DataType.INTEGER, true));
     }
 
     private void check(String ndjson, Attribute... expected) throws IOException {

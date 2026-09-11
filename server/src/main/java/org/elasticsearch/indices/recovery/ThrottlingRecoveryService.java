@@ -46,8 +46,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 
 /// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
 /// released when the recovery's [RecoveryListener] completes.
@@ -458,11 +458,14 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     }
 
     private RecoveryListener wrapListenerForExecution(RecoveryListener listener, PendingRecovery recovery) {
-        final RecoverySource.Type recoveryType = recovery.recoveryState().getRecoverySource().getType();
-
+        final RecoveryState recoveryState = recovery.recoveryState();
         final RecoveryListener handleCancellation = RecoveryListener.runBeforeFailure(listener, e -> {
             if (ExceptionsHelper.unwrap(e, RecoveryCancelledException.class) != null) {
-                schedulingListener.onStartedRecoveryCancelledOnTarget(recoveryType);
+                schedulingListener.onStartedRecoveryCancelledOnTarget(
+                    recoveryState.getRecoverySource().getType(),
+                    recoveryState.getStage(),
+                    recoveryState.getTimer().time()
+                );
             }
         });
 

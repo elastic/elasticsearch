@@ -47,8 +47,6 @@ import static org.hamcrest.Matchers.lessThan;
 public class ExternalSourceCacheServiceTests extends ESTestCase {
     private static final Map<String, Object> HIVE_ON = Map.of();
 
-    private static final Map<String, Object> HIVE_OFF = Map.of("hive_partitioning", "false");
-
     private static Settings defaultSettings() {
         return Settings.builder()
             .put("esql.external.cache.size", "10mb")
@@ -585,6 +583,32 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         assertTrue(nullField.formatConfig().contains("error_mode=null_field"));
         assertTrue(skipRow.formatConfig().contains("error_mode=skip_row"));
         assertTrue(unionByName.formatConfig().contains("schema_resolution=union_by_name"));
+    }
+
+    public void testSchemaCacheKeySeparatesFileSortByAndFileOrder() {
+        SchemaCacheKey ffw = SchemaCacheKey.build(
+            "s3://b/f.csv",
+            1000L,
+            ".csv",
+            Map.of("format", "csv", "schema_resolution", "first_file_wins")
+        );
+        SchemaCacheKey mtimeDesc = SchemaCacheKey.build(
+            "s3://b/f.csv",
+            1000L,
+            ".csv",
+            Map.of("format", "csv", "schema_resolution", "first_file_wins", "file_sort_by", "mtime", "file_order", "desc")
+        );
+        SchemaCacheKey nameAsc = SchemaCacheKey.build(
+            "s3://b/f.csv",
+            1000L,
+            ".csv",
+            Map.of("format", "csv", "schema_resolution", "first_file_wins", "file_sort_by", "name")
+        );
+        assertNotEquals(ffw.formatConfig(), mtimeDesc.formatConfig());
+        assertNotEquals(mtimeDesc.formatConfig(), nameAsc.formatConfig());
+        assertTrue(mtimeDesc.formatConfig().contains("file_sort_by=mtime"));
+        assertTrue(mtimeDesc.formatConfig().contains("file_order=desc"));
+        assertTrue(nameAsc.formatConfig().contains("file_sort_by=name"));
     }
 
     /**

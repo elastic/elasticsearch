@@ -3974,7 +3974,8 @@ public class FileSplitProviderTests extends ESTestCase {
             unified,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE
+            DeclaredReadSpec.NONE,
+            null
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4311,7 +4312,8 @@ public class FileSplitProviderTests extends ESTestCase {
             unified,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE
+            DeclaredReadSpec.NONE,
+            null
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();

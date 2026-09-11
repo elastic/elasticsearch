@@ -8,8 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.compress;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.Zstd;
+import org.elasticsearch.zstd.Zstd;
 
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -22,15 +21,13 @@ import java.nio.ByteBuffer;
  * {@code GetPrimitiveArrayCritical} G1GC region pinning that comes with them — by delegating
  * to a single hot-path call through this class.
  *
- * <p><b>Why compression-libs is a named Java module.</b> The package
- * {@code org.elasticsearch.nativeaccess} is not a general-purpose plugin API — it also exposes
- * process limits, mlock, exec sandbox, systemd hooks, and raw memory mapping. Widening its
- * qualified-export to all modules would surface that whole surface to every plugin in the
- * system. Declaring this plugin as a named module ({@code org.elasticsearch.xpack.esql.datasource.compress})
- * lets {@code libs/native} grant a single, narrow qualified export to it and nothing else,
- * while extending plugins (parquet, snappy, zstd, future orc/iceberg) reach {@code PanamaZstd}
- * — and the bundled compression libraries (zstd-jni, snappy-java, aircompressor) — through
- * the standard {@code extendedPlugins} parent-first classloader delegation.
+ * <p><b>Why compression-libs is a named Java module.</b> Declaring this plugin as a named
+ * module ({@code org.elasticsearch.xpack.esql.datasource.compress}) lets {@code libs/zstd}
+ * grant a single, narrow qualified export of its {@code org.elasticsearch.zstd} package to
+ * this module and nothing else, while extending plugins (parquet, snappy, zstd, future
+ * orc/iceberg) reach {@code PanamaZstd} — and the bundled compression libraries (zstd-jni,
+ * snappy-java, aircompressor) — through the standard {@code extendedPlugins} parent-first
+ * classloader delegation.
  *
  * <p><b>Zero-copy contract.</b> The direct-buffer overload accepts plain direct
  * {@link ByteBuffer}s with absolute offsets and sizes. The Panama path slices the underlying
@@ -39,10 +36,9 @@ import java.nio.ByteBuffer;
  * themselves, matching parquet-mr's {@code BytesInputDecompressor} SPI and ORC's internal
  * {@code CompressionCodec} SPI.
  *
- * <p><b>Availability.</b> {@link NativeAccess#getZstd()} returns {@code null} on platforms where
- * the native binding could not be loaded ({@code NoopNativeAccess}). Callers must check
- * {@link #isAvailable()} (or null-check the resolved instance) and fall back to a heap-based
- * path if unavailable.
+ * <p><b>Availability.</b> {@link Zstd#instance()} throws if the native binding could not be
+ * loaded. Callers must check {@link #isAvailable()} and fall back to a heap-based path if
+ * unavailable.
  *
  * <p><b>Threading.</b> {@code Zstd.decompress} is stateless (no shared decompressor context);
  * a single instance of this class is safe to share across all decompression threads.
@@ -58,26 +54,26 @@ public final class PanamaZstd {
     }
 
     /**
-     * Resolve {@link NativeAccess#instance()} defensively so that an unexpected failure during
-     * native-access bootstrap surfaces as {@link #isAvailable()} returning {@code false} (callers
-     * route to their existing fallback path) rather than as a class-init failure that would make
-     * every subsequent {@code PanamaZstd.instance()} call fail with {@code NoClassDefFoundError}.
-     * In practice, {@link NativeAccess#instance()} throwing here would already mean the rest of the
-     * node's native-access singletons are broken — this catch only guarantees the parquet reader
-     * does not also brick on top of that. The failure surface for the caller is the standard
-     * "no Panama" path; logging is deliberately omitted because that decision belongs to whatever
-     * subsystem first noticed the native bootstrap failure.
+     * Resolve {@link Zstd#instance()} defensively so that an unexpected failure during zstd
+     * bootstrap surfaces as {@link #isAvailable()} returning {@code false} (callers route to
+     * their existing fallback path) rather than as a class-init failure that would make every
+     * subsequent {@code PanamaZstd.instance()} call fail with {@code NoClassDefFoundError}.
+     * In practice, {@link Zstd#instance()} throwing here would already mean the zstd native
+     * bootstrap itself is broken — this catch only guarantees the parquet reader does not also
+     * brick on top of that. The failure surface for the caller is the standard "no Panama" path;
+     * logging is deliberately omitted because that decision belongs to whatever subsystem first
+     * noticed the native bootstrap failure.
      */
     private static PanamaZstd createInstance() {
         try {
-            return new PanamaZstd(NativeAccess.instance().getZstd());
+            return new PanamaZstd(Zstd.instance());
         } catch (Exception | LinkageError e) {
             return new PanamaZstd(null);
         }
     }
 
     /**
-     * Returns the process-wide instance, resolved once at class init from {@link NativeAccess#instance()}.
+     * Returns the process-wide instance, resolved once at class init from {@link Zstd#instance()}.
      * Use {@link #isAvailable()} to check whether the native binding actually loaded on this platform
      * before invoking {@link #decompressDirect}.
      */

@@ -7,9 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess;
+package org.elasticsearch.zstd;
 
-import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
+import org.elasticsearch.foreign.LibraryProvider;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemoryLayout;
@@ -61,6 +61,23 @@ public final class Zstd {
      * (staging buffers + struct holders + a libzstd context estimate), not an exact RSS measurement.
      */
     static final LongAdder NATIVE_BYTES_IN_USE = new LongAdder();
+
+    private static final Zstd INSTANCE = load();
+
+    /**
+     * Returns the native zstd wrapper.
+     */
+    public static Zstd instance() {
+        return INSTANCE;
+    }
+
+    private static Zstd load() {
+        ZstdLibrary lib = LibraryProvider.lookupLibrary(ZstdLibrary.class);
+        if (lib == null) {
+            throw new IllegalStateException("no ZstdLibrary provider found");
+        }
+        return new Zstd(lib);
+    }
 
     private final ZstdLibrary zstdLib;
 

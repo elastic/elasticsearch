@@ -8,8 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.compress;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.Zstd;
+import org.elasticsearch.zstd.Zstd;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -57,7 +56,7 @@ public final class PanamaZstdInputStream extends FilterInputStream {
      * (libzstd 1.5.7 returns 128 KB). Caching avoids an FFI call per stream construction. Mirrors
      * the {@code static final} cache zstd-jni's {@code ZstdInputStreamNoFinalizer} maintains.
      *
-     * <p>Resolved through the {@link NativeAccess#instance() global NativeAccess} singleton rather
+     * <p>Resolved through the {@link Zstd#instance() global Zstd} singleton rather
      * than the {@code Zstd} instance passed to the constructor: the {@code Zstd} ctor-parameter
      * exists purely so {@code ZstdDecompressionCodec} (and tests) can inject the production instance
      * without making this class call a static itself, but the per-class buffer size is a JVM-wide
@@ -67,7 +66,7 @@ public final class PanamaZstdInputStream extends FilterInputStream {
      * correct value: feeding the SPI from a {@code byte[]} sized for a different {@code Zstd} would
      * either over- or under-feed {@code JdkDStream}'s internal staging buffer.
      */
-    private static final int srcBuffSize = NativeAccess.instance().getZstd().dStreamInSize();
+    private static final int srcBuffSize = Zstd.instance().dStreamInSize();
 
     private final Zstd.DStream dstream;
     private final byte[] src;
@@ -308,7 +307,7 @@ public final class PanamaZstdInputStream extends FilterInputStream {
     }
 
     private static final class SkipBufferSizeHolder {
-        static final int VALUE = NativeAccess.instance().getZstd().dStreamOutSize();
+        static final int VALUE = Zstd.instance().dStreamOutSize();
     }
 
     @Override

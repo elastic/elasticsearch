@@ -22,10 +22,10 @@
 #   multi-platform support (linux/amd64 + linux/arm64).
 #
 #   Example:
-#     cd dev-tools
+#     cd libs/zstd/native
 #     ./publish_zstd_binaries.sh --local-only
-#     cd ..
-#     LOCAL_ZSTD_BINARY=1 ./gradlew :libs:native:test
+#     cd ../../..
+#     LOCAL_ZSTD_BINARY=1 ./gradlew :libs:zstd:test
 #     LOCAL_ZSTD_BINARY=1 ./gradlew -p benchmarks run --args "ZstdDecompressBenchmark"
 #
 
@@ -139,7 +139,7 @@ upload_artifact() {
 }
 
 install_locally() {
-  local platform_dir="$(cd "$(dirname "$0")" && pwd)/../libs/native/libraries/build/platform"
+  local platform_dir="$(cd "$(dirname "$0")" && pwd)/../../native/libraries/build/platform"
 
   echo ''
   echo 'Installing locally built libraries...'

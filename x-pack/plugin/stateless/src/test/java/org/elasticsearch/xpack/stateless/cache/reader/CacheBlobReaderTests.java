@@ -460,12 +460,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             for (var entry : vbcc.getInternalLocations().entrySet()) {
                 blobFileRanges.put(entry.getKey(), new BlobFileRanges(entry.getValue()));
             }
-            node.indexingDirectory.updateCommit(
-                bcc.lastCompoundCommit().generation(),
-                vbccSize,
-                blobFileRanges.keySet(),
-                blobFileRanges
-            );
+            node.indexingDirectory.updateCommit(bcc.lastCompoundCommit().generation(), vbccSize, blobFileRanges.keySet(), blobFileRanges);
 
             // Drop local map entries so PreferLocal falls through to BlobCacheIndexInput while VBCC stays open
             for (String fileName : Set.copyOf(blobFileRanges.keySet())) {

@@ -199,11 +199,12 @@ public final class StringUtils {
                         // consume the wildcard escaping, consider the next char
                         char next = wildcard.charAt(i + 1);
                         i++;
-                        switch (next) {
-                            case WildcardQuery.WILDCARD_STRING, WildcardQuery.WILDCARD_CHAR, WildcardQuery.WILDCARD_ESCAPE ->
-                                // escape `*`, `.`, `\`, since these are special chars in RegExp as well
-                                regex.append("\\");
-                            // default: unnecessary escaping -- just ignore the escaping
+                        // The escaped character is a literal. Lucene ignores an escape of anything that is not a
+                        // wildcard metacharacter, but that character may still be a RegExp one, so it is escaped for
+                        // RegExp on exactly the same terms as an unescaped occurrence. Emitting it raw would make the
+                        // escaped form LOOSER than the unescaped one: `\.` would become `.`, matching any character.
+                        if (isWildcardMetacharacter(next) || isRegExpReserved(next)) {
+                            regex.append('\\');
                         }
                         regex.append(next);
                     } else {
@@ -211,15 +212,34 @@ public final class StringUtils {
                         regex.append("\\\\");
                     }
                 }
-                // reserved RegExp characters
-                case '"', '$', '(', ')', '+', '.', '[', ']', '^', '{', '|', '}' -> regex.append("\\").append(c);
-                // reserved optional RegExp characters
-                case '#', '&', '<', '>', '~', '@' -> regex.append("\\").append(c);
-                default -> regex.append(c);
+                default -> {
+                    if (isRegExpReserved(c)) {
+                        regex.append('\\');
+                    }
+                    regex.append(c);
+                }
             }
         }
 
         return regex.toString();
+    }
+
+    private static boolean isWildcardMetacharacter(char c) {
+        return c == WildcardQuery.WILDCARD_STRING || c == WildcardQuery.WILDCARD_CHAR || c == WildcardQuery.WILDCARD_ESCAPE;
+    }
+
+    /**
+     * Characters a Lucene {@code RegExp} gives a meaning to under {@code RegExp.ALL}, which is the flag set every
+     * caller of {@link #luceneWildcardToRegExp} parses with. They are escaped so a wildcard pattern's literal text
+     * stays literal.
+     */
+    private static boolean isRegExpReserved(char c) {
+        return switch (c) {
+            case '"', '$', '(', ')', '+', '.', '[', ']', '^', '{', '|', '}' -> true;
+            // reserved only when the "optional" RegExp syntax is enabled, which RegExp.ALL does
+            case '#', '&', '<', '>', '~', '@' -> true;
+            default -> false;
+        };
     }
 
     /**

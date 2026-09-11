@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -17,9 +16,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -29,6 +28,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -76,6 +76,15 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         return List.of(CsvDataSourcePlugin.class);
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        // unsigned_long is a mapper plugin type, and the index half of the differential needs it to mirror the
+        // dataset's declared unsigned_long column.
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(UnsignedLongMapperPlugin.class);
+        return plugins;
+    }
+
     /** {@code id}, {@code status}, {@code bytes} at row i cycle so filters carve non-trivial, predictable subsets. */
     private static int status(int i) {
         return 200 + (i % 3) * 100; // 200, 300, 400
@@ -98,6 +107,19 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         return new String[] { "Alpha", "BETA", "gamma", "DeLtA" }[i % 4];
     }
 
+    /** Values land exactly on the bounds the range cases use, so an inclusive and an exclusive bound select different rows. */
+    private static double score(int i) {
+        return i * 1.5;
+    }
+
+    private static String clientIp(int i) {
+        return "10.0.0." + i;
+    }
+
+    private static long quota(int i) {
+        return i * 100L;
+    }
+
     @Before
     public void loadBothSources() throws Exception {
         // The index: one shard so the result order is trivial to reason about; ESQL sorts explicitly anyway.
@@ -118,18 +140,45 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
                     "ts",
                     "type=date",
                     "label",
-                    "type=keyword"
+                    "type=keyword",
+                    "score",
+                    "type=double",
+                    "client_ip",
+                    "type=ip",
+                    "quota",
+                    "type=unsigned_long"
                 )
         );
         for (int i = 0; i < ROWS; i++) {
             client().prepareIndex(INDEX)
-                .setSource("id", i, "status", status(i), "tags", tag(i), "bytes", bytes(i), "ts", ts(i), "label", label(i))
+                .setSource(
+                    "id",
+                    i,
+                    "status",
+                    status(i),
+                    "tags",
+                    tag(i),
+                    "bytes",
+                    bytes(i),
+                    "ts",
+                    ts(i),
+                    "label",
+                    label(i),
+                    "score",
+                    score(i),
+                    "client_ip",
+                    clientIp(i),
+                    "quota",
+                    quota(i)
+                )
                 .get();
         }
         client().admin().indices().prepareRefresh(INDEX).get();
 
         // The dataset: identical rows as a strict declared-schema CSV, types matching the index mapping exactly.
-        StringBuilder csv = new StringBuilder("id:integer,status:integer,tags:keyword,bytes:long,ts:date,label:keyword\n");
+        StringBuilder csv = new StringBuilder(
+            "id:integer,status:integer,tags:keyword,bytes:long,ts:date,label:keyword,score:double,client_ip:ip,quota:unsigned_long\n"
+        );
         for (int i = 0; i < ROWS; i++) {
             csv.append(i)
                 .append(',')
@@ -142,6 +191,12 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
                 .append(ts(i))
                 .append(',')
                 .append(label(i))
+                .append(',')
+                .append(score(i))
+                .append(',')
+                .append(clientIp(i))
+                .append(',')
+                .append(quota(i))
                 .append('\n');
         }
         Path csvFile = createTempDir().resolve("conformance.csv");
@@ -157,6 +212,9 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         properties.put("bytes", new DatasetFieldMapping("long", null));
         properties.put("ts", new DatasetFieldMapping("date", null));
         properties.put("label", new DatasetFieldMapping("keyword", null));
+        properties.put("score", new DatasetFieldMapping("double", null));
+        properties.put("client_ip", new DatasetFieldMapping("ip", null));
+        properties.put("quota", new DatasetFieldMapping("unsigned_long", null));
         return properties;
     }
 
@@ -241,6 +299,125 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         assertSelectsSameRows(QueryBuilders.rangeQuery("ts").lte("now")); // all 2020 rows precede now
         assertSelectsSameRows(QueryBuilders.rangeQuery("ts").gte("now")); // none do
         assertSelectsSameRows(QueryBuilders.rangeQuery("ts").gte("now-9000d")); // ~1995 — all rows
+    }
+
+    /**
+     * A type with no predecessor or successor cannot have an exclusive bound rewritten onto its neighbour, so the
+     * translation carries the inclusivity itself. Each bound here is a stored value, which is what makes the inclusive
+     * and exclusive forms select different rows rather than agreeing by accident.
+     */
+    public void testExclusiveRangeOnDouble() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("score").gt(1.5).lt(9.0));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("score").gte(1.5).lt(9.0));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("score").gt(1.5).lte(9.0));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("score").gte(1.5).lte(9.0));
+    }
+
+    /** Same, on keyword — byte order, and the bounds are stored tag values. */
+    public void testExclusiveRangeOnKeyword() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("tags").gt("t0").lt("t3"));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("tags").gte("t0").lte("t3"));
+    }
+
+    /** An ip literal is compared in its encoded form, so "10.0.0.20" must order above "10.0.0.5" on both paths. */
+    public void testIpTermAndExclusiveRange() {
+        assertSelectsSameRows(QueryBuilders.termQuery("client_ip", "10.0.0.7"));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("client_ip").gt("10.0.0.5").lt("10.0.0.20"));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("client_ip").gte("10.0.0.5").lte("10.0.0.20"));
+    }
+
+    /** An unsigned_long literal arrives as a JSON number and must encode to the field's internal representation. */
+    public void testUnsignedLongTermAndExclusiveRange() {
+        assertSelectsSameRows(QueryBuilders.termQuery("quota", 700));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("quota").gt(500).lt(2000));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("quota").gte(500).lte(2000));
+    }
+
+    /**
+     * unsigned_long is integral, so a value it cannot hold matches nothing and a bound is rounded inward — not
+     * truncated toward zero, which would make 700.9 select the rows equal to 700 and 0.5 admit 0.
+     */
+    public void testUnsignedLongUnmatchableValuesAndInwardBounds() {
+        assertSelectsSameRows(QueryBuilders.termQuery("quota", 700.9));
+        // parseTerm does not coerce: a whole double, a "700.0" and a padded " 700" are each unmatchable.
+        assertSelectsSameRows(QueryBuilders.termQuery("quota", 700.0));
+        assertSelectsSameRows(QueryBuilders.termQuery("quota", "700.0"));
+        assertSelectsSameRows(QueryBuilders.termQuery("quota", " 700"));
+        assertSelectsSameRows(QueryBuilders.termQuery("quota", -5));
+        assertSelectsSameRows(QueryBuilders.termsQuery("quota", List.of(700.9, 800)));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("quota").gte(0.5));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("quota").lte(700.5));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("quota").gte(-5));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("quota").lte(-5));
+    }
+
+    /** A prefix is the wildcard {@code <literal>*}; the literal's own metacharacters must stay literal. */
+    public void testPrefix() {
+        assertSelectsSameRows(QueryBuilders.prefixQuery("tags", "t"));
+        assertSelectsSameRows(QueryBuilders.prefixQuery("tags", "t1"));
+        assertSelectsSameRows(QueryBuilders.prefixQuery("label", "A"));
+        assertSelectsSameRows(QueryBuilders.prefixQuery("tags", "t*")); // no tag is literally "t*", so nothing matches
+    }
+
+    /** mv_like builds its automaton with the same WildcardQuery.toAutomaton call the index makes. */
+    public void testWildcard() {
+        assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", "t?"));
+        assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", "*1"));
+        assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", "t*1"));
+        assertSelectsSameRows(QueryBuilders.wildcardQuery("label", "?e*"));
+    }
+
+    /** Lucene reads an escape of a non-metacharacter as that character; the ES|QL spelling rejects it, so it routes
+     *  through mv_rlike instead — and must still select what the index selects. */
+    public void testLenientlyEscapedWildcard() {
+        assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", "\\t*"));
+        assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", "t1\\"));
+    }
+
+    /**
+     * The escaped character is a literal, so escaping a RegExp metacharacter must not hand mv_rlike that character's
+     * RegExp meaning. {@code t\.} selects nothing on the index — no tag is "t." — and a raw {@code .} would make it
+     * select every row; {@code t\|1} under-matched the same way, returning FEWER rows than the index.
+     */
+    public void testWildcardEscapingARegexpMetacharacter() {
+        for (String pattern : List.of("t\\.", "t\\|1", "t\\+", "t\\@", "t\\~", "t\\&", "t\\#", "t\\(", "t\\[")) {
+            assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", pattern));
+        }
+        // The positive control: the same characters unescaped keep their RegExp meaning on both sides.
+        assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", "t."));
+    }
+
+    /** regexp is Lucene RegExp syntax on both sides, with the same RegexpFlag.ALL parse. */
+    public void testRegexp() {
+        assertSelectsSameRows(QueryBuilders.regexpQuery("tags", "t[01]"));
+        assertSelectsSameRows(QueryBuilders.regexpQuery("tags", "t."));
+        assertSelectsSameRows(QueryBuilders.regexpQuery("label", "[A-Z].*"));
+        assertSelectsSameRows(QueryBuilders.regexpQuery("tags", "x.*")); // matches nothing on either side
+    }
+
+    /**
+     * The score-only wrappers select what their inner query selects. The differential is the proof: the boosting
+     * negative clause here would exclude two thirds of the rows if it were treated as a filter, and dis_max's arms
+     * overlap so a union is distinguishable from either arm alone.
+     */
+    public void testScoreOnlyWrappers() {
+        assertSelectsSameRows(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("status", 300)));
+        assertSelectsSameRows(QueryBuilders.constantScoreQuery(QueryBuilders.rangeQuery("bytes").gte(5_000).lt(25_000)));
+        assertSelectsSameRows(
+            QueryBuilders.boostingQuery(QueryBuilders.termQuery("status", 300), QueryBuilders.termQuery("tags", "t1")).negativeBoost(0.1f)
+        );
+        assertSelectsSameRows(
+            QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery("status", 300)).add(QueryBuilders.termQuery("tags", "t1"))
+        );
+        assertSelectsSameRows(QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery("status", 300)));
+    }
+
+    /** A wrapper nests and composes: the inner bool still reports per leaf, so only the fuzzy clause is dropped. */
+    public void testWrapperKeepsLeafGranularReporting() {
+        QueryBuilder mixed = QueryBuilders.constantScoreQuery(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 300)).must(QueryBuilders.fuzzyQuery("tags", "t"))
+        );
+        assertEquals(selectedIds(dataset, QueryBuilders.termQuery("status", 300)), selectedIds(dataset, mixed));
     }
 
     public void testExists() {
@@ -361,89 +538,75 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
     }
 
     /**
-     * Fail-closed: a filter mixing a supported {@code term} with an unsupported {@code wildcard} in a required must arm
-     * fails the whole query with a 400 naming the construct — the supported clause does not rescue it.
+     * An untranslatable clause costs the caller that clause, not the query: a filter mixing a supported {@code term}
+     * with an untranslatable {@code fuzzy} in a required must arm answers, selecting exactly what the {@code term}
+     * alone selects. That equality is the loosen-only contract — dropping a conjunct can only widen the result, so the
+     * dropped clause must not remove a row the term admits, and must not add one either.
      */
-    public void testUnsupportedConstructFailsTheQuery() {
+    public void testUntranslatableConstructDropsOnlyThatClause() {
         QueryBuilder mixed = QueryBuilders.boolQuery()
             .must(QueryBuilders.termQuery("status", 300))
-            .must(QueryBuilders.wildcardQuery("tags", "t*"));
-        Exception e = expectThrows(Exception.class, () -> selectedIds(dataset, mixed));
-        Throwable cause = ExceptionsHelper.unwrapCause(e);
-        assertThat(cause.getMessage(), containsString("[wildcard]"));
-        assertThat("an unsupported construct is a 400, not a 500", ExceptionsHelper.status(cause), equalTo(RestStatus.BAD_REQUEST));
+            .must(QueryBuilders.fuzzyQuery("tags", "t"));
+        List<Object> withUntranslatable = selectedIds(dataset, mixed);
+        List<Object> supportedOnly = selectedIds(dataset, QueryBuilders.termQuery("status", 300));
+        assertThat("the fixture must select rows, or the equality below is vacuous", supportedOnly.isEmpty(), equalTo(false));
+        assertThat(withUntranslatable, equalTo(supportedOnly));
     }
 
     /**
-     * Non-required should arm with an unsupported construct must NOT fail the query in fail-closed mode: the applied
+     * Non-required should arm with an unsupported construct must NOT fail the query: the applied
      * filter is semantically complete (the must conjunct is the binding constraint; the should is optional).
      */
     public void testNonRequiredShouldUnsupportedDoesNotFailQuery() {
-        // bool { must:[term], should:[wildcard] } — should is non-required because must is present and no msm override.
+        // bool { must:[term], should:[fuzzy] } — should is non-required because must is present and no msm override.
         QueryBuilder filter = QueryBuilders.boolQuery()
             .must(QueryBuilders.termQuery("status", 300))
-            .should(QueryBuilders.wildcardQuery("tags", "t*"));
+            .should(QueryBuilders.fuzzyQuery("tags", "t"));
         // Must not throw; rows matching status=300 must be returned.
         List<Object> ids = selectedIds(dataset, filter);
         assertThat("filter on must=300 must return rows", ids.isEmpty(), equalTo(false));
     }
 
-    // ---- REST layer tests: prove the URL param is parsed by RestEsqlQueryAction and flows through ----
+    // ---- REST layer tests: prove the policy and the withdrawn parameter through the HTTP path ----
 
     /**
-     * REST: without {@code allow_partial_dsl_filter}, an unsupported DSL construct fails the query with HTTP 400.
-     * This proves the default is fail-closed through the HTTP parsing path.
+     * REST: an untranslatable construct is dropped with a {@code Warning} response header naming it, and the query
+     * still answers. No request parameter selects this — it is the only dataset policy there is.
+     *
+     * <p>The clause is a {@code fuzzy}, deliberately: it is the one construct with no translation and none planned, so
+     * this case keeps testing the policy rather than the vocabulary as the translator learns more constructs.
      */
-    public void testRestParamDefaultFailsClosed() throws IOException {
+    public void testRestUntranslatableClauseIsDroppedWithWarning() throws IOException {
         Request request = new Request("POST", "/_query");
         request.setJsonEntity(String.format(Locale.ROOT, """
             {
               "query": "FROM %s | KEEP id",
-              "filter": { "wildcard": { "tags": { "value": "t*" } } }
-            }
-            """, dataset));
-        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("[wildcard]"));
-    }
-
-    /**
-     * REST: {@code allow_partial_dsl_filter=false} is explicit fail-closed — same as the default.
-     */
-    public void testRestParamFalseExplicit() throws IOException {
-        Request request = new Request("POST", "/_query");
-        request.addParameter("allow_partial_dsl_filter", "false");
-        request.setJsonEntity(String.format(Locale.ROOT, """
-            {
-              "query": "FROM %s | KEEP id",
-              "filter": { "wildcard": { "tags": { "value": "t*" } } }
-            }
-            """, dataset));
-        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("[wildcard]"));
-    }
-
-    /**
-     * REST: {@code allow_partial_dsl_filter=true} returns HTTP 200 with a {@code Warning} response header naming the
-     * dropped construct. This proves the URL param is parsed by {@link RestEsqlQueryAction} and flows through
-     * {@code EsqlSession} to {@code RequestFilterRewriter}.
-     */
-    public void testRestParamTrueAppliesPartially() throws IOException {
-        Request request = new Request("POST", "/_query");
-        request.addParameter("allow_partial_dsl_filter", "true");
-        request.setJsonEntity(String.format(Locale.ROOT, """
-            {
-              "query": "FROM %s | KEEP id",
-              "filter": { "wildcard": { "tags": { "value": "t*" } } }
+              "filter": { "fuzzy": { "tags": { "value": "t" } } }
             }
             """, dataset));
         Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         List<String> warnings = response.getWarnings();
         assertTrue(
-            "expected a warning about the dropped [wildcard] construct; got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("[wildcard]"))
+            "expected a warning about the dropped [fuzzy] construct; got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("[fuzzy]"))
         );
+    }
+
+    /**
+     * REST: {@code allow_partial_dsl_filter} is no longer a parameter. It never shipped in a release, so it is
+     * withdrawn rather than deprecated, and the REST layer rejects it like any other unknown parameter.
+     */
+    public void testWithdrawnPartialDslFilterParameterIsRejected() throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.addParameter("allow_partial_dsl_filter", "true");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "query": "FROM %s | KEEP id"
+            }
+            """, dataset));
+        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("allow_partial_dsl_filter"));
     }
 }

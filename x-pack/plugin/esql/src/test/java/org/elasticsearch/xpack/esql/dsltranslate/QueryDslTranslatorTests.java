@@ -12,13 +12,18 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.RegexpFlag;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,6 +32,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGrea
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -34,10 +41,12 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -59,6 +68,8 @@ public class QueryDslTranslatorTests extends ESTestCase {
         case "active" -> new ReferenceAttribute(Source.EMPTY, "active", DataType.BOOLEAN);
         case "body" -> new ReferenceAttribute(Source.EMPTY, "body", DataType.TEXT);
         case "client_ip" -> new ReferenceAttribute(Source.EMPTY, "client_ip", DataType.IP);
+        case "quota" -> new ReferenceAttribute(Source.EMPTY, "quota", DataType.UNSIGNED_LONG);
+        case "release" -> new ReferenceAttribute(Source.EMPTY, "release", DataType.VERSION);
         default -> Literal.NULL;
     };
 
@@ -89,21 +100,21 @@ public class QueryDslTranslatorTests extends ESTestCase {
 
     /** An unsupported top-level construct is collected, not thrown; applied() is TRUE (no conjuncts applied). */
     public void testUnsupportedConstructCollected() {
-        QueryDslTranslator.TranslationResult result = translateResult(QueryBuilders.wildcardQuery("tags", "a*"));
+        QueryDslTranslator.TranslationResult result = translateResult(QueryBuilders.fuzzyQuery("tags", "xyz"));
         assertFalse("a wholly unsupported filter is incomplete", result.isComplete());
         assertEquals(1, result.unsupported().size());
-        assertEquals("wildcard", result.unsupported().get(0).construct());
+        assertEquals("fuzzy", result.unsupported().get(0).construct());
         assertEquals(Literal.TRUE, result.applied());
     }
 
     /** A bool with a supported must and an unsupported must_not: the supported conjunct is applied, the unsupported one is collected. */
     public void testPartialBoolCollectsUnsupportedAndAppliesRest() {
         QueryDslTranslator.TranslationResult result = translateResult(
-            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).mustNot(QueryBuilders.wildcardQuery("tags", "a*"))
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).mustNot(QueryBuilders.fuzzyQuery("tags", "xyz"))
         );
         assertFalse("incomplete: mustNot arm is unsupported", result.isComplete());
         assertEquals(1, result.unsupported().size());
-        assertEquals("wildcard", result.unsupported().get(0).construct());
+        assertEquals("fuzzy", result.unsupported().get(0).construct());
         // The supported term conjunct must still be present in applied.
         assertThat(result.applied(), instanceOf(MvContains.class));
     }
@@ -111,7 +122,9 @@ public class QueryDslTranslatorTests extends ESTestCase {
     /** A bool with two unsupported must clauses: both are collected. */
     public void testMultipleUnsupportedClausesAllCollected() {
         QueryDslTranslator.TranslationResult result = translateResult(
-            QueryBuilders.boolQuery().must(QueryBuilders.wildcardQuery("tags", "a*")).must(QueryBuilders.fuzzyQuery("tags", "xyz"))
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.wildcardQuery("tags", "a*").caseInsensitive(true))
+                .must(QueryBuilders.fuzzyQuery("tags", "xyz"))
         );
         assertFalse(result.isComplete());
         assertThat(result.unsupported(), hasSize(2));
@@ -162,9 +175,9 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     public void testUnsupportedConstructCollectedWithConstructName() {
-        var result = translateResult(QueryBuilders.wildcardQuery("status", "2*"));
+        var result = translateResult(QueryBuilders.fuzzyQuery("status", "2"));
         assertFalse(result.isComplete());
-        assertEquals("wildcard", result.unsupported().get(0).construct());
+        assertEquals("fuzzy", result.unsupported().get(0).construct());
     }
 
     public void testRangeTranslation() {
@@ -260,11 +273,6 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(59, ((Literal) ((MvInRange) mixed).upper()).value());
     }
 
-    /** There is no predecessor for a double, so an exclusive two-bound range over one cannot be expressed exactly. */
-    public void testExclusiveTwoBoundRangeOnDoubleIsUnsupported() {
-        assertFalse(translateResult(QueryBuilders.rangeQuery("score").gt(1.5).lt(9.5)).isComplete());
-    }
-
     /**
      * The rewrite runs after the analyzer, so no implicit cast fixes a literal typed from the JSON value. A date string
      * against a date column must become a datetime literal here, or the evaluator is handed a BytesRef block.
@@ -313,8 +321,8 @@ public class QueryDslTranslatorTests extends ESTestCase {
 
     /**
      * A two-bound range on a KEYWORD field is a supported combination per the behavior table, and it takes the generic
-     * both-bounds path rather than the integral or date one. An exclusive bound there has no exact predecessor to
-     * normalize against (keyword is not whole-numbered), so it fails closed instead of silently shifting the interval.
+     * both-bounds path rather than the integral or date one. A closed interval emits no options map, because inclusive
+     * on both ends is what mv_in_range already means.
      */
     public void testTwoBoundRangeOnKeyword() {
         Expression e = translate(QueryBuilders.rangeQuery("tags").gte("t1").lte("t3"));
@@ -323,9 +331,160 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, ((Literal) r.lower()).dataType());
         assertEquals(new BytesRef("t1"), ((Literal) r.lower()).value());
         assertEquals(new BytesRef("t3"), ((Literal) r.upper()).value());
+        assertEquals(3, r.children().size()); // no options map: the closed interval is the default
+    }
 
-        // An exclusive bound on a non-whole-numbered type cannot be normalized to an inclusive one -> collected.
-        assertFalse(translateResult(QueryBuilders.rangeQuery("tags").gt("t1").lte("t3")).isComplete());
+    /**
+     * A type with no exact predecessor or successor — double, keyword, ip, version — still takes an exclusive bound:
+     * mv_in_range carries the inclusivity in its options rather than needing the bound shifted onto its neighbour.
+     * These used to be collected as untranslatable, which dropped a clause the index path answers exactly.
+     */
+    public void testExclusiveBoundsOnNonWholeTypesTranslate() {
+        Map<String, RangeQueryBuilder> byField = Map.of(
+            "score",
+            QueryBuilders.rangeQuery("score").gt(1.5).lt(9.5),
+            "tags",
+            QueryBuilders.rangeQuery("tags").gt("t1").lt("t3"),
+            "client_ip",
+            QueryBuilders.rangeQuery("client_ip").gt("10.0.0.1").lt("10.0.0.9"),
+            "release",
+            QueryBuilders.rangeQuery("release").gt("1.0.0").lt("2.0.0")
+        );
+        for (var entry : byField.entrySet()) {
+            Expression e = translate(entry.getValue());
+            assertThat(entry.getKey(), e, instanceOf(MvInRange.class));
+            assertEquals(entry.getKey(), Map.of("include_lower", false, "include_upper", false), optionsOf((MvInRange) e));
+        }
+    }
+
+    /** One exclusive end spells out only that end; the other keeps mv_in_range's inclusive default. */
+    public void testOneExclusiveBoundSpellsOutOnlyThatBound() {
+        assertEquals(Map.of("include_lower", false), optionsOf((MvInRange) translate(QueryBuilders.rangeQuery("score").gt(1.5).lte(9.5))));
+        assertEquals(Map.of("include_upper", false), optionsOf((MvInRange) translate(QueryBuilders.rangeQuery("score").gte(1.5).lt(9.5))));
+    }
+
+    /** The literal keys and values of an emitted mv_in_range options map. */
+    private static Map<String, Object> optionsOf(MvInRange range) {
+        return ((MapExpression) range.children().get(3)).toFoldedMap(FoldContext.small());
+    }
+
+    /** {@code prefix} is the wildcard {@code <literal>*}, which mv_like recognises as its prefix fast-path shape. */
+    public void testPrefixBecomesMvLike() {
+        Expression e = translate(QueryBuilders.prefixQuery("tags", "t1"));
+        assertThat(e, instanceOf(MvLike.class));
+        assertEquals(new BytesRef("t1*"), ((Literal) ((MvLike) e).right()).value());
+    }
+
+    /** A {@code prefix} value has no metacharacters, so a * or ? inside it must be escaped, not become a wildcard. */
+    public void testPrefixEscapesWildcardMetacharactersInTheLiteral() {
+        Expression e = translate(QueryBuilders.prefixQuery("tags", "a*b?c"));
+        assertEquals(new BytesRef("a\\*b\\?c*"), ((Literal) ((MvLike) e).right()).value());
+    }
+
+    /** mv_like speaks the Lucene wildcard dialect, so a pattern in it crosses over verbatim. */
+    public void testWildcardBecomesMvLikeVerbatim() {
+        Expression e = translate(QueryBuilders.wildcardQuery("tags", "t?x*"));
+        assertThat(e, instanceOf(MvLike.class));
+        assertEquals(new BytesRef("t?x*"), ((Literal) ((MvLike) e).right()).value());
+    }
+
+    /**
+     * Lucene reads an escape of a non-metacharacter as that character, and a trailing backslash as a literal one;
+     * ES|QL's LIKE rejects both spellings. They translate through the wildcard-to-RegExp conversion instead, so the
+     * clause is answered rather than dropped.
+     */
+    public void testLenientlyEscapedWildcardBecomesMvRLike() {
+        Expression e = translate(QueryBuilders.wildcardQuery("tags", "a\\-b*"));
+        assertThat(e, instanceOf(MvRLike.class));
+        assertEquals(new BytesRef("a-b.*"), ((Literal) ((MvRLike) e).right()).value());
+
+        Expression trailing = translate(QueryBuilders.wildcardQuery("tags", "ab\\"));
+        assertThat(trailing, instanceOf(MvRLike.class));
+        assertEquals(new BytesRef("ab\\\\"), ((Literal) ((MvRLike) trailing).right()).value());
+    }
+
+    /** {@code regexp} is Lucene RegExp syntax, which is what mv_rlike parses — the pattern crosses over verbatim. */
+    public void testRegexpBecomesMvRLike() {
+        Expression e = translate(QueryBuilders.regexpQuery("tags", "t[0-9]"));
+        assertThat(e, instanceOf(MvRLike.class));
+        assertEquals(new BytesRef("t[0-9]"), ((Literal) ((MvRLike) e).right()).value());
+    }
+
+    /** A narrowed flag set makes some of the syntax literal, which mv_rlike cannot express. */
+    public void testRegexpWithNonDefaultFlagsIsCollected() {
+        var result = translateResult(QueryBuilders.regexpQuery("tags", "t.").flags(RegexpFlag.EMPTY.value()));
+        assertFalse(result.isComplete());
+        assertEquals("regexp[flags]", result.unsupported().get(0).construct());
+    }
+
+    /** Neither mv_like nor mv_rlike takes a case-insensitivity option, so the clause degrades rather than mis-match. */
+    public void testCaseInsensitivePatternsAreCollected() {
+        assertEquals("wildcard[case_insensitive]", constructOf(QueryBuilders.wildcardQuery("tags", "a*").caseInsensitive(true)));
+        assertEquals("prefix[case_insensitive]", constructOf(QueryBuilders.prefixQuery("tags", "a").caseInsensitive(true)));
+        assertEquals("regexp[case_insensitive]", constructOf(QueryBuilders.regexpQuery("tags", "a").caseInsensitive(true)));
+    }
+
+    /** A pattern over a non-string field cannot resolve, and over analyzed text it would compare the raw string. */
+    public void testPatternOnNonStringAndAnalyzedFieldsIsCollected() {
+        assertFalse(translateResult(QueryBuilders.wildcardQuery("status", "2*")).isComplete());
+        assertFalse(translateResult(QueryBuilders.regexpQuery("body", "a.")).isComplete());
+    }
+
+    /** A malformed regexp would fail the query at post-optimization verification; it must degrade the clause instead. */
+    public void testMalformedRegexpIsCollectedNotThrown() {
+        var result = translateResult(QueryBuilders.regexpQuery("tags", "["));
+        assertFalse(result.isComplete());
+        assertEquals("MvRLike[pattern]", result.unsupported().get(0).construct());
+    }
+
+    /** A pattern over a MISSING field stays null-bound and folds to false, like every other leaf. */
+    public void testPatternOnMissingFieldFoldsToFalse() {
+        Expression e = translate(QueryBuilders.wildcardQuery("missing_field", "a*"));
+        assertThat(e, instanceOf(MvLike.class));
+        assertEquals(Literal.NULL, ((MvLike) e).left());
+    }
+
+    private static String constructOf(org.elasticsearch.index.query.QueryBuilder qb) {
+        var result = translateResult(qb);
+        assertFalse(result.isComplete());
+        return result.unsupported().get(0).construct();
+    }
+
+    /** constant_score and boosting replace the score, not the matching set, so each is its inner/positive query. */
+    public void testScoreOnlyWrappersBecomeTheirInnerQuery() {
+        Expression constantScore = translate(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("status", 200)));
+        assertThat(constantScore, instanceOf(MvContains.class));
+        Expression boosting = translate(
+            QueryBuilders.boostingQuery(QueryBuilders.termQuery("status", 200), QueryBuilders.termQuery("tags", "t1"))
+        );
+        assertThat(boosting, instanceOf(MvContains.class));
+    }
+
+    /** A wrapper is unwrapped inside the collecting walk, so an inner bool still reports one leaf at a time. */
+    public void testWrapperContentsReportPerLeaf() {
+        var result = translateResult(
+            QueryBuilders.constantScoreQuery(
+                QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).must(QueryBuilders.fuzzyQuery("tags", "x"))
+            )
+        );
+        assertFalse(result.isComplete());
+        assertEquals(1, result.unsupported().size());
+        assertEquals("fuzzy", result.unsupported().get(0).construct());
+        assertThat(result.applied(), instanceOf(MvContains.class)); // the term conjunct survived
+    }
+
+    /** dis_max is the union of its arms, and all-or-nothing: dropping an arm would exclude rows it alone matched. */
+    public void testDisMaxIsAnAllOrNothingUnion() {
+        Expression e = translate(
+            QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery("status", 200)).add(QueryBuilders.termQuery("tags", "t1"))
+        );
+        assertThat(e, instanceOf(Or.class));
+        assertEquals(Literal.FALSE, translate(QueryBuilders.disMaxQuery()));
+        assertFalse(
+            translateResult(
+                QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery("status", 200)).add(QueryBuilders.fuzzyQuery("tags", "x"))
+            ).isComplete()
+        );
     }
 
     /** A terms-lookup has no values to translate (and values() is null — it used to NPE). */
@@ -747,11 +906,123 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     /**
-     * A lenient match on a type we cannot encode (ip/version/unsigned_long) is collected — it must not be silently mapped
-     * to match-nothing, because the index would actually match. Regression guard for the lenient-swallows-everything bug.
+     * A lenient match on a capability we do not have — analyzed text — is collected, not silently mapped to
+     * match-nothing, because the index would actually match. Lenient means "skip a value this type cannot hold", never
+     * "drop a whole capability". Regression guard for the lenient-swallows-everything bug.
      */
-    public void testLenientMatchOnUnsupportedTypeDegrades() {
-        assertFalse(translateResult(QueryBuilders.matchQuery("client_ip", "10.0.0.1").lenient(true)).isComplete());
+    public void testLenientMatchOnUnsupportedCapabilityDegrades() {
+        assertFalse(translateResult(QueryBuilders.matchQuery("body", "hello").lenient(true)).isComplete());
+    }
+
+    /**
+     * ip, version and unsigned_long literals encode through the planner's own converters, so a filter on a dataset
+     * column of those types translates like any other. Each literal carries the FIELD's type: the rewrite runs after
+     * the analyzer, so nothing downstream inserts the cast a user-written WHERE would get.
+     */
+    public void testIpVersionAndUnsignedLongLiteralsEncode() {
+        record Case(QueryBuilder query, DataType type, Object encoded) {}
+        for (Case each : List.of(
+            new Case(QueryBuilders.termQuery("client_ip", "10.0.0.1"), DataType.IP, EsqlDataTypeConverter.stringToIP("10.0.0.1")),
+            new Case(QueryBuilders.termQuery("release", "8.19.1"), DataType.VERSION, EsqlDataTypeConverter.stringToVersion("8.19.1")),
+            new Case(QueryBuilders.termQuery("quota", "42"), DataType.UNSIGNED_LONG, EsqlDataTypeConverter.stringToUnsignedLong("42"))
+        )) {
+            Expression e = translate(each.query());
+            assertThat(each.type().toString(), e, instanceOf(MvContains.class));
+            Literal literal = (Literal) ((MvContains) e).children().get(1);
+            assertEquals("the literal takes the field's type", each.type(), literal.dataType());
+            // The value, not just the type: the encoding is the whole claim, and a plausible wrong one types the same.
+            assertEquals("the literal is encoded as the compute engine reads it", each.encoded(), literal.value());
+        }
+    }
+
+    /**
+     * {@code terms} and {@code range} reach the same encodings as {@code term}, so they translate rather than degrade.
+     * An unsigned_long is compared in its biased form, which is what makes the ordering below the true ordering.
+     */
+    public void testIpVersionAndUnsignedLongTermsAndRangesTranslate() {
+        assertThat(translate(QueryBuilders.termsQuery("client_ip", List.of("10.0.0.1", "10.0.0.2"))), instanceOf(MvIntersects.class));
+        assertThat(translate(QueryBuilders.termsQuery("release", List.of("8.1.0", "9.0.0"))), instanceOf(MvIntersects.class));
+        MvIntersects quotaTerms = (MvIntersects) translate(QueryBuilders.termsQuery("quota", List.of(1, 2)));
+        assertEquals(
+            List.of(EsqlDataTypeConverter.stringToUnsignedLong("1"), EsqlDataTypeConverter.stringToUnsignedLong("2")),
+            ((Literal) quotaTerms.children().get(1)).value()
+        );
+
+        MvInRange ips = (MvInRange) translate(QueryBuilders.rangeQuery("client_ip").gte("10.0.0.1").lte("10.0.0.9"));
+        assertEquals(EsqlDataTypeConverter.stringToIP("10.0.0.1"), ((Literal) ips.lower()).value());
+        MvInRange quotas = (MvInRange) translate(QueryBuilders.rangeQuery("quota").gte(1).lte(10));
+        assertEquals(EsqlDataTypeConverter.stringToUnsignedLong("1"), ((Literal) quotas.lower()).value());
+        assertEquals(EsqlDataTypeConverter.stringToUnsignedLong("10"), ((Literal) quotas.upper()).value());
+        assertThat(translate(QueryBuilders.rangeQuery("release").gte("8.0.0").lte("9.0.0")), instanceOf(MvInRange.class));
+    }
+
+    /** A lenient match on an ip the type cannot represent matches nothing, mirroring the index's lenient field query. */
+    public void testLenientMatchOnMalformedIpMatchesNothing() {
+        assertEquals(Literal.FALSE, translate(QueryBuilders.matchQuery("client_ip", "not-an-ip").lenient(true)));
+    }
+
+    /**
+     * An unsigned_long value that parses and then does not fit is reported as an unsupported clause, never thrown.
+     * It is the case that escapes a narrower catch: a non-numeric value fails BigDecimal parsing with a
+     * NumberFormatException (an IllegalArgumentException), while "-1" parses and then fails safeToUnsignedLong with an
+     * InvalidArgumentException, which descends from QlClientException. If that one is not caught it leaves the
+     * collecting walk entirely and takes the whole query down, past the point the drop-and-warn policy can act.
+     */
+    /**
+     * unsigned_long is an integral type, so it takes the integral narrowing rather than the generic encoding: a
+     * fractional, negative or over-range value can equal no unsigned_long and matches nothing, exactly as the index's
+     * {@code UnsignedLongFieldType.parseTerm} returns NO_DOCS for each. Truncating instead — which the generic
+     * encoding does, {@code new BigDecimal("42.9").toBigInteger()} being 42 — would silently match 42.
+     */
+    public void testUnmatchableUnsignedLongTermMatchesNothing() {
+        for (Object value : List.of("-1", "18446744073709551616", 42.9d, "0.5", -5)) {
+            assertEquals("[" + value + "] can equal no unsigned_long", Literal.FALSE, translate(QueryBuilders.termQuery("quota", value)));
+        }
+        // A whole in-range value still matches, so the assertions above are not vacuous.
+        assertThat(translate(QueryBuilders.termQuery("quota", 42)), instanceOf(MvContains.class));
+        assertThat(translate(QueryBuilders.termQuery("quota", "42")), instanceOf(MvContains.class));
+        // A non-numeric value is malformed, not unmatchable: it degrades, as on every other integral type.
+        assertFalse(translateResult(QueryBuilders.termQuery("quota", "not-a-number")).isComplete());
+    }
+
+    /**
+     * unsigned_long does not coerce a term the way integer and long do: UnsignedLongFieldType.parseTerm takes only an
+     * integral box, an in-range BigInteger, or what Long.parseUnsignedLong reads. A whole double, a "42.0" and a
+     * padded " 42" are well-formed numbers no unsigned_long equals, so each matches nothing — where the same shapes
+     * on a long field are 42.
+     */
+    public void testUnsignedLongTermDoesNotCoerceLikeLong() {
+        for (Object value : List.of(42.0d, "42.0", " 42")) {
+            assertEquals(
+                "[" + value + "] is not a term unsigned_long accepts",
+                Literal.FALSE,
+                translate(QueryBuilders.termQuery("quota", value))
+            );
+            assertThat(
+                "the same shape on a long field does coerce",
+                translate(QueryBuilders.termQuery("bytes", value)),
+                instanceOf(MvContains.class)
+            );
+        }
+        // terms applies the same rule value by value: the unmatchable one is dropped, the rest still select.
+        MvIntersects kept = (MvIntersects) translate(QueryBuilders.termsQuery("quota", List.of("42.0", 43)));
+        assertEquals(List.of(EsqlDataTypeConverter.stringToUnsignedLong("43")), ((Literal) kept.children().get(1)).value());
+    }
+
+    /** An unsigned_long RANGE bound does coerce a decimal, but Numbers.newBigDecimal rejects padding. */
+    public void testUnsignedLongRangeBoundRejectsPaddingButTakesDecimals() {
+        assertThat(translate(QueryBuilders.rangeQuery("quota").gte("0.5")), instanceOf(MvInRange.class));
+        assertFalse(translateResult(QueryBuilders.rangeQuery("quota").gte(" 42")).isComplete());
+    }
+
+    /** A bound outside the unsigned_long range clamps rather than degrading, so gte -5 keeps matching everything. */
+    public void testUnsignedLongRangeBoundsClampAndRoundInward() {
+        MvInRange all = (MvInRange) translate(QueryBuilders.rangeQuery("quota").gte(-5));
+        assertEquals(EsqlDataTypeConverter.stringToUnsignedLong("0"), ((Literal) all.lower()).value());
+        assertEquals(Literal.FALSE, translate(QueryBuilders.rangeQuery("quota").lte(-5)));
+        // A fractional lower bound rounds UP into the interval — gte 0.5 must not admit 0.
+        MvInRange rounded = (MvInRange) translate(QueryBuilders.rangeQuery("quota").gte(0.5));
+        assertEquals(EsqlDataTypeConverter.stringToUnsignedLong("1"), ((Literal) rounded.lower()).value());
     }
 
     /** A match_phrase on an exact field is the whole value — plain equality; a slop or a text field are collected. */
@@ -823,7 +1094,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
      */
     public void testNonRequiredShouldFailureNotReported() {
         QueryDslTranslator.TranslationResult result = translateResult(
-            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.wildcardQuery("tags", "a*"))
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.fuzzyQuery("tags", "xyz"))
         );
         assertTrue("non-required should failure must not be reported", result.isComplete());
         assertNotEquals("must arm is applied", Literal.TRUE, result.applied());
@@ -839,7 +1110,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
         QueryDslTranslator.TranslationResult result = translateResult(
             QueryBuilders.boolQuery()
                 .must(
-                    QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.wildcardQuery("tags", "a*"))
+                    QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.fuzzyQuery("tags", "xyz"))
                 )
         );
         assertTrue("non-required nested should failure must not propagate", result.isComplete());
@@ -853,7 +1124,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
      */
     public void testRequiredShouldAnyFailureDropsWholeGroup() {
         QueryDslTranslator.TranslationResult result = translateResult(
-            QueryBuilders.boolQuery().should(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.wildcardQuery("tags", "a*"))
+            QueryBuilders.boolQuery().should(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.fuzzyQuery("tags", "xyz"))
         );
         assertFalse("wildcard arm failure is reported", result.isComplete());
         assertEquals("whole OR group dropped — pre-filter must over-fetch", Literal.TRUE, result.applied());
@@ -913,9 +1184,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
         QueryDslTranslator.TranslationResult result = translateResult(
             QueryBuilders.boolQuery()
                 .must(
-                    QueryBuilders.boolQuery()
-                        .should(QueryBuilders.termQuery("status", 200))
-                        .should(QueryBuilders.wildcardQuery("tags", "a*"))
+                    QueryBuilders.boolQuery().should(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.fuzzyQuery("tags", "xyz"))
                 )
         );
         assertFalse("wildcard arm failure is reported", result.isComplete());
@@ -933,9 +1202,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
         QueryDslTranslator.TranslationResult result = translateResult(
             QueryBuilders.boolQuery()
                 .must(
-                    QueryBuilders.boolQuery()
-                        .must(QueryBuilders.termQuery("status", 200))
-                        .mustNot(QueryBuilders.wildcardQuery("tags", "a*"))
+                    QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).mustNot(QueryBuilders.fuzzyQuery("tags", "xyz"))
                 )
         );
         assertFalse("wildcard must_not arm failure is reported", result.isComplete());

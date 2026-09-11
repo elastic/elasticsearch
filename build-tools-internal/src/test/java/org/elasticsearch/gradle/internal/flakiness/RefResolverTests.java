@@ -64,6 +64,28 @@ public class RefResolverTests {
     }
 
     /**
+     * A changed java file is claimed on source-set membership alone, never on what its class is <em>named</em>.
+     * The resolver runs before the compile phase, so it has no bytecode and cannot tell an abstract test base
+     * from a helper - and an abstract base is precisely the case that must survive to the scan, which expands
+     * it into the concrete subclasses that inherit its tests. Filtering by name here silently drops every base
+     * that is not called {@code *Tests}/{@code *IT}/{@code *TestCase}, which is most of them
+     * ({@code ...TestBase}, {@code Abstract...Test}), taking their subclasses with it.
+     */
+    @Test
+    public void testClaimsAChangedFileRegardlessOfWhatItsClassIsNamed() {
+        Path repo = tmp.getRoot().toPath();
+        RefResolver server = membershipResolver(repo, project(repo, ":server", "server", "test"));
+
+        // An abstract base: no test-name suffix, yet its subclasses are the whole point of resolving it.
+        BaseTarget base = server.resolve(changedFile("server/src/test/java/org/foo/FooTestBase.java")).orElseThrow();
+        assertThat(base.fqcn(), equalTo("org.foo.FooTestBase"));
+
+        // Same for a plain helper. Whether it is runnable is decided after expansion, where the bytecode is.
+        BaseTarget helper = server.resolve(changedFile("server/src/test/java/org/foo/TestUtils.java")).orElseThrow();
+        assertThat(helper.fqcn(), equalTo("org.foo.TestUtils"));
+    }
+
+    /**
      * Inside the project but under no test source set: a production file is simply not a test, so it is
      * ignored rather than reported unresolved.
      */
@@ -73,40 +95,6 @@ public class RefResolverTests {
         RefResolver server = membershipResolver(repo, project(repo, ":server", "server", "test"));
 
         assertThat(server.resolve(changedFile("server/src/main/java/org/foo/NotATest.java")).isPresent(), is(false));
-    }
-
-    /**
-     * A test source set holds more than tests. A changed fixture or {@code package-info.java} is left
-     * unresolved, which the merge step drops silently for a {@code changed-file} ref: nobody claimed the file
-     * was a test, so there is nothing to report. Reporting them would add a {@code not_applicable} record for
-     * every such file in every PR.
-     */
-    @Test
-    public void testDoesNotClaimAChangedNonTestFileInATestSourceSet() {
-        Path repo = tmp.getRoot().toPath();
-        RefResolver server = membershipResolver(repo, project(repo, ":server", "server", "test"));
-
-        assertThat(server.resolve(changedFile("server/src/test/java/org/foo/TestUtils.java")).isPresent(), is(false));
-        assertThat(server.resolve(changedFile("server/src/test/java/org/foo/MockFooPlugin.java")).isPresent(), is(false));
-        assertThat(server.resolve(changedFile("server/src/test/java/org/foo/package-info.java")).isPresent(), is(false));
-        // The same source set still claims a real test, so this is a filter and not a broken path match.
-        assertThat(server.resolve(changedFile("server/src/test/java/org/foo/BarTests.java")).isPresent(), is(true));
-    }
-
-    /**
-     * The other half of that rule: a ref that <em>names</em> a class is claimed even when the name is not a
-     * test, so the plan can report it rather than drop it. Someone expected a test here, and staying silent
-     * would turn their typo into a missing check.
-     */
-    @Test
-    public void testClaimsANamedNonTestClassSoItCanBeReported() throws IOException {
-        Path repo = tmp.getRoot().toPath();
-        writeJava(repo, "server/src/test/java/org/foo/TestUtils.java");
-        RefResolver server = membershipResolver(repo, project(repo, ":server", "server", "test"));
-
-        BaseTarget target = server.resolve(unmute("org.foo.TestUtils", null)).orElseThrow();
-
-        assertThat(target.fqcn(), equalTo("org.foo.TestUtils"));
     }
 
     /**

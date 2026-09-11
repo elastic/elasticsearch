@@ -40,16 +40,9 @@ import java.util.List;
  *       nothing and rejecting it would silently drop a real test.</li>
  * </ul>
  *
- * <h2>Reported or dropped</h2>
- * A rejection is <em>reported</em> (see {@link PlanBuilder#REASON_NOT_A_TEST_CLASS}) wherever something or
- * someone asserted the class was a test: an {@code unmute} or {@code explicit} ref names it outright, and an
- * expansion product was reached by inheriting from a base that is one. There a rejection means an expectation
- * was wrong, and reporting keeps a mis-named real test visible instead of turning it into a missing check.
- *
- * <p>The exception is a {@code changed-file} ref, which is dropped silently in
- * {@link RefResolver#resolveChangedJavaSource}. Nobody claimed that file was a test; it merely sits in a test
- * source set, where non-tests are the ordinary case. Reporting those would put a record in the outcomes
- * artifact for every fixture and {@code package-info.java} in every PR.
+ * <p>A rejection is always <em>reported</em>, never silently dropped - see
+ * {@link PlanBuilder#REASON_NOT_A_TEST_CLASS}. That keeps a mis-named real test visible instead of turning it
+ * into a missing check.
  */
 public final class TestClassNames {
 

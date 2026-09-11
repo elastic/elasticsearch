@@ -19,6 +19,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
@@ -642,14 +643,19 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
 
         final Directory dir = newDirectory();
         final DirectoryReader reader;
-        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+        try (
+            RandomIndexWriter writer = new RandomIndexWriter(
+                random(),
+                dir,
+                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
             // Segment 1: single-valued keyword documents → skipper reports maxValueCount == 1.
             writer.addDocument(List.of(SortedSetDocValuesField.indexedField("kw", new BytesRef("A"))));
             writer.addDocument(List.of(SortedSetDocValuesField.indexedField("kw", new BytesRef("B"))));
             writer.commit();
             // Segment 2: a document with no keyword field → getDocValuesSkipper("kw") returns null.
             writer.addDocument(List.of());
-            // Intentionally no forceMerge so the two segments remain separate.
             reader = writer.getReader();
         }
 

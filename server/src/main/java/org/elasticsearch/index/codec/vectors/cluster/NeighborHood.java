@@ -145,7 +145,7 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
         final RandomVectorScorerSupplier supplier = new CentersScorerSupplier<>(ops, centers);
         // what we want here is really is call "new OnHeapHnswGraph(M, ceneters.length)" but the constructor is package private
         final OnHeapHnswGraph initGraph = HnswGraphBuilder.create(supplier, M, EF_CONSTRUCTION, 42L, centers.length).build(0);
-        final OnHeapHnswGraph graph = new HnswConcurrentMergeBuilder(executor, numWorkers, supplier, M, EF_CONSTRUCTION, initGraph, null)
+        final OnHeapHnswGraph graph = new HnswConcurrentMergeBuilder(executor, numWorkers, supplier, EF_CONSTRUCTION, initGraph, null)
             .build(centers.length);
         final NeighborHood[] neighborhoods = new NeighborHood[centers.length];
         final int len = centers.length / numWorkers;

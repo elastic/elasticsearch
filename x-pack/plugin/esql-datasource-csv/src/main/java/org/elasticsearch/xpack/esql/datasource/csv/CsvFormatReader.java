@@ -186,7 +186,8 @@ import java.util.function.Consumer;
  *   <tr><td>{@code (true, true)}</td><td>{@code mode: quoted} (default for {@code .csv})</td>
  *       <td>RFC 4180 quoting; backslash escapes inside quoted fields (spreadsheet / enclosed-and-escaped)</td></tr>
  *   <tr><td>{@code (false, true)}</td><td>{@code mode: escaped}</td>
- *       <td>No quoting; C-style value decode — {@code \t \n \\}, {@code \N} → null (database text exports)</td></tr>
+ *       <td>No quoting; escape + delimiter stays in one field; C-style value decode
+ *       ({@code \t \n \\}, {@code \N} → null; database text exports)</td></tr>
  *   <tr><td>{@code (false, false)}</td><td>{@code mode: plain} (default for {@code .tsv})</td>
  *       <td>No quoting, no escaping; every byte literal — a field cannot contain the delimiter or a
  *           newline. Never silently corrupts input.</td></tr>
@@ -626,21 +627,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * quirks are masked (the trim would have removed that whitespace anyway and quote detection is
      * restored), so Jackson's tokenization is safe.
      *
-     * <p>Escaped mode (quoting off, escaping on) is also kept on Jackson even under no-trim: it is the only
-     * dialect where {@link #decodeFieldValue} is non-identity, so routing escaped mode through the house
-     * splitter would diverge from inference. The direct walkers exclude escaped mode for the same reason (no
-     * house grammar to mirror), so this keeps the house path confined to exactly the QUOTED / PLAIN dialects
-     * the walkers serve, where {@code decodeFieldValue} is identity.
+     * <p>Escaped mode (quoting off, escaping on) uses the house {@link #splitRecordFieldsEscaped} path
+     * even under trim: Jackson's escape both protects and decodes, so installing the escape char would
+     * drop the slash before {@link #decodeFieldValue} and lose whole-field {@code \N} and C-style
+     * {@code \b}/{@code \f}. The house scan is protect-only; decode stays in {@code decodeFieldValue}.
+     * Direct walkers exclude escaped mode ({@code decodeFieldValue} is non-identity and there is
+     * no escaped walker to mirror).
      *
-     * <p>Consequence — the escaped-mode no-trim residual: because escaped mode stays on Jackson even under
-     * no-trim, it also KEEPS Jackson's {@code SKIP_EMPTY_LINES} first-column leading-whitespace eating (a
-     * padded {@code  x} at column 0 reads back as {@code x}; non-first columns keep their padding). This is a
-     * real no-trim gap for escaped mode that the QUOTED / PLAIN house grammar does not have, but it is uniform
-     * across every escaped arm (per-record, bulk, inference), so there is no cross-path misbind. Pinned by
-     * {@code CsvModeReadTests.testEscapedModeStillEatsColumnZeroLeadingWhitespaceUnderNoTrim}.
+     * <p>Escaped no-trim therefore uses the house grammar, which preserves first-column leading
+     * whitespace (unlike Jackson {@code SKIP_EMPTY_LINES}).
      */
     private boolean jacksonGrammarApplies() {
-        return options.trimSpaces() || options.decodesEscapes();
+        return options.trimSpaces() && options.decodesEscapes() == false;
     }
 
     private static CsvMapper createMapper(CsvFormatOptions opts) {
@@ -648,7 +646,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (opts.trimSpaces()) {
             // TRIM_SPACES is gated on so mode:plain (and any opt-out) keeps field bytes verbatim; typed
             // columns tolerate padding independently (see tryConvertValue). This mapper is only consulted
-            // when jacksonGrammarApplies() (trim on, or escaped mode): under no-trim Jackson's grammar
+            // when jacksonGrammarApplies() (trim on, not escaped): under no-trim Jackson's grammar
             // diverges from the walkers — it mis-splits padded quotes AND SKIP_EMPTY_LINES eats the first
             // column's leading whitespace on every row — so the record paths tokenize with
             // splitRecordFields instead and this mapper is not used for them.
@@ -1495,9 +1493,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@code external_max_record_size} cap is enforced upstream by {@link CsvRecordCappingInputStream}, so this
      * path no longer needs the per-char accounting that {@link CsvLogicalRecordReader#readRecord} added.
      * Used after schema resolution / sampling, where every subsequent record flows through this iterator —
-     * but only when {@link #jacksonGrammarApplies()} (trim on, or escaped mode). Under no-trim the data
-     * path routes to the per-record {@link #newCsvIterator} + house {@link #splitRecordFields} instead, so
-     * Jackson's diverging no-trim grammar (padded-quote mis-split, col-0 whitespace eating) is not used.
+     * but only when {@link #jacksonGrammarApplies()} (trim on and not escaped). Under no-trim or escaped
+     * mode the data path routes to the per-record {@link #newCsvIterator} + house {@link #splitRecordFields}
+     * instead, so Jackson's diverging no-trim grammar (padded-quote mis-split, col-0 whitespace eating)
+     * is not used, and escaped mode keeps the protect-only house scan.
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private Iterator<List<?>> newJacksonBulkIterator(Reader reader) throws IOException {
@@ -1812,9 +1811,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // This is needed on every recordReader-backed data path for a QUOTED + escaping dialect — the
         // direct quoted walk, the _rowPosition per-record read, and the no-trim reroute onto the house
         // tokenizer — otherwise a `\`-escaped newline would terminate the record early and split one
-        // logical row in two. The Jackson bulk path (trim on / escaped mode) installs the escape char in
-        // its own schema instead, so it does not need the recordReader escape-aware. Bracket mode scans
-        // its own boundaries and is excluded.
+        // logical row in two. The Jackson bulk path (trim on, quoted/plain) installs the escape char in
+        // its own schema when quoting is on, so it does not need the recordReader escape-aware. Bracket
+        // mode scans its own boundaries and is excluded. Escaped mode keeps recordEscapeAware off: an
+        // in-field newline is the two bytes {@code \}+{@code n}, and a raw newline ends the record.
         boolean recordEscapeAware = options.quoting()
             && options.escaping()
             && useBracketAware == false
@@ -1852,11 +1852,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.encoding(),
                 options.quoting()
             );
-        // Only the direct-to-block path lets this reader own the stream end to end, so bulk read-ahead
-        // is safe there. The Jackson path skips the header through this reader then resumes on the same
-        // underlying BufferedReader, so it must stay non-buffered (no read-ahead) to avoid swallowing
-        // bytes Jackson still needs.
-        if (useDirectBlock) {
+        // Bulk read-ahead is safe when this reader owns the stream end to end: the direct-to-block
+        // path, and the house per-record path (useRecordReaderPath). The Jackson bulk path skips the
+        // header through this reader then resumes on the same underlying BufferedReader, so it must
+        // stay non-buffered (no read-ahead) to avoid swallowing bytes Jackson still needs.
+        if (useDirectBlock || useRecordReaderPath) {
             recordReader.enableBulkBuffering();
         }
         // _rowPosition byte-axis invariant: context.splitStartByte() and recordReader.bytesRead()
@@ -2722,27 +2722,29 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * House record tokenizer for the no-trim, non-escaped-mode dialects (QUOTED and PLAIN). Produces the
-     * same field values <em>and</em> field counts as the direct-to-block walkers
-     * ({@link CsvBatchIterator#splitAndConvertPlain} / {@link CsvBatchIterator#splitAndConvertQuoted}), so
-     * a record materialized through this splitter agrees byte-for-byte with a direct read of the same file.
-     * Used in place of Jackson whenever {@link #jacksonGrammarApplies()} is false — Jackson's tokenization
-     * only coincides with the walkers under {@code trim_spaces} (see that method), and it eats first-column
-     * leading whitespace on every row via {@code SKIP_EMPTY_LINES}, so under no-trim the walkers are the
-     * grammar and this splitter mirrors them for the record-materialized paths (per-record iterator,
-     * inference sampling, {@code _rowPosition} reads, bulk fallback).
+     * House record tokenizer. For QUOTED and PLAIN it produces the same field values <em>and</em> field
+     * counts as the direct-to-block walkers ({@link CsvBatchIterator#splitAndConvertPlain} /
+     * {@link CsvBatchIterator#splitAndConvertQuoted}), so a record materialized through this splitter
+     * agrees byte-for-byte with a direct read of the same file. Escaped mode has no walker twin: it
+     * uses {@link #splitRecordFieldsEscaped} (protect-only scan, raw emit) and {@link #decodeFieldValue}
+     * afterwards.
+     *
+     * <p>Used in place of Jackson whenever {@link #jacksonGrammarApplies()} is false. Jackson's
+     * tokenization only coincides with the walkers under {@code trim_spaces} (see that method), and
+     * escaped mode must not hand Jackson the escape char. Under no-trim the walkers are the QUOTED /
+     * PLAIN grammar and this splitter mirrors them for the record-materialized paths (per-record
+     * iterator, inference sampling, {@code _rowPosition} reads, bulk fallback).
      *
      * <p>Values are returned raw: an empty field is {@code ""} (not {@code null}) — downstream
      * {@code tryConvertValue} maps empty / {@code null-marker} to null identically for both arms, so the
      * split stays a pure tokenizer. Per field the same {@code maxFieldChars} cap the walkers enforce is
      * applied, throwing a {@link MalformedRowException} whose message equals
      * {@link #fieldSizeExceededDetail} so the error policy sees identical text on both arms.
-     *
-     * <p>Only reached when {@code decodeFieldValue} is the identity (QUOTED or PLAIN); the escaped mode
-     * (quoting off, escaping on), where {@code decodeFieldValue} is non-identity, keeps
-     * {@link #jacksonGrammarApplies()} true and never routes here.
      */
     static String[] splitRecordFields(String record, CsvFormatOptions options, int maxFieldChars) {
+        if (options.decodesEscapes()) {
+            return splitRecordFieldsEscaped(record, options, maxFieldChars);
+        }
         return options.quoting()
             ? splitRecordFieldsQuoted(record, options, maxFieldChars)
             : splitRecordFieldsPlain(record, options, maxFieldChars);
@@ -2783,6 +2785,95 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             while (end > start && record.charAt(end - 1) <= ' ') {
                 end--;
+            }
+        }
+        int fieldLen = end - start;
+        if (fieldLen > maxFieldChars) {
+            throw new MalformedRowException(fieldSizeExceededDetail(fieldLen, maxFieldChars));
+        }
+        return record.substring(start, end);
+    }
+
+    /**
+     * Escaped (quoting off, escaping on) split: protect-only scan so {@code escape + delimiter} is
+     * not a field boundary, then a raw emit. {@link #decodeFieldValue} performs the C-style decode
+     * afterwards. Trailing empty fields are kept (data-row rule). A field-leading quote is data.
+     */
+    private static String[] splitRecordFieldsEscaped(String record, CsvFormatOptions options, int maxFieldChars) {
+        final char delim = options.delimiter();
+        final char esc = options.escapeChar();
+        final boolean trimSpaces = options.trimSpaces();
+        final int len = record.length();
+        List<String> fields = new ArrayList<>();
+        int i = 0;
+        while (true) {
+            long scan = CsvTokenizerKernel.scanUnquotedField(record, i, len, delim, esc, true);
+            int fieldEnd = CsvTokenizerKernel.scanFieldEnd(scan);
+            fields.add(
+                emitEscapedSplitField(record, i, fieldEnd, delim, esc, trimSpaces, CsvTokenizerKernel.scanHasEscape(scan), maxFieldChars)
+            );
+            if (fieldEnd >= len) {
+                break;
+            }
+            i = fieldEnd + 1;
+        }
+        return fields.toArray(String[]::new);
+    }
+
+    /**
+     * Raw substring of an escaped-mode field {@code record[start, end)}. Under {@code trim_spaces},
+     * unescaped {@code c <= ' '} is stripped from both ends (except the delimiter itself). An
+     * unescaped escape char is not padding when it still has a following byte to protect, so a
+     * whitespace escape char (legal in {@link CsvFormatOptions}) is not eaten from the front of a
+     * pair; a trailing lone whitespace escape is padding. When the scan saw no escape the walk is
+     * a two-pointer trim of unescaped {@code c <= ' '} (except the delimiter); otherwise one
+     * forward pass tracks pairing so a long escape-run followed by spaces is linear. The cap
+     * governs the emitted length. C-style decode is left to {@link #decodeFieldValue}.
+     */
+    private static String emitEscapedSplitField(
+        String record,
+        int start,
+        int end,
+        char delim,
+        char esc,
+        boolean trimSpaces,
+        boolean hasEscape,
+        int maxFieldChars
+    ) {
+        if (trimSpaces) {
+            if (hasEscape) {
+                boolean inEscape = false;
+                int firstKeep = -1;
+                int lastKeep = -1;
+                for (int i = start; i < end; i++) {
+                    char c = record.charAt(i);
+                    boolean escaped = inEscape;
+                    if (inEscape) {
+                        inEscape = false;
+                    } else if (c == esc) {
+                        inEscape = true;
+                    }
+                    boolean padding = c <= ' ' && c != delim && escaped == false && (c != esc || i + 1 >= end);
+                    if (padding == false) {
+                        if (firstKeep < 0) {
+                            firstKeep = i;
+                        }
+                        lastKeep = i;
+                    }
+                }
+                if (firstKeep < 0) {
+                    end = start;
+                } else {
+                    start = firstKeep;
+                    end = lastKeep + 1;
+                }
+            } else {
+                while (start < end && record.charAt(start) <= ' ' && record.charAt(start) != delim) {
+                    start++;
+                }
+                while (end > start && record.charAt(end - 1) <= ' ' && record.charAt(end - 1) != delim) {
+                    end--;
+                }
             }
         }
         int fieldLen = end - start;
@@ -2939,11 +3030,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return null;
             }
             if (jacksonGrammarApplies() == false) {
-                // No-trim, non-escaped-mode: the direct-block walkers are the grammar, so tokenize with
-                // their string-domain twin instead of Jackson (whose grammar diverges under no-trim — see
-                // jacksonGrammarApplies). Comments are filtered by the callers on the first cell, so they
-                // are not dropped here. The decodeFieldValue seam runs unchanged — it is the identity for
-                // the QUOTED / PLAIN dialects this branch is gated to.
+                // House tokenizer: QUOTED / PLAIN under no-trim (walker twin) and escaped mode (protect-only
+                // scan). Comments are filtered by the callers on the first cell, so they are not dropped
+                // here. decodeFieldValue is identity for QUOTED / PLAIN and C-style for escaped.
                 int maxFieldChars = options.maxFieldSize() > 0 ? options.maxFieldSize() : Integer.MAX_VALUE;
                 String[] fields = splitRecordFields(record, options, maxFieldChars);
                 // A configured null marker maps to null here, mirroring what Jackson's withNullValue did at
@@ -2985,9 +3074,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * the standard C-style output escape set, and any other {@code \c} is {@code c} (its parse
      * rule). Runs only when {@link CsvFormatOptions#decodesEscapes()} (escaping on, quoting off);
      * identity otherwise, and lazy — a field without the escape character (the overwhelmingly common
-     * case) is returned as-is, so the decode stays off the hot path. Boundary scanning is untouched by
-     * design: an in-field tab/newline is the two bytes {@code \}+{@code t}/{@code n} on disk, so raw
-     * terminators remain unambiguous.
+     * case) is returned as-is, so the decode stays off the hot path. Named escapes ({@code \t},
+     * {@code \n}) never put a raw terminator byte in a field, so record bounds stay unambiguous.
+     * Escape + delimiter is kept in one field by {@link #splitRecordFieldsEscaped} before this runs.
      */
     private String decodeFieldValue(String value) {
         if (options.decodesEscapes() == false || value == null) {
@@ -3041,7 +3130,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * control escapes; every other {@code \c} — including {@code \b} and {@code \f} — is the literal
      * {@code c} (the escape merely protects the next character). This is a strict subset of the C-style
      * {@link #decodeEscapeChar} set, which additionally maps {@code \b}/{@code \f} to control chars; that
-     * fuller set stays confined to {@code mode: escaped}, whose fallback is Jackson-with-C-style anyway.
+     * fuller set stays confined to {@code mode: escaped}, which decodes via {@link #decodeFieldValue}.
      */
     static char decodeQuotedEscapeChar(char next) {
         return switch (next) {
@@ -3578,9 +3667,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /**
          * Bulk Jackson iterator that also tracks per-record byte offsets via {@link ByteOffsetTrackingReader},
          * so canonical-stripe attribution works on the fast path without dropping onto the per-record reader.
-         * Live only when {@link #jacksonGrammarApplies()} (trim on, or escaped mode) and the encoding is
-         * UTF-8; under no-trim the read routes through the per-record recordReader path instead (which
-         * supplies byte-exact offsets for any encoding), so this tracked bulk path stays idle there.
+         * Live only when {@link #jacksonGrammarApplies()} (trim on, not escaped) and the encoding is
+         * UTF-8; under no-trim or escaped mode the read routes through the per-record recordReader path
+         * instead (which supplies byte-exact offsets for any encoding), so this tracked bulk path stays
+         * idle there.
          */
         @SuppressWarnings({ "rawtypes", "unchecked" })
         private Iterator<List<?>> newTrackedJacksonBulkIterator() throws IOException {
@@ -3777,18 +3867,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // record must advance CsvLogicalRecordReader's byte accounting so the offset
                     // (splitStartByte + bytesRead - lastRecordBytes) stays exact; the Jackson bulk path
                     // bypasses recordReader and would pin every data row at the header boundary.
-                    // 2. Jackson's grammar does not apply (no-trim, non-escaped-mode — see
+                    // 2. Jackson's grammar does not apply (no-trim, or escaped; see
                     // jacksonGrammarApplies): under no-trim Jackson mis-splits padded-quoted fields and
-                    // eats first-column leading whitespace, so the record path tokenizes with the house
-                    // splitRecordFields (parseRecord) to agree with the direct walkers. Stripe capture
+                    // eats first-column leading whitespace, and escaped mode uses the house protect-only
+                    // scan. The record path tokenizes with splitRecordFields (parseRecord). Stripe capture
                     // still composes: recordReader supplies byte-exact per-record offsets (the
                     // bulkByteTracker == null branch below), validated by the emit-time tripwire, so
                     // capture is NOT disabled here even for non-UTF-8 — recordReader counts bytes per
                     // options.encoding().
                     if (rowPositionSlot >= 0 || jacksonGrammarApplies() == false) {
-                        // parseRecord already applied decodeFieldValue on both of its branches. That holds for the
-                        // no-trim reroute arm too, where the decode is the identity (QUOTED / PLAIN only), so the
-                        // contract is DECODED here even though only escaped mode can observe the difference.
+                        // parseRecord already applied decodeFieldValue. QUOTED / PLAIN decode is identity;
+                        // escaped decode is C-style. The iterator contract is DECODED.
                         routeCsvIterator(newCsvIterator(recordReader), true);
                     } else if (statsStripeSize > 0 && StandardCharsets.UTF_8.equals(options.encoding())) {
                         // Stripe capture on the bulk path: wrap the reader so each row's char offset maps to a
@@ -3932,13 +4021,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                 String[] row = new String[rowList.size()];
                                 for (int i = 0; i < rowList.size(); i++) {
                                     Object val = rowList.get(i);
-                                    // decodeFieldValue must run exactly once per field, and the two record sources
-                                    // carry opposite contracts: the Jackson bulk iterators deliver RAW values
-                                    // (newCsvSchema withholds the escape char in the no-quote modes, so the
-                                    // backslash reaches us untouched), while CsvRecordIterator.parseRecord already
-                                    // decoded. This seam therefore decodes only the raw arm. Decoding both would
-                                    // silently corrupt escaped mode — the only dialect where decodeFieldValue is
-                                    // non-identity (it un-escapes \t \n \\ and maps a whole-field \N to null).
+                                    // decodeFieldValue must run exactly once per field. Jackson bulk iterators
+                                    // deliver RAW values; CsvRecordIterator.parseRecord (house path, including
+                                    // escaped) already decoded. This seam therefore decodes only the raw arm.
+                                    // Decoding both would un-escape \t \n \\ twice and collapse a whole-field \N.
                                     String value = val != null ? val.toString() : null;
                                     row[i] = csvIteratorDeliversDecoded ? value : decodeFieldValue(value);
                                 }
@@ -6044,7 +6130,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private Object tryConvertValue(String value, DataType dataType, int columnIndex) {
             if (value == null) {
                 // A field the parser already resolved to null: a missing field (row shorter than the
-                // schema), or a Jackson-emitted null (custom null_value token / escaped \N). Null on every type.
+                // schema), or a tokenizer/decode null (custom null_value token / escaped \N). Null on every type.
                 return null;
             }
             if (hasCustomNullValue && value.equals(nullValueStr)) {

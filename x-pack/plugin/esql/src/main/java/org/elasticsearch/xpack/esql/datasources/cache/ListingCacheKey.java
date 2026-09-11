@@ -69,6 +69,9 @@ public record ListingCacheKey(
         Map<String, Object> config,
         String listingDiscriminator
     ) {
+        // Both EndpointRegion.of() and computeCredentialHash() walk the _datasource sub-map themselves
+        // (belt-and-suspenders). Callers should still pass storageConfig(config) so any future dimension
+        // added to the key is equally resilient without requiring a separate sub-map walk.
         EndpointRegion location = EndpointRegion.of(config);
         long[] hash = computeCredentialHash(config);
         long[] discriminatorHash = sha256Truncated(listingDiscriminator);
@@ -103,6 +106,18 @@ public record ListingCacheKey(
             return new long[] { 0L, 0L };
         }
         TreeMap<String, String> credentialValues = new TreeMap<>();
+        // For dataset queries, credentials live in the _datasource sub-map. Scan it first so
+        // top-level entries override (same precedence as ExternalSourceResolver.storageConfig()).
+        // The literal "_datasource" matches ExternalSourceResolver.DATASOURCE_CONFIG_KEY.
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ds = (Map<String, Object>) config.get("_datasource");
+        if (ds != null) {
+            for (Map.Entry<String, Object> entry : ds.entrySet()) {
+                if (CREDENTIAL_PARAMS.contains(entry.getKey()) && entry.getValue() != null) {
+                    credentialValues.put(entry.getKey(), entry.getValue().toString());
+                }
+            }
+        }
         for (Map.Entry<String, Object> entry : config.entrySet()) {
             if (CREDENTIAL_PARAMS.contains(entry.getKey()) && entry.getValue() != null) {
                 credentialValues.put(entry.getKey(), entry.getValue().toString());

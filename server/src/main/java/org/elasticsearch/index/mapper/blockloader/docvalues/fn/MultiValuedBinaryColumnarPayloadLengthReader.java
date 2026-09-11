@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
@@ -91,7 +92,11 @@ public abstract class MultiValuedBinaryColumnarPayloadLengthReader extends Block
         if (values.docValues().advanceExact(docId) == false) {
             return null;
         }
-        int nonNull = reader.nonNullCount(values.docValues().binaryValue(), scratch);
+        // Asked of the column where there is one, which knows how many slots the document has and which are null
+        // without decoding anything. A segment arriving as an overlay rather than as a column has its payload read.
+        final int nonNull = values.docValues() instanceof StringColumnSource columnar
+            ? columnar.nonNullValues(scratch)
+            : reader.nonNullCount(values.docValues().binaryValue(), scratch);
         if (nonNull == 1) {
             return length(scratch);
         }

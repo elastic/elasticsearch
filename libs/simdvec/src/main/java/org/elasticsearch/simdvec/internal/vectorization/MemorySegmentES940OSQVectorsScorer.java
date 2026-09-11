@@ -20,6 +20,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.BufferScratch;
 
@@ -37,14 +38,13 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
     public static MemorySegmentES940OSQVectorsScorer usingNative(
         IndexInput in,
-        byte queryBits,
-        byte indexBits,
+        BBQEncoding bbqEncoding,
         int dimensions,
         int dataLength,
         int bulkSize,
         @Nullable ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) {
-        QuantEncoding encoding = QuantEncoding.of(queryBits, indexBits, Objects.requireNonNullElse(bitEncoding, BitEncoding.STRIPED));
+        QuantEncoding encoding = QuantEncoding.of(bbqEncoding, Objects.requireNonNullElse(bitEncoding, BitEncoding.STRIPED));
         return new MemorySegmentES940OSQVectorsScorer(
             in,
             encoding,
@@ -57,14 +57,13 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
     public static MemorySegmentES940OSQVectorsScorer usingPanama(
         IndexInput in,
-        byte queryBits,
-        byte indexBits,
+        BBQEncoding bbqEncoding,
         int dimensions,
         int dataLength,
         int bulkSize,
         @Nullable ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) {
-        QuantEncoding encoding = QuantEncoding.of(queryBits, indexBits, Objects.requireNonNullElse(bitEncoding, BitEncoding.STRIPED));
+        QuantEncoding encoding = QuantEncoding.of(bbqEncoding, Objects.requireNonNullElse(bitEncoding, BitEncoding.STRIPED));
         return new MemorySegmentES940OSQVectorsScorer(
             in,
             encoding,
@@ -276,15 +275,14 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
         static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
-        /** Scale for a quantization of the given bit width, for scorers that are not fixed to one encoding */
-        static float bitScale(int bits) {
-            return ES940OSQVectorsScorer.BIT_SCALES[bits - 1];
-        }
-
         protected final IndexInput in;
         protected final int length;
         protected final int dimensions;
         protected final int bulkSize;
+
+        protected static float bitScale(int bits) {
+            return ES940OSQVectorsScorer.bitScale(bits);
+        }
 
         protected final BufferScratch scratch = new BufferScratch();
 

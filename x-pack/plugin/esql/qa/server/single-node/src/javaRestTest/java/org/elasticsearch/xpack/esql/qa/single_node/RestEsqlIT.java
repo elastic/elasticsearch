@@ -1444,9 +1444,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     String name = signature(o);
                     if (name.equals("LuceneSourceOperator")) {
                         // AUTO routes to DOC (docs_threshold_auto_partitioning=20 is below this
-                        // index's 1000 docs), but the DOC partitioner floors slice size at
-                        // MIN_DOCS_PER_SLICE (50_000), so this 1000-doc index must stay on a
-                        // single slice — the previous behavior over-split tiny indices.
+                        // index's 1000 docs), but the DOC partitioner caps slices at
+                        // totalDocs / MIN_DOCS_PER_SLICE (50_000), so this 1000-doc index —
+                        // even when Lucene flushed multiple segments — must stay on a single
+                        // slice rather than opening one bin per segment.
                         MapMatcher status = matchesMap().entry("total_slices", equalTo(1))
                             .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "DOC"))
                             .extraOk();

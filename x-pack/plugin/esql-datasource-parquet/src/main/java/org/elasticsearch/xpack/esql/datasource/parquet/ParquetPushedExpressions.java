@@ -204,6 +204,9 @@ final class ParquetPushedExpressions {
     private FilterPredicate toFilterPredicateInner(MessageType schema, Map<String, String> formats) {
         List<FilterPredicate> translated = new ArrayList<>();
         for (Expression expr : expressions) {
+            if (ParquetFilterPushdownSupport.canConvert(expr) == false) {
+                continue;
+            }
             FilterPredicate fp = translateExpression(expr, schema, formats);
             if (fp != null) {
                 translated.add(fp);
@@ -442,10 +445,10 @@ final class ParquetPushedExpressions {
         if (value == null && op.isOrdered()) {
             return null;
         }
-        // IS NULL / IS NOT NULL (null-valued EQ/NOT_EQ) over a list column (resolves to a LIST group,
-        // not a primitive) must decline: pushing notEq(column("v"), null) names a leaf-absent column
-        // that parquet-mr drops entirely. The null-mask evaluator that answers instead is multivalue-safe.
-        // esql-planning#1056.
+        // IS NULL / IS NOT NULL (null-valued EQ/NOT_EQ) over a list must decline: a 3-level LIST
+        // attribute is a group (resolver returns null); a 2-level repeated leaf is a primitive that
+        // parquet-mr still rejects (maxRepLevel > 0). resolveNestedPrimitive covers both.
+        // FilterExec's MV-safe evaluator answers instead. esql-planning#1056.
         if (value == null && resolveNestedPrimitive(schema, columnName) == null) {
             return null;
         }
@@ -672,9 +675,13 @@ final class ParquetPushedExpressions {
      * Resolves a (possibly dotted) {@code name} to the leaf {@link PrimitiveType} in {@code schema}.
      * Applies the same D2 precedence as the prior PR's projection-time flattener: a literal
      * top-level field named exactly {@code "a.b.c"} wins over the dotted-path traversal
-     * {@code a -> b -> c}. Returns {@code null} when the path is missing or lands on a group
-     * (e.g. an intermediate STRUCT, MAP, or LIST) rather than a primitive — predicate pushdown
-     * is only meaningful at primitive leaves.
+     * {@code a -> b -> c}. Returns {@code null} when the path is missing, lands on a group
+     * (e.g. an intermediate STRUCT, MAP, or LIST) rather than a primitive, or any type on the
+     * resolved path is {@link Type.Repetition#REPEATED}. parquet-mr FilterPredicates cannot
+     * target a repeated column ({@code maxRepLevel > 0}); a 2-level {@code repeated} leaf is a
+     * primitive, so the path-wide repetition check is required in addition to the group check.
+     * A 3-level LIST attribute is still a group and still returns {@code null}. Predicate
+     * pushdown is only meaningful at non-repeated primitive leaves.
      *
      * <p>This is the single dotted-path resolver used by {@link #isPhysicalDouble} and
      * {@link #buildDatetimePredicate} (and {@link #translateDatetimeIn}). Translation of the
@@ -687,8 +694,7 @@ final class ParquetPushedExpressions {
     @Nullable
     static PrimitiveType resolveNestedPrimitive(MessageType schema, String dottedName) {
         if (schema.containsField(dottedName)) {
-            Type leaf = schema.getType(dottedName);
-            return leaf.isPrimitive() ? leaf.asPrimitiveType() : null;
+            return pushablePrimitive(schema.getType(dottedName));
         }
         // Walk left-to-right, allowing literal-dot top-level prefixes to compose with nested
         // children — the exact-name fast path above already handled the no-dot case. Probe each
@@ -701,6 +707,7 @@ final class ParquetPushedExpressions {
             String topLevel = dottedName.substring(0, probeDot);
             if (schema.containsField(topLevel)) {
                 Type field = schema.getType(topLevel);
+                boolean repeatedOnPath = field.isRepetition(Type.Repetition.REPEATED);
                 for (int i = prefixLen; i < segments.length; i++) {
                     if (field.isPrimitive()) {
                         return null;
@@ -711,13 +718,30 @@ final class ParquetPushedExpressions {
                         break;
                     }
                     field = group.getType(segments[i]);
+                    repeatedOnPath |= field.isRepetition(Type.Repetition.REPEATED);
                 }
-                if (field != null && field.isPrimitive()) {
-                    return field.asPrimitiveType();
+                if (repeatedOnPath == false) {
+                    PrimitiveType primitive = pushablePrimitive(field);
+                    if (primitive != null) {
+                        return primitive;
+                    }
                 }
             }
             probeDot = dottedName.indexOf('.', probeDot + 1);
             prefixLen++;
+        }
+        return null;
+    }
+
+    /**
+     * A FilterPredicate host must be a non-{@link Type.Repetition#REPEATED} primitive. Groups
+     * (LIST/STRUCT/MAP) and repeated leaves both decline; the latter is parquet-mr's
+     * {@code maxRepLevel > 0} without needing a {@code ColumnDescriptor}.
+     */
+    @Nullable
+    private static PrimitiveType pushablePrimitive(Type type) {
+        if (type != null && type.isPrimitive() && type.isRepetition(Type.Repetition.REPEATED) == false) {
+            return type.asPrimitiveType();
         }
         return null;
     }
@@ -812,8 +836,10 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * The RAW bound to push for a {@code DATETIME} column whose query literal is epoch-millis, or {@code null} to
-     * decline. Both halves of the question are delegated: the parquet-local derivation of how decode relates raw to
+     * The RAW bound to push for a {@code DATETIME} column, or {@code null} to decline. The query literal is
+     * in the column's domain (epoch-millis) because the pushdown gate requires the literal's {@link DataType}
+     * to match the column. Both halves of the question are delegated: the parquet-local
+     * derivation of how decode relates raw to
      * decoded ({@link ParquetColumnDecoding#rawDecodeRelation}), and the shared, brute-force-verified inversion that
      * guarantees the pushed bound is never stricter than the truth ({@link DeclaredTypeCoercions#rawBoundFor}).
      *
@@ -902,7 +928,9 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * Builds a predicate for an ESQL {@code DATE_NANOS} column, whose query literal is epoch-nanoseconds. Since
+     * Builds a predicate for an ESQL {@code DATE_NANOS} column. The query literal is in the column's domain
+     * (epoch-nanoseconds) because the pushdown gate requires the literal's {@link DataType} to match the
+     * column. Since
      * {@code date_nanos} became declarable, this column can sit over any physical INT64 a declared read admits —
      * not only the inferred {@code TIMESTAMP(MICROS|NANOS)} shapes. The raw-to-decoded relation and the bound math
      * are delegated to the shared {@link DeclaredTypeCoercions.RawDecodeRelation} authority (via
@@ -1169,7 +1197,9 @@ final class ParquetPushedExpressions {
     /**
      * {@code IN} counterpart to {@link #buildDateNanosPredicate}, folded onto the same {@link #temporalInPredicate}
      * that serves the {@code DATETIME} arm ({@link #translateDatetimeIn}) so the two temporal IN paths share ONE
-     * raw-band authority. The query literals are epoch-nanoseconds; {@link #temporalInPredicate} resolves the
+     * raw-band authority. The query literals are in the column's domain (epoch-nanoseconds) because the
+     * pushdown gate requires each literal's {@link DataType} to match the column;
+     * {@link #temporalInPredicate} resolves the
      * raw-to-decoded relation from {@link ParquetColumnDecoding#rawDecodeRelation} and pushes each element's exact
      * raw equality band: an identity column (NANOS, or the un-annotated signed INT64 a declared {@code date_nanos}
      * reads as raw epoch-nanos) pushes every value exactly; a scaled column (MICROS, MILLIS, or a declared epoch

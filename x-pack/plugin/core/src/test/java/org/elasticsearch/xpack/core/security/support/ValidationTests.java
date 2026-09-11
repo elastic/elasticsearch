@@ -19,12 +19,14 @@ import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.junit.BeforeClass;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -383,6 +385,22 @@ public class ValidationTests extends ESTestCase {
             containsString("service account namespace may not be more than " + max + " characters long, but [" + tooLong + "] is ")
         );
         assertThat(UserManagedServiceAccounts.validatePrincipal(randomAlphaOfLength(max) + "/" + tooLong), notNullValue());
+    }
+
+    public void testUserManagedServiceAccountRolesBoundary() {
+        final int max = UserManagedServiceAccounts.MAX_ROLES;
+        assertThat(UserManagedServiceAccounts.validateRoles(List.of()), nullValue());
+        assertThat(UserManagedServiceAccounts.validateRoles(roleNames(max)), nullValue());
+
+        final List<String> tooMany = randomBoolean() ? roleNames(max + 1) : Collections.nCopies(max + 1, "role-a");
+        assertThat(
+            UserManagedServiceAccounts.validateRoles(tooMany).toString(),
+            equalTo("a service account may not have more than " + max + " roles, but [" + (max + 1) + "] were given")
+        );
+    }
+
+    private static List<String> roleNames(int count) {
+        return IntStream.range(0, count).mapToObj(i -> "role-" + i).toList();
     }
 
     private static String randomUserManagedComponent() {

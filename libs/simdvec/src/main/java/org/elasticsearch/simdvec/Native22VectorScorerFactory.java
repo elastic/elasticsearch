@@ -70,14 +70,13 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     ) throws IOException {
         // native scorers might still use panama for some things, so check panama is ok
         // this is true for all modern CPUs anyway
-        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS && ES940OSQVectorsScorer.supportsQuantization(queryBits, indexBits)) {
+        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS && ES940OSQVectorsScorer.supportsQuantization(indexBits, queryBits)) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
             if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
                 return MemorySegmentES940OSQVectorsScorer.usingNative(
                     unwrappedInput,
-                    queryBits,
-                    indexBits,
+                    new BBQEncoding(indexBits, queryBits),
                     dimension,
                     dataLength,
                     bulkSize,
@@ -85,7 +84,7 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
                 );
             }
         }
-        return new ES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, bitEncoding);
+        return new ES940OSQVectorsScorer(input, new BBQEncoding(indexBits, queryBits), dimension, dataLength, bulkSize, bitEncoding);
     }
 
     @Override
@@ -109,7 +108,9 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
         throws IOException {
         IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
         unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
-        return new ESNextAshBBQVectorsScorer(NativeBBQDotProduct.create(unwrappedInput, nDims, bitsPerDim, queryBitsPerDim));
+        return new ESNextAshBBQVectorsScorer(
+            NativeBBQDotProduct.create(unwrappedInput, nDims, new BBQEncoding(bitsPerDim, queryBitsPerDim))
+        );
     }
 
     @Override

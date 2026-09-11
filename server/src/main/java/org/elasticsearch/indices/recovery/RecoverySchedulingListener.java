@@ -58,7 +58,12 @@ public interface RecoverySchedulingListener {
     default void onPeerRecoveryDequeuedAndStartedOnSource() {}
 
     /// Called when started incoming recovery is directly cancelled on the target by the master node.
-    default void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type) {}
+    ///
+    /// @param type The type of recovery source
+    /// @param stage The stage the recovery had reached before it was cancelled
+    /// @param elapsedTimeMillis The time (in milliseconds) elapsed between when the recovery started (i.e. when it entered stage `INIT`)
+    /// and when it was cancelled
+    default void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type, RecoveryState.Stage stage, long elapsedTimeMillis) {}
 
     /// Called when a running incoming recovery finishes (success, failure or aborted) on the target.
     default void onRecoveryCompletedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {}

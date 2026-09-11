@@ -42,7 +42,13 @@ public class EmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTestCa
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("EmbeddingOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "]]");
+        return equalTo(
+            "EmbeddingOperator[inference_id=["
+                + SIMPLE_INFERENCE_ID
+                + "], batch_size=["
+                + InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE
+                + "]]"
+        );
     }
 
     public void testImageEmbeddingOperator() {

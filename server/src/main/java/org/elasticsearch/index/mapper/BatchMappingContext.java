@@ -12,6 +12,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
@@ -36,13 +39,14 @@ import java.util.List;
  * state (the assembled {@link LuceneColumn} list and the {@code _field_names} entries) that belongs
  * to the mapping phase rather than the operation record.
  */
-public final class BatchMappingContext {
+public final class BatchMappingContext implements Releasable {
 
     private final IndexOperationBatch batch;
     private final MappingLookup mappingLookup;
     private final IndexSettings indexSettings;
     private final Recycler<BytesRef> recycler;
     private final List<LuceneColumn> columns = new ArrayList<>();
+    private final List<Releasable> resources = new ArrayList<>();
     private final FieldNamesFieldMapper fieldNamesFieldMapper;
 
     private boolean frozen;
@@ -114,15 +118,47 @@ public final class BatchMappingContext {
         return timestamps;
     }
 
-    // TODO: nothing allocates through this yet — the columns it would produce have no owner to release them.
     public Recycler<BytesRef> recycler() {
         return recycler;
     }
 
-    /** Attaches a fully-assembled {@link LuceneColumn} covering all {@code docCount} rows. */
+    /**
+     * Attaches a fully-assembled {@link LuceneColumn} covering all {@code docCount} rows.
+     *
+     * <p>Use this overload only when the column's backing data is owned by something other than this
+     * context — for example, a zero-copy alias into the source batch, or data already registered via
+     * {@link #addResource}. When the column owns freshly-allocated recycler buffers, use
+     * {@link #addColumn(LuceneColumn, EscfColumnData)} instead so the buffers are released when this
+     * context closes.
+     */
     public void addColumn(LuceneColumn column) {
         assert frozen == false;
         columns.add(column);
+    }
+
+    /**
+     * Attaches a {@link LuceneColumn} and registers {@code owned} as a managed resource to be
+     * released when this context is {@link #close() closed}.
+     */
+    public void addColumn(LuceneColumn column, EscfColumnData owned) {
+        assert frozen == false;
+        columns.add(column);
+        resources.add(owned);
+    }
+
+    /**
+     * Registers a {@link Releasable} resource to be released when this context is
+     * {@link #close() closed}, without attaching a Lucene column.
+     */
+    public void addResource(Releasable resource) {
+        assert frozen == false;
+        resources.add(resource);
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(resources);
+        resources.clear();
     }
 
     /**

@@ -40,6 +40,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
+import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfColumnTransforms;
 import org.elasticsearch.escf.LuceneLongColumn;
@@ -377,8 +378,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     private static final IndexableFieldType MARKER_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        return fieldType().value() != null && copyTo().copyToFields().isEmpty() && multiFields().iterator().hasNext() == false;
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        return fieldType().value() != null && copyTo().copyToFields().isEmpty();
     }
 
     /**
@@ -392,17 +393,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
      * canonicalization is accepted here but rejected by the row path; mismatches always fall back.
      */
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final BytesRef expected = new BytesRef(fieldType().value()); // non-null: gated by supportsColumnarParse
-        final EscfColumnBuilder markers;
-        if (ctx.isSourceSynthetic()) {
-            markers = new EscfColumnBuilder(CollisionPolicy.MERGE, ctx.recycler());
-            markers.lockScalar(EscfColumnKind.LONG);
-        } else {
-            markers = null;
-        }
-        boolean success = false;
-        try {
+        try (EscfColumnBuilder markers = ctx.isSourceSynthetic() ? newMarkerColumn(ctx) : null) {
             final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
             // TODO: This is a mapper which could be optimized with bulk-oriented operations.
             for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
@@ -423,16 +416,20 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 }
             }
             if (markers != null) {
+                EscfColumnData markersData = markers.finish(ctx.docCount());
                 ctx.addColumn(
-                    LuceneLongColumn.of(markers.finish(ctx.docCount()), fieldType().name(), MARKER_FIELD_TYPE, LongColumn.NumericKind.LONG)
+                    LuceneLongColumn.of(markersData, fieldType().name(), MARKER_FIELD_TYPE, LongColumn.NumericKind.LONG),
+                    markersData
                 );
             }
-            success = true;
-        } finally {
-            if (success == false && markers != null) {
-                markers.discard();
-            }
         }
+    }
+
+    /** The synthetic-source marker column: one LONG per accepted value, mirroring the row path's marker field. */
+    private static EscfColumnBuilder newMarkerColumn(BatchMappingContext ctx) {
+        EscfColumnBuilder markers = new EscfColumnBuilder(CollisionPolicy.MERGE, ctx.recycler());
+        markers.lockScalar(EscfColumnKind.LONG);
+        return markers;
     }
 
     @Override

@@ -455,6 +455,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             if (apiName.equals("search") || apiName.equals("msearch") || apiName.equals("async_search.submit")) {
                 final String testCandidateTestPath = testCandidate.getTestPath();
                 if (testCandidateTestPath.startsWith("search/350_point_in_time")
+                    || testCandidateTestPath.startsWith("search/351_point_in_time_slice")
                     || testCandidateTestPath.equals("async_search/20-with-poin-in-time/Async search with point in time")) {
                     return false;
                 }

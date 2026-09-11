@@ -27,8 +27,11 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 
 import java.util.ArrayList;
@@ -37,6 +40,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -140,12 +144,14 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final DatafeedConfigProvider datafeedConfigProvider;
+    private final NamedXContentRegistry xContentRegistry;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final boolean hasMasterRole;
     private final List<AutoCloseable> metrics = new ArrayList<>();
 
     private volatile Map<String, Object> isMasterMap = MASTER_FALSE_MAP;
     private volatile CpsDatafeedCounts cpsCounts = CpsDatafeedCounts.EMPTY;
+    private volatile Map<ExtractorType, Long> extractorTypeCounts = emptyExtractorTypeCounts();
     private final AtomicBoolean pollInProgress = new AtomicBoolean(false);
 
     private Scheduler.Cancellable scheduledPoll;
@@ -156,11 +162,13 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
         ClusterService clusterService,
         ThreadPool threadPool,
         DatafeedConfigProvider datafeedConfigProvider,
-        Settings settings
+        Settings settings,
+        NamedXContentRegistry xContentRegistry
     ) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.datafeedConfigProvider = datafeedConfigProvider;
+        this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
         this.hasMasterRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE);
         this.pollInterval = POLL_INTERVAL.get(settings);
@@ -195,6 +203,27 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
                 this::observeProjectRoutingCounts
             )
         );
+        metrics.add(
+            meterRegistry.registerLongsAsyncGauge(
+                "es.ml.datafeeds.extractor_type.current",
+                "Count of datafeed configs by extractor type (scroll, aggregation, composite).",
+                "datafeeds",
+                this::observeExtractorTypeCounts
+            )
+        );
+    }
+
+    private Collection<LongWithAttributes> observeExtractorTypeCounts() {
+        List<LongWithAttributes> observations = new ArrayList<>(ExtractorType.values().length);
+        for (ExtractorType extractorType : ExtractorType.values()) {
+            observations.add(
+                new LongWithAttributes(
+                    extractorTypeCounts.getOrDefault(extractorType, 0L),
+                    attributesWith("es_extractor_type", extractorType.attributeValue())
+                )
+            );
+        }
+        return observations;
     }
 
     private Collection<LongWithAttributes> observeAuthTypeCounts() {
@@ -260,7 +289,12 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         isMasterMap = event.localNodeMaster() ? MASTER_TRUE_MAP : MASTER_FALSE_MAP;
-        if (event.localNodeMaster() == false || crossProjectMlEnabled() == false) {
+        if (event.localNodeMaster() == false) {
+            cpsCounts = CpsDatafeedCounts.EMPTY;
+            extractorTypeCounts = emptyExtractorTypeCounts();
+            return;
+        }
+        if (crossProjectMlEnabled() == false) {
             cpsCounts = CpsDatafeedCounts.EMPTY;
         }
     }
@@ -271,10 +305,7 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
         }
         if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
             cpsCounts = CpsDatafeedCounts.EMPTY;
-            return;
-        }
-        if (crossProjectMlEnabled() == false) {
-            cpsCounts = CpsDatafeedCounts.EMPTY;
+            extractorTypeCounts = emptyExtractorTypeCounts();
             return;
         }
         if (pollInProgress.compareAndSet(false, true) == false) {
@@ -284,16 +315,39 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
             try {
                 List<DatafeedConfig> configs = builders.stream().map(DatafeedConfig.Builder::build).toList();
                 // The scan is async: this node may have lost mastership while the request was in flight.
-                // clusterChanged() already reset cpsCounts to EMPTY on demotion; re-check here so a late
-                // response can't overwrite that with stale non-empty counts on a now non-master node.
-                cpsCounts = clusterService.state().nodes().isLocalNodeElectedMaster() ? computeCounts(configs) : CpsDatafeedCounts.EMPTY;
+                // clusterChanged() already reset counts on demotion; re-check here so a late response
+                // can't overwrite that with stale non-empty counts on a now non-master node.
+                if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
+                    extractorTypeCounts = computeExtractorTypeCounts(configs, xContentRegistry);
+                    cpsCounts = crossProjectMlEnabled() ? computeCounts(configs) : CpsDatafeedCounts.EMPTY;
+                } else {
+                    cpsCounts = CpsDatafeedCounts.EMPTY;
+                    extractorTypeCounts = emptyExtractorTypeCounts();
+                }
             } finally {
                 pollInProgress.set(false);
             }
         }, e -> {
-            logger.warn("Failed to poll datafeed configs for CPS metrics", e);
+            logger.warn("Failed to poll datafeed configs for ML config metrics", e);
             pollInProgress.set(false);
         }));
+    }
+
+    static Map<ExtractorType, Long> computeExtractorTypeCounts(Iterable<DatafeedConfig> configs, NamedXContentRegistry xContentRegistry) {
+        Map<ExtractorType, Long> counts = emptyExtractorTypeCounts();
+        for (DatafeedConfig config : configs) {
+            ExtractorType extractorType = DatafeedSearchTelemetry.classifyExtractorType(config, xContentRegistry);
+            counts.merge(extractorType, 1L, Long::sum);
+        }
+        return counts;
+    }
+
+    private static Map<ExtractorType, Long> emptyExtractorTypeCounts() {
+        Map<ExtractorType, Long> counts = new EnumMap<>(ExtractorType.class);
+        for (ExtractorType extractorType : ExtractorType.values()) {
+            counts.put(extractorType, 0L);
+        }
+        return counts;
     }
 
     static CpsDatafeedCounts computeCounts(Iterable<DatafeedConfig> configs) {

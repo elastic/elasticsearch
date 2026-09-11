@@ -240,7 +240,7 @@ public final class AsymmetricHashingQuantizer {
         float[] p = ESVectorUtil.transposeMatrix(topVectors, nDims, originalDim);
 
         // Project training data: X_ld = xTraining @ P (nTraining x nDims)
-        float[] xLd = SvdUtil.matrixMultiply(xTraining, p, nTraining, originalDim, nDims);
+        float[] xLd = ESVectorUtil.matrixMultiply(xTraining, p, nTraining, originalDim, nDims);
 
         // Initialize random M (nDims x nDims)
         float[] m = SvdUtil.randomGaussians(new Random(seed), nDims * nDims);
@@ -253,7 +253,7 @@ public final class AsymmetricHashingQuantizer {
 
             if (epoch < nTrainingIterations) {
                 // X_transformed = X_ld @ R (nTraining x nDims)
-                float[] xTransformed = SvdUtil.matrixMultiply(xLd, r, nTraining, nDims, nDims);
+                float[] xTransformed = ESVectorUtil.matrixMultiply(xLd, r, nTraining, nDims, nDims);
                 // Quantize
                 AshSphericalScalarQuantizer.QuantizeResult qr = quantizer.encode(xTransformed, nTraining, nDims);
                 float[] xEnc = qr.centeredCodes();
@@ -269,12 +269,12 @@ public final class AsymmetricHashingQuantizer {
                     }
                 }
                 // M = X_ld.T @ X_enc (nDims x nDims)
-                m = SvdUtil.matrixMultiplyTA(xLd, xEnc, nTraining, nDims, nDims);
+                m = ESVectorUtil.matrixMultiplyTA(xLd, xEnc, nTraining, nDims, nDims);
             }
         }
 
         // W = P @ R (originalDim x nDims)
-        return SvdUtil.matrixMultiply(p, r, originalDim, nDims, nDims);
+        return ESVectorUtil.matrixMultiply(p, r, originalDim, nDims, nDims);
     }
 
     private float[] randomOrthogonal(int originalDim, int nDims) {

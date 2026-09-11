@@ -81,7 +81,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -1089,9 +1088,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private Supplier<DirectoryMetrics> directoryMetricsDelta() {
-        return Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
-            ? indicesService.directoryMetricsDelta()
-            : indicesService.cacheMetricsDelta();
+        return indicesService.directoryMetricsDelta();
     }
 
     private static void setDirectoryMetrics(SearchPhaseResult result, Supplier<DirectoryMetrics> metricsDelta, SearchContext context) {
@@ -1127,7 +1124,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 RankFeatureShardPhase.prepareForFetch(searchContext, request);
                 fetchPhase.execute(searchContext, docIds, null);
-                RankFeatureShardPhase.processFetch(searchContext);
+                try {
+                    RankFeatureShardPhase.processFetch(searchContext);
+                } finally {
+                    searchContext.fetchResult().releaseCircuitBreakerBytes(searchContext.circuitBreaker());
+                }
                 var rankFeatureResult = searchContext.rankFeatureResult();
                 rankFeatureResult.incRef();
                 setDirectoryMetrics(rankFeatureResult, metricsDelta, searchContext);

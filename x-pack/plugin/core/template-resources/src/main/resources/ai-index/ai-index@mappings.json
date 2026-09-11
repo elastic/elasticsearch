@@ -6,7 +6,8 @@
           "type": "date"
         },
         "type": {
-          "type": "keyword"
+          "type": "keyword",
+          "normalizer": "lowercase"
         },
         "title": {
           "type": "text",
@@ -33,7 +34,8 @@
           }
         },
         "tags": {
-          "type": "keyword"
+          "type": "keyword",
+          "normalizer": "lowercase"
         },
         "attributes": {
           "type": "flattened"

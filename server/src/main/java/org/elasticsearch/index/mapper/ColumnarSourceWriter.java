@@ -47,8 +47,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 final class ColumnarSourceWriter {
 
@@ -69,8 +71,9 @@ final class ColumnarSourceWriter {
         PerThreadResources perThread = cachedColumnarPerThread.get();
         if (perThread == null) {
             final Mapping mapping = context.mappingLookup().getMapping();
-            SourceLoader.SyntheticFieldLoader fieldLoader = mapping.syntheticFieldLoader(sourceFilter);
-            final SourceLoader.Synthetic sourceLoader = new SourceLoader.Synthetic(sourceFilter, () -> {
+            final SourceFilter blobFilter = blobSourceFilter(context.mappingLookup());
+            SourceLoader.SyntheticFieldLoader fieldLoader = mapping.syntheticFieldLoader(blobFilter);
+            final SourceLoader.Synthetic sourceLoader = new SourceLoader.Synthetic(blobFilter, () -> {
                 fieldLoader.reset();
                 return fieldLoader;
             }, SourceFieldMetrics.NOOP, mapping.ignoredSourceFormat());
@@ -99,6 +102,25 @@ final class ColumnarSourceWriter {
         var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields()).getLoader(leafCtx, DOC_IDS);
         storedFieldLoader.advanceTo(DOC_ID);
         leaf.write(storedFieldLoader, DOC_ID, builder);
+    }
+
+    /**
+     * The filter to build the blob with: the mapping's own {@code _source} filter, plus every field patched back into
+     * {@code _source} on read ({@link MappingLookup#syntheticVectorFields()}). Those are held in the index already, so
+     * writing them into the blob would store them twice.
+     */
+    private SourceFilter blobSourceFilter(MappingLookup mappingLookup) {
+        Set<String> vectorFields = mappingLookup.syntheticVectorFields();
+        if (vectorFields.isEmpty()) {
+            return sourceFilter;
+        }
+        if (sourceFilter == null) {
+            return new SourceFilter(null, vectorFields.toArray(String[]::new));
+        }
+        // the mapping's own filter may already name a vector field, and duplicate excludes are rejected downstream
+        Set<String> excludes = new LinkedHashSet<>(Arrays.asList(sourceFilter.getExcludes()));
+        excludes.addAll(vectorFields);
+        return new SourceFilter(sourceFilter.getIncludes(), excludes.toArray(String[]::new));
     }
 
     private record PerThreadResources(

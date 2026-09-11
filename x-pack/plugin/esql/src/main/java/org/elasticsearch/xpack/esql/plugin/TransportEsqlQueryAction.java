@@ -294,7 +294,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
      * <p>
      * Backed by {@link EsqlPlugin#externalBlobStorePool()} — the dedicated {@code esql_external_io} scaling pool,
      * sized {@code 0..}{@link ExternalSourceSettings#blobStoreConcurrency(org.elasticsearch.common.settings.Settings)}
-     * (the single CPU-scaled concurrency knob). It is deliberately separate from the {@code esql_worker} compute pool
+     * (the heap- and CPU-scaled concurrency knob). It is deliberately separate from the {@code esql_worker} compute pool
      * ({@link EsqlPlugin#computePool()}): the blocking parse pipeline (segmentator + parser tasks) must not occupy the
      * same threads as the compute drivers that consume its output, or the parser starves its consumer and deadlocks
      * the query. Isolated from {@link ThreadPool.Names#SEARCH} to prevent heavy external queries (glob expansion over
@@ -319,10 +319,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
      * bound. Because footer reads are async (the {@code esql_worker} thread is released across the read), this caps
      * concurrent in-flight reads rather than pinning that many threads, so the bound may safely exceed the pool
      * size. It is the shared {@link ExternalSourceSettings#blobStoreConcurrency(org.elasticsearch.common.settings.Settings)}
-     * value — the single effective blob-store access concurrency that the data-read path also reads — so discovery
-     * throttles its footer fan-out with the same node-size-scaled formula ({@code snapshot_meta} shape, capped at
-     * 100, and any operator override once that setting lands) instead of the raw {@code esql_worker.getMax()} pool
-     * size.
+     * value — the same heap- and CPU-scaled default the data-read path uses ({@code NodeScope};
+     * {@code esql.external.max_concurrent_requests} wins when set, still memory-capped) — so discovery
+     * throttles its footer fan-out with that formula instead of the raw {@code esql_worker.getMax()} pool size.
      */
     protected int externalSourceConcurrency() {
         return ExternalSourceSettings.blobStoreConcurrency(clusterService.getSettings());

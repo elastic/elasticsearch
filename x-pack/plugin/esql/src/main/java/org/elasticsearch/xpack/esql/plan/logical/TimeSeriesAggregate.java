@@ -195,10 +195,10 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             // We forbid grouping by a metric field itself. Metric fields are allowed only inside aggregate functions.
             groupings().forEach(g -> {
                 // Histogram buckets are evaluated after the per-series histogram merge, in the second aggregation phase.
-                Bucket histogramBucket = Alias.unwrap(g) instanceof Bucket bucket && bucket.field().dataType().isHistogram()
-                    ? bucket
-                    : null;
-                if (histogramBucket != null) {
+                // for unresolved (and hence later nullified) fields we just assume they are histograms, buckets on null types are harmless
+                Bucket histogramBucket = Alias.unwrap(g) instanceof Bucket bucket
+                    && (bucket.field().resolved() == false || bucket.field().dataType().isHistogram()) ? bucket : null;
+                if (histogramBucket != null && histogramBucket.field().resolved()) {
                     verifyHistogramBucket(histogramBucket, failures);
                 }
                 g.forEachDown(e -> {

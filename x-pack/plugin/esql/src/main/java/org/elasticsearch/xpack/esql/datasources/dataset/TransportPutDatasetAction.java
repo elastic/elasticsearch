@@ -53,11 +53,12 @@ public class TransportPutDatasetAction extends AcknowledgedTransportMasterNodePr
         // Coord-side pre-check: parent lookup + validator dispatch against local (possibly stale)
         // cluster state. Fails fast without a master round-trip on unknown type, missing parent,
         // or validator rejection. The task body re-validates against master's authoritative state.
+        var projectId = projectResolver.getProjectId();
+        var project = clusterService.state().metadata().getProject(projectId);
         try {
-            var projectId = projectResolver.getProjectId();
-            var project = clusterService.state().metadata().getProject(projectId);
             datasetService.validatePutDataset(project, request);
         } catch (Exception e) {
+            datasetService.recordRejected(project, request.dataSource(), e);
             listener.onFailure(e);
             return;
         }

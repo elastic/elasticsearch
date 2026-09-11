@@ -414,13 +414,15 @@ public class VersionStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // version fields have no store/script/null_value/ignore_malformed/dimension parameters
-        // and are always both indexed and doc-valued, so only copy_to and multi-fields need gating.
-        return indexSettings.getMode().isStrictColumnar()
+        // and are always both indexed and doc-valued, so only copy_to needs gating.
+        // TIME_SERIES is allowed as well: the emitted doc-values field is always plain
+        // SortedSetDocValuesField.TYPE (see mapColumnBatch and parseCreateField), with no
+        // doc-values-skipper variant, so the Lucene output does not vary with the index mode.
+        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false;
+            && copyTo().copyToFields().isEmpty();
     }
 
     /**
@@ -458,35 +460,37 @@ public class VersionStringFieldMapper extends FieldMapper {
      * this case is muted with {@code @AwaitsFix} until that option is available.
      */
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final int docCount = ctx.docCount();
         // retainValues=false: every value is encoded within one loop iteration, before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
         // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
-        final EscfColumnBuilder encoded = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
-        encoded.lockScalar(EscfColumnKind.STRING);
+        try (EscfColumnBuilder encoded = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+            encoded.lockScalar(EscfColumnKind.STRING);
 
-        int doc;
-        while ((doc = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-            final BytesRef utf8Value = cursor.value();
-            if (utf8Value == null) {
-                // JSON null emits nothing, mirroring parseCreateField's VALUE_NULL / textOrNull() == null
-                // early returns. version has no null_value parameter.
-                continue;
+            int doc;
+            while ((doc = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                final BytesRef utf8Value = cursor.value();
+                if (utf8Value == null) {
+                    // JSON null emits nothing, mirroring parseCreateField's VALUE_NULL / textOrNull() == null
+                    // early returns. version has no null_value parameter.
+                    continue;
+                }
+                // Repeated setString for the same doc promotes the row to an ARRAY cell (CollisionPolicy.MERGE),
+                // which becomes a SPARSE column emitting one tuple per element — matching the row path, which
+                // adds one Field + one SortedSetDocValuesField per array element.
+                encoded.setString(doc, encodeVersionValue(utf8Value));
             }
-            // Repeated setString for the same doc promotes the row to an ARRAY cell (CollisionPolicy.MERGE),
-            // which becomes a SPARSE column emitting one tuple per element — matching the row path, which
-            // adds one Field + one SortedSetDocValuesField per array element.
-            encoded.setString(doc, encodeVersionValue(utf8Value));
-        }
 
-        if (encoded.isEmpty() == false) {
-            // One serialization, two field-type wrappers with disjoint Lucene feature masks: the frozen
-            // mapper FieldType carries inversion (docValuesType == NONE) and SortedSetDocValuesField.TYPE
-            // carries doc values (indexOptions == NONE).
-            final EscfColumnData data = encoded.finish(docCount);
-            ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
-            ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), SortedSetDocValuesField.TYPE));
+            if (encoded.isEmpty() == false) {
+                // One serialization, two field-type wrappers with disjoint Lucene feature masks: the frozen
+                // mapper FieldType carries inversion (docValuesType == NONE) and SortedSetDocValuesField.TYPE
+                // carries doc values (indexOptions == NONE). Ownership is registered once for the two wrappers.
+                final EscfColumnData data = encoded.finish(docCount);
+                ctx.addResource(data);
+                ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
+                ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), SortedSetDocValuesField.TYPE));
+            }
         }
     }
 

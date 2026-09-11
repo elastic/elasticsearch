@@ -171,6 +171,28 @@ tasks.named("test").configure {
   // inadvertently affected — the per-buffer ledger overhead invalidates timing measurements
   // (OptimizedReaderPerformanceTests is already excluded from the test task for this reason).
   systemProperty 'arrow.memory.debug.allocator', 'true'
+  // Remote-fetch TopN is on by default in snapshot builds; keep it off for the bulk of unit
+  // and golden tests so unrelated planner goldens stay stable. See remoteFetchTopnFeatureFlagTest.
+  systemProperty 'es.esql_remote_fetch_topn_feature_flag_enabled', 'false'
+}
+
+// Planner unit tests and remote-fetch golden tests need the feature flag enabled in a dedicated JVM.
+tasks.register('remoteFetchTopnFeatureFlagTest', Test) {
+  description = 'Runs ES|QL remote-fetch TopN planner tests with the feature flag enabled'
+  group = 'verification'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  systemProperty 'arrow.memory.debug.allocator', 'true'
+  systemProperty 'es.esql_remote_fetch_topn_feature_flag_enabled', 'true'
+  filter {
+    includeTestsMatching 'org.elasticsearch.xpack.esql.optimizer.rules.physical.PlanRemoteFetchTests'
+    includeTestsMatching 'org.elasticsearch.xpack.esql.plugin.ComputeServiceReductionTests'
+    includeTestsMatching 'org.elasticsearch.xpack.esql.plugin.LateMaterializationPlannerGoldenTests.testRemoteFetch*'
+  }
+}
+
+tasks.named('check').configure {
+  dependsOn tasks.named('remoteFetchTopnFeatureFlagTest')
 }
 
 
@@ -204,6 +226,8 @@ tasks.named("internalClusterTest").configure {
   systemProperty 'es.esql_request_filter_on_dataset_feature_flag_enabled', 'true'
   // Data sources require the project encryption key feature (EsqlPlugin fails fast otherwise); pair the flags.
   systemProperty 'es.project_encryption_key_feature_flag_enabled', 'true'
+  // Remote-fetch TopN is off in release builds unless explicitly enabled; pair with remoteFetchTopnFeatureFlagTest.
+  systemProperty 'es.esql_remote_fetch_topn_feature_flag_enabled', 'true'
   systemProperty 'esql.kibana.docs.dir', "${rootDir}/docs/reference/query-languages/esql/kibana/generated"
 
   // The IP_LOCATION csv-spec tests load geoip databases, which are memory-mapped by default.

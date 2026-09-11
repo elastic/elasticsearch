@@ -9,7 +9,7 @@
 #
 
 # Builds and pushes the cross-compilation toolchain image for Elasticsearch
-# native libraries (libvec, libes_simdjson, and future native modules).
+# native libraries (libvec, libsimdjson, and future native modules).
 # Run this script when compiler versions need updating.
 # No Mac or macOS SDK required — can be run on any machine with Docker.
 #

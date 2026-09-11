@@ -769,7 +769,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     // Outer-only reference over a union of an index branch and a ROW branch: does_not_exist loads from _source into the employees
-    // EsRelation, while the ROW branch (can't load) is null-filled by resolveFork alignment. #142033
+    // EsRelation, while the ROW branch (can't load) is null-filled by resolveMergePlan alignment. #142033
     public void testSubqueryWithRowBranchOuterReference() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue("Requires ROW source subqueries", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
@@ -828,7 +828,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     // does_not_exist1 is referenced inside both language branches (loaded there, in-branch scope) and again in the outer WHERE (resolves
-    // via the union output); does_not_exist2 is outer-only and unmapped everywhere, so it is loaded from _source in all branches (#142033).
+    // via the merge output); does_not_exist2 is outer-only and unmapped everywhere, so it is loaded from _source in all branches (#142033).
     public void testSubquerysWithMainAndSameOptional() throws Exception {
         assumeTrue(
             "Requires subquery in FROM command support",
@@ -1390,7 +1390,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     }
 
     // does_not_exist is in-branch (loaded in the languages branch, null-filled in employees); emp_no/language_code each exist in one
-    // branch and null-fill in the other through the union output. Decision A, #142033.
+    // branch and null-fill in the other through the merge output. Decision A, #142033.
     public void testSubquery() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runInNullifyAndLoadModes("""
@@ -1455,6 +1455,35 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             | DROP language_code
             | LOOKUP JOIN languages_lookup ON lc == language_code
             | SORT language_name
+            """).run();
+    }
+
+    /** Every branch can surface extras, so none of them needs the null {@code $$unmapped_fields} column that aligns branch layouts. */
+    public void testLoadAllForkEveryBranchLoadsExtras() {
+        loadAll("""
+            FROM employees
+            | FORK (WHERE emp_no > 10)
+                   (WHERE salary > 50000)
+            """).run();
+    }
+
+    /**
+     * A pattern-less {@code KEEP} can never let an unmapped source field through, so that branch alone is padded
+     * with a null {@code $$unmapped_fields} to match its sibling.
+     */
+    public void testLoadAllForkPatternLessKeepInOneBranch() {
+        loadAll("""
+            FROM employees
+            | FORK (KEEP emp_no, first_name)
+                   (WHERE salary > 50000)
+            """).run();
+    }
+
+    public void testLoadAllForkPatternLessKeepInEveryBranch() {
+        loadAll("""
+            FROM employees
+            | FORK (KEEP emp_no)
+                   (KEEP first_name)
             """).run();
     }
 

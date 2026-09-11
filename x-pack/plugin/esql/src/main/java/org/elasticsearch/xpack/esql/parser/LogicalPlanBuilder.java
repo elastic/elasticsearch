@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -1303,8 +1304,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
-        if (subQueries.size() > Fork.MAX_BRANCHES) {
-            throw new ParsingException(source(ctx), "Fork supports up to " + Fork.MAX_BRANCHES + " branches");
+        if (subQueries.size() > MergePlan.MAX_BRANCHES) {
+            throw new ParsingException(source(ctx), "Fork supports up to " + MergePlan.MAX_BRANCHES + " branches");
         }
 
         return input -> {
@@ -1606,6 +1607,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 "Invalid option [{}] in DENSE_VECTOR, expected one of [{}]",
                 optionsMap.keySet().stream().findAny().get(),
                 denseVector.validOptionNames()
+            );
+        }
+
+        // Both fallback endpoints embed text, and no multimodal endpoint is a default anywhere in the product, so an image input
+        // has nothing to fall back to. The query text alone settles this, so it is reported before any endpoint is looked up.
+        if (denseVector.inferenceIdIsFallback() && denseVector.inputType() == org.elasticsearch.inference.DataType.IMAGE) {
+            throw new ParsingException(
+                denseVector.source(),
+                "Option [{}] with value [image] in DENSE_VECTOR requires option [{}]",
+                DenseVector.TYPE_OPTION_NAME,
+                DenseVector.INFERENCE_ID_OPTION_NAME
             );
         }
 

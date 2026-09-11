@@ -16,6 +16,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -38,10 +41,17 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  * field reference on the left, foldable literal on the right, supported operator, and
  * a data type the target format can handle. The format-specific type check is provided
  * as a {@code Predicate<DataType>} so each format plugs in its own supported types.
+ * Comparison, {@code IN}, and {@code Range} also require a foldable literal whose
+ * {@link DataType} agrees with the column for date and numeric pairs
+ * ({@link #isAgreeingPushdownLiteral}): dataset readers treat the literal's raw number
+ * as already in the column's domain, and ES|QL allows mixed {@code date}/{@code date_nanos}
+ * and mixed {@code integer}/{@code long}/{@code double} comparisons that the evaluator
+ * reconciles. A mixed leaf stays in {@code FilterExec}.
  * <p>
- * Boolean connective rules (AND partial vs full pushdown, OR, NOT) are intentionally
- * excluded — ORC allows partial AND pushdown while Iceberg requires both sides, so
- * the traversal logic stays format-specific.
+ * Boolean connective <em>polarity</em> (AND partial vs full pushdown, OR, NOT) stays
+ * format-specific: ORC and Parquet allow partial AND, Iceberg requires both sides.
+ * {@link #allPushdownLiteralsAgree} is a shared all-leaves check, not a second
+ * {@code canConvert}.
  * <p>
  * Virtual columns ({@link MetadataAttribute} for ES-index metadata like {@code _id}/{@code _index},
  * any {@link VirtualAttribute} for engine-synthesized columns like {@code _file.*}) never live in the
@@ -73,15 +83,74 @@ public final class PushdownPredicates {
     }
 
     /**
+     * Dataset readers and the split-stats classifier treat a literal's raw number as already in the
+     * column's domain. ES|QL allows mixed date / date_nanos and mixed integer / long / double
+     * comparisons and reconciles them in the evaluator, so a bound built from the column type alone
+     * is wrong when the literal is the other date type (unit) or another numeric type (truncation).
+     * Those predicates stay in FilterExec (and the classifier stays AMBIGUOUS).
+     */
+    public static boolean isAgreeingPushdownLiteral(DataType columnType, Expression literal) {
+        DataType literalType = literal.dataType();
+        if (columnType.isDate() && literalType.isDate()) {
+            return columnType == literalType;
+        }
+        if (columnType.isNumeric() && literalType.isNumeric()) {
+            return columnType == literalType;
+        }
+        return true;
+    }
+
+    /**
+     * {@code true} when every comparison / {@code IN} / {@code Range} leaf in {@code expr} that has
+     * a named field and a foldable literal agrees under {@link #isAgreeingPushdownLiteral}.
+     * Polarized like an all-leaves walk ({@code &&} of children). Column-column compares, non-date
+     * non-numeric pairs, and unknown nodes pass. Used at {@code canConvert} entry points so a mixed
+     * leaf nested under AND/OR/NOT is not attached.
+     */
+    public static boolean allPushdownLiteralsAgree(Expression expr) {
+        if (expr instanceof EsqlBinaryComparison bc) {
+            if (bc.left() instanceof NamedExpression && bc.right().foldable()) {
+                return isAgreeingPushdownLiteral(bc.left().dataType(), bc.right());
+            }
+            if (bc.right() instanceof NamedExpression && bc.left().foldable()) {
+                return isAgreeingPushdownLiteral(bc.right().dataType(), bc.left());
+            }
+        }
+        if (expr instanceof In in && in.value() instanceof NamedExpression) {
+            for (Expression item : in.list()) {
+                if (item.foldable() && isAgreeingPushdownLiteral(in.value().dataType(), item) == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (expr instanceof Range range && range.value() instanceof NamedExpression) {
+            return (range.lower().foldable() == false || isAgreeingPushdownLiteral(range.value().dataType(), range.lower()))
+                && (range.upper().foldable() == false || isAgreeingPushdownLiteral(range.value().dataType(), range.upper()));
+        }
+        if (expr instanceof And and) {
+            return allPushdownLiteralsAgree(and.left()) && allPushdownLiteralsAgree(and.right());
+        }
+        if (expr instanceof Or or) {
+            return allPushdownLiteralsAgree(or.left()) && allPushdownLiteralsAgree(or.right());
+        }
+        if (expr instanceof Not not) {
+            return allPushdownLiteralsAgree(not.field());
+        }
+        return true;
+    }
+
+    /**
      * Checks if a binary comparison can be pushed down: left side is a non-virtual field reference,
-     * right side is a foldable literal, operator is one of the six standard comparisons, and the
-     * field's data type is supported by the target format.
+     * right side is a foldable literal whose date or numeric type agrees with the field, operator is
+     * one of the six standard comparisons, and the field's data type is supported by the target format.
      */
     public static boolean isComparison(EsqlBinaryComparison bc, Predicate<DataType> typeSupported) {
         if (bc.left() instanceof NamedExpression ne
             && isVirtualColumn(ne) == false
             && bc.right().foldable()
-            && typeSupported.test(ne.dataType())) {
+            && typeSupported.test(ne.dataType())
+            && isAgreeingPushdownLiteral(ne.dataType(), bc.right())) {
             return bc instanceof Equals
                 || bc instanceof NotEquals
                 || bc instanceof LessThan
@@ -94,13 +163,14 @@ public final class PushdownPredicates {
 
     /**
      * Checks if an IN expression can be pushed down: value is a non-virtual field reference with a
-     * supported data type, all list items are foldable, and at least one is non-null.
+     * supported data type, all list items are foldable and agree with the field for date and numeric
+     * pairs, and at least one is non-null.
      */
     public static boolean isIn(In inExpr, Predicate<DataType> typeSupported) {
         if (inExpr.value() instanceof NamedExpression ne && isVirtualColumn(ne) == false && typeSupported.test(ne.dataType())) {
             boolean hasNonNull = false;
             for (Expression item : inExpr.list()) {
-                if (item.foldable() == false) {
+                if (item.foldable() == false || isAgreeingPushdownLiteral(ne.dataType(), item) == false) {
                     return false;
                 }
                 if (literalValueOf(item) != null) {
@@ -130,14 +200,17 @@ public final class PushdownPredicates {
 
     /**
      * Checks if a range expression can be pushed down: value is a non-virtual field reference with a
-     * supported data type, and both bounds are foldable.
+     * supported data type, and both bounds are foldable and agree with the field for date and numeric
+     * pairs.
      */
     public static boolean isRange(Range range, Predicate<DataType> typeSupported) {
         return range.value() instanceof NamedExpression ne
             && isVirtualColumn(ne) == false
             && typeSupported.test(ne.dataType())
             && range.lower().foldable()
-            && range.upper().foldable();
+            && range.upper().foldable()
+            && isAgreeingPushdownLiteral(ne.dataType(), range.lower())
+            && isAgreeingPushdownLiteral(ne.dataType(), range.upper());
     }
 
     /**

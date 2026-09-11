@@ -130,6 +130,42 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
         assertThat(withoutLoadAll.lastAnalyzer().unmappedFieldsOrdering(), nullValue());
     }
 
+    public void testForkPlacesDiscoveredFieldsAfterForkColumn() {
+        assertThat(
+            orderFor("FROM test | FORK (WHERE true) (WHERE true)", "unmapped.a"),
+            equalTo(
+                List.of(
+                    "_meta_field",
+                    "emp_no",
+                    "first_name",
+                    "gender",
+                    "hire_date",
+                    "job",
+                    "job.raw",
+                    "languages",
+                    "last_name",
+                    "long_noidx",
+                    "salary",
+                    "_fork",
+                    "unmapped.a"
+                )
+            )
+        );
+    }
+
+    public void testForkKeepAfterForkOrdersUnmappedWildcardBeforeLaterWildcard() {
+        assertThat(
+            orderFor("FROM test | FORK (WHERE true) (WHERE true) | KEEP _fork, emp_no, unmapped*, zz*", "unmapped.a", "zz_code"),
+            equalTo(List.of("_fork", "emp_no", "unmapped.a", "zz_code"))
+        );
+    }
+
+    public void testForkPatternLessKeepInEveryBranchHasNoOrdering() {
+        TestAnalyzer analyzer = test();
+        analyzer.statement(setUnmappedLoadAll("FROM test | FORK (KEEP emp_no) (KEEP first_name)"));
+        assertThat(analyzer.lastAnalyzer().unmappedFieldsOrdering(), nullValue());
+    }
+
     private static List<String> orderFor(String query, String... discovered) {
         TestAnalyzer analyzer = test();
         analyzer.statement(setUnmappedLoadAll(query));

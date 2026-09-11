@@ -228,6 +228,9 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE;
@@ -1008,12 +1011,22 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<RestHeaderDefinition> getRestHeaders() {
-        return Set.of(new RestHeaderDefinition(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, true));
+        return Set.of(
+            new RestHeaderDefinition(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, true),
+            new RestHeaderDefinition(X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, false),
+            new RestHeaderDefinition(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, false),
+            new RestHeaderDefinition(X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, false)
+        );
     }
 
     @Override
     public Collection<String> getTaskHeaders() {
-        return Set.of(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+        return Set.of(
+            X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
+            X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
+            X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
+            X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER
+        );
     }
 
     protected SSLService getSslService() {

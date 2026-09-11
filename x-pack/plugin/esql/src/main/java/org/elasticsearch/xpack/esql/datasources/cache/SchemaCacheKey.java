@@ -69,7 +69,6 @@ public record SchemaCacheKey(
         "multi_value_syntax",
         "encoding",
         "datetime_format",
-        "hive_partitioning",
         "partition_detection",
         "partition_path",
         "format",

@@ -62,7 +62,11 @@ import java.util.concurrent.ExecutionException;
  */
 public class FooterByteCache {
 
-    /** Default max single entry (2 MiB). Prevents caching unusually large footers. */
+    /**
+     * Default max single-entry admission (2 MiB). Oversized footers may still be returned to the
+     * caller; {@link #put} skips them and {@link #getOrLoad} evicts them so they do not occupy the
+     * LRU. This is not a read limit.
+     */
     public static final long DEFAULT_MAX_ENTRY_BYTES = 2L * 1024 * 1024;
 
     /**

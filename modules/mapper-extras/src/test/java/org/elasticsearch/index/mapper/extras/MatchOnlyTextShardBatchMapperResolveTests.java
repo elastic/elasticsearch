@@ -95,7 +95,8 @@ public class MatchOnlyTextShardBatchMapperResolveTests extends MapperServiceTest
         assertTrue(resolution.columnMappers()[0] instanceof MatchOnlyTextFieldMapper);
     }
 
-    public void testMatchOnlyTextWithMultiFieldsFallsBack() throws IOException {
+    /** A keyword sub-field on a match_only_text parent: the base class fans out to sub-mappers, so both take the fast path. */
+    public void testMatchOnlyTextWithMultiFieldsResolves() throws IOException {
         MapperService ms = mapper(mapping(b -> {
             b.startObject("f");
             b.field("type", "match_only_text");
@@ -104,7 +105,9 @@ public class MatchOnlyTextShardBatchMapperResolveTests extends MapperServiceTest
             b.endObject();
             b.endObject();
         }));
-        assertNull(ShardBatchMapper.resolveMappers(schemaOf("f"), ms.mappingLookup(), indexSettings));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("f"), ms.mappingLookup(), indexSettings);
+        assertNotNull("match_only_text with a keyword sub-field must take the columnar fast path", resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof MatchOnlyTextFieldMapper);
     }
 
     public void testMatchOnlyTextDocValuesDisabledFallsBack() throws IOException {

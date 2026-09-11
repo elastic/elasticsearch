@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -210,6 +211,42 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
      */
     private boolean anySubtreeCoveringExcludeMatches(String name) {
         return globExcludes.stream().anyMatch(exclude -> exclude.endsWith("*") && Regex.simpleMatch(exclude, name));
+    }
+
+    /**
+     * The pattern that keeps a field if {@code this} or {@code other} would keep it. Used when a {@code FORK} merges
+     * branches that stamped different patterns: the coordinator expands extras that <em>any</em> sibling shipped, so
+     * the output attribute must not inherit the first branch's restriction.
+     * <p>
+     * Excludes survive only when both sides would drop the name. An unrestricted include ({@code *}) on either side
+     * wins. Otherwise include patterns are OR'd into one group, which is exact for typical per-branch KEEPs and an
+     * over-approximation when a branch itself has chained KEEPs.
+     */
+    public UnmappedFieldsPattern union(UnmappedFieldsPattern other) {
+        if (isNone()) {
+            return other;
+        }
+        if (other.isNone()) {
+            return this;
+        }
+
+        List<List<String>> includes = includeGroups.equals(INCLUDES_ALL) || other.includeGroups.equals(INCLUDES_ALL)
+            ? INCLUDES_ALL
+            : List.of(combineDeduping(flattenIncludePatterns(includeGroups), flattenIncludePatterns(other.includeGroups)));
+        return new UnmappedFieldsPattern(
+            includes,
+            intersectDeduping(globExcludes, other.globExcludes),
+            intersectDeduping(exactExcludes, other.exactExcludes)
+        );
+    }
+
+    private static List<String> flattenIncludePatterns(List<List<String>> groups) {
+        return groups.stream().flatMap(Collection::stream).toList();
+    }
+
+    private static List<String> intersectDeduping(Collection<String> l1, Collection<String> l2) {
+        HashSet<String> l2Set = new HashSet<>(l2);
+        return l1.stream().filter(l2Set::contains).distinct().toList();
     }
 
     /**

@@ -8,7 +8,8 @@ Read `README.md` for the architecture first, then this. It covers what is expens
    `getBinary`); the typed shapes (`Numeric`/`SortedNumeric`/`Sorted`/`SortedSet`) throw. There is no
    delegate format — an unsupported type is an error, not a fallback.
 
-2. **Type-tagged and open.** Every field carries a `ColumnarFieldType` (`columnar.type` attribute).
+2. **Type-tagged and open.** Every field carries a `ColumnarFieldType`, resolved by an injected
+   `ColumnarFieldTypeSelector` at write time and re-read from the column metadata at read time.
    `LONG`/`DOUBLE` are the numeric column and `STRING` is the string column; further types slot in by
    extending the write dispatch (consumer) and read dispatch (producer) — the field framing is generic.
    The type tag names the *logical* type only. How a column encodes within that type — a numeric

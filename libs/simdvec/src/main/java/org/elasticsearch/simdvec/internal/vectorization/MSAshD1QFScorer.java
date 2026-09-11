@@ -89,6 +89,42 @@ final class MSAshD1QFScorer implements AshScorer<float[]> {
         }
     }
 
+    @Override
+    public void scoreBulkOffsets(float[] queryTransformed, int[] offsets, int offsetsCount, float[] scores, int blockSize)
+        throws IOException {
+        float querySum = ESVectorUtil.sum(queryTransformed, nDims);
+        float centerOffset = 0.5f;
+        long totalBytes = (long) planeBytes * blockSize;
+
+        if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+            IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
+                int next = 0;
+                for (int j = 0; j < blockSize; j++) {
+                    if (next < offsetsCount && offsets[next] == j) {
+                        next++;
+                        long offset = (long) j * planeBytes;
+                        float ipfb = ipFloatBitSegment256(queryTransformed, seg, offset, nDims);
+                        scores[j] = ipfb - centerOffset * querySum;
+                    }
+                }
+                return null;
+            });
+        } else {
+            IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
+                int next = 0;
+                for (int j = 0; j < blockSize; j++) {
+                    if (next < offsetsCount && offsets[next] == j) {
+                        next++;
+                        long offset = (long) j * planeBytes;
+                        float ipfb = ipFloatBitSegment128(queryTransformed, seg, offset, nDims);
+                        scores[j] = ipfb - centerOffset * querySum;
+                    }
+                }
+                return null;
+            });
+        }
+    }
+
     /**
      * Computes ipFloatBit: sum of q[i] where bit i is set in the MemorySegment.
      * Bits are packed MSB-first within each byte. 256-bit SIMD path.

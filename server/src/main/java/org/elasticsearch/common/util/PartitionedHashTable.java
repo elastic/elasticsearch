@@ -16,6 +16,12 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
  * partition via {@link #splitPartition} and {@link #combinePartition} instead of all at once. A key always falls into the
  * same partition regardless of which table it came from, so partitions can be combined independently, concurrently and
  * released as soon as they have been combined.
+ * <p>
+ * The same partitioning can support spilling large aggregations to disk without sorting keys. Once the split partitions
+ * held in memory exceed the memory budget, they are written to disk partition by partition. The combine then loads the
+ * slices of one partition at a time and merges them via {@link #combinePartition}, so peak memory is bounded by the
+ * partitions being merged rather than by the whole aggregation. Spilled slices are append-only writes and sequential reads,
+ * and only the partitioned keys and their per-key state need serializing; the split and combine steps stay the same.
  */
 public interface PartitionedHashTable {
     /**
@@ -52,14 +58,16 @@ public interface PartitionedHashTable {
      */
     interface PartitionedHashKeys {
         /**
-         * Returns the number of keys in the given partition.
+         * Returns the number of keys in the given partition. The count remains available after the partition is released with
+         * {@link #releasePartition(CircuitBreaker, int)}. This method must not be called after {@link #releaseAll(CircuitBreaker)}.
          */
         int keysInPartition(int partition);
 
         /**
          * Releases the given partition without waiting for the remaining ones.
-         * One partition index must be released by one thread at a time,
-         * but different partitions can be released by different threads.
+         * One partition index must be released by one thread at a time, but different partitions can be released by different threads.
+         * Even after this method returns, {@link #keysInPartition(int)} continues to return the correct number of keys in the released
+         * partition.
          */
         void releasePartition(CircuitBreaker breaker, int partition);
 

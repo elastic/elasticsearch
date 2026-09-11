@@ -25,12 +25,28 @@ public class TestIvfQueryConfigResolver extends IvfQueryConfigResolver {
         boolean usePrecondition,
         float rescoreOversample
     ) {
-        super(false, false, 4, rescoreOversample, null);
+        this(centroidIndexFormat, encoding, usePrecondition, rescoreOversample, rescoreOversample, false);
+    }
+
+    /**
+     * Variant where what configuration declares and what a segment resolves to differ, as they do under
+     * auto-calibration: {@code declaredRescoreOversample()} reports {@code declaredOversample} while every leaf
+     * resolves to {@code segmentOversample}.
+     */
+    public TestIvfQueryConfigResolver(
+        CentroidIndexFormat centroidIndexFormat,
+        QuantEncoding encoding,
+        boolean usePrecondition,
+        float declaredOversample,
+        float segmentOversample,
+        boolean autoCalibrate
+    ) {
+        super(autoCalibrate, false, 4, declaredOversample, null);
         this.config = IvfSegmentConfig.of(
             centroidIndexFormat,
             new IvfSegmentConfig.OsqConfig(encoding),
             usePrecondition,
-            rescoreOversample
+            segmentOversample
         );
     }
 

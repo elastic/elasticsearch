@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -549,14 +550,20 @@ public class Verifier {
     /**
      * Neither loading mode yet supports PROMQL. This is checked separately from
      * {@link #checkLoadAllModeSupportedCommands}, which the PROMQL command escapes: it is rewritten into a {@code TS} before
-     * verification runs, so only its {@link TimeSeriesAggregate.Origin} still tells the two apart.
+     * verification runs, so only its {@link TimeSeriesAggregate.Origin} still tells the two apart. The command is gone
+     * by then and can translate to several time-series pipelines (one per vector-match operand), so report only the
+     * first PROMQL-origin aggregate rather than one failure per pipeline.
      */
     private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures, UnmappedResolution unmappedResolution) {
-        plan.forEachDown(p -> {
-            if (p instanceof TimeSeriesAggregate ts && ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND) {
-                failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"{}\"", unmappedResolution.settingValue()));
+        var promql = new Holder<TimeSeriesAggregate>();
+        plan.forEachDown(TimeSeriesAggregate.class, ts -> {
+            if (ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND && promql.get() == null) {
+                promql.set(ts);
             }
         });
+        if (promql.get() != null) {
+            failures.add(fail(promql.get(), "PROMQL is not supported with unmapped_fields=\"{}\"", unmappedResolution.settingValue()));
+        }
     }
 
     /**
@@ -570,7 +577,7 @@ public class Verifier {
                     fail(
                         p,
                         "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                            + "STATS, INLINE STATS, LOOKUP JOIN and ENRICH commands; [{}] is not supported yet",
+                            + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
                             : p instanceof TelemetryAware ta ? ta.telemetryLabel()
                             : p.nodeName()
@@ -596,7 +603,8 @@ public class Verifier {
             // LookupJoin (not Join) because verification runs on the analyzed plan, before SurrogateLogicalPlan expansion,
             // so a LOOKUP JOIN is still a LookupJoin node here and other Join subclasses (InlineJoin etc.) are not admitted.
             || plan instanceof LookupJoin
-            || plan instanceof Enrich;
+            || plan instanceof Enrich
+            || plan instanceof Fork;
     }
 
     /**

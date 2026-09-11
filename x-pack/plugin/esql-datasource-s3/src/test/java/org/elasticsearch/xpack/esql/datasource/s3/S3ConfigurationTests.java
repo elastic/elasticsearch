@@ -490,4 +490,69 @@ public class S3ConfigurationTests extends ESTestCase {
         assertEquals("managed_identity", config.toMap().get("auth"));
         assertWarnings("auth value [workload_identity] is deprecated; the canonical value is [managed_identity]");
     }
+
+    // --- addressing_style ---
+
+    public void testAddressingStyleAbsent() {
+        S3Configuration config = S3Configuration.fromFields("ak", "sk", "http://endpoint", "us-east-1");
+        assertNull(config.addressingStyle());
+    }
+
+    public void testAddressingStyleAuto() {
+        S3Configuration config = S3Configuration.fromMap(Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "auto"));
+        assertEquals("auto", config.addressingStyle());
+    }
+
+    public void testAddressingStylePath() {
+        S3Configuration config = S3Configuration.fromMap(Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "path"));
+        assertEquals("path", config.addressingStyle());
+    }
+
+    public void testAddressingStyleVirtualHosted() {
+        S3Configuration config = S3Configuration.fromMap(
+            Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "virtual_hosted")
+        );
+        assertEquals("virtual_hosted", config.addressingStyle());
+    }
+
+    public void testAddressingStyleMixedCase() {
+        S3Configuration config = S3Configuration.fromMap(
+            Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "VIRTUAL_HOSTED")
+        );
+        assertEquals("virtual_hosted", config.addressingStyle());
+    }
+
+    public void testAddressingStyleInvalidValueThrows() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> S3Configuration.fromMap(Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "bucket_style"))
+        );
+        assertThat(e.getMessage(), containsString("Unsupported addressing_style value [bucket_style]"));
+        assertThat(e.getMessage(), containsString("supported values: [auto, path, virtual_hosted]"));
+    }
+
+    // --- resolveAddressingStyle ---
+
+    public void testResolveAddressingStyleAbsentIsAuto() {
+        S3Configuration config = S3Configuration.fromFields("ak", "sk", null, "us-east-1");
+        assertEquals(S3Configuration.AddressingStyleMode.AUTO, config.resolveAddressingStyle());
+    }
+
+    public void testResolveAddressingStyleExplicitAutoIsAuto() {
+        S3Configuration config = S3Configuration.fromMap(Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "auto"));
+        assertEquals(S3Configuration.AddressingStyleMode.AUTO, config.resolveAddressingStyle());
+    }
+
+    public void testResolveAddressingStylePathIsPath() {
+        // PATH forces path-style even without an endpoint override.
+        S3Configuration config = S3Configuration.fromMap(Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "path"));
+        assertEquals(S3Configuration.AddressingStyleMode.PATH, config.resolveAddressingStyle());
+    }
+
+    public void testResolveAddressingStyleVirtualHostedIsVirtualHosted() {
+        S3Configuration config = S3Configuration.fromMap(
+            Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "virtual_hosted")
+        );
+        assertEquals(S3Configuration.AddressingStyleMode.VIRTUAL_HOSTED, config.resolveAddressingStyle());
+    }
 }

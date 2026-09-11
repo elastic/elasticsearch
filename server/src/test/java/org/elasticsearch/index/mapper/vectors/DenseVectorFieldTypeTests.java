@@ -812,7 +812,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             } else {
                 ESKnnFloatVectorQuery knnFloatVectorQuery = (ESKnnFloatVectorQuery) knnQuery;
                 assertThat(knnFloatVectorQuery.getK(), is(100));
-                assertThat(knnFloatVectorQuery.kParam(), is(10));
+                assertThat(knnFloatVectorQuery.k(), is(10));
             }
         }
     }
@@ -898,7 +898,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertThat(rescoreKnnVectorQuery.k(), equalTo(10));
         Query innerQuery = rescoreKnnVectorQuery.innerQuery();
         if (innerQuery instanceof ESKnnFloatVectorQuery esKnnFloatVectorQuery) {
-            assertThat(esKnnFloatVectorQuery.kParam(), equalTo(20));
+            assertThat(esKnnFloatVectorQuery.k(), equalTo(20));
         }
     }
 
@@ -988,7 +988,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         ESKnnFloatVectorQuery knnQuery = (ESKnnFloatVectorQuery) innerQuery;
         assertThat("Unexpected total results", rescoreQuery.k(), equalTo(expectedResults));
         assertThat("Unexpected candidates", knnQuery.getK(), equalTo(expectedCandidates));
-        assertThat("Unexpected k parameter", knnQuery.kParam(), equalTo(expectedK));
+        assertThat("Unexpected k parameter", knnQuery.k(), equalTo(expectedK));
     }
 
     public void testBBQIVFUsesSlicedQueryForSingleSliceRouting() {

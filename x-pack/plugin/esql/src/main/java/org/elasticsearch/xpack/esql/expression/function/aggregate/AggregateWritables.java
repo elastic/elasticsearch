@@ -50,6 +50,7 @@ public class AggregateWritables {
             PresentOverTime.ENTRY,
             Absent.ENTRY,
             AbsentOverTime.ENTRY,
+            PromqlHistogramFraction.ENTRY,
             PromqlHistogramQuantile.ENTRY,
             DimensionValues.ENTRY,
             PackDimsAgg.ENTRY,

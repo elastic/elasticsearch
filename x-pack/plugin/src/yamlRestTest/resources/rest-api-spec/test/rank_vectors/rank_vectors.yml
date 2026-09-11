@@ -160,3 +160,42 @@ setup:
           properties:
             embedding:
               type: rank_vectors
+---
+"Test empty vector array is rejected":
+  - requires:
+      cluster_features: [ "mapper.rank_vectors.empty_array_rejected" ]
+      reason: "empty rank_vectors arrays are rejected at index time"
+  - do:
+      indices.create:
+        index: empty_vector
+        body:
+          mappings:
+            properties:
+              vector1:
+                type: rank_vectors
+                dims: 3
+  - do:
+      catch: /requires at least one vector/
+      index:
+        index: empty_vector
+        id: "1"
+        body:
+          vector1: []
+
+  # a null value is still the way to say "this document has no vector"
+  - do:
+      index:
+        index: empty_vector
+        id: "2"
+        body:
+          vector1: null
+  - do:
+      indices.refresh: {}
+  - do:
+      search:
+        index: empty_vector
+        body:
+          query:
+            exists:
+              field: vector1
+  - match: { hits.total.value: 0 }

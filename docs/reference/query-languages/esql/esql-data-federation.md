@@ -68,7 +68,7 @@ A [data source](esql-data-federation-sources.md) tells {{es}} where the storage 
 ::::::
 
 ::::::{step} You create datasets (what to read)
-Each [dataset](esql-data-federation-datasets.md) points at specific files in that storage and makes them queryable. One data source can serve many datasets.
+Each [dataset](esql-data-federation-datasets.md) points at specific files in that storage and makes them queryable. Datasets should be scoped to a single [file format](esql-data-federation-datasets.md#supported-file-formats) and ideally share one schema. One data source can serve many datasets.
 
 Datasets are designed to work like indices for queries. They share the same namespace as indices, data streams, aliases, and [{{esql}} views](esql-views.md), so a dataset cannot have the same name as any of them.
 ::::::

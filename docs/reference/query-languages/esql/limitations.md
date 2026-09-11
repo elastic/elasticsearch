@@ -54,8 +54,8 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
    * `counter`
    * `gauge`
    * `aggregate_metric_double`: Aggregation functions that do not natively support `aggregate_metric_double` will use the average value and treat it as a `double`. {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
-   * `exponential_histogram` {applies_to}`stack: preview 9.3+, ga 9.4.0`
-   * `tdigest` {applies_to}`stack: preview 9.3+, ga 9.4.0`
+   * [`exponential_histogram`](/reference/query-languages/esql/esql-histogram-fields.md) {applies_to}`stack: preview 9.3+, ga 9.4.0`
+   * [`tdigest`](/reference/query-languages/esql/esql-histogram-fields.md) {applies_to}`stack: preview 9.3+, ga 9.4.0`
 
 
 ### Unsupported types [_unsupported_types]
@@ -73,7 +73,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * `binary`
     * `completion`
     * `float_range`
-    * `histogram`
+    * `histogram` (can be queried via [casting to `tdigest` or `exponential_histogram`](/reference/query-languages/esql/esql-histogram-fields.md#cast-between-histogram-types))
     * `integer_range`
     * `ip_range`
     * `long_range`

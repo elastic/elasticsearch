@@ -71,10 +71,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assumeTrue("Requires Lambda syntax support", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
     }
 
-    private static void checkMultiColumnInSubquery() {
-        assumeTrue("multi-column IN subquery", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
-    }
-
     /*
      * Filter[InSubquery[?x,UnresolvedRelation[sub_index]]]
      * \_UnresolvedRelation[main_index]
@@ -1348,7 +1344,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code FROM main | STATS c = COUNT(*) WHERE (x, y) IN (ROW a = 1, b = 2 | KEEP a, b)}
      */
     public void testStatsAggFilterWithMultiColumnRowInSubquery() {
-        checkMultiColumnInSubquery();
         String query = "FROM main | STATS c = COUNT(*) WHERE (x, y) IN (ROW a = 1, b = 2 | KEEP a, b)";
 
         LogicalPlan plan = query(query);
@@ -1366,7 +1361,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code FROM main | STATS c = COUNT(*) WHERE (x, y) IN (TS sub_source | STATS max(rate(val)) BY ts | KEEP a, b)}
      */
     public void testStatsAggFilterWithMultiColumnTsInSubquery() {
-        checkMultiColumnInSubquery();
         String query = "FROM main | STATS c = COUNT(*) WHERE (x, y) IN (TS sub_source | STATS max(rate(val)) BY ts | KEEP a, b)";
 
         LogicalPlan plan = query(query);
@@ -1383,7 +1377,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * STATS aggregation filter with an IN subquery nested inside complex functions:
      */
     public void testStatsAggFilterWithInSubqueryInNestedFunctions() {
-        checkMultiColumnInSubquery();
         String query = """
             FROM main
             | STATS c = COUNT(*) WHERE COALESCE(CASE(x IN (ROW a = 1 | KEEP a),
@@ -1413,7 +1406,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * STATS aggregation filter with IN subqueries nested inside IS NULL and IS NOT NULL:
      */
     public void testStatsAggFilterWithInSubqueryInNullPredicates() {
-        checkMultiColumnInSubquery();
         String query = """
             FROM main
             | STATS c = COUNT(*) WHERE (x IN (ROW a = 1 | KEEP a)) IS NULL
@@ -2114,7 +2106,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT " : "";
         String query = "FROM main_index | WHERE (emp_no, salary) " + notClause + "IN (FROM sub_index | KEEP emp_no, salary)";
@@ -2142,7 +2133,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testMultiColumnInSubqueryThreeColumns() {
-        checkMultiColumnInSubquery();
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT " : "";
         String query = "FROM main_index | WHERE (emp_no, salary, hire_date) "
@@ -2201,7 +2191,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testMixedSingleAndMultiColumnInSubqueryWithAnd() {
-        checkMultiColumnInSubquery();
         boolean multiNegated = randomBoolean();
         String notClause = multiNegated ? "NOT " : "";
         String query = "FROM main_index | WHERE x IN (FROM sub1 | KEEP a) AND (f1, f2) " + notClause + "IN (FROM sub2 | KEEP f1, f2)";
@@ -2232,7 +2221,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testMixedMultiAndSingleColumnInSubqueryWithOr() {
-        checkMultiColumnInSubquery();
         boolean multiNegated = randomBoolean();
         boolean singleNegated = randomBoolean();
         String multiNot = multiNegated ? "NOT " : "";
@@ -2275,7 +2263,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testMixedSingleAndMultiColumnInSubqueryWithAndOr() {
-        checkMultiColumnInSubquery();
         String query = """
             FROM main_index
             | WHERE x IN (FROM sub1 | KEEP a)
@@ -2310,7 +2297,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testMixedSubqueryChainWithAndOr() {
-        checkMultiColumnInSubquery();
         String query = """
             FROM main_index
             | WHERE (f1, f2) NOT IN (FROM sub1 | KEEP f1, f2)
@@ -2355,7 +2341,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testNestedMultiColumnInSubqueryInsideMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         boolean outerNegated = randomBoolean();
         boolean innerNegated = randomBoolean();
         String outerNot = outerNegated ? "NOT " : "";
@@ -2403,7 +2388,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testNestedSingleColumnInSubqueryInsideMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         boolean outerNegated = randomBoolean();
         boolean innerNegated = randomBoolean();
         String outerNot = outerNegated ? "NOT " : "";
@@ -2449,7 +2433,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testNestedMultiColumnInSubqueryInsideSingleColumnInSubquery() {
-        checkMultiColumnInSubquery();
         boolean outerNegated = randomBoolean();
         boolean innerNegated = randomBoolean();
         String outerNot = outerNegated ? "NOT " : "";
@@ -2492,7 +2475,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code FROM main | WHERE CASE((a, b) IN (FROM sub), true, false)}
      */
     public void testMultiColumnInSubqueryInCaseFunction() {
-        checkMultiColumnInSubquery();
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT " : "";
         String query = "FROM main_index | WHERE CASE((a, b) " + notClause + "IN (FROM sub_index | KEEP a, b), true, false)";
@@ -2520,7 +2502,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code FROM main | WHERE COALESCE((a, b) IN (FROM sub), false)}
      */
     public void testMultiColumnInSubqueryInCoalesceFunction() {
-        checkMultiColumnInSubquery();
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT " : "";
         String query = "FROM main_index | WHERE COALESCE((a, b) " + notClause + "IN (FROM sub_index | KEEP a, b), false)";
@@ -2546,7 +2527,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code WHERE ((a, b) IN (FROM sub)) IS NULL}
      */
     public void testMultiColumnInSubqueryWithIsNull() {
-        checkMultiColumnInSubquery();
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT " : "";
         String query = "FROM main_index | WHERE ((a, b) " + notClause + "IN (FROM sub_index | KEEP a, b)) IS NULL";
@@ -2570,7 +2550,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code WHERE ((a, b) IN (FROM sub)) IS NOT NULL}
      */
     public void testMultiColumnInSubqueryWithIsNotNull() {
-        checkMultiColumnInSubquery();
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT " : "";
         String query = "FROM main_index | WHERE ((a, b) " + notClause + "IN (FROM sub_index | KEEP a, b)) IS NOT NULL";
@@ -2594,7 +2573,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code WHERE (CASE((a, b) IN (FROM sub), 1, 0) + 1) == 2}
      */
     public void testMultiColumnInSubqueryNestedInsideCaseAddAndEquals() {
-        checkMultiColumnInSubquery();
         String query = "FROM main | WHERE (CASE((a, b) IN (FROM sub | KEEP a, b), 1, 0) + 1) == 2";
         LogicalPlan plan = query(query);
         Filter filter = as(plan, Filter.class);
@@ -2612,7 +2590,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code WHERE (CASE(COALESCE((a, b) IN (FROM sub), false), 1, 0) + 1) == 2}
      */
     public void testMultiColumnInSubqueryNestedInsideCoalesceAddAndEquals() {
-        checkMultiColumnInSubquery();
         String query = "FROM main | WHERE (CASE(COALESCE((a, b) IN (FROM sub | KEEP a, b), false), 1, 0) + 1) == 2";
         LogicalPlan plan = query(query);
         Filter filter = as(plan, Filter.class);
@@ -2632,7 +2609,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code WHERE CASE((a, b) IN (FROM sub), 1, 0) != 0}
      */
     public void testMultiColumnInSubqueryNestedInsideCaseAndNotEquals() {
-        checkMultiColumnInSubquery();
         String query = "FROM main | WHERE CASE((a, b) IN (FROM sub | KEEP a, b), 1, 0) != 0";
         LogicalPlan plan = query(query);
         Filter filter = as(plan, Filter.class);
@@ -2651,7 +2627,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code WHERE ((a, b) IN (FROM sub)) == true}
      */
     public void testMultiColumnInSubqueryDirectlyInEquals() {
-        checkMultiColumnInSubquery();
         boolean notEquals = randomBoolean();
         String query = "FROM main | WHERE ((a, b) IN (FROM sub | KEEP a, b)) " + (notEquals ? "!= false" : "== true");
 
@@ -2671,7 +2646,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code WHERE CASE(((a, b) IN (FROM sub)) != false, true, false)}
      */
     public void testMultiColumnInSubqueryWithEqualsNestedInCase() {
-        checkMultiColumnInSubquery();
         boolean notEquals = randomBoolean();
         String query = "FROM main | WHERE CASE(((a, b) IN (FROM sub | KEEP a, b)) "
             + (notEquals ? "!= false" : "== true")
@@ -2695,7 +2669,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code WHERE COALESCE(((a, b) IN (FROM sub)) != false, false)}
      */
     public void testMultiColumnInSubqueryWithEqualsNestedInCoalesce() {
-        checkMultiColumnInSubquery();
         boolean notEquals = randomBoolean();
         String query = "FROM main | WHERE COALESCE(((a, b) IN (FROM sub | KEEP a, b)) " + (notEquals ? "!= false" : "== true") + ", false)";
 
@@ -2717,7 +2690,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code WHERE (((a, b) IN (FROM sub)) != false) IS [NOT] NULL}
      */
     public void testMultiColumnInSubqueryWithEqualsNestedInIsNull() {
-        checkMultiColumnInSubquery();
         boolean notEquals = randomBoolean();
         boolean isNotNull = randomBoolean();
         String query = "FROM main | WHERE (((a, b) IN (FROM sub | KEEP a, b)) "
@@ -2742,7 +2714,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code WHERE TO_STRING(((a, b) IN (FROM sub)) != false)}
      */
     public void testMultiColumnInSubqueryWithEqualsNestedInToString() {
-        checkMultiColumnInSubquery();
         boolean notEquals = randomBoolean();
         String query = "FROM main | WHERE TO_STRING(((a, b) IN (FROM sub | KEEP a, b)) " + (notEquals ? "!= false" : "== true") + ")";
 
@@ -2763,7 +2734,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code EVAL m = ((a, b) IN (FROM sub)) == true}
      */
     public void testEvalWithMultiColumnInSubqueryInEquals() {
-        checkMultiColumnInSubquery();
         String query = "FROM main | EVAL m = ((a, b) IN (FROM sub | KEEP a, b)) == true";
 
         LogicalPlan plan = query(query);
@@ -2779,7 +2749,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code STATS c = COUNT(*) WHERE ((a, b) IN (FROM sub)) == true}
      */
     public void testStatsAggFilterWithMultiColumnInSubqueryInEquals() {
-        checkMultiColumnInSubquery();
         String query = "FROM main | STATS c = COUNT(*) WHERE ((a, b) IN (FROM sub | KEEP a, b)) == true";
 
         LogicalPlan plan = query(query);
@@ -2795,7 +2764,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code INLINE STATS c = COUNT(*) WHERE ((a, b) IN (FROM sub)) != false}
      */
     public void testInlineStatsAggFilterWithMultiColumnInSubqueryInNotEquals() {
-        checkMultiColumnInSubquery();
         String query = "FROM main | INLINE STATS c = COUNT(*) WHERE ((a, b) IN (FROM sub | KEEP a, b)) != false";
 
         LogicalPlan plan = query(query);
@@ -2812,7 +2780,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code WHERE CASE(NOT((a, b) IN (FROM sub)), true, false)}
      */
     public void testMultiColumnInSubqueryNestedInsideNotAndCase() {
-        checkMultiColumnInSubquery();
         String query = "FROM main | WHERE CASE(NOT((a, b) IN (FROM sub | KEEP a, b)), true, false)";
         LogicalPlan plan = query(query);
         Filter filter = as(plan, Filter.class);
@@ -2830,7 +2797,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      */
     public void testWhereMultiColumnInSubqueryInsideLambda() {
         checkLambda();
-        checkMultiColumnInSubquery();
         String query = "FROM main | WHERE filter(a, x -> (x, b) IN (FROM sub | KEEP x, b))";
         LogicalPlan plan = query(query);
         Filter filter = as(plan, Filter.class);
@@ -2851,7 +2817,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      */
     public void testWhereMultiColumnInSubqueryInsideCoalesceInsideLambda() {
         checkLambda();
-        checkMultiColumnInSubquery();
         String query = "FROM main | WHERE filter(a, x -> COALESCE((x, b) IN (FROM sub | KEEP x, b), false))";
         LogicalPlan plan = query(query);
         Filter filter = as(plan, Filter.class);
@@ -2874,7 +2839,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code WHERE CASE((a, b) IN (FROM sub), true, false) AND c > 0}
      */
     public void testMultiColumnInSubqueryInCaseWithAnd() {
-        checkMultiColumnInSubquery();
         String query = "FROM main | WHERE CASE((a, b) IN (FROM sub | KEEP a, b), true, false) AND c > 0";
         LogicalPlan plan = query(query);
         Filter filter = as(plan, Filter.class);
@@ -2891,7 +2855,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code WHERE COALESCE((a, b) IN (FROM sub), false) OR c < 0}
      */
     public void testMultiColumnInSubqueryInCoalesceWithOr() {
-        checkMultiColumnInSubquery();
         String query = "FROM main | WHERE COALESCE((a, b) IN (FROM sub | KEEP a, b), false) OR c < 0";
         LogicalPlan plan = query(query);
         Filter filter = as(plan, Filter.class);
@@ -2908,7 +2871,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * {@code WHERE (a > 0 AND ((b, c) IN (FROM sub1) IS NULL)) OR ((d, e) IN (FROM sub2) IS NOT NULL AND f < 0)}
      */
     public void testComplexBooleanWithMultiColumnInSubqueryAndNullPredicates() {
-        checkMultiColumnInSubquery();
         String query = """
             FROM main
             | WHERE (a > 0 AND ((b, c) IN (FROM sub1 | KEEP b, c)) IS NULL)
@@ -2951,7 +2913,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testEvalWithMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT " : "";
         String query = "FROM main_index | EVAL is_match = (f1, f2) " + notClause + "IN (FROM sub_index | KEEP f1, f2)";
@@ -2988,7 +2949,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testEvalWithMultiColumnInSubqueryNestedInCase() {
-        checkMultiColumnInSubquery();
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT " : "";
         String query = "FROM main_index | EVAL is_match = CASE((f1, f2) " + notClause + "IN (FROM sub_index | KEEP f1, f2), true, false)";
@@ -3016,7 +2976,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testEvalWithMultiColumnInSubqueryNestedInCoalesce() {
-        checkMultiColumnInSubquery();
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT " : "";
         String query = "FROM main_index | EVAL is_match = COALESCE((f1, f2) " + notClause + "IN (FROM sub_index | KEEP f1, f2), false)";
@@ -3044,7 +3003,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testEvalWithMultiColumnInSubqueryNestedInIsNull() {
-        checkMultiColumnInSubquery();
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT " : "";
         String query = "FROM main_index | EVAL is_match = ISNULL((f1, f2) " + notClause + "IN (FROM sub_index | KEEP f1, f2))";
@@ -3072,7 +3030,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testEvalWithMultiColumnInSubqueryNestedInIsNotNull() {
-        checkMultiColumnInSubquery();
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT " : "";
         String query = "FROM main_index | EVAL is_match = ISNOTNULL((f1, f2) " + notClause + "IN (FROM sub_index | KEEP f1, f2))";
@@ -3118,7 +3075,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testEvalWithMultiColumnInTsSubquery() {
-        checkMultiColumnInSubquery();
         String query = "FROM main_index | EVAL is_match = (f1, f2) IN (TS sub_index | KEEP f1, f2)";
 
         LogicalPlan plan = query(query);
@@ -3157,7 +3113,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testEvalWithMultiColumnInRowSubquery() {
-        checkMultiColumnInSubquery();
         String query = "FROM main_index | EVAL is_match = (f1, f2) IN (ROW f1 = 1, f2 = 2)";
 
         LogicalPlan plan = query(query);
@@ -3515,7 +3470,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main_index]
      */
     public void testInlineStatsAggFilterWithRowMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT " : "";
         String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE (x, y) " + notClause + "IN (ROW a = 1, b = 2 | KEEP a, b)";

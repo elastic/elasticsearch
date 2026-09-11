@@ -576,6 +576,75 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         }
     }
 
+    /**
+     * A sliced segment produced by a single flush is not clustered per slice ({@code numSlices == 0}) and is
+     * searched over a doc id range. Plain Lucene {@link AcceptDocs} (as used by {@code CheckIndex}) carry no slice
+     * information and must fall back to the whole segment, while an {@link ESAcceptDocs} without a slice ordinal
+     * violates the reader contract and is rejected by assertion rather than silently searching a wrong range.
+     */
+    public void testSlicedFlushedSegmentWithoutSliceOrdinal() throws IOException {
+        String sliceField = "_slice";
+        String vectorField = "vector";
+        int numDocs = random().nextInt(10, 200);
+        int dimensions = random().nextInt(12, 500);
+        ESNextDiskBBQVectorsFormat localFormat = new ESNextDiskBBQVectorsFormat(
+            MIN_VECTORS_PER_CLUSTER,
+            MIN_CENTROIDS_PER_PARENT_CLUSTER,
+            sliceField
+        );
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setIndexSort(new Sort(new SortField(sliceField, SortField.Type.STRING)));
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                doc.add(SortedDocValuesField.indexedField(sliceField, new BytesRef("" + random().nextInt(5))));
+                doc.add(new KnnFloatVectorField(vectorField, randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                // newIndexWriterConfig() randomizes the flush policy, so there may be several flushed segments
+                for (LeafReaderContext context : reader.leaves()) {
+                    LeafReader leafReader = context.reader();
+                    KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
+                    if (vectorReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                        vectorReader = fieldsReader.getFieldReader(vectorField);
+                    }
+                    assertThat(vectorReader, instanceOf(ESNextDiskBBQVectorsReader.class));
+                    // a flushed sliced segment is written as a single flat posting list, i.e. without per-slice centroids
+                    try (
+                        IVFVectorsReader.CentroidData<?> centroidData = ((ESNextDiskBBQVectorsReader) vectorReader).readCentroidData(
+                            vectorField
+                        )
+                    ) {
+                        assertThat(centroidData.numCentroids(), equalTo(1));
+                    }
+                    float[] vector = randomVector(dimensions);
+                    KnnCollector collector = new TopKnnCollector(leafReader.maxDoc(), Integer.MAX_VALUE);
+                    leafReader.searchNearestVectors(vectorField, vector, collector, AcceptDocs.fromLiveDocs(null, leafReader.maxDoc()));
+                    Set<Integer> docIds = new HashSet<>();
+                    for (ScoreDoc scoreDoc : collector.topDocs().scoreDocs) {
+                        docIds.add(scoreDoc.doc);
+                    }
+                    assertThat(docIds, hasSize(leafReader.maxDoc()));
+
+                    // Call getPostingVisitor directly via a package-private test helper, bypassing the
+                    // assertion in getNumberOfVectors, to test the fix in the numSlices==0 branch itself.
+                    // With the old dead null-guard (esAccept.sliceAcceptDocs() != null) this threw
+                    // NullPointerException; with the fix it throws AssertionError.
+                    ESNextDiskBBQVectorsReader esNextReader = (ESNextDiskBBQVectorsReader) vectorReader;
+                    AssertionError error = expectThrows(
+                        AssertionError.class,
+                        () -> esNextReader.getPostingVisitorForTest(vectorField, vector, new ESAcceptDocs.ESAcceptDocsAll())
+                    );
+                    assertThat(error.getMessage(), equalTo("sliced segment searched without a slice ordinal"));
+                }
+            }
+        }
+    }
+
     public void testSlicesDense() throws IOException {
         doTestSlicesDense(false);
     }

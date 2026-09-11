@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
@@ -139,6 +140,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         Set<Setting<?>> settings = new HashSet<>();
         settings.addAll(InferenceSettings.getSettings());
         settings.addAll(PlannerSettings.settings());
+        settings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
         var clusterSettings = new ClusterSettings(Settings.EMPTY, settings);
         doReturn(clusterSettings).when(service).getClusterSettings();
         // Query-setting resolution reads the cluster-state settings for operator-supplied defaults.

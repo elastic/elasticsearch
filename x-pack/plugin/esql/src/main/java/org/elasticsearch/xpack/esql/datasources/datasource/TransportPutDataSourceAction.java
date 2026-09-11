@@ -59,6 +59,7 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
             var project = clusterService.state().metadata().getProject(projectResolver.getProjectId());
             dataSourceService.validatePutDataSource(project, request);
         } catch (Exception e) {
+            dataSourceService.recordRejected(request.type(), e);
             listener.onFailure(e);
             return;
         }

@@ -15,6 +15,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.datasources.PartitionConfig.CONFIG_PARTITIONING_DETECTION;
 import static org.elasticsearch.xpack.esql.datasources.PartitionConfig.CONFIG_PARTITIONING_PATH;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class PartitionConfigTests extends ESTestCase {
 
@@ -82,44 +83,27 @@ public class PartitionConfigTests extends ESTestCase {
         assertNull(PartitionConfig.Strategy.parse(""));
     }
 
-    // -- hive_partitioning folding (lenient: runs on every query against every stored dataset) --
+    // -- hive_partitioning is a no-op: any value leaves the resolved strategy unchanged --
 
-    public void testHivePartitioningFalseFoldsToNone() {
-        PartitionConfig config = PartitionConfig.fromConfig(Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, "false"));
-        assertEquals(PartitionConfig.Strategy.NONE, config.strategy());
-    }
-
-    public void testHivePartitioningFalseAsBooleanFoldsToNone() {
-        PartitionConfig config = PartitionConfig.fromConfig(Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, false));
-        assertEquals(PartitionConfig.Strategy.NONE, config.strategy());
-    }
-
-    /**
-     * Only the literal "false" disables detection. The setting is stored free-form and the boolean check this
-     * replaced treated every other value as enabled, so stored datasets carrying junk must keep reading as they do.
-     */
-    public void testHivePartitioningNonFalseValuesLeaveDetectionEnabled() {
-        for (Object value : List.of("true", true, "yes", "no", 0, 1, "banana")) {
+    /** hive_partitioning is ignored for every value, including the former special-case "false". */
+    public void testHivePartitioningIsIgnoredForAnyValue() {
+        for (Object value : List.of("false", false, "true", true, "yes", "no", 0, 1, "banana")) {
             PartitionConfig config = PartitionConfig.fromConfig(Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, value));
-            assertNotEquals("value [" + value + "] must not disable detection", PartitionConfig.Strategy.NONE, config.strategy());
+            assertEquals(
+                "hive_partitioning [" + value + "] must not change the strategy",
+                PartitionConfig.Strategy.AUTO,
+                config.strategy()
+            );
         }
     }
 
-    /** Explicit true carries no information — it is the default — so it must not change the resolved strategy. */
-    public void testHivePartitioningTrueDoesNotChangeTheStrategy() {
-        PartitionConfig config = PartitionConfig.fromConfig(
-            Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, true, CONFIG_PARTITIONING_PATH, "{year}")
-        );
-        assertEquals(PartitionConfig.Strategy.AUTO, config.strategy());
-        assertEquals("{year}", config.pathTemplate());
-    }
-
-    /** hive_partitioning:false folds last and wins over a path template, so this reads as no-partitions. */
-    public void testHivePartitioningFalseBeatsPathTemplate() {
+    /** hive_partitioning alongside a partition_path no longer overrides the template: the path is preserved. */
+    public void testHivePartitioningFalseDoesNotSuppressPathTemplate() {
         PartitionConfig config = PartitionConfig.fromConfig(
             Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, "false", CONFIG_PARTITIONING_PATH, "{year}")
         );
-        assertEquals(PartitionConfig.Strategy.NONE, config.strategy());
+        assertEquals(PartitionConfig.Strategy.AUTO, config.strategy());
+        assertEquals("{year}", config.pathTemplate());
     }
 
     /** An explicit template with nothing to templatise falls back to AUTO, keeping a stored dataset's columns. */
@@ -159,16 +143,13 @@ public class PartitionConfigTests extends ESTestCase {
 
     // -- validate(): registration-time strictness --
 
-    public void testValidateRejectsHiveFalseWithExplicitStrategy() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "hive", PartitionConfig.CONFIG_PARTITIONING_HIVE, "false"))
-        );
-        assertThat(e.getMessage(), containsString("disables partition detection"));
-    }
-
-    public void testValidateAllowsHiveFalseWithExplicitNone() {
-        PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "none", PartitionConfig.CONFIG_PARTITIONING_HIVE, "false"));
+    /** hive_partitioning is accepted with any value alongside any partition_detection — it is a no-op. */
+    public void testValidateAcceptsHivePartitioningAlongsideAnyStrategy() {
+        for (Object value : List.of("false", false, "true", true, "yes")) {
+            PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "hive", PartitionConfig.CONFIG_PARTITIONING_HIVE, value));
+            PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "none", PartitionConfig.CONFIG_PARTITIONING_HIVE, value));
+            PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "auto", PartitionConfig.CONFIG_PARTITIONING_HIVE, value));
+        }
     }
 
     public void testValidateRejectsTemplateWithoutPath() {
@@ -187,30 +168,132 @@ public class PartitionConfigTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("would be ignored"));
     }
 
-    public void testValidateRejectsPathAlongsideHiveFalse() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> PartitionConfig.validate(Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, "false", CONFIG_PARTITIONING_PATH, "{year}"))
-        );
-        assertThat(e.getMessage(), containsString("would be ignored"));
-    }
-
-    public void testValidateAcceptsHivePartitioningTrueWithAnyStrategy() {
-        PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "hive", PartitionConfig.CONFIG_PARTITIONING_HIVE, true));
-        PartitionConfig.validate(
-            Map.of(
-                CONFIG_PARTITIONING_DETECTION,
-                "template",
-                CONFIG_PARTITIONING_PATH,
-                "{year}",
-                PartitionConfig.CONFIG_PARTITIONING_HIVE,
-                true
-            )
-        );
+    /** hive_partitioning:false alongside a partition_path is now legal — the key is a no-op and the template is kept. */
+    public void testValidateAcceptsHivePartitioningFalseAlongsidePartitionPath() {
+        PartitionConfig.validate(Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, "false", CONFIG_PARTITIONING_PATH, "{year}"));
     }
 
     public void testValidateAcceptsEmptyAndNullSettings() {
         PartitionConfig.validate(Map.of());
         PartitionConfig.validate(null);
+    }
+
+    public void testValidateRejectsPlaceholderlessTemplate() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "template", CONFIG_PARTITIONING_PATH, "year={year}"))
+        );
+        assertThat(e.getMessage(), containsString(CONFIG_PARTITIONING_PATH));
+        assertThat(e.getMessage(), containsString("year={year}"));
+        assertThat(e.getMessage(), containsString("{name}"));
+        assertThat(e.getMessage(), containsString(CONFIG_PARTITIONING_DETECTION));
+    }
+
+    public void testValidateRejectsPlaceholderlessPathUnderAuto() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "auto", CONFIG_PARTITIONING_PATH, "year={year}"))
+        );
+        expectThrows(IllegalArgumentException.class, () -> PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_PATH, "year={year}")));
+    }
+
+    public void testValidateHiveContradictionBeatsPlaceholderlessPath() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "hive", CONFIG_PARTITIONING_PATH, "year={year}"))
+        );
+        assertThat(e.getMessage(), containsString("never reads a path template"));
+    }
+
+    public void testValidateNoneContradictionBeatsPlaceholderlessPath() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "none", CONFIG_PARTITIONING_PATH, "year={year}"))
+        );
+        assertThat(e.getMessage(), containsString("would be ignored"));
+    }
+
+    /** A stored placeholderless path must still resolve; validate is registration-only. */
+    public void testFromConfigAcceptsStoredPlaceholderlessTemplate() {
+        PartitionConfig stored = PartitionConfig.fromConfig(
+            Map.of(CONFIG_PARTITIONING_DETECTION, "template", CONFIG_PARTITIONING_PATH, "year={year}")
+        );
+        assertEquals(PartitionConfig.Strategy.TEMPLATE, stored.strategy());
+        assertEquals("year={year}", stored.pathTemplate());
+    }
+
+    public void testValidateRejectsGlobShapedLiteral() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionConfig.validate(
+                Map.of(CONFIG_PARTITIONING_DETECTION, "template", CONFIG_PARTITIONING_PATH, "{year}/{month}/*.csv")
+            )
+        );
+        assertThat(e.getMessage(), containsString(CONFIG_PARTITIONING_PATH));
+        assertThat(e.getMessage(), containsString("{year}/{month}/*.csv"));
+        assertThat(e.getMessage(), containsString("*.csv"));
+        assertThat(e.getMessage(), containsString("directory name"));
+    }
+
+    public void testValidateRejectsGlobShapedLiteralUnderAuto() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "auto", CONFIG_PARTITIONING_PATH, "{year}/*/{month}"))
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_PATH, "{year}/{month}/*.csv"))
+        );
+    }
+
+    public void testValidateRejectsEmbeddedPlaceholderAsHiveNotGlob() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionConfig.validate(
+                Map.of(CONFIG_PARTITIONING_DETECTION, "template", CONFIG_PARTITIONING_PATH, "{year}/month={month}")
+            )
+        );
+        assertThat(e.getMessage(), containsString("month={month}"));
+        assertThat(e.getMessage(), containsString("{name}"));
+        assertThat(e.getMessage(), containsString(CONFIG_PARTITIONING_DETECTION));
+        assertThat(e.getMessage(), containsString("hive"));
+        assertThat(e.getMessage(), not(containsString("glob-shaped")));
+    }
+
+    public void testValidateRejectsDuplicatePlaceholder() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionConfig.validate(
+                Map.of(CONFIG_PARTITIONING_DETECTION, "template", CONFIG_PARTITIONING_PATH, "{year}/junk/{year}")
+            )
+        );
+        assertThat(e.getMessage(), containsString(CONFIG_PARTITIONING_PATH));
+        assertThat(e.getMessage(), containsString("{year}/junk/{year}"));
+        assertThat(e.getMessage(), containsString("year"));
+        assertThat(e.getMessage(), containsString("more than once"));
+    }
+
+    public void testValidateHiveContradictionBeatsGlobShapedPath() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "hive", CONFIG_PARTITIONING_PATH, "{year}/{month}/*.csv"))
+        );
+        assertThat(e.getMessage(), containsString("never reads a path template"));
+    }
+
+    public void testFromConfigAcceptsStoredGlobShapedTemplate() {
+        PartitionConfig stored = PartitionConfig.fromConfig(
+            Map.of(CONFIG_PARTITIONING_DETECTION, "template", CONFIG_PARTITIONING_PATH, "{year}/{month}/*.csv")
+        );
+        assertEquals(PartitionConfig.Strategy.TEMPLATE, stored.strategy());
+        assertEquals("{year}/{month}/*.csv", stored.pathTemplate());
+    }
+
+    public void testFromConfigAcceptsStoredDuplicatePlaceholder() {
+        PartitionConfig stored = PartitionConfig.fromConfig(
+            Map.of(CONFIG_PARTITIONING_DETECTION, "template", CONFIG_PARTITIONING_PATH, "{year}/junk/{year}")
+        );
+        assertEquals(PartitionConfig.Strategy.TEMPLATE, stored.strategy());
+        assertEquals("{year}/junk/{year}", stored.pathTemplate());
     }
 }

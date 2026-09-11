@@ -17,12 +17,16 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
  * fields written differently are read by the same reader and a field may be written differently tomorrow
  * than it was today.
  *
- * @param dictionary       when the column's values are named by ordinals rather than stored
- * @param chunkCodec       what compresses the chunks the values are written in
- * @param targetChunkBytes bytes a chunk holds before it is closed, which bounds what reading one value
- *                         has to decompress
+ * @param dictionary              when the column's values are named by ordinals rather than stored
+ * @param chunkCodec              what compresses the chunks the values are written in
+ * @param targetChunkBytes        bytes a chunk holds before it is closed on the dictionary path, which
+ *                                bounds what reading one value has to decompress
+ * @param plainPathTargetChunkBytes bytes a chunk holds before it is closed on the plain path; larger
+ *                                than {@code targetChunkBytes} because plain-path columns are scanned
+ *                                sequentially and never bisected, so a larger chunk compresses better
+ *                                at no extra read cost
  */
-public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkCodec, int targetChunkBytes) {
+public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkCodec, int targetChunkBytes, int plainPathTargetChunkBytes) {
 
     /**
      * The bounds a string column's dictionary is chosen under when a field names none of its own.
@@ -34,7 +38,7 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
     public static final DictionaryPolicy DEFAULT_DICTIONARY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
 
     /**
-     * How much a chunk holds before it is closed, when a field names nothing of its own.
+     * How much a chunk holds before it is closed on the dictionary path, when a field names nothing of its own.
      *
      * <p>Smaller than the 512kb {@code ES819Version3TSDBDocValuesFormat} writes a binary field in, and
      * deliberately: a chunk is decoded whole, and this column is read at addresses a scan did not choose.
@@ -45,10 +49,20 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
      */
     public static final int DEFAULT_TARGET_CHUNK_BYTES = 64 * 1024;
 
+    /**
+     * How much a chunk holds before it is closed on the plain path.
+     *
+     * <p>Plain-path columns are written in document order and read sequentially; they are never bisected.
+     * A larger chunk gives the compressor more context without increasing read amplification, matching the
+     * 512kb block size {@code ES819Version3TSDBDocValuesFormat} uses for binary doc values.
+     */
+    public static final int DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES = 512 * 1024;
+
     public static final StringColumnOptions DEFAULT = new StringColumnOptions(
         DEFAULT_DICTIONARY,
         ChunkCodec.ZSTD,
-        DEFAULT_TARGET_CHUNK_BYTES
+        DEFAULT_TARGET_CHUNK_BYTES,
+        DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES
     );
 
     public StringColumnOptions {
@@ -61,10 +75,13 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
         if (targetChunkBytes <= 0) {
             throw new IllegalArgumentException("targetChunkBytes must be positive, got " + targetChunkBytes);
         }
+        if (plainPathTargetChunkBytes <= 0) {
+            throw new IllegalArgumentException("plainPathTargetChunkBytes must be positive, got " + plainPathTargetChunkBytes);
+        }
     }
 
     /** These options with a different dictionary policy, for a field that should decide it differently. */
     public StringColumnOptions withDictionary(DictionaryPolicy policy) {
-        return new StringColumnOptions(policy, chunkCodec, targetChunkBytes);
+        return new StringColumnOptions(policy, chunkCodec, targetChunkBytes, plainPathTargetChunkBytes);
     }
 }

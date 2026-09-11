@@ -632,11 +632,7 @@ public class Lucene {
         SortField.Type sortType = readSortType(in);
         Object missingValue = readMissingValue(in);
         boolean reverse = in.readBoolean();
-        SortField sortField = new SortField(field, sortType, reverse);
-        if (missingValue != null) {
-            sortField.setMissingValue(missingValue);
-        }
-        return sortField;
+        return new SortField(field, sortType, reverse, missingValue);
     }
 
     public static void writeSortType(StreamOutput out, SortField.Type sortType) throws IOException {
@@ -649,26 +645,15 @@ public class Lucene {
      */
     public static SortField rewriteMergeSortField(SortField sortField) {
         if (sortField.getClass() == GEO_DISTANCE_SORT_TYPE_CLASS) {
-            SortField newSortField = new SortField(sortField.getField(), SortField.Type.DOUBLE);
-            newSortField.setMissingValue(sortField.getMissingValue());
-            return newSortField;
+            return new SortField(sortField.getField(), SortField.Type.DOUBLE, false, sortField.getMissingValue());
         } else if (sortField.getClass() == SortedSetSortField.class) {
-            SortField newSortField = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
-            newSortField.setMissingValue(sortField.getMissingValue());
-            return newSortField;
+            return new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse(), sortField.getMissingValue());
         } else if (sortField instanceof SortedNumericSortField snsf) {
-            SortField newSortField = new SortField(sortField.getField(), snsf.getNumericType(), sortField.getReverse());
-            newSortField.setMissingValue(sortField.getMissingValue());
-            return newSortField;
+            return new SortField(sortField.getField(), snsf.getNumericType(), sortField.getReverse(), sortField.getMissingValue());
         } else if (sortField.getClass() == ShardDocSortField.class) {
             return new SortField(sortField.getField(), SortField.Type.LONG, sortField.getReverse());
         } else if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource fcs) {
-            SortField newSortField = new SortField(sortField.getField(), fcs.reducedType(), sortField.getReverse());
-            Object missingValue = fcs.missingValue(sortField.getReverse());
-            if (missingValue != null) {
-                newSortField.setMissingValue(missingValue);
-            }
-            return newSortField;
+            return new SortField(sortField.getField(), fcs.reducedType(), sortField.getReverse(), fcs.missingValue(sortField.getReverse()));
         } else {
             return sortField;
         }

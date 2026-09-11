@@ -23,7 +23,7 @@ base {
 
 // Aligned with modules/repository-azure
 versions << [
-  'azureReactorNetty': '1.0.45',
+  'azureReactorNetty': '1.2.18',
 ]
 
 dependencies {
@@ -63,7 +63,7 @@ dependencies {
   implementation 'net.minidev:json-smart:2.5.2'
   implementation "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
   implementation "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
-  implementation "io.projectreactor:reactor-core:3.4.38"
+  implementation "io.projectreactor:reactor-core:3.7.19"
   // Netty jars provided by esql-datasource-netty-commons via extendedPlugins classloader delegation
   compileOnly project(path: xpackModule('esql-datasource-netty-commons'))
   // Jackson must match the version bundled by the extended x-pack-esql plugin (see libs:arrow):
@@ -164,19 +164,6 @@ tasks.named("thirdPartyAudit").configure {
     'io.micrometer.core.instrument.search.Search',
     'io.micrometer.context.ContextAccessor',
 
-    // from reactor-core kotlin extensions
-    'kotlin.collections.ArraysKt',
-    'kotlin.jvm.JvmClassMappingKt',
-    'kotlin.jvm.functions.Function0',
-    'kotlin.jvm.functions.Function1',
-    'kotlin.jvm.internal.FunctionReference',
-    'kotlin.jvm.internal.Intrinsics',
-    'kotlin.jvm.internal.Reflection',
-    'kotlin.jvm.internal.markers.KMappedMarker',
-    'kotlin.reflect.KClass',
-    'kotlin.reflect.KDeclarationContainer',
-    'kotlin.sequences.Sequence',
-
     // from io.netty.util.internal.Hidden (netty-common optional dependency, referenced by reactor-core)
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration',
@@ -194,6 +181,53 @@ tasks.named("thirdPartyAudit").configure {
     // from reactor.netty.http.server.HttpServer (reactor-netty)
     'io.netty.handler.codec.haproxy.HAProxyMessage',
     'io.netty.handler.codec.haproxy.HAProxyMessageDecoder',
+
+    // from reactor-netty HTTP/3 support (optional QUIC/HTTP3 incubator, not bundled)
+    'io.netty.incubator.codec.http3.Http3',
+    'io.netty.incubator.codec.http3.Http3ClientConnectionHandler',
+    'io.netty.incubator.codec.http3.Http3DataFrame',
+    'io.netty.incubator.codec.http3.Http3Headers',
+    'io.netty.incubator.codec.http3.Http3HeadersFrame',
+    'io.netty.incubator.codec.quic.QuicChannel',
+    'io.netty.incubator.codec.quic.QuicChannelBootstrap',
+    'io.netty.incubator.codec.quic.QuicClientCodecBuilder',
+    'io.netty.incubator.codec.quic.QuicServerCodecBuilder',
+    'io.netty.incubator.codec.quic.QuicSslContext',
+    'io.netty.incubator.codec.quic.QuicSslContextBuilder',
+    'io.netty.incubator.codec.quic.QuicSslEngine',
+    'io.netty.incubator.codec.quic.QuicStreamChannel',
+    'io.netty.incubator.codec.quic.QuicStreamChannelBootstrap',
+    'io.netty.incubator.codec.quic.QuicTokenHandler',
+
+    // from reactor-netty Micrometer Observation support (optional, not bundled)
+    'io.micrometer.common.docs.KeyName',
+    'io.micrometer.common.KeyValue',
+    'io.micrometer.common.KeyValues',
+    'io.micrometer.context.ContextRegistry',
+    'io.micrometer.context.ContextSnapshot',
+    'io.micrometer.context.ContextSnapshot$Scope',
+    'io.micrometer.context.ContextSnapshotFactory',
+    'io.micrometer.context.ContextSnapshotFactory$Builder',
+    'io.micrometer.context.ThreadLocalAccessor',
+    'io.micrometer.core.instrument.docs.MeterDocumentation',
+    'io.micrometer.core.instrument.observation.MeterObservationHandler',
+    'io.micrometer.observation.Observation',
+    'io.micrometer.observation.Observation$Context',
+    'io.micrometer.observation.ObservationHandler',
+    'io.micrometer.observation.ObservationRegistry',
+    'io.micrometer.observation.ObservationRegistry$ObservationConfig',
+    'io.micrometer.observation.docs.ObservationDocumentation',
+    'io.micrometer.observation.transport.ReceiverContext',
+    'io.micrometer.observation.transport.RequestReplyReceiverContext',
+    'io.micrometer.observation.transport.RequestReplySenderContext',
+    'io.micrometer.observation.transport.SenderContext',
+    'io.micrometer.tracing.docs.SpanDocumentation',
+    'io.micrometer.tracing.handler.DefaultTracingObservationHandler',
+    'io.micrometer.tracing.handler.PropagatingReceiverTracingObservationHandler',
+    'io.micrometer.tracing.handler.PropagatingSenderTracingObservationHandler',
+    'io.micrometer.tracing.propagation.Propagator',
+    'io.micrometer.tracing.Span',
+    'io.micrometer.tracing.Tracer',
 
     // from com.ctc.wstx.osgi.WstxBundleActivator (woodstox-core)
     'org.osgi.framework.BundleActivator',
@@ -289,6 +323,7 @@ tasks.named("thirdPartyAudit").configure {
   )
 
   ignoreViolations(
-    'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
+    'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory',
+    'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory$TracingException',
   )
 }

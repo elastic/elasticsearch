@@ -11,6 +11,7 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.jmh'
 
 dependencies {
   implementation project(':libs:x-content')
@@ -19,6 +20,8 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'swisshash'
   }
+
+  benchmarkImplementation project(':x-pack:plugin:esql:compute')
 }
 
 // A static reference to the Vector API would cause an unsuppressible warning
@@ -38,6 +41,11 @@ tasks.named('javadoc').configure {
   options.addStringOption("-add-reads", "org.elasticsearch.swisshash=jdk.incubator.vector")
 }
 
+tasks.named('benchmark').configure {
+  jvmArgs '--add-modules=jdk.incubator.vector'
+}
+
 tasks.withType(CheckForbiddenApisTask).configureEach {
   ignoreMissingClasses = true
+  replaceSignatureFiles 'jdk-signatures'
 }

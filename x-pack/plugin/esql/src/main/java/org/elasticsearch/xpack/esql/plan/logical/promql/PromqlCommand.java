@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -27,9 +29,10 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
@@ -68,7 +71,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     public static final String DEFAULT_PROMQL_INDEX_PATTERN = "metrics-*";
     public static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, BUCKETS, SCRAPE_INTERVAL, INDEX);
 
-    /** Synthetic column tagging each union branch with its position, used for left-preferring dedup. */
+    /** Synthetic column tagging each merge branch with its position, used for left-preferring dedup. */
     private static final String BRANCH_COLUMN = "_branch";
 
     /** Synthetic column name for the materialised {@code @timestamp + offset} expression. */
@@ -291,7 +294,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         return STEP;
     }
 
-    /** Name of the synthetic column tagging each union branch with its position, used for left-preferring dedup. */
+    /** Name of the synthetic column tagging each merge branch with its position, used for left-preferring dedup. */
     public String branchColumnName() {
         return BRANCH_COLUMN;
     }
@@ -429,8 +432,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             // into a single UnionAll. Reject chains exceeding the UnionAll branch limit with a clear message here
             // rather than failing later during translation.
             int branchCount = topLevelUnions.size() + 1;
-            if (Fork.exceedsMaxBranches(branchCount)) {
-                failures.add(fail(p, "PromQL set operator [or] supports up to [{}] operands, got [{}]", Fork.MAX_BRANCHES, branchCount));
+            if (MergePlan.exceedsMaxBranches(branchCount)) {
+                failures.add(
+                    fail(p, "PromQL set operator [or] supports up to [{}] operands, got [{}]", MergePlan.MAX_BRANCHES, branchCount)
+                );
             }
         }
         Holder<Boolean> root = new Holder<>(true);
@@ -446,6 +451,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     if (s.evaluation() != null) {
                         // Only constant per-selector time shift is supported at the moment.
                         // TODO(sidosera): Support heterogeneous offset on binary operators.
+                        // https://github.com/elastic/elasticsearch/issues/158184
                         if (s.evaluation().at().value() != null) {
                             failures.add(fail(s, "@ modifiers are not supported at this time [{}]", s.sourceText()));
                         }
@@ -500,23 +506,49 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                             );
                         }
                     });
-                    if (binaryOperator.match() != VectorMatch.NONE) {
+                    if (binaryOperator instanceof VectorBinarySet == false
+                        && binaryOperator.match() != VectorMatch.NONE
+                        && EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled() == false) {
+                        failures.add(fail(lp, "PromQL vector matching is not enabled in this build [{}]", lp.sourceText()));
+                        return;
+                    }
+                    if (binaryOperator instanceof VectorBinarySet == false
+                        && binaryOperator.hasMismatchedLabelSets()
+                        && EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled() == false) {
+                        // Default matching between different label sets translates as a join too.
                         failures.add(
                             fail(
                                 lp,
-                                "{} queries with group modifiers are not supported at this time [{}]",
-                                lp.getClass().getSimpleName(),
+                                "binary operations between vectors with mismatched grouping keys are not yet supported [{}]",
                                 lp.sourceText()
                             )
                         );
+                        return;
+                    }
+                    if (binaryOperator instanceof VectorBinaryArithmetic || binaryOperator instanceof VectorBinaryComparison) {
+                        boolean scalarOperand = PromqlPlan.returnsScalar(binaryOperator.left())
+                            || PromqlPlan.returnsScalar(binaryOperator.right());
+                        // An unmatched operator over a vector-match result also translates as a join (default
+                        // matching on all shared labels), so it inherits the same operand requirements.
+                        boolean joinComposed = scalarOperand == false
+                            && (containsVectorMatch(binaryOperator.left()) || containsVectorMatch(binaryOperator.right()));
+                        if (binaryOperator.match() != VectorMatch.NONE && scalarOperand) {
+                            failures.add(fail(lp, "vector matching only allowed between instant vectors [{}]", lp.sourceText()));
+                        } else if ((binaryOperator.match() != VectorMatch.NONE || joinComposed)
+                            && (hasConcreteLabels(binaryOperator.left()) == false || hasConcreteLabels(binaryOperator.right()) == false)) {
+                                // TODO: Materialize match keys from runtime-defined labels.
+                                // https://github.com/elastic/elasticsearch/issues/157669
+                                // Operand shapes that produce them: without aggregations (#157671), label functions (#157672).
+                                failures.add(fail(lp, "vector matching requires operands with concrete label sets [{}]", lp.sourceText()));
+                            }
                     }
                     if (binaryOperator instanceof VectorBinaryComparison comp) {
-                        if (root.get() == false) {
+                        if (comp.match() == VectorMatch.NONE && root.get() == false) {
                             failures.add(
                                 fail(lp, "comparison operators are only supported at the top-level at this time [{}]", lp.sourceText())
                             );
                         }
-                        if (comp.right() instanceof LiteralSelector == false) {
+                        if (comp.match() == VectorMatch.NONE && comp.right() instanceof LiteralSelector == false) {
                             failures.add(
                                 fail(
                                     lp,
@@ -532,13 +564,19 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     if (binaryOperator instanceof VectorBinarySet setOp) {
                         verifySetOperator(failures, setOp, topLevelUnions.contains(setOp));
                     }
-                    if (usesWithoutGrouping(binaryOperator.left()) || usesWithoutGrouping(binaryOperator.right())) {
+                    boolean labelMatched = binaryOperator.match().filter() != VectorMatch.Filter.NONE;
+                    if (labelMatched == false
+                        && (usesWithoutGrouping(binaryOperator.left()) || usesWithoutGrouping(binaryOperator.right()))) {
+                        // TODO: Support WITHOUT-grouped operands in binary expressions.
+                        // https://github.com/elastic/elasticsearch/issues/145308
                         failures.add(fail(lp, "binary expressions with WITHOUT are not supported at this time [{}]", lp.sourceText()));
                     }
                     if (hasSourceBackedExpression(binaryOperator.left())
                         && hasSourceBackedExpression(binaryOperator.right())
                         && (usesNestedAcrossSeriesAggregation(binaryOperator.left())
                             || usesNestedAcrossSeriesAggregation(binaryOperator.right()))) {
+                        // TODO: Support nested aggregations in binary operator operands.
+                        // https://github.com/elastic/elasticsearch/issues/158183
                         failures.add(
                             fail(lp, "binary expressions with nested aggregations are not supported at this time [{}]", lp.sourceText())
                         );
@@ -551,6 +589,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         && hasSourceBackedExpression(binaryOperator.left())
                         && hasSourceBackedExpression(binaryOperator.right())
                         && collectAllOffsetsForBranch(binaryOperator).size() > 1) {
+                        // TODO: Support different offsets in binary operator operands.
+                        // https://github.com/elastic/elasticsearch/issues/158184
                         failures.add(
                             fail(lp, "binary expressions with different offsets are not supported at this time [{}]", lp.sourceText())
                         );
@@ -649,10 +689,18 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             return;
         }
         if (setOp.op() != VectorBinarySet.SetOp.UNION) {
+            // TODO: Support and/unless set operators.
+            // https://github.com/elastic/elasticsearch/issues/158179
             failures.add(fail(setOp, "set operator [{}] is not supported at this time [{}]", setOp.op().keyword(), setOp.sourceText()));
             return;
         }
-        if (isTopLevelUnion == false) {
+        if (setOp.match() != VectorMatch.NONE) {
+            // TODO: Support or with on/ignoring modifiers.
+            // https://github.com/elastic/elasticsearch/issues/158181
+            failures.add(fail(setOp, "set operator [or] with on/ignoring is not supported at this time [{}]", setOp.sourceText()));
+        } else if (isTopLevelUnion == false) {
+            // TODO: Support or below the top level.
+            // https://github.com/elastic/elasticsearch/issues/158182
             failures.add(fail(setOp, "set operator [or] is only supported at the top-level at this time [{}]", setOp.sourceText()));
         }
     }
@@ -681,12 +729,22 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         return plan.anyMatch(p -> p instanceof Selector && (p instanceof LiteralSelector) == false);
     }
 
+    private static boolean containsVectorMatch(LogicalPlan plan) {
+        return plan.anyMatch(
+            p -> p instanceof VectorBinaryOperator op && (p instanceof VectorBinarySet) == false && op.match() != VectorMatch.NONE
+        );
+    }
+
     private static boolean usesNestedAcrossSeriesAggregation(LogicalPlan plan) {
         return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.child().anyMatch(AcrossSeriesAggregate.class::isInstance));
     }
 
     private static boolean usesWithoutGrouping(LogicalPlan plan) {
         return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT);
+    }
+
+    private static boolean hasConcreteLabels(LogicalPlan plan) {
+        return plan.output().stream().noneMatch(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()));
     }
 
     /**

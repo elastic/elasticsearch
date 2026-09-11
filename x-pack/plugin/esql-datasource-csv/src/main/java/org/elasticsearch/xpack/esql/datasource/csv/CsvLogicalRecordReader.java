@@ -65,10 +65,11 @@ final class CsvLogicalRecordReader {
      * CR/LF detection.
      *
      * <p>Bulk buffering reads ahead, so it may only be enabled when this reader owns the stream for the
-     * remainder of the read (the direct-to-block path). The Jackson path skips the header through this
-     * reader and then resumes tokenizing from the same underlying {@link Reader}, so it must keep the
-     * non-buffered mode: exactly one underlying {@link Reader#read()} per character, with lookahead
-     * un-read via {@code mark}/{@code reset} so no byte is swallowed before Jackson resumes.
+     * remainder of the read (the direct-to-block path, or the house per-record path). The Jackson path
+     * skips the header through this reader and then resumes tokenizing from the same underlying
+     * {@link Reader}, so it must keep the non-buffered mode: exactly one underlying {@link Reader#read()}
+     * per character, with lookahead un-read via {@code mark}/{@code reset} so no byte is swallowed
+     * before Jackson resumes.
      */
     private static final int INPUT_BUFFER_SIZE = 8192;
     private static final int NO_PENDING = Integer.MIN_VALUE;
@@ -245,8 +246,8 @@ final class CsvLogicalRecordReader {
 
     /**
      * Enables read-ahead bulk buffering. Only safe when this reader owns the underlying stream for the
-     * rest of the read (the direct-to-block path); see the {@link #inBuf} field comment. Returns
-     * {@code this} for fluent construction.
+     * rest of the read (direct-to-block, or the house per-record path); see the {@link #inBuf} field
+     * comment. Returns {@code this} for fluent construction.
      */
     CsvLogicalRecordReader enableBulkBuffering() {
         bulkBuffered = true;

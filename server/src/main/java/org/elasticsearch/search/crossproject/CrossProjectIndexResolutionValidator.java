@@ -16,7 +16,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
-import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -103,27 +102,24 @@ public class CrossProjectIndexResolutionValidator {
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
         Map<String, Exception> remoteExceptions
     ) {
-        // Check for remote view/dataset exceptions that may not have been caught by the per-expression checks above.
+        // Check for remote view exceptions that may not have been caught by the per-expression checks above.
         // This can happen for flat expressions where the resolved expressions don't include remote expressions for them.
-        // Both kinds are collected and reported together so a query matching a remote view on one project and a remote
-        // dataset on another surfaces both at once rather than whichever project's exception is iterated first.
+        // Views matched in several linked projects are collected and reported together, so the failure names all of them
+        // at once rather than whichever project's exception is iterated first.
         List<String> remoteViews = new ArrayList<>();
-        List<String> remoteDatasets = new ArrayList<>();
         for (Exception remoteEx : remoteExceptions.values()) {
             Throwable cause = ExceptionsHelper.unwrapCause(remoteEx);
-            // A remote that hosts both kinds already combined them into RemoteResourceNotSupportedException; a remote with
-            // a single kind reports the per-kind exception. Collect from whichever shape arrived.
+            // The aggregate is read defensively rather than because anything can send one. A linked project only ever
+            // reported datasets when the request asked it to, and nothing asks any more, so no project can take its
+            // dataset branch. If an aggregate arrives anyway, only its views half can be acted on here.
             if (cause instanceof RemoteResourceNotSupportedException resourceException) {
                 remoteViews.addAll(resourceException.views());
-                remoteDatasets.addAll(resourceException.datasets());
             } else if (cause instanceof RemoteViewNotSupportedException viewException) {
                 remoteViews.addAll(viewException.views());
-            } else if (cause instanceof RemoteDatasetNotSupportedException datasetException) {
-                remoteDatasets.addAll(datasetException.datasets());
             }
         }
-        if (remoteViews.isEmpty() == false || remoteDatasets.isEmpty() == false) {
-            return new RemoteResourceNotSupportedException(remoteViews, remoteDatasets);
+        if (remoteViews.isEmpty() == false) {
+            return new RemoteResourceNotSupportedException(remoteViews, List.of());
         }
 
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {

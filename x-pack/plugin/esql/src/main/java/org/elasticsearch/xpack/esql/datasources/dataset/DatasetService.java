@@ -28,18 +28,24 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.ConfigChangeTelemetry;
 import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
+import org.elasticsearch.xpack.esql.datasources.MaxDatasetsCountException;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 /** Orchestrates create / replace / delete of datasets in cluster state. */
 public class DatasetService {
@@ -58,12 +64,18 @@ public class DatasetService {
     protected final ClusterService clusterService;
     private final Map<String, DataSourceValidator> validatorsByType;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
+    private final ExternalSourceMetrics metrics;
 
     private volatile int maxDatasetsCount;
 
     public DatasetService(ClusterService clusterService, Map<String, DataSourceValidator> validatorsByType) {
+        this(clusterService, validatorsByType, ExternalSourceMetrics.NOOP);
+    }
+
+    public DatasetService(ClusterService clusterService, Map<String, DataSourceValidator> validatorsByType, ExternalSourceMetrics metrics) {
         this.clusterService = clusterService;
         this.validatorsByType = Map.copyOf(validatorsByType);
+        this.metrics = metrics == null ? ExternalSourceMetrics.NOOP : metrics;
         this.taskQueue = clusterService.createTaskQueue(
             "update-esql-dataset-metadata",
             Priority.NORMAL,
@@ -147,6 +159,7 @@ public class DatasetService {
         try {
             dataset = validatePutDataset(projectMetadata, request);
         } catch (Exception e) {
+            recordRejected(parentType(projectMetadata, request.dataSource()), e);
             listener.onFailure(e);
             return;
         }
@@ -156,17 +169,43 @@ public class DatasetService {
             return;
         }
         logger.debug("submitting put dataset [{}] with parent [{}]", request.name(), request.dataSource());
-        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
+        final AtomicReference<String> pendingOp = new AtomicReference<>();
+        final String type = parentType(projectMetadata, request.dataSource());
+        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, recordingListener(listener, type, pendingOp)) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return executePutDatasetTaskBody(currentState, projectId, request);
+                return executePutDatasetTaskBody(currentState, projectId, request, pendingOp);
             }
         };
         taskQueue.submitTask("update-esql-dataset-metadata-[" + request.name() + "]", task, task.timeout());
     }
 
+    /** Records a pre-submit or transport pre-check refusal. Used by PUT transport {@code doExecute}. */
+    public void recordRejected(String type, Exception e) {
+        ConfigChangeTelemetry.recordRejected(metrics, ConfigChangeTelemetry.KIND_DATASET, type, e);
+    }
+
+    /** Like {@link #recordRejected(String, Exception)}, resolving type from the parent data source. */
+    public void recordRejected(ProjectMetadata project, String dataSourceName, Exception e) {
+        recordRejected(parentType(project, dataSourceName), e);
+    }
+
+    private static String parentType(ProjectMetadata project, String dataSourceName) {
+        DataSource parent = DataSourceMetadata.get(project).get(dataSourceName);
+        return parent == null ? null : parent.type();
+    }
+
     // Runs inside the CAS task (see execute() above); package-private for test visibility.
     ClusterState executePutDatasetTaskBody(ClusterState currentState, ProjectId projectId, PutDatasetAction.Request request) {
+        return executePutDatasetTaskBody(currentState, projectId, request, null);
+    }
+
+    private ClusterState executePutDatasetTaskBody(
+        ClusterState currentState,
+        ProjectId projectId,
+        PutDatasetAction.Request request,
+        AtomicReference<String> pendingOp
+    ) {
         final ProjectMetadata project = currentState.metadata().getProject(projectId);
         final Dataset dataset = validatePutDataset(project, request);
         final DatasetMetadata metadata = getMetadata(project);
@@ -177,10 +216,13 @@ public class DatasetService {
         }
         if (current == null && metadata.datasets().size() >= maxDatasetsCount) {
             logger.warn("rejected put for dataset [{}]: maximum count [{}] reached", dataset.name(), maxDatasetsCount);
-            throw new IllegalArgumentException("cannot add dataset, the maximum number of datasets is reached: " + maxDatasetsCount);
+            throw new MaxDatasetsCountException(maxDatasetsCount);
         }
         final Map<String, Dataset> updated = new HashMap<>(metadata.datasets());
         updated.put(dataset.name(), dataset);
+        if (pendingOp != null) {
+            pendingOp.set(current == null ? ConfigChangeTelemetry.OP_CREATED : ConfigChangeTelemetry.OP_UPDATED);
+        }
         return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(project).datasets(updated)).build();
     }
 
@@ -196,11 +238,18 @@ public class DatasetService {
         final DatasetMetadata metadata = getMetadata(projectMetadata);
         final Optional<String> notFound = names.stream().filter(n -> metadata.get(n) == null).findAny();
         if (notFound.isPresent()) {
-            listener.onFailure(new ResourceNotFoundException("dataset [{}] not found", notFound.get()));
+            ResourceNotFoundException e = new ResourceNotFoundException("dataset [{}] not found", notFound.get());
+            recordRejected(null, e);
+            listener.onFailure(e);
             return;
         }
         logger.debug("submitting delete datasets {}", names);
-        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(masterNodeTimeout, ackTimeout, listener) {
+        final AtomicReference<List<String>> removedTypes = new AtomicReference<>();
+        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(
+            masterNodeTimeout,
+            ackTimeout,
+            deleteRecordingListener(listener, removedTypes)
+        ) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
@@ -210,11 +259,59 @@ public class DatasetService {
                     return currentState;
                 }
                 final Map<String, Dataset> updated = new HashMap<>(current.datasets());
-                names.forEach(updated::remove);
+                List<String> typesRemoved = new ArrayList<>();
+                for (String name : names) {
+                    Dataset existing = current.get(name);
+                    if (existing != null) {
+                        typesRemoved.add(parentType(project, existing.dataSource().getName()));
+                    }
+                    updated.remove(name);
+                }
+                removedTypes.set(typesRemoved);
                 return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(project).datasets(updated)).build();
             }
         };
         taskQueue.submitTask("delete-esql-dataset-metadata-" + names, task, task.timeout());
+    }
+
+    private ActionListener<AcknowledgedResponse> recordingListener(
+        ActionListener<AcknowledgedResponse> delegate,
+        String type,
+        AtomicReference<String> pendingOp
+    ) {
+        return ActionListener.wrap(r -> {
+            String op = pendingOp.get();
+            if (op != null) {
+                metrics.recordConfigChange(ConfigChangeTelemetry.KIND_DATASET, op, ConfigChangeTelemetry.typeToken(type), null);
+            }
+            delegate.onResponse(r);
+        }, e -> {
+            recordRejected(type, e);
+            delegate.onFailure(e);
+        });
+    }
+
+    private ActionListener<AcknowledgedResponse> deleteRecordingListener(
+        ActionListener<AcknowledgedResponse> delegate,
+        AtomicReference<List<String>> removedTypes
+    ) {
+        return ActionListener.wrap(r -> {
+            List<String> types = removedTypes.get();
+            if (types != null) {
+                for (String type : types) {
+                    metrics.recordConfigChange(
+                        ConfigChangeTelemetry.KIND_DATASET,
+                        ConfigChangeTelemetry.OP_DELETED,
+                        ConfigChangeTelemetry.typeToken(type),
+                        null
+                    );
+                }
+            }
+            delegate.onResponse(r);
+        }, e -> {
+            recordRejected(null, e);
+            delegate.onFailure(e);
+        });
     }
 
 }

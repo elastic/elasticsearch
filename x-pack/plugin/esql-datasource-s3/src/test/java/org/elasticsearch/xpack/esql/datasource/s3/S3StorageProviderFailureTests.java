@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.SdkHttpResponse;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -99,6 +100,53 @@ public class S3StorageProviderFailureTests extends ESTestCase {
         }
 
         verify(client, times(2)).listObjectsV2(any(ListObjectsV2Request.class));
+    }
+
+    public void testExistsTypesSdkClientTransportFailure() {
+        S3Client client = mock(S3Client.class);
+        SdkClientException failure = transportWrap();
+        when(client.headObject(any(HeadObjectRequest.class))).thenThrow(failure);
+
+        S3StorageProvider provider = S3StorageProvider.forTesting(client, null);
+        ExternalUnavailableException thrown = expectThrows(ExternalUnavailableException.class, () -> provider.exists(PATH));
+
+        assertSame(failure, thrown.getCause());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, thrown.status());
+        assertFalse(thrown.throttling());
+    }
+
+    public void testLazyListingTypesSdkClientTransportFailure() throws IOException {
+        S3Client client = mock(S3Client.class);
+        SdkClientException failure = transportWrap();
+        when(client.listObjectsV2(any(ListObjectsV2Request.class))).thenThrow(failure);
+
+        S3StorageProvider provider = S3StorageProvider.forTesting(client, null);
+        try (StorageIterator iterator = provider.listObjects(PREFIX, true)) {
+            ExternalUnavailableException thrown = expectThrows(ExternalUnavailableException.class, iterator::hasNext);
+            assertSame(failure, thrown.getCause());
+            assertEquals(RestStatus.SERVICE_UNAVAILABLE, thrown.status());
+            assertFalse(thrown.throttling());
+        }
+    }
+
+    public void testLazyListingRetriesSdkClientTransportFailureOnSameIterator() throws IOException {
+        S3Client client = mock(S3Client.class);
+        when(client.listObjectsV2(any(ListObjectsV2Request.class))).thenThrow(transportWrap())
+            .thenReturn(ListObjectsV2Response.builder().contents(java.util.List.of()).isTruncated(false).build());
+
+        try (StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY)) {
+            registry.registerFactory("s3", StorageProviderFactory.noConfigKeys(() -> S3StorageProvider.forTesting(client, null)));
+            StorageProvider provider = registry.provider(PREFIX);
+            try (StorageIterator iterator = provider.listObjects(PREFIX, true)) {
+                assertFalse(iterator.hasNext());
+            }
+        }
+
+        verify(client, times(2)).listObjectsV2(any(ListObjectsV2Request.class));
+    }
+
+    private static SdkClientException transportWrap() {
+        return SdkClientException.create("Unable to execute HTTP request", new IOException("The target server failed to respond"));
     }
 
     private static S3Exception s3Failure(int status, String retryAfter) {

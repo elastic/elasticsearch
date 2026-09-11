@@ -1,0 +1,5 @@
+area: Columnar
+issues: []
+pr: 158545
+summary: Add doc-values fallback for `unsigned_long` queries
+type: bug

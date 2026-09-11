@@ -172,16 +172,14 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                                     )
                                 );
                                 var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
-                                var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
                                 // Aggregate a single warm target per BCC blob: the furthest offset to warm, stamped with the most recent
                                 // representative timestamp among the referenced CCs sharing that blob.
                                 // blobSize is 0 as a sentinel until the bccBlobSizeConsumer fills it in.
-                                long ccTimestamp = searchDirectory.resolveRegionTimestampMillis(
-                                    referencedCompoundCommit.statelessCompoundCommitReference()
-                                        .compoundCommit()
-                                        .getTimestampFieldValueRange()
+                                targetsToWarm.merge(
+                                    bccBlobFile,
+                                    warmingService.computeWarmTarget(referencedCompoundCommit, searchDirectory),
+                                    WarmTarget::merge
                                 );
-                                targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, 0L, ccTimestamp), WarmTarget::merge);
                             },
                             (blobFile, bccSize) -> {
                                 assert targetsToWarm.containsKey(blobFile);

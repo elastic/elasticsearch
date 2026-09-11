@@ -179,6 +179,9 @@ public class S3ClientSettingsTests extends ESTestCase {
         );
         assertThat(settings.get("default").disableChunkedEncoding, is(false));
         assertThat(settings.get("other").disableChunkedEncoding, is(true));
+        assertWarnings("""
+            [s3.client.other.disable_chunked_encoding] setting was deprecated in Elasticsearch and will be removed in a future release. \
+            See the breaking changes documentation for the next major version.""");
     }
 
     public void testRegionCanBeSet() {

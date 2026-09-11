@@ -2,7 +2,11 @@
 navigation_title: Columnar
 applies_to:
   stack: preview 9.5
-  serverless: preview
+  serverless:
+    elasticsearch: preview
+    observability: preview
+    security: preview
+    vectordb: unavailable
 ---
 
 # Columnar index mode [columnar-index-mode]

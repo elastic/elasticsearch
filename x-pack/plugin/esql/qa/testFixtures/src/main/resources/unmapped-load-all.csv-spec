@@ -838,6 +838,568 @@ c:long
 3
 ;
 
+########
+# FORK #
+########
+
+forkIdentityExpandsUnmappedFields
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE true) (WHERE true)
+| SORT @timestamp, _fork
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _fork:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | fork1         | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | fork2         | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | fork1         | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | fork2         | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | fork1         | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | fork2         | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | fork1         | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | fork2         | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | fork1         | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | fork2         | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | fork1         | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | fork2         | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | fork1         | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | fork2         | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
+inlineStatsThenForkExpandsUnmappedFields
+required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| INLINE STATS max_duration = MAX(event_duration)
+| FORK (WHERE true) (WHERE true)
+| SORT @timestamp, _fork
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | max_duration:long | _fork:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 8268152           | fork1         | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 8268152           | fork2         | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 8268152           | fork1         | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 8268152           | fork2         | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 8268152           | fork1         | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 8268152           | fork2         | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 8268152           | fork1         | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 8268152           | fork2         | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 8268152           | fork1         | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 8268152           | fork2         | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 8268152           | fork1         | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 8268152           | fork2         | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 8268152           | fork1         | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 8268152           | fork2         | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
+forkMentionInOneBranchExtractsNamedField
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "Disconnection error") (WHERE true)
+| SORT @timestamp, _fork
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword   | _fork:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | fork2         | 4                     | g                       | 3450234
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | fork2         | 3                     | f                       | 2764890
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | fork2         | 2                     | e                       | 1232383
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | fork1         | 1                     | d                       | 725449
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | fork2         | 1                     | d                       | 725449
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | fork1         | 3                     | c                       | 8268154
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | fork2         | 3                     | c                       | 8268154
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | fork1         | 2                     | b                       | 5033756
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | fork2         | 2                     | b                       | 5033756
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | fork2         | 1                     | a                       | 1756468
+;
+
+forkDropInOneBranchNullFillsNamedField
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (DROP unmapped_message) (WHERE true)
+| SORT @timestamp, _fork
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword   | _fork:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | null                       | fork1         | 4                     | g                       | 3450234
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | fork2         | 4                     | g                       | 3450234
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | null                       | fork1         | 3                     | f                       | 2764890
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | fork2         | 3                     | f                       | 2764890
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | null                       | fork1         | 2                     | e                       | 1232383
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | fork2         | 2                     | e                       | 1232383
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | null                       | fork1         | 1                     | d                       | 725449
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | fork2         | 1                     | d                       | 725449
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | null                       | fork1         | 3                     | c                       | 8268154
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | fork2         | 3                     | c                       | 8268154
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | null                       | fork1         | 2                     | b                       | 5033756
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | fork2         | 2                     | b                       | 5033756
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | null                       | fork1         | 1                     | a                       | 1756468
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | fork2         | 1                     | a                       | 1756468
+;
+
+forkKeepInOneBranchNullFillsExtras
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (KEEP message, unmapped_message) (WHERE message == "42")
+| SORT _fork, message
+;
+
+message:keyword        | unmapped_message:keyword   | _fork:keyword | @timestamp:datetime      | client_ip:ip | event_duration:long | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+42                     | 43                         | fork1         | null                     | null         | null                | null                  | null                    | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | fork1         | null                     | null         | null                | null                  | null                    | null
+Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | fork1         | null                     | null         | null                | null                  | null                    | null
+Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | fork1         | null                     | null         | null                | null                  | null                    | null
+Connection error?      | Disconnection error        | fork1         | null                     | null         | null                | null                  | null                    | null
+Connection error?      | Disconnection error        | fork1         | null                     | null         | null                | null                  | null                    | null
+Connection error?      | Disconnection error        | fork1         | null                     | null         | null                | null                  | null                    | null
+42                     | 43                         | fork2         | 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 2                     | e                       | 1232383
+;
+
+forkStatsInOneBranchNullFillsExtras
+required_capability: optional_fields_load_all_fork
+required_capability: optional_fields_load_all_stats
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (STATS c = COUNT(*)) (WHERE message == "42")
+| SORT _fork
+;
+
+c:long | _fork:keyword | @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+7      | fork1         | null                     | null         | null                | null            | null                  | null                    | null                            | null
+null   | fork2         | 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 2                     | e                       | 1232383                         | 43
+;
+
+forkKeepWildcardInOneBranchNullFillsNonMatchingExtras
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (KEEP messag*) (WHERE message == "42")
+| SORT _fork, message
+;
+
+message:keyword        | _fork:keyword | @timestamp:datetime      | client_ip:ip | event_duration:long | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+42                     | fork1         | null                     | null         | null                | null                  | null                    | null                            | null
+Connected to 10.1.0.1! | fork1         | null                     | null         | null                | null                  | null                    | null                            | null
+Connected to 10.1.0.2! | fork1         | null                     | null         | null                | null                  | null                    | null                            | null
+Connected to 10.1.0.3! | fork1         | null                     | null         | null                | null                  | null                    | null                            | null
+Connection error?      | fork1         | null                     | null         | null                | null                  | null                    | null                            | null
+Connection error?      | fork1         | null                     | null         | null                | null                  | null                    | null                            | null
+Connection error?      | fork1         | null                     | null         | null                | null                  | null                    | null                            | null
+42                     | fork2         | 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 2                     | e                       | 1232383                         | 43
+;
+
+forkAcrossBranches
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "Disconnection error")
+       (WHERE message == "42")
+| KEEP _fork, message, unmapped_message, unmapped_event_duration, unmapped*, language*
+| SORT _fork, unmapped_event_duration
+;
+
+_fork:keyword | message:keyword   | unmapped_message:keyword | unmapped_event_duration:keyword | unmapped.nested:keyword | language_code:keyword
+fork1         | Connection error? | Disconnection error      | 5033756                         | b                       | 2
+fork1         | Connection error? | Disconnection error      | 725449                          | d                       | 1
+fork1         | Connection error? | Disconnection error      | 8268154                         | c                       | 3
+fork2         | 42                | 43                       | 1232383                         | e                       | 2
+;
+
+forkAcrossBranchesWildcardKeep
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "Disconnection error")
+       (WHERE message == "42")
+| KEEP _fork, messag*, unmapped*, language*
+| SORT _fork, unmapped_message
+;
+ignoreOrder:true
+
+_fork:keyword | message:keyword   | unmapped_message:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | language_code:keyword
+fork1         | Connection error? | Disconnection error      | b                       | 5033756                         | 2
+fork1         | Connection error? | Disconnection error      | c                       | 8268154                         | 3
+fork1         | Connection error? | Disconnection error      | d                       | 725449                          | 1
+fork2         | 42                | 43                       | e                       | 1232383                         | 2
+;
+
+forkInsideBranchNoKeepDropsOthers
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "Disconnection error")
+       (WHERE message == "42")
+| DROP @timestamp, client_ip, event_duration
+| SORT _fork, message, unmapped_message
+;
+ignoreOrder:true
+
+message:keyword   | unmapped_message:keyword | _fork:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+Connection error? | Disconnection error      | fork1         | 2                     | b                       | 5033756
+Connection error? | Disconnection error      | fork1         | 3                     | c                       | 8268154
+Connection error? | Disconnection error      | fork1         | 1                     | d                       | 725449
+42                | 43                       | fork2         | 2                     | e                       | 1232383
+;
+
+forkAboveNoKeepDropsOthers
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE message == "42")
+       (WHERE message == "Connected to 10.1.0.1!")
+| DROP @timestamp, client_ip, event_duration
+| SORT _fork, unmapped_message
+;
+
+message:keyword        | _fork:keyword | unmapped_message:keyword   | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+42                     | fork1         | 43                         | 2                     | e                       | 1232383
+Connected to 10.1.0.1! | fork2         | Disconnected from 10.1.0.1 | 1                     | a                       | 1756468
+;
+
+forkReferencedBeforeAppearsInBoth
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE unmapped_message == "43" OR unmapped_message == "Disconnected from 10.1.0.1"
+| FORK (WHERE message == "42") (WHERE message == "Connected to 10.1.0.1!")
+| KEEP _fork, messag*, unmapped*, language*
+| SORT _fork
+;
+
+_fork:keyword | message:keyword        | unmapped_message:keyword   | unmapped.nested:keyword | unmapped_event_duration:keyword | language_code:keyword
+fork1         | 42                     | 43                         | e                       | 1232383                         | 2
+fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | a                       | 1756468                         | 1
+;
+
+forkAbsentFieldAcrossBranches
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE message == "42")
+       (WHERE message == "Connected to 10.1.0.1!")
+| KEEP _fork, message, completely_absent_field, unmapped*, language*
+| SORT _fork
+;
+
+_fork:keyword | message:keyword        | completely_absent_field:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword   | language_code:keyword
+fork1         | 42                     | null                            | e                       | 1232383                         | 43                         | 2
+fork2         | Connected to 10.1.0.1! | null                            | a                       | 1756468                         | Disconnected from 10.1.0.1 | 1
+;
+
+forkEvalInOneBranchLoadsAll
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE message == "42" | EVAL tag = unmapped_message)
+       (WHERE message == "Connected to 10.1.0.1!")
+| KEEP _fork, message, unmapped_message, tag, unmapped*, language*
+| SORT _fork, message
+;
+
+_fork:keyword | message:keyword        | unmapped_message:keyword   | tag:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | language_code:keyword
+fork1         | 42                     | 43                         | 43          | e                       | 1232383                         | 2
+fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | null        | a                       | 1756468                         | 1
+;
+
+forkReferencedOnlyAboveThreeBranches
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE message == "42")
+       (WHERE message == "Connected to 10.1.0.1!")
+       (WHERE message == "Connected to 10.1.0.2!")
+| EVAL upper = TO_UPPER(unmapped_message)
+| KEEP _fork, message, unmapped_message, upper, unmapped*, language*
+| SORT _fork
+;
+
+_fork:keyword | message:keyword        | unmapped_message:keyword   | upper:keyword                | unmapped.nested:keyword | unmapped_event_duration:keyword | language_code:keyword
+fork1         | 42                     | 43                         | 43                           | e                       | 1232383                         | 2
+fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | DISCONNECTED FROM 10.1.0.1   | a                       | 1756468                         | 1
+fork3         | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | DISCONNECTED FROM 10.1.0.2   | f                       | 2764890                         | 3
+;
+
+forkOuterStatsBy
+required_capability: optional_fields_load_all_fork
+required_capability: optional_fields_load_all_stats
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE message == "42")
+       (WHERE message == "Connected to 10.1.0.1!")
+| STATS c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+;
+
+c:long | unmapped_message:keyword
+1      | 43
+1      | Disconnected from 10.1.0.1
+;
+
+forkOuterWhere
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE message == "42")
+       (WHERE message == "Connection error?")
+| WHERE unmapped_message == "Disconnection error"
+| KEEP _fork, message, unmapped_message, unmapped*, language*
+| SORT _fork, message
+;
+ignoreOrder:true
+
+_fork:keyword | message:keyword   | unmapped_message:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | language_code:keyword
+fork2         | Connection error? | Disconnection error      | b                       | 5033756                         | 2
+fork2         | Connection error? | Disconnection error      | c                       | 8268154                         | 3
+fork2         | Connection error? | Disconnection error      | d                       | 725449                          | 1
+;
+
+forkDropInOneBranchWithKeep
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE message == "42" | DROP unmapped_message)
+       (WHERE message == "Connected to 10.1.0.1!")
+| KEEP _fork, message, unmapped_message, unmapped*, language*
+| SORT _fork
+;
+
+_fork:keyword | message:keyword        | unmapped_message:keyword   | unmapped.nested:keyword | unmapped_event_duration:keyword | language_code:keyword
+fork1         | 42                     | null                       | e                       | 1232383                         | 2
+fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | a                       | 1756468                         | 1
+;
+
+forkDropInOneBranchWithKeepFiltered
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE message == "42"
+| FORK (DROP unmapped_message) (WHERE true)
+| KEEP _fork, message, unmapped_message, unmapped*, language*
+| SORT _fork
+;
+
+_fork:keyword | message:keyword | unmapped_message:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | language_code:keyword
+fork1         | 42              | null                     | e                       | 1232383                         | 2
+fork2         | 42              | 43                       | e                       | 1232383                         | 2
+;
+
+forkDropInOneBranchWildcardKeep
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE message == "42"
+| FORK (DROP unmapped_message) (WHERE true)
+| KEEP _fork, *message, unmapped*, language*
+| SORT _fork
+;
+
+_fork:keyword | message:keyword | unmapped_message:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | language_code:keyword
+fork1         | 42              | null                     | e                       | 1232383                         | 2
+fork2         | 42              | 43                       | e                       | 1232383                         | 2
+;
+
+forkWhereThenDropInOneBranch
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "foo" | DROP unmapped_message) (WHERE true)
+| SORT @timestamp, _fork
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword   | _fork:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | fork2         | 4                     | g                       | 3450234
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | fork2         | 3                     | f                       | 2764890
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | fork2         | 2                     | e                       | 1232383
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | fork2         | 1                     | d                       | 725449
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | fork2         | 3                     | c                       | 8268154
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | fork2         | 2                     | b                       | 5033756
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | fork2         | 1                     | a                       | 1756468
+;
+
+forkDropInEveryBranchOmitsNamedField
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (DROP unmapped_message) (DROP unmapped_message)
+| SORT @timestamp, _fork
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _fork:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | fork1         | 4                     | g                       | 3450234
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | fork2         | 4                     | g                       | 3450234
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | fork1         | 3                     | f                       | 2764890
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | fork2         | 3                     | f                       | 2764890
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | fork1         | 2                     | e                       | 1232383
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | fork2         | 2                     | e                       | 1232383
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | fork1         | 1                     | d                       | 725449
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | fork2         | 1                     | d                       | 725449
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | fork1         | 3                     | c                       | 8268154
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | fork2         | 3                     | c                       | 8268154
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | fork1         | 2                     | b                       | 5033756
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | fork2         | 2                     | b                       | 5033756
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | fork1         | 1                     | a                       | 1756468
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | fork2         | 1                     | a                       | 1756468
+;
+
+forkDropExactAndWildcardInEveryBranch
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (DROP unmapped_message) (DROP unmapped_m*)
+| SORT @timestamp, _fork
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _fork:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | fork1         | 4                     | g                       | 3450234
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | fork2         | 4                     | g                       | 3450234
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | fork1         | 3                     | f                       | 2764890
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | fork2         | 3                     | f                       | 2764890
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | fork1         | 2                     | e                       | 1232383
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | fork2         | 2                     | e                       | 1232383
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | fork1         | 1                     | d                       | 725449
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | fork2         | 1                     | d                       | 725449
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | fork1         | 3                     | c                       | 8268154
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | fork2         | 3                     | c                       | 8268154
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | fork1         | 2                     | b                       | 5033756
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | fork2         | 2                     | b                       | 5033756
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | fork1         | 1                     | a                       | 1756468
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | fork2         | 1                     | a                       | 1756468
+;
+
+forkMentionInOneOfThreeBranches
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "Disconnection error")
+       (WHERE true)
+       (WHERE true)
+| SORT @timestamp, _fork
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword   | _fork:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | fork2         | 4                     | g                       | 3450234
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | fork3         | 4                     | g                       | 3450234
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | fork2         | 3                     | f                       | 2764890
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | fork3         | 3                     | f                       | 2764890
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | fork2         | 2                     | e                       | 1232383
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | fork3         | 2                     | e                       | 1232383
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | fork1         | 1                     | d                       | 725449
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | fork2         | 1                     | d                       | 725449
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | fork3         | 1                     | d                       | 725449
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | fork1         | 3                     | c                       | 8268154
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | fork2         | 3                     | c                       | 8268154
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | fork3         | 3                     | c                       | 8268154
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | fork1         | 2                     | b                       | 5033756
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | fork2         | 2                     | b                       | 5033756
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | fork3         | 2                     | b                       | 5033756
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | fork2         | 1                     | a                       | 1756468
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | fork3         | 1                     | a                       | 1756468
+;
+
+forkMentionInTwoOfThreeBranches
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "Disconnection error")
+       (WHERE unmapped_message == "43")
+       (WHERE true)
+| SORT @timestamp, _fork
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword   | _fork:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | fork3         | 4                     | g                       | 3450234
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | fork3         | 3                     | f                       | 2764890
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | fork2         | 2                     | e                       | 1232383
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | fork3         | 2                     | e                       | 1232383
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | fork1         | 1                     | d                       | 725449
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | fork3         | 1                     | d                       | 725449
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | fork1         | 3                     | c                       | 8268154
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | fork3         | 3                     | c                       | 8268154
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | fork1         | 2                     | b                       | 5033756
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | fork3         | 2                     | b                       | 5033756
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | fork3         | 1                     | a                       | 1756468
+;
+
+forkDifferentFieldsMentioned
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "Disconnection error")
+       (WHERE unmapped_event_duration == "3450234")
+       (WHERE true)
+| SORT @timestamp, _fork
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword   | _fork:keyword | unmapped_event_duration:keyword | language_code:keyword | unmapped.nested:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | fork2         | 3450234                         | 4                     | g
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | fork3         | 3450234                         | 4                     | g
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | fork3         | 2764890                         | 3                     | f
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | fork3         | 1232383                         | 2                     | e
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | fork1         | 725449                          | 1                     | d
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | fork3         | 725449                          | 1                     | d
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | fork1         | 8268154                         | 3                     | c
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | fork3         | 8268154                         | 3                     | c
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | fork1         | 5033756                         | 2                     | b
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | fork3         | 5033756                         | 2                     | b
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | fork3         | 1756468                         | 1                     | a
+;
+
 ###################################
 # LOOKUP JOIN with LOAD_ALL        #
 ###################################
@@ -1358,12 +1920,12 @@ FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthe
 ;
 
 id:keyword  | unmapped:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:keyword
-1           |null              |null                  |null                        |foo1           
-2           |null              |bar2                  |null                        |null           
-3           |null              |null                  |null                        |foo3           
-5           |null              |null                  |null                        |[arr1, arr2]   
-6           |null              |null                  |deep6                       |null           
-7           |null              |bar7                  |null                        |null           
+1           | null             | null                 | null                       | foo1
+2           | null             | bar2                 | null                       | null
+3           | null             | null                 | null                       | foo3
+5           | null             | null                 | null                       | [arr1, arr2]
+6           | null             | null                 | deep6                      | null
+7           | null             | bar7                 | null                       | null
 ;
 
 multiIndexReferencedUnmappedObjectStillExpandsLeaves
@@ -1583,14 +2145,14 @@ FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthe
 | KEEP unmapped.*.*, unmapped, *
 ;
 
-unmapped.deep.leaf:keyword| unmapped:keyword | id:keyword | unmapped.bar:keyword | unmapped.foo:keyword  
-null                      |null              |1           |null                  |foo1           
-null                      |null              |2           |bar2                  |null           
-null                      |null              |3           |null                  |foo3           
-null                      |scalar4           |4           |null                  |null           
-null                      |null              |5           |null                  |[arr1, arr2]   
-deep6                     |null              |6           |null                  |null           
-null                      |null              |7           |bar7                  |null           
+unmapped.deep.leaf:keyword | unmapped:keyword | id:keyword | unmapped.bar:keyword | unmapped.foo:keyword
+null                       | null             | 1          | null                 | foo1
+null                       | null             | 2          | bar2                 | null
+null                       | null             | 3          | null                 | foo3
+null                       | scalar4          | 4          | null                 | null
+null                       | null             | 5          | null                 | [arr1, arr2]
+deep6                      | null             | 6          | null                 | null
+null                       | null             | 7          | bar7                 | null
 ;
 
 multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested_AndMetadataIndex
@@ -1602,12 +2164,12 @@ FROM unmapped_multi_mapped, unmapped_multi_synthetic METADATA _index
 | SORT id
 ;
 
-  id:keyword   |       _index:keyword   | unmapped:keyword | unmapped.foo:keyword | unmapped.bar:keyword|unmapped.deep.leaf:keyword
-3              |unmapped_multi_synthetic|null              |foo3                  |null                 |null              
-6              |unmapped_multi_synthetic|null              |null                  |null                 |deep6             
-7              |unmapped_multi_synthetic|null              |null                  |bar7                 |null              
-8              |unmapped_multi_mapped   |null              |mfoo8                 |mbar8                |mleaf8            
-9              |unmapped_multi_mapped   |null              |[mfa, mfb]            |null                 |null              
+id:keyword     | _index:keyword           | unmapped:keyword | unmapped.foo:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword
+3              | unmapped_multi_synthetic | null             | foo3                 | null                 | null
+6              | unmapped_multi_synthetic | null             | null                 | null                 | deep6
+7              | unmapped_multi_synthetic | null             | null                 | bar7                 | null
+8              | unmapped_multi_mapped    | null             | mfoo8                | mbar8                | mleaf8
+9              | unmapped_multi_mapped    | null             | [mfa, mfb]           | null                 | null
 ;
 
 multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested_AndActualMappedFields
@@ -1619,19 +2181,19 @@ FROM unmapped_multi_* METADATA _index
 | SORT id
 ;
 
-  id:keyword   |       _index:keyword      | unmapped:keyword | unmapped.foo:unsupported | unmapped.bar:unsupported|unmapped.deep.leaf:unsupported
-1              |unmapped_multi_stored_foo  |null              |null                      |null                     |null              
-10             |unmapped_multi_mapped_mixed|null              |null                      |null                     |null              
-11             |unmapped_multi_mapped_mixed|null              |null                      |null                     |null              
-12             |unmapped_multi_mapped_mixed|null              |null                      |null                     |null              
-2              |unmapped_multi_stored_bar  |null              |null                      |null                     |null              
-3              |unmapped_multi_synthetic   |null              |null                      |null                     |null              
-4              |unmapped_multi_stored_mixed|scalar4           |null                      |null                     |null              
-5              |unmapped_multi_stored_mixed|null              |null                      |null                     |null              
-6              |unmapped_multi_synthetic   |null              |null                      |null                     |null              
-7              |unmapped_multi_synthetic   |null              |null                      |null                     |null              
-8              |unmapped_multi_mapped      |null              |null                      |null                     |null              
-9              |unmapped_multi_mapped      |null              |null                      |null                     |null              
+id:keyword     | _index:keyword              | unmapped:keyword | unmapped.foo:unsupported | unmapped.bar:unsupported | unmapped.deep.leaf:unsupported
+1              | unmapped_multi_stored_foo   | null             | null                     | null                     | null
+10             | unmapped_multi_mapped_mixed | null             | null                     | null                     | null
+11             | unmapped_multi_mapped_mixed | null             | null                     | null                     | null
+12             | unmapped_multi_mapped_mixed | null             | null                     | null                     | null
+2              | unmapped_multi_stored_bar   | null             | null                     | null                     | null
+3              | unmapped_multi_synthetic    | null             | null                     | null                     | null
+4              | unmapped_multi_stored_mixed | scalar4          | null                     | null                     | null
+5              | unmapped_multi_stored_mixed | null             | null                     | null                     | null
+6              | unmapped_multi_synthetic    | null             | null                     | null                     | null
+7              | unmapped_multi_synthetic    | null             | null                     | null                     | null
+8              | unmapped_multi_mapped       | null             | null                     | null                     | null
+9              | unmapped_multi_mapped       | null             | null                     | null                     | null
 ;
 
 keepOrderPreservedThroughRenameAfterKeep
@@ -1709,14 +2271,14 @@ FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthe
 | RENAME foo as x, x as y, id as identifier, unmapped.bar as z, unmapped as u
 ;
 
-   u:keyword   |  z:keyword    |unmapped.deep.leaf:keyword|unmapped.foo:keyword|identifier:keyword |       y:integer       
-null           |null           |null                      |foo1                |1                  |123            
-null           |bar2           |null                      |null                |2                  |123            
-null           |null           |null                      |foo3                |3                  |123            
-scalar4        |null           |null                      |null                |4                  |123            
-null           |null           |null                      |[arr1, arr2]        |5                  |123            
-null           |null           |deep6                     |null                |6                  |123            
-null           |bar7           |null                      |null                |7                  |123
+u:keyword      | z:keyword     | unmapped.deep.leaf:keyword | unmapped.foo:keyword | identifier:keyword | y:integer
+null           | null          | null                       | foo1                 | 1                  | 123
+null           | bar2          | null                       | null                 | 2                  | 123
+null           | null          | null                       | foo3                 | 3                  | 123
+scalar4        | null          | null                       | null                 | 4                  | 123
+null           | null          | null                       | [arr1, arr2]         | 5                  | 123
+null           | null          | deep6                      | null                 | 6                  | 123
+null           | bar7          | null                       | null                 | 7                  | 123
 ;
 
 evalWithTwoAssignmentsOnMappedAndUnmapped
@@ -2356,11 +2918,11 @@ FROM partial_mapping_sample_data
 ;
 
 @timestamp:datetime      | combined:keyword                                                  | language_code:keyword
-2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! :: Disconnected from 10.1.0.3            | 4
-2024-10-23T13:33:34.937Z | 42 :: 43                                                         | 2
-2024-10-23T13:51:54.732Z | Connection error? :: Disconnection error                         | 1
-2024-10-23T13:53:55.832Z | Connection error? :: Disconnection error                         | 2
-2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! :: Disconnected from 10.1.0.1            | 1
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! :: Disconnected from 10.1.0.3              | 4
+2024-10-23T13:33:34.937Z | 42 :: 43                                                          | 2
+2024-10-23T13:51:54.732Z | Connection error? :: Disconnection error                          | 1
+2024-10-23T13:53:55.832Z | Connection error? :: Disconnection error                          | 2
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! :: Disconnected from 10.1.0.1              | 1
 ;
 
 keepUnmappedWildcardThenRenameBoth
@@ -2616,4 +3178,355 @@ foo:integer | id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.de
 123         | 5          | null             | null                 | null                       | [arr1, arr2]         | abc
 123         | 6          | null             | null                 | deep6                      | null                 | abc
 123         | 7          | null             | bar7                 | null                       | null                 | abc
+;
+
+showMeTheSource
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_fix_unmapped_object_value
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored METADATA _source
+| KEEP id, *, _source
+| SORT id
+;
+
+id:keyword | a:keyword | a.b:keyword | arr:keyword | deep.l1.l2.l3:keyword  | nest.inner.leaf:keyword | objarr.j:keyword | objarr.k:keyword | _source:_source
+1          | null      | v1          | null        | null                   | null                    | null             | null             | "{""id"":""1"",""a"":{""b"":""v1""}}"
+10         | null      | null        | null        | null                   | null                    | null             | null             | "{""id"":""10""}"
+11         | null      | null        | null        | null                   | null                    | null             | null             | "{""id"":""11""}"
+12         | null      | null        | null        | null                   | null                    | null             | null             | "{""id"":""12""}"
+13         | scalar13  | null        | null        | null                   | null                    | null             | null             | "{""id"":""13"",""a"":""scalar13""}"
+2          | null      | v2          | null        | null                   | null                    | null             | null             | "{""id"":""2"",""a.b"":""v2""}"
+3          | null      | null        | null        | v3                     | null                    | null             | null             | "{""id"":""3"",""deep"":{""l1"":{""l2"":{""l3"":""v3""}}}}"
+4          | null      | null        | null        | v4                     | null                    | null             | null             | "{""id"":""4"",""deep.l1.l2.l3"":""v4""}"
+5          | null      | null        | [x, y]      | null                   | null                    | null             | null             | "{""id"":""5"",""arr"":[""x"",""y""]}"
+6          | null      | null        | null        | null                   | null                    | null             | [p, q]           | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
+7          | null      | null        | null        | null                   | null                    | s                | r                | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+8          | null      | null        | null        | null                   | [t, u]                  | null             | null             | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
+9          | null      | null        | null        | null                   | null                    | null             | null             | "{""id"":""9""}"
+;
+
+scalarObjectCollision
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_fix_unmapped_object_value
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored METADATA _source
+| WHERE id IN ("1", "2", "3", "13")
+| KEEP id, a, deep, a.b
+| SORT id::long
+;
+
+id:keyword | a:keyword | deep:keyword | a.b:keyword
+1          | null      | null         | v1
+2          | null      | null         | v2
+3          | null      | null         | null
+13         | scalar13  | null         | null
+;
+
+wildcardAStarExpandsBothForms
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_fix_unmapped_object_value
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored
+| WHERE id IN ("1", "2", "13")
+| KEEP id, a*
+| SORT id::long
+;
+
+id:keyword | a:keyword | a.b:keyword
+1          | null      | v1
+2          | null      | v2
+13         | scalar13  | null
+;
+
+wildcardDeepDotStarExpandsLeaf
+required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored METADATA _source
+| WHERE id IN ("3", "4")
+| KEEP id, deep.*, _source
+| SORT id
+;
+
+id:keyword | deep.l1.l2.l3:keyword | _source:_source
+3          | v3                    | "{""id"":""3"",""deep"":{""l1"":{""l2"":{""l3"":""v3""}}}}"
+4          | v4                    | "{""id"":""4"",""deep.l1.l2.l3"":""v4""}"
+;
+
+uniformAndSneakyArraysUnionTheirLeafColumns
+required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored, unmapped_source_synthetic METADATA _index, _source
+| WHERE id == "6" OR id == "7"
+| KEEP _index, id, objarr.j, objarr.k, _*
+| SORT _index, id
+;
+
+_index:keyword            | id:keyword | objarr.j:keyword | objarr.k:keyword | _source:_source
+unmapped_source_stored    | 6          | null             | [p, q]           | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
+unmapped_source_stored    | 7          | s                | r                | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+unmapped_source_synthetic | 6          | null             | [p, q]           | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
+unmapped_source_synthetic | 7          | s                | r                | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+;
+
+sneakyArraySourceShapeAcrossSourceModes
+required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored, unmapped_source_synthetic, unmapped_source_synth_keep_arrays METADATA _index, _source
+| WHERE id == "8" OR id == "7" OR id == "6" OR id == "5"
+| SORT id, _index
+| KEEP _index, nest.inner.leaf, objarr.j, objarr.k, *arr*, _source
+| EVAL n = MV_COUNT(nest.inner.leaf)
+| EVAL m = MV_COUNT(objarr.k)
+| EVAL o = MV_COUNT(arr)
+;
+
+_index:keyword                 | nest.inner.leaf:keyword | objarr.j:keyword | objarr.k:keyword | arr:keyword | _source:_source                                                                                                    | n:integer | m:integer | o:integer
+unmapped_source_stored         | null                    | null             | null             | [x, y]      | "{""id"":""5"",""arr"":[""x"",""y""]}"                                                                             | null      | null      | 2
+unmapped_source_synth_keep_arrays | null                    | null             | null             | [x, y]      | "{""arr"":[""x"",""y""],""id"":""5""}"                                                                             | null      | null      | 2
+unmapped_source_synthetic      | null                    | null             | null             | [x, y]      | "{""arr"":[""x"",""y""],""id"":""5""}"                                                                             | null      | null      | 2
+unmapped_source_stored         | null                    | null             | [p, q]           | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                                                          | null      | 2         | null
+unmapped_source_synth_keep_arrays | null                    | null             | [p, q]           | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                                                          | null      | 2         | null
+unmapped_source_synthetic      | null                    | null             | [p, q]           | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                                                          | null      | 2         | null
+unmapped_source_stored         | null                    | s                | r                | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                                                          | null      | 1         | null
+unmapped_source_synth_keep_arrays | null                    | s                | r                | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                                                          | null      | 1         | null
+unmapped_source_synthetic      | null                    | s                | r                | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                                                          | null      | 1         | null
+unmapped_source_stored         | [t, u]                  | null             | null             | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                          | 2         | null      | null
+unmapped_source_synth_keep_arrays | [t, u]                  | null             | null             | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                          | 2         | null      | null
+unmapped_source_synthetic      | [t, u]                  | null             | null             | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                          | 2         | null      | null
+;
+
+nullyFieldNeverProducesAColumnStoredSource
+required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored, unmapped_source_synthetic METADATA _index, _source
+| WHERE id == "9" OR id == "10" OR id == "11" OR id == "12"
+| SORT id, _index
+;
+
+id:keyword | _index:keyword            | _source:_source
+10         | unmapped_source_stored    | "{""id"":""10""}"
+10         | unmapped_source_synthetic | "{""id"":""10""}"
+11         | unmapped_source_stored    | "{""id"":""11""}"
+11         | unmapped_source_synthetic | "{""id"":""11""}"
+12         | unmapped_source_stored    | "{""id"":""12""}"
+12         | unmapped_source_synthetic | "{""id"":""12""}"
+9          | unmapped_source_stored    | "{""id"":""9""}"
+9          | unmapped_source_synthetic | "{""id"":""9""}"
+;
+
+disabledSourceYieldsOnlyMappedId
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled METADATA _source
+| KEEP *
+| SORT id::long
+;
+
+id:keyword | _source:_source
+1          | null
+2          | null
+3          | null
+4          | null
+5          | null
+6          | null
+7          | null
+8          | null
+9          | null
+10         | null
+11         | null
+12         | null
+13         | null
+;
+
+excludedFieldsNotSurfacedAsColumns
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_excludes METADATA _source
+| KEEP id, a.b, arr, nest.inner.leaf, *
+| SORT id::long
+;
+
+id:keyword | a.b:keyword | arr:keyword | nest.inner.leaf:keyword | _source:_source                                                                                                    | a:keyword
+1          | v1          | null        | null                    | "{""id"":""1"",""a"":{""b"":""v1""}}"                                                                              | null
+2          | v2          | null        | null                    | "{""id"":""2"",""a.b"":""v2""}"                                                                                    | null
+3          | null        | null        | null                    | "{""id"":""3""}"                                                                                                   | null
+4          | null        | null        | null                    | "{""id"":""4""}"                                                                                                   | null
+5          | null        | [x, y]      | null                    | "{""id"":""5"",""arr"":[""x"",""y""]}"                                                                             | null
+6          | null        | null        | null                    | "{""id"":""6""}"                                                                                                   | null
+7          | null        | null        | null                    | "{""id"":""7""}"                                                                                                   | null
+8          | null        | null        | [t, u]                  | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                          | null
+9          | null        | null        | null                    | "{""id"":""9""}"                                                                                                   | null
+10         | null        | null        | null                    | "{""id"":""10""}"                                                                                                  | null
+11         | null        | null        | null                    | "{""id"":""11""}"                                                                                                  | null
+12         | null        | null        | null                    | "{""id"":""12""}"                                                                                                  | null
+13         | null        | null        | null                    | "{""id"":""13"",""a"":""scalar13""}"                                                                               | scalar13
+;
+
+explicitReferenceToSourceIgnored_deep_objarr_Fields
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_excludes METADATA _source
+| KEEP id, *, deep, objarr
+| SORT id::long
+| EVAL x = id::long
+| WHERE x >= 4 and id::long < 9
+;
+
+id:keyword | _source:_source                                                                                                    | arr:keyword | nest.inner.leaf:keyword | deep:keyword | objarr:keyword | x:long
+4          | "{""id"":""4""}"                                                                                                   | null        | null                    | null         | null           | 4
+5          | "{""id"":""5"",""arr"":[""x"",""y""]}"                                                                             | [x, y]      | null                    | null         | null           | 5
+6          | "{""id"":""6""}"                                                                                                   | null        | null                    | null         | null           | 6
+7          | "{""id"":""7""}"                                                                                                   | null        | null                    | null         | null           | 7
+8          | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                          | null        | [t, u]                  | null         | null           | 8
+;
+
+returnOnlySourceIncludedColumns_arr_and_id
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_includes METADATA _source
+| KEEP *
+| SORT id::long
+;
+
+id:keyword | _source:_source                         | arr:keyword
+1          | "{""id"":""1""}"                        | null
+2          | "{""id"":""2""}"                        | null
+3          | "{""id"":""3""}"                        | null
+4          | "{""id"":""4""}"                        | null
+5          | "{""id"":""5"",""arr"":[""x"",""y""]}"  | [x, y]
+6          | "{""id"":""6""}"                        | null
+7          | "{""id"":""7""}"                        | null
+8          | "{""id"":""8""}"                        | null
+9          | "{""id"":""9""}"                        | null
+10         | "{""id"":""10""}"                       | null
+11         | "{""id"":""11""}"                       | null
+12         | "{""id"":""12""}"                       | null
+13         | "{""id"":""13""}"                       | null
+;
+
+returnOnlySourceIncludedColumns_arr_and_id_WhenForceReferencingWildcardField
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_includes METADATA _source
+| KEEP *, a*
+| SORT id::long
+;
+
+id:keyword | _source:_source                         | arr:keyword
+1          | "{""id"":""1""}"                        | null
+2          | "{""id"":""2""}"                        | null
+3          | "{""id"":""3""}"                        | null
+4          | "{""id"":""4""}"                        | null
+5          | "{""id"":""5"",""arr"":[""x"",""y""]}"  | [x, y]
+6          | "{""id"":""6""}"                        | null
+7          | "{""id"":""7""}"                        | null
+8          | "{""id"":""8""}"                        | null
+9          | "{""id"":""9""}"                        | null
+10         | "{""id"":""10""}"                       | null
+11         | "{""id"":""11""}"                       | null
+12         | "{""id"":""12""}"                       | null
+13         | "{""id"":""13""}"                       | null
+;
+
+storedAndSyntheticIdenticalForUnmappedFields
+required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored, unmapped_source_synthetic, unmapped_source_synth_keep_arrays METADATA _index, _source
+| WHERE id IN ("1", "2", "5")
+| KEEP id, a.b, arr, _*
+| SORT id, _index
+;
+
+id:keyword | a.b:keyword | arr:keyword | _index:keyword                 | _source:_source
+1          | v1          | null        | unmapped_source_stored         | "{""id"":""1"",""a"":{""b"":""v1""}}"
+1          | v1          | null        | unmapped_source_synth_keep_arrays | "{""a"":{""b"":""v1""},""id"":""1""}"
+1          | v1          | null        | unmapped_source_synthetic      | "{""a"":{""b"":""v1""},""id"":""1""}"
+2          | v2          | null        | unmapped_source_stored         | "{""id"":""2"",""a.b"":""v2""}"
+2          | v2          | null        | unmapped_source_synth_keep_arrays | "{""a"":{""b"":""v2""},""id"":""2""}"
+2          | v2          | null        | unmapped_source_synthetic      | "{""a"":{""b"":""v2""},""id"":""2""}"
+5          | null        | [x, y]      | unmapped_source_stored         | "{""id"":""5"",""arr"":[""x"",""y""]}"
+5          | null        | [x, y]      | unmapped_source_synth_keep_arrays | "{""arr"":[""x"",""y""],""id"":""5""}"
+5          | null        | [x, y]      | unmapped_source_synthetic      | "{""arr"":[""x"",""y""],""id"":""5""}"
+;
+
+subobjectsFalseLoadAllExpandsLeavesLikeStoredSource
+required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_subobjects_false METADATA _source
+| KEEP id, a.b, _*
+| SORT id
+;
+
+id:keyword | a.b:keyword | _source:_source
+1          | v1          | "{""a.b"":""v1"",""id"":""1""}"
+10         | null        | "{""id"":""10""}"
+11         | null        | "{""id"":""11""}"
+12         | null        | "{""id"":""12""}"
+13         | null        | "{""a"":""scalar13"",""id"":""13""}"
+2          | v2          | "{""a.b"":""v2"",""id"":""2""}"
+3          | null        | "{""deep.l1.l2.l3"":""v3"",""id"":""3""}"
+4          | null        | "{""deep.l1.l2.l3"":""v4"",""id"":""4""}"
+5          | null        | "{""arr"":[""x"",""y""],""id"":""5""}"
+6          | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
+7          | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+8          | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
+9          | null        | "{""id"":""9""}"
+;
+
+// this test shows that unmapped_source_mapped index which has "subobjects": false and has objarr.k and objarr.j declared as keyword (a field with dot in its name directly in the mapping)
+// will not accept values that come via JSON as objects, for example "objarr":[{"k":"p"},{"k":"q"}]. If this JSON would have been "objarr.k":["p","q"] then LOAD_ALL would have loaded it.
+storedobjectsFalse_For_unmapped_source_mapped_Highlight
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_fix_unmapped_object_value
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored, unmapped_source_mapped METADATA _index, _source
+| KEEP _index, id, a, a.b, deep.l1.l2.l3, arr, objarr, objarr.j, objarr.k, nest.inner.leaf, _source
+| WHERE id::long IN (6,7,8)
+| SORT id::long, _index
+;
+
+   _index:keyword     | id:keyword    |    a:keyword  |  a.b:keyword  | deep.l1.l2.l3:keyword | arr:keyword | objarr:keyword   | objarr.j:keyword   | objarr.k:keyword |nest.inner.leaf:keyword  | _source:_source                       
+unmapped_source_mapped|6              |null           |null           |null                   |null         |null              |null                |null              |null                     |"{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                        
+unmapped_source_stored|6              |null           |null           |null                   |null         |null              |null                |[p, q]            |null                     |"{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
+unmapped_source_mapped|7              |null           |null           |null                   |null         |null              |null                |null              |null                     |"{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                        
+unmapped_source_stored|7              |null           |null           |null                   |null         |null              |s                   |r                 |null                     |"{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                        
+unmapped_source_mapped|8              |null           |null           |null                   |null         |null              |null                |null              |null                     |"{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
+unmapped_source_stored|8              |null           |null           |null                   |null         |null              |null                |null              |[t, u]                   |"{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
 ;

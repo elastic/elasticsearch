@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.columnar.storage;
 
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.logging.LogManager;
@@ -62,7 +63,11 @@ public class ColumnarNumericFootprintTests extends ColumnarNumericStorageTestBas
 
     private void runFootprintTest(String workload, NumericPipelineSelector selector, long expectedBytes) throws IOException {
         final long[] values = generate(workload, DOC_COUNT);
-        final long columnar = measureConsumer(new ColumNARDocValuesFormat(selector, BLOCK_SIZE), values, true);
+        final long columnar = measureConsumer(
+            new ColumNARDocValuesFormat(selector, field -> ColumnarFieldType.LONG, BLOCK_SIZE),
+            values,
+            true
+        );
         final long lucene = measureConsumer(new Lucene90DocValuesFormat(), values, false);
         final long es95Small = measureConsumer(es95Format(workload, false), values, false);
         final long es95Large = measureConsumer(es95Format(workload, true), values, false);

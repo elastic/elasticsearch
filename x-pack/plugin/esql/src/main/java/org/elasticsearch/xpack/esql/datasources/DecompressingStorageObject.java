@@ -105,6 +105,18 @@ final class DecompressingStorageObject implements StorageObject {
     }
 
     @Override
+    public long knownLength() {
+        // Decompressed size is not the compressed listing/GET length; leave it unknown so a
+        // later "forward every SPI default" pass cannot treat the compressed size as expected EOF.
+        return READ_TO_END;
+    }
+
+    @Override
+    public String contentGeneration() {
+        return delegate.contentGeneration();
+    }
+
+    @Override
     public Instant lastModified() throws IOException {
         return delegate.lastModified();
     }

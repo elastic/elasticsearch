@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexingOperationListener;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -186,23 +188,58 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         if (result.getResultType() == Engine.Result.Type.SUCCESS) {
             final ParsedDocument doc = indexOperation.parsedDoc();
             final long tookInNanos = result.getTook();
-            Supplier<ESLogMessage> messageProducer = () -> IndexingSlowLogMessage.of(
-                loggingFields.logFields(),
-                index,
-                doc,
+            logIfSlow(
                 tookInNanos,
-                reformat,
-                maxSourceCharsToLog
+                () -> IndexingSlowLogMessage.of(loggingFields.logFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
             );
-            if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
-                indexLogger.warn(messageProducer.get());
-            } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
-                indexLogger.info(messageProducer.get());
-            } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
-                indexLogger.debug(messageProducer.get());
-            } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
-                indexLogger.trace(messageProducer.get());
+        }
+    }
+
+    @Override
+    public IndexOperationBatch preIndexBatch(ShardId shardId, IndexOperationBatch batch) {
+        // no pre-work; overridden to avoid the delegating to default
+        return batch;
+    }
+
+    /**
+     * Batch equivalent of {@link #postIndex(ShardId, Engine.Index, Engine.IndexResult)} call.
+     * This method considers the time taken by the batch as the average time for successful operations within a batch.
+     */
+    @Override
+    public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, List<Engine.IndexResult> results) {
+        long totalTook = 0;
+        int successCount = 0;
+        for (Engine.IndexResult result : results) {
+            if (result.getResultType() == Engine.Result.Type.SUCCESS) {
+                totalTook += result.getTook();
+                successCount++;
             }
+        }
+        if (successCount == 0) return;
+        final long avgTook = totalTook / successCount;
+        final long startingSeqNo = batch.seqNo(0);
+        final int docCount = batch.docCount();
+        final int finalSuccessCount = successCount;
+        logIfSlow(
+            avgTook,
+            () -> IndexingSlowLogMessage.ofBatch(loggingFields.logFields(), index, startingSeqNo, docCount, finalSuccessCount, avgTook)
+        );
+    }
+
+    @Override
+    public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, Exception ex) {
+        // engine level failures are never slow-logged, mirroring the per-op hooks
+    }
+
+    private void logIfSlow(long tookInNanos, Supplier<ESLogMessage> messageProducer) {
+        if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
+            indexLogger.warn(messageProducer.get());
+        } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
+            indexLogger.info(messageProducer.get());
+        } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
+            indexLogger.debug(messageProducer.get());
+        } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
+            indexLogger.trace(messageProducer.get());
         }
     }
 
@@ -220,6 +257,25 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             Map<String, Object> jsonFields = prepareMap(index, doc, tookInNanos, reformat, maxSourceCharsToLog);
             jsonFields.putAll(additionalFields);
             return new ESLogMessage().withFields(jsonFields);
+        }
+
+        public static ESLogMessage ofBatch(
+            Map<String, String> additionalFields,
+            Index index,
+            long startingSeqNo,
+            int docCount,
+            int successCount,
+            long avgTookInNanos
+        ) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("elasticsearch.slowlog.message", index);
+            map.put("elasticsearch.slowlog.took", TimeValue.timeValueNanos(avgTookInNanos).toString());
+            map.put("elasticsearch.slowlog.took_millis", String.valueOf(TimeUnit.NANOSECONDS.toMillis(avgTookInNanos)));
+            map.put("elasticsearch.slowlog.starting_seq_no", startingSeqNo);
+            map.put("elasticsearch.slowlog.doc_count", docCount);
+            map.put("elasticsearch.slowlog.success_count", successCount);
+            map.putAll(additionalFields);
+            return new ESLogMessage().withFields(map);
         }
 
         private static Map<String, Object> prepareMap(

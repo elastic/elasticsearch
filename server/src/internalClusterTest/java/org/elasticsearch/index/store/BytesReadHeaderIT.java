@@ -41,7 +41,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -84,11 +83,6 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
                 throw new IllegalStateException("not implemented");
             }));
         }
-    }
-
-    @Before
-    public void ensureDirectoryMetricsEnabled() {
-        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
     }
 
     public void testEmptySearchSetsBytesReadHeader() throws InterruptedException {

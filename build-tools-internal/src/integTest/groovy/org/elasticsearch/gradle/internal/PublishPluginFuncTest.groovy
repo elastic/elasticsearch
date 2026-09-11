@@ -229,6 +229,123 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 """)
 }
 
+def "dra snapshot aggregation renames timestamped snapshot filenames and generates maven-metadata"() {
+    given:
+    // required for JarHell to work
+    subProject(":libs:some-public-lib") << """
+        plugins {
+            id 'elasticsearch.java'
+            id 'elasticsearch.publish'
+        }
+
+        group = 'org.acme'
+        version = '1.0-SNAPSHOT'
+    """
+
+    buildFile << """
+        plugins {
+            id 'com.gradleup.nmcp.aggregation'
+            id 'elasticsearch.dra-maven-aggregation'
+        }
+
+        version = "1.0-SNAPSHOT"
+        group = 'org.acme'
+        description = "custom project description"
+        nmcpAggregation {
+          centralPortal {
+            username = 'acme'
+            password = 'acmepassword'
+            publishingType = "USER_MANAGED"
+          }
+          publishAllProjectsProbablyBreakingProjectIsolation()
+        }
+    """
+
+    when:
+    def result = gradleRunner(':prepareDraSnapshotMavenAggregation').build()
+
+    then:
+    result.task(":prepareDraSnapshotMavenAggregation").outcome == TaskOutcome.SUCCESS
+    // The DRA path reuses zipAggregation's copy-spec source, so the aggregation
+    // zip itself is never built here — nothing is zipped on the DRA path.
+    result.task(":zipAggregation") == null
+
+    // The DRA task emits an exploded maven tree (not a zip): the buildkite
+    // publish step uploads the directory directly, so re-zipping here just to
+    // unzip it there again would be wasted work.
+    def draDir = file("build/dra-maven-aggregation")
+    def draNames = []
+    draDir.eachFileRecurse(groovy.io.FileType.FILES) { draNames << draDir.toPath().relativize(it.toPath()).toString() }
+    draNames.contains("org/acme/some-public-lib/1.0-SNAPSHOT/some-public-lib-1.0-SNAPSHOT.jar")
+    draNames.contains("org/acme/some-public-lib/1.0-SNAPSHOT/some-public-lib-1.0-SNAPSHOT-sources.jar")
+    draNames.contains("org/acme/some-public-lib/1.0-SNAPSHOT/some-public-lib-1.0-SNAPSHOT-javadoc.jar")
+    draNames.contains("org/acme/some-public-lib/1.0-SNAPSHOT/some-public-lib-1.0-SNAPSHOT.pom")
+    draNames.contains("org/acme/some-public-lib/1.0-SNAPSHOT/maven-metadata.xml")
+    draNames.contains("org/acme/some-public-lib/1.0-SNAPSHOT/maven-metadata.xml.sha1")
+    draNames.contains("org/acme/some-public-lib/1.0-SNAPSHOT/maven-metadata.xml.sha256")
+    // No timestamped names must leak into the DRA tree.
+    draNames.every { (it =~ /-\d{8}\.\d{6}-\d+/).find() == false }
+
+    // maven-metadata.xml points at the -SNAPSHOT literal via <localCopy>true</localCopy>
+    // so Gradle/Maven resolve `1.0-SNAPSHOT` against the renamed filenames.
+    def metadata = new File(draDir, "org/acme/some-public-lib/1.0-SNAPSHOT/maven-metadata.xml").text
+    metadata.contains("<groupId>org.acme</groupId>")
+    metadata.contains("<artifactId>some-public-lib</artifactId>")
+    metadata.contains("<version>1.0-SNAPSHOT</version>")
+    metadata.contains("<localCopy>true</localCopy>")
+}
+
+def "dra release aggregation is a plain sync without maven-metadata"() {
+    given:
+    // required for JarHell to work
+    subProject(":libs:some-public-lib") << """
+        plugins {
+            id 'elasticsearch.java'
+            id 'elasticsearch.publish'
+        }
+
+        group = 'org.acme'
+        version = '1.0'
+    """
+
+    buildFile << """
+        plugins {
+            id 'com.gradleup.nmcp.aggregation'
+            id 'elasticsearch.dra-maven-aggregation'
+        }
+
+        version = "1.0"
+        group = 'org.acme'
+        description = "custom project description"
+        nmcpAggregation {
+          centralPortal {
+            username = 'acme'
+            password = 'acmepassword'
+            publishingType = "USER_MANAGED"
+          }
+          publishAllProjectsProbablyBreakingProjectIsolation()
+        }
+    """
+
+    when:
+    def result = gradleRunner(':prepareDraSnapshotMavenAggregation').build()
+
+    then:
+    result.task(":prepareDraSnapshotMavenAggregation").outcome == TaskOutcome.SUCCESS
+    result.task(":zipAggregation") == null
+
+    def draDir = file("build/dra-maven-aggregation")
+    def draNames = []
+    draDir.eachFileRecurse(groovy.io.FileType.FILES) { draNames << draDir.toPath().relativize(it.toPath()).toString() }
+    // Release artifacts are synced verbatim under their plain version directory.
+    draNames.contains("org/acme/some-public-lib/1.0/some-public-lib-1.0.jar")
+    draNames.contains("org/acme/some-public-lib/1.0/some-public-lib-1.0.pom")
+    // The release side of DRA does not synthesize maven-metadata.xml.
+    draNames.every { it.endsWith("maven-metadata.xml") == false }
+    // Nothing to rename on the release path, and no -SNAPSHOT literals appear.
+    draNames.every { it.contains("-SNAPSHOT") == false }
+}
+
 def "artifacts and tweaked pom is published"() {
     given:
     buildFile << """

@@ -61,6 +61,14 @@ public final class EstimatedHeapSettings {
         return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
     }
 
+    /// Whether heap estimates should be collected for the given node.
+    /// Unlike [#appliesToNode(DiscoveryNode)], which gates heap-based intervention (recovery gate, legacy allocation decider),
+    /// this predicate includes search nodes so their hosted-shards heap usage is available in [ClusterInfo] for the
+    /// partition-aware heap decider.
+    public static boolean collectsEstimatesForNode(DiscoveryNode node) {
+        return node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) || node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE);
+    }
+
     public boolean enabled() {
         return enabled;
     }

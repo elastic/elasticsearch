@@ -244,15 +244,21 @@ public class PolicyManager {
         Policy serverPolicy,
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
+        Map<String, String> pluginSyntheticModuleNames,
         Function<Class<?>, PolicyScope> scopeResolver,
         Function<String, Collection<Path>> pluginSourcePathsResolver,
         PathLookup pathLookup
     ) {
-        this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
+        this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy), null);
         this.apmAgentEntitlements = apmAgentEntitlements;
         this.pluginsEntitlements = requireNonNull(pluginPolicies).entrySet()
             .stream()
-            .collect(toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
+            .collect(
+                toUnmodifiableMap(
+                    Map.Entry::getKey,
+                    e -> buildScopeEntitlementsMap(e.getValue(), pluginSyntheticModuleNames.get(e.getKey()))
+                )
+            );
         this.scopeResolver = scopeResolver;
         this.pluginSourcePathsResolver = pluginSourcePathsResolver;
         this.pathLookup = requireNonNull(pathLookup);
@@ -277,8 +283,15 @@ public class PolicyManager {
         this.forbiddenPaths = createForbiddenPaths(pathLookup);
     }
 
-    private static Map<String, List<Entitlement>> buildScopeEntitlementsMap(Policy policy) {
-        return policy.scopes().stream().collect(toUnmodifiableMap(Scope::moduleName, Scope::entitlements));
+    private static Map<String, List<Entitlement>> buildScopeEntitlementsMap(Policy policy, String allUnnamedAlias) {
+        return policy.scopes()
+            .stream()
+            .collect(
+                toUnmodifiableMap(
+                    scope -> (allUnnamedAlias != null && ALL_UNNAMED.equals(scope.moduleName())) ? allUnnamedAlias : scope.moduleName(),
+                    Scope::entitlements
+                )
+            );
     }
 
     private static void validateEntitlementsPerModule(

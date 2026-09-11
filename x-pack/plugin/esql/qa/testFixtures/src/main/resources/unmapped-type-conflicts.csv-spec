@@ -558,6 +558,7 @@ sample_data            | 8268153.0
 typeConflictShortUnmappedCastToInteger
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_partially_unmapped_small_numeric
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM all_types, all_types_no_short METADATA _index
@@ -801,6 +802,7 @@ typeConflictPartiallyUnmappedTextFieldToText
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
 required_capability: fn_to_text
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees_gender_text, employees_no_gender METADATA _index
@@ -825,6 +827,7 @@ required_capability: optional_fields_fix_load_partially_mapped
 required_capability: fn_to_text
 required_capability: fn_match_unmapped_fields_pushdown_fix
 required_capability: match_function
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees_gender_text, employees_no_gender METADATA _index
@@ -850,6 +853,7 @@ required_capability: optional_fields_fix_load_partially_mapped
 required_capability: fn_to_text
 required_capability: fn_match_phrase_runtime_filter
 required_capability: match_phrase_function
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM employees_gender_text, employees_no_gender METADATA _index
@@ -1466,6 +1470,7 @@ all_types_short_as_long | null
 typeConflictShortLongUnmappedCastToInteger
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_partially_unmapped_small_numeric
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM all_types, all_types_short_as_long, all_types_no_short METADATA _index
@@ -3525,6 +3530,7 @@ addresses_text           | North America
 // Cast city.country.continent.name (text, partially unmapped) to keyword via MultiTypeEsField.
 deeplyNestedNonKeywordSubfieldPartiallyUnmappedCastToKeyword
 required_capability: optional_fields_v5
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM addresses_text, addresses_no_continent METADATA _index

@@ -181,7 +181,7 @@ public class ExternalListingCacheHintIT extends AbstractExternalDataSourceIT {
                 + StoragePath.fileUri(b)
                 + "/month=*/**/*"
                 + format.ext;
-            String dataset = registerDataset("comma_" + format.tag, glob, Map.of("hive_partitioning", true));
+            String dataset = registerDataset("comma_" + format.tag, glob, Map.of("partition_detection", "hive"));
             String coordinator = internalCluster().getNodeNames()[0];
 
             long count = count(coordinator, "FROM " + dataset + " | WHERE month == 6 | STATS c = COUNT(*)");
@@ -195,7 +195,7 @@ public class ExternalListingCacheHintIT extends AbstractExternalDataSourceIT {
         // avoids the unrelated first_file_wins + hive-partition virtual-column path.
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/" + partitionKey + "=*/**/*" + format.ext;
-        return registerDataset(name, glob, Map.of("hive_partitioning", true));
+        return registerDataset(name, glob, Map.of("partition_detection", "hive"));
     }
 
     private long count(String coordinator, String query) {

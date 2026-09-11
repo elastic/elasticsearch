@@ -60,7 +60,6 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -2157,9 +2156,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         // Match the version gating in IgnoredSourceFieldMapper#ignoredSourceFormat so the mapper actually writes the DOC_VALUES format the
         // reader below is wrapped with.
-        IndexVersion docValuesFormatVersion = Build.current().isSnapshot()
-            ? IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES
-            : IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF;
+        IndexVersion docValuesFormatVersion = IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF;
 
         final DocumentMapper mapper = createMapperService(docValuesFormatVersion, settings, mapping(b -> {
             b.startObject("user").field("type", "keyword").field("copy_to", "catch_all").endObject();

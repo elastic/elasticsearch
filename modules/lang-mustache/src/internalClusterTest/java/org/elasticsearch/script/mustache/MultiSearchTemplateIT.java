@@ -20,7 +20,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -267,13 +266,10 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
 
     /**
      * Verifies end-to-end wiring of {@link MultiSearchTemplateResponse#mergeDirectoryMetrics()} through
-     * {@code wrapWithSearchMetricsHeader} in the REST action: when directory metrics are enabled (via
-     * {@link Store#DIRECTORY_METRICS_FEATURE_FLAG}), a real {@code _msearch/template} search emits exactly
+     * {@code wrapWithSearchMetricsHeader} in the REST action: a real {@code _msearch/template} search emits exactly
      * one {@code X-Elasticsearch-Search-Metrics} response header.
      */
     public void testSearchMetricsResponseHeader() throws Exception {
-        assumeTrue("directory metrics feature flag must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
-
         createIndex("hdr-test");
         prepareIndex("hdr-test").setId("1").setSource("field", "value").get();
         refresh("hdr-test");

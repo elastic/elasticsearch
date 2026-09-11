@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.injection.guice.Inject;
@@ -318,7 +319,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         }
         for (Index index : dataStream.selectTimeSeriesWriteIndices(timestamps, projectMetadata)) {
             IndexMetadata im = projectMetadata.getIndexSafe(index);
-            if (im.getTimeSeriesDimensions().isEmpty() || BatchIndexingEnabled.INDEX_BATCH_INDEXING.get(im.getSettings()) == false) {
+            if (im.getTimeSeriesDimensions().isEmpty() || IndexSettings.TIME_SERIES_BATCH_INDEXING.get(im.getSettings()) == false) {
                 return false;
             }
         }

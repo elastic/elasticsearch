@@ -1,11 +1,11 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
- */
+* Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+* or more contributor license agreements. Licensed under the "Elastic License
+* 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+* Public License v 1"; you may not use this file except in compliance with, at
+* your election, the "Elastic License 2.0", the "GNU Affero General Public
+* License v3.0 only", or the "Server Side Public License, v 1".
+*/
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
@@ -688,6 +688,19 @@ public final class IndexSettings {
         true,
         Property.IndexScope,
         Property.Final
+    );
+
+    /**
+     * Per-index opt-in for batch indexing. When set to {@code true} on a TSDB backing index,
+     * the OTLP metrics ingest path may write documents as an {@link org.elasticsearch.escf.EscfBatch}
+     * rather than individual XContent blobs, provided the cluster-level {@code indices.batch_indexing}
+     * setting and its feature flag are also active.
+     */
+    public static final Setting<Boolean> TIME_SERIES_BATCH_INDEXING = Setting.boolSetting(
+        "index.time_series.batch_indexing",
+        false,
+        Property.Final,
+        Property.IndexScope
     );
 
     /**

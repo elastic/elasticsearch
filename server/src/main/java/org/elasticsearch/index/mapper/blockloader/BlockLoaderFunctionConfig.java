@@ -60,6 +60,42 @@ public interface BlockLoaderFunctionConfig {
         }
     }
 
+    /**
+     * Encodes a decoded {@code geo_point}, given as {@code (x, y)} i.e. longitude then latitude, into a geo-grid cell id.
+     * Implementations are supplied by the caller
+     * (ES|QL) because the grid libraries, in particular H3 for {@code geohex}, are not all available to the
+     * server module. Implementations must be stateless so that two configs with the same
+     * {@link GeoGrid#function()} and {@link GeoGrid#precision()} are interchangeable.
+     */
+    @FunctionalInterface
+    interface GeoGridEncoder {
+        long encode(double longitude, double latitude);
+    }
+
+    /**
+     * Configuration for loading {@code geo_point} doc values directly as geo-grid cell ids
+     * ({@code ST_GEOHASH}, {@code ST_GEOTILE} or {@code ST_GEOHEX}). Equality deliberately ignores the
+     * {@link #encoder()}: the encoder is fully determined by {@code function} and {@code precision}.
+     */
+    record GeoGrid(Function function, int precision, GeoGridEncoder encoder) implements BlockLoaderFunctionConfig {
+        public GeoGrid {
+            if (function != Function.ST_GEOHASH && function != Function.ST_GEOTILE && function != Function.ST_GEOHEX) {
+                throw new IllegalArgumentException("not a geo-grid function [" + function + "]");
+            }
+        }
+
+        @Override
+        public int hashCode() {
+            // Enum hashCode is identity based; use the name so the hash is stable across JVMs (it ends up in attribute names).
+            return 31 * function.name().hashCode() + precision;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof GeoGrid other && function == other.function && precision == other.precision;
+        }
+    }
+
     enum Function {
         AMD_COUNT,
         AMD_DEFAULT,
@@ -71,6 +107,9 @@ public interface BlockLoaderFunctionConfig {
         MV_MIN,
         LENGTH,
         ROUND_TO,
+        ST_GEOHASH,
+        ST_GEOTILE,
+        ST_GEOHEX,
         V_COSINE,
         V_DOT_PRODUCT,
         V_HAMMING,

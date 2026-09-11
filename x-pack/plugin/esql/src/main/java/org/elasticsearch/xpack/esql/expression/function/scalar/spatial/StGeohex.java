@@ -29,6 +29,7 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.common.spatial.H3CartesianUtil;
@@ -126,6 +127,18 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
             );
         }
         return precision;
+    }
+
+    @Override
+    protected BlockLoaderFunctionConfig.GeoGrid blockLoaderConfig(int precision) {
+        if (precision < 0 || precision > H3.MAX_H3_RES) {
+            return null;
+        }
+        return new BlockLoaderFunctionConfig.GeoGrid(
+            BlockLoaderFunctionConfig.Function.ST_GEOHEX,
+            precision,
+            (lon, lat) -> H3.geoToH3(lat, lon, precision)
+        );
     }
 
     @FunctionInfo(

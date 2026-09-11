@@ -24,6 +24,7 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -122,6 +123,18 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
             );
         }
         return precision;
+    }
+
+    @Override
+    protected BlockLoaderFunctionConfig.GeoGrid blockLoaderConfig(int precision) {
+        if (precision < 1 || precision > Geohash.PRECISION) {
+            return null;
+        }
+        return new BlockLoaderFunctionConfig.GeoGrid(
+            BlockLoaderFunctionConfig.Function.ST_GEOHASH,
+            precision,
+            (lon, lat) -> Geohash.longEncode(lon, lat, precision)
+        );
     }
 
     @FunctionInfo(

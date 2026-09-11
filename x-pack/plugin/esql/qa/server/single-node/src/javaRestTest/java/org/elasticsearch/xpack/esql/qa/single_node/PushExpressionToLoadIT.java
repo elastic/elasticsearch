@@ -15,8 +15,11 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -61,6 +64,8 @@ import static org.hamcrest.Matchers.startsWith;
 public class PushExpressionToLoadIT extends ESRestTestCase {
 
     private static final Settings DISABLE_ROUNDTO_QUERY_TAGS = Settings.builder().put("roundto_pushdown_threshold", 0).build();
+    private static final double GEO_GRID_LAT = 52.52;
+    private static final double GEO_GRID_LON = 13.405;
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
@@ -739,6 +744,80 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesList().item(100),
             matchesMap().entry("test:column_at_a_time:RoundToLongsFromDocValues.Singleton", 1),
             DISABLE_ROUNDTO_QUERY_TAGS
+        );
+    }
+
+    /**
+     * Tests that {@code ST_GEOHASH} on a {@code geo_point} field is fused into the field load via
+     * {@code GeoGridFromDocValues}, so the point is never materialised: only the cell id is loaded.
+     * The cell is converted to a string in the query only because the shared {@code MV_SORT(VALUES(..))}
+     * wrapper of {@link #test} does not accept grid types; the fusion happens inside {@code TO_STRING}.
+     */
+    public void testStGeohashToGeoPoint() throws IOException {
+        test(
+            justType("geo_point"),
+            b -> b.field("test", GEO_GRID_LAT + "," + GEO_GRID_LON),
+            "| EVAL test = TO_STRING(ST_GEOHASH(test, 4))",
+            matchesList().item(Geohash.stringEncode(GEO_GRID_LON, GEO_GRID_LAT, 4)),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromDocValues.Singleton", 1)
+        );
+    }
+
+    /**
+     * Like {@link #testStGeohashToGeoPoint} but for {@code ST_GEOTILE}.
+     */
+    public void testStGeotileToGeoPoint() throws IOException {
+        test(
+            justType("geo_point"),
+            b -> b.field("test", GEO_GRID_LAT + "," + GEO_GRID_LON),
+            "| EVAL test = TO_STRING(ST_GEOTILE(test, 4))",
+            matchesList().item(GeoTileUtils.stringEncode(GeoTileUtils.longEncode(GEO_GRID_LON, GEO_GRID_LAT, 4))),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromDocValues.Singleton", 1)
+        );
+    }
+
+    /**
+     * Like {@link #testStGeohashToGeoPoint} but for {@code ST_GEOHEX}.
+     */
+    public void testStGeohexToGeoPoint() throws IOException {
+        test(
+            justType("geo_point"),
+            b -> b.field("test", GEO_GRID_LAT + "," + GEO_GRID_LON),
+            "| EVAL test = TO_STRING(ST_GEOHEX(test, 4))",
+            matchesList().item(H3.geoToH3Address(GEO_GRID_LAT, GEO_GRID_LON, 4)),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromDocValues.Singleton", 1)
+        );
+    }
+
+    /**
+     * Multi-valued points produce one cell per point, so the {@code Sorted} reader is used.
+     */
+    public void testStGeohashToMultiValuedGeoPoint() throws IOException {
+        test(
+            justType("geo_point"),
+            b -> b.array("test", GEO_GRID_LAT + "," + GEO_GRID_LON, (-GEO_GRID_LAT) + "," + (-GEO_GRID_LON)),
+            "| EVAL test = TO_STRING(ST_GEOHASH(test, 4))",
+            matchesList().item(
+                java.util.stream.Stream.of(
+                    Geohash.stringEncode(GEO_GRID_LON, GEO_GRID_LAT, 4),
+                    Geohash.stringEncode(-GEO_GRID_LON, -GEO_GRID_LAT, 4)
+                ).sorted().toList()
+            ),
+            matchesMap().entry("test:column_at_a_time:GeoGridFromDocValues.Sorted", 1)
+        );
+    }
+
+    /**
+     * A bounded grid is not fused: the bounds filter is only implemented in the evaluator, so the point is loaded from
+     * doc values and the cell computed in {@code EvalOperator} as before.
+     */
+    public void testBoundedStGeohashNotPushed() throws IOException {
+        test(
+            justType("geo_point"),
+            b -> b.field("test", GEO_GRID_LAT + "," + GEO_GRID_LON),
+            "| EVAL test = TO_STRING(ST_GEOHASH(test, 4, TO_GEOSHAPE(\"BBOX(-180, 180, 90, -90)\")))",
+            matchesList().item(Geohash.stringEncode(GEO_GRID_LON, GEO_GRID_LAT, 4)),
+            matchesMap().entry("test:column_at_a_time:LongsFromDocValues.Singleton", 1)
         );
     }
 

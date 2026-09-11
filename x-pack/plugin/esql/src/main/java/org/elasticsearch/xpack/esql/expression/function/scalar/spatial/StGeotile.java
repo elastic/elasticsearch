@@ -26,6 +26,7 @@ import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
@@ -120,6 +121,18 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
         point.getY(),
         checkPrecisionRange(precision)
     );
+
+    @Override
+    protected BlockLoaderFunctionConfig.GeoGrid blockLoaderConfig(int precision) {
+        if (precision < 0 || precision > GeoTileUtils.MAX_ZOOM) {
+            return null;
+        }
+        return new BlockLoaderFunctionConfig.GeoGrid(
+            BlockLoaderFunctionConfig.Function.ST_GEOTILE,
+            precision,
+            (lon, lat) -> GeoTileUtils.longEncode(lon, lat, precision)
+        );
+    }
 
     @FunctionInfo(
         returnType = "geotile",

@@ -20,13 +20,18 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,12 +52,21 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
  * Spatial functions that take one spatial argument, one parameter and one optional bounds can inherit from this class.
  * Obvious choices are: StGeohash, StGeotile and StGeohex.
  */
-public abstract class SpatialGridFunction extends SpatialDocValuesFunction implements OptionalArgument, LicenseAware {
+public abstract class SpatialGridFunction extends SpatialDocValuesFunction
+    implements
+        OptionalArgument,
+        LicenseAware,
+        BlockLoaderExpression {
     /**
      * Maximum number of grid cells that a single geo_shape value may intersect. When a shape intersects more
      * cells than this limit the result is silently truncated to a partial list; the evaluator additionally
      * emits an ES|QL warning so the user knows the output is incomplete. Mirrors the
      * 10 000-document convention used elsewhere in Elasticsearch to give operators a familiar threshold.
+     * <p>
+     * For {@code geo_point} fields with doc values the function is fused into field loading, see
+     * {@link #tryPushToFieldLoading}, so the point is never materialised and any {@code STATS} on top runs on
+     * the loaded cell ids directly.
+     * </p>
      * <p>
      * TODO: for the common pattern {@code BY ST_GEOHEX(shape, precision)} the query planner could rewrite
      *       the scalar function to a dedicated geo-grid aggregator (like the spatial plugin's
@@ -209,6 +223,35 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction imple
     public Expression bounds() {
         return bounds;
     }
+
+    /**
+     * Fuses this function into the loading of a {@code geo_point} field so the cell id is computed straight from the
+     * encoded doc value and the point itself is never materialised as a block. See {@link BlockLoaderExpression} for the
+     * general mechanism. Only unbounded grids over a mapped {@code geo_point} field with doc values and a constant, in-range
+     * precision qualify. {@code geo_shape} needs cell intersection rather than point-in-cell and keeps using the evaluator,
+     * as do bounded grids, whose filtering would otherwise have to be replicated in the loader.
+     */
+    @Override
+    public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        if (bounds == null
+            && spatialField instanceof FieldAttribute field
+            && field.dataType() == GEO_POINT
+            && parameter instanceof Literal literal
+            && literal.value() instanceof Integer precision
+            && stats.hasDocValues(field.fieldName())) {
+            BlockLoaderFunctionConfig.GeoGrid config = blockLoaderConfig(precision);
+            if (config != null) {
+                return new PushedBlockLoaderExpression(field, config);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The block loader configuration for this grid type at the given precision, or {@code null} if the precision is out of
+     * range, in which case the evaluator is left to report the error.
+     */
+    protected abstract BlockLoaderFunctionConfig.GeoGrid blockLoaderConfig(int precision);
 
     @Override
     public boolean foldable() {

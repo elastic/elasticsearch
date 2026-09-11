@@ -72,13 +72,6 @@ public class CompositeRecoverySchedulingListener implements RecoverySchedulingLi
     }
 
     @Override
-    public void onPeerRecoveryStartedOnSource() {
-        for (RecoverySchedulingListener listener : listeners) {
-            listener.onPeerRecoveryStartedOnSource();
-        }
-    }
-
-    @Override
     public void onRecoveryDequeuedAndStartedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
         for (RecoverySchedulingListener listener : listeners) {
             listener.onRecoveryDequeuedAndStartedOnTarget(type, priorityGroup);

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -351,6 +352,13 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
                     // silently skipped here; explicitly targeted fields are already rejected by postAnalysisVerification.
                     return null;
                 }
+                // RATIONAL_TO_INT rounds (Math.round) rather than throwing, so 2.7 into an integer column would silently
+                // fill with 3. COALESCE rejects the same pair outright, so treat a lossy conversion as not fillable.
+                if (converted instanceof Number convertedNumber
+                    && lit.value() instanceof Number originalNumber
+                    && convertedNumber.doubleValue() != originalNumber.doubleValue()) {
+                    return null;
+                }
                 return new Literal(lit.source(), converted, literalType);
             }
 
@@ -361,9 +369,10 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
                 Object converted;
                 try {
                     converted = castStringLiteral(lit.value(), literalType, configuration);
-                } catch (Exception e) {
-                    // Unparsable value for the target type (e.g. "not-a-date" into datetime). All-fields targets are
-                    // silently skipped here; explicitly targeted fields are rejected by postAnalysisVerification.
+                } catch (IllegalArgumentException | InvalidArgumentException e) {
+                    // Unparsable or out-of-range for the target type ("not-a-date" into datetime; a pre-1970 instant into
+                    // date_nanos, which DateUtils.toLong rejects with IllegalArgumentException). Narrow on purpose: a bug in
+                    // a converter must surface rather than be reported as "not fillable".
                     return null;
                 }
                 return new Literal(lit.source(), converted, literalType);
@@ -422,6 +431,10 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
         }
         if (type == DataType.LONG) {
             return new Literal(Source.EMPTY, 0L, DataType.LONG);
+        }
+        if (type == DataType.UNSIGNED_LONG) {
+            // Held as the unsigned-long encoding of 0, matching how UL literals are represented elsewhere.
+            return new Literal(Source.EMPTY, NumericUtils.ZERO_AS_UNSIGNED_LONG, DataType.UNSIGNED_LONG);
         }
         if (type == DataType.DOUBLE) {
             return new Literal(Source.EMPTY, 0.0, DataType.DOUBLE);

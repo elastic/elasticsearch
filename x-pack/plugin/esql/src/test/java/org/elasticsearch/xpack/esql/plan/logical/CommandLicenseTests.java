@@ -128,7 +128,10 @@ public class CommandLicenseTests extends ESTestCase {
             "Join",
             "LookupJoin",
             "Mmr",
-            "MMR"
+            "MMR",
+            // visitFillnullCommand yields "Fillnull"; the class is FillNull.
+            "Fillnull",
+            "FillNull"
         );
         Map<String, String> commandNameMapper = Map.of(
             "ChangePoint",
@@ -180,7 +183,19 @@ public class CommandLicenseTests extends ESTestCase {
                         log.info("Class " + className + " does NOT extend LogicalPlan.");
                     }
                 } catch (ClassNotFoundException e) {
+                    // No such class at all - the visitor method has no plan class (e.g. a parser-only construct).
                     log.info("Class " + className + " not found.");
+                } catch (NoClassDefFoundError e) {
+                    // The class file exists but its name differs only by case, so commandClassNameMapper is missing an
+                    // entry. Only a case-insensitive filesystem gets here; elsewhere it is a ClassNotFoundException and
+                    // the command is silently skipped. Always a bug, so fail on the platform that can see it.
+                    throw new AssertionError(
+                        "["
+                            + className
+                            + "] resolves to a differently-cased class; add a commandClassNameMapper entry for it. "
+                            + e.getMessage(),
+                        e
+                    );
                 }
             }
         }

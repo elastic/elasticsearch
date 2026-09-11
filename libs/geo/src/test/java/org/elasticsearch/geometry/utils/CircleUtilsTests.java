@@ -140,4 +140,12 @@ public class CircleUtilsTests extends ESTestCase {
         }
     }
 
+    /**
+     * Deliberately flaky, for the flakiness-detection CI drive only. Fails on roughly one randomized seed in
+     * three, so the drive is guaranteed to produce a `flaky_detected` outcome instead of leaving the pipeline's
+     * most important verdict untested. Drop this commit to get a clean drive.
+     */
+    public void testDeliberatelyFlakyForCiDrive() {
+        assertTrue("deliberately flaky: flakiness-detection CI drive", randomIntBetween(1, 3) > 1);
+    }
 }

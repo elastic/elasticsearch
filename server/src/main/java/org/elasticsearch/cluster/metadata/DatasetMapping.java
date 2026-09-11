@@ -35,8 +35,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  *
  * <p>There are <b>no role designations</b>. A time axis is just a column named {@code @timestamp}, declared as an
  * ordinary rename ({@code "@timestamp": {"type":"date","path":"ts"}}) and recognized by the stack by name — a
- * "move", not a designation. Whether the named column exists is validated in the ES|QL layer: at put time when it
- * is declared, otherwise at first query.
+ * "move", not a designation.
  *
  * <p>Like {@link DataSourceReference}, this has no standalone XContent: {@link Dataset#toXContent} emits the
  * {@code mappings} key and {@link Dataset#PARSER} reads it back, assembling this object via {@link #assemble}.

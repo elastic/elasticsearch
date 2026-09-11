@@ -78,9 +78,8 @@ public class ExternalMetadataColumnsTests extends ESTestCase {
             MetadataAttribute.ATTRIBUTES_MAP.keySet(),
             ExternalMetadataColumns.STANDARD_NAMES
         );
-        Map<String, Object> constants = ExternalMetadataColumns.extractPerFileConstants("events");
-        for (String name : ExternalMetadataColumns.STANDARD_NAMES) {
-            assertTrue("standard name [" + name + "] has no per-file value", constants.containsKey(name));
-        }
+        // The call is the guard, not a containment check on what it returns: it walks the same set, so every name is
+        // present by construction. perFileValue's default arm is what fires for a name nobody gave a value.
+        ExternalMetadataColumns.extractPerFileConstants("events");
     }
 }

@@ -3098,7 +3098,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null
+                ExternalReadCounters.NOOP
             )
         );
     }
@@ -3128,7 +3128,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null
+                ExternalReadCounters.NOOP
             );
             assertNotNull(iterator);
             iterator.close();
@@ -3171,7 +3171,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null
+                ExternalReadCounters.NOOP
             );
             assertNotNull(iterator);
             try {
@@ -3227,7 +3227,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null
+                ExternalReadCounters.NOOP
             )
         );
         assertEquals("decompress failed", thrown.getMessage());
@@ -3309,7 +3309,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null
+                ExternalReadCounters.NOOP
             )
         );
         assertEquals("simulated parallelRead construction failure", thrown.getMessage());
@@ -3341,7 +3341,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null
+                ExternalReadCounters.NOOP
             );
             assertNotNull(iterator);
             iterator.close();
@@ -3394,7 +3394,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null
+                ExternalReadCounters.NOOP
             )
         );
         assertTrue(

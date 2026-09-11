@@ -26,7 +26,11 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -743,6 +747,349 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         }
     }
 
+    // --- skip_row reconciliation-cast tests ---
+
+    /**
+     * Under {@code error_mode: skip_row}, a DATETIME→DATE_NANOS cast failure (year-3000 value beyond
+     * the nanosecond epoch) must drop the whole row rather than null-filling the cell.
+     */
+    public void testSkipRowDropsRowWithFailedReconciliationCast() {
+        List<Attribute> schema = List.of(attr("ts", DataType.DATE_NANOS));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
+        long year3000Millis = 32_503_680_000_000L;
+        LongBlock tsBlock = blockFactory.newConstantLongBlockWith(year3000Millis, 1);
+        Page inputPage = new Page(1, new Block[] { tsBlock });
+
+        ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, false);
+        ColumnarRowDropHelper dropHelper = ColumnarRowDropHelper.forPolicy(skipRow, "test.parquet");
+        List<String> warnings = new ArrayList<>();
+
+        try (
+            SchemaAdaptingIterator iter = new SchemaAdaptingIterator(
+                singlePageIterator(inputPage),
+                schema,
+                mapping,
+                blockFactory,
+                -1,
+                new DataType[] { DataType.DATETIME },
+                warnings::add,
+                dropHelper
+            )
+        ) {
+            Page result = iter.next();
+            try {
+                assertThat("failed cast row must be dropped", result.getPositionCount(), equalTo(0));
+            } finally {
+                result.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * Under {@code error_mode: skip_row}, a successful reconciliation cast keeps the row intact.
+     */
+    public void testSkipRowKeepsRowsWithSuccessfulCast() {
+        List<Attribute> schema = List.of(attr("val", DataType.LONG));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.LONG });
+        IntBlock intBlock = blockFactory.newConstantIntBlockWith(42, 3);
+        Page inputPage = new Page(3, new Block[] { intBlock });
+
+        ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, false);
+        ColumnarRowDropHelper dropHelper = ColumnarRowDropHelper.forPolicy(skipRow, "test.parquet");
+
+        try (
+            SchemaAdaptingIterator iter = new SchemaAdaptingIterator(
+                singlePageIterator(inputPage),
+                schema,
+                mapping,
+                blockFactory,
+                -1,
+                null,
+                null,
+                dropHelper
+            )
+        ) {
+            Page result = iter.next();
+            try {
+                assertThat(result.getPositionCount(), equalTo(3));
+                LongBlock longBlock = result.getBlock(0);
+                assertThat(longBlock.getLong(0), equalTo(42L));
+            } finally {
+                result.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * Under {@code error_mode: skip_row}, only positions with cast failures are dropped; rows with
+     * successful casts survive.
+     */
+    public void testSkipRowDropsOnlyFailedRows() {
+        List<Attribute> schema = List.of(attr("ts", DataType.DATE_NANOS));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
+
+        long goodMillis = 1_711_800_000_000L; // a date well before 2262
+        long year3000Millis = 32_503_680_000_000L; // beyond DATE_NANOS range
+
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(3)) {
+            builder.appendLong(goodMillis);
+            builder.appendLong(year3000Millis);
+            builder.appendLong(goodMillis);
+            LongBlock tsBlock = builder.build();
+            Page inputPage = new Page(3, new Block[] { tsBlock });
+
+            ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, false);
+            ColumnarRowDropHelper dropHelper = ColumnarRowDropHelper.forPolicy(skipRow, "test.parquet");
+            List<String> warnings = new ArrayList<>();
+
+            try (
+                SchemaAdaptingIterator iter = new SchemaAdaptingIterator(
+                    singlePageIterator(inputPage),
+                    schema,
+                    mapping,
+                    blockFactory,
+                    -1,
+                    new DataType[] { DataType.DATETIME },
+                    warnings::add,
+                    dropHelper
+                )
+            ) {
+                Page result = iter.next();
+                try {
+                    assertThat("only one row should be dropped", result.getPositionCount(), equalTo(2));
+                    LongBlock nanosBlock = result.getBlock(0);
+                    assertFalse("surviving rows must not be null", nanosBlock.isNull(0));
+                    assertFalse("surviving rows must not be null", nanosBlock.isNull(1));
+                } finally {
+                    result.releaseBlocks();
+                }
+            }
+        }
+    }
+
+    /**
+     * Under {@code error_mode: skip_row}, exceeding the {@code max_errors} budget throws a
+     * {@link ParsingException}.
+     */
+    public void testSkipRowRespectsMaxErrors() {
+        List<Attribute> schema = List.of(attr("ts", DataType.DATE_NANOS));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
+        long year3000Millis = 32_503_680_000_000L;
+
+        // Build a page with 2 failing rows; set max_errors=1 so the second one trips the budget.
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(2)) {
+            builder.appendLong(year3000Millis);
+            builder.appendLong(year3000Millis);
+            LongBlock tsBlock = builder.build();
+            Page inputPage = new Page(2, new Block[] { tsBlock });
+
+            ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 1L, 0.0, false);
+            ColumnarRowDropHelper dropHelper = ColumnarRowDropHelper.forPolicy(skipRow, "test.parquet");
+            List<String> warnings = new ArrayList<>();
+
+            try (
+                SchemaAdaptingIterator iter = new SchemaAdaptingIterator(
+                    singlePageIterator(inputPage),
+                    schema,
+                    mapping,
+                    blockFactory,
+                    -1,
+                    new DataType[] { DataType.DATETIME },
+                    warnings::add,
+                    dropHelper
+                )
+            ) {
+                expectThrows(ParsingException.class, iter::next);
+            }
+        }
+    }
+
+    /**
+     * Errors accumulated across multiple pages must be summed correctly: a budget of N must be tripped
+     * when the cumulative error count exceeds N, even if each individual page stays within N.
+     */
+    public void testSkipRowBudgetAccumulatesAcrossPages() {
+        List<Attribute> schema = List.of(attr("ts", DataType.DATE_NANOS));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
+        long goodMillis = 1_711_800_000_000L;
+        long year3000Millis = 32_503_680_000_000L;
+
+        // Page 1: one failing row (cumulative errors = 1, within budget of 1).
+        LongBlock page1Block = blockFactory.newConstantLongBlockWith(year3000Millis, 1);
+        // Page 2: one more failing row (cumulative errors = 2, exceeds budget of 1).
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(2)) {
+            builder.appendLong(goodMillis);
+            builder.appendLong(year3000Millis);
+            LongBlock page2Block = builder.build();
+
+            Page page1 = new Page(1, new Block[] { page1Block });
+            Page page2 = new Page(2, new Block[] { page2Block });
+
+            ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 1L, 0.0, false);
+            ColumnarRowDropHelper dropHelper = ColumnarRowDropHelper.forPolicy(skipRow, "test.parquet");
+            List<String> warnings = new ArrayList<>();
+
+            try (
+                SchemaAdaptingIterator iter = new SchemaAdaptingIterator(
+                    pagesIterator(page1, page2),
+                    schema,
+                    mapping,
+                    blockFactory,
+                    -1,
+                    new DataType[] { DataType.DATETIME },
+                    warnings::add,
+                    dropHelper
+                )
+            ) {
+                // First page: 1 error consumed; budget allows exactly 1, so this returns normally.
+                Page result1 = iter.next();
+                try {
+                    assertThat(result1.getPositionCount(), equalTo(0));
+                } finally {
+                    result1.releaseBlocks();
+                }
+                // Second page: 1 more error pushes cumulative total to 2, which exceeds max_errors=1.
+                expectThrows(ParsingException.class, iter::next);
+            }
+        }
+    }
+
+    /**
+     * Reader drops and adapter reconciliation-cast drops must be counted against the same budget
+     * when a {@link SharedErrorBudget} is shared. Pre-charge 1 reader error into the budget;
+     * then drive a single adapter error to push the combined total past max_errors=1.
+     */
+    public void testSkipRowSharedBudgetCoversAdapterDrops() {
+        List<Attribute> schema = List.of(attr("ts", DataType.DATE_NANOS));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
+        long year3000Millis = 32_503_680_000_000L;
+
+        ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 1L, 0.0, false);
+        SharedErrorBudget budget = SharedErrorBudget.forPolicy(skipRow, "test.parquet");
+        assertNotNull("forPolicy must return a budget for SKIP_ROW", budget);
+
+        // Pre-charge 1 reader row + 1 reader error (simulates one reader-side drop).
+        budget.addReaderBatch(1, 1);
+
+        // Adapter helper shares the same budget (adapter mode: does not add row count).
+        ColumnarRowDropHelper adapterHelper = ColumnarRowDropHelper.forSharedBudget(budget);
+
+        LongBlock tsBlock = blockFactory.newConstantLongBlockWith(year3000Millis, 1);
+        Page inputPage = new Page(1, new Block[] { tsBlock });
+        List<String> warnings = new ArrayList<>();
+
+        try (
+            SchemaAdaptingIterator iter = new SchemaAdaptingIterator(
+                singlePageIterator(inputPage),
+                schema,
+                mapping,
+                blockFactory,
+                -1,
+                new DataType[] { DataType.DATETIME },
+                warnings::add,
+                adapterHelper
+            )
+        ) {
+            // The adapter drop (1 error) + the pre-charged reader drop (1 error) = 2 > max_errors=1.
+            expectThrows(ParsingException.class, iter::next);
+        }
+    }
+
+    /**
+     * Under {@code error_mode: null_field}, a failed reconciliation cast still null-fills the cell
+     * and keeps the row (unchanged behavior — not affected by this fix).
+     */
+    public void testNullFieldStillNullFillsReconciliationCast() {
+        List<Attribute> schema = List.of(attr("ts", DataType.DATE_NANOS));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
+        long year3000Millis = 32_503_680_000_000L;
+        LongBlock tsBlock = blockFactory.newConstantLongBlockWith(year3000Millis, 1);
+        Page inputPage = new Page(1, new Block[] { tsBlock });
+
+        // NULL_FIELD: no drop helper — null is the correct value to pass (forPolicy returns null for non-SKIP_ROW)
+        List<String> warnings = new ArrayList<>();
+        try (
+            SchemaAdaptingIterator iter = new SchemaAdaptingIterator(
+                singlePageIterator(inputPage),
+                schema,
+                mapping,
+                blockFactory,
+                -1,
+                new DataType[] { DataType.DATETIME },
+                warnings::add,
+                null
+            )
+        ) {
+            Page result = iter.next();
+            try {
+                assertThat("row must survive with null cell under null_field", result.getPositionCount(), equalTo(1));
+                assertTrue("failing cell must be null-filled", result.getBlock(0).isNull(0));
+            } finally {
+                result.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * Under {@code error_mode: skip_row}, when a row-position channel is wired
+     * ({@code rowPositionInputIndex >= 0}), the row-position block must be filtered alongside
+     * the schema blocks so its position count stays consistent with the rest of the page.
+     */
+    public void testSkipRowWithRowPositionChannelFiltersRowPositionToo() {
+        // Schema has one column; the file page carries [tsBlock, rowPosBlock] where rowPos is at index 1.
+        List<Attribute> schema = List.of(attr("ts", DataType.DATE_NANOS));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
+
+        long goodMillis = 1_711_800_000_000L;
+        long year3000Millis = 32_503_680_000_000L;
+
+        try (LongBlock.Builder tsBuilder = blockFactory.newLongBlockBuilder(3)) {
+            tsBuilder.appendLong(goodMillis);
+            tsBuilder.appendLong(year3000Millis);
+            tsBuilder.appendLong(goodMillis);
+            LongBlock tsBlock = tsBuilder.build();
+
+            try (LongBlock.Builder posBuilder = blockFactory.newLongBlockBuilder(3)) {
+                posBuilder.appendLong(0L);
+                posBuilder.appendLong(1L);
+                posBuilder.appendLong(2L);
+                LongBlock rowPosBlock = posBuilder.build();
+
+                // rowPositionInputIndex=1: row-position is at slot 1 in the file page
+                Page inputPage = new Page(3, new Block[] { tsBlock, rowPosBlock });
+
+                ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, false);
+                ColumnarRowDropHelper dropHelper = ColumnarRowDropHelper.forPolicy(skipRow, "test.parquet");
+                List<String> warnings = new ArrayList<>();
+
+                try (
+                    SchemaAdaptingIterator iter = new SchemaAdaptingIterator(
+                        singlePageIterator(inputPage),
+                        schema,
+                        mapping,
+                        blockFactory,
+                        1,
+                        new DataType[] { DataType.DATETIME },
+                        warnings::add,
+                        dropHelper
+                    )
+                ) {
+                    Page result = iter.next();
+                    try {
+                        assertThat("one failed row must be dropped", result.getPositionCount(), equalTo(2));
+                        // schema block (index 0) — nanosecond values for the two surviving rows
+                        assertFalse(result.getBlock(0).isNull(0));
+                        assertFalse(result.getBlock(0).isNull(1));
+                        // row-position block (index 1) — must also have been filtered to 2 positions
+                        assertThat(result.getBlock(1).getPositionCount(), equalTo(2));
+                    } finally {
+                        result.releaseBlocks();
+                    }
+                }
+            }
+        }
+    }
+
     @SuppressWarnings("AssertWithSideEffects")
     private static boolean assertionsEnabled() {
         boolean enabled = false;
@@ -752,6 +1099,28 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
 
     private static Attribute attr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, null, name, type);
+    }
+
+    private static CloseableIterator<Page> pagesIterator(Page... pages) {
+        return new CloseableIterator<>() {
+            private int index = 0;
+
+            @Override
+            public boolean hasNext() {
+                return index < pages.length;
+            }
+
+            @Override
+            public Page next() {
+                if (index >= pages.length) {
+                    throw new NoSuchElementException();
+                }
+                return pages[index++];
+            }
+
+            @Override
+            public void close() {}
+        };
     }
 
     private static CloseableIterator<Page> singlePageIterator(Page page) {

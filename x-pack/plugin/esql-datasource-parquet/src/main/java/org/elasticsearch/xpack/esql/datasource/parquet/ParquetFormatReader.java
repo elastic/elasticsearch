@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrate
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -1738,7 +1739,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 null,
                 filter -> openParquetFileCached(object, parquetInputFile, readOptionsBuilder().withRecordFilter(filter).build()),
                 resolveErrorPolicy(context.errorPolicy()),
-                context.informationalWarningSink()
+                context.informationalWarningSink(),
+                context.sharedErrorBudget()
             );
         } finally {
             // This covers only the synchronous open/setup phase (footer, row-group filtering,
@@ -2162,7 +2164,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     filterBlocksByRange(fullFooter, rangeStart, rangeEnd)
                 ),
                 resolveErrorPolicy(context.errorPolicy()),
-                context.informationalWarningSink()
+                context.informationalWarningSink(),
+                context.sharedErrorBudget()
             );
         } finally {
             if (startCpuNanos >= 0) {
@@ -2226,7 +2229,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         long[] rangeBlockGlobalOffsets,
         FilteredReopener reopener,
         ErrorPolicy errorPolicy,
-        @Nullable Consumer<String> warningSink
+        @Nullable Consumer<String> warningSink,
+        @Nullable SharedErrorBudget sharedErrorBudget
     ) throws IOException {
         counters.setLateMaterializationEnabled(true);
         try {
@@ -2295,7 +2299,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     rangeBlockGlobalOffsets,
                     fullFooter,
                     errorPolicy,
-                    warningSink
+                    warningSink,
+                    sharedErrorBudget
                 );
             }
             return new ParquetColumnIterator(
@@ -2313,7 +2318,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 declaredDateFormats,
                 declaredTypeColumns,
                 errorPolicy,
-                warningSink
+                warningSink,
+                sharedErrorBudget
             );
         } catch (Throwable t) {
             reader.close();
@@ -2335,7 +2341,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         long[] rowGroupFirstRowGlobalOverride,
         ParquetMetadata fullFooter,
         ErrorPolicy errorPolicy,
-        @Nullable Consumer<String> warningSink
+        @Nullable Consumer<String> warningSink,
+        @Nullable SharedErrorBudget sharedErrorBudget
     ) {
         if (inputFile instanceof ParquetStorageObjectAdapter == false) {
             throw new ElasticsearchException(
@@ -2504,7 +2511,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 resolveDynamicThresholdColumn(fileSchema, dynamicThreshold),
                 counters,
                 errorPolicy,
-                warningSink
+                warningSink,
+                sharedErrorBudget
             );
             // Constructor succeeded — iterator now owns preloadedMetadata. Set the flag after
             // construction so that a throw inside the constructor does not suppress cleanup.
@@ -3553,12 +3561,21 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             Map<String, String> declaredDateFormats,
             Set<String> declaredTypeColumns,
             ErrorPolicy errorPolicy,
-            @Nullable Consumer<String> warningSink
+            @Nullable Consumer<String> warningSink,
+            @Nullable SharedErrorBudget sharedErrorBudget
         ) {
             this.errorPolicy = errorPolicy;
             this.warningSink = warningSink;
-            this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(errorPolicy, fileLocation, warningSink);
-            this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
+            this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(
+                errorPolicy,
+                fileLocation,
+                warningSink,
+                false,
+                sharedErrorBudget
+            );
+            this.rowDropHelper = sharedErrorBudget != null
+                ? ColumnarRowDropHelper.forSharedBudget(sharedErrorBudget)
+                : ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
             this.reader = reader;
             this.projectedSchema = projectedSchema;
             this.attributes = attributes;

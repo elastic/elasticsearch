@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
@@ -595,6 +596,9 @@ final class ParquetColumnDecoding {
          */
         @Nullable
         private final Map<RecoveryScope, Long> chargedRows;
+        /** Shared budget for reader + adapter combined counting; {@code null} for the standalone path. */
+        @Nullable
+        private final SharedErrorBudget sharedBudget;
         private long errorCount;
         private long recoveredListErrorCount;
         private long droppedRowErrorCount;
@@ -602,7 +606,7 @@ final class ParquetColumnDecoding {
         private long rowsSeen;
 
         ListCorruptionHandler(ErrorPolicy errorPolicy, String fileLocation, @Nullable Consumer<String> warningSink) {
-            this(errorPolicy, fileLocation, warningSink, false);
+            this(errorPolicy, fileLocation, warningSink, false, null);
         }
 
         ListCorruptionHandler(
@@ -611,9 +615,20 @@ final class ParquetColumnDecoding {
             @Nullable Consumer<String> warningSink,
             boolean deduplicateRecoveries
         ) {
+            this(errorPolicy, fileLocation, warningSink, deduplicateRecoveries, null);
+        }
+
+        ListCorruptionHandler(
+            ErrorPolicy errorPolicy,
+            String fileLocation,
+            @Nullable Consumer<String> warningSink,
+            boolean deduplicateRecoveries,
+            @Nullable SharedErrorBudget sharedBudget
+        ) {
             this.errorPolicy = errorPolicy;
             this.fileLocation = fileLocation;
             this.chargedRows = deduplicateRecoveries ? new HashMap<>() : null;
+            this.sharedBudget = sharedBudget;
             this.warnings = SkipWarnings.of(
                 errorPolicy,
                 "Parquet file [" + fileLocation + "] has malformed LIST repetition levels; invalid fragments were skipped",
@@ -651,6 +666,10 @@ final class ParquetColumnDecoding {
             // Structural corruption is discovered while streaming. As with the text readers, a
             // ratio can trip before later good rows have a chance to dilute it.
             this.rowsSeen = Math.max(this.rowsSeen, Math.max(1L, rowsSeen));
+            if (sharedBudget != null) {
+                sharedBudget.addErrors(1);
+                sharedBudget.ensureRowsAtLeast(Math.max(1L, rowsSeen));
+            }
             checkBudget(warnings);
             logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, detail);
         }
@@ -663,13 +682,13 @@ final class ParquetColumnDecoding {
             rowsSeen = Math.max(rowsSeen, completedRows);
             errorCount += droppedRows;
             droppedRowErrorCount += droppedRows;
+            if (sharedBudget != null) {
+                sharedBudget.addReaderBatch(sourceRows, droppedRows);
+            }
             checkBudget(recoveredListErrorCount > 0 ? warnings : droppedRowWarnings);
         }
 
         private void checkBudget(@Nullable SkipWarnings budgetWarnings) {
-            if (errorPolicy.isBudgetExceeded(errorCount, rowsSeen) == false) {
-                return;
-            }
             String errorKind;
             if (droppedRowErrorCount == 0) {
                 errorKind = "structural errors";
@@ -677,6 +696,13 @@ final class ParquetColumnDecoding {
                 errorKind = "dropped rows";
             } else {
                 errorKind = "errors";
+            }
+            if (sharedBudget != null) {
+                sharedBudget.checkBudget(budgetWarnings, errorKind);
+                return;
+            }
+            if (errorPolicy.isBudgetExceeded(errorCount, rowsSeen) == false) {
+                return;
             }
             if (budgetWarnings != null) {
                 budgetWarnings.add(ColumnarRowDropHelper.budgetExceededWarning(errorPolicy, fileLocation, errorCount, rowsSeen, errorKind));

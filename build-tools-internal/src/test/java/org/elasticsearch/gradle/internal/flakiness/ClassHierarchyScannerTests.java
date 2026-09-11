@@ -48,21 +48,44 @@ public class ClassHierarchyScannerTests {
         ClassHierarchyScanner.Expansion all = scanFooHierarchy().expand("com.example.AbstractFooTests", 5);
 
         assertThat(all.wasAbstract(), is(true));
-        assertThat(all.totalConcrete(), equalTo(3));
+        assertThat(all.totalRunnable(), equalTo(3));
         // Deterministic sorted FQCN order; MidTests excluded (abstract), LeafTests included (transitive).
         assertThat(all.classesToRun(), contains("com.example.BarTests", "com.example.BazTests", "com.example.LeafTests"));
     }
 
     /**
-     * The cap bounds how many subclasses are actually run, but {@code totalConcrete} must still report the
+     * The cap bounds how many subclasses are actually run, but {@code totalRunnable} must still report the
      * true count - that is what lets the plan say "ran 2 of 3" rather than silently under-reporting.
      */
     @Test
     public void testCapLimitsRunListButNotTotalCount() throws IOException {
         ClassHierarchyScanner.Expansion capped = scanFooHierarchy().expand("com.example.AbstractFooTests", 2);
 
-        assertThat(capped.totalConcrete(), equalTo(3));
+        assertThat(capped.totalRunnable(), equalTo(3));
         assertThat(capped.classesToRun(), contains("com.example.BarTests", "com.example.BazTests"));
+    }
+
+    /**
+     * The cap is applied <em>after</em> non-tests are partitioned off, so a helper cannot spend the budget and
+     * push a real test out. The fixture is the adversarial ordering: both non-tests sort before the only real
+     * test, so a cap applied to all concrete descendants would keep the two that run nothing and drop the one
+     * that matters.
+     */
+    @Test
+    public void testCapIsSpentOnRunnableTestsOnly() throws IOException {
+        Path classes = tmp.newFolder("classes").toPath();
+        writeClass(classes, "com/example/AbstractFooTests", "java/lang/Object", true);
+        writeClass(classes, "com/example/AaaHelper", "com/example/AbstractFooTests", false);
+        writeClass(classes, "com/example/AaaHelper$1", "com/example/AbstractFooTests", false);
+        writeClass(classes, "com/example/ZzzTests", "com/example/AbstractFooTests", false);
+        ClassHierarchyScanner scanner = ClassHierarchyScanner.scan(List.of(classes));
+
+        ClassHierarchyScanner.Expansion ex = scanner.expand("com.example.AbstractFooTests", 2);
+
+        assertThat(ex.classesToRun(), contains("com.example.ZzzTests"));
+        assertThat(ex.totalRunnable(), equalTo(1));
+        // Still reported, so a mis-named real test stays visible - just never at a runnable class's expense.
+        assertThat(ex.notTests(), contains("com.example.AaaHelper", "com.example.AaaHelper$1"));
     }
 
     @Test

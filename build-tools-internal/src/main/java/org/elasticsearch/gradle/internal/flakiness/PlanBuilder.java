@@ -143,7 +143,7 @@ public final class PlanBuilder {
             }
             ClassHierarchyScanner.Expansion ex = scanner.expand(t.fqcn(), subclassCap);
             if (ex.wasAbstract()) {
-                if (ex.classesToRun().isEmpty()) {
+                if (ex.classesToRun().isEmpty() && ex.notTests().isEmpty()) {
                     // An abstract base with no concrete subclass on the classpath is nothing to run; do not
                     // silently drop it.
                     unresolved.add(
@@ -154,25 +154,25 @@ public final class PlanBuilder {
                     );
                     continue;
                 }
-                expansions.add(new Expansion(t.fqcn(), ex.classesToRun().size(), ex.totalConcrete(), subclassCap));
-                // Concrete in bytecode is not the same as runnable by a Test task: expanding an abstract
-                // HELPER yields its inner/anonymous subclasses, and `--tests Foo$1` matches nothing.
-                // Report the rejects rather than dropping them, so a mis-named real test stays visible.
+                expansions.add(new Expansion(t.fqcn(), ex.classesToRun().size(), ex.totalRunnable(), subclassCap));
                 // The base's runnableTasks were selected by intersecting each Test task's testClassesDirs with
                 // the base's OWN source-set output, so they only run classes compiled into that same directory.
                 // A subclass from anywhere else is re-homed onto its own source set's tasks.
                 Path baseDir = scanner.originDir(t.fqcn());
                 for (String concrete : ex.classesToRun()) {
-                    if (TestClassNames.isRunnableTestClass(concrete) == false) {
-                        entries.add(skip(t, concrete, REASON_NOT_A_TEST_CLASS, t.fqcn()));
-                        continue;
-                    }
                     Path dir = scanner.originDir(concrete);
                     if (baseDir == null || baseDir.equals(dir)) {
                         entries.add(run(t, concrete, t.fqcn()));
                         continue;
                     }
                     entries.add(foreign(t, concrete, dispositionOfClassDir.apply(dir)));
+                }
+                // Concrete in bytecode is not the same as runnable by a Test task: expanding an abstract
+                // HELPER yields its inner/anonymous subclasses, and `--tests Foo$1` matches nothing. The
+                // scanner has already kept these out of the capped set, so they cost no test execution and
+                // displace no real subclass; they are reported here so a mis-named real test stays visible.
+                for (String notATest : ex.notTests()) {
+                    entries.add(skip(t, notATest, REASON_NOT_A_TEST_CLASS, t.fqcn()));
                 }
             } else if (TestClassNames.isRunnableTestClass(t.fqcn()) == false) {
                 // A concrete non-test file that happens to live in a test source set. Emitting it would

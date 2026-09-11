@@ -108,21 +108,37 @@ public final class ClassHierarchyScanner {
         return Boolean.TRUE.equals(isAbstract.get(fqcn));
     }
 
-    /** The result of expanding a class: which concrete FQCNs to run, and how many concrete descendants exist. */
-    public record Expansion(List<String> classesToRun, int totalConcrete, boolean wasAbstract) {}
+    /**
+     * The result of expanding a class.
+     *
+     * @param classesToRun  the concrete FQCNs to run: runnable test classes only, sorted by FQCN
+     *                      (deterministic) and capped
+     * @param notTests      concrete descendants that no {@code Test} task could address, sorted by FQCN.
+     *                      Reported rather than dropped (see {@link PlanBuilder#REASON_NOT_A_TEST_CLASS}), so
+     *                      a mis-named real test stays visible. Deliberately <em>not</em> capped: the cap
+     *                      bounds how much test execution one ref can trigger, and these run nothing.
+     * @param totalRunnable how many runnable concrete descendants exist, i.e. the denominator the cap applied
+     *                      to
+     */
+    public record Expansion(List<String> classesToRun, List<String> notTests, int totalRunnable, boolean wasAbstract) {}
 
     /**
      * Expand a base target's FQCN into the concrete classes to run:
      * <ul>
      *   <li>concrete (or unknown) class -&gt; itself, a single run</li>
-     *   <li>abstract class -&gt; its transitive concrete descendants, sorted by FQCN (deterministic) and
-     *       capped at {@code cap}</li>
+     *   <li>abstract class -&gt; its transitive concrete descendants, partitioned into runnable test classes
+     *       and everything else, each sorted by FQCN (deterministic)</li>
      * </ul>
+     *
+     * <p>The cap applies to the runnable classes <em>only</em>. Applying it to every concrete descendant
+     * would let helpers and inner classes - which run nothing - spend the budget and push real tests out,
+     * silently, according to nothing but FQCN sort order.
      */
     public Expansion expand(String fqcn, int cap) {
         if (isKnown(fqcn) == false || isAbstract(fqcn) == false) {
-            // Unknown => best-effort pass-through (the source file resolved, so run it as-is).
-            return new Expansion(List.of(fqcn), 1, false);
+            // Unknown => best-effort pass-through (the source file resolved, so run it as-is). Whether it is
+            // runnable is the caller's call: a concrete non-test still has to be reported, not dropped here.
+            return new Expansion(List.of(fqcn), List.of(), 1, false);
         }
         // Transitive concrete descendants, deterministically ordered.
         TreeSet<String> concrete = new TreeSet<>();
@@ -138,8 +154,13 @@ public final class ClassHierarchyScanner {
             }
             stack.addAll(children.getOrDefault(c, Set.of()));
         }
-        List<String> capped = concrete.stream().limit(Math.max(0, cap)).toList();
-        return new Expansion(capped, concrete.size(), true);
+        List<String> runnable = new ArrayList<>();
+        List<String> notTests = new ArrayList<>();
+        for (String c : concrete) {
+            (TestClassNames.isRunnableTestClass(c) ? runnable : notTests).add(c);
+        }
+        List<String> capped = runnable.stream().limit(Math.max(0, cap)).toList();
+        return new Expansion(capped, List.copyOf(notTests), runnable.size(), true);
     }
 
     private static String dotted(String internalName) {

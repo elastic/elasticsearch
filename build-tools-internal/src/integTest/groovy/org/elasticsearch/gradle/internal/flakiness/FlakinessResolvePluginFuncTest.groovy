@@ -234,10 +234,11 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
 
         when: "every test source set is compiled UNQUALIFIED (nothing read back from resolve), then scan runs"
         // compileYamlRestTestJava as well, or :yamlish's bytecode is absent and the scan cannot see the
-        // sixth descendant at all. The cap is lifted to 6 so every descendant is expanded and the
-        // classification below stays deterministic rather than depending on the FQCN sort order.
+        // sixth descendant at all. Deliberately run at the DEFAULT subclass cap: six concrete descendants
+        // exist and two of them are not tests, so if the cap were applied before the runnable filter the two
+        // helpers would take slots and com.yamlish.YamlishIT - last in FQCN order - would be dropped.
         gradleRunner("compileTestJava", "compileYamlRestTestJava").build()
-        def scanResult = gradleRunner("-Pflakiness.resolve", "-Pflakiness.subclassCap=6", "flakinessScan").build()
+        def scanResult = gradleRunner("-Pflakiness.resolve", "flakinessScan").build()
 
         then: "the repo-wide scan FINDS all three concrete subclasses, including the one in another project"
         scanResult.task(":flakinessScan").outcome == TaskOutcome.SUCCESS
@@ -246,11 +247,14 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
 
         plan.expansions.size() == 1
         plan.expansions[0].abstractFqcn == "com.example.AbstractFooTests"
-        // 3, not 2: com.downstream.DownstreamTests lives in :downstream and was invisible to a subset scan.
-        // This count is the regression test for the repo-wide compile + scan.
+        // 4, not 2: com.downstream.DownstreamTests lives in :downstream and com.yamlish.YamlishIT in
+        // :yamlish, both invisible to a subset scan. This count is the regression test for the repo-wide
+        // compile + scan.
         // 6 concrete descendants exist in bytecode: 2 in :app, DownstreamTests, DownstreamHelper and the
         // anonymous DownstreamHelper$1 in :downstream, and YamlishIT in :yamlish's yamlRestTest source set.
-        plan.expansions[0].total == 6
+        // `total` counts the 4 RUNNABLE ones, because that is the set the cap applies to.
+        plan.expansions[0].total == 4
+        plan.expansions[0].ran == 4
 
         and: "the two subclasses in the base's own output run under the base target's real tasks"
         // Filtered on disposition too: every expansion product now carries expandedFrom, skips included, so

@@ -41,17 +41,32 @@ When installing the MSI, the Windows Defender SmartScreen might warn about runni
 
 ## Version compatibility [odbc-compatibility]
 
-Your driver must be compatible with your {{es}} version.
+Your ODBC driver must be compatible with your {{es}} version. Rules depend on the **driver** version; they mirror how the SQL plugin validates clients and servers (same model as the [JDBC driver](sql-jdbc.md#jdbc-compatibility)).
 
-::::{important}
-The driver version cannot be newer than the {{es}} version. For example, {{es}} version 7.10.0 is not compatible with {{version.stack}} drivers.
-::::
+### ODBC driver 8.16.0 and later
 
+From **8.16.0** onward, drivers no longer enforce the rule that the {{es}} cluster could be at most **one major version** newer than the driver. The cluster validates the driver as part of SQL requests instead.
 
-| {{es}} version | Compatible driver versions | Example |
+You should still **use an ODBC driver from the same stack release as your cluster** whenever possible so features and wire behavior stay aligned.
+
+### ODBC driver 7.7.1 through 8.15.x
+
+For these driver releases, **all** of the following must hold:
+
+* The driver version must **not** be newer than the {{es}} version (for example, {{es}} 7.10.0 is not compatible with a driver newer than 7.10.0).
+* The cluster’s **major** version must be at most **one** ahead of the driver’s major version (for example, an 8.x driver with a 9.x cluster is allowed; a 7.x driver with a 9.x cluster is not).
+
+### {{es}} 7.7.0 and earlier clusters
+
+Use the **same** {{es}} and ODBC version (same patch release).
+
+| Situation | Compatible ODBC driver versions | Example |
 | --- | --- | --- |
-| 7.7.0 and earlier versions | * The same version.<br> | {{es}} 7.6.1 is only compatible with 7.6.1 drivers. |
+| ODBC **8.16.0+** | Server-side compatibility; prefer a driver matching your cluster version. | Upgrade the driver with the cluster. |
+| ODBC **7.7.1–8.15.x** | Driver ≤ {{es}} version; {{es}} major ≤ ODBC major + 1 | 8.14 ODBC with a 9.x cluster is allowed; 7.17 ODBC with a 9.x cluster is not. |
+| {{es}} **7.7.0 and earlier** | Same version only | {{es}} 7.6.1 is only compatible with 7.6.1 drivers. |
 
+The ODBC driver uses the same SQL client protocol baseline as JDBC: the cluster must run **7.7** or newer for a successful connection.
 
 ## Download the `.msi` package(s) [download]
 

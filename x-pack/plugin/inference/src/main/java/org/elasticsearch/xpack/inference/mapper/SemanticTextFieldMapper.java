@@ -155,7 +155,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
             }
         },
         Setting.Property.IndexScope,
-        Setting.Property.Final,
+        Setting.Property.Dynamic,
         Setting.Property.ServerlessPublic
     );
 

@@ -93,9 +93,9 @@ public class DatasetService {
 
     /**
      * Validate the put-dataset request against the supplied project metadata and build the domain
-     * {@link Dataset}. Called from {@link #putDataset} against the master's applied state and again
-     * inside the CAS task against the state that task reads. Throws cleanly on missing parent,
-     * unknown validator, or validation failure.
+     * {@link Dataset}. Called from {@link #putDataset} against the master's applied state when that
+     * snapshot already has the parent, and always inside the CAS task against the state that task
+     * reads. Throws cleanly on missing parent, unknown validator, or validation failure.
      */
     Dataset validatePutDataset(ProjectMetadata projectMetadata, PutDatasetAction.Request request) {
         final DataSource parent = DataSourceMetadata.get(projectMetadata).get(request.dataSource());
@@ -149,23 +149,28 @@ public class DatasetService {
     }
 
     /**
-     * Create or replace a dataset. Validates against the master's applied state, then the task
-     * re-validates under CAS to guard against the parent being delete-recreated between that
-     * snapshot and task execute.
+     * Create or replace a dataset. Validates against the master's applied state when that snapshot
+     * already has the parent, then the task re-validates under CAS to guard against the parent being
+     * delete-recreated between that snapshot and task execute.
+     *
+     * <p>Applied state can lag a committed create: the master applies a publication only after every
+     * node has applied, or {@code cluster.publish.timeout} fires. A missing parent in that snapshot
+     * is therefore not failed here -- the CAS task re-validates against MasterService state.
      */
     public void putDataset(ProjectId projectId, PutDatasetAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
-        final Dataset dataset;
         try {
-            dataset = validatePutDataset(projectMetadata, request);
+            final Dataset dataset = validatePutDataset(projectMetadata, request);
+            // No-op if identical to the registered dataset -- skip the cluster-state update (mirrors ViewService.putView).
+            if (dataset.equals(getMetadata(projectMetadata).get(dataset.name()))) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+                return;
+            }
+        } catch (ResourceNotFoundException ignored) {
+            // Parent missing from applied state; a committed create may still be in-flight on MasterService.
         } catch (Exception e) {
             recordRejected(parentType(projectMetadata, request.dataSource()), e);
             listener.onFailure(e);
-            return;
-        }
-        // No-op if identical to the registered dataset — skip the cluster-state update (mirrors ViewService.putView).
-        if (dataset.equals(getMetadata(projectMetadata).get(dataset.name()))) {
-            listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
         logger.debug("submitting put dataset [{}] with parent [{}]", request.name(), request.dataSource());

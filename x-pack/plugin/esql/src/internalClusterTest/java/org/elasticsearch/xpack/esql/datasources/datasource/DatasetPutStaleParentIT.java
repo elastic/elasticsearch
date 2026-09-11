@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources.datasource;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -33,7 +36,9 @@ import static org.hamcrest.Matchers.hasSize;
  * and holds the only state that can decide.
  *
  * <p>A dedicated master is the only voter, so blocking a data-only node from applying cluster state
- * cannot steal quorum. The create still commits; the blocked node simply cannot ack.
+ * cannot steal quorum. The create still commits; the blocked node simply cannot ack. Publication
+ * waits for that node until {@code cluster.publish.timeout}, and the master applies only then, so
+ * the tests shorten that timeout for the follow-up PUT's CAS task to run.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class DatasetPutStaleParentIT extends ESIntegTestCase {
@@ -45,6 +50,14 @@ public class DatasetPutStaleParentIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(TestEncryptionServicePlugin.class, DataSourceCrudIT.LocalStateDataSource.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(2))
+            .build();
     }
 
     public void testDatasetRegistersOnANodeThatHasNotYetAppliedTheParent() throws Exception {
@@ -74,16 +87,23 @@ public class DatasetPutStaleParentIT extends ESIntegTestCase {
                 new PutDatasetAction.Request(TIMEOUT, SHORT_ACK, "hits", "cb", "test://hits", null, new HashMap<>())
             ).actionGet(TIMEOUT);
 
-            // GET is a local read: ask the master, which holds the committed metadata, while the
-            // lagging node is still blocked.
-            GetDatasetAction.Request get = new GetDatasetAction.Request(TIMEOUT);
-            get.indices("hits");
-            GetDatasetAction.Response got = client(master).execute(GetDatasetAction.INSTANCE, get).actionGet(TIMEOUT);
-            assertThat(got.getDatasets(), hasSize(1));
-            Dataset dataset = got.getDatasets().iterator().next();
-            assertThat(dataset.name(), equalTo("hits"));
-            assertThat(dataset.dataSource().getName(), equalTo("cb"));
-            assertThat(dataset.resource(), equalTo("test://hits"));
+            // GET is a local read of applied state. The master applies only once publication ends
+            // (publish timeout while the lagging node is blocked), so poll until that is visible.
+            assertBusy(() -> {
+                GetDatasetAction.Request get = new GetDatasetAction.Request(TIMEOUT);
+                get.indices("hits");
+                GetDatasetAction.Response got;
+                try {
+                    got = client(master).execute(GetDatasetAction.INSTANCE, get).actionGet(TIMEOUT);
+                } catch (ResourceNotFoundException e) {
+                    throw new AssertionError("dataset not yet visible on the master", e);
+                }
+                assertThat(got.getDatasets(), hasSize(1));
+                Dataset dataset = got.getDatasets().iterator().next();
+                assertThat(dataset.name(), equalTo("hits"));
+                assertThat(dataset.dataSource().getName(), equalTo("cb"));
+                assertThat(dataset.resource(), equalTo("test://hits"));
+            });
         } finally {
             blocked.stopDisrupting();
             internalCluster().clearDisruptionScheme();

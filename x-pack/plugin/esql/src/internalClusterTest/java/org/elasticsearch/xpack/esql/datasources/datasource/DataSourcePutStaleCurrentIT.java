@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources.datasource;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -35,7 +38,9 @@ import static org.hamcrest.Matchers.hasSize;
  * request as if none had ever been set.
  *
  * <p>A dedicated master is the only voter, so blocking a data-only node from applying cluster state
- * cannot steal quorum. The create still commits; the blocked node simply cannot ack.
+ * cannot steal quorum. The create still commits; the blocked node simply cannot ack. Publication
+ * waits for that node until {@code cluster.publish.timeout}, and the master applies only then, so
+ * the tests shorten that timeout for the follow-up PUT's CAS task to run.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class DataSourcePutStaleCurrentIT extends ESIntegTestCase {
@@ -47,6 +52,14 @@ public class DataSourcePutStaleCurrentIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(TestEncryptionServicePlugin.class, DataSourceCrudIT.LocalStateDataSource.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(2))
+            .build();
     }
 
     public void testUpdateKeepsTheSecretOnANodeThatHasNotYetAppliedTheCreate() throws Exception {
@@ -72,16 +85,23 @@ public class DataSourcePutStaleCurrentIT extends ESIntegTestCase {
             // The update omits the secret, which the master can carry forward. It must not be refused.
             client(lagging).execute(PutDataSourceAction.INSTANCE, request(name, Map.of("region", "eu-west-2"))).actionGet(TIMEOUT);
 
-            // GET is a local read: ask the master, which holds the committed metadata, while the
-            // lagging node is still blocked.
-            GetDataSourceAction.Response got = client(master).execute(
-                GetDataSourceAction.INSTANCE,
-                new GetDataSourceAction.Request(TIMEOUT, new String[] { name })
-            ).actionGet(TIMEOUT);
-            assertThat(got.getDataSources(), hasSize(1));
-            DataSource ds = got.getDataSources().iterator().next();
-            assertThat(ds.settings().get("region").nonSecretValue(), equalTo("eu-west-2"));
-            assertThat(decryptSecret(ds.settings().get("secret_access_key")), equalTo("AKIAXYZ"));
+            // GET is a local read of applied state. The master applies only once publication ends
+            // (publish timeout while the lagging node is blocked), so poll until that is visible.
+            assertBusy(() -> {
+                GetDataSourceAction.Response got;
+                try {
+                    got = client(master).execute(
+                        GetDataSourceAction.INSTANCE,
+                        new GetDataSourceAction.Request(TIMEOUT, new String[] { name })
+                    ).actionGet(TIMEOUT);
+                } catch (ResourceNotFoundException e) {
+                    throw new AssertionError("data source not yet visible on the master", e);
+                }
+                assertThat(got.getDataSources(), hasSize(1));
+                DataSource ds = got.getDataSources().iterator().next();
+                assertThat(ds.settings().get("region").nonSecretValue(), equalTo("eu-west-2"));
+                assertThat(decryptSecret(ds.settings().get("secret_access_key")), equalTo("AKIAXYZ"));
+            });
         } finally {
             blocked.stopDisrupting();
             internalCluster().clearDisruptionScheme();

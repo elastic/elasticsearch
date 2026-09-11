@@ -1169,6 +1169,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         // side effects
         private SharedBytes.IO io = null;
 
+        // Highest LFU frequency this region has been promoted to during its lifetime. Starts at 1 (the
+        // insertion frequency). Decay and demote lower current freq but must not lower this peak.
+        // Written under the SharedBlobCacheService monitor (promote and eviction); no extra volatility.
+        private int maxReachedFreq = 1;
+
         CacheFileRegion(
             SharedBlobCacheService<KeyType> blobCacheService,
             RegionKey<KeyType> regionKey,
@@ -1220,7 +1225,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted {} with channel offset {}", regionKey, physicalStartOffset());
                 blobCacheService.evictCount.increment();
-                blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
+                recordEvictionAndResetPeakFreq();
                 decRef();
                 return true;
             }
@@ -1232,7 +1237,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted and take {} with channel offset {}", regionKey, physicalStartOffset());
                 blobCacheService.evictCount.increment();
-                blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
+                recordEvictionAndResetPeakFreq();
                 return true;
             }
 
@@ -1244,11 +1249,30 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (evict()) {
                 logger.trace("force evicted {} with channel offset {}", regionKey, physicalStartOffset());
                 blobCacheService.evictCount.increment();
-                blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
+                recordEvictionAndResetPeakFreq();
                 decRef();
                 return true;
             }
             return false;
+        }
+
+        void notePromotedFreq(int freq) {
+            assert Thread.holdsLock(blobCacheService) : "must hold lock when updating peak freq";
+            if (freq > maxReachedFreq) {
+                maxReachedFreq = freq;
+            }
+        }
+
+        private void recordEvictionAndResetPeakFreq() {
+            blobCacheService.blobCacheMetrics.recordEvictedRegionMaxFreq(maxReachedFreq);
+            // CacheFileRegion is not reused after eviction; reset so a stale object cannot
+            // report a previous life's peak if inspected after tryEvict/forceEvict.
+            maxReachedFreq = 1;
+        }
+
+        // visible for tests
+        int maxReachedFreq() {
+            return maxReachedFreq;
         }
 
         @Override
@@ -2663,6 +2687,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     unlink(entry);
                     // go 2 up per epoch, allowing us to decay 1 every epoch.
                     entry.freq = Math.min(entry.freq + 2, maxFreq - 1);
+                    entry.chunk.notePromotedFreq(entry.freq);
                     entry.lastAccessedEpoch = epoch;
                     pushEntryToBack(entry);
                 }

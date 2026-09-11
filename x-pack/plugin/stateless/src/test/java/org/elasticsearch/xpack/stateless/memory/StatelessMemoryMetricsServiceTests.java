@@ -696,7 +696,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         final NodeHeapEstimates masterEstimate = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
         final int totalIndices = clusterState.metadata().getTotalNumberOfIndices();
-        final NodeHeapEstimates localEstimate = service.estimateNodeHeapUsage(totalIndices, 0L, 0L, shardMappingSizes);
+        final NodeHeapEstimates localEstimate = service.estimateNodeHeapUsage(node0, totalIndices, 0L, 0L, shardMappingSizes);
         assertThat(localEstimate, equalTo(masterEstimate));
 
         final ShardId residentShardNotActiveInRouting = new ShardId(new Index("resident-only-index", "resident-only-uuid"), 0);
@@ -713,6 +713,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         final Map<ShardId, ShardMappingSize> shardMappingSizesWithExtraResidentShard = new HashMap<>(shardMappingSizes);
         shardMappingSizesWithExtraResidentShard.put(residentShardNotActiveInRouting, residentShardMappingSize);
         final NodeHeapEstimates estimateWithExtraResidentShard = service.estimateNodeHeapUsage(
+            node0,
             totalIndices,
             0L,
             0L,
@@ -737,6 +738,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         final long largeIndexingOpsHeap = randomLongBetween(1, 1_000_000);
         final long mergeMemoryEstimate = randomLongBetween(1, 1_000_000);
         final NodeHeapEstimates withNodeSignals = service.estimateNodeHeapUsage(
+            node0,
             totalIndices,
             largeIndexingOpsHeap,
             mergeMemoryEstimate,

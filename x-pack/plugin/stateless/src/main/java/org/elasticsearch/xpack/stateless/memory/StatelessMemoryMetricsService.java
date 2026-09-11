@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.ShardHeapUsageEstimates;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -267,11 +269,13 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * @return the node's estimated heap usage
      */
     public NodeHeapEstimates estimateNodeHeapUsage(
+        DiscoveryNode localNode,
         int totalIndices,
         long largeIndexingOpsHeapBytes,
         long mergeMemoryEstimateBytes,
         Map<ShardId, ShardMappingSize> shardMappingSizes
     ) {
+        assert localNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) : "This should only ever be called for indexing nodes";
         final long nowNanos = relativeTimeInNanos();
         final var shardHeapEstimator = createShardHeapEstimator(SelfReportedShardOverhead.DEFAULT);
         final Map<ShardId, ShardAndIndexHeapUsage> shardHeapUsages = shardMappingSizes.entrySet()

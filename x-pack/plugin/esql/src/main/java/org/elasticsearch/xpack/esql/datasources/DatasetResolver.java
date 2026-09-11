@@ -71,8 +71,9 @@ public class DatasetResolver {
      * exactly as a nonexistent index would. No dataset lookup and no {@link EsqlResolveDatasetAction} dispatch happen.
      *
      * @param datasetWildcards the resolved {@code dataset_wildcards} query setting, carried from the coordinator's
-     *                         {@code Configuration} and applied to this coordinator's own dataset expansion. It reaches
-     *                         no other cluster: a dataset registered elsewhere is not resolved there at all.
+     *                         {@code Configuration} and applied to this coordinator's own dataset expansion. Only this
+     *                         coordinator's registry is expanded here; what a remote cluster does with its own datasets
+     *                         is decided by {@code EsqlResolveFieldsAction.clearDatasetResolution}, not by this setting.
      */
     public void replaceDatasets(
         LogicalPlan parsed,

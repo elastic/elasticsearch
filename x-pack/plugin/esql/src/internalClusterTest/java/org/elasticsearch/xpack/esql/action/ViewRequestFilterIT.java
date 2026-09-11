@@ -184,8 +184,8 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
             QueryBuilders.rangeQuery("cnt").gt(0)
         );
         try (EsqlQueryResponse resp = run(req)) {
-            List<List<Object>> rows = getValuesList(resp);
-            assertThat("both regions must appear — filter on computed cnt must work", rows.size(), equalTo(2));
+            List<Object> rows = getValuesList(resp).stream().map(r -> r.get(1)).toList();
+            assertThat("both regions must appear — filter on computed cnt must work", rows, containsInAnyOrder("eu", "us"));
         }
     }
 
@@ -201,7 +201,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse resp = run(req)) {
             List<List<Object>> rows = getValuesList(resp);
             assertThat(rows.size(), equalTo(1));
-            assertThat(rows.get(0).get(0), equalTo("eu"));
+            assertThat(rows.getFirst().getFirst(), equalTo("eu"));
         }
     }
 
@@ -212,7 +212,8 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
     public void testMatchAllOnStatsViewReturnsAllBuckets() {
         EsqlQueryRequest req = syncEsqlQueryRequest("FROM " + STATS_VIEW).filter(QueryBuilders.matchAllQuery());
         try (EsqlQueryResponse resp = run(req)) {
-            assertThat(getValuesList(resp).size(), equalTo(2)); // eu and us
+            List<Object> rows = getValuesList(resp).stream().map(r -> r.get(1)).toList();
+            assertThat("match_all must leave every bucket visible", rows, containsInAnyOrder("eu", "us"));
         }
     }
 
@@ -255,7 +256,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         // Mixed query: FROM passthrough_view (over INDEX), view2 (over idx2).
         EsqlQueryRequest req = syncEsqlQueryRequest("FROM " + PASSTHROUGH_VIEW + ", " + view2 + " | KEEP id | SORT id ASC").filter(filter);
         try (EsqlQueryResponse resp = run(req)) {
-            List<Object> actual = getValuesList(resp).stream().map(r -> r.get(0)).toList();
+            List<Object> actual = getValuesList(resp).stream().map(List::getFirst).toList();
             assertThat(
                 "both view branches must be filtered by status=300",
                 actual,
@@ -291,7 +292,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         // View branch first, bare index second: one ViewUnionAll carrying one view branch and one bare-index branch.
         EsqlQueryRequest req = syncEsqlQueryRequest("FROM " + PASSTHROUGH_VIEW + ", " + idx3 + " | KEEP id | SORT id ASC").filter(filter);
         try (EsqlQueryResponse resp = run(req)) {
-            List<Object> actual = getValuesList(resp).stream().map(r -> r.get(0)).toList();
+            List<Object> actual = getValuesList(resp).stream().map(List::getFirst).toList();
             assertThat(
                 "the view branch and the bare-index branch must both be filtered, by different paths",
                 actual,
@@ -320,6 +321,37 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
             try (EsqlQueryResponse resp = run(syncEsqlQueryRequest(query).filter(empty))) {
                 assertThat("empty filter [" + empty + "] must match the unfiltered result", getValuesList(resp), equalTo(unfiltered));
             }
+        }
+    }
+
+    /**
+     * A filter on a field the view creates with {@code EVAL} — present in the view's output but absent from the source index's
+     * mapping. The request filter is also handed to field-caps as an {@code index_filter} when resolving sources, so a filter naming
+     * such a field would resolve no indices at all; analysis retries without it, and the filter must still end up on the view's
+     * output rather than in the source scan, where the field does not exist and nothing would match.
+     *
+     * <p>Complements {@link #testFilterOnComputedStatsFieldWorks}, which covers the same idea for a {@code STATS}-computed field.
+     */
+    public void testFilterOnEvalComputedFieldInViewWorks() {
+        String view = "vrf_eval";
+        createView(view, "FROM " + INDEX + " | EVAL region_upper = TO_UPPER(region)");
+
+        EsqlQueryRequest req = syncEsqlQueryRequest("FROM " + view + " | KEEP id, region_upper | SORT id ASC").filter(
+            QueryBuilders.termQuery("region_upper", "EU")
+        );
+        try (EsqlQueryResponse resp = run(req)) {
+            List<List<Object>> rows = getValuesList(resp);
+            List<Object> expectedIds = java.util.stream.IntStream.range(0, ROWS)
+                .filter(i -> region(i).equals("eu"))
+                .boxed()
+                .map(i -> (Object) i)
+                .toList();
+            assertThat(
+                "the EVAL-computed field can only be filtered on the view's output",
+                rows.stream().map(r -> r.get(0)).toList(),
+                equalTo(expectedIds)
+            );
+            assertTrue("every returned row must be an eu row", rows.stream().allMatch(r -> "EU".equals(r.get(1))));
         }
     }
 
@@ -382,7 +414,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
             "FROM " + STATS_VIEW + ", (FROM " + INDEX + " | STATS cnt = COUNT(*) BY region) | KEEP region | SORT region ASC"
         ).filter(filter);
         try (EsqlQueryResponse resp = run(req)) {
-            List<Object> regions = getValuesList(resp).stream().map(r -> r.get(0)).toList();
+            List<Object> regions = getValuesList(resp).stream().map(List::getFirst).toList();
             // One row from the view branch and one from the subquery branch, both narrowed to eu.
             assertThat("both branches filtered to eu, by different paths", regions, containsInAnyOrder("eu", "eu"));
         }
@@ -404,10 +436,10 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         QueryBuilder unsupported = QueryBuilders.boolQuery()
             .must(QueryBuilders.termQuery("region", "eu"))
             .must(QueryBuilders.wildcardQuery("region", "e*"));
-        Exception e = expectThrows(
+        expectThrows(
             Exception.class,
+            containsString("[wildcard]"),
             () -> run(syncEsqlQueryRequest("FROM " + STATS_VIEW + " | KEEP region").filter(unsupported))
         );
-        assertThat(e.getMessage(), containsString("[wildcard]"));
     }
 }

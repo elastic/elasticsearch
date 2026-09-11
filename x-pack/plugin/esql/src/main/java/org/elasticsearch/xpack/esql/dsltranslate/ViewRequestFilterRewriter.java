@@ -22,11 +22,11 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter.ESQL_REQUEST_FILTER_ON_DATASET;
@@ -259,18 +259,17 @@ public final class ViewRequestFilterRewriter {
      * naming those views, when there are any.
      */
     private static void warnNotApplied(LogicalPlan plan, String reason) {
-        List<String> viewNames = new ArrayList<>();
+        TreeSet<String> viewNames = new TreeSet<>();
         plan.forEachDown(ViewUnionAll.class, vua -> {
             for (String key : vua.viewBranchKeys()) {
                 viewNames.add(key);
             }
         });
-        List<String> distinct = viewNames.stream().distinct().sorted().toList();
-        if (distinct.isEmpty() == false) {
+        if (viewNames.isEmpty() == false) {
             HeaderWarning.addWarning(
                 "The request filter was not applied to view(s) [{}] because {}; they were read unfiltered. "
                     + "Use a WHERE clause to filter rows from views instead",
-                String.join(", ", distinct),
+                String.join(", ", viewNames),
                 reason
             );
         }

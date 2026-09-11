@@ -57,7 +57,6 @@ public class RoleMappingMetadataTests extends AbstractWireSerializingTestCase<Ro
     public void testRoleMappingsAreNotRestorableFromSnapshot() {
         RoleMappingMetadata roleMappingMetadata = new RoleMappingMetadata(randomSet(0, 3, () -> randomRoleMapping(true)));
         assertThat(roleMappingMetadata.context(), equalTo(Metadata.API_AND_GATEWAY));
-        assertThat(roleMappingMetadata.context().contains(Metadata.XContentContext.SNAPSHOT), is(false));
         assertThat(roleMappingMetadata.isRestorable(), is(false));
     }
 

@@ -1343,7 +1343,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             return null;
         }).when(transportService).sendRequest(any(DiscoveryNode.class), anyString(), any(), any());
 
-        // isStateless=false, enableDirectCancellationsForSnapshots=false (default on stateful)
+        // isStateless=false, enableDirectCancellationsForSnapshots=true (default on stateful)
         final var service = new RecoveryDirectCancellationService(
             transportService,
             createMockClusterService(clusterState, true, false),
@@ -1719,7 +1719,17 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
     }
 
     private ClusterService createMockClusterService(ClusterState clusterState, boolean enableDirectCancellations, boolean isStateless) {
-        return createMockClusterService(clusterState, enableDirectCancellations, isStateless, isStateless == false);
+        final Set<Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingSet.add(RecoveryDirectCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING);
+        settingSet.add(RecoveryDirectCancellationService.ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING);
+        final var initialSettingsBuilder = Settings.builder()
+            .put(RecoveryDirectCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING.getKey(), enableDirectCancellations);
+        if (isStateless) {
+            initialSettingsBuilder.put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true);
+        }
+        final var initialSettings = initialSettingsBuilder.build();
+        final var clusterSettings = new ClusterSettings(initialSettings, settingSet);
+        return createMockClusterService(clusterState, initialSettings, clusterSettings);
     }
 
     private ClusterService createMockClusterService(

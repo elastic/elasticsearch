@@ -314,6 +314,22 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     @Override
     public ParquetFormatReader withPushedFilter(Object pushedFilter) {
+        if (pushedFilter == null) {
+            if (pushedExpressions == null && FilterCompat.isFilteringRequired(this.pushedFilter) == false) {
+                return this;
+            }
+            return new ParquetFormatReader(
+                blockFactory,
+                FilterCompat.NOOP,
+                null,
+                forceBaselinePath,
+                optimizedReader,
+                lateMaterializationEnabled,
+                dynamicThreshold,
+                declaredDateFormats,
+                declaredTypeColumns
+            );
+        }
         if (pushedFilter instanceof FilterCompat.Filter filter) {
             return new ParquetFormatReader(
                 blockFactory,

@@ -664,7 +664,7 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         }
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's trailing '/**' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/year=*/month=*/day=*/**/*." + format;
-        return registerDataset(name, glob, Map.of("hive_partitioning", true));
+        return registerDataset(name, glob, Map.of("partition_detection", "hive"));
     }
 
     /**
@@ -683,7 +683,7 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         }
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*." + format;
-        return registerDataset(name, glob, Map.of("hive_partitioning", true));
+        return registerDataset(name, glob, Map.of("partition_detection", "hive"));
     }
 
     /**
@@ -710,7 +710,7 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         }
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*." + format;
-        return registerDataset(name, glob, Map.of("hive_partitioning", true));
+        return registerDataset(name, glob, Map.of("partition_detection", "hive"));
     }
 
     /**

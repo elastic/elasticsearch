@@ -3943,6 +3943,48 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(100L, stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
     }
 
+    public void testRangeAwareSplitsConvertLongExtremaWhenReadSchemaIsPinnedToDouble() {
+        // 9007199254740993 is not an exact double; converting LONG->DOUBLE yields 9007199254740992.0.
+        // Using the pinned DOUBLE readSchema as the file type skips that convert and leaves the raw Long.
+        long notExactDouble = 9007199254740993L;
+        Map<String, Object> rawStats = new HashMap<>();
+        rawStats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1L);
+        rawStats.put(SourceStatisticsSerializer.columnMinKey("v"), notExactDouble);
+        rawStats.put(SourceStatisticsSerializer.columnMaxKey("v"), notExactDouble);
+
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
+        FileSplitProvider splitter = splitterFor(mockReader);
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.parquet"), 2000, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+
+        List<Attribute> pinned = List.of(new ReferenceAttribute(SRC, "v", DataType.DOUBLE));
+        ExternalSchema unified = new ExternalSchema(pinned);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(unified, null, null, Map.of("v", DataType.LONG))
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            unified,
+            unified,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            DeclaredReadSpec.NONE
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals(1, splits.size());
+        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
+        assertThat(stats.get(SourceStatisticsSerializer.columnMinKey("v")), instanceOf(Double.class));
+        assertEquals(9007199254740992.0, stats.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertEquals(9007199254740992.0, stats.get(SourceStatisticsSerializer.columnMaxKey("v")));
+    }
+
     public void testRangeAwareFallbackForEmptyRanges() {
         RangeAwareFormatReader mockReader = createMockRangeReader(List.<SplitRange>of());
 
@@ -4239,6 +4281,46 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(Boolean.TRUE, stats.get(SourceStatisticsSerializer.columnMinUnservableKey("price")));
         assertNull(stats.get(SourceStatisticsSerializer.columnValueCountKey("price")));
         assertEquals(100L, stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+    }
+
+    public void testRangeAwareSingleUnitSkipConvertsLongExtremaWhenReadSchemaIsPinnedToDouble() {
+        // Same convert as testRangeAwareSplitsConvertLongExtremaWhenReadSchemaIsPinnedToDouble, on the
+        // harvested single-unit path that goes through normalizeSplitStats instead of addRangeAwareSplits.
+        long notExactDouble = 9007199254740993L;
+        AtomicInteger discoverCalls = new AtomicInteger();
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(), discoverCalls);
+        FileSplitProvider splitter = splitterFor(mockReader);
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/small.parquet"), 500, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+
+        List<Attribute> pinned = List.of(new ReferenceAttribute(SRC, "v", DataType.DOUBLE));
+        ExternalSchema unified = new ExternalSchema(pinned);
+        SourceStatistics harvested = statsWithColumns(1L, 1, Map.of("v", columnStats(notExactDouble, notExactDouble, 1L)));
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(unified, null, harvested, Map.of("v", DataType.LONG))
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            unified,
+            unified,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            DeclaredReadSpec.NONE
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals("single-unit file must not re-discover ranges", 0, discoverCalls.get());
+        assertEquals(1, splits.size());
+        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
+        assertThat(stats.get(SourceStatisticsSerializer.columnMinKey("v")), instanceOf(Double.class));
+        assertEquals(9007199254740992.0, stats.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertEquals(9007199254740992.0, stats.get(SourceStatisticsSerializer.columnMaxKey("v")));
     }
 
     private static FileSplitProvider splitterFor(RangeAwareFormatReader reader) {

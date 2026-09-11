@@ -1599,7 +1599,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testDeclaredTextColumnReadsString() throws IOException {
-        // TEXT is declarable (DeclaredSchemaValidator.DECLARABLE_TYPES) and reads like KEYWORD — a BytesRef block.
+        // TEXT is not declarable on a dataset mapping, so no dataset query reaches this arm. Pinned anyway: it
+        // decodes to the same BytesRef block as KEYWORD, which is why the two are indistinguishable once read.
         String ndjson = "{\"t\": \"hello\"}\n";
         var object = new BytesStorageObject("file:///text.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);

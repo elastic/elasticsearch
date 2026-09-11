@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -213,11 +214,12 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         if (acc == null || acc.isEmpty()) {
             return;
         }
-        ctx.addColumn(LuceneBinaryColumn.of(acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE), NAME, StringField.TYPE_NOT_STORED));
+        final EscfColumnData data = acc.finish(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        ctx.addColumn(LuceneBinaryColumn.of(data, NAME, StringField.TYPE_NOT_STORED), data);
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         return true;
     }
 }

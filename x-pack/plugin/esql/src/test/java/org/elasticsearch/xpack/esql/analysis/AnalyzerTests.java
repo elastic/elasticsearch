@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -1904,7 +1905,7 @@ public class AnalyzerTests extends ESTestCase {
         final String supportedTypes =
             "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or date_range or datetime "
                 + "or dense_vector or double_range or exponential_histogram or flattened or geo_point "
-                + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or version";
+                + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or tdigest or version";
         analyzer().error(
             "row period = 1 year | eval to_string(period)",
             containsString(
@@ -4508,7 +4509,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(completionFunction.prompt(), equalTo(string("Translate this text in French")));
         assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
         assertThat(completionFunction.taskSettings(), equalTo(new MapExpression(Source.EMPTY, List.of())));
-        assertThat(completionFunction.taskType(), equalTo(org.elasticsearch.inference.TaskType.COMPLETION));
+        assertThat(completionFunction.taskType(), equalTo(TaskType.COMPLETION));
     }
 
     public void testFoldableCompletionWithCustomTargetFieldTransformedToEval() {
@@ -4705,6 +4706,119 @@ public class AnalyzerTests extends ESTestCase {
                     + "command. Only inference endpoints with the task type [text_embedding, embedding] are supported"
             )
         );
+    }
+
+    /**
+     * A query naming no endpoint takes the first candidate this deployment has. The EIS endpoint is preferred over the ML-node
+     * one, so a serverless deployment - which runs no ML nodes - still resolves.
+     */
+    public void testDenseVectorDefaultInferenceIdPrefersEisCandidate() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.EIS_JINA_V5_INFERENCE_ID)));
+        assertThat(denseVector.endpointTaskType(), equalTo(TaskType.TEXT_EMBEDDING));
+    }
+
+    /**
+     * Where the EIS endpoint is absent - a stateful deployment that never reached it - the ML-node endpoint is used instead.
+     */
+    public void testDenseVectorDefaultInferenceIdFallsBackToMlCandidate() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.DEFAULT_INFERENCE_ID)));
+    }
+
+    /**
+     * An endpoint the query names is used as given, even when a candidate is available: selecting a candidate over it would move
+     * the query off the endpoint its author chose.
+     */
+    public void testDenseVectorExplicitInferenceIdIsNotReplacedByCandidate() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"text-embedding-inference-id\" }");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(TEXT_EMBEDDING_INFERENCE_ID)));
+    }
+
+    /**
+     * Naming the ML-node endpoint explicitly keeps it, even though it is also the last candidate. The id alone cannot tell the
+     * two apart, so this pins the behaviour that distinguishes them.
+     */
+    public void testDenseVectorExplicitMlEndpointIsNotReplacedByCandidate() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"" + DenseVector.DEFAULT_INFERENCE_ID + "\" }");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.DEFAULT_INFERENCE_ID)));
+    }
+
+    /**
+     * Where the deployment has no candidate at all, the failure names every candidate tried and the option to set.
+     */
+    public void testDenseVectorNoDefaultInferenceIdAvailable() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR title",
+            containsString(
+                "no inference endpoint is available for the DENSE_VECTOR command: "
+                    + "["
+                    + DenseVector.EIS_JINA_V5_INFERENCE_ID
+                    + "]: unresolved inference ["
+                    + DenseVector.EIS_JINA_V5_INFERENCE_ID
+                    + "]; ["
+                    + DenseVector.DEFAULT_INFERENCE_ID
+                    + "]: unresolved inference ["
+                    + DenseVector.DEFAULT_INFERENCE_ID
+                    + "]. Specify an endpoint using the [inference_id] option."
+            )
+        );
+    }
+
+    /**
+     * A candidate whose task type the input cannot use is skipped. A sparse EIS endpoint under the candidate id leaves the
+     * ML-node candidate as the only usable one.
+     */
+    public void testDenseVectorSkipsCandidateWithUnusableTaskType() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.SPARSE_EMBEDDING)
+            .addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.DEFAULT_INFERENCE_ID)));
+    }
+
+    /**
+     * When no candidate is usable, the failure explains each one: an absent candidate reports its resolution error, and a
+     * present candidate whose task type the input cannot use reports that task type. Here the EIS candidate embeds sparsely and
+     * the ML candidate is absent.
+     */
+    public void testDenseVectorNoDefaultInferenceIdReportsWhyEachCandidateFails() {
+        assumeDenseVectorCommandEnabled();
+        books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.SPARSE_EMBEDDING)
+            .error(
+                "FROM books | DENSE_VECTOR title",
+                containsString(
+                    "no inference endpoint is available for the DENSE_VECTOR command: "
+                        + "["
+                        + DenseVector.EIS_JINA_V5_INFERENCE_ID
+                        + "]: task type [sparse_embedding] is not supported; ["
+                        + DenseVector.DEFAULT_INFERENCE_ID
+                        + "]: unresolved inference ["
+                        + DenseVector.DEFAULT_INFERENCE_ID
+                        + "]. Specify an endpoint using the [inference_id] option."
+                )
+            );
     }
 
     public void testDenseVectorUnknownColumnFails() {

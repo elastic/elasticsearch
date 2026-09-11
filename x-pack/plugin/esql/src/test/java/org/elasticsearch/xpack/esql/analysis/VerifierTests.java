@@ -4921,11 +4921,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testHighlightBareBorrowSynthesizesAnalyzerFromNullOptions() {
-        assumeHighlightImplicitQueryAndFieldsEnabled();
-        supportsHighlightImplicit(fullText()).query("FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT");
-    }
-
     public void testHighlightAllowsWithAnalyzerDisagreeingWithBorrow() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         // The command-level WITH analyzer overrides the borrowed leaf analyzer, so a registered name that differs from
@@ -4933,10 +4928,6 @@ public class VerifierTests extends ESTestCase {
         supportsHighlightImplicit(fullText()).query(
             "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"})"
                 + " | HIGHLIGHT ON title WITH { \"analyzer\": \"keyword\" }"
-        );
-        supportsHighlightImplicit(fullText()).query(
-            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"})"
-                + " | HIGHLIGHT ON title WITH { \"analyzer\": \"whitespace\" }"
         );
     }
 

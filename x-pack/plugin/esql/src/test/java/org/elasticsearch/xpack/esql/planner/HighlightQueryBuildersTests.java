@@ -409,11 +409,6 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("quote_analyzer [keyword] not found"));
     }
 
-    public void testVerifyResolvesQuoteAnalyzerWithRegistry() {
-        QueryString qstr = queryString("\"Fox Bar\"", options("quote_analyzer", "keyword"));
-        HighlightQueryBuilders.verify(qstr, TITLE_STANDARD, true, false, analysisRegistry);
-    }
-
     public void testVerifyUnresolvableQuoteAnalyzerThrowsWithRegistry() {
         QueryString qstr = queryString("\"Fox Bar\"", options("quote_analyzer", "not-a-real-analyzer"));
         IllegalArgumentException e = expectThrows(

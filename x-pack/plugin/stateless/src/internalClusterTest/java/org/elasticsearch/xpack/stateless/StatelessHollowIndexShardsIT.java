@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -57,6 +58,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -79,6 +81,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.rest.RestStatus;
@@ -89,6 +92,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -2068,6 +2072,14 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         unhollowOnIngestion(IngestionType.Index);
     }
 
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.commits.HollowShardsService:DEBUG", reason = """
+        We have seen this test time out waiting for the ingestion latch (see
+        https://github.com/elastic/elasticsearch/issues/151100). It does not reproduce locally and the CI logs before and
+        after the timeout do not look slow, which points to a discrete stall in the unhollow-on-first-ingestion path rather
+        than gradual slowness. HollowShardsService logs each step of unhollowing at DEBUG (start, engine reset, flush,
+        "unhollowed shard with gen ..."), so enabling it should show how far each shard's unhollow progressed when we next
+        catch a failure.
+        """)
     public void testUnhollowOnUpdates() throws Exception {
         unhollowOnIngestion(IngestionType.Update);
     }
@@ -2103,11 +2115,11 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
 
         final var docsIdsGenerator = new AtomicLong();
         final Supplier<String> docIdSupplier = () -> Long.toHexString(docsIdsGenerator.getAndIncrement());
-        var bulkResponse = indexDocs(indexName, between(64, 128), docIdSupplier); // need enough docs for ingesting into all shards
+        var bulkResponse = indexDocs(indexName, between(128, 256), docIdSupplier); // need enough docs for ingesting into all shards
         var docsIds = Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).collect(Collectors.toCollection(HashSet::new));
 
         flush(indexName);
-        bulkResponse = indexDocs(indexName, between(64, 128), docIdSupplier); // need enough docs for ingesting into all shards
+        bulkResponse = indexDocs(indexName, between(128, 256), docIdSupplier); // need enough docs for ingesting into all shards
         Arrays.stream(bulkResponse.getItems()).forEach(item -> docsIds.add(item.getId()));
         var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
         for (int i = 0; i < numberOfShards; i++) {
@@ -2143,13 +2155,18 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             List<Long> generationsBeforeUnhollow = IntStream.range(0, numberOfShards)
                 .mapToObj(i -> statelessCommitService.getLatestUploadedBcc(new ShardId(index, i)).lastCompoundCommit().generation())
                 .toList();
+            // Captured so that, if the latch times out below, we can tell whether a shard simply never received any
+            // operations (and so stayed hollow) versus got stuck mid-unhollow. See #151100.
+            List<Long> indexOpsBeforeUnhollow = IntStream.range(0, numberOfShards)
+                .mapToObj(i -> findIndexShard(index, i).indexingStats().getTotal().getIndexCount())
+                .toList();
             var ingestLatch = new CountDownLatch(ingestingThreads);
             for (int i = 0; i < ingestingThreads; i++) {
                 Runnable ingestRunnable = switch (ingestionType) {
                     // Index docs
                     case Index -> () -> {
                         try {
-                            indexDocs(indexName, randomIntBetween(64, 128)); // need enough ops to ensure unhollowing all shards
+                            indexDocs(indexName, randomIntBetween(128, 256)); // need enough ops to ensure unhollowing all shards
                         } finally {
                             ingestLatch.countDown();
                         }
@@ -2194,7 +2211,31 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 };
                 ingestExecutor.submit(ingestRunnable);
             }
-            safeAwait(ingestLatch, TimeValue.THIRTY_SECONDS);
+            // If an ingesting thread blocks (most likely on a shard's unhollow-on-first-ingestion), the latch never reaches
+            // zero. Rather than mask that by simply extending the timeout, capture diagnostics on the (rare, CI-only) timeout:
+            // which shards are still hollow, plus a hot-threads dump identifying the stuck operation. See #151100.
+            if (ingestLatch.await(30, TimeUnit.SECONDS) == false) {
+                for (int i = 0; i < numberOfShards; i++) {
+                    var shardId = new ShardId(index, i);
+                    // Log the index-op count before vs now: if they are equal, this shard received no operations during the
+                    // burst (so it never unhollowed), which is a different failure mode from getting stuck mid-unhollow.
+                    logger.error(
+                        "--> ingest latch timed out; shard {} still hollow on {}: {}; index ops before={} now={}",
+                        shardId,
+                        indexNodeB,
+                        hollowShardsServiceB.isHollowShard(shardId),
+                        indexOpsBeforeUnhollow.get(i),
+                        findIndexShard(index, i).indexingStats().getTotal().getIndexCount()
+                    );
+                }
+                HotThreads.logLocalHotThreads(
+                    logger,
+                    Level.INFO,
+                    "ingest latch timed out waiting for unhollow-on-ingestion",
+                    ReferenceDocs.LOGGING
+                );
+                fail("ingestLatch did not reach zero within 30s; see still-hollow shards and hot threads logged above");
+            }
             for (int i = 0; i < numberOfShards; i++) {
                 // Should unhollow only once
                 assertThat(

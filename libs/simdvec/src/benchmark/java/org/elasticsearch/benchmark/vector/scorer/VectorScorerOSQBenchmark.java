@@ -17,6 +17,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.store.DirectoryType;
+import org.elasticsearch.benchmark.vector.VectorizationInfo;
 import org.elasticsearch.benchmark.vector.store.DirectoryFactory;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -91,6 +92,7 @@ public class VectorScorerOSQBenchmark {
 
     static {
         BenchmarkLogging.configure();
+        VectorizationInfo.printOnce();
     }
 
     public enum VectorImplementation {

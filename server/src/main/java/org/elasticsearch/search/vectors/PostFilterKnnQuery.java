@@ -34,20 +34,20 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.search.vectors.KnnQueryUtils.computeSelectivity;
 import static org.elasticsearch.search.vectors.KnnQueryUtils.createFilterWeight;
 import static org.elasticsearch.search.vectors.KnnQueryUtils.dedupAndSelectTopK;
 import static org.elasticsearch.search.vectors.KnnQueryUtils.mergeScoreDocArrays;
 
 /**
  * A query that wraps a {@link PostFilterableKnnQuery} and applies post-filtering with a single
- * retry round when the initial pass yields fewer than k results. The retry re-runs the
- * post-filter delegate while avoiding previously visited results (doc IDs for HNSW, centroid
- * posting lists for IVF) and asks for the remainder.
+ * retry round when the initial pass yields fewer than the candidate pool it is aiming for. The retry
+ * re-runs the post-filter delegate excluding every doc already seen, and asks for the remainder.
  * See {@link PostFilterableKnnQuery#createRetryQuery}.
  * <p>
- * If the retry still leaves the result short of k, the outer rewrite falls through to the
- * bare inner query (standard pre-filtered search with the full k beam).
+ * Two sizes matter here and must not be conflated. {@link #k} is the <em>final</em> result count the user
+ * asked for. {@link PostFilterableKnnQuery#postFilterExpectedBaseQueryDocMatches(List)} is the larger pool that the final scoring pass
+ * consumes - an outer {@code RescoreKnnVectorQuery}, or
+ * {@link PostFilterableKnnQuery#finalizeTopK} for auto-calibrated IVF.
  */
 public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
@@ -57,14 +57,13 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     // be meaningful (e.g. k=3, selectivity=0.7 → expected=2.1, threshold=1.05, a single passer
     // would block recovery rounds for no real reason).
     private static final int EARLY_EXIT_MIN_K = 5;
-    // Upper bound on retry seed entry points per graph (leaf). HNSW converges fastest from entry points
-    // near the query, and each extra seed adds per-entry-point traversal overhead with diminishing recall
-    // benefit, so we keep at most this many of the nearest (highest-scoring) round-0 matches per leaf.
-    private static final int MAX_SEEDS_PER_GRAPH = 4;
+    // Upper bound on retry seed entry points per leaf
+    private static final int MAX_SEEDS_PER_LEAF = 4;
     private static final Logger logger = LogManager.getLogger(PostFilterKnnQuery.class);
 
     private final PostFilterableKnnQuery innerQuery;
     private final Query filter;
+    /** The final result count the user asked for - not the candidate pool. See the class javadoc. */
     private final int k;
     private final String field;
     private long totalVectorOps;
@@ -100,12 +99,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         if (rewriteMeta != null) {
             assert rewriteMeta.postFilterQuery() instanceof PostFilterableKnnQuery
                 : "[createPostFilterQuery] should have generated a PostFilterableKnnQuery";
-            var rewritten = postFilterRewrite(
-                searcher,
-                (PostFilterableKnnQuery) rewriteMeta.postFilterQuery(),
-                filterWeight,
-                rewriteMeta.selectivity()
-            );
+            var rewritten = postFilterRewrite(searcher, rewriteMeta, filterWeight);
             if (rewritten != null) {
                 return rewritten;
             }
@@ -118,9 +112,13 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         return rewritten;
     }
 
-    private Query postFilterRewrite(IndexSearcher searcher, PostFilterableKnnQuery postFilterQuery, Weight filterWeight, float selectivity)
+    private Query postFilterRewrite(IndexSearcher searcher, PostFilterRewriteMeta postFilterRewriteMeta, Weight filterWeight)
         throws IOException {
+        PostFilterableKnnQuery postFilterQuery = (PostFilterableKnnQuery) postFilterRewriteMeta.postFilterQuery;
         Query delegate = (Query) postFilterQuery;
+
+        int expectedBaseQueryDocMatches = postFilterRewriteMeta.expectedBaseQueryDocMatches;
+        float selectivity = postFilterRewriteMeta.selectivity;
 
         // first pass: initial post-filter search. delegateK is the scaled K already baked into the
         // delegate by createPostFilterDelegate.
@@ -136,7 +134,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
         ScoreDoc[][] matching = filtered.matchingPerLeaf();
         int[][] filteredOut = filtered.filteredOutPerLeaf();
-        ScoreDoc[] scoreDocs = dedupAndSelectTopK(flattenPerLeaf(matching), searcher.getIndexReader(), parentsFilter, k);
+        ScoreDoc[] scoreDocs = dedupAndSelectTopK(flattenPerLeaf(matching), expectedBaseQueryDocMatches);
 
         long vectorOps = postFilterQuery.totalVectorOps();
 
@@ -145,50 +143,58 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             return null;
         }
 
-        // retry round - single retry if round 0 came up short.
-        if (scoreDocs.length < k) {
+        // retry round - single retry if round 0 came up short of the expected matches.
+        if (scoreDocs.length < expectedBaseQueryDocMatches) {
             logger.debug(
-                "post-filter retry firing for field=[{}], k=[{}], selectivity=[{}], scoreDocs so far=[{}] and visited=[{}]",
+                "post-filter retry firing for field=[{}], k=[{}],"
+                    + " expectedBaseQueryDocMatches=[{}], selectivity=[{}], scoreDocs so far=[{}]",
                 field,
                 k,
+                expectedBaseQueryDocMatches,
                 selectivity,
-                scoreDocs.length,
-                vectorOps
+                scoreDocs.length
             );
-
-            // Exclude every round-0 candidate so the retry can only surface genuinely new docs: the
-            // filtered-out set plus all filter-matching docs (not just the top-k kept after parent
-            // dedup, since a collapsed sibling would otherwise be re-collected and waste a slot).
-            int[] matchingIds = sortedDocIdsFromPerLeaf(matching);
-            int[] excluded = KnnQueryUtils.sortedMerge(flattenPerLeafDocIds(filteredOut), matchingIds);
+            // Exclude everything already tried from later rounds. For nested (block-join) queries a parent
+            // we already matched is done - we keep only one hit per parent - so we exclude its whole block;
+            // a parent whose child was merely filtered out stays eligible through its untried children.
+            // Non-nested queries exclude the individual matched docs.
+            int[] alreadyMatched = parentsFilter != null
+                ? KnnQueryUtils.expandToParentBlocks(matching, searcher.getIndexReader(), parentsFilter)
+                : sortedDocIdsFromPerLeaf(matching);
+            int[] excluded = KnnQueryUtils.sortedMerge(flattenPerLeafDocIds(filteredOut), alreadyMatched);
             // Seeds are the nearest (highest-scoring) round-0 matches per leaf, selected here while the
             // scores are still available on `matching`; excluded still needs the full matching set above.
-            int[][] seedDocsPerLeaf = nearestSeedsPerLeaf(matching, MAX_SEEDS_PER_GRAPH);
-            int remaining = k - scoreDocs.length;
-            Query retry = postFilterQuery.createRetryQuery(searcher.getIndexReader(), excluded, seedDocsPerLeaf, remaining);
-            TopDocs retryDocs = searcher.search(retry, remaining);
+            int[][] seedDocsPerLeaf = nearestSeedsPerLeaf(matching, MAX_SEEDS_PER_LEAF);
+            int remaining = expectedBaseQueryDocMatches - scoreDocs.length;
+            int retryK = PostFilterableKnnQuery.computeScaledK(remaining, selectivity);
+            Query retry = postFilterQuery.createRetryQuery(searcher.getIndexReader(), excluded, seedDocsPerLeaf, retryK);
+            TopDocs retryDocs = searcher.search(retry, retryK);
             if (retryDocs.scoreDocs.length > 0) {
                 PostFilterableKnnQuery retryQuery = (PostFilterableKnnQuery) retry;
                 vectorOps += retryQuery.totalVectorOps();
                 ScoreDoc[][] retryCandidates = retryQuery.getPostFilterCandidates();
                 ScoreDoc[] retryPassing = flattenPerLeaf(applyFilter(retryCandidates, filterWeight, leaves).matchingPerLeaf());
-                scoreDocs = dedupAndSelectTopK(mergeScoreDocArrays(scoreDocs, retryPassing), searcher.getIndexReader(), parentsFilter, k);
+                scoreDocs = dedupAndSelectTopK(mergeScoreDocArrays(scoreDocs, retryPassing), expectedBaseQueryDocMatches);
             }
         }
 
-        // Accumulate the post-filter attempt's vector ops regardless of outcome so the profile
-        // reflects the full cost - the outer rewrite() adds the bare innerQuery's own ops on top
-        // only when we return null (zero-result case).
         this.totalVectorOps += vectorOps;
-        if (scoreDocs.length < k) {
+        if (scoreDocs.length < expectedBaseQueryDocMatches) {
             logger.debug(
                 "post filtering retrieved only [{}] results, less than the desired [{}] results. Falling back to original query",
                 scoreDocs.length,
-                k
+                expectedBaseQueryDocMatches
             );
             return null;
         }
-        return new KnnScoreDocQuery(scoreDocs, searcher.getIndexReader());
+
+        // Final scoring pass. Identity unless the inner query owns its own exact rescore (auto-calibrated
+        // IVF), in which case the pool is rescored here - after filtering, so no exact comparison is spent
+        // on a doc the filter rejected.
+        long opsBeforeFinalize = postFilterQuery.totalVectorOps();
+        ScoreDoc[] finalDocs = postFilterQuery.finalizeTopK(searcher, scoreDocs, k);
+        this.totalVectorOps += postFilterQuery.totalVectorOps() - opsBeforeFinalize;
+        return new KnnScoreDocQuery(finalDocs, searcher.getIndexReader());
     }
 
     /**
@@ -206,7 +212,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             return false;
         }
         double expectedHits = k * (double) selectivity;
-        double threshold = expectedHits / 2.0;
+        double threshold = expectedHits * 0.5;
         boolean shouldExit = scoreDocsCount < threshold;
         if (shouldExit) {
             logger.debug(
@@ -379,19 +385,25 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         return seedsPerLeaf;
     }
 
-    private record PostFilterRewriteMeta(Query postFilterQuery, float selectivity) {}
+    private record PostFilterRewriteMeta(Query postFilterQuery, float selectivity, int expectedBaseQueryDocMatches) {}
 
     private PostFilterRewriteMeta maybeCreatePostFilterQuery(IndexSearcher searcher, Weight filterWeight) throws IOException {
         if (filterWeight == null) {
             return null;
         }
         var leaves = searcher.getIndexReader().leaves();
-        int totalVectors = innerQuery.countTotalVectors(leaves);
-        float selectivity = computeSelectivity(filterWeight, leaves, totalVectors);
+        float selectivity = innerQuery.estimateFilterSelectivity(filterWeight, leaves);
         if (selectivity >= postFilterSelectivityThreshold) {
-            return new PostFilterRewriteMeta(innerQuery.createPostFilterDelegate(selectivity), selectivity);
+            int expectedBaseQueryDocMatches = Math.max(k, innerQuery.postFilterExpectedBaseQueryDocMatches(leaves));
+            Query delegate = innerQuery.createPostFilterDelegate(selectivity);
+            return new PostFilterRewriteMeta(delegate, selectivity, expectedBaseQueryDocMatches);
         }
         return null;
+    }
+
+    /** The final result count this wrapper targets. Package-private: used to pin the mapper's wiring. */
+    int k() {
+        return k;
     }
 
     Query innerQuery() {

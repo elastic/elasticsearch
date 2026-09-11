@@ -125,7 +125,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         indicesAdmin().prepareFlush(indexName).execute();
         safeAwait(firstUploadStarted);
 
-        var preRecoveryFlushDone = startRelocationAndAwaitUntilItStartsOnSource(sourceNode, indexName);
+        PlainActionFuture<Void> preRecoveryFlushDone = startRelocationAndAwaitUntilItStartsOnSource(sourceNode, indexName);
 
         if (hasUncommittedDataDuringPreFlush) {
             indexDocs(indexName, randomIntBetween(10, 20));
@@ -364,7 +364,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         var recoveryStarted = new CountDownLatch(1);
         internalCluster().getInstance(CompositeRecoverySchedulingListener.class, sourceNode).addListener(new RecoverySchedulingListener() {
             @Override
-            public void onPeerRecoveryStartedOnSource() {
+            public void onPeerRecoveryDequeuedAndStartedOnSource() {
                 recoveryStarted.countDown();
             }
 

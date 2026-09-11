@@ -27,36 +27,25 @@ import java.util.Objects;
 public class SegmentTests extends ESTestCase {
     static SortField randomSortField() {
         return switch (between(0, 2)) {
-            case 0 -> {
-                SortedNumericSortField field = new SortedNumericSortField(
-                    randomAlphaOfLengthBetween(1, 10),
-                    SortField.Type.INT,
-                    randomBoolean(),
-                    randomBoolean() ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN
-                );
-                if (randomBoolean()) {
-                    field.setMissingValue(randomInt());
-                }
-                yield field;
-            }
-            case 1 -> {
-                SortedSetSortField field = new SortedSetSortField(
-                    randomAlphaOfLengthBetween(1, 10),
-                    randomBoolean(),
-                    randomBoolean() ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN
-                );
-                if (randomBoolean()) {
-                    field.setMissingValue(randomBoolean() ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
-                }
-                yield field;
-            }
-            case 2 -> {
-                SortField field = new SortField(randomAlphaOfLengthBetween(1, 10), SortField.Type.STRING, randomBoolean());
-                if (randomBoolean()) {
-                    field.setMissingValue(randomBoolean() ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
-                }
-                yield field;
-            }
+            case 0 -> new SortedNumericSortField(
+                randomAlphaOfLengthBetween(1, 10),
+                SortField.Type.INT,
+                randomBoolean(),
+                randomBoolean() ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN,
+                randomBoolean() ? randomInt() : null
+            );
+            case 1 -> new SortedSetSortField(
+                randomAlphaOfLengthBetween(1, 10),
+                randomBoolean(),
+                randomBoolean() ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN,
+                randomBoolean() ? (randomBoolean() ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST) : null
+            );
+            case 2 -> new SortField(
+                randomAlphaOfLengthBetween(1, 10),
+                SortField.Type.STRING,
+                randomBoolean(),
+                randomBoolean() ? (randomBoolean() ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST) : null
+            );
             default -> throw new UnsupportedOperationException();
         };
     }

@@ -612,6 +612,7 @@ public final class FrozenFieldNameTable {
 
             /** Records {@code name}; a capped set that is already full silently drops it. */
             void add(String name, byte[] buf, int off, int len, int hash) {
+                assert lookup(buf, off, len, hash) == null : "caller must not add a name already present: " + name;
                 if (capacity >= 0 && count == capacity) {
                     return;
                 }

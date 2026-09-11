@@ -116,23 +116,22 @@ public class CsvColumnarIT extends CsvIT {
      * fails on column types. The only failures were the {@code unmapped_fields="load"} family
      * described below, which now carry per-test {@code skip_columnar:} directives instead, so
      * these datasets are no longer excluded.
+     *
+     * <p>A second round removed {@code airports}, {@code airports_web}, {@code airports_not_indexed},
+     * {@code employees_incompatible} and {@code conv_from_keyword}. Their stated reasons were real but
+     * far narrower than a whole dataset: running them recovered 394 tests and failed only 11, all of
+     * them the geo_point precision difference, which now carries per-test directives. Prefer measuring
+     * the blast radius over trusting the reason: an entry that excludes hundreds of tests to silence a
+     * handful is worth re-checking, and a reason describing a result difference should be verified not
+     * to be an index-creation failure (the {@code doc_values:false} airports variants above were
+     * mislabelled that way).
      */
     private static final Set<String> COLUMNAR_INCOMPATIBLE_DATASETS = Set.of(
-        // index:false / doc_values:false are no-ops in strict columnar mode — every field gets
-        // doc values and is searchable — so query results differ by design from a standard index
-        // that honours those settings.
-        "airports_not_indexed",
+        // geo_point with doc_values:false cannot be rebuilt from doc values, so index creation
+        // fails with "field [location] cannot reconstruct _source from doc values". Note this is
+        // a creation failure, not the by-design result difference that index:false produces.
         "airports_no_doc_values",
         "airports_not_indexed_nor_doc_values",
-        // geo_point fields are stored at different precision in columnar mode: to_string() returns
-        // slightly different coordinates (e.g. "POINT (116.072 5.975)" vs "POINT (116.073 5.975)").
-        // See CrossIndexModeGenerativeRestRunner.EXCLUDED_DATASETS.
-        "airports",
-        "airports_web",
-        // Mapping designed to be type-incompatible with the standard employees dataset; its CSV
-        // data contains deliberate duplicates in boolean MV fields (e.g. [false,true,true]).
-        // SortedSetDocValues deduplicates those in standard mode while columnar may preserve them.
-        "employees_incompatible",
         // Contains a plain txt:text field with no doc_values; fails index creation in columnar
         // mode because text without doc_values cannot be reconstructed from doc values.
         "text_state_mapped",
@@ -142,10 +141,6 @@ public class CsvColumnarIT extends CsvIT {
         // cartesian_shape field with doc_values:false cannot be reconstructed from doc values
         // in columnar mode: "field [shape] cannot reconstruct _source from doc values".
         "cartesian_multipolygons_no_doc_values",
-        // index.mapping.index_disabled_by_default=true disables the inverted index for fields
-        // without an explicit "index: true", so full-text (:) queries return different results
-        // between standard and columnar modes.
-        "conv_from_keyword",
         // Mappings that disable or exclude _source are rejected by columnar mode:
         // "Failed to parse mapping: _source can not be disabled in index using [columnar] index mode".
         // These datasets test _source-disabled / _source-excluded query behavior, which does not
@@ -154,15 +149,21 @@ public class CsvColumnarIT extends CsvIT {
         "partial_mapping_mv_no_source_sample_data",
         "partial_mapping_excluded_source_sample_data",
         // LOAD_ALL / LOAD from source loads unmapped fields directly from the stored _source.
-        // In columnar mode, _source is synthetic (reconstructed from doc values), so unmapped
-        // fields — fields that exist in the stored document but have no mapping entry — are not
-        // available. All unmapped-load-all tests and the unmapped-load tests that load fields
-        // absent from the mapping therefore produce 0-column / 0-row results in columnar mode.
+        // In columnar mode _source is synthetic, so fields absent from the mapping are gone. Nearly
+        // every test reaching these two datasets exercises exactly that, so a per-test directive
+        // would mean ~230 of them; the dataset-level exclusion stays.
         "partial_mapping_sample_data",
         "partial_mapping_mv_sample_data",
+        // Has no explicit mapping at all, so every field is unmapped and the same reasoning applies.
+        "no_mapping_sample_data",
         // Same reason, for the LOAD_ALL fixtures: all of these are dynamic:false and deliberately leave
         // everything but the mapped keys in _source / _ignored_source, which strict columnar drops at
         // ingest. synthetic_source_partial_mapping reuses mapping-partial_mapping_sample_data.json.
+        // Measured: un-excluding all seven adds 37 tests, of which 36 fail and 1 is already skipped,
+        // so not one test is recovered. The failures are the reason itself — the unmapped column is
+        // absent from the result rather than merely wrong. Unlike the airports entries above, the
+        // blast radius here is exactly the genuine-failure set, so dataset level is the right
+        // granularity. No need to re-measure.
         "unmapped_multi_stored_foo",
         "unmapped_multi_stored_bar",
         "unmapped_multi_synthetic",
@@ -170,12 +171,16 @@ public class CsvColumnarIT extends CsvIT {
         "unmapped_array_data",
         "unmapped_object_data",
         "synthetic_source_partial_mapping",
-        // no_mapping_sample_data has no explicit mapping; all its fields are unmapped. When
-        // combined with other indices in a multi-index query and LOAD is used to load the
-        // unmapped fields, columnar mode returns null for them (synthetic _source cannot
-        // reconstruct fields that have no mapping entry). Excluding this dataset removes all
-        // type-conflict tests that depend on unmapped-field loading from this source.
-        "no_mapping_sample_data",
+        // unmapped_source_* family: dynamic:false with only id mapped; everything else lives in
+        // _source / _ignored_source, which strict columnar drops at ingest. unmapped_source_disabled
+        // additionally sets _source: {enabled: false}, which columnar index modes do not permit at all.
+        "unmapped_source_stored",
+        "unmapped_source_synthetic",
+        "unmapped_source_synth_keep_arrays",
+        "unmapped_source_disabled",
+        "unmapped_source_excludes",
+        "unmapped_source_includes",
+        "unmapped_source_subobjects_false",
         // Keyword fields with a normalizer (e.g. test_lowercase) store only the normalised form
         // in doc values, losing the original value. Columnar mode therefore cannot reconstruct
         // the original _source for these fields and rejects index creation with

@@ -792,13 +792,18 @@ public class BooleanFieldMapper extends FieldMapper {
         EscfColumnData outData = booleansToLongs(source);
         if (fieldType().indexType().hasDocValuesSkipper()) {
             ctx.addColumn(
-                LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, LongColumn.NumericKind.INT)
+                LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, LongColumn.NumericKind.INT),
+                outData
             );
         } else {
-            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
+            ctx.addColumn(
+                LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT),
+                outData
+            );
         }
         if (indexed || stored) {
             EscfColumnData termsData = booleansToTerms(outData);
+            ctx.addResource(termsData);
             if (indexed) {
                 ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), StringField.TYPE_NOT_STORED));
             }
@@ -809,38 +814,50 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     private EscfColumnData booleansToLongs(EscfColumn source) {
-        EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
-        builder.lockScalar(EscfColumnKind.LONG);
-        if (source.kind() == EscfColumnKind.BOOL) {
-            FixedBitSet boolValues = source.columnData().values();
-            PresentDocIterator it = source.presentDocs();
-            for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
-                builder.setLong(doc, (boolValues != null && boolValues.get(doc)) ? 1L : 0L);
-            }
-        } else {
-            final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
-            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-                final BytesRef value = cursor.value();
-                if (value == null) {
-                    if (nullValue != null) {
-                        builder.setLong(doc, nullValue ? 1L : 0L);
+        try (
+            EscfColumnBuilder builder = new EscfColumnBuilder(
+                EscfColumnBuilder.CollisionPolicy.MERGE,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
+            )
+        ) {
+            builder.lockScalar(EscfColumnKind.LONG);
+            if (source.kind() == EscfColumnKind.BOOL) {
+                FixedBitSet boolValues = source.columnData().values();
+                PresentDocIterator it = source.presentDocs();
+                for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
+                    builder.setLong(doc, (boolValues != null && boolValues.get(doc)) ? 1L : 0L);
+                }
+            } else {
+                final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
+                for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                    final BytesRef value = cursor.value();
+                    if (value == null) {
+                        if (nullValue != null) {
+                            builder.setLong(doc, nullValue ? 1L : 0L);
+                        }
+                    } else {
+                        builder.setLong(doc, Booleans.parseBoolean(value.bytes, value.offset, value.length, false) ? 1L : 0L);
                     }
-                } else {
-                    builder.setLong(doc, Booleans.parseBoolean(value.bytes, value.offset, value.length, false) ? 1L : 0L);
                 }
             }
+            return builder.finish(source.docCount());
         }
-        return builder.finish(source.docCount());
     }
 
     private EscfColumnData booleansToTerms(EscfColumnData longData) {
-        EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
-        builder.lockScalar(EscfColumnKind.STRING);
-        LongTupleCursor cursor = EscfColumn.from(longData).longCursor();
-        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-            builder.setString(doc, cursor.longValue() != 0L ? Values.TRUE : Values.FALSE);
+        try (
+            EscfColumnBuilder builder = new EscfColumnBuilder(
+                EscfColumnBuilder.CollisionPolicy.MERGE,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
+            )
+        ) {
+            builder.lockScalar(EscfColumnKind.STRING);
+            LongTupleCursor cursor = EscfColumn.from(longData).longCursor();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                builder.setString(doc, cursor.longValue() != 0L ? Values.TRUE : Values.FALSE);
+            }
+            return builder.finish(longData.docCount());
         }
-        return builder.finish(longData.docCount());
     }
 
 }

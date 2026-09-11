@@ -196,7 +196,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 estimatedRowSize,
                 List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
             ),
-            EmptyIndexedByShardId.instance()
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -228,7 +229,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 estimatedRowSize,
                 List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
             ),
-            EmptyIndexedByShardId.instance()
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -260,7 +262,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 estimatedRowSize,
                 List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
             ),
-            EmptyIndexedByShardId.instance()
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -285,7 +288,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 estimatedRowSize,
                 List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
             ),
-            EmptyIndexedByShardId.instance()
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -337,7 +341,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             PlannerSettings.DEFAULTS,
             exec,
-            EmptyIndexedByShardId.instance()
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
         );
 
         assertThat(captured.get(), notNullValue());
@@ -391,7 +396,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             PlannerSettings.DEFAULTS,
             exec,
-            EmptyIndexedByShardId.instance()
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
         );
 
         assertThat(captured.get(), notNullValue());
@@ -434,7 +440,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 FoldContext.small(),
                 PlannerSettings.DEFAULTS,
                 exec,
-                EmptyIndexedByShardId.instance()
+                EmptyIndexedByShardId.instance(),
+                randomBoolean()
             )
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
@@ -499,7 +506,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             PlannerSettings.DEFAULTS,
             exec,
-            EmptyIndexedByShardId.instance()
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
         );
 
         assertThat(captured.get(), notNullValue());
@@ -536,7 +544,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             PlannerSettings.DEFAULTS,
             exec,
-            EmptyIndexedByShardId.instance()
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
         );
 
         assertThat(captured.get(), notNullValue());
@@ -599,7 +608,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             PlannerSettings.DEFAULTS,
             exec,
-            EmptyIndexedByShardId.instance()
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
         );
 
         assertThat(captured.get(), notNullValue());
@@ -688,7 +698,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             plannerSettings,
             aggExec,
-            EmptyIndexedByShardId.instance()
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -731,7 +742,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             PlannerSettings.DEFAULTS,
             metricsInfoExec,
-            EmptyIndexedByShardId.instance()
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
         );
         assertThat(plan.driverFactories.size(), equalTo(1));
         var sourceFactory = plan.driverFactories.get(0).driverSupplier().physicalOperation().sourceOperatorFactory;
@@ -772,7 +784,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             PlannerSettings.DEFAULTS,
             metricsInfoExec,
-            EmptyIndexedByShardId.instance()
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
         );
         assertThat(plan.driverFactories.size(), equalTo(1));
         var sourceFactory = plan.driverFactories.get(0).driverSupplier().physicalOperation().sourceOperatorFactory;
@@ -815,7 +828,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             PlannerSettings.DEFAULTS,
             fieldExtractExec,
-            EmptyIndexedByShardId.instance()
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
         );
         var p = plan.driverFactories.get(0).driverSupplier().physicalOperation();
         var fieldInfo = ((ValuesSourceReaderOperator.Factory) p.intermediateOperatorFactories.get(0)).fields().get(0);
@@ -1097,7 +1111,14 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private LocalExecutionPlanner.LocalExecutionPlan planInnerJoin(PhysicalPlan innerJoin) throws IOException {
-        return planner().plan("test", FoldContext.small(), PlannerSettings.DEFAULTS, innerJoin, EmptyIndexedByShardId.instance());
+        return planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            innerJoin,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
     }
 
     /**

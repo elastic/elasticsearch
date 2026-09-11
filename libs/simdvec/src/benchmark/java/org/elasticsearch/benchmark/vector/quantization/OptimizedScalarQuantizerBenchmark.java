@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.vector.quantization;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.benchmark.vector.VectorizationInfo;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -38,6 +39,7 @@ public class OptimizedScalarQuantizerBenchmark {
 
     static {
         BenchmarkLogging.configure();
+        VectorizationInfo.printOnce();
     }
 
     @Param({ "384", "702", "1024" })

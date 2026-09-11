@@ -817,11 +817,11 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         final Map<String, NodeHeapMetrics> nodeHeapMetrics = new HashMap<>();
         nodeHeapMetrics.put(
             harness.nodeId1,
-            new NodeHeapMetrics(harness.nodeId1, totalBytes, new NodeHeapEstimates(estimatedBytesUsed, estimatedHostedShardBytesUsed))
+            new NodeHeapMetrics(harness.nodeId1, totalBytes, new NodeHeapEstimates(estimatedBytesUsed, estimatedHostedShardBytesUsed, 0L))
         );
         nodeHeapMetrics.put(
             harness.nodeId2,
-            new NodeHeapMetrics(harness.nodeId2, totalBytes, new NodeHeapEstimates(estimatedBytesUsed, estimatedHostedShardBytesUsed))
+            new NodeHeapMetrics(harness.nodeId2, totalBytes, new NodeHeapEstimates(estimatedBytesUsed, estimatedHostedShardBytesUsed, 0L))
         );
         final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages = new HashMap<>();
         estimatedShardHeapUsages.put(shardRouting1.shardId(), new ShardAndIndexHeapUsage(shardHeapUsage, indexHeapUsage));
@@ -1177,11 +1177,11 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         final Map<String, NodeHeapMetrics> nodeHeapMetrics = new HashMap<>();
         nodeHeapMetrics.put(
             harness.nodeId1,
-            new NodeHeapMetrics(harness.nodeId1, totalBytes, new NodeHeapEstimates(estimatedBytesUsed, estimatedHostedShardBytesUsed))
+            new NodeHeapMetrics(harness.nodeId1, totalBytes, new NodeHeapEstimates(estimatedBytesUsed, estimatedHostedShardBytesUsed, 0L))
         );
         nodeHeapMetrics.put(
             harness.nodeId2,
-            new NodeHeapMetrics(harness.nodeId2, totalBytes, new NodeHeapEstimates(estimatedBytesUsed, estimatedHostedShardBytesUsed))
+            new NodeHeapMetrics(harness.nodeId2, totalBytes, new NodeHeapEstimates(estimatedBytesUsed, estimatedHostedShardBytesUsed, 0L))
         );
 
         ClusterInfo clusterInfo = ClusterInfo.builder().nodeHeapMetrics(nodeHeapMetrics).build();
@@ -1273,11 +1273,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         final long defaultIndexHeapBytes = randomLongBetween(20, 70);
         final long deltaBytes = defaultShardHeapBytes + defaultIndexHeapBytes;
         final var defaultShardAndIndexHeap = new ShardAndIndexHeapUsage(defaultShardHeapBytes, defaultIndexHeapBytes);
-        // These baselines need to be consistent, or we risk violating assertions in the NodeHeapEstimate constructor
-        // with unrealistic values
         final int baselineNumShards = randomIntBetween(3, 10);
         final long baselineBytes = deltaBytes * baselineNumShards;
-        final long hostedShardsBaselineBytes = defaultShardHeapBytes * baselineNumShards;
+        final long hostedShardsBaselineBytes = deltaBytes * baselineNumShards;
 
         // For a new shard
         {
@@ -1302,7 +1300,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             final Map<String, NodeHeapMetrics> nodeHeapMetrics = new HashMap<>();
             nodeHeapMetrics.put(
                 nodeId,
-                new NodeHeapMetrics(nodeId, maxHeapBytes, new NodeHeapEstimates(baselineBytes, hostedShardsBaselineBytes))
+                new NodeHeapMetrics(nodeId, maxHeapBytes, new NodeHeapEstimates(baselineBytes, hostedShardsBaselineBytes, 0L))
             );
 
             final ClusterInfo clusterInfoForNewShard = ClusterInfo.builder()
@@ -1352,11 +1350,11 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             final Map<String, NodeHeapMetrics> twoNodeHeaps = new HashMap<>();
             twoNodeHeaps.put(
                 sourceNodeId,
-                new NodeHeapMetrics(sourceNodeId, maxHeapBytes, new NodeHeapEstimates(baselineBytes, hostedShardsBaselineBytes))
+                new NodeHeapMetrics(sourceNodeId, maxHeapBytes, new NodeHeapEstimates(baselineBytes, hostedShardsBaselineBytes, 0L))
             );
             twoNodeHeaps.put(
                 targetNodeId,
-                new NodeHeapMetrics(targetNodeId, maxHeapBytes, new NodeHeapEstimates(baselineBytes, hostedShardsBaselineBytes))
+                new NodeHeapMetrics(targetNodeId, maxHeapBytes, new NodeHeapEstimates(baselineBytes, hostedShardsBaselineBytes, 0L))
             );
 
             final ClusterInfo clusterInfoForRelocation = ClusterInfo.builder()

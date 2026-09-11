@@ -341,6 +341,10 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
     }
 
     private NodeHeapEstimates validHeapEstimate(long totalHeapUsageBytes) {
-        return new NodeHeapEstimates(totalHeapUsageBytes, randomLongBetween(0, totalHeapUsageBytes));
+        return new NodeHeapEstimates(
+            totalHeapUsageBytes,
+            randomLongBetween(0, totalHeapUsageBytes),
+            randomLongBetween(0, totalHeapUsageBytes)
+        );
     }
 }

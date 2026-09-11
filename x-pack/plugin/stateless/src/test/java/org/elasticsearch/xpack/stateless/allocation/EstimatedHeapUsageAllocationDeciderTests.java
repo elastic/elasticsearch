@@ -784,7 +784,11 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
     private NodeHeapMetrics createNodeHeapMetrics(String nodeId, long usagePercent, ByteSizeValue totalHeapSize) {
         final var totalInBytes = totalHeapSize.getBytes();
         final var usedInBytes = (long) Math.floor(totalInBytes * usagePercent / 100.0d);
-        return new NodeHeapMetrics(nodeId, totalInBytes, new NodeHeapEstimates(usedInBytes, randomLongBetween(0, usedInBytes)));
+        return new NodeHeapMetrics(
+            nodeId,
+            totalInBytes,
+            new NodeHeapEstimates(usedInBytes, randomLongBetween(0, usedInBytes), randomLongBetween(0, usedInBytes))
+        );
     }
 
     private Map<ShardId, ShardAndIndexHeapUsage> createShardAndIndexHeapUsageMap(ShardId shardId, long additionalBytes) {

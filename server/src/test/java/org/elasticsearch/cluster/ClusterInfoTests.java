@@ -70,6 +70,33 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         assertThat(preCacheUsageCopy.getHostedShardsPartitionSizeByNodeId(), equalTo(Map.of()));
     }
 
+    public void testExplicitHeapEstimateComponentsAreTransportVersionGated() throws Exception {
+        final var shardId = randomShardId();
+        final var nodeHeapMetrics = Map.of("node", new NodeHeapMetrics("node", 1_000L, new NodeHeapEstimates(300L, 120L, 80L)));
+        final var shardHeapUsage = new ShardAndIndexHeapUsage(10L, 20L, 30L);
+        final var defaultShardHeapUsage = new ShardAndIndexHeapUsage(1L, 2L, 3L);
+        final var clusterInfo = ClusterInfo.builder()
+            .nodeHeapMetrics(nodeHeapMetrics)
+            .estimatedShardHeapUsages(Map.of(shardId, shardHeapUsage))
+            .defaultShardHeapUsageForShardsWithoutMetrics(defaultShardHeapUsage)
+            .build();
+
+        final var currentVersionCopy = copyInstance(clusterInfo, TransportVersion.current());
+        assertThat(currentVersionCopy.getNodeHeapMetrics(), equalTo(nodeHeapMetrics));
+        assertThat(currentVersionCopy.getEstimatedShardHeapUsages(), equalTo(Map.of(shardId, shardHeapUsage)));
+        assertThat(currentVersionCopy.getDefaultShardHeapUsageForShardsWithoutMetrics(), equalTo(defaultShardHeapUsage));
+
+        final var legacyVersion = TransportVersionUtils.getPreviousVersion(NodeHeapEstimates.EXPLICIT_HEAP_ESTIMATE_COMPONENTS);
+        final var legacyCopy = copyInstance(clusterInfo, legacyVersion);
+        // NodeHeapEstimates had no non-shard field on the legacy wire, and that component is not derivable from total/hosted heap.
+        assertThat(legacyCopy.getNodeHeapMetrics().get("node").nodeHeapEstimates(), equalTo(new NodeHeapEstimates(300L, 120L, 0L)));
+        // ShardAndIndexHeapUsage had no separate postings field on the legacy wire, so postings is folded into shard heap:
+        // shard heap = 10 shard + 30 postings; index heap remains 20; separated postings reads back as 0.
+        assertThat(legacyCopy.getEstimatedShardHeapUsages().get(shardId), equalTo(new ShardAndIndexHeapUsage(40L, 20L, 0L)));
+        // The same legacy folding applies to the default heap input used for shards without explicit metrics.
+        assertThat(legacyCopy.getDefaultShardHeapUsageForShardsWithoutMetrics(), equalTo(new ShardAndIndexHeapUsage(4L, 2L, 0L)));
+    }
+
     public void testSearchLaneRequirementsAreTransportVersionGated() throws Exception {
         final var clusterInfo = ClusterInfo.builder().shardSearchLaneRequirements(randomShardSearchLaneRequirements()).build();
 
@@ -174,7 +201,10 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         int numEntries = randomIntBetween(0, 128);
         Map<ShardId, ShardAndIndexHeapUsage> shardHeapUsageBuilder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
-            shardHeapUsageBuilder.put(randomShardId(), new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong()));
+            shardHeapUsageBuilder.put(
+                randomShardId(),
+                new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
+            );
         }
         return shardHeapUsageBuilder;
     }
@@ -189,7 +219,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             final NodeHeapMetrics nodeHeapMetrics = new NodeHeapMetrics(
                 randomAlphaOfLength(4),
                 maxHeapSize,
-                new NodeHeapEstimates(totalHeapUsage, randomLongBetween(0, totalHeapUsage))
+                new NodeHeapEstimates(totalHeapUsage, randomLongBetween(0, totalHeapUsage), randomLongBetween(0, totalHeapUsage))
             );
             nodeHeapUsage.put(key, nodeHeapMetrics);
         }

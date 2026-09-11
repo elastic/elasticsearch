@@ -26,9 +26,9 @@ public class Streams {
     // Separate buffer for copy since a nested read within a copy on the same thread can overwrite the buffer
     private static final ThreadLocal<byte[]> LOCAL_COPY_BUFFER = ThreadLocal.withInitial(() -> new byte[8 * 1024]);
 
-    // Flag used to assert copy isn't called reentrantly
+    // Flag used to assert LOCAL_COPY_BUFFER isn't used reentrantly
     private static final ThreadLocal<Boolean> COPY_IN_USE = Assertions.ENABLED ? new ThreadLocal<>() : null;
-    // Flag used to assert read isn't called reentrantly
+    // Flag used to assert LOCAL_READ_BUFFER isn't used reentrantly
     private static final ThreadLocal<Boolean> READ_IN_USE = Assertions.ENABLED ? new ThreadLocal<>() : null;
 
     private Streams() {
@@ -46,7 +46,6 @@ public class Streams {
      * @throws IOException in case of I/O errors
      */
     public static long copy(final InputStream in, final OutputStream out, byte[] buffer, boolean close) throws IOException {
-        assert assertEnter(COPY_IN_USE, "Streams.copy");
         Exception err = null;
         try {
             long byteCount = 0;
@@ -61,7 +60,6 @@ public class Streams {
             err = e;
             throw e;
         } finally {
-            assert assertExit(COPY_IN_USE, "Streams.copy");
             if (close) {
                 IOUtils.close(err, in, out);
             }
@@ -72,7 +70,12 @@ public class Streams {
      * @see #copy(InputStream, OutputStream, byte[], boolean)
      */
     public static long copy(final InputStream in, final OutputStream out, boolean close) throws IOException {
-        return copy(in, out, LOCAL_COPY_BUFFER.get(), close);
+        assert assertEnter(COPY_IN_USE, "Streams.copy");
+        try {
+            return copy(in, out, LOCAL_COPY_BUFFER.get(), close);
+        } finally {
+            assert assertExit(COPY_IN_USE, "Streams.copy");
+        }
     }
 
     /**
@@ -86,7 +89,7 @@ public class Streams {
      * @see #copy(InputStream, OutputStream, byte[], boolean)
      */
     public static long copy(final InputStream in, final OutputStream out) throws IOException {
-        return copy(in, out, LOCAL_COPY_BUFFER.get(), true);
+        return copy(in, out, true);
     }
 
     /**

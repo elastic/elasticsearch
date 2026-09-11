@@ -26,6 +26,9 @@ import org.elasticsearch.xpack.esql.core.QlException;
  *     <li>{@link ExternalUnavailableException} &rarr; 503, a retryable back-pressure /
  *     temporarily-unavailable condition (a remote-store transport failure, or a node-local admission
  *     condition such as permit exhaustion).</li>
+ *     <li>{@link ExternalObjectChangedException} &rarr; 503, the object was rewritten mid-query so a
+ *     resume would splice generations. Query-level retryable, but not retried as a storage resume
+ *     (the generation pin will keep failing until the query restarts).</li>
  * </ul>
  * Subtypes extend {@link QlException} (rather than {@code QlClientException}/{@code QlServerException})
  * so they can share this single umbrella while each pinning its own status.

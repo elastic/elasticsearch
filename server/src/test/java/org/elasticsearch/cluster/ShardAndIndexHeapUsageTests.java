@@ -17,6 +17,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 
+import static org.elasticsearch.cluster.NodeHeapEstimates.EXPLICIT_HEAP_ESTIMATE_COMPONENTS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardAndIndexHeapUsageTests extends ESTestCase {
@@ -27,7 +28,7 @@ public class ShardAndIndexHeapUsageTests extends ESTestCase {
     }
 
     public void testSerializationScenarios() throws IOException {
-        final var legacyVersion = TransportVersionUtils.getPreviousVersion(ShardAndIndexHeapUsage.EXPLICIT_HEAP_ESTIMATE_COMPONENTS);
+        final var legacyVersion = TransportVersionUtils.getPreviousVersion(EXPLICIT_HEAP_ESTIMATE_COMPONENTS);
         final var newData = new ShardAndIndexHeapUsage(10L, 20L, 30L);
         final var oldData = new ShardAndIndexHeapUsage(10L, 20L, 0L);
 

@@ -9,12 +9,13 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+
+import static org.elasticsearch.cluster.NodeHeapEstimates.EXPLICIT_HEAP_ESTIMATE_COMPONENTS;
 
 /**
  * Tracks the heap usage inputs for a shard when deriving node-level heap estimates.
@@ -29,8 +30,6 @@ import java.io.IOException;
 public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsageBytes, long shardPostingsHeapUsageBytes)
     implements
         Writeable {
-
-    public static final TransportVersion EXPLICIT_HEAP_ESTIMATE_COMPONENTS = NodeHeapEstimates.EXPLICIT_HEAP_ESTIMATE_COMPONENTS;
 
     /** Used when no collector-specific default is available. */
     public static final ShardAndIndexHeapUsage ZERO = new ShardAndIndexHeapUsage(0, 0, 0);

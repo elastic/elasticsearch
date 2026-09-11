@@ -13,12 +13,10 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.StdDevDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.StdDevIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.StdDevLongAggregatorFunctionSupplier;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -27,16 +25,13 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
-import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class StdDev extends UnaryAggregateFunction implements ToAggregator {
+public class StdDev extends NumericAggregate {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StdDev", StdDev::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StdDev.class).unary(StdDev::new).name("std_dev");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
@@ -80,22 +75,6 @@ public class StdDev extends UnaryAggregateFunction implements ToAggregator {
     }
 
     @Override
-    public DataType dataType() {
-        return DataType.DOUBLE;
-    }
-
-    @Override
-    protected Expression.TypeResolution resolveType() {
-        return isType(
-            field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
-            sourceText(),
-            DEFAULT,
-            "numeric except unsigned_long or counter types"
-        );
-    }
-
-    @Override
     protected NodeInfo<StdDev> info() {
         return NodeInfo.create(this, StdDev::new, field(), filter(), window());
     }
@@ -110,17 +89,17 @@ public class StdDev extends UnaryAggregateFunction implements ToAggregator {
     }
 
     @Override
-    public final AggregatorFunctionSupplier supplier() {
-        DataType type = field().dataType();
-        if (type == DataType.LONG) {
-            return new StdDevLongAggregatorFunctionSupplier(true);
-        }
-        if (type == DataType.INTEGER) {
-            return new StdDevIntAggregatorFunctionSupplier(true);
-        }
-        if (type == DataType.DOUBLE) {
-            return new StdDevDoubleAggregatorFunctionSupplier(true);
-        }
-        throw EsqlIllegalArgumentException.illegalDataType(type);
+    protected AggregatorFunctionSupplier longSupplier() {
+        return new StdDevLongAggregatorFunctionSupplier(true);
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier intSupplier() {
+        return new StdDevIntAggregatorFunctionSupplier(true);
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier doubleSupplier() {
+        return new StdDevDoubleAggregatorFunctionSupplier(true);
     }
 }

@@ -49,7 +49,6 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -79,6 +78,7 @@ import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.shard.MutableOperationGate;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardMetrics;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.index.shard.ShardPath;
@@ -174,7 +174,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final MapperMetrics mapperMetrics;
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
-    private final MergeMetrics mergeMetrics;
+    private final ShardMetrics shardMetrics;
     private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
     @SuppressWarnings("this-escape")
@@ -215,7 +215,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         MapperMetrics mapperMetrics,
         IndexingStatsSettings indexingStatsSettings,
         SearchStatsSettings searchStatsSettings,
-        MergeMetrics mergeMetrics,
+        ShardMetrics shardMetrics,
         PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
     ) {
         super(indexSettings);
@@ -310,7 +310,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
-        this.mergeMetrics = mergeMetrics;
+        this.shardMetrics = shardMetrics;
         this.metricHolder = metricHolder;
         updateFsyncTaskIfNecessary();
     }
@@ -611,7 +611,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 mapperMetrics,
                 indexingStatsSettings,
                 searchStatsSettings,
-                mergeMetrics
+                shardMetrics
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

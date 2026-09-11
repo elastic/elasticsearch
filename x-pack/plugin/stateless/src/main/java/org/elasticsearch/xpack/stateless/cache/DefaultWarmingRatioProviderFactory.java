@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 
 /**
  * Default {@link WarmingRatioProviderFactory} when no SPI implementation is registered: uses
@@ -49,7 +50,7 @@ public class DefaultWarmingRatioProviderFactory implements WarmingRatioProviderF
 
         @Override
         public double getWarmingRatio(
-            ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCC,
+            @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampFieldValueRange,
             long resolvedCCTimestampMillis,
             long nowMillis
         ) {

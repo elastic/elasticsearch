@@ -1315,7 +1315,7 @@ public class SharedBlobCacheWarmingService {
         long resolvedCCTimestampMillis
     ) {
         final double warmingRatio = warmingRatioProvider.getWarmingRatio(
-            referencedCC,
+            referencedCC.statelessCompoundCommitReference().compoundCommit().getTimestampFieldValueRange(),
             resolvedCCTimestampMillis,
             threadPool.absoluteTimeInMillis()
         );

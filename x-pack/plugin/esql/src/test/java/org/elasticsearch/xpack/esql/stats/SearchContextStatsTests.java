@@ -644,11 +644,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         final Directory dir = newDirectory();
         final DirectoryReader reader;
         try (
-            RandomIndexWriter writer = new RandomIndexWriter(
-                random(),
-                dir,
-                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
-            )
+            RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
         ) {
             // Segment 1: single-valued keyword documents → skipper reports maxValueCount == 1.
             writer.addDocument(List.of(SortedSetDocValuesField.indexedField("kw", new BytesRef("A"))));

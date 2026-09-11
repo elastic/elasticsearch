@@ -212,8 +212,8 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      */
     void checkIfEligibleForConvertToFrozen() {
         ProjectMetadata projectMetadata = getProjectState().metadata();
-        if (projectMetadata.hasIndex(indexName) == false) {
-            throw new IndexNotFoundException(indexName);
+        if (projectMetadata.hasIndex(index) == false) {
+            throw new IndexNotFoundException(index);
         }
 
         final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);

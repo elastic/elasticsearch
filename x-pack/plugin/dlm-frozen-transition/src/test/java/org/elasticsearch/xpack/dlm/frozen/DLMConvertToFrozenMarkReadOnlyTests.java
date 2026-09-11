@@ -84,7 +84,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             System::currentTimeMillis,
             new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null)
         );
-        index = new Index(indexName, randomAlphaOfLength(10));
+        index = new Index(indexName, randomUUID());
         capturedRequest = new AtomicReference<>();
         mockResponse = new AtomicReference<>();
         mockFailure = new AtomicReference<>();
@@ -133,9 +133,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder(indexName)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
+                    .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 0))
                     .putCustom(
                         DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
                         Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, DEFAULT_REPO_NAME)
@@ -272,9 +270,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder(indexName)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
+                    .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 0))
                     .putCustom(
                         DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
                         Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, DEFAULT_REPO_NAME)
@@ -512,9 +508,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder(indexName)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
+                    .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 0))
                     .putCustom(
                         DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
                         Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, repoName)
@@ -543,9 +537,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder(indexName)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
+                    .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 0))
                     .putCustom(
                         DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
                         Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, DEFAULT_REPO_NAME)

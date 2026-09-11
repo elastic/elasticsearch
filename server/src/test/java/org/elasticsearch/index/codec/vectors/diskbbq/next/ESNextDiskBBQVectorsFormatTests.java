@@ -21,15 +21,18 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -46,6 +49,7 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
@@ -576,6 +580,92 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         }
     }
 
+    /**
+     * A sliced segment produced by a single flush is not clustered per slice ({@code numSlices == 0}) and is
+     * searched over a doc id range. Plain Lucene {@link AcceptDocs} (as used by {@code CheckIndex}) carry no slice
+     * information and must fall back to the whole segment, while an {@link ESAcceptDocs} without a slice ordinal
+     * violates the reader contract and is rejected by assertion rather than silently searching a wrong range.
+     */
+    public void testSlicedFlushedSegmentWithoutSliceOrdinal() throws IOException {
+        String sliceField = "_slice";
+        String vectorField = "vector";
+        int numDocs = random().nextInt(10, 200);
+        int dimensions = random().nextInt(12, 500);
+        ESNextDiskBBQVectorsFormat localFormat = new ESNextDiskBBQVectorsFormat(
+            MIN_VECTORS_PER_CLUSTER,
+            MIN_CENTROIDS_PER_PARENT_CLUSTER,
+            sliceField
+        );
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setIndexSort(new Sort(new SortField(sliceField, SortField.Type.STRING)));
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                doc.add(SortedDocValuesField.indexedField(sliceField, new BytesRef("" + random().nextInt(5))));
+                doc.add(new KnnFloatVectorField(vectorField, randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                // newIndexWriterConfig() randomizes the flush policy, so there may be several flushed segments
+                for (LeafReaderContext context : reader.leaves()) {
+                    LeafReader leafReader = context.reader();
+                    KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
+                    if (vectorReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                        vectorReader = fieldsReader.getFieldReader(vectorField);
+                    }
+                    assertThat(vectorReader, instanceOf(ESNextDiskBBQVectorsReader.class));
+                    // a flushed sliced segment is written as a single flat posting list, i.e. without per-slice centroids
+                    try (
+                        IVFVectorsReader.CentroidData<?> centroidData = ((ESNextDiskBBQVectorsReader) vectorReader).readCentroidData(
+                            vectorField
+                        )
+                    ) {
+                        assertThat(centroidData.numCentroids(), equalTo(1));
+                    }
+                    float[] vector = randomVector(dimensions);
+                    KnnCollector collector = new TopKnnCollector(leafReader.maxDoc(), Integer.MAX_VALUE);
+                    leafReader.searchNearestVectors(vectorField, vector, collector, AcceptDocs.fromLiveDocs(null, leafReader.maxDoc()));
+                    Set<Integer> docIds = new HashSet<>();
+                    for (ScoreDoc scoreDoc : collector.topDocs().scoreDocs) {
+                        docIds.add(scoreDoc.doc);
+                    }
+                    assertThat(docIds, hasSize(leafReader.maxDoc()));
+
+                    // Call getPostingVisitor directly, bypassing the assertion in getNumberOfVectors,
+                    // to test the fix in the numSlices==0 branch itself. With the old dead null-guard
+                    // (esAccept.sliceAcceptDocs() != null) this threw NullPointerException; with the
+                    // fix it throws AssertionError so the contract is explicit.
+                    ESNextDiskBBQVectorsReader esNextReader = (ESNextDiskBBQVectorsReader) vectorReader;
+                    FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(vectorField);
+
+                    ESNextDiskBBQVectorsReader.NextFieldEntry entry = getNextFieldEntry(esNextReader, fieldInfo);
+                    try (
+                        IndexInput centroidSlice = entry.centroidSlice(getIvfInput(esNextReader, "ivfCentroids").clone());
+                        IndexInput postingSlice = entry.postingListSlice(getIvfInput(esNextReader, "ivfClusters").clone())
+                    ) {
+                        KnnVectorValues values = leafReader.getFloatVectorValues(vectorField);
+                        AssertionError error = expectThrows(
+                            AssertionError.class,
+                            () -> esNextReader.getPostingVisitor(
+                                fieldInfo,
+                                values,
+                                postingSlice,
+                                new IVFVectorsReader.QueryTarget.FloatQuery(vector),
+                                null,
+                                centroidSlice,
+                                new ESAcceptDocs.ESAcceptDocsAll()
+                            )
+                        );
+                        assertThat(error.getMessage(), equalTo("sliced segment searched without a slice ordinal"));
+                    }
+                }
+            }
+        }
+    }
+
     public void testSlicesDense() throws IOException {
         doTestSlicesDense(false);
     }
@@ -764,6 +854,29 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                     assertThat(uniqueDocIds, hasSize(expectedDocs));
                 }
             }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ESNextDiskBBQVectorsReader.NextFieldEntry getNextFieldEntry(ESNextDiskBBQVectorsReader reader, FieldInfo fieldInfo) {
+        try {
+            java.lang.reflect.Field f = IVFVectorsReader.class.getDeclaredField("fields");
+            f.setAccessible(true);
+            IntObjectHashMap<ESNextDiskBBQVectorsReader.NextFieldEntry> fields = (IntObjectHashMap<
+                ESNextDiskBBQVectorsReader.NextFieldEntry>) f.get(reader);
+            return fields.get(fieldInfo.number);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static IndexInput getIvfInput(ESNextDiskBBQVectorsReader reader, String fieldName) {
+        try {
+            java.lang.reflect.Field f = IVFVectorsReader.class.getDeclaredField(fieldName);
+            f.setAccessible(true);
+            return (IndexInput) f.get(reader);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
         }
     }
 

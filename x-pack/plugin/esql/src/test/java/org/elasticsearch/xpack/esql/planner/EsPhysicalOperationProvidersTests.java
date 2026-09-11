@@ -335,8 +335,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             ctx.warnings(),
             containsInAnyOrder(
                 "Line -1:-1: warnings during evaluation of []. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] has type [long], expected "
-                    + "[keyword]; assuming default temporality for all values"
+                "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] has type [long]"
+                    + ", expected [keyword]; assuming default temporality for all values"
             )
         );
     }

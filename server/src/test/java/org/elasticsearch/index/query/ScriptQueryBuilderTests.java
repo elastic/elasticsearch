@@ -200,11 +200,12 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     }
 
     public void testScriptParamsBreakerEstimate() throws IOException {
-        // ScriptQueryBuilder.parseTimeBreakerEstimate() = BASELINE + source.length()*2 + estimateValue(params)
-        // Small: source = "doc['score'].value", empty params (emptyMap → 32); limit set to smallCost
+        // ScriptQueryBuilder.parseTimeBreakerEstimate() = BASELINE + source.length()*2 + estimateValue(params) + lang
+        // Small: source = "doc['score'].value", empty params (emptyMap → 32), lang "painless" (8 chars → 80)
         // Large: same source, Map.of("k", "x".repeat(500)) → map estimate 1210; largeCost > limit → trips
         String source = "doc['score'].value";
-        long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + source.length() * 2L + 32L;
+        long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + source.length() * 2L + 32L + "painless".length() * 2L
+            + 64L;
         long limit = smallCost; // equal to limit does not trip (LimitedBreaker uses strict >)
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);

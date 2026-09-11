@@ -245,7 +245,9 @@ public class PrefixQueryBuilder extends LeafQueryBuilder<PrefixQueryBuilder> imp
 
     @Override
     protected long parseTimeBreakerEstimate() {
-        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + value.length() * 2L + 64L;
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + value.length() * 2L + 64L;
+        if (rewrite != null) estimate += rewrite.length() * 2L + 64L;
+        return estimate;
     }
 
     @Override

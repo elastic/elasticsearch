@@ -892,6 +892,35 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         );
     }
 
+    public void testAnalyzerAndMsmBreakerEstimate() throws IOException {
+        // Setting analyzer or minimumShouldMatch should increase the estimate by exactly
+        // the string cost, and cause a breaker trip when the limit was sized without them.
+        MatchQueryBuilder base = new MatchQueryBuilder(TEXT_FIELD_NAME, "v");
+        long noOptionalEstimate = base.parseTimeBreakerEstimate();
+        String analyzer = "english";
+        assertEquals(noOptionalEstimate + analyzer.length() * 2L + 64L, base.analyzer(analyzer).parseTimeBreakerEstimate());
+        String msm = "2";
+        assertEquals(
+            noOptionalEstimate + analyzer.length() * 2L + 64L + msm.length() * 2L + 64L,
+            base.minimumShouldMatch(msm).parseTimeBreakerEstimate()
+        );
+        // A breaker sized for the estimate without analyzer trips when analyzer is present
+        long limit = noOptionalEstimate;
+        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
+        try {
+            MatchQueryBuilder withAnalyzer = new MatchQueryBuilder(TEXT_FIELD_NAME, "v").analyzer(analyzer);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(withAnalyzer, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
     public void testFieldValueBreakerEstimate() throws IOException {
         // MatchQueryBuilder stores value as String: estimateValue = s.length()*2 + 64.
         // TEXT_FIELD_NAME = "mapped_string" (13 chars): fieldName cost = 13*2+64 = 90.

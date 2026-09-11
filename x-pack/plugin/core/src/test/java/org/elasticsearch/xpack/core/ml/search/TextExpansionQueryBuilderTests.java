@@ -294,12 +294,12 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
     }
 
     public void testModelTextBreakerEstimate() throws IOException {
-        // cost = BASELINE + modelText.length() * 2 + 64 + modelId.length() * 2 + 64
-        // "hi" modelText (2) + "m" modelId (1): 256 + 4 + 64 + 2 + 64 = 390; limit = 390 (equal → does not trip)
+        // cost = BASELINE + fieldName + modelText.length()*2+64 + modelId.length()*2+64
+        // RANK_FEATURES_FIELD "rank" (4 chars = 72) + "hi" (68) + "m" (66): 256+72+68+66 = 462
         String smallModelText = "hi";
         String modelId = "m";
-        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + smallModelText.length() * 2L + 64L + modelId.length() * 2L
-            + 64L;
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + RANK_FEATURES_FIELD.length() * 2L + 64L + smallModelText
+            .length() * 2L + 64L + modelId.length() * 2L + 64L;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {

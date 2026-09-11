@@ -432,12 +432,18 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
 
     @Override
     protected long parseTimeBreakerEstimate() {
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L;
         if (shape == null) {
-            return QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+            // indexed-shape lookup path: account for the metadata strings retained at parse time
+            if (indexedShapeId != null) estimate += indexedShapeId.length() * 2L + 64L;
+            estimate += indexedShapeIndex.length() * 2L + 64L;
+            estimate += indexedShapePath.length() * 2L + 64L;
+            if (indexedShapeRouting != null) estimate += indexedShapeRouting.length() * 2L + 64L;
+            return estimate;
         }
         // 24 bytes per coordinate: two doubles (16 bytes) + per-element array overhead.
         int points = shape.visit(new GeometryPointCountVisitor());
-        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + points * 24L;
+        return estimate + points * 24L;
     }
 
     @Override

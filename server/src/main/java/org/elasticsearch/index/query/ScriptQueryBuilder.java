@@ -242,7 +242,10 @@ public class ScriptQueryBuilder extends LeafQueryBuilder<ScriptQueryBuilder> {
 
     @Override
     protected long parseTimeBreakerEstimate() {
-        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + script.getIdOrCode().length() * 2L + estimateValue(script.getParams());
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + script.getIdOrCode().length() * 2L + estimateValue(script.getParams());
+        if (script.getLang() != null) estimate += script.getLang().length() * 2L + 64L;
+        if (script.getOptions().isEmpty() == false) estimate += estimateValue(script.getOptions());
+        return estimate;
     }
 
     @Override

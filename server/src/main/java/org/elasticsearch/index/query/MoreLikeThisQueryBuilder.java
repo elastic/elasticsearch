@@ -1090,6 +1090,8 @@ public class MoreLikeThisQueryBuilder extends LeafQueryBuilder<MoreLikeThisQuery
                 total += s.length() * 2L + 64L;
             }
         }
+        if (analyzer != null) total += analyzer.length() * 2L + 64L;
+        total += minimumShouldMatch.length() * 2L + 64L;
         return total;
     }
 

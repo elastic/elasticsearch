@@ -697,10 +697,10 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
     }
 
     public void testVectorBreakerEstimate() throws IOException {
-        // small: 2-element float vector -> cost = 256 + 2*4 = 264; large: 100-element float vector -> cost = 256 + 100*4 = 656
+        // small: 2-element float vector -> cost = 256 + fieldName + 2*4; large: 256 + fieldName + 100*4
         KnnVectorQueryBuilder small = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1f, 2f }, null, 10, null, null, null);
         KnnVectorQueryBuilder large = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[100], null, 150, null, null, null);
-        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 2 * 4L; // 264
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + VECTOR_FIELD.length() * 2L + 64L + 2 * 4L;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {
@@ -751,7 +751,10 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             }
         };
         KnnVectorQueryBuilder q = new KnnVectorQueryBuilder(VECTOR_FIELD, stub, 10, null, null, null);
-        assertEquals(AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 500L, q.parseTimeBreakerEstimate());
+        assertEquals(
+            AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + VECTOR_FIELD.length() * 2L + 64L + 500L,
+            q.parseTimeBreakerEstimate()
+        );
     }
 
     public void testMatchAllFilterIsDropped() throws IOException {

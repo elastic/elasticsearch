@@ -978,16 +978,16 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testScriptFunctionBreakerEstimate() throws IOException {
-        // FunctionScoreQueryBuilder.parseTimeBreakerEstimate() = BASELINE + Σ(source.length()*2 + estimateValue(params) + 128)
+        // FunctionScoreQueryBuilder.parseTimeBreakerEstimate() = BASELINE + Σ(source.length()*2 + estimateValue(params) + lang + 128)
         // Inner MatchAllQueryBuilder also charges BASELINE (256) via namedObject.
-        // Small: source = "1" (1 char), empty params → own 256+2+32+128=418; total 256+418=674
-        // Large: same source, Map.of("k", "x".repeat(500)) → own 256+2+1210+128=1596; total 256+1596=1852
+        // Small: source = "1" (1 char), empty params, lang "mockscript" (10 chars → 84) → own 256+2+32+84+128=502; total 256+502=1014
+        // Large: same source, Map.of("k", "x".repeat(500)) → own 256+2+1210+84+128=1680; total 256+1680=1936
         String source = "1";
         long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
         // namedObject charges: (1) the function's default match_all filter, (2) the top-level match_all query
         long innerMatchAllCost = baseline;
         long functionFilterMatchAllCost = baseline;
-        long ownSmallCost = baseline + source.length() * 2L + 32L + 128L;
+        long ownSmallCost = baseline + source.length() * 2L + 32L + MockScriptEngine.NAME.length() * 2L + 64L + 128L;
         long limit = innerMatchAllCost + functionFilterMatchAllCost + ownSmallCost;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
@@ -1020,15 +1020,15 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testDecayFunctionBreakerEstimate() throws IOException {
-        // Decay functions retain functionBytes (serialized field-param JSON).
-        // Estimate per function = 128 + functionBytes.length().
+        // Decay functions retain functionBytes (serialized field-param JSON) and fieldName.
+        // Estimate per function = 128 + functionBytes.length() + fieldName.length()*2+64.
         // 2 namedObject charges: filter's implicit match_all + the top-level match_all query.
         // Compute limit from the small decay's actual bytes; large origin "x"*500 produces ~540 bytes.
         GaussDecayFunctionBuilder smallDecay = new GaussDecayFunctionBuilder("f", "2024", "1d", null);
         long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
         long filterMatchAllCost = baseline;
         long topMatchAllCost = baseline;
-        long ownSmallCost = baseline + 128L + smallDecay.getFunctionBytes().length();
+        long ownSmallCost = baseline + 128L + smallDecay.getFunctionBytes().length() + smallDecay.getFieldName().length() * 2L + 64L;
         long limit = topMatchAllCost + filterMatchAllCost + ownSmallCost;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);

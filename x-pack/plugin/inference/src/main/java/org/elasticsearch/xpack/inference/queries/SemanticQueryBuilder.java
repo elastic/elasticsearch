@@ -413,7 +413,7 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
 
     @Override
     protected long parseTimeBreakerEstimate() {
-        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + query.length() * 2L + 64L;
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + query.length() * 2L + 64L;
     }
 
     @Override

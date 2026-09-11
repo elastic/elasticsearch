@@ -301,7 +301,7 @@ public class GeoPolygonQueryBuilder extends LeafQueryBuilder<GeoPolygonQueryBuil
 
     @Override
     protected long parseTimeBreakerEstimate() {
-        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + shell.size() * 40L;
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + shell.size() * 40L;
     }
 
     @Override

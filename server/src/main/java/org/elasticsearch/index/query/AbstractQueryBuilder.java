@@ -523,6 +523,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                     nestedDepth--;
                     if (breaker != null && namedObject instanceof AbstractQueryBuilder<?> aqb) {
                         long estimate = aqb.parseTimeBreakerEstimate();
+                        // _name is set on the QB by its ObjectParser; add its cost here so every
+                        // subclass (including those without a parseTimeBreakerEstimate override)
+                        // accounts for it without each override needing to repeat the logic.
+                        if (aqb.queryName() != null) {
+                            estimate += aqb.queryName().length() * 2L + 64L;
+                        }
                         breaker.addEstimateBytesAndMaybeBreak(estimate, "query-parsing");
                         totalCharged[0] += estimate;
                     }

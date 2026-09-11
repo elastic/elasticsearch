@@ -136,7 +136,7 @@ public class ExactKnnQueryBuilder extends LeafQueryBuilder<ExactKnnQueryBuilder>
 
     @Override
     protected long parseTimeBreakerEstimate() {
-        long base = QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long base = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + field.length() * 2L + 64L;
         if (query == null) return base;
         if (query.floatVector() != null) return base + query.floatVector().length * 4L;
         if (query.byteVector() != null) return base + query.byteVector().length;

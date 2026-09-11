@@ -268,6 +268,11 @@ public class HasParentQueryBuilder extends LeafQueryBuilder<HasParentQueryBuilde
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + parentType.length() * 2L + 64L;
+    }
+
+    @Override
     protected boolean doEquals(HasParentQueryBuilder that) {
         return Objects.equals(query, that.query)
             && Objects.equals(parentType, that.parentType)

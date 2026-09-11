@@ -283,7 +283,9 @@ public class FuzzyQueryBuilder extends LeafQueryBuilder<FuzzyQueryBuilder> imple
 
     @Override
     protected long parseTimeBreakerEstimate() {
-        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + estimateValue(value);
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + estimateValue(value);
+        if (rewrite != null) estimate += rewrite.length() * 2L + 64L;
+        return estimate;
     }
 
     @Override

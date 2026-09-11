@@ -134,7 +134,7 @@ public class WeightedTokensQueryBuilder extends LeafQueryBuilder<WeightedTokensQ
 
     @Override
     protected long parseTimeBreakerEstimate() {
-        long total = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + tokens.size() * 8L;
+        long total = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + tokens.size() * 8L;
         for (WeightedToken t : tokens) {
             total += t.token().length() * 2L + 80L;
         }

@@ -542,6 +542,15 @@ public class RangeQueryBuilder extends LeafQueryBuilder<RangeQueryBuilder> imple
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L;
+        estimate += estimateValue(from);
+        estimate += estimateValue(to);
+        if (format != null) estimate += format.length() * 2L + 64L;
+        return estimate;
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, from, to, timeZone, includeLower, includeUpper, format);
     }

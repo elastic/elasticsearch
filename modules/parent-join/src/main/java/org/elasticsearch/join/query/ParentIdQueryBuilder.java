@@ -180,6 +180,11 @@ public final class ParentIdQueryBuilder extends LeafQueryBuilder<ParentIdQueryBu
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + type.length() * 2L + 64L + id.length() * 2L + 64L;
+    }
+
+    @Override
     protected boolean doEquals(ParentIdQueryBuilder that) {
         return Objects.equals(type, that.type) && Objects.equals(id, that.id) && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
     }

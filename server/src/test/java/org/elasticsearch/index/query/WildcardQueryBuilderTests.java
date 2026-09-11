@@ -236,6 +236,29 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         });
     }
 
+    public void testRewriteBreakerEstimate() throws IOException {
+        // Setting rewrite increases the estimate by exactly rewrite.length()*2+64.
+        // A breaker sized for the estimate without rewrite trips when rewrite is present.
+        WildcardQueryBuilder base = new WildcardQueryBuilder(TEXT_FIELD_NAME, "fo*");
+        long noRewriteEstimate = base.parseTimeBreakerEstimate();
+        String rewriteMethod = "constant_score";
+        assertEquals(noRewriteEstimate + rewriteMethod.length() * 2L + 64L, base.rewrite(rewriteMethod).parseTimeBreakerEstimate());
+        long limit = noRewriteEstimate;
+        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
+        try {
+            WildcardQueryBuilder withRewrite = new WildcardQueryBuilder(TEXT_FIELD_NAME, "fo*").rewrite(rewriteMethod);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(withRewrite, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
     public void testFieldValueBreakerEstimate() throws IOException {
         // WildcardQueryBuilder stores value as String: estimateValue = s.length()*2 + 64.
         // TEXT_FIELD_NAME = "mapped_string" (13 chars): fieldName cost = 13*2+64 = 90.

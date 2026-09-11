@@ -494,10 +494,12 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
     public void testLikeTextsBreakerEstimate() throws IOException {
         // Short like-text charges BASELINE + text.length * 2 + 64.
+        // The default minimumShouldMatch ("30%", 3 chars → 70) is always charged.
         // A large like-text should trip a tightly-set breaker.
         String shortText = "hi";
-        long shortCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + shortText.length() * 2L + 64L;
-        long limit = shortCost; // just enough for one short likeText
+        long msmCost = MoreLikeThisQueryBuilder.DEFAULT_MINIMUM_SHOULD_MATCH.length() * 2L + 64L;
+        long shortCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + shortText.length() * 2L + 64L + msmCost;
+        long limit = shortCost; // just enough for one short likeText + default msm
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {
@@ -523,11 +525,13 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     public void testStopWordsBreakerEstimate() throws IOException {
         // stop_words: each string costs s.length()*2+64; the String[] array costs stopWords.length*8.
         // likeText "a" (1 char) costs 1*2+64=66; stopWord "hi" (2 chars) costs 2*2+64+1*8=76.
-        // limit = 256 + 66 + 76 = 398; large stop "x"*500 costs 500*2+64+8=1072 → total 1394 > 398.
+        // The default minimumShouldMatch ("30%", 3 chars → 70) is always charged.
+        // limit = 256 + 66 + 76 + 70 = 468; large stop "x"*500 costs 500*2+64+8=1072 → total 1464 > 468.
         String likeText = "a";
         String shortStop = "hi";
         long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
-        long limit = baseline + likeText.length() * 2L + 64L + shortStop.length() * 2L + 64L + 1 * 8L;
+        long msmCost = MoreLikeThisQueryBuilder.DEFAULT_MINIMUM_SHOULD_MATCH.length() * 2L + 64L;
+        long limit = baseline + likeText.length() * 2L + 64L + shortStop.length() * 2L + 64L + 1 * 8L + msmCost;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {
@@ -553,11 +557,14 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     public void testItemMetadataBreakerEstimate() throws IOException {
-        // Item.fields[] is charged: array refs (n*8) plus each string
+        // Item.fields[] is charged: array refs (n*8) plus each string.
+        // The default minimumShouldMatch ("30%", 3 chars → 70) is always charged.
+        long msmCost = MoreLikeThisQueryBuilder.DEFAULT_MINIMUM_SHOULD_MATCH.length() * 2L + 64L;
+        // Item metadata with fields
         {
-            // id("1")=66; fields=["a"]: 1*8+66=74 → item cost 140; total 396
+            // id("1")=66; fields=["a"]: 1*8+66=74 → item cost 140; msm=70; total 466
             Item smallItem = new Item(null, "1").fields("a");
-            long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 66L + 8L + 66L;
+            long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 66L + 8L + 66L + msmCost;
             LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(smallCost));
             AbstractQueryBuilder.setQueryParsingBreaker(breaker);
             try {
@@ -582,9 +589,9 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         }
         // per_field_analyzer map is charged: map overhead plus each key+value string
         {
-            // id("1")=66; no map → item cost 66; total 322
+            // id("1")=66; no map → item cost 66; msm=70; total 392
             Item smallItem = new Item(null, "1");
-            long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 66L;
+            long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 66L + msmCost;
             LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(smallCost));
             AbstractQueryBuilder.setQueryParsingBreaker(breaker);
             try {
@@ -611,11 +618,13 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
     public void testInlineDocBreakerEstimate() throws IOException {
         // Inline doc Items charge item.doc().length() + 64 (bytes, not chars).
+        // The default minimumShouldMatch ("30%", 3 chars → 70) is always charged.
         // Measure the small doc's byte length dynamically; set limit exactly at small cost.
         XContentBuilder smallDocBuilder = XContentFactory.jsonBuilder().startObject().field("k", "v").endObject();
         Item smallItem = new Item(null, smallDocBuilder);
         long smallDocLen = smallItem.doc().length();
-        long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + smallDocLen + 64L;
+        long msmCost = MoreLikeThisQueryBuilder.DEFAULT_MINIMUM_SHOULD_MATCH.length() * 2L + 64L;
+        long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + smallDocLen + 64L + msmCost;
         long limit = smallCost; // equal to limit does not trip (LimitedBreaker uses strict >)
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);

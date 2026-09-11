@@ -569,10 +569,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     }
 
     public void testQueryBreakerEstimate() throws IOException {
-        // cost = BASELINE + query.length() * 2 + 64
-        // "hi" (2 chars): 256 + 4 + 64 = 324; limit = 324 (equal → does not trip)
+        // cost = BASELINE + fieldName + query.length()*2+64
+        // fieldName "f" (1 char = 66) + "hi" (2 chars = 68): 256+66+68 = 390
         String smallQuery = "hi";
-        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + smallQuery.length() * 2L + 64L;
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + "f".length() * 2L + 64L + smallQuery.length() * 2L + 64L;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {

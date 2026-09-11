@@ -366,7 +366,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         // CircuitBreakingException propagates directly — no ObjectParser wrapping at root level.
         String term = "value";
         long perTerm = term.length() * 2L + 64L;
-        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + perTerm;
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + TEXT_FIELD_NAME.length() * 2L + 64L + perTerm;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {

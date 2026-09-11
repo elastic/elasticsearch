@@ -142,10 +142,14 @@ public final class TermsSetQueryBuilder extends LeafQueryBuilder<TermsSetQueryBu
 
     @Override
     protected long parseTimeBreakerEstimate() {
-        long cost = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + estimateValue(values);
+        long cost = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + estimateValue(values);
+        if (minimumShouldMatchField != null) cost += minimumShouldMatchField.length() * 2L + 64L;
+        if (minimumShouldMatch != null) cost += minimumShouldMatch.length() * 2L + 64L;
         if (minimumShouldMatchScript != null) {
             cost += minimumShouldMatchScript.getIdOrCode().length() * 2L + 64L;
             cost += estimateValue(minimumShouldMatchScript.getParams());
+            if (minimumShouldMatchScript.getLang() != null) cost += minimumShouldMatchScript.getLang().length() * 2L + 64L;
+            if (minimumShouldMatchScript.getOptions().isEmpty() == false) cost += estimateValue(minimumShouldMatchScript.getOptions());
         }
         return cost;
     }

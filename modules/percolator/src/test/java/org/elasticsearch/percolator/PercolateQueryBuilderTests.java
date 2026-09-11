@@ -385,10 +385,11 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     public void testInlineDocumentsBreakerEstimate() throws IOException {
-        // Formula: BASELINE + docs.size() * 8 + sum(doc.length())
-        // Small: 1 doc of 9 bytes → 256 + 1*8 + 9 = 273
+        // Formula: BASELINE + field.length()*2+64 + docs.size() * 8 + sum(doc.length())
+        // queryField is always 4 chars (randomAlphaOfLength(4)), cost = 4*2+64 = 72.
+        // Small: 1 doc of 9 bytes → 256 + 72 + 1*8 + 9 = 345
         BytesReference smallDoc = new BytesArray("{\"k\":\"v\"}");
-        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 1 * 8L + smallDoc.length();
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + queryField.length() * 2L + 64L + 1 * 8L + smallDoc.length();
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {
@@ -399,7 +400,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
                     parseQuery(parser); // must not throw
                 }
             }
-            // Large: 1 doc of 498 bytes → 256 + 1*8 + 498 = 762, exceeds limit 273
+            // Large: 1 doc of 498 bytes → 256 + 72 + 1*8 + 498 = 834, exceeds limit
             BytesReference largeDoc = new BytesArray("{\"k\":\"" + "x".repeat(490) + "\"}");
             PercolateQueryBuilder large = new PercolateQueryBuilder(queryField, Collections.singletonList(largeDoc), XContentType.JSON);
             for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {

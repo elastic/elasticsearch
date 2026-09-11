@@ -245,22 +245,23 @@ public abstract class GeoShapeQueryBuilderTestCase extends AbstractQueryTestCase
     }
 
     public void testPolygonShapeBreakerEstimate() throws IOException {
-        // Formula: BASELINE + point_count * 24, where point_count = ring.length() for a simple polygon.
-        // Small: triangle — 3 unique vertices + 1 closing point = 4 coords → 256 + 4*24 = 352
+        // Formula: BASELINE + fieldName.length()*2+64 + point_count * 24, where point_count = ring.length() for a simple polygon.
+        // Small: triangle — 3 unique vertices + 1 closing point = 4 coords → 256 + fieldNameCost + 4*24
         LinearRing smallRing = new LinearRing(new double[] { 0, 1, 1, 0 }, new double[] { 0, 0, 1, 0 });
         Polygon smallPolygon = new Polygon(smallRing);
-        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 4 * 24L;
+        String fieldName = getFieldName();
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + 4 * 24L;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {
-            GeoShapeQueryBuilder small = new GeoShapeQueryBuilder(getFieldName(), smallPolygon);
+            GeoShapeQueryBuilder small = new GeoShapeQueryBuilder(fieldName, smallPolygon);
             for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
                 BytesReference bytes = XContentHelper.toXContent(small, type, false);
                 try (XContentParser parser = createParser(type.xContent(), bytes)) {
                     parseQuery(parser); // must not throw
                 }
             }
-            // Large: 100 unique vertices + 1 closing point = 101 coords → 256 + 101*24 = 2680, exceeds limit 352
+            // Large: 100 unique vertices + 1 closing point = 101 coords → 256 + fieldNameCost + 101*24, exceeds small limit
             double[] lons = new double[101];
             double[] lats = new double[101];
             for (int i = 0; i < 100; i++) {
@@ -270,7 +271,7 @@ public abstract class GeoShapeQueryBuilderTestCase extends AbstractQueryTestCase
             lons[100] = lons[0];
             lats[100] = lats[0];
             Polygon largePolygon = new Polygon(new LinearRing(lons, lats));
-            GeoShapeQueryBuilder large = new GeoShapeQueryBuilder(getFieldName(), largePolygon);
+            GeoShapeQueryBuilder large = new GeoShapeQueryBuilder(fieldName, largePolygon);
             for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
                 BytesReference bytes = XContentHelper.toXContent(large, type, false);
                 try (XContentParser parser = createParser(type.xContent(), bytes)) {

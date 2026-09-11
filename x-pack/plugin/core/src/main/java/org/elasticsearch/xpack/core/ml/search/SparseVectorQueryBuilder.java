@@ -277,16 +277,17 @@ public class SparseVectorQueryBuilder extends LeafQueryBuilder<SparseVectorQuery
 
     @Override
     protected long parseTimeBreakerEstimate() {
+        long base = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L;
+        if (inferenceId != null) base += inferenceId.length() * 2L + 64L;
         if (queryVectors == null) {
-            long total = QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
-            if (query != null) total += query.length() * 2L + 64L;
-            return total;
+            if (query != null) base += query.length() * 2L + 64L;
+            return base;
         }
-        long total = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + queryVectors.size() * 8L;
+        base += queryVectors.size() * 8L;
         for (WeightedToken t : queryVectors) {
-            total += t.token().length() * 2L + 80L;
+            base += t.token().length() * 2L + 80L;
         }
-        return total;
+        return base;
     }
 
     @Override

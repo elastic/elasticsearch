@@ -257,14 +257,17 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
             }
         };
         DenseVectorQueryBuilder q = new DenseVectorQueryBuilder(VECTOR_FIELD, null, stub, null, null);
-        assertEquals(AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 500L, q.parseTimeBreakerEstimate());
+        assertEquals(
+            AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + VECTOR_FIELD.length() * 2L + 64L + 500L,
+            q.parseTimeBreakerEstimate()
+        );
     }
 
     public void testVectorBreakerEstimate() throws IOException {
-        // small: 2-element float vector -> cost = 256 + 2*4 = 264; large: 100-element float vector -> cost = 256 + 100*4 = 656
+        // small: 2-element float vector -> cost = 256 + fieldName + 2*4; large: 256 + fieldName + 100*4
         DenseVectorQueryBuilder small = new DenseVectorQueryBuilder(VECTOR_FIELD, new float[] { 1f, 2f }, null, null);
         DenseVectorQueryBuilder large = new DenseVectorQueryBuilder(VECTOR_FIELD, new float[100], null, null);
-        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 2 * 4L; // 264
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + VECTOR_FIELD.length() * 2L + 64L + 2 * 4L;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {

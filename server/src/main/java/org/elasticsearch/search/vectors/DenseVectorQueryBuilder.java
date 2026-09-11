@@ -321,7 +321,7 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
 
     @Override
     protected long parseTimeBreakerEstimate() {
-        long base = QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long base = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L;
         if (queryVector == null) {
             return base + (queryVectorBuilder != null ? queryVectorBuilder.parseTimeBreakerEstimate() : 0L);
         }

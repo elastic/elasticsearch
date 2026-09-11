@@ -358,10 +358,11 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
     }
 
     public void testQueryStringBreakerEstimate() throws IOException {
-        // Inference path: queryVectors == null; cost = BASELINE + query.length() * 2 + 64
-        // "hi" (2 chars): 256 + 4 + 64 = 324; limit = 324 (equal to limit → does not trip)
+        // Inference path: queryVectors == null; cost = BASELINE + fieldName + inferenceId + query
+        // SPARSE_VECTOR_FIELD (19 chars = 102) + "inferenceId" (11 chars = 86) + "hi" (2 chars = 68)
         String smallQueryString = "hi";
-        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + smallQueryString.length() * 2L + 64L;
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + SPARSE_VECTOR_FIELD.length() * 2L + 64L + "inferenceId"
+            .length() * 2L + 64L + smallQueryString.length() * 2L + 64L;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {

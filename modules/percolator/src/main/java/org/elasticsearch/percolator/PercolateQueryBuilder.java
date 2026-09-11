@@ -368,12 +368,21 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
 
     @Override
     protected long parseTimeBreakerEstimate() {
-        if (documents == null) return QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
-        long total = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + documents.size() * 8L;
-        for (BytesReference doc : documents) {
-            total += doc.length();
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + field.length() * 2L + 64L;
+        if (name != null) estimate += name.length() * 2L + 64L;
+        if (documents == null) {
+            // indexed-document path: account for metadata strings retained at parse time
+            if (indexedDocumentIndex != null) estimate += indexedDocumentIndex.length() * 2L + 64L;
+            if (indexedDocumentId != null) estimate += indexedDocumentId.length() * 2L + 64L;
+            if (indexedDocumentRouting != null) estimate += indexedDocumentRouting.length() * 2L + 64L;
+            if (indexedDocumentPreference != null) estimate += indexedDocumentPreference.length() * 2L + 64L;
+            return estimate;
         }
-        return total;
+        estimate += documents.size() * 8L;
+        for (BytesReference doc : documents) {
+            estimate += doc.length();
+        }
+        return estimate;
     }
 
     @Override

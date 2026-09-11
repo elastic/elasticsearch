@@ -12,7 +12,11 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -114,6 +118,30 @@ public class AbstractQueryBuilderTests extends ESTestCase {
         assertEquals(32L, AbstractQueryBuilder.estimateValue(Map.of()));
         // Map with one entry: key "k" (1*2+64=66), value "v" (1*2+64=66) → 32+48+66+66
         assertEquals(212L, AbstractQueryBuilder.estimateValue(Map.of("k", "v")));
+    }
+
+    public void testQueryNameChargedAtParsesite() throws IOException {
+        // The _name field is charged centrally at the parse site (not inside parseTimeBreakerEstimate).
+        // Verify that a named query trips a breaker sized exactly for the unnamed estimate.
+        // NOTE: must use parseTopLevelQuery (not the protected parseInnerQueryBuilder) because only
+        // parseTopLevelQuery wraps the parser in a FilterXContentParserWrapper that fires the charge site.
+        String name = "my_name";
+        MatchQueryBuilder q = new MatchQueryBuilder("f", "v");
+        long unnamedEstimate = q.parseTimeBreakerEstimate();
+        q.queryName(name);
+        // parseTimeBreakerEstimate() itself does NOT include the name cost
+        assertEquals(unnamedEstimate, q.parseTimeBreakerEstimate());
+        // But the charge site adds name cost: limit at unnamed estimate is too small once _name is parsed
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(unnamedEstimate));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            String json = q.toString();
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+                expectThrows(CircuitBreakingException.class, () -> AbstractQueryBuilder.parseTopLevelQuery(parser));
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 
     public void testMaybeConvertToBytesRefLongTerm() {

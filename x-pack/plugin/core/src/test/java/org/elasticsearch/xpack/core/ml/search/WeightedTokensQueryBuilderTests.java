@@ -478,9 +478,10 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     }
 
     public void testTokenListBreakerEstimate() throws IOException {
-        // Short token: BASELINE + 1 * 8 (slot) + 1 token * (2*2 + 80) = 256 + 8 + 84 = 348
+        // Short token: BASELINE + fieldName ("field" = 5 chars = 74) + 1*8 (slot) + 1 token*(2*2+80)
         String shortToken = "hi";
-        long shortCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 1 * 8L + shortToken.length() * 2L + 80L;
+        long shortCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + "field".length() * 2L + 64L + 1 * 8L + shortToken.length()
+            * 2L + 80L;
         long limit = shortCost;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);

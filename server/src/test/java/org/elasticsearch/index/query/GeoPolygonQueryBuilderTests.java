@@ -301,15 +301,15 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testPolygonPointsBreakerEstimate() throws IOException {
-        // GeoPolygonQueryBuilder charges BASELINE + shell.size() * 40.
+        // GeoPolygonQueryBuilder charges BASELINE + fieldName + shell.size() * 40.
         // The constructor auto-closes open polygons (appends the first point), so
-        // 3 open distinct points → shell.size() = 4 → cost = 256 + 4*40 = 416.
+        // 3 open distinct points → shell.size() = 4.
         List<GeoPoint> smallPoints = new ArrayList<>();
         smallPoints.add(new GeoPoint(0, 0));
         smallPoints.add(new GeoPoint(1, 0));
         smallPoints.add(new GeoPoint(1, 1));
         // 3 open points → constructor auto-closes → shell.size() = 4
-        long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 4L * 40L;
+        long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + GEO_POINT_FIELD_NAME.length() * 2L + 64L + 4L * 40L;
         long limit = smallCost; // equal to limit does not trip (LimitedBreaker uses strict >)
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
@@ -321,7 +321,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                     parseQuery(parser); // must not throw
                 }
             }
-            // 50 open points → shell.size() = 51 → cost = 256 + 51*40 = 2296
+            // 50 open points → shell.size() = 51 → cost = 256 + fieldName + 51*40
             List<GeoPoint> largePoints = new ArrayList<>();
             for (int i = 0; i < 50; i++) {
                 largePoints.add(new GeoPoint(i * 0.1, i * 0.1));

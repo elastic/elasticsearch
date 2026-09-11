@@ -390,7 +390,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     @Override
     protected long parseTimeBreakerEstimate() {
         int n = mustClauses.size() + mustNotClauses.size() + filterClauses.size() + shouldClauses.size();
-        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + n * 8L;
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + n * 8L;
+        if (minimumShouldMatch != null) estimate += minimumShouldMatch.length() * 2L + 64L;
+        return estimate;
     }
 
     @Override

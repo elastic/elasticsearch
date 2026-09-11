@@ -138,14 +138,14 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
 
     public void testVectorBreakerEstimate() {
         // exact_knn is not user-parseable from XContent, so verify the estimate directly.
-        // small: 2-element float vector -> cost = 256 + 2*4 = 264; large: 100-element float vector -> cost = 256 + 100*4 = 656
+        // small: 2-element float vector -> cost = 256 + fieldName + 2*4; large: 256 + fieldName + 100*4
         ExactKnnQueryBuilder small = new ExactKnnQueryBuilder(VectorData.fromFloats(new float[] { 1f, 2f }), VECTOR_FIELD, null);
         ExactKnnQueryBuilder large = new ExactKnnQueryBuilder(VectorData.fromFloats(new float[100]), VECTOR_FIELD, null);
-        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 2 * 4L; // 264
-        // small estimate (264) equals limit; LimitedBreaker uses strict >, so does NOT trip
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + VECTOR_FIELD.length() * 2L + 64L + 2 * 4L;
+        // small estimate equals limit; LimitedBreaker uses strict >, so does NOT trip
         LimitedBreaker breakerSmall = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         breakerSmall.addEstimateBytesAndMaybeBreak(small.parseTimeBreakerEstimate(), "query-parsing"); // must not throw
-        // large estimate (656) exceeds limit; must trip
+        // large estimate exceeds limit; must trip
         LimitedBreaker breakerLarge = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         expectThrows(
             CircuitBreakingException.class,

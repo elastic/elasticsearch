@@ -1484,6 +1484,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (script != null) {
                 cost += script.getIdOrCode().length() * 2L + 64L;
                 cost += AbstractQueryBuilder.estimateValue(script.getParams());
+                if (script.getLang() != null) cost += script.getLang().length() * 2L + 64L;
+                if (script.getOptions().isEmpty() == false) cost += AbstractQueryBuilder.estimateValue(script.getOptions());
             }
             return cost;
         }

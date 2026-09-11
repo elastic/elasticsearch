@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
@@ -26,6 +27,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -36,7 +39,7 @@ import java.util.stream.IntStream;
 /**
  * @see ToPartial
  */
-public class FromPartial extends UnaryAggregateFunction implements ToAggregator {
+public class FromPartial extends AggregateFunction implements ToAggregator {
     private static final String NAME = "FromPartial";
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, NAME, FromPartial::new);
 
@@ -47,13 +50,39 @@ public class FromPartial extends UnaryAggregateFunction implements ToAggregator 
     }
 
     public FromPartial(Source source, Expression field, Expression filter, Expression window, Expression function) {
-        super(source, field, filter, window, List.of(function));
+        super(source, List.of(field), filter, window, List.of(function));
         this.function = function;
     }
 
     private FromPartial(StreamInput in) throws IOException {
-        super(in);
-        this.function = parameters().getFirst();
+        // Legacy serialization format for backwards compatibility: source, field, filter, window, parameters
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // Legacy serialization format for backwards compatibility: source, field, filter, window, parameters
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeNamedWriteable(filter());
+        if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
+            out.writeNamedWriteable(window());
+        }
+        out.writeNamedWriteableCollection(CollectionUtils.combine(parameters()));
+    }
+
+    /**
+     * The intermediate (partial-agg) state column this node reads; distinct from {@link #function()}, the
+     * aggregate spec used only to build the delegating aggregator.
+     */
+    public Expression field() {
+        return fields().getFirst();
     }
 
     @Override

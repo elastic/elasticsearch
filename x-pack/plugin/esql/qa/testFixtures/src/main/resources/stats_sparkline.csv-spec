@@ -320,3 +320,35 @@ FROM employees
 sparkline:long                            | value:long
 [999, 0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0] | 20
 ;
+
+sparklineWithAggWithMultipleInputFields
+required_capability: fix_aggs_multiple_input_fields
+FROM employees
+| STATS sparkline = SPARKLINE(COUNT(emp_no), birth_date, 10, "1950-01-01T00:00:00Z", "1970-01-01T00:00:00Z"),
+        value = FIRST(emp_no, emp_no)
+;
+
+sparkline:long                                                | value:long
+[0, 0, 8, 11, 8, 4, 5, 4, 7, 9, 8, 8, 6, 7, 4, 1, 0, 0, 0, 0] | 10001
+;
+
+sparklineWithAggWithMultipleInputFieldsAndWhere
+required_capability: fix_aggs_multiple_input_fields
+FROM employees
+| STATS sparkline = SPARKLINE(COUNT(emp_no), birth_date, 10, "1950-01-01T00:00:00Z", "1970-01-01T00:00:00Z"),
+        value = FIRST(emp_no, salary) WHERE salary > 50000
+;
+
+sparkline:long                                                | value:long
+[0, 0, 8, 11, 8, 4, 5, 4, 7, 9, 8, 8, 6, 7, 4, 1, 0, 0, 0, 0] | 10046
+;
+
+sparklineWithAggWithConstantInput
+required_capability: fix_aggs_multiple_input_fields
+FROM employees
+| STATS c = SPARKLINE(STD_DEV(1), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+c:double
+[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+;

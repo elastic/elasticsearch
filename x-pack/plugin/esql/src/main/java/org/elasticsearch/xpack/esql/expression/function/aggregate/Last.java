@@ -182,7 +182,7 @@ public class Last extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<Last> info() {
-        return NodeInfo.create(this, Last::new, field(), sort());
+        return NodeInfo.create(this, Last::new, field(), sort(), filter(), window());
     }
 
     @Override

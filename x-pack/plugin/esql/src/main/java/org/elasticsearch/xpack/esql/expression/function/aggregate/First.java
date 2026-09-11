@@ -182,7 +182,7 @@ public class First extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<First> info() {
-        return NodeInfo.create(this, First::new, field(), sort());
+        return NodeInfo.create(this, First::new, field(), sort(), filter(), window());
     }
 
     @Override

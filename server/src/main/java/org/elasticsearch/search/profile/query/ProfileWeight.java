@@ -87,7 +87,7 @@ public final class ProfileWeight extends Weight {
             }
 
             @Override
-            public void setTopLevelScoringClause() throws IOException {
+            public void setTopLevelScoringClause() {
                 subQueryScorerSupplier.setTopLevelScoringClause();
             }
         };

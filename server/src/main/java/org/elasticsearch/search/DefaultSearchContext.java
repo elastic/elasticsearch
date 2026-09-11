@@ -318,24 +318,20 @@ final class DefaultSearchContext extends SearchContext {
             }
         } else if (indexFieldData instanceof IndexNumericFieldData indexNumericFieldData) {
             final IndexNumericFieldData.NumericType type = indexNumericFieldData.getNumericType();
-            try {
-                if (type == IndexNumericFieldData.NumericType.INT || type == IndexNumericFieldData.NumericType.SHORT) {
-                    final IndexReader reader = directoryReader.getContext().reader();
-                    final byte[] min = PointValues.getMinPackedValue(reader, indexFieldData.getFieldName());
-                    final byte[] max = PointValues.getMaxPackedValue(reader, indexFieldData.getFieldName());
-                    if (min != null && max != null) {
-                        return NumericUtils.sortableBytesToInt(max, 0) - NumericUtils.sortableBytesToInt(min, 0) + 1;
-                    }
-                } else if (type == IndexNumericFieldData.NumericType.LONG) {
-                    final IndexReader reader = directoryReader.getContext().reader();
-                    final byte[] min = PointValues.getMinPackedValue(reader, indexFieldData.getFieldName());
-                    final byte[] max = PointValues.getMaxPackedValue(reader, indexFieldData.getFieldName());
-                    if (min != null && max != null) {
-                        return NumericUtils.sortableBytesToLong(max, 0) - NumericUtils.sortableBytesToLong(min, 0) + 1;
-                    }
+            if (type == IndexNumericFieldData.NumericType.INT || type == IndexNumericFieldData.NumericType.SHORT) {
+                final IndexReader reader = directoryReader.getContext().reader();
+                final byte[] min = PointValues.getMinPackedValue(reader, indexFieldData.getFieldName());
+                final byte[] max = PointValues.getMaxPackedValue(reader, indexFieldData.getFieldName());
+                if (min != null && max != null) {
+                    return NumericUtils.sortableBytesToInt(max, 0) - NumericUtils.sortableBytesToInt(min, 0) + 1;
                 }
-            } catch (IOException ioe) {
-                return -1L;
+            } else if (type == IndexNumericFieldData.NumericType.LONG) {
+                final IndexReader reader = directoryReader.getContext().reader();
+                final byte[] min = PointValues.getMinPackedValue(reader, indexFieldData.getFieldName());
+                final byte[] max = PointValues.getMaxPackedValue(reader, indexFieldData.getFieldName());
+                if (min != null && max != null) {
+                    return NumericUtils.sortableBytesToLong(max, 0) - NumericUtils.sortableBytesToLong(min, 0) + 1;
+                }
             }
         }
         //

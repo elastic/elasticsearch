@@ -92,7 +92,7 @@ final class PointRangeBreakerWeight extends Weight {
             }
 
             @Override
-            public void setTopLevelScoringClause() throws IOException {
+            public void setTopLevelScoringClause() {
                 inner.setTopLevelScoringClause();
             }
         };

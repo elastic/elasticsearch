@@ -12,6 +12,9 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -29,8 +32,7 @@ import java.util.stream.Collectors;
  * error introduced by the clamping.
  */
 class NodeHeapMemoryShardMovementSimulator {
-    private final ObjectLongMap<String> totalUsageDeltaByNode;
-    private final ObjectLongMap<String> hostedShardUsageDeltaByNode;
+    private final ObjectLongMap<String> usageDeltaByNode;
     private final Map<String, NodeHeapMetrics> initialNodeHeapMetrics;
     private final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages;
     private final ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics;
@@ -46,8 +48,7 @@ class NodeHeapMemoryShardMovementSimulator {
         this.estimatedShardHeapUsages = estimatedShardHeapUsages;
         this.defaultShardHeapUsageForShardsWithoutMetrics = defaultShardHeapUsageForShardsWithoutMetrics;
         this.routingNodes = routingNodes;
-        this.totalUsageDeltaByNode = new ObjectLongHashMap<>();
-        this.hostedShardUsageDeltaByNode = new ObjectLongHashMap<>();
+        this.usageDeltaByNode = new ObjectLongHashMap<>();
     }
 
     void simulateShardStarted(ShardRouting shard, boolean includeIndexUsage) {
@@ -67,7 +68,7 @@ class NodeHeapMemoryShardMovementSimulator {
         }
         // Use any shard ID since index stats are the same.
         var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(new ShardId(index, 0), defaultShardHeapUsageForShardsWithoutMetrics);
-        totalUsageDeltaByNode.addTo(nodeId, shardAndIndexHeap.indexHeapUsageBytes());
+        usageDeltaByNode.addTo(nodeId, shardAndIndexHeap.indexHeapUsageBytes());
     }
 
     void simulateRemoveIndexFromNode(String nodeId, Index index) {
@@ -77,7 +78,7 @@ class NodeHeapMemoryShardMovementSimulator {
         }
         // Use any shard ID since index stats are the same.
         var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(new ShardId(index, 0), defaultShardHeapUsageForShardsWithoutMetrics);
-        totalUsageDeltaByNode.addTo(nodeId, -1 * shardAndIndexHeap.indexHeapUsageBytes());
+        usageDeltaByNode.addTo(nodeId, -1 * shardAndIndexHeap.indexHeapUsageBytes());
     }
 
     private enum Modification {
@@ -113,32 +114,31 @@ class NodeHeapMemoryShardMovementSimulator {
             }
         }
 
-        // Update the deltas for the node
-        totalUsageDeltaByNode.addTo(routingNode.nodeId(), indexUsageDelta + shardUsageDelta);
-        hostedShardUsageDeltaByNode.addTo(routingNode.nodeId(), shardUsageDelta);
+        // Update the delta for the node
+        usageDeltaByNode.addTo(routingNode.nodeId(), indexUsageDelta + shardUsageDelta);
     }
 
     /**
      * Apply the deltas to the initial estimates, clamping the results to 0 to avoid producing negative estimates.
+     * <p>
+     * Deltas are applied to total and hosted-shards heap estimates for indexing nodes, while only the hosted-shards estimate
+     * is adjusted for non-indexing nodes. For non-indexing nodes, the total heap estimate will always return 0.
      */
     Map<String, NodeHeapMetrics> getSimulatedHeapMetrics() {
         // If there was no shard movement, just return the unchanged metrics
-        if (totalUsageDeltaByNode.isEmpty()) {
+        if (usageDeltaByNode.isEmpty()) {
             return initialNodeHeapMetrics;
         }
         return initialNodeHeapMetrics.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> {
-            if (totalUsageDeltaByNode.containsKey(entry.getKey())) {
+            if (usageDeltaByNode.containsKey(entry.getKey())) {
+                final boolean nodeIsIndexingNode = nodeIsIndexingNode(entry.getKey());
                 NodeHeapMetrics initialMetrics = entry.getValue();
-                final var adjustedTotalUsage = Math.max(
-                    0,
-                    Math.addExact(initialMetrics.nodeHeapEstimates().totalHeapUsage(), totalUsageDeltaByNode.get(entry.getKey()))
-                );
+                final var adjustedTotalUsage = nodeIsIndexingNode
+                    ? Math.max(0, Math.addExact(initialMetrics.nodeHeapEstimates().totalHeapUsage(), usageDeltaByNode.get(entry.getKey())))
+                    : 0;
                 final var adjustedHostedShardsUsage = Math.max(
                     0,
-                    Math.addExact(
-                        initialMetrics.nodeHeapEstimates().hostedShardsHeapUsage(),
-                        hostedShardUsageDeltaByNode.get(entry.getKey())
-                    )
+                    Math.addExact(initialMetrics.nodeHeapEstimates().hostedShardsHeapUsage(), usageDeltaByNode.get(entry.getKey()))
                 );
                 return new NodeHeapMetrics(
                     initialMetrics.nodeId(),
@@ -148,5 +148,20 @@ class NodeHeapMemoryShardMovementSimulator {
             }
             return entry.getValue();
         }));
+    }
+
+    /**
+     * Is the specified node an indexing node?
+     *
+     * @param nodeId The node ID to query
+     * @return True if the node is an indexing node, false if it is not, or is absent from the {@link DiscoveryNodes}
+     */
+    private boolean nodeIsIndexingNode(String nodeId) {
+        RoutingNode routingNode = routingNodes.node(nodeId);
+        if (routingNode != null) {
+            DiscoveryNode discoveryNode = routingNode.node();
+            return discoveryNode != null && discoveryNode.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName());
+        }
+        return false;
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.plugins.Platforms;
+import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
@@ -21,11 +22,19 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.core.XPackSettings.ML_NATIVE_CODE_PLATFORMS;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class InferencePluginTests extends ESTestCase {
@@ -88,5 +97,42 @@ public class InferencePluginTests extends ESTestCase {
     public void testGetInferenceServiceFactories_excludesElasticsearchServiceWhenMlDisabled() throws IOException {
         var settings = Settings.builder().put("xpack.ml.enabled", false).build();
         assertFalse(serviceNamesFromFactories(settings).contains(ElasticsearchInternalService.NAME));
+    }
+
+    public void testAttributionHeadersAreAllowed() {
+        try (var plugin = new InferencePlugin(Settings.EMPTY)) {
+            var restHeaders = plugin.getRestHeaders()
+                .stream()
+                .collect(Collectors.toMap(RestHeaderDefinition::getName, RestHeaderDefinition::isMultiValueAllowed));
+            assertThat(
+                restHeaders,
+                equalTo(
+                    Map.of(
+                        X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
+                        true,
+                        X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
+                        false,
+                        X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
+                        false,
+                        X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
+                        false
+                    )
+                )
+            );
+        }
+    }
+
+    public void testAttributionHeadersArePropagatedAsTaskHeaders() {
+        try (var plugin = new InferencePlugin(Settings.EMPTY)) {
+            assertThat(
+                plugin.getTaskHeaders(),
+                containsInAnyOrder(
+                    X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
+                    X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
+                    X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
+                    X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER
+                )
+            );
+        }
     }
 }

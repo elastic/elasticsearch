@@ -1908,6 +1908,23 @@ set_union:double | step:datetime            | cluster:keyword
 19227.0          | 2024-05-10T01:00:00.000Z | staging
 ;
 
+// topk inside a union branch: the branch executes as a separate sub-plan whose result pages cross an
+// exchange, so its physical page layout must match its logical output exactly (see #158164). Per step the
+// top 2 clusters by max survive from the left branch; staging is filled from the right branch.
+set_operator_union_topk_branch
+required_capability: promql_command_v0
+required_capability: promql_set_operator_union
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h set_union=(topk(2, max by (cluster) (network.total_bytes_in)) or max by (cluster) (network.total_bytes_in))
+| SORT cluster;
+
+set_union:double | step:datetime            | cluster:keyword
+10277.0          | 2024-05-10T01:00:00.000Z | prod
+10797.0          | 2024-05-10T01:00:00.000Z | qa
+7403.0           | 2024-05-10T01:00:00.000Z | staging
+;
+
 // ------------------------------------------------
 // ORDER STATISTICS
 // ------------------------------------------------

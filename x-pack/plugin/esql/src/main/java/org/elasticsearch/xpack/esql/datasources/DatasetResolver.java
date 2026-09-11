@@ -69,8 +69,17 @@ public class DatasetResolver {
      * <p>When federation is not available (see {@link Federation}) the rewrite is skipped entirely: the plan is returned
      * untouched, so a {@code FROM <dataset>} name flows into normal index resolution and errors as {@code Unknown index},
      * exactly as a nonexistent index would. No dataset lookup and no {@link EsqlResolveDatasetAction} dispatch happen.
+     *
+     * @param wildcardDatasets the resolved {@code wildcard_datasets} query setting, carried from the coordinator's
+     *                         {@code Configuration} and applied to this coordinator's own dataset expansion. It reaches
+     *                         no other cluster: a dataset registered elsewhere is not resolved there at all.
      */
-    public void replaceDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
+    public void replaceDatasets(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        boolean wildcardDatasets,
+        ActionListener<LogicalPlan> listener
+    ) {
         // Federation not available: do not attempt any dataset resolution, so the feature is indistinguishable from one
         // that was never registered (the FROM <dataset> name resolves as an unknown index).
         if (federationAvailable == false) {
@@ -88,7 +97,6 @@ public class DatasetResolver {
 
         // Collect the relations worth a round-trip: skip remote-prefixed (datasets are local-only, CCS sees the original
         // FROM) and skip any relation whose patterns could not match a registered dataset name (ordinary FROM <index>).
-        boolean wildcardDatasets = DatasetRewriter.wildcardsMatchDatasets();
         List<UnresolvedRelation> relations = new ArrayList<>();
         parsed.forEachUp(UnresolvedRelation.class, r -> {
             List<String> patterns = DatasetRewriter.patternsOf(r);
@@ -116,7 +124,8 @@ public class DatasetResolver {
                 }
                 var request = new EsqlResolveDatasetAction.Request(
                     REST_MASTER_TIMEOUT_DEFAULT,
-                    DatasetRewriter.patternsOf(relation).toArray(String[]::new)
+                    DatasetRewriter.patternsOf(relation).toArray(String[]::new),
+                    wildcardDatasets
                 );
                 client.execute(
                     EsqlResolveDatasetAction.TYPE,

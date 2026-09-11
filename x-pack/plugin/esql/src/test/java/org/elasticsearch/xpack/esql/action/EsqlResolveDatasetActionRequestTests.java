@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class EsqlResolveDatasetActionRequestTests extends ESTestCase {
 
     private static EsqlResolveDatasetAction.Request request(String... indices) {
-        return new EsqlResolveDatasetAction.Request(TEST_REQUEST_TIMEOUT, indices);
+        return new EsqlResolveDatasetAction.Request(TEST_REQUEST_TIMEOUT, indices, randomBoolean());
     }
 
     public void testResolveDatasetsIsEnabled() {

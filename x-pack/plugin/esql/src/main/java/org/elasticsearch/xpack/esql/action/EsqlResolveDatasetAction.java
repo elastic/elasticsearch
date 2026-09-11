@@ -94,7 +94,7 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
             request.rawPatterns(),
             project.metadata(),
             indexNameExpressionResolver,
-            DatasetRewriter.wildcardsMatchDatasets()
+            request.wildcardDatasets()
         );
         listener.onResponse(
             new Response(resolution.resolvedExternalDatasets(), resolution.nonDatasetNames(), resolution.explicitUnauthorized())
@@ -113,12 +113,19 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
         // un-narrowed patterns to classify whether the relation also targets non-dataset abstractions.
         private final String[] rawPatterns;
         private ResolvedIndexExpressions resolvedIndexExpressions;
+        // The coordinator's resolved wildcard_datasets query setting. This is a LocalClusterStateRequest, whose writeTo
+        // is the local-only stub, so carrying it serializes nothing and costs no transport version.
+        private final boolean wildcardDatasets;
 
-        /** @param rawPatterns one relation's raw FROM patterns (split on comma, not pre-expanded) */
-        public Request(TimeValue masterTimeout, String[] rawPatterns) {
+        /**
+         * @param rawPatterns one relation's raw FROM patterns (split on comma, not pre-expanded)
+         * @param wildcardDatasets the coordinator's resolved {@code wildcard_datasets} query setting
+         */
+        public Request(TimeValue masterTimeout, String[] rawPatterns, boolean wildcardDatasets) {
             super(masterTimeout);
             this.indices = rawPatterns;
             this.rawPatterns = rawPatterns;
+            this.wildcardDatasets = wildcardDatasets;
         }
 
         @Override
@@ -134,6 +141,11 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
         /** The original raw FROM patterns, unaffected by the security filter's in-flight narrowing of {@link #indices()}. */
         public String[] rawPatterns() {
             return rawPatterns;
+        }
+
+        /** The coordinator's resolved {@code wildcard_datasets} query setting; see {@link DatasetRewriter#resolve}. */
+        public boolean wildcardDatasets() {
+            return wildcardDatasets;
         }
 
         @Override

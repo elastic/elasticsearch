@@ -285,7 +285,7 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
     }
 
-    public void testWildcardMatchingOnlyDatasetsExcludesThemWhenFlagOff() {
+    public void testWildcardMatchingOnlyDatasetsExcludesThemWhenWildcardDatasetsOff() {
         // With wildcard-dataset matching off, FROM logs_* does not resolve any dataset: the relation is left untouched
         // and flows to normal index resolution (which excludes datasets), so it means "matching indices only".
         DataSource parent = dataSource("s3_parent", Map.of());
@@ -297,7 +297,7 @@ public class DatasetRewriterTests extends ESTestCase {
         assertSame(relation, rewriteWildcardsDisabled(relation, project));
     }
 
-    public void testWildcardSpanningIndexAndDatasetResolvesToIndexOnlyWhenFlagOff() {
+    public void testWildcardSpanningIndexAndDatasetResolvesToIndexOnlyWhenWildcardDatasetsOff() {
         // FROM logs_* matching an index and a dataset resolves to the index only (dataset dropped) — not rejected. The
         // wildcard is left untouched for normal resolution, which excludes datasets.
         DataSource parent = dataSource("s3_parent", Map.of());
@@ -308,8 +308,8 @@ public class DatasetRewriterTests extends ESTestCase {
         assertSame(relation, rewriteWildcardsDisabled(relation, project));
     }
 
-    public void testExactDatasetNameResolvesWhenFlagOff() {
-        // A dataset named exactly still resolves with the flag off — only wildcards are restricted.
+    public void testExactDatasetNameResolvesWhenWildcardDatasetsOff() {
+        // A dataset named exactly still resolves with wildcard_datasets off — only wildcards are restricted.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_ds", dataset));
@@ -318,8 +318,8 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
     }
 
-    public void testPrefixWildcardDoesNotResolveDatasetWhenFlagOff() {
-        // A prefix wildcard is still a wildcard: it does not reach a dataset with the flag off (datasets need an exact
+    public void testPrefixWildcardDoesNotResolveDatasetWhenWildcardDatasetsOff() {
+        // A prefix wildcard is still a wildcard: it does not reach a dataset with wildcard_datasets off (datasets need an exact
         // name), so the relation is untouched and resolves to indices only.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
@@ -329,8 +329,8 @@ public class DatasetRewriterTests extends ESTestCase {
         assertSame(relation, rewriteWildcardsDisabled(relation, project));
     }
 
-    public void testExplicitDatasetAndIndexMixAllowedWhenFlagOff() {
-        // An explicit dataset named alongside an index still produces the heterogeneous UnionAll with the flag off —
+    public void testExplicitDatasetAndIndexMixAllowedWhenWildcardDatasetsOff() {
+        // An explicit dataset named alongside an index still produces the heterogeneous UnionAll with wildcard_datasets off —
         // only accidental wildcard mixing is prevented, not deliberate explicit mixing.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
@@ -344,7 +344,7 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(union.children().get(1), instanceOf(UnresolvedRelation.class));
     }
 
-    public void testWildcardDoesNotPullDatasetAlongsideExactDatasetWhenFlagOff() {
+    public void testWildcardDoesNotPullDatasetAlongsideExactDatasetWhenWildcardDatasetsOff() {
         // FROM logs_a, logs_* with BOTH logs_a and logs_b registered as datasets: the exact name resolves logs_a and
         // dispatches, but the wildcard must not pull in logs_b. This is the discriminating case for resolve()'s
         // exact-name filter — without it, resolve would return {logs_a, logs_b} and a wildcard would read a dataset.
@@ -362,7 +362,7 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(tablePathString((UnresolvedExternalRelation) rewritten), equalTo("s3://a/"));
     }
 
-    public void testWildcardIndexAndExactDatasetUnionWhenFlagOff() {
+    public void testWildcardIndexAndExactDatasetUnionWhenWildcardDatasetsOff() {
         // FROM foo*, bar — a wildcard over indices plus an explicitly-named dataset — still unions: the wildcard
         // resolves to indices (datasets excluded), the exact name resolves the dataset.
         DataSource parent = dataSource("s3_parent", Map.of());
@@ -378,7 +378,7 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(union.children().get(1), instanceOf(UnresolvedRelation.class));
     }
 
-    public void testAnyPatternCouldMatchDatasetRespectsFlag() {
+    public void testAnyPatternCouldMatchDatasetRespectsWildcardDatasets() {
         // The cheap pre-check that gates dispatch: a wildcard could match a dataset only when wildcard-dataset matching
         // is on; an exact name always could; an exclusion never does; no registered datasets short-circuits.
         Set<String> datasets = Set.of("logs_ds");
@@ -388,13 +388,14 @@ public class DatasetRewriterTests extends ESTestCase {
         assertTrue(DatasetRewriter.anyPatternCouldMatchDataset(List.of("logs_ds"), datasets, false));
         assertFalse(DatasetRewriter.anyPatternCouldMatchDataset(List.of("-logs_ds"), datasets, false));
         assertFalse(DatasetRewriter.anyPatternCouldMatchDataset(List.of("logs_ds"), Set.of(), false));
-        // Date math: flag-on dispatches conservatively on the '<' prefix; flag-off resolves it and skips a non-match.
+        // Date math: with the setting on, dispatch is conservative on the '<' prefix; with it off the pattern resolves
+        // and a non-match is skipped.
         assertTrue(DatasetRewriter.anyPatternCouldMatchDataset(List.of("<metrics-{now/d}>"), datasets, true));
         assertFalse(DatasetRewriter.anyPatternCouldMatchDataset(List.of("<metrics-{now/d}>"), datasets, false));
     }
 
-    public void testBareWildcardExcludesDatasetWhenFlagOff() {
-        // FROM * with the flag off resolves to indices only — the registered dataset is not swept in.
+    public void testBareWildcardExcludesDatasetWhenWildcardDatasetsOff() {
+        // FROM * with wildcard_datasets off resolves to indices only — the registered dataset is not swept in.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_ds", dataset), Set.of("some_idx"));
@@ -403,8 +404,8 @@ public class DatasetRewriterTests extends ESTestCase {
         assertSame(relation, rewriteWildcardsDisabled(relation, project));
     }
 
-    public void testMultipleExactDatasetsResolveWhenFlagOff() {
-        // Several datasets named exactly still union with the flag off — only wildcards are restricted.
+    public void testMultipleExactDatasetsResolveWhenWildcardDatasetsOff() {
+        // Several datasets named exactly still union with wildcard_datasets off — only wildcards are restricted.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
         Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
@@ -418,9 +419,9 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
     }
 
-    public void testExclusionOfExactDatasetResolvesToNoDatasetWhenFlagOff() {
+    public void testExclusionOfExactDatasetResolvesToNoDatasetWhenWildcardDatasetsOff() {
         // An exact dataset excluded by a trailing -pattern resolves to nothing — the exclusion removes it during
-        // abstraction expansion, so no dataset survives (flag-independent, but pinned here for the flag-off path).
+        // abstraction expansion, so no dataset survives (independent of the setting, but pinned here for the off path).
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_ds", dataset));
@@ -429,8 +430,8 @@ public class DatasetRewriterTests extends ESTestCase {
         assertSame(relation, rewriteWildcardsDisabled(relation, project));
     }
 
-    public void testExplicitUnauthorizedDatasetSurfacedWhenFlagOff() {
-        // An explicitly-named unauthorized dataset is still flagged (→ Unknown index) with the flag off — the exact
+    public void testExplicitUnauthorizedDatasetSurfacedWhenWildcardDatasetsOff() {
+        // An explicitly-named unauthorized dataset is still reported (→ Unknown index) with wildcard_datasets off — the exact
         // name reaches resolution and explicitUnauthorized is computed before the wildcard filter.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("secret_ds", new DataSourceReference("s3_parent"), "s3://s/", null, Map.of());
@@ -441,22 +442,22 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(resolution.resolvedExternalDatasets(), hasSize(0));
     }
 
-    public void testDatasetWildcardFlagFlipsBehaviourForSameQuery() {
-        // The same FROM logs_* over a dataset: with the flag ON it reads the dataset, with it OFF it does not (the
-        // relation is untouched). Proves the flag actually controls wildcard-to-dataset resolution.
+    public void testWildcardDatasetsSettingFlipsBehaviourForSameQuery() {
+        // The same FROM logs_* over a dataset: with wildcard_datasets ON it reads the dataset, with it OFF it does not (the
+        // relation is untouched). Proves the setting actually controls wildcard-to-dataset resolution.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs_ds", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_ds", dataset));
 
-        // Flag on: the wildcard resolves the dataset.
+        // Setting on: the wildcard resolves the dataset.
         assertThat(rewrite(relationOf("logs_*"), project), instanceOf(UnresolvedExternalRelation.class));
-        // Flag off: the wildcard is left untouched (indices only).
+        // Setting off: the wildcard is left untouched (indices only).
         UnresolvedRelation relation = relationOf("logs_*");
         assertSame(relation, rewriteWildcardsDisabled(relation, project));
     }
 
-    public void testAliasAlongsideExactDatasetUnionsWhenFlagOff() {
-        // An alias is index-like: FROM logs_ds, my_alias unions the exact dataset with the alias, flag off.
+    public void testAliasAlongsideExactDatasetUnionsWhenWildcardDatasetsOff() {
+        // An alias is index-like: FROM logs_ds, my_alias unions the exact dataset with the alias, wildcard_datasets off.
         LogicalPlan rewritten = rewriteWildcardsDisabled(relationOf("logs_ds,my_alias"), projectWithDatasetAliasAndDataStream());
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;
@@ -465,8 +466,8 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(union.children().get(1), instanceOf(UnresolvedRelation.class));
     }
 
-    public void testDataStreamAlongsideExactDatasetUnionsWhenFlagOff() {
-        // A data stream is index-like too: FROM logs_ds, my_ds unions the exact dataset with the data stream, flag off.
+    public void testDataStreamAlongsideExactDatasetUnionsWhenWildcardDatasetsOff() {
+        // A data stream is index-like too: FROM logs_ds, my_ds unions the exact dataset with the data stream, setting off.
         LogicalPlan rewritten = rewriteWildcardsDisabled(relationOf("logs_ds,my_ds"), projectWithDatasetAliasAndDataStream());
         assertThat(rewritten, instanceOf(UnionAll.class));
         assertThat(((UnionAll) rewritten).children().get(0), instanceOf(UnresolvedExternalRelation.class));
@@ -1075,13 +1076,13 @@ public class DatasetRewriterTests extends ESTestCase {
 
     /**
      * Rewrite with every registered dataset authorized — the unsecured-cluster behavior. Wildcard-dataset matching is
-     * forced on so the wildcard cases are deterministic regardless of the build's ambient feature flag default.
+     * forced on so the wildcard cases reach their datasets regardless of the production default, which is off.
      */
     private static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata project) {
         return DatasetRewriter.rewriteUnsecured(parsed, project, RESOLVER, true);
     }
 
-    /** As {@link #rewrite}, but with wildcard-dataset matching off (release-build behavior: datasets by exact name). */
+    /** As {@link #rewrite}, but with wildcard-dataset matching off (the default: datasets by exact name). */
     private static LogicalPlan rewriteWildcardsDisabled(LogicalPlan parsed, ProjectMetadata project) {
         return DatasetRewriter.rewriteUnsecured(parsed, project, RESOLVER, false);
     }
@@ -1201,7 +1202,7 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     /**
-     * The shared rule both the local and remote rails apply: the flag gates only wildcard discovery of datasets. Off
+     * The shared rule the resolve rail applies: the setting gates only wildcard discovery of datasets. Off
      * drops a wildcard-discovered dataset ({@code logs_a}/{@code logs_b}) while keeping an explicitly-named one
      * ({@code metrics}); on is a no-op.
      */

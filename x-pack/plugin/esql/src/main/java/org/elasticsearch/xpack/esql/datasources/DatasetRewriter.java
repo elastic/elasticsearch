@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -62,9 +61,10 @@ import java.util.Set;
  * relation also targets non-dataset abstractions. {@link #rewrite}/{@link #rewriteOne} then consume that
  * {@link DatasetResolution} to build the plan — they no longer resolve, expand, or gate on authorization.
  *
- * <p>Whether a wildcard may resolve to a dataset is governed by {@link #wildcardsMatchDatasets()}: when it is off
- * (the release default) a dataset is reachable only by an exact name, so a wildcard resolves to indices exactly as it
- * did before datasets existed. Index expressions are otherwise untouched.
+ * <p>Whether a wildcard may resolve to a dataset is governed by the {@code wildcard_datasets} query setting, resolved
+ * on the coordinator and threaded in by the caller: when it is off (the default) a dataset is reachable only by an
+ * exact name, so a wildcard resolves to indices exactly as it did before datasets existed. Index expressions are
+ * otherwise untouched.
  */
 public final class DatasetRewriter {
 
@@ -81,18 +81,6 @@ public final class DatasetRewriter {
         .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveDatasets(true).resolveViews(false).build())
         .build();
 
-    private static final FeatureFlag DATASET_WILDCARDS_FEATURE_FLAG = new FeatureFlag("esql_dataset_wildcards");
-
-    /**
-     * The single gate every rail reads — local dispatch/resolve and the remote field-caps rail — so the
-     * wildcard-to-dataset decision has one home. Off in release builds (see the class javadoc for the semantics). The
-     * gating is permanent; the flag is temporary scaffolding. A node-level cluster setting could replace it by changing
-     * only this body; a per-query SET control would instead thread its value through the call sites.
-     */
-    public static boolean wildcardsMatchDatasets() {
-        return DATASET_WILDCARDS_FEATURE_FLAG.isEnabled();
-    }
-
     private DatasetRewriter() {}
 
     /**
@@ -102,7 +90,7 @@ public final class DatasetRewriter {
      * surfaces as {@code Unknown index} (400), the same error a missing index gives, so an unauthorized dataset
      * can't be told apart from a missing name.
      *
-     * @param wildcardDatasets when {@code false} (the release-build default, see {@link #wildcardsMatchDatasets()})
+     * @param wildcardDatasets the resolved {@code wildcard_datasets} query setting. When {@code false} (the default)
      *                         a dataset is kept only if it was named exactly; a wildcard that also matched it drops it,
      *                         so the wildcard resolves to indices only.
      */
@@ -189,12 +177,7 @@ public final class DatasetRewriter {
      * {@link DatasetResolver}'s dispatch, minus the {@code EsqlResolveDatasetAction} round-trip. {@code null} or
      * dataset-free project is a no-op.
      */
-    public static LogicalPlan rewriteUnsecured(LogicalPlan parsed, ProjectMetadata projectMetadata, IndexNameExpressionResolver iner) {
-        return rewriteUnsecured(parsed, projectMetadata, iner, wildcardsMatchDatasets());
-    }
-
-    /** Package-private overload letting tests drive the wildcard-dataset flag without the {@code static final} field. */
-    static LogicalPlan rewriteUnsecured(
+    public static LogicalPlan rewriteUnsecured(
         LogicalPlan parsed,
         ProjectMetadata projectMetadata,
         IndexNameExpressionResolver iner,
@@ -409,11 +392,11 @@ public final class DatasetRewriter {
     }
 
     /**
-     * Enforces the one thing the flag controls — wildcard discoverability of datasets. When {@code wildcardDatasets} is
-     * off, drops every dataset not in {@code explicitlyNamed}, so a wildcard-discovered dataset disappears while an
-     * explicitly-named one is kept. A no-op when on. Shared by the local resolve rail ({@link #resolve}) and the remote
-     * field-caps detection rail ({@code EsqlResolveFieldsAction#getDatasets}), so the flag means the same thing on both
-     * and error handling is otherwise identical across flag states.
+     * Enforces the one thing {@code wildcard_datasets} controls — wildcard discoverability of datasets. When
+     * {@code wildcardDatasets} is off, drops every dataset not in {@code explicitlyNamed}, so a wildcard-discovered
+     * dataset disappears while an explicitly-named one is kept. A no-op when on. Applied by the local resolve rail
+     * ({@link #resolve}); a dataset on another cluster is not resolved there at all, so there is no remote rail to
+     * keep in step.
      */
     public static void keepOnlyExplicitlyNamed(Set<String> datasets, Set<String> explicitlyNamed, boolean wildcardDatasets) {
         if (wildcardDatasets == false) {

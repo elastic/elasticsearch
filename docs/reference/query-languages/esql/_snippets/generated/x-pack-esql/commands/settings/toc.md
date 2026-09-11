@@ -15,3 +15,6 @@
 :::{include} unmapped_fields.md
 :::
 
+:::{include} wildcard_datasets.md
+:::
+

@@ -2154,7 +2154,9 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
             TEST_PARSER.parseQuery(query),
             projectMetadata,
-            TestIndexNameExpressionResolver.newInstance()
+            TestIndexNameExpressionResolver.newInstance(),
+            // These cases reach a dataset through a wildcard, so resolve with wildcard_datasets on.
+            true
         );
         List<Attribute> externalSchema = List.of(
             referenceAttribute("emp_no", DataType.INTEGER),

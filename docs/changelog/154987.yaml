@@ -1,5 +1,6 @@
 pr: 154987
-summary: Gate wildcard-to-dataset resolution in `FROM` behind a feature flag
+summary: Resolve a `FROM` wildcard to indices only unless `wildcard_datasets` is set
 area: ES|QL
-type: feature
-issues: []
+type: bug
+issues:
+  - 158472

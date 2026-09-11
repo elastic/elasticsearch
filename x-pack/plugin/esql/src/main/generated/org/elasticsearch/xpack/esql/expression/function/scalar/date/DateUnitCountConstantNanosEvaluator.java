@@ -72,10 +72,11 @@ public final class DateUnitCountConstantNanosEvaluator implements ExpressionEval
   public LongBlock eval(int positionCount, LongBlock dateBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (dateBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (dateBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -112,7 +113,7 @@ public final class DateUnitCountConstantNanosEvaluator implements ExpressionEval
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

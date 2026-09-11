@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -43,6 +44,9 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.isUnsignedLong
  * Conversion utility from one Elasticsearch data type to another Elasticsearch data types.
  */
 public final class DataTypeConverter {
+
+    // Long.MAX_VALUE rounds to 2^63 as a double, which is the exclusive upper bound.
+    private static final double DOUBLE_TO_LONG_UPPER_BOUND = (double) Long.MAX_VALUE;
 
     private DataTypeConverter() {}
 
@@ -310,7 +314,7 @@ public final class DataTypeConverter {
     }
 
     public static long safeDoubleToLong(double x) {
-        if (x > Long.MAX_VALUE || x < Long.MIN_VALUE) {
+        if (x >= DOUBLE_TO_LONG_UPPER_BOUND || x < Long.MIN_VALUE) {
             throw new InvalidArgumentException("[{}] out of [long] range", x);
         }
         return Math.round(x);
@@ -346,6 +350,13 @@ public final class DataTypeConverter {
     }
 
     public static BigInteger safeToUnsignedLong(String x) {
+        if (x.length() > Numbers.MAX_NUMERIC_STRING_LENGTH) {
+            throw new InvalidArgumentException(
+                "Numeric value length [{}] exceeds the maximum of [{}]",
+                x.length(),
+                Numbers.MAX_NUMERIC_STRING_LENGTH
+            );
+        }
         BigInteger bi = new BigDecimal(x).toBigInteger();
         if (isUnsignedLong(bi) == false) {
             throw new InvalidArgumentException("[{}] out of [unsigned_long] range", x);

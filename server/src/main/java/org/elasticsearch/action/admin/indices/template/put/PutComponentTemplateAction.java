@@ -21,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.List;
@@ -110,6 +111,19 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
                         validationException
                     );
                 }
+            }
+            TimeValue failureStoreFrozenAfter = Optional.ofNullable(componentTemplate.template())
+                .map(Template::dataStreamOptions)
+                .map(dataStreamOptions -> dataStreamOptions.failureStore().get())
+                .map(failureStore -> failureStore.lifecycle().get())
+                .map(DataStreamLifecycle.Template::frozenAfter)
+                .map(ResettableValue::get)
+                .orElse(null);
+            if (failureStoreFrozenAfter != null) {
+                validationException = addValidationError(
+                    DataStreamLifecycle.FROZEN_AFTER_NOT_SUPPORTED_ON_FAILURES_ERROR_MESSAGE,
+                    validationException
+                );
             }
             return validationException;
         }

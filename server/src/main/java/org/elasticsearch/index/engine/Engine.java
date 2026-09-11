@@ -12,11 +12,9 @@ package org.elasticsearch.index.engine;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
-import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
@@ -174,6 +172,8 @@ public abstract class Engine implements Closeable {
     private final Releasable releaseEnsureOpenRef = ensureOpenRefs::decRef; // reuse this to avoid allocation for each op
 
     private final boolean isStateless;
+
+    private final DenseVectorStatsCache denseVectorStatsCache = new DenseVectorStatsCache();
 
     /*
      * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:
@@ -387,7 +387,8 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Returns the {@link DenseVectorStats} for this engine
+     * Returns the {@link DenseVectorStats} for this engine. On stateless the vector counts are not collected, see
+     * {@link DenseVectorStatsCache}.
      */
     public DenseVectorStats denseVectorStats(MappingLookup mappingLookup) {
         if (mappingLookup == null) {
@@ -411,44 +412,21 @@ public abstract class Engine implements Closeable {
     protected final DenseVectorStats denseVectorStats(IndexReader indexReader, List<DenseVectorFieldMapper> fields) {
         // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
         // the next scheduled refresh to go through and refresh the stats as well
+        final List<String> fieldNames = new ArrayList<>(fields.size());
+        for (var fieldMapper : fields) {
+            fieldNames.add(fieldMapper.fullPath());
+        }
         var stats = new DenseVectorStats();
         for (LeafReaderContext readerContext : indexReader.leaves()) {
             try {
-                stats.add(getDenseVectorStats(readerContext.reader(), fields));
+                // counting vectors opens their values, which on a remote-backed directory fetches a cache region per
+                // field per segment; off-heap sizes come from field metadata and are always cheap
+                stats.add(denseVectorStatsCache.get(readerContext.reader(), fieldNames, isStateless == false));
             } catch (IOException e) {
                 logger.trace(() -> "failed to get dense vector stats for [" + readerContext + "]", e);
             }
         }
         return stats;
-    }
-
-    private DenseVectorStats getDenseVectorStats(final LeafReader atomicReader, List<DenseVectorFieldMapper> fieldMappers)
-        throws IOException {
-        long count = 0;
-        Map<String, Map<String, Long>> offHeapStats = new HashMap<>();
-        for (var fieldMapper : fieldMappers) {
-            FieldInfo info = atomicReader.getFieldInfos().fieldInfo(fieldMapper.fullPath());
-            if (info != null && info.getVectorDimension() > 0) {
-                switch (info.getVectorEncoding()) {
-                    case FLOAT32 -> {
-                        FloatVectorValues values = atomicReader.getFloatVectorValues(info.name);
-                        count += values != null ? values.size() : 0;
-                    }
-                    case BYTE -> {
-                        ByteVectorValues values = atomicReader.getByteVectorValues(info.name);
-                        count += values != null ? values.size() : 0;
-                    }
-                }
-                SegmentReader reader = Lucene.segmentReader(atomicReader);
-                var vectorsReader = reader.getVectorReader();
-                if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                    vectorsReader = fieldsReader.getFieldReader(info.name);
-                }
-                Map<String, Long> offHeap = vectorsReader.getOffHeapByteSize(info);
-                offHeapStats.put(info.name, offHeap);
-            }
-        }
-        return new DenseVectorStats(count, Collections.unmodifiableMap(offHeapStats));
     }
 
     /**
@@ -744,11 +722,7 @@ public abstract class Engine implements Closeable {
     public abstract IndexResult index(Index index) throws IOException;
 
     public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
-        ArrayList<IndexResult> results = new ArrayList<>(batch.operations().size());
-        for (Index index : batch.operations()) {
-            results.add(index(index));
-        }
-        return results;
+        throw new UnsupportedOperationException("batch indexing is not supported by this engine");
     }
 
     /**
@@ -1007,7 +981,8 @@ public abstract class Engine implements Closeable {
         if (docIdAndVersion != null) {
             // don't release the searcher on this path, it is the
             // responsibility of the caller to call GetResult.release
-            return new GetResult(searcher, docIdAndVersion);
+            // an uncached lookup is requested exactly when the searcher reads an ephemeral translog reader
+            return new GetResult(searcher, docIdAndVersion, uncachedLookup);
         } else {
             Releasables.close(searcher);
             return GetResult.NOT_EXISTS;
@@ -1030,6 +1005,16 @@ public abstract class Engine implements Closeable {
         MappingLookup mappingLookup,
         DocumentParser documentParser,
         SplitShardCountSummary splitShardCountSummary,
+        Function<Engine.Searcher, Engine.Searcher> searcherWrapper
+    );
+
+    /**
+     * Reads a document specifically in the context of performing an update operation.
+     */
+    public abstract GetResult getForUpdate(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     );
 
@@ -2178,18 +2163,21 @@ public abstract class Engine implements Closeable {
 
     public static class Get {
         private final boolean realtime;
-        private final BytesRef uid;
-        private final String id;
+        private final Uid uid;
         private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private long ifSeqNo = UNASSIGNED_SEQ_NO;
         private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
+        /** Convenience for a plain (non-sliced) document; the uid is {@link Uid#of(String)}. */
         public Get(boolean realtime, boolean readFromTranslog, String id) {
+            this(realtime, readFromTranslog, Uid.of(id));
+        }
+
+        public Get(boolean realtime, boolean readFromTranslog, Uid uid) {
             this.realtime = realtime;
-            this.id = id;
-            this.uid = Uid.encodeId(id);
+            this.uid = uid;
             this.readFromTranslog = readFromTranslog;
         }
 
@@ -2198,11 +2186,11 @@ public abstract class Engine implements Closeable {
         }
 
         public String id() {
-            return id;
+            return uid.id();
         }
 
         public BytesRef uid() {
-            return uid;
+            return uid.term();
         }
 
         public long version() {
@@ -2252,18 +2240,30 @@ public abstract class Engine implements Closeable {
         private final long version;
         private final DocIdAndVersion docIdAndVersion;
         private final Engine.Searcher searcher;
+        private final boolean fromTranslog;
 
-        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null);
+        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null, false);
 
-        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher) {
+        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher, boolean fromTranslog) {
             this.exists = exists;
             this.version = version;
             this.docIdAndVersion = docIdAndVersion;
             this.searcher = searcher;
+            this.fromTranslog = fromTranslog;
         }
 
-        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion) {
-            this(true, docIdAndVersion.version, docIdAndVersion, searcher);
+        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion, boolean fromTranslog) {
+            this(true, docIdAndVersion.version, docIdAndVersion, searcher, fromTranslog);
+        }
+
+        /**
+         * Whether the document was served from an ephemeral, single-use in-memory translog reader rather than an
+         * index reader, in which case holding onto this result pins that reader and the document source it wraps.
+         * Note that a get consulting the translog may still be served from the index (reporting {@code false}) when
+         * the operation's translog location is unknown.
+         */
+        public boolean isFromTranslog() {
+            return fromTranslog;
         }
 
         public boolean exists() {
@@ -2773,6 +2773,24 @@ public abstract class Engine implements Closeable {
         @Override
         public void afterRefresh(boolean didRefresh) throws IOException {
             assert engineLock.isReadLockedByCurrentThread() : Thread.currentThread();
+        }
+    }
+
+    /// Specifies what high lever client request caused this engine operation
+    /// or in other words the purpose of this engine operation.
+    /// This is different from [org.elasticsearch.index.engine.Engine.Operation] because
+    /// `Operation` only captures mutating operations.
+    public enum OperationPurpose {
+        SEARCHABLE_DOCS_CHECK,
+        REALTIME_GET,
+        GET_FROM_TRANSLOG,
+        // Index, update, delete, or the same on replica.
+        // We don't need to precisely distinguish these right now.
+        MUTATION,
+        RECOVERY;
+
+        static OperationPurpose from(Operation ignored) {
+            return OperationPurpose.MUTATION;
         }
     }
 }

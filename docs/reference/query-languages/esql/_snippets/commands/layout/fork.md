@@ -52,6 +52,10 @@ data type across all branches; missing columns are filled with `null` values.
 Row order is preserved within each branch, but rows from different branches may be
 interleaved. Use `SORT _fork` to group results by branch.
 
+## Comparing FORK with views and subqueries
+
+`FORK` is one of several ways to branch or combine data in ES|QL. For a detailed comparison with `FROM` subqueries and views, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-combine-reuse-queries.md#comparing-views-subqueries-and-fork).
+
 ## Limitations
 
 - `FORK` supports at most 8 execution branches.

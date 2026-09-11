@@ -247,6 +247,12 @@ public class Archives {
         final Installation.Executables bin = installation.executables();
 
         // requires the "expect" utility to be installed
+        // On some platforms (observed on EL10 distros) sudo does not propagate the pty that "expect"/"spawn"
+        // allocated through the privilege drop, so Elasticsearch's console detection concludes no terminal is
+        // attached and skips security auto-configuration entirely (see
+        // https://github.com/elastic/elasticsearch/issues/154510). Note that sudo's "-t" option is unrelated to
+        // pty allocation (it sets an SELinux type); pty propagation is controlled by the "use_pty" sudoers
+        // policy setting, which CI enables explicitly (see .ci/scripts/packaging-test.sh).
         List<String> command = new ArrayList<>();
         command.add("sudo -E -u %s %s -p %s");
         if (daemonize) {
@@ -260,14 +266,21 @@ public class Archives {
             expect "Elasticsearch keystore password:"
             send "%s\\r"
             """, keystorePassword);
-        String checkStartupScript = daemonize ? "expect eof" : String.format(Locale.ROOT, """
-            expect {
-              "uncaught exception" { send_user "\\nStartup failed due to uncaught exception\\n"; exit 1 }
-              timeout { send_user "\\nTimed out waiting for startup to succeed\\n"; exit 1 }
-              eof { send_user "\\nFailed to determine if startup succeeded\\n"; exit 1 }
-              %s
-            }
-            """, null == outputStringToMatch ? "-re \"o\\.e\\.n\\.Node.*] started\"" : "\"" + outputStringToMatch + "\"");
+        String checkStartupScript = daemonize
+            ? "expect eof"
+            : String.format(
+                Locale.ROOT,
+                """
+                    expect {
+                      "uncaught exception" { send_user "\\nStartup failed due to uncaught exception\\n"; exit 1 }
+                      "cannot  determine if there is a terminal attached" { send_user "\\nElasticsearch skipped credential auto-configuration: no terminal detected (pty not propagated through sudo?)\\n"; exit 1 }
+                      timeout { send_user "\\nTimed out waiting for startup to succeed\\n"; exit 1 }
+                      eof { send_user "\\nFailed to determine if startup succeeded\\n"; exit 1 }
+                      %s
+                    }
+                    """,
+                null == outputStringToMatch ? "-re \"o\\.e\\.n\\.Node.*] started\"" : "\"" + outputStringToMatch + "\""
+            );
         String expectScript = String.format(
             Locale.ROOT,
             """

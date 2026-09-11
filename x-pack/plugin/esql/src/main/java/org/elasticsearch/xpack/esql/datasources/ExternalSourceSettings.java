@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Cluster settings for controlling ESQL external source behavior; all node-scoped. The external-read concurrency
@@ -38,14 +41,11 @@ public final class ExternalSourceSettings {
     static final int BLOB_STORE_CONCURRENCY_PER_PROCESSOR = 3;
 
     /**
-     * Floor for the CPU-derived blob-store access concurrency. Blob-store reads are latency-bound I/O whose threads
-     * spend most of their life parked on the network, so even a small node (a handful of allocated processors, or the
-     * single-processor shape of small test/CI nodes) must still drive enough in-flight requests to keep a store busy
-     * and, crucially, to run the parallel-parse pipeline without starving itself. {@code processors * 3} alone bottoms
-     * out at 3 on a one-processor node, which is too few to host the segment parsers plus their coordination; floor it
-     * at 16 so the concurrency bound — and the {@code esql_external_io} pool it sizes — never collapses that small.
+     * Floor for blob-store access concurrency. Stream-only codecs pin a segmentator on {@code esql_external_io}
+     * and need another thread for parsers ({@link #maxConcurrentSegmentators} is {@code poolSize - 1}). Floor 4
+     * keeps that pipeline alive when the memory term would otherwise drop concurrency to 2 on a tiny heap.
      */
-    static final int BLOB_STORE_CONCURRENCY_FLOOR = 16;
+    static final int BLOB_STORE_CONCURRENCY_FLOOR = 4;
 
     /**
      * Ceiling for the CPU-derived blob-store access concurrency. Mirrors the {@code snapshot_meta} thread pool's
@@ -56,34 +56,80 @@ public final class ExternalSourceSettings {
     static final int BLOB_STORE_CONCURRENCY_CEILING = 100;
 
     /**
-     * The default per-node concurrency for accessing an external blob store, derived from the node's allocated
-     * processors using the {@code snapshot_meta} thread pool's sizing shape ({@code processors * 3}), clamped to
-     * {@code [}{@value #BLOB_STORE_CONCURRENCY_FLOOR}{@code , }{@value #BLOB_STORE_CONCURRENCY_CEILING}{@code ]}. This
-     * is the single source of truth for blob-store access concurrency so metadata discovery and data retrieval stay
-     * consistent: both are latency-bound I/O against object stores and should scale the same way with node size rather
-     * than each picking an ad-hoc constant. The floor keeps small nodes from self-throttling (and from sizing the
-     * {@code esql_external_io} pool too small to run the parse pipeline); the ceiling bounds a single store's load.
+     * Frozen range-GET / Parquet window size used as the {@code B} term in {@code M = C × B}. Large-object reads
+     * cap here; smaller files still clamp to file length. Parquet window and coalesced-merge caps must match this
+     * value so in-flight GET size and the concurrency formula stay in lockstep. This is not a bound on bytes
+     * retained after a GET completes (unread prefetch, current row group) and is not the NDJSON whole-object
+     * byte-array fast-path cap.
      */
-    public static int defaultBlobStoreConcurrency(int allocatedProcessors) {
-        int scaled = allocatedProcessors * BLOB_STORE_CONCURRENCY_PER_PROCESSOR;
-        return Math.min(Math.max(scaled, BLOB_STORE_CONCURRENCY_FLOOR), BLOB_STORE_CONCURRENCY_CEILING);
+    public static final int BLOB_STORE_GET_SIZE_BYTES = 10 * 1024 * 1024;
+
+    /** Heap share reserved for in-flight blob-store buffers: {@code M = min(heap / this, half the request breaker)}. */
+    static final int BLOB_STORE_MEMORY_HEAP_DIVISOR = 4;
+
+    /**
+     * The default per-node concurrency for accessing an external blob store. CPU slope is {@code processors * 3}
+     * clamped to {@code [}{@value #BLOB_STORE_CONCURRENCY_FLOOR}{@code , }{@value #BLOB_STORE_CONCURRENCY_CEILING}{@code ]}.
+     * A byte budget {@code M = min(heap/4, half of indices.breaker.request.limit)} then caps that at
+     * {@code floor(M / 10 MiB)}, so small heaps cut connections instead of also taking a latency-hiding
+     * floor of 16. Tightening the request breaker in node-start settings ({@code elasticsearch.yml}) binds
+     * first; {@code indices.breaker.request.limit} is Dynamic, but this default is resolved for the NodeScope
+     * concurrency knob at startup, so a live REQUEST update does not resize permits, SDK pools, or
+     * {@code esql_external_io}. Leftover {@code M} is left unused rather than shrinking the GET size. The parse
+     * floor of {@value #BLOB_STORE_CONCURRENCY_FLOOR} still wins when {@code M / 10 MiB} is smaller, so gzip/zstd
+     * streaming keeps a parser thread.
+     */
+    public static int defaultBlobStoreConcurrency(Settings settings) {
+        return defaultBlobStoreConcurrency(
+            EsExecutors.allocatedProcessors(settings),
+            JvmInfo.jvmInfo().getMem().getHeapMax().getBytes(),
+            HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes()
+        );
     }
 
-    /** Convenience overload resolving allocated processors from the given settings. */
-    public static int defaultBlobStoreConcurrency(Settings settings) {
-        return defaultBlobStoreConcurrency(EsExecutors.allocatedProcessors(settings));
+    // visible for testing
+    static int defaultBlobStoreConcurrency(int allocatedProcessors, long heapBytes, long requestBreakerLimitBytes) {
+        int scaled = allocatedProcessors * BLOB_STORE_CONCURRENCY_PER_PROCESSOR;
+        int cpuClamp = Math.min(Math.max(scaled, BLOB_STORE_CONCURRENCY_FLOOR), BLOB_STORE_CONCURRENCY_CEILING);
+        return Math.min(cpuClamp, memoryBoundConcurrency(heapBytes, requestBreakerLimitBytes));
+    }
+
+    // visible for testing
+    /**
+     * Upper bound on in-flight 10 MiB GET slots from {@code M = min(heap/4, REQUEST/2)}. Never below the parse
+     * floor, so gzip/zstd still has a parser thread when {@code M / B} would be 2.
+     */
+    static int memoryBoundConcurrency(long heapBytes, long requestBreakerLimitBytes) {
+        long memoryBudget = Math.min(heapBytes / BLOB_STORE_MEMORY_HEAP_DIVISOR, requestBreakerLimitBytes / 2);
+        long memorySlots = Math.max(0L, memoryBudget / BLOB_STORE_GET_SIZE_BYTES);
+        int slots = (int) Math.min(Integer.MAX_VALUE, memorySlots);
+        return Math.max(BLOB_STORE_CONCURRENCY_FLOOR, slots);
     }
 
     /**
      * The effective per-node blob-store access concurrency that every external access path reads, so one knob
      * governs metadata discovery and data reads alike: the operator's {@link #MAX_CONCURRENT_REQUESTS} value when
-     * set, otherwise the CPU-bound {@link #defaultBlobStoreConcurrency(Settings)} default. The data-read path bounds
-     * in-flight reads with a per-scheme permit semaphore sized by this value ({@code StorageProviderRegistry}), and
-     * the metadata-discovery fan-out ({@code TransportEsqlQueryAction.externalSourceConcurrency()}) uses the same
+     * set, otherwise the heap- and CPU-scaled {@link #defaultBlobStoreConcurrency(Settings)} default. A positive
+     * override is still capped by {@link #memoryBoundConcurrency} so a leftover {@code 16} (the old floor) cannot
+     * skip the byte budget; {@code 0} still disables permit limiting. The data-read path bounds in-flight reads
+     * with a per-scheme permit semaphore sized by this value ({@code StorageProviderRegistry}), and the
+     * metadata-discovery fan-out ({@code TransportEsqlQueryAction.externalSourceConcurrency()}) uses the same
      * value — so an operator override reaches both paths.
      */
     public static int blobStoreConcurrency(Settings settings) {
-        return MAX_CONCURRENT_REQUESTS.get(settings);
+        return blobStoreConcurrency(
+            MAX_CONCURRENT_REQUESTS.get(settings),
+            JvmInfo.jvmInfo().getMem().getHeapMax().getBytes(),
+            HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes()
+        );
+    }
+
+    // visible for testing
+    static int blobStoreConcurrency(int configured, long heapBytes, long requestBreakerLimitBytes) {
+        if (configured == 0) {
+            return 0;
+        }
+        return Math.min(configured, memoryBoundConcurrency(heapBytes, requestBreakerLimitBytes));
     }
 
     /**
@@ -95,7 +141,7 @@ public final class ExternalSourceSettings {
      * can never starve its own drain; that separation is what makes {@code pool == permits} safe rather than
      * deadlock-prone. One exception to tracking the knob: {@code max_concurrent_requests=0} disables the <em>permit</em>
      * limiter (unbounded in-flight reads), but the I/O pool still needs threads to run the reads and parse pipeline, so
-     * it falls back to the CPU-scaled {@link #defaultBlobStoreConcurrency(Settings)} default rather than a zero-thread
+     * it falls back to the heap- and CPU-scaled {@link #defaultBlobStoreConcurrency(Settings)} default rather than a zero-thread
      * pool. Always {@code >= 1}.
      */
     public static int externalIoThreads(Settings settings) {
@@ -110,13 +156,15 @@ public final class ExternalSourceSettings {
      * {@link #blobStoreConcurrency(Settings)} — the metadata-discovery fan-out. Set to 0 to disable permit-based
      * concurrency limiting entirely.
      * <p>
-     * The default is CPU-bound rather than a fixed literal: {@link #defaultBlobStoreConcurrency(Settings)} — the
-     * {@code snapshot_meta} sizing shape ({@code allocatedProcessors * 3}) clamped to
-     * {@code [}{@value #BLOB_STORE_CONCURRENCY_FLOOR}{@code , }{@value #BLOB_STORE_CONCURRENCY_CEILING}{@code ]}. That
-     * scales in-flight reads with node size so a wide fan-out over many small blobs is not self-throttled by a low
-     * fixed cap, while the floor keeps small nodes from collapsing to a handful of permits and the ceiling bounds a
-     * single store's load. Operators can raise it (up to 500) for high-throughput clusters or lower it when a store
-     * throttles.
+     * The default is {@link #defaultBlobStoreConcurrency(Settings)} rather than a fixed literal: CPU slope
+     * {@code allocatedProcessors * 3} clamped to
+     * {@code [}{@value #BLOB_STORE_CONCURRENCY_FLOOR}{@code , }{@value #BLOB_STORE_CONCURRENCY_CEILING}{@code ]},
+     * then further limited so concurrent 10 MiB reads stay within a quarter of heap (or half the request breaker
+     * when that is tighter). A positive operator override is capped by that same memory term, so a leftover
+     * {@code 16} (the old floor) cannot skip the budget; {@code 0} still disables permit limiting. Operators can
+     * raise it up to the memory cap (setting range 0–500) for high-throughput clusters or lower it when a store
+     * throttles. The request breaker itself is Dynamic; this default is sampled when the NodeScope knob is
+     * resolved at startup, so a live REQUEST update does not change concurrency until restart.
      * <p>
      * Static ({@link Setting.Property#NodeScope}): the value sizes the per-scheme semaphores and SDK pools when they
      * are built and there is no settings-update consumer to resize a live {@link java.util.concurrent.Semaphore} or
@@ -145,7 +193,7 @@ public final class ExternalSourceSettings {
      * size). Node-scoped: the pool is sized at startup.
      */
     public static final Setting<Integer> MAX_CONCURRENT_SEGMENTATORS = Setting.intSetting(
-        "esql.external.max_concurrent_segmentators",
+        "esql.external.max_concurrent_segmenters",
         0,
         0,
         4096,
@@ -186,11 +234,12 @@ public final class ExternalSourceSettings {
     }
 
     /**
-     * Maximum total time (in seconds) to spend retrying throttled cloud API requests
-     * before giving up. Bounds the cumulative retry duration regardless of the retry count,
-     * ensuring queries fail cleanly when throttling is persistent rather than blocking
-     * until the HTTP request timeout fires.
-     * Default: 30 seconds. Set to 0 to disable the duration budget (retry count only).
+     * Maximum total time (in seconds) to spend retrying throttled cloud API requests before giving up.
+     * This is the primary (and only user-configurable) bound on throttle retries: the retry loop keeps
+     * sleeping and retrying until the budget is spent, then fails the read.
+     * Setting this to 0 disables the time budget; only the internal sanity cap then applies
+     * (see {@code RetryPolicy.THROTTLE_RETRIES_SANITY_CAP}).
+     * Valid range: [0, 300]. Default: 30 seconds.
      */
     public static final Setting<Integer> THROTTLE_MAX_RETRY_DURATION = Setting.intSetting(
         "esql.external.throttle_max_retry_duration",
@@ -230,13 +279,47 @@ public final class ExternalSourceSettings {
     );
 
     /**
-     * Deprecated former name for {@link #MANAGED_IDENTITY_ENABLED}. Still honored for backwards compatibility — it is the
-     * fallback source for the new key, so an operator's existing {@code esql.datasource.workload_identity.enabled} config
-     * keeps working — and emits a deprecation warning when set. Prefer {@link #MANAGED_IDENTITY_ENABLED}.
+     * Deprecated pre-rename key for {@link #WORKLOAD_IDENTITY_ENABLED}, from before the external-dataset settings
+     * were unified under {@code esql.external.*}. It shipped in released versions, so it stays registered — a node
+     * carrying it in {@code elasticsearch.yml} would otherwise fail startup on an unregistered setting. Unlike the
+     * yml-only cache keys (see {@code ExternalSourceCacheSettings.CACHE_ENABLED_OLD}), this key is
+     * {@link Setting.Property#OperatorDynamic}: operator settings files (the reserved {@code cluster_settings} state)
+     * still carry the pre-rename keys, and a registered-but-non-dynamic key would fail that update. An operator
+     * update through this key propagates to consumers wired to the new keys because settings updaters compare
+     * fallback-resolved values. Emits a deprecation warning when set.
      */
-    public static final Setting<Boolean> WORKLOAD_IDENTITY_ENABLED = Setting.boolSetting(
+    public static final Setting<Boolean> WORKLOAD_IDENTITY_ENABLED_OLD = Setting.boolSetting(
         "esql.datasource.workload_identity.enabled",
         false,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.DeprecatedWarning
+    );
+
+    /**
+     * Deprecated former name for {@link #MANAGED_IDENTITY_ENABLED}. Still honored for backwards compatibility — it is
+     * the fallback source for the new key, so a {@code workload_identity.enabled} config (under the unified
+     * {@code esql.external.} prefix) keeps working — and emits a deprecation warning when set. Resolves through its
+     * own pre-rename key, {@link #WORKLOAD_IDENTITY_ENABLED_OLD}. Prefer {@link #MANAGED_IDENTITY_ENABLED}.
+     */
+    public static final Setting<Boolean> WORKLOAD_IDENTITY_ENABLED = Setting.boolSetting(
+        "esql.external.workload_identity.enabled",
+        WORKLOAD_IDENTITY_ENABLED_OLD,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.DeprecatedWarning
+    );
+
+    /**
+     * Deprecated pre-rename key for {@link #MANAGED_IDENTITY_ENABLED} — see {@link #WORKLOAD_IDENTITY_ENABLED_OLD}
+     * for why it stays registered and operator-dynamic. Falls back to {@link #WORKLOAD_IDENTITY_ENABLED}, preserving
+     * the pre-rename resolution order: {@code esql.external.managed_identity.enabled} →
+     * {@code esql.datasource.managed_identity.enabled} → {@code esql.external.workload_identity.enabled} →
+     * {@code esql.datasource.workload_identity.enabled}.
+     */
+    public static final Setting<Boolean> MANAGED_IDENTITY_ENABLED_OLD = Setting.boolSetting(
+        "esql.datasource.managed_identity.enabled",
+        WORKLOAD_IDENTITY_ENABLED,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic,
         Setting.Property.DeprecatedWarning
@@ -252,14 +335,27 @@ public final class ExternalSourceSettings {
      * Never enable in serverless or multi-tenant deployments: ambient credentials bypass tenant isolation.
      * <p>
      * This is an operator-dynamic setting: changes take effect immediately without a node restart. When this key is
-     * not set, it falls back to the deprecated {@link #WORKLOAD_IDENTITY_ENABLED} key's value, so reads through this
-     * setting see an operator's pre-rename configuration.
+     * not set, it falls back to the deprecated {@link #MANAGED_IDENTITY_ENABLED_OLD} key's value (which in turn
+     * resolves through the deprecated {@code workload_identity} keys), so reads through this setting see an
+     * operator's pre-rename configuration.
      */
     public static final Setting<Boolean> MANAGED_IDENTITY_ENABLED = Setting.boolSetting(
-        "esql.datasource.managed_identity.enabled",
-        WORKLOAD_IDENTITY_ENABLED,
+        "esql.external.managed_identity.enabled",
+        MANAGED_IDENTITY_ENABLED_OLD,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
+    );
+
+    /**
+     * Deprecated pre-rename key for {@link #FEDERATED_IDENTITY_ENABLED} — see {@link #WORKLOAD_IDENTITY_ENABLED_OLD}
+     * for why it stays registered and operator-dynamic.
+     */
+    public static final Setting<Boolean> FEDERATED_IDENTITY_ENABLED_OLD = Setting.boolSetting(
+        "esql.datasource.federated_identity.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.DeprecatedWarning
     );
 
     /**
@@ -274,10 +370,22 @@ public final class ExternalSourceSettings {
      * gitops without exposing a customer-facing toggle.
      */
     public static final Setting<Boolean> FEDERATED_IDENTITY_ENABLED = Setting.boolSetting(
-        "esql.datasource.federated_identity.enabled",
-        false,
+        "esql.external.federated_identity.enabled",
+        FEDERATED_IDENTITY_ENABLED_OLD,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
+    );
+
+    /**
+     * Deprecated pre-rename key for {@link #LOCAL_ALLOWED_PATHS} — see {@link #WORKLOAD_IDENTITY_ENABLED_OLD} for why
+     * it stays registered. Unlike the identity keys it is not operator-dynamic, because the new key is restart-only
+     * too: a node carrying it in {@code elasticsearch.yml} still starts and the value takes effect through the
+     * fallback resolution.
+     */
+    public static final Setting<List<String>> LOCAL_ALLOWED_PATHS_OLD = Setting.stringListSetting(
+        "esql.datasource.local_allowed_paths",
+        Setting.Property.NodeScope,
+        Setting.Property.DeprecatedWarning
     );
 
     /**
@@ -286,10 +394,13 @@ public final class ExternalSourceSettings {
      * entirely. When non-empty, a {@code file://} path is allowed only if it normalizes to a location under one of the
      * listed roots; {@code ..}-escapes and anything outside every root are rejected.
      * <p>
-     * This is a node-scope setting; a node restart is required for changes to take effect.
+     * This is a node-scope setting; a node restart is required for changes to take effect. When this key is not set,
+     * it falls back to the deprecated {@link #LOCAL_ALLOWED_PATHS_OLD} key's value.
      */
-    public static final Setting<List<String>> LOCAL_ALLOWED_PATHS = Setting.stringListSetting(
-        "esql.datasource.local_allowed_paths",
+    public static final Setting<List<String>> LOCAL_ALLOWED_PATHS = Setting.listSetting(
+        "esql.external.local_allowed_paths",
+        LOCAL_ALLOWED_PATHS_OLD,
+        Function.identity(),
         Setting.Property.NodeScope
     );
 
@@ -301,9 +412,13 @@ public final class ExternalSourceSettings {
             MAX_DISCOVERED_FILES,
             MAX_GLOB_EXPANSION,
             WORKLOAD_IDENTITY_ENABLED,
+            WORKLOAD_IDENTITY_ENABLED_OLD,
             MANAGED_IDENTITY_ENABLED,
+            MANAGED_IDENTITY_ENABLED_OLD,
             FEDERATED_IDENTITY_ENABLED,
-            LOCAL_ALLOWED_PATHS
+            FEDERATED_IDENTITY_ENABLED_OLD,
+            LOCAL_ALLOWED_PATHS,
+            LOCAL_ALLOWED_PATHS_OLD
         );
     }
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -49,6 +50,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -309,7 +311,7 @@ public class RestBulkActionTests extends ESTestCase {
                 )
             ).handleRequest(
                 new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
-                    .withParams(Map.of("_slice", "s1"))
+                    .withParams(Map.of("slice", "s1"))
                     .withContent(new BytesArray("""
                         {"index":{"_id":"1"}}
                         {"field1":"val1"}
@@ -351,9 +353,9 @@ public class RestBulkActionTests extends ESTestCase {
                     mock(ThreadPool.class)
                 )
             ).handleRequest(new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk").withContent(new BytesArray("""
-                {"index":{"_id":"1","_slice":"s1"}}
+                {"index":{"_id":"1","slice":"s1"}}
                 {"field1":"val1"}
-                {"index":{"_id":"2","_slice":"s2"}}
+                {"index":{"_id":"2","slice":"s2"}}
                 {"field1":"val2"}
                 """), XContentType.JSON).withMethod(RestRequest.Method.POST).build(), mock(RestChannel.class), verifyingClient);
             assertThat(bulkCalled.get(), equalTo(true));
@@ -365,7 +367,7 @@ public class RestBulkActionTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = new NoOpNodeClient(threadPool);
             FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
-                .withParams(Map.of("_slice", "s1"))
+                .withParams(Map.of("slice", "s1"))
                 .withContent(new BytesArray("""
                     {"index":{"_id":"1","routing":"r1"}}
                     {"field1":"val1"}
@@ -386,7 +388,7 @@ public class RestBulkActionTests extends ESTestCase {
             ).handleRequest(request, channel, client);
             try (var response = channel.capturedResponse()) {
                 assertThat(response.status().getStatus(), equalTo(400));
-                assertThat(response.content().utf8ToString(), containsString("contains both [routing] and [_slice]"));
+                assertThat(response.content().utf8ToString(), containsString("contains both [routing] and [slice]"));
             }
         }
     }
@@ -396,7 +398,7 @@ public class RestBulkActionTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = new NoOpNodeClient(threadPool);
             FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
-                .withParams(Map.of("_slice", "s1", "routing", "r1"))
+                .withParams(Map.of("slice", "s1", "routing", "r1"))
                 .withContent(new BytesArray("""
                     {"index":{"_id":"1"}}
                     {"field1":"val1"}
@@ -418,7 +420,7 @@ public class RestBulkActionTests extends ESTestCase {
                     )
                 ).handleRequest(request, channel, client)
             );
-            assertThat(ex.getMessage(), containsString("[routing] is not allowed together with [_slice]"));
+            assertThat(ex.getMessage(), containsString("[routing] is not allowed together with [slice]"));
         }
     }
 
@@ -427,7 +429,7 @@ public class RestBulkActionTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = new NoOpNodeClient(threadPool);
             FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
-                .withParams(Map.of("_slice", "_all"))
+                .withParams(Map.of("slice", "_all"))
                 .withContent(new BytesArray("""
                     {"index":{"_id":"1"}}
                     {"field1":"val1"}
@@ -449,8 +451,39 @@ public class RestBulkActionTests extends ESTestCase {
                     )
                 ).handleRequest(request, channel, client)
             );
-            assertThat(ex.getMessage(), containsString("invalid [_slice] value"));
+            assertThat(ex.getMessage(), containsString("invalid [slice] value"));
         }
+    }
+
+    public void testInvalidParamsDoNotRegisterBulkSessionTask() {
+        var param = randomFrom(
+            Map.entry("wait_for_active_shards", Set.of("all")),
+            Map.entry("refresh", Set.of("false", "true", "wait_for", ""))
+        );
+        // Alphabetic, so it is also never a valid shard count.
+        String value = randomValueOtherThanMany(param.getValue()::contains, () -> randomAlphaOfLengthBetween(1, 10));
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        NoOpNodeClient client = new NoOpNodeClient(threadPool);
+        RestBulkAction action = new RestBulkAction(
+            Settings.EMPTY,
+            ClusterSettings.createBuiltInClusterSettings(),
+            new IncrementalBulkService(client, new IndexingPressure(Settings.EMPTY), MeterRegistry.NOOP, taskManager, threadPool)
+        );
+        FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+            .withMethod(RestRequest.Method.POST)
+            .withParams(Map.of(param.getKey(), value))
+            .withBody(new FakeHttpBodyStream())
+            .withHeaders(
+                Map.of("Content-Type", List.of(XContentType.JSON.mediaType()), "Content-Length", List.of(String.valueOf(between(1, 1024))))
+            )
+            .build();
+
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.handleRequest(request, new FakeRestChannel(request, randomBoolean()), client)
+        );
+        assertThat(e.getMessage(), containsString("[" + value + "]"));
+        assertThat(taskManager.getTasks().values(), empty());
     }
 
     public void testIncrementalParsing() {
@@ -478,7 +511,7 @@ public class RestBulkActionTests extends ESTestCase {
                 null,
                 null,
                 null,
-                MeterRegistry.NOOP.getLongHistogram(IncrementalBulkService.CHUNK_WAIT_TIME_HISTOGRAM_NAME),
+                LongHistogram.NOOP,
                 emptySet(),
                 new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY),
                 threadPool

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.ShardLocalReadersTracker;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 
@@ -142,7 +143,8 @@ public class NoOpTranslogPeriodicFlushIT extends AbstractStatelessPluginIntegTes
             RefreshManagerService refreshManagerService,
             ReshardIndexService reshardIndexService,
             DocumentParsingProvider documentParsingProvider,
-            IndexEngine.EngineMetrics engineMetrics
+            IndexEngine.EngineMetrics engineMetrics,
+            IndexEngineDynamicSettings indexEngineDynamicSettings
         ) {
             return new FailingSearcherIndexEngine(
                 engineConfig,
@@ -156,6 +158,7 @@ public class NoOpTranslogPeriodicFlushIT extends AbstractStatelessPluginIntegTes
                 statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
                 documentParsingProvider,
                 engineMetrics,
+                indexEngineDynamicSettings,
                 shardId -> {
                     final var indexShard = getIndicesService().getShardOrNull(shardId);
                     return indexShard == null || indexShard.routingEntry().relocating();
@@ -184,6 +187,7 @@ public class NoOpTranslogPeriodicFlushIT extends AbstractStatelessPluginIntegTes
             CommitBCCResolver commitBCCResolver,
             DocumentParsingProvider documentParsingProvider,
             IndexEngine.EngineMetrics metrics,
+            IndexEngineDynamicSettings indexEngineDynamicSettings,
             Predicate<ShardId> shouldSkipMerges,
             ShardLocalReadersTracker shardLocalReadersTracker
         ) {
@@ -199,6 +203,7 @@ public class NoOpTranslogPeriodicFlushIT extends AbstractStatelessPluginIntegTes
                 commitBCCResolver,
                 documentParsingProvider,
                 metrics,
+                indexEngineDynamicSettings,
                 shouldSkipMerges,
                 shardLocalReadersTracker
             );

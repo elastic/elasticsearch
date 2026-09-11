@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
@@ -32,6 +33,11 @@ public class RestMoveToStepAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "ilm_move_to_step_action";
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of("lookup_index_not_managed");
     }
 
     @Override

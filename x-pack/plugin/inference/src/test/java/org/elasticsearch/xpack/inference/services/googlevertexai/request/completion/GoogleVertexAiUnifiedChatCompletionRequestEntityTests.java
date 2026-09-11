@@ -696,6 +696,64 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         assertJsonEquals(jsonString, requestJson);
     }
 
+    public void testParseFunctionCallWithNonStringArgValues() throws IOException {
+        String requestJson = """
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            { "functionCall" : {
+                                "name": "get_index_mapping",
+                                "args": {
+                                    "indices": ["foo", "bar"],
+                                    "size": 10
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """;
+
+        var request = new UnifiedCompletionRequest(
+            List.of(
+                new Message(
+                    null,
+                    "assistant",
+                    null,
+                    List.of(
+                        new ToolCall(
+                            "call_1",
+                            new ToolCall.FunctionField("{\"indices\": [\"foo\", \"bar\"], \"size\": 10}", "get_index_mapping"),
+                            "function"
+                        )
+                    )
+                )
+            ),
+            "gemini-2.0",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(request, true);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig
+        );
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String jsonString = Strings.toString(builder);
+        assertJsonEquals(jsonString, requestJson);
+    }
+
     public void testParseFunctionCallWithBadJson() throws IOException {
         int someNumber = 1;
         var illegalArguments = List.of("\"order_id\": \"order_12345\"}", "[]", Integer.toString(someNumber), "\"a\"");

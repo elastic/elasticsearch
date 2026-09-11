@@ -132,12 +132,12 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
             assertThat(timestamp, anyOf(equalTo(20L), equalTo(30L)));
             if (timestamp == 20L) {
                 assertThat(dataPoints.size(), equalTo(1));
-                var histogramValue = (ResetDataPoints.HistogramResetValue) dataPoints.get(0).v2();
+                var histogramValue = (ResetDataPoints.HistogramResetValue) dataPoints.get("my-histogram");
                 assertThat(histogramValue.value().valueCount(), equalTo(h20.valueCount()));
             }
             if (timestamp == 30L) {
                 assertThat(dataPoints.size(), equalTo(1));
-                var histogramValue = (ResetDataPoints.HistogramResetValue) dataPoints.get(0).v2();
+                var histogramValue = (ResetDataPoints.HistogramResetValue) dataPoints.get("my-histogram");
                 assertThat(histogramValue.value().valueCount(), equalTo(h30.valueCount()));
             }
         });
@@ -305,6 +305,54 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
         values = createHistogramValues(docIdBuffer, h3);
         producer.collect(values, timeValues, docIdBuffer, Temporality.DELTA);
         assertThat(producer.downsampledValue().valueCount(), equalTo(2L));
+    }
+
+    /**
+     * Regression test for a bug where two consecutive resets within the same bucket could cause the same
+     * (field, timestamp) pair to be pushed onto the reset stack twice:
+     * <ol>
+     *   <li>A count-based reset (detected while processing {@code t=30}) pushes the previous data point
+     *       at {@code t=40} via the guard, then pushes the reset boundary at {@code t=30} unconditionally.</li>
+     *   <li>A structural reset (setToDifference returns false while count still fits) incorrectly
+     *       re-pushes the same {@code t=30} entry (= {@code lastTimestamp}), producing a duplicate field
+     *       in the reset document and an {@code XContentParseException: Duplicate field '...'} at index time.</li>
+     * </ol>
+     * <p>
+     * The bug is triggered when h20.max &gt; h30.max (making setToDifference(h30, h20) return false)
+     * while h20.count &lt; h30.count (so the count criterion alone does not fire).
+     */
+    public void testConsecutiveResetsDoNotDuplicateDataPoint() throws IOException {
+        var producer = new ExponentialHistogramFieldDownsampler.AggregateHistogram("my-histogram", null);
+
+        // Values received in descending time order:
+        // t=40: count=1, values={1.0} — after the first reset (between t=30 and t=40)
+        // t=30: count=2, values={1.0, 2.0} — before the first reset; count-based reset vs h40
+        // t=20: count=1, values={5.0} — after a second reset; max=5 > h30.max=2,
+        // so setToDifference(h30, h20) returns false,
+        // triggering a structural-reset detection
+        ExponentialHistogram h40 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 1.0);
+        ExponentialHistogram h30 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 1.0, 2.0);
+        ExponentialHistogram h20 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 5.0);
+
+        IntArrayList docIdBuffer = IntArrayList.from(2, 1, 0);
+        LongArrayList timeValues = LongArrayList.from(40, 30, 20);
+        ExponentialHistogramValuesReader values = createHistogramValues(docIdBuffer, h40, h30, h20);
+        producer.collect(values, timeValues, docIdBuffer, Temporality.CUMULATIVE);
+
+        // Downsampled value is the oldest (h20)
+        ExponentialHistogram result = producer.downsampledValue();
+        assertThat(result.valueCount(), equalTo(h20.valueCount()));
+
+        ResetDataPoints resetDataPoints = new ResetDataPoints();
+        producer.updateResetDataPoints(resetDataPoints);
+
+        // Two reset documents: one for t=30 (count-based reset boundary) and one for t=40 (count-based reset)
+        assertThat(resetDataPoints.countResetDocuments(), equalTo(2));
+        resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
+            // Each timestamp must have exactly one entry — the bug produced two entries at t=30
+            assertThat("timestamp " + timestamp + " must have exactly one reset value", dataPoints.size(), equalTo(1));
+            assertThat(timestamp, anyOf(equalTo(30L), equalTo(40L)));
+        });
     }
 
     public void testIsAggregateDownsamplerConsistentWithCreate() {

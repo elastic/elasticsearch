@@ -4,3 +4,7 @@
 
 Decode a base64 string.
 
+{applies_to}`stack: ga 9.4.5+`
+Returns `null` and adds a warning header to the response if the decoded bytes are not
+well-formed UTF-8.
+

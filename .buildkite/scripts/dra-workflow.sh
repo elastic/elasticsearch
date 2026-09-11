@@ -16,8 +16,13 @@ echo --- Preparing
 sudo NEEDRESTART_MODE=l apt-get update -y
 sudo NEEDRESTART_MODE=l apt-get install -y libxml2-utils python3.10-venv
 
-RM_BRANCH="$BRANCH"
-if [[ "$BRANCH" == "main" ]]; then
+# Branch used to resolve dependency manifests (beats, ml-cpp) and reported to
+# release-manager. Defaults to the current Buildkite branch, but is overridable
+# so feature branches can point at a real release branch's manifests when
+# testing DRA changes (the ml-cpp / beats DRA pipelines only build the actual
+# release branches, so a feature branch would otherwise fail manifest lookup).
+RM_BRANCH="${RM_BRANCH:-$BRANCH}"
+if [[ "$RM_BRANCH" == "main" ]]; then
   RM_BRANCH=master
 fi
 
@@ -58,6 +63,14 @@ if [[ -n "${VERSION_QUALIFIER:-}" ]]; then
   VERSION_QUALIFIER_ARG="-Dbuild.version_qualifier=$VERSION_QUALIFIER"
 fi
 
+echo --- install qemu for aarch64 docker image builds
+# NOTE: qemu-v9.2.2 mishandles openat2(O_NOFOLLOW) on aarch64 (glibc tar's
+# CVE-2025-45582 fix triggers this), causing "tar: ...: Cannot open: Invalid
+# argument" during linux/arm64 cross builds. qemu-v10.2.3 has the upstream
+# fix. See https://github.com/tonistiigi/binfmt/issues/285.
+docker run --privileged --rm tonistiigi/binfmt:qemu-v10.2.3 --install all
+docker buildx create --driver docker-container --use --bootstrap
+
 echo --- Building release artifacts
 
 .ci/scripts/run-gradle.sh -Ddra.artifacts=true \
@@ -72,6 +85,7 @@ echo --- Building release artifacts
   exportCompressedDockerImages \
   exportDockerContexts \
   :zipAggregation \
+  :prepareDraSnapshotMavenAggregation \
   :distribution:generateDependenciesReport
 
 PATH="$PATH:${JAVA_HOME}/bin" # Required by the following script
@@ -90,6 +104,13 @@ find "$WORKSPACE" -type f -path "*/build/distributions/*" -exec chmod a+r {} \;
 
 # Allow other users write access to create checksum files
 find "$WORKSPACE" -type d -path "*/build/distributions" -exec chmod a+w {} \;
+
+# Publish the exploded maven aggregation tree to snapshots.elastic.co /
+# artifacts.elastic.co ourselves, ahead of the release-manager cutover tracked
+# in https://github.com/elastic/elasticsearch-team/issues/4297.
+echo --- Publishing maven aggregation to S3
+DRA_WORKFLOW="$WORKFLOW" \
+  .buildkite/scripts/dra-maven-snapshots-publish.sh
 
 echo --- Running release-manager
 

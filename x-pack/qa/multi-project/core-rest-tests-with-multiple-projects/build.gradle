@@ -29,6 +29,7 @@ dependencies {
   clusterModules project(xpackModule('mapper-constant-keyword'))
   clusterModules project(xpackModule('wildcard'))
   clusterModules project(':test:external-modules:test-multi-project')
+  clusterModules project(xpackModule('dlm-frozen-transition'))
   restTestConfig project(path: ':modules:data-streams', configuration: "restTests")
   restTestConfig project(path: ':modules:ingest-common', configuration: "basicRestSpecs")
   restTestConfig project(path: ':modules:reindex', configuration: "restTests")

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -111,6 +112,29 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
             DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
             assertThat(e.getCause().getMessage(), containsString("Value \"10.5\" has a decimal part"));
         }
+    }
+
+    public void testIndexingOversizedStringIsRejected() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        String oversized = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", oversized))));
+    }
+
+    public void testRangeTermsRejectOversizedString() {
+        String oversized = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> UnsignedLongFieldMapper.UnsignedLongFieldType.parseLowerRangeTerm(oversized, true)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> UnsignedLongFieldMapper.UnsignedLongFieldType.parseUpperRangeTerm(oversized, true)
+        );
+    }
+
+    public void testTermRejectsOversizedString() {
+        String oversized = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(IllegalArgumentException.class, () -> UnsignedLongFieldMapper.UnsignedLongFieldType.parseTerm(oversized));
     }
 
     public void testNoDocValues() throws Exception {

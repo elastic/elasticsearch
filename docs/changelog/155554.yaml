@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 152490
+ - 152491
+pr: 155554
+summary: Support analyzer option on runtime match
+type: enhancement

@@ -29,28 +29,42 @@ import java.util.Map;
  * ({@code ai-index-idx-*}) for persistent data requiring in-place updates, and data streams
  * ({@code ai-index-ds-*}) for time series data. Both share a common set of field mappings and compose it
  * with a type-specific settings component.
+ *
+ * <p>Each backing store type comes in two flavours: the dot-prefixed name ({@code .ai-index-idx-*},
+ * {@code .ai-index-ds-*}) is reserved for Elastic-managed AI indices and layers the
+ * {@code ai-index-managed@mappings} component on top of the shared ones, while the undotted name is
+ * available to users and composes the optional {@code ai-index@custom} escape hatch instead.
  */
 public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
 
     // This number must be incremented when we make changes to built-in templates.
-    static final int REGISTRY_VERSION = 1;
+    static final int REGISTRY_VERSION = 3;
 
     // The computed checksum of all templates and components that are registered in this registry.
-    static final String COMPUTED_CHECKSUM = "27635e19";
+    static final String COMPUTED_CHECKSUM = "8de3a150";
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.ai-index.template.version";
 
     public static final String AI_INDEX_IDX_PREFIX = "ai-index-idx-";
     public static final String AI_INDEX_DS_PREFIX = "ai-index-ds-";
 
+    public static final String DOT_AI_INDEX_IDX_PREFIX = "." + AI_INDEX_IDX_PREFIX;
+    public static final String DOT_AI_INDEX_DS_PREFIX = "." + AI_INDEX_DS_PREFIX;
+
     public static final String AI_INDEX_IDX_PATTERN = AI_INDEX_IDX_PREFIX + "*";
     public static final String AI_INDEX_DS_PATTERN = AI_INDEX_DS_PREFIX + "*";
 
+    public static final String DOT_AI_INDEX_IDX_PATTERN = DOT_AI_INDEX_IDX_PREFIX + "*";
+    public static final String DOT_AI_INDEX_DS_PATTERN = DOT_AI_INDEX_DS_PREFIX + "*";
+
     public static final String AI_INDEX_MAPPINGS_COMPONENT_NAME = "ai-index@mappings";
+    public static final String AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME = "ai-index-managed@mappings";
     public static final String AI_INDEX_DS_SETTINGS_COMPONENT_NAME = "ai-index@ds-settings";
 
     public static final String AI_INDEX_IDX_TEMPLATE_NAME = "ai-index-idx";
     public static final String AI_INDEX_DS_TEMPLATE_NAME = "ai-index-ds";
+    public static final String AI_INDEX_IDX_MANAGED_TEMPLATE_NAME = "ai-index-idx-managed";
+    public static final String AI_INDEX_DS_MANAGED_TEMPLATE_NAME = "ai-index-ds-managed";
 
     private static final String ROOT_RESOURCE_PATH = "/ai-index/";
     private static final String JSON_EXTENSION = ".json";
@@ -82,6 +96,12 @@ public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
                 ROOT_RESOURCE_PATH + AI_INDEX_DS_SETTINGS_COMPONENT_NAME + JSON_EXTENSION,
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
+                AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME,
+                ROOT_RESOURCE_PATH + AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME + JSON_EXTENSION,
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
             ) };
     }
 
@@ -102,6 +122,20 @@ public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 Map.of("ai-index.ds.index_pattern", AI_INDEX_DS_PATTERN)
+            ),
+            new IndexTemplateConfig(
+                AI_INDEX_IDX_MANAGED_TEMPLATE_NAME,
+                ROOT_RESOURCE_PATH + AI_INDEX_IDX_MANAGED_TEMPLATE_NAME + JSON_EXTENSION,
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                Map.of("ai-index.idx.dot_index_pattern", DOT_AI_INDEX_IDX_PATTERN)
+            ),
+            new IndexTemplateConfig(
+                AI_INDEX_DS_MANAGED_TEMPLATE_NAME,
+                ROOT_RESOURCE_PATH + AI_INDEX_DS_MANAGED_TEMPLATE_NAME + JSON_EXTENSION,
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                Map.of("ai-index.ds.dot_index_pattern", DOT_AI_INDEX_DS_PATTERN)
             ) };
     }
 

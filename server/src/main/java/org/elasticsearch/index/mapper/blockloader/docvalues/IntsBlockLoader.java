@@ -123,7 +123,8 @@ public class IntsBlockLoader extends AbstractNumericBlockLoader {
 
         @Override
         protected IntBuilder newBuilder(BlockFactory factory, int count) {
-            return factory.intsFromDocValues(count);
+            // Values are emitted in source insertion order (not sorted ascending).
+            return factory.ints(count);
         }
 
         @Override

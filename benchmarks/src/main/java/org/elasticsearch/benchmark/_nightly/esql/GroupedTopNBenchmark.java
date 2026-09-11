@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark._nightly.esql;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.ExtraParam;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.util.BigArrays;
@@ -48,8 +49,8 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
-@Warmup(iterations = 5)
-@Measurement(iterations = 7)
+@Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 7, time = 1, timeUnit = TimeUnit.SECONDS)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
@@ -57,7 +58,7 @@ import java.util.stream.IntStream;
 public class GroupedTopNBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)

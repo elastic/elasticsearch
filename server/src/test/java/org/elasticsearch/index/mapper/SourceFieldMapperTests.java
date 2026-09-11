@@ -23,15 +23,19 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -40,6 +44,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -541,7 +546,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
     public void testNonColumnarSourceModesRejectedInColumnarIndex() {
         // DISABLED and STORED are rejected on columnar index modes (SYNTHETIC is allowed)
-        for (var columnarMode : new IndexMode[] { IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR }) {
+        for (var columnarMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
             for (var unsupportedMode : new SourceFieldMapper.Mode[] { SourceFieldMapper.Mode.DISABLED, SourceFieldMapper.Mode.STORED }) {
                 Settings settings = Settings.builder()
                     .put(IndexSettings.MODE.getKey(), columnarMode.toString())
@@ -558,7 +563,8 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                             + unsupportedMode
                             + "] for index mode ["
                             + columnarMode
-                            + "]; supported values: [SYNTHETIC, COLUMNAR_STORED]"
+                            + "]; supported values: "
+                            + columnarMode.supportedSourceModes()
                     )
                 );
             }
@@ -567,7 +573,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
     public void testSyntheticRecoverySourceRequiredForColumnarIndex() {
         // Disabling synthetic recovery source is rejected for columnar index modes
-        for (var columnarMode : new IndexMode[] { IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR }) {
+        for (var columnarMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
             Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), columnarMode.toString())
                 .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), false)
@@ -699,10 +705,10 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         }
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(modified), reader -> {
-            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
-                SourceLoader.Leaf sourceLeaf = loader.leaf(leaf.reader(), docIds);
+                SourceLoader.Leaf sourceLeaf = loader.leaf(leaf, docIds);
                 LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
                 sfLoader.advanceTo(0);
                 Source source = sourceLeaf.source(sfLoader, 0);
@@ -747,11 +753,11 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         withLuceneIndex(mapperService, iw -> iw.addDocuments(parsed.docs()), unwrapped -> {
             // The nested source loader builds a parent bitset, which needs a shard-wrapped reader (as in production).
             DirectoryReader reader = wrapInMockESDirectoryReader(unwrapped);
-            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
             LeafReaderContext leaf = reader.leaves().get(0);
             int rootDocId = parsed.docs().size() - 1;
             int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
-            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf.reader(), docIds);
+            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf, docIds);
             LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
             sfLoader.advanceTo(rootDocId);
             Source source = sourceLeaf.source(sfLoader, rootDocId);
@@ -792,11 +798,11 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(parsed.docs()), unwrapped -> {
             DirectoryReader reader = wrapInMockESDirectoryReader(unwrapped);
-            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
             LeafReaderContext leaf = reader.leaves().get(0);
             int rootDocId = parsed.docs().size() - 1;
             int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
-            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf.reader(), docIds);
+            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf, docIds);
             LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
             sfLoader.advanceTo(rootDocId);
             Source source = sourceLeaf.source(sfLoader, rootDocId);
@@ -837,6 +843,87 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         // The whole-document _ignored_source blob and the queryable _ignored meta-field must still be present
         assertNotNull("_ignored_source blob must still be present", rootDoc.getField(IgnoredSourceFieldMapper.NAME));
         assertNotNull("_ignored meta-field must still be present", rootDoc.getField(IgnoredFieldMapper.NAME));
+    }
+
+    /**
+     * In {@code columnar_stored} mode the source blob materialized at index time leaves out every vector field, at the root
+     * and inside a {@code nested} object alike: those values are already held in the vector index, in doc values or in a
+     * stored field, and are patched back into {@code _source} on read.
+     */
+    public void testColumnarStoredExcludesVectorsFromSourceBlob() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("kwd").field("type", "keyword").endObject();
+            vectorFields(b);
+            b.startObject("nested").field("type", "nested").startObject("properties");
+            b.startObject("kwd").field("type", "keyword").endObject();
+            vectorFields(b);
+            b.endObject().endObject();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("kwd", "a");
+            vectorValues(b);
+            b.startArray("nested");
+            b.startObject().field("kwd", "b");
+            vectorValues(b);
+            b.endObject();
+            b.startObject().field("kwd", "c").endObject();
+            b.endArray();
+        }));
+
+        BytesRef blob = doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue();
+        String encoded = new BytesArray(blob).utf8ToString();
+        assertThat(encoded.substring(encoded.indexOf('{')), equalTo("{\"kwd\":\"a\",\"nested\":[{\"kwd\":\"b\"},{\"kwd\":\"c\"}]}"));
+    }
+
+    /**
+     * A vector field the mapping's own {@code _source} filter already excludes is still indexed: the blob filter combines the
+     * two sets of excludes rather than repeating the field.
+     */
+    public void testColumnarStoredVectorAlreadyExcludedByTheMapping() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true)
+            .build();
+        MapperService mapperService = createMapperService(settings, topMapping(b -> {
+            b.startObject("_source").array("excludes", "not_indexed").endObject();
+            b.startObject("properties");
+            b.startObject("kwd").field("type", "keyword").endObject();
+            vectorFields(b);
+            b.endObject();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("kwd", "a");
+            vectorValues(b);
+        }));
+
+        BytesRef blob = doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue();
+        String encoded = new BytesArray(blob).utf8ToString();
+        assertThat(encoded.substring(encoded.indexOf('{')), equalTo("{\"kwd\":\"a\"}"));
+    }
+
+    /** One field per storage layout a vector can use: the vector index, binary doc values, and a stored field. */
+    private static void vectorFields(XContentBuilder b) throws IOException {
+        b.startObject("indexed");
+        b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", "l2_norm");
+        b.endObject();
+        b.startObject("not_indexed").field("type", "dense_vector").field("dims", 3).field("index", false).endObject();
+        b.startObject("sparse").field("type", "sparse_vector").endObject();
+    }
+
+    private static void vectorValues(XContentBuilder b) throws IOException {
+        b.array("indexed", new float[] { 1.5f, 2.5f, 3.5f });
+        b.array("not_indexed", new float[] { 4.5f, 5.5f, 6.5f });
+        b.startObject("sparse").field("running", 1.5f).endObject();
     }
 
     public void testRecoverySourceWithLogs() throws IOException {
@@ -1268,28 +1355,36 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         IndexRequest[] requests = new IndexRequest[] {
             new IndexRequest("index").id("1").source(new BytesArray(doc1Source), XContentType.JSON),
             new IndexRequest("index").id("2").source(new BytesArray(doc2Source), XContentType.JSON) };
-        BatchMappingContext context = new BatchMappingContext(requests, mapperService.mappingLookup(), mapperService.getIndexSettings());
+        IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
+        try (
+            BatchMappingContext context = new BatchMappingContext(
+                batch,
+                mapperService.mappingLookup(),
+                mapperService.getIndexSettings(),
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            )
+        ) {
+            mapper.preColumnarParse(context);
 
-        mapper.preColumnarParse(context);
-
-        final MappedColumns mappedColumns = context.columns();
-        Column sizeColumn = null;
-        for (Column column : mappedColumns.toColumnBatch().columns()) {
-            if (column.name().equals(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME)) {
-                sizeColumn = column;
+            final MappedColumns mappedColumns = context.columns();
+            Column sizeColumn = null;
+            for (Column column : mappedColumns.toColumnBatch().columns()) {
+                if (column.name().equals(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME)) {
+                    sizeColumn = column;
+                }
             }
-        }
-        assertNotNull("expected a _recovery_source_size column", sizeColumn);
-        assertEquals("doc values type must be NUMERIC", DocValuesType.NUMERIC, sizeColumn.fieldType().docValuesType());
-        assertEquals("must have no inverted index", IndexOptions.NONE, sizeColumn.fieldType().indexOptions());
-        assertFalse("must not be stored", sizeColumn.fieldType().stored());
+            assertNotNull("expected a _recovery_source_size column", sizeColumn);
+            assertEquals("doc values type must be NUMERIC", DocValuesType.NUMERIC, sizeColumn.fieldType().docValuesType());
+            assertEquals("must have no inverted index", IndexOptions.NONE, sizeColumn.fieldType().indexOptions());
+            assertFalse("must not be stored", sizeColumn.fieldType().stored());
 
-        LongColumn longColumn = (LongColumn) sizeColumn;
-        var cursor = longColumn.tuples();
-        assertEquals(0, cursor.nextDoc());
-        assertTrue("size estimate for doc1 must be positive", cursor.longValue() > 0);
-        assertEquals(1, cursor.nextDoc());
-        assertTrue("size estimate for doc2 must be positive", cursor.longValue() > 0);
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+            LongColumn longColumn = (LongColumn) sizeColumn;
+            var cursor = longColumn.tuples();
+            assertEquals(0, cursor.nextDoc());
+            assertTrue("size estimate for doc1 must be positive", cursor.longValue() > 0);
+            assertEquals(1, cursor.nextDoc());
+            assertTrue("size estimate for doc2 must be positive", cursor.longValue() > 0);
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+        }
     }
 }

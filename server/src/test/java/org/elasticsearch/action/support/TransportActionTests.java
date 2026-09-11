@@ -132,7 +132,7 @@ public class TransportActionTests extends ESTestCase {
     }
 
     private TransportAction<TestRequest, TestResponse> getTestTransportAction(String actionName, Executor executor) {
-        ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
+        ActionFilters actionFilters = ActionFilters.EMPTY;
         TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<>(
             actionName,
             actionFilters,

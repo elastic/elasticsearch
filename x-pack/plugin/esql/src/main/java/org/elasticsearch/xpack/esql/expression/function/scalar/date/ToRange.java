@@ -11,8 +11,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -39,10 +42,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
  * Constructs a range value from two scalar boundary values.
  * The first argument is the inclusive lower bound; the second is the exclusive upper bound,
  * matching the ES|QL half-open [from, to) convention used for all range types.
- * Currently supports {@code date_range} (from two {@code datetime} values).
+ * Currently supports {@code date_range} (from two {@code datetime} values) and
+ * {@code double_range} (from two {@code double} values).
  * Future overloads will cover {@code long_range}, {@code integer_range}, {@code ip_range}, etc.
  */
-public class ToRange extends EsqlScalarFunction {
+public class ToRange extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToRange", ToRange::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToRange.class).binary(ToRange::new).name("to_range");
 
@@ -50,7 +54,10 @@ public class ToRange extends EsqlScalarFunction {
     private final Expression to;
 
     @FunctionInfo(
-        returnType = "date_range",
+        returnType = { "date_range", "double_range" },
+        signatures = {
+            @Signature(params = { "date", "date" }, returnType = "date_range"),
+            @Signature(params = { "double", "double" }, returnType = "double_range") },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         briefSummary = "Constructs a range from two boundary values.",
@@ -58,19 +65,20 @@ public class ToRange extends EsqlScalarFunction {
             + "The first argument is the inclusive lower bound; "
             + "the second is the exclusive upper bound, following the half-open `[from, to)` "
             + "convention used for all range types in ES|QL. "
-            + "Currently accepts `datetime` arguments and returns a `date_range`.",
+            + "Accepts `datetime` arguments and returns a `date_range`, "
+            + "or accepts `double` arguments and returns a `double_range`.",
         examples = @Example(file = "date_range", tag = "to_range")
     )
     public ToRange(
         Source source,
         @Param(
             name = "from",
-            type = { "date" },
+            type = { "date", "double" },
             description = "Inclusive lower bound of the range (`[from, to)`). If `null`, the function returns `null`."
         ) Expression from,
         @Param(
             name = "to",
-            type = { "date" },
+            type = { "date", "double" },
             description = "Exclusive upper bound of the range (`[from, to)`). If `null`, the function returns `null`."
         ) Expression to
     ) {
@@ -109,6 +117,7 @@ public class ToRange extends EsqlScalarFunction {
         DataType elementType = from.dataType() == DataType.NULL ? to.dataType() : from.dataType();
         return switch (elementType) {
             case DATETIME -> DataType.DATE_RANGE;
+            case DOUBLE -> DataType.DOUBLE_RANGE;
             default -> DataType.NULL;
         };
     }
@@ -118,7 +127,7 @@ public class ToRange extends EsqlScalarFunction {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        TypeResolution first = isType(from, dt -> dt == DATETIME, sourceText(), FIRST, "date");
+        TypeResolution first = isType(from, dt -> dt == DATETIME || dt == DataType.DOUBLE, sourceText(), FIRST, "date", "double");
         if (first.unresolved()) {
             return first;
         }
@@ -126,7 +135,7 @@ public class ToRange extends EsqlScalarFunction {
         // When from is a null literal its type is NULL; fall back to checking to against all
         // currently supported types rather than matching NULL, which would reject valid inputs.
         if (fromType == DataType.NULL) {
-            return isType(to, dt -> dt == DATETIME, sourceText(), SECOND, "date");
+            return isType(to, dt -> dt == DATETIME || dt == DataType.DOUBLE, sourceText(), SECOND, "date", "double");
         }
         return isType(to, dt -> dt == fromType, sourceText(), SECOND, fromType.esType());
     }
@@ -144,9 +153,21 @@ public class ToRange extends EsqlScalarFunction {
         return new LongRangeBlockBuilder.LongRange(from, to);
     }
 
+    @Evaluator(extraName = "Double", warnExceptions = { IllegalArgumentException.class })
+    static DoubleRangeBlockBuilder.DoubleRange process(double from, double to) {
+        if (Double.isNaN(from) || Double.isNaN(to) || from >= to) {
+            throw new IllegalArgumentException("'from' [" + from + "] must be less than 'to' [" + to + "]");
+        }
+        return new DoubleRangeBlockBuilder.DoubleRange(from, to);
+    }
+
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new ToRangeLongEvaluator.Factory(source(), toEvaluator.apply(from), toEvaluator.apply(to));
+        return switch (dataType()) {
+            case DATE_RANGE -> new ToRangeLongEvaluator.Factory(source(), toEvaluator.apply(from), toEvaluator.apply(to));
+            case DOUBLE_RANGE -> new ToRangeDoubleEvaluator.Factory(source(), toEvaluator.apply(from), toEvaluator.apply(to));
+            default -> throw new IllegalArgumentException("unsupported data type [" + dataType() + "]");
+        };
     }
 
     @Override

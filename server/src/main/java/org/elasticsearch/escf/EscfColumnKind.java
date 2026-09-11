@@ -51,7 +51,7 @@ public final class EscfColumnKind {
 
     /**
      * A heterogeneous column: a per-row type vector gives each row's {@link SourceValueType},
-     * and a dense value buffer holds the payload. Array and key-value rows are stored as inline EIRF
+     * and a dense value buffer holds the payload. Array and key-value rows are stored as inline
      * bytes here. Handles any type combination, including explicit null and mixed long/double.
      */
     public static final byte UNION = 0x07;

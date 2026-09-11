@@ -1,0 +1,2 @@
+FROM employees
+| INLINE STATS cnt = COUNT(*) WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NULL

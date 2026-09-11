@@ -65,7 +65,7 @@ final class NdJsonRecordSplitter implements RecordSplitter {
     }
 
     IOException recordTooLargeException() {
-        return new IOException("NDJSON line exceeded max_record_size [" + maxRecordBytes + "]");
+        return new IOException("NDJSON line exceeded external_max_record_size [" + maxRecordBytes + "]");
     }
 
     private int findLastRecordBoundaryByForwardScan(byte[] buf, int offset, int length) {

@@ -46,6 +46,7 @@ import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static org.elasticsearch.compute.test.BlockTestUtils.randomValue;
 import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.hamcrest.Matchers.either;
@@ -70,6 +71,11 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
          * optimizations that hit if you only have those.
          */
         new ParamsBuilder().allowedType(new Basic(ElementType.BYTES_REF)).groups(1, 2, 3, 4, 5).add(params);
+        /*
+         * Run with only `DOUBLE_RANGE` elements to exercise the specialized
+         * single-key hash and packed multi-key hash.
+         */
+        new ParamsBuilder().allowedType(new Basic(ElementType.DOUBLE_RANGE)).groups(1, 2).add(params);
         /*
          * Run with only `BYTES_REF` elements in an OrdinalBytesRefBlock
          * because we have a few optimizations that use it.
@@ -198,7 +204,7 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                          * emitting exactly positionCount in one shot is acceptable.
                          */
                         int effectiveEmitBatchSize = emitBatchSize;
-                        if (blockHash instanceof LongIntAdaptiveBlockHash adaptive) {
+                        if (blockHash instanceof LongIntBlockHash adaptive) {
                             effectiveEmitBatchSize = adaptive.effectiveEmitBatchSize();
                         } else if (blockHash instanceof LongBytesRefAdaptiveBlockHash adaptive) {
                             effectiveEmitBatchSize = adaptive.effectiveEmitBatchSize();
@@ -435,6 +441,7 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
             case INT -> randomInt();
             case LONG -> randomLong();
             case DOUBLE -> randomDouble();
+            case DOUBLE_RANGE -> randomValue(type);
             case BYTES_REF -> new BytesRef(randomAlphaOfLength(5));
             case BOOLEAN -> randomBoolean();
             case NULL -> null;

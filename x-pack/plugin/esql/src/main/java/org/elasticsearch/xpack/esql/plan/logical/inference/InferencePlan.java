@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.plan.logical.inference;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -39,6 +42,10 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
 
     protected static final TransportVersion ESQL_INFERENCE_ROW_LIMIT = TransportVersion.fromName("esql_inference_row_limit");
     public static final TransportVersion ESQL_INFERENCE_ACCEPT_TIMEOUT = TransportVersion.fromName("esql_inference_accept_timeout");
+    public static final TransportVersion ESQL_DENSE_VECTOR_TYPE_OPTION = TransportVersion.fromName("esql_dense_vector_type_option");
+    public static final TransportVersion ESQL_DENSE_VECTOR_FALLBACK_INFERENCE_ID = TransportVersion.fromName(
+        "esql_dense_vector_fallback_inference_id"
+    );
 
     public static final String INFERENCE_ID_OPTION_NAME = "inference_id";
     public static final List<String> VALID_INFERENCE_OPTION_NAMES = List.of(INFERENCE_ID_OPTION_NAME);
@@ -103,6 +110,27 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
     }
 
     public abstract TaskType taskType();
+
+    /**
+     * The inference endpoint task types this plan can run against. Analysis rejects an endpoint whose task type is not in this set.
+     * Defaults to the single {@link #taskType()}; plans that accept more than one task type override this.
+     * <p>
+     * Returns an {@link EnumSet} so that iteration follows declaration order: the set is rendered into a user-facing error
+     * message, which would otherwise list the types differently from one JVM to the next.
+     * </p>
+     */
+    public EnumSet<TaskType> acceptedTaskTypes() {
+        return EnumSet.of(taskType());
+    }
+
+    /**
+     * The endpoint ids pre-analysis resolves for this plan, so that analysis finds each of them in the resolution it is given.
+     * Defaults to the single {@link #inferenceId()}; plans that choose their endpoint from several candidates override this to list
+     * them all, since inference resolution runs once and an id absent from it cannot be validated afterwards.
+     */
+    public List<String> candidateInferenceIds() {
+        return List.of(BytesRefs.toString(inferenceId().fold(FoldContext.small())));
+    }
 
     public abstract PlanType withInferenceId(Expression newInferenceId);
 

@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -51,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -157,12 +159,27 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
                     Map.of("type", "keyword", "synthetic_source_keep", "all"),
                     (mapping) -> ESTestCase.randomAlphaOfLengthBetween(3, 8)
                 )
-            )
+            ),
+            builder -> {
+                // time_series rejected nested fields until #122224 (9.1.0+/8.19+). Indices in this test are
+                // created on the old cluster, so the mapping must be valid there; disable nested generation
+                // when the old cluster predates mapper.tsdb_nested_field_support.
+                if (oldClusterHasFeature(MapperFeatures.TSDB_NESTED_FIELD_SUPPORT) == false) {
+                    builder.withNestedFieldsLimit(0);
+                }
+            }
         );
     }
 
     private static DataGeneratorSpecification buildIndexModeSpec(List<PredefinedField> predefinedFields) {
-        return DataGeneratorSpecification.builder()
+        return buildIndexModeSpec(predefinedFields, builder -> {});
+    }
+
+    private static DataGeneratorSpecification buildIndexModeSpec(
+        List<PredefinedField> predefinedFields,
+        Consumer<DataGeneratorSpecification.Builder> customizer
+    ) {
+        var builder = DataGeneratorSpecification.builder()
             .withMaxObjectDepth(2)
             .withMaxFieldCountPerLevel(6)
             .withPredefinedFields(predefinedFields)
@@ -188,10 +205,16 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
                     }
                     return ESTestCase.randomBoolean();
                 }
+
+                @Override
+                protected boolean supportsOnFailure() {
+                    return oldClusterHasFeature(MapperFeatures.DOC_VALUES_ON_FAILURE);
+                }
             }))
             .withDataSourceHandlers(List.of(MultifieldAddonHandler.STRING_TYPE_HANDLER))
-            .withDataSourceHandlers(List.of(new ASCIIStringsHandler()))
-            .build();
+            .withDataSourceHandlers(List.of(new ASCIIStringsHandler()));
+        customizer.accept(builder);
+        return builder.build();
     }
 
     @Override
@@ -233,8 +256,11 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
      * that would make pre-upgrade docs unreadable after the upgrade.
      */
     public void testIndexingLogsdb() throws IOException {
-        var spec = buildLogsdbSpec();
         Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName());
+        if (ignoredSourceFormatIsStable() == false) {
+            builder.put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), false);
+        }
+        var spec = buildLogsdbSpec();
         testIndexing("test-index-logsdb-", builder, new DocumentGenerator(spec), new TemplateGenerator(spec), new MappingGenerator(spec));
     }
 
@@ -246,16 +272,32 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
      * catches format-flip regressions introduced by feature-flag removal or index-version gate changes.
      */
     public void testIndexingTimeSeries() throws IOException {
-        var spec = buildTimeSeriesSpec();
         Settings.Builder builder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "ts_host");
+        if (ignoredSourceFormatIsStable() == false) {
+            builder.put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), false);
+        }
+        var spec = buildTimeSeriesSpec();
         testIndexing("test-index-ts-", builder, new DocumentGenerator(spec), new TemplateGenerator(spec), new MappingGenerator(spec));
     }
 
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Returns true if old cluster version is before 9.4.0 and on or after 9.5.0.
+     * The ignored source format within 9.4 release line is not stable if time series doc value format is enabled.
+     */
+    private static boolean ignoredSourceFormatIsStable() {
+        String oldVersionProp = System.getProperty("tests.old_cluster_version");
+        if (oldVersionProp == null) {
+            return true;
+        }
+        Version oldVersion = Version.fromString(oldVersionProp);
+        return oldVersion.before("9.4.0") || oldVersion.onOrAfter(Version.fromString("9.5.0"));
+    }
 
     private void testIndexing(
         String indexNameBase,

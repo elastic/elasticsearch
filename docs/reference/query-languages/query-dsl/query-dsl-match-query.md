@@ -11,8 +11,8 @@ Returns documents that match a provided text, number, date or boolean value. The
 
 The `match` query is the standard query for performing a full-text search, including options for fuzzy matching.
 
-`Match` will also work against [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md) fields.
-As `semantic_text` does not support lexical text search, `match` queries against `semantic_text` fields will automatically perform the correct semantic search.
+`match` also works against [`semantic`](/reference/elasticsearch/mapping-reference/semantic-field.md) and [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) fields.
+Because these fields do not support lexical text search, a `match` query against either field automatically performs semantic search using the field's configured {{infer}} endpoint.
 Because of this, options that specifically target lexical search such as `fuzziness` or `analyzer` will be ignored.
 
 ## Example request [match-query-ex-request]
@@ -220,6 +220,4 @@ The example above creates a boolean query:
 `(ny OR (new AND york)) city`
 
 that matches documents with the term `ny` or the conjunction `new AND york`. By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.
-
-
 

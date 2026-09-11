@@ -45,6 +45,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.InvalidRepository;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryDeprecationInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
@@ -57,6 +58,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Matchers;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
@@ -64,6 +67,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -79,9 +83,8 @@ public class S3RepositoryTests extends ESTestCase {
     private RepositoriesService repositoriesService;
     private ProjectId projectId;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initRepositoriesService() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -105,12 +108,7 @@ public class S3RepositoryTests extends ESTestCase {
         client.initialize(
             Map.of(
                 VerifyNodeRepositoryCoordinationAction.TYPE,
-                new VerifyNodeRepositoryCoordinationAction.LocalAction(
-                    new ActionFilters(Set.of()),
-                    transportService,
-                    clusterService,
-                    client
-                )
+                new VerifyNodeRepositoryCoordinationAction.LocalAction(ActionFilters.EMPTY, transportService, clusterService, client)
             ),
             transportService.getTaskManager(),
             localNode::getId,
@@ -132,9 +130,8 @@ public class S3RepositoryTests extends ESTestCase {
         repositoriesService.start();
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void cleanup() throws Exception {
         repositoriesService.stop();
         clusterService.stop();
         threadPool.shutdownNow();
@@ -298,6 +295,75 @@ public class S3RepositoryTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    public void testDeprecationInfosForInsecureCredentials() {
+        try (
+            var repo = createS3Repo(
+                new RepositoryMetadata(
+                    randomRepoName(),
+                    "mock",
+                    Settings.builder()
+                        .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                        .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "aws_key")
+                        .put(S3Repository.SECRET_KEY_SETTING.getKey(), "aws_secret")
+                        .build()
+                )
+            )
+        ) {
+            assertThat(
+                repo.getDeprecationInfos(),
+                contains(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        "S3 repository stores credentials in insecure repository settings",
+                        ReferenceDocs.SECURE_SETTINGS,
+                        S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING,
+                        false
+                    )
+                )
+            );
+        }
+        assertWarnings(S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING);
+    }
+
+    public void testDeprecationInfosIfIncompatibleWithConditionalWrites() {
+        assertDeprecationInfosForConditionalWritesSetting(true);
+    }
+
+    public void testDeprecationInfosIfExplicitlyCompatibleWithConditionalWrites() {
+        assertDeprecationInfosForConditionalWritesSetting(false);
+    }
+
+    private void assertDeprecationInfosForConditionalWritesSetting(boolean disablesConditionalWrites) {
+        try (
+            var repo = createS3Repo(
+                new RepositoryMetadata(
+                    randomRepoName(),
+                    "mock",
+                    Settings.builder()
+                        .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                        .put(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(), disablesConditionalWrites)
+                        .build()
+                )
+            )
+        ) {
+            assertThat(
+                repo.getDeprecationInfos(),
+                contains(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        "S3 repository explicitly configures a deprecated conditional writes setting",
+                        ReferenceDocs.S3_COMPATIBLE_REPOSITORIES,
+                        S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_DEPRECATION_WARNING,
+                        false
+                    )
+                )
+            );
+        }
+        assertWarnings("""
+            [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed in a future \
+            release. See the breaking changes documentation for the next major version.""");
     }
 
     // ensures that chunkSize is limited to chunk_size setting, when buffer_size * parts_num is bigger

@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -40,7 +41,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongSu
 /**
  * Reduce a multivalued field to a single valued field containing the median absolute deviation of the values.
  */
-public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
+public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvMedianAbsoluteDeviation",

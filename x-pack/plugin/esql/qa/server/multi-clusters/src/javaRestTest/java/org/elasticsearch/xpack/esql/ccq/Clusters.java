@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.ccq;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -16,7 +17,6 @@ import org.elasticsearch.xpack.esql.datasources.Federation;
 
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 
@@ -26,36 +26,6 @@ public class Clusters {
     static final String LOCAL_CLUSTER_NAME = "local_cluster";
 
     static ElasticsearchCluster remoteCluster(Path csvDataPath, Map<String, String> additionalSettings, boolean shared) {
-        return remoteCluster(csvDataPath, additionalSettings, shared, null);
-    }
-
-    /**
-     * @param registerFederationFeature supplier for the ES|QL federation kill-switch system property
-     *        ({@value org.elasticsearch.xpack.esql.datasources.Federation#REGISTER_PROPERTY}), re-read on every
-     *        (re)start so a test can create federation state while enabled and then bounce the remote with the
-     *        switch off. {@code null} leaves the property unset (federation enabled by default).
-     */
-    static ElasticsearchCluster remoteCluster(
-        Path csvDataPath,
-        Map<String, String> additionalSettings,
-        boolean shared,
-        Supplier<String> registerFederationFeature
-    ) {
-        return remoteCluster(csvDataPath, additionalSettings, shared, registerFederationFeature, emptyMap());
-    }
-
-    /**
-     * @param systemProperties node JVM system properties (e.g. a feature-flag override such as
-     *        {@code es.esql_dataset_wildcards_feature_flag_enabled=false}) set on the remote nodes, which own the
-     *        dataset detection the wildcard gate exercises.
-     */
-    static ElasticsearchCluster remoteCluster(
-        Path csvDataPath,
-        Map<String, String> additionalSettings,
-        boolean shared,
-        Supplier<String> registerFederationFeature,
-        Map<String, String> systemProperties
-    ) {
         Version version = distributionVersion("tests.version.remote_cluster");
         var cluster = ElasticsearchCluster.local()
             .name(REMOTE_CLUSTER_NAME)
@@ -74,20 +44,23 @@ public class Clusters {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }
         // The local-disk allowlist setting is new in 9.5.0; older BWC nodes reject unknown settings and fail to start,
-        // so only set it on nodes that know it. file:// EXTERNAL reads run on the local (coordinating) cluster anyway.
+        // so only set it on nodes that know it, under the name their version knows (see localAllowedPathsSetting).
+        // file:// EXTERNAL reads run on the local (coordinating) cluster anyway.
         if (remoteClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
-            cluster.setting("esql.datasource.local_allowed_paths", csvDataPath.toString());
+            cluster.setting(localAllowedPathsSetting(remoteClusterVersion()), csvDataPath.toString());
         }
-        if (registerFederationFeature != null) {
-            cluster.systemProperty(Federation.REGISTER_PROPERTY, registerFederationFeature);
+        // The local data-source type is snapshot-on / release-off. A release BWC remote therefore rejects
+        // PUT type=local unless the flag is forced on; .feature() is a no-op on snapshots and on versions
+        // before the flag existed (9.5.0).
+        cluster.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL);
+        if (knowsFederationSetting(remoteClusterVersion())) {
+            cluster.setting(Federation.FEDERATION_ENABLED.getKey(), "true");
+        }
+        if (remoteClusterSupportsInferenceTestService()) {
+            cluster.plugin("inference-service-test");
         }
         for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
             cluster.setting(entry.getKey(), entry.getValue());
-        }
-        if (systemProperties != null) {
-            for (Map.Entry<String, String> entry : systemProperties.entrySet()) {
-                cluster.systemProperty(entry.getKey(), entry.getValue());
-            }
         }
         if (shared) {
             cluster.shared(true);
@@ -101,15 +74,6 @@ public class Clusters {
 
     public static ElasticsearchCluster remoteCluster() {
         return remoteCluster(emptyMap());
-    }
-
-    /**
-     * A remote cluster whose ES|QL federation kill switch is driven by {@code registerFederationFeature}, re-read on
-     * every (re)start. Used by the federation kill-switch tests to create dataset state while enabled and then bounce
-     * the remote with the switch engaged.
-     */
-    public static ElasticsearchCluster remoteCluster(Supplier<String> registerFederationFeature) {
-        return remoteCluster(CsvTestUtils.createCsvDataDirectory(), emptyMap(), false, registerFederationFeature);
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster) {
@@ -170,11 +134,16 @@ public class Clusters {
         }
         // The local-disk allowlist setting is new in 9.5.0; older BWC nodes reject unknown settings and fail to start.
         if (localClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
-            cluster.setting("esql.datasource.local_allowed_paths", csvDataPath.toString());
+            cluster.setting(localAllowedPathsSetting(localClusterVersion()), csvDataPath.toString());
+        }
+        if (knowsFederationSetting(localClusterVersion())) {
+            cluster.setting(Federation.FEDERATION_ENABLED.getKey(), "true");
         }
         if (localClusterSupportsInferenceTestService()) {
             cluster.plugin("inference-service-test");
         }
+        // Applied to whichever version this cluster runs, so a caller may only pass settings that every BWC version
+        // in the matrix knows; anything newer has to go behind a version check like the block above.
         if (additionalSettings != null && additionalSettings.isEmpty() == false) {
             for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
                 cluster.setting(entry.getKey(), entry.getValue());
@@ -182,36 +151,6 @@ public class Clusters {
         }
         if (shared) {
             cluster.shared(true);
-        }
-        return cluster.build();
-    }
-
-    /**
-     * A single-node local cluster with the {@code remote_cluster_client} role but <em>no</em> {@code cluster.remote.*}
-     * settings in its config: the remote connection is configured by the test through the cluster settings API. This
-     * is required when the remote is restarted mid-test on new ports, because a seed pinned in {@code elasticsearch.yml}
-     * cannot be updated through the API, whereas an API-managed seed can be re-pointed after the bounce.
-     */
-    public static ElasticsearchCluster localClusterForDynamicRemote(Path csvDataPath) {
-        Version version = distributionVersion("tests.version.local_cluster");
-        var cluster = ElasticsearchCluster.local()
-            .name(LOCAL_CLUSTER_NAME)
-            .distribution(DistributionType.DEFAULT)
-            .version(version)
-            .nodes(1)
-            .setting("xpack.security.enabled", "false")
-            .setting("xpack.license.self_generated.type", "trial")
-            .setting("node.roles", "[data,ingest,master,remote_cluster_client]")
-            .setting("path.repo", csvDataPath::toString)
-            .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
-            .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
-            .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
-            .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"));
-        if (supportRetryOnShardFailures(version) == false) {
-            cluster.setting("cluster.routing.rebalance.enable", "none");
-        }
-        if (localClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
-            cluster.setting("esql.datasource.local_allowed_paths", csvDataPath.toString());
         }
         return cluster.build();
     }
@@ -226,26 +165,57 @@ public class Clusters {
         return prop != null ? org.elasticsearch.Version.fromString(prop) : org.elasticsearch.Version.CURRENT;
     }
 
+    /**
+     * The local-disk allowlist setting under the name a cluster of this version knows: it shipped in 9.5.0 as
+     * {@code esql.datasource.local_allowed_paths} and was renamed to {@code esql.external.local_allowed_paths} in
+     * 9.6.0. A node rejects an unknown setting and fails to start, so each cluster gets its own version's spelling.
+     */
+    private static String localAllowedPathsSetting(org.elasticsearch.Version version) {
+        return version.onOrAfter(org.elasticsearch.Version.V_9_6_0)
+            ? "esql.external.local_allowed_paths"
+            : "esql.datasource.local_allowed_paths";
+    }
+
+    /**
+     * Whether a cluster of this version accepts the ES|QL federation setting, which exists as of 9.5.0. A node that
+     * predates it rejects an unknown setting and never starts, and it has federation registered unconditionally, so
+     * leaving the setting off matches how it behaves in production.
+     */
+    private static boolean knowsFederationSetting(org.elasticsearch.Version version) {
+        return version.onOrAfter(org.elasticsearch.Version.V_9_5_0);
+    }
+
     public static org.elasticsearch.Version bwcVersion() {
         org.elasticsearch.Version local = localClusterVersion();
         org.elasticsearch.Version remote = remoteClusterVersion();
         return local.before(remote) ? local : remote;
     }
 
+    /**
+     * Whether a cluster of this version can host the {@code inference-service-test} plugin. The plugin is built for
+     * the current version only, so installing it on a BWC node fails with "was built for Elasticsearch version X but
+     * version Y is running" and the node never starts. See
+     * <a href="https://github.com/elastic/elasticsearch/issues/115166">#115166</a>.
+     */
+    private static boolean supportsInferenceTestService(org.elasticsearch.Version version) {
+        return version.equals(org.elasticsearch.Version.CURRENT);
+    }
+
     public static boolean localClusterSupportsInferenceTestService() {
-        return isNewToOld();
+        return supportsInferenceTestService(localClusterVersion());
+    }
+
+    public static boolean remoteClusterSupportsInferenceTestService() {
+        return supportsInferenceTestService(remoteClusterVersion());
     }
 
     /**
-     * Returns true if the current task is a "newToOld" BWC test.
-     * Checks the tests.task system property to determine the task type.
+     * Whether both clusters can host the inference test service. Datasets whose mappings reference an inference
+     * endpoint by id - {@code semantic_text} above all - can be bulk-loaded into either cluster depending on
+     * {@code dataLocation}, so they need the endpoint to exist on both.
      */
-    private static boolean isNewToOld() {
-        String taskName = System.getProperty("tests.task");
-        if (taskName == null) {
-            return false;
-        }
-        return taskName.endsWith("#newToOld");
+    public static boolean bothClustersSupportInferenceTestService() {
+        return localClusterSupportsInferenceTestService() && remoteClusterSupportsInferenceTestService();
     }
 
     private static Version distributionVersion(String key) {

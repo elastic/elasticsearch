@@ -15,6 +15,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -45,7 +47,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DA
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 
-public class DateFormat extends EsqlConfigurationFunction implements OptionalArgument {
+public class DateFormat extends EsqlConfigurationFunction implements OptionalArgument, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateFormat",
@@ -61,6 +63,9 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "keyword",
+        signatures = {
+            @Signature(params = { "date|date_nanos" }, returnType = "keyword"),
+            @Signature(params = { "STRING", "date|date_nanos" }, returnType = "keyword") },
         briefSummary = "Returns a string representation of a date, in the provided format.",
         description = "Returns a string representation of a date, in the provided format.",
         examples = @Example(file = "date", tag = "docsDateFormat")

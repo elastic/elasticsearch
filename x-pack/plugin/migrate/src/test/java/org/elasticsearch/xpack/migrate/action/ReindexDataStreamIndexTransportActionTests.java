@@ -65,14 +65,12 @@ public class ReindexDataStreamIndexTransportActionTests extends ESTestCase {
     private AutoCloseable mocks;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void openMocks() throws Exception {
         mocks = MockitoAnnotations.openMocks(this);
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeMocks() throws Exception {
         mocks.close();
     }
 

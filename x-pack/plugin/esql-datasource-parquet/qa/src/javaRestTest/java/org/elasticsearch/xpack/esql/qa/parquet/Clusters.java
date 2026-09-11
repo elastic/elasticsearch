@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.qa.parquet;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 
 import java.util.function.Supplier;
@@ -28,7 +30,7 @@ public class Clusters {
     /**
      * Installs the project-encryption-key (PEK) secure settings so data-source secrets can be encrypted
      * when a data source is registered via {@code PUT /_query/data_source}. Mirrors the single-node esql
-     * qa datasource-CRUD cluster config. Applied only by {@link #testClusterWithEncryption}.
+     * qa datasource-CRUD cluster config. Applied only by the encryption-enabled cluster helpers.
      */
     private static final LocalClusterConfigProvider DATASET_ENCRYPTION_CONFIG = builder -> builder.keystore(
         "cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID,
@@ -48,18 +50,35 @@ public class Clusters {
             .module("repository-gcs")
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
+            .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
             .setting("xpack.ml.enabled", "false")
             .setting("path.repo", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
-            .setting("esql.datasource.local_allowed_paths", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
+            .setting("esql.external.local_allowed_paths", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
             .jvmArg("--add-opens=java.base/java.nio=ALL-UNNAMED")
             .jvmArg("-Darrow.allocation.manager.type=Unsafe")
             .build();
     }
 
     public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier, LocalClusterConfigProvider configProvider) {
+        return clusterBuilder(s3EndpointSupplier, configProvider).shared(true).build();
+    }
+
+    /**
+     * A non-shared, {@code nodeCount}-node variant of {@link #testClusterWithEncryption(Supplier)}. Needed by suites
+     * whose subject is <em>where</em> an external read runs: the
+     * shared single-node cluster collapses the coordinator and the data node onto one JVM, so it cannot distinguish a
+     * coordinator-local scan from one shipped to another node.
+     */
+    public static ElasticsearchCluster multiNodeTestClusterWithEncryption(Supplier<String> s3EndpointSupplier, int nodeCount) {
+        return clusterBuilder(s3EndpointSupplier, DATASET_ENCRYPTION_CONFIG).nodes(nodeCount).build();
+    }
+
+    private static LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder(
+        Supplier<String> s3EndpointSupplier,
+        LocalClusterConfigProvider configProvider
+    ) {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .shared(true)
             .plugin("inference-service-test")
             // Enable S3 repository plugin for S3 access
             .module("repository-s3")
@@ -68,12 +87,13 @@ public class Clusters {
             // Basic cluster settings
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
+            .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
             // Disable ML to avoid native code loading issues in some environments
             .setting("xpack.ml.enabled", "false")
             // Allow the LOCAL storage backend to read fixture files from the test resources directory.
             // The esql-datasource-http plugin's entitlement policy uses shared_repo for file read access.
             .setting("path.repo", FixtureUtils.pathRepoRootForFixtures(Clusters.class))
-            .setting("esql.datasource.local_allowed_paths", FixtureUtils.pathRepoRootForFixtures(Clusters.class))
+            .setting("esql.external.local_allowed_paths", FixtureUtils.pathRepoRootForFixtures(Clusters.class))
             // S3 client configuration for accessing the S3HttpFixture
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
             // S3 credentials must be stored in keystore, not as regular settings
@@ -92,8 +112,7 @@ public class Clusters {
             // This must be set as a JVM arg to take effect before any Arrow classes are loaded
             .jvmArg("-Darrow.allocation.manager.type=Unsafe")
             // Apply any additional configuration
-            .apply(() -> configProvider)
-            .build();
+            .apply(() -> configProvider);
     }
 
     public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {

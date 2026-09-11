@@ -12,6 +12,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
@@ -29,7 +30,7 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoolean;
 
-public class Not extends UnaryScalarFunction implements EvaluatorMapper, Negatable<Expression>, TranslationAware {
+public class Not extends UnaryScalarFunction implements EvaluatorMapper, Negatable<Expression>, TranslationAware, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Not", Not::new);
 
     public Not(Source source, Expression child) {

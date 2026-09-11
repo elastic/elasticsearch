@@ -285,3 +285,82 @@ describe("toBuildkitePipeline", () => {
     expect(pipeline.steps[0].steps).toEqual([]);
   });
 });
+
+describe("toBuildkitePipeline compile gate", () => {
+  const cmds: RunnableCommand[] = [
+    { kind: "test", label: "unit tests", key: "flakiness-detection:unit", command: "cmd" },
+  ];
+
+  test("prepends a precompile step the batches hard-depend on", () => {
+    const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG, {
+      compileTasks: [":server:compileTestJava", ":x-pack:plugin:ml:compileJavaRestTestJava"],
+    });
+    const steps = pipeline.steps[0].steps;
+
+    // precompile first, then the batch, then analyze.
+    expect(steps.map((s) => s.key)).toEqual([
+      "flakiness-detection:precompile",
+      "flakiness-detection:unit",
+      "flakiness-detection:analyze",
+    ]);
+
+    const [precompile, batch, analyze] = steps;
+    // Compiles the requested tasks via the gradle wrapper and uploads the marker.
+    expect(precompile.command).toContain(
+      ".ci/scripts/run-gradle.sh :server:compileTestJava :x-pack:plugin:ml:compileJavaRestTestJava"
+    );
+    // The compile runs under an inner timeout (a few minutes below the step
+    // timeout) so a hang is captured as a non-zero rc and still writes the marker,
+    // rather than an outer Buildkite SIGKILL that would leave a false-green summary.
+    expect(precompile.command).toMatch(
+      /timeout --foreground --signal=TERM --kill-after=30s \d+m \.ci\/scripts\/run-gradle\.sh/
+    );
+    expect(precompile.timeout_in_minutes).toBe(30);
+    expect(precompile.command).toContain('> "flakiness-precompile.json"');
+    expect(precompile.command).toContain("exit $$rc");
+    // The gate no longer posts its own annotation; the analyze step folds the
+    // failure into the single flakiness summary annotation instead.
+    expect(precompile.command).not.toContain("buildkite-agent annotate");
+
+    // Constraint: Gradle's exit code is captured immediately, before the
+    // marker/annotate side-effects, and is what the step finally exits with - so
+    // a real compile failure can never be masked by a side-effect succeeding.
+    const cmd = precompile.command;
+    const gradleAt = cmd.indexOf(".ci/scripts/run-gradle.sh");
+    const captureAt = cmd.indexOf("rc=$?");
+    const markerAt = cmd.indexOf('> "flakiness-precompile.json"');
+    const exitAt = cmd.indexOf("exit $$rc");
+    expect(captureAt).toBeGreaterThan(gradleAt);
+    expect(markerAt).toBeGreaterThan(captureAt);
+    expect(exitAt).toBeGreaterThan(markerAt);
+
+    expect(precompile.artifact_paths).toBe("flakiness-precompile.json");
+    expect(precompile.agents?.provider).toBe("gcp");
+
+    // Batch hard-depends on the gate (allow_failure false → skipped on failure).
+    expect(batch.depends_on).toEqual([{ step: "flakiness-detection:precompile", allow_failure: false }]);
+
+    // Analyze depends on the gate with allow_failure so it still records
+    // build_failed when the gate fails and the batches are skipped.
+    expect(analyze.depends_on).toContainEqual({ step: "flakiness-detection:precompile", allow_failure: true });
+    expect(analyze.command).toContain('buildkite-agent artifact download "flakiness-precompile.json" . || true');
+  });
+
+  test("no precompile step when compileTasks is empty", () => {
+    const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG, { compileTasks: [] });
+    const keys = pipeline.steps[0].steps.map((s) => s.key);
+    expect(keys).not.toContain("flakiness-detection:precompile");
+    expect(pipeline.steps[0].steps[0].depends_on).toBeUndefined();
+  });
+
+  test("no precompile step when there are no batches (all not_applicable)", () => {
+    // Nothing to compile even though compileTasks were computed from a now-empty
+    // runnable set.
+    const pipeline = toBuildkitePipeline([], DEFAULT_AGENT_CONFIG, {
+      hasNotApplicable: true,
+      compileTasks: [":server:compileTestJava"],
+    });
+    const keys = pipeline.steps[0].steps.map((s) => s.key);
+    expect(keys).toEqual(["flakiness-detection:analyze"]);
+  });
+});

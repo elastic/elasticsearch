@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -42,10 +43,8 @@ public class NvidiaEmbeddingsResponseHandlerTests extends ESTestCase {
 
         // 413
         when(statusLine.getStatusCode()).thenReturn(413);
-        RetryException retryException = expectThrows(
-            ContentTooLargeException.class,
-            () -> responseHandler.checkForFailureStatusCode(mockRequest, httpResult)
-        );
+        RetryException retryException = responseHandler.buildFailureStatusCodeException(mockRequest, httpResult);
+        assertThat(retryException, instanceOf(ContentTooLargeException.class));
         assertThat(retryException.shouldRetry(), is(true));
         assertThat(retryException.getCause().getMessage(), containsString("Received a content too large status code"));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
@@ -54,10 +53,8 @@ public class NvidiaEmbeddingsResponseHandlerTests extends ESTestCase {
     public void testCheckForFailureStatusCode_400ContentTooLarge() {
         var mockRequest = RequestTests.mockRequest(INFERENCE_ID);
         // 400 content too large
-        var retryException = expectThrows(
-            ContentTooLargeException.class,
-            () -> responseHandler.checkForFailureStatusCode(mockRequest, createContentTooLargeResult400())
-        );
+        var retryException = responseHandler.buildFailureStatusCodeException(mockRequest, createContentTooLargeResult400());
+        assertThat(retryException, instanceOf(ContentTooLargeException.class));
         assertThat(retryException.shouldRetry(), is(true));
         assertThat(retryException.getCause().getMessage(), containsString("Received a content too large status code"));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
@@ -72,7 +69,7 @@ public class NvidiaEmbeddingsResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, new byte[] {});
         // 400 generic bad request should not be marked as a content too large
         when(statusLine.getStatusCode()).thenReturn(400);
-        var retryException = expectThrows(RetryException.class, () -> responseHandler.checkForFailureStatusCode(mockRequest, httpResult));
+        var retryException = responseHandler.buildFailureStatusCodeException(mockRequest, httpResult);
         assertThat(retryException.shouldRetry(), is(false));
         assertThat(
             retryException.getCause().getMessage(),

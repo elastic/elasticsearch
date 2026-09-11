@@ -14,6 +14,7 @@ import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
@@ -270,6 +271,34 @@ public abstract class AbstractIbmWatsonxServiceSettingsTests<T extends IbmWatson
                     new RateLimitSettings(DEFAULT_RATE_LIMIT)
                 )
             )
+        );
+    }
+
+    public void testUpdateServiceSettings_ApiKey_IsIgnored() {
+        var originalServiceSettings = createServiceSettings(
+            INITIAL_TEST_URI,
+            INITIAL_TEST_API_VERSION,
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_PROJECT_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "secret-key"))
+        );
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
+    }
+
+    public void testFromMap_RequestContext_IgnoresApiKey() {
+        var map = buildCommonServiceSettingsMap(TEST_MODEL_ID, TEST_PROJECT_ID, TEST_URI.toString(), TEST_API_VERSION, TEST_RATE_LIMIT);
+        map.put(DefaultSecretSettings.API_KEY, "my-api-key");
+
+        // The api_key field is declared as a no-op in the request parser; must not throw.
+        var serviceSettings = fromMap(map, ConfigurationParseContext.REQUEST);
+
+        assertThat(
+            serviceSettings,
+            is(createServiceSettings(TEST_URI, TEST_API_VERSION, TEST_MODEL_ID, TEST_PROJECT_ID, new RateLimitSettings(TEST_RATE_LIMIT)))
         );
     }
 

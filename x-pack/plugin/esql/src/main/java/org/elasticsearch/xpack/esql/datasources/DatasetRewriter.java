@@ -33,8 +33,8 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -312,9 +312,9 @@ public final class DatasetRewriter {
         Set<String> nonDatasetNamesList = resolution.nonDatasetNames();
 
         // One rail for every FROM shape — dataset-only and heterogeneous (index + dataset). The non-remotable-abstraction
-        // CPS rule (a remote view/dataset fails; a remote index of the same name reads both) must hold uniformly, so the
-        // cross-project siblings below are appended regardless of whether the FROM also names local indices. Keeping the
-        // two shapes on one path is what stops them drifting.
+        // CPS rule (a remote view fails, a remote dataset is invisible, and a remote index of the same name reads) must
+        // hold uniformly, so the cross-project siblings below are appended regardless of whether the FROM also names
+        // local indices. Keeping the two shapes on one path is what stops them drifting.
         List<LogicalPlan> children = new ArrayList<>();
         for (String name : datasetNames) {
             children.add(buildDatasetBranch(name, datasets, dataSources, relation.source(), relation.metadataFields()));
@@ -323,8 +323,8 @@ public final class DatasetRewriter {
         // Index branch: the concrete local non-dataset names plus, under cross-project, any preserved positive
         // wildcards — joined into one UnresolvedRelation so the resolver dedups a local index matched by both a
         // concrete name and a wildcard (no double read) and the wildcard's remote half reaches field-caps (closing
-        // #151977's dropped-remote-wildcard gap). The resolveDatasets rail on this branch also fails a remote
-        // dataset/view the wildcard matches. METADATA fields ride along so _index/_id resolve on the index rows.
+        // #151977's dropped-remote-wildcard gap). A remote view the wildcard matches still fails there; a remote dataset
+        // is not matched at all. METADATA fields ride along so _index/_id resolve on the index rows.
         List<String> indexBranch = new ArrayList<>(nonDatasetNamesList);
         if (crossProjectEnabled) {
             indexBranch.addAll(crossProjectPatternsToPreserve(patternsOf(relation)));
@@ -344,24 +344,24 @@ public final class DatasetRewriter {
 
         // Cap the real-read branches (datasets + the index branch) here, BEFORE the speculative shadows. A shadow
         // strips when its name has no remote namesake, so it must not consume the rewrite-time budget; a matched
-        // shadow is a real read bounded post-analysis by Fork.checkBranchCount.
-        if (Fork.exceedsMaxBranches(children.size())) {
+        // shadow is a real read bounded post-analysis by MergePlan.checkBranchCount.
+        if (MergePlan.exceedsMaxBranches(children.size())) {
             throw new VerificationException(
                 "FROM ["
                     + relation.indexPattern().indexPattern()
                     + "] resolved to "
                     + children.size()
                     + " branches, exceeding the current limit of "
-                    + Fork.MAX_BRANCHES
+                    + MergePlan.MAX_BRANCHES
                     + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
             );
         }
 
         // CPS: an exact (non-wildcard) dataset name has no wildcard to re-emit, so its remote half rides a
-        // DatasetShadowRelation — a remote index of the same name federates in, a remote dataset/view of the same
-        // name fails (the detection rail). See DatasetShadowRelation for the full lifecycle. This stays inert until
-        // datasets exist: datasetNames is non-empty only once datasets are registered, which dataset registration
-        // gating controls (see Federation) — this method enforces no flag check of its own.
+        // DatasetShadowRelation — a remote index of the same name federates in, a remote view of the same name fails,
+        // and a remote dataset of the same name is invisible. See DatasetShadowRelation for the full lifecycle. This
+        // stays inert until datasets exist: datasetNames is non-empty only once datasets are registered, which dataset
+        // registration gating controls (see Federation) — this method enforces no flag check of its own.
         if (crossProjectEnabled) {
             children.addAll(crossProjectExactNameShadows(relation, datasetNames));
         }
@@ -552,10 +552,15 @@ public final class DatasetRewriter {
      * embedding config in plan nodes (avoiding serialization of credential objects). A secret forwards
      * its raw value — an encrypted secret carries an {@code EncryptedData} the data-node decryption step
      * recognizes by type.
+     * <p>
+     * {@link RemovedParquetDatasetSettings} keys are dropped from the dataset map so a stored
+     * document from before those kill-switches were removed still plans; PUT and WITH reject them.
+     * The parent {@code _datasource} map is left untouched.
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();
         merged.putAll(dataset.settings());
+        merged.keySet().removeAll(RemovedParquetDatasetSettings.KEYS);
         if (parent.settings().isEmpty() == false) {
             Map<String, Object> dsSettings = new HashMap<>();
             for (Map.Entry<String, DataSourceSetting> e : parent.settings()) {

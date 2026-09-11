@@ -13,7 +13,6 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -49,6 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -62,7 +62,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
-import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.plugin.ComputeServiceTestUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
@@ -209,6 +209,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private ProjectMetadata datasetMetadata;
         private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
         private Map<String, String> views = Map.of();
+        private EsqlFlags flags = EsqlFlags.withRemoteFetchTopN(false);
 
         private TestBuilder(
             String esqlQuery,
@@ -242,6 +243,11 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public EnumSet<Stage> stages() {
             return stages;
+        }
+
+        public TestBuilder flags(EsqlFlags flags) {
+            this.flags = flags;
+            return this;
         }
 
         public TestBuilder searchStats(SearchStats searchStats) {
@@ -499,7 +505,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 aliasFilter,
                 datasetMetadata,
                 externalSourceResolution,
-                views
+                views,
+                flags
             );
         }
 
@@ -640,7 +647,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         AliasFilter aliasFilter,
         ProjectMetadata datasetMetadata,
         ExternalSourceResolution externalSourceResolution,
-        Map<String, String> views
+        Map<String, String> views,
+        EsqlFlags flags
     ) {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
@@ -680,7 +688,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 .minimumTransportVersion(transportVersion)
                 .externalSourceResolution(externalSourceResolution)
                 .unmappedResolution(unmappedResolution);
-            boolean trackUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD;
+            boolean trackUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
             loadIndexResolution(testDatasets(parsedPlan), trackUnmappedFieldIndices).forEach(
                 (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)
             );
@@ -693,7 +701,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             if (stages.equals(EnumSet.of(Stage.ANALYSIS))) {
                 return result;
             }
-            var configuration = EsqlTestUtils.configuration(new QueryPragmas(Settings.EMPTY), esqlQuery, statement);
+            var configuration = EsqlTestUtils.configuration(QueryPragmas.EMPTY, esqlQuery, statement);
             var optimizerContext = new LogicalOptimizerContext(configuration, FoldContext.small(), transportVersion);
             var optimizer = optimizerFactory != null
                 ? optimizerFactory.apply(optimizerContext)
@@ -714,7 +722,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 // optimization. Since subplan execution is not done in the golden tests,
                 // manually replace the placeholders instead by a fixed value.
                 logicallyOptimized = ApproximationPlan.substituteSampleProbability(logicallyOptimized, SAMPLE_PROBABILITY);
-                var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, transportVersion));
+                var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, transportVersion, flags));
                 PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(
                     new Mapper().map(new Versioned<>(logicallyOptimized, transportVersion))
                 );
@@ -762,7 +770,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     if (exchanges.isEmpty() == false) {
                         ExchangeExec exec = EsqlTestUtils.singleValue(exchanges);
                         var sink = new ExchangeSinkExec(exec.source(), exec.output(), false, exec.child());
-                        var reductionPlan = ComputeService.reductionPlan(
+                        var reductionPlan = ComputeServiceTestUtils.reductionPlan(
                             PlannerSettings.DEFAULTS,
                             new EsqlFlags(false),
                             configuration,
@@ -1098,8 +1106,8 @@ public abstract class GoldenTestCase extends ESTestCase {
          */
         LOOKUP_PHYSICAL_OPTIMIZATION(new SingleFileOutput("lookup_physical_optimization")),
         /**
-         * See {@link ComputeService#reductionPlan}. Actually results in <b>two</b> plans: one for the node reduce driver and one for the
-         * data nodes.
+         * See {@link ComputeServiceTestUtils#reductionPlan}. Actually results in <b>two</b> plans: one for the node reduce driver and one
+         * for the data nodes.
          */
         NODE_REDUCE(new DualFileOutput("local_reduce_planned_reduce_driver", "local_reduce_planned_data_driver")),
 
@@ -1237,9 +1245,12 @@ public abstract class GoldenTestCase extends ESTestCase {
         CsvTestsDataLoader.MultiIndexTestDataset datasets,
         boolean trackUnmappedFieldIndices
     ) {
-        Map<String, IndexMode> indexModes = datasets.datasets()
+        Map<String, IndexProperties> indexModes = datasets.datasets()
             .stream()
-            .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, GoldenTestCase::indexModeOf));
+            .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, ds -> {
+                IndexMode m = indexModeOf(ds);
+                return new IndexProperties(m, 0);
+            }));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
             .map(ds -> new MappingPerIndex(ds.indexName(), createMappingForIndex(ds)))

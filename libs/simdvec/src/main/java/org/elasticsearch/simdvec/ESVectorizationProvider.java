@@ -12,7 +12,6 @@ package org.elasticsearch.simdvec;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 import org.elasticsearch.simdvec.internal.vectorization.JdkFeatures;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants;
@@ -65,9 +64,9 @@ public abstract class ESVectorizationProvider {
         }
         ESVectorizationProvider.class.getModule().addReads(vectorMod.get());
 
-        boolean nativeSupported = allowNative && NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
+        boolean nativeSupported = allowNative && SimdVecLibrary.instance().isPresent();
         boolean supportsHeapSegments = JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
-        // nativeSupported is already logged by NativeAccess, and JDK version is readily inferred
+        // nativeSupported is already logged by SimdVecLibrary, and JDK version is readily inferred
         logger.info(
             String.format(
                 Locale.ENGLISH,

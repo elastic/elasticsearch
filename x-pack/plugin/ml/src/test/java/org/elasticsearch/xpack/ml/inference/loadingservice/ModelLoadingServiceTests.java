@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -31,7 +32,9 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -501,6 +504,52 @@ public class ModelLoadingServiceTests extends ESTestCase {
         modelLoadingService.clusterChanged(ingestChangedEvent(model1));
 
         assertBusy(() -> assertThat(circuitBreaker.getUsed(), equalTo(5L)));
+    }
+
+    public void testCircuitBreakerFailureReturnsRetriableStatusAndLogsActionableMessage() throws Exception {
+        String modelId = "test-circuit-break-retriable";
+        withTrainedModel(modelId, 100L);
+        CircuitBreaker circuitBreaker = new CustomCircuitBreaker(10);
+        ModelLoadingService modelLoadingService = new ModelLoadingService(
+            trainedModelProvider,
+            auditor,
+            threadPool,
+            clusterService,
+            trainedModelStatsService,
+            Settings.EMPTY,
+            "test-node",
+            circuitBreaker,
+            mock(XPackLicenseState.class)
+        );
+
+        try (var mockLog = MockLog.capture(ModelLoadingService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "circuit breaker load failure",
+                    ModelLoadingService.class.getCanonicalName(),
+                    Level.WARN,
+                    "Model ["
+                        + modelId
+                        + "] could not be loaded because the inference circuit breaker limit was exceeded. "
+                        + "The ingest node will retry when memory becomes available. If this persists, the node may need to be resized."
+                )
+            );
+
+            modelLoadingService.addModelLoadedListener(modelId, ActionListener.wrap(r -> fail("expected circuit breaker failure"), e -> {
+                assertThat(e, instanceOf(CircuitBreakingException.class));
+                assertThat(((CircuitBreakingException) e).status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+            }));
+            modelLoadingService.clusterChanged(ingestChangedEvent(modelId));
+            assertBusy(
+                () -> verify(trainedModelProvider, times(1)).getTrainedModel(
+                    eq(modelId),
+                    eq(GetTrainedModelsAction.Includes.empty()),
+                    any(),
+                    any()
+                )
+            );
+            mockLog.awaitAllExpectationsMatched();
+        }
     }
 
     public void testExpiredModelsAreEvictedBeforeLoading() throws Exception {

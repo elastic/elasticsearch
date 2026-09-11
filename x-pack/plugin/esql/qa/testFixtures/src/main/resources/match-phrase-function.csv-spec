@@ -187,7 +187,7 @@ book_no:keyword
 ;
 
 matchPhraseWithFunctionPushedToLucene
-skip_flattened_rewrite: match_family_rejects_field_extract
+skip_flattened_rewrite: runtime_search_reorders_conjunct_warnings
 required_capability: match_phrase_function
 
 from hosts 
@@ -228,7 +228,6 @@ book_no:keyword | title:text
 ;
 
 matchPhraseMultivaluedField
-skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_phrase_function
 
 from employees 
@@ -246,7 +245,6 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 testMultiValuedFieldWithConjunction
-skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_phrase_function
 
 from employees 
@@ -259,7 +257,6 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 testMatchPhraseAndQueryStringFunctions
-skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_phrase_function
 required_capability: qstr_function
 
@@ -699,6 +696,75 @@ constant_keyword-foo:keyword | keyword:keyword
 foo                          | key2
 ;
 
+
+matchPhraseAfterInlineStats
+required_capability: match_phrase_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| WHERE MATCH_PHRASE(author, "William Faulkner")
+| KEEP book_no, max_year
+| SORT book_no
+;
+
+book_no:keyword | max_year:integer
+2713            | 2022
+2883            | 2022
+4724            | 2022
+4977            | 2022
+5119            | 2022
+5404            | 2022
+5578            | 2022
+8077            | 2022
+9896            | 2022
+;
+
+matchPhraseAfterGroupedInlineStats
+required_capability: match_phrase_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year_for_publisher = MAX(year) BY publisher
+| WHERE MATCH_PHRASE(author, "William Faulkner") AND max_year_for_publisher >= 2000
+| KEEP book_no, year, publisher, max_year_for_publisher
+| SORT book_no
+;
+
+book_no:keyword | year:integer | publisher:text | max_year_for_publisher:integer
+2713            | 1995         | Vintage        | 2011
+2883            | 2005         | Vintage Books  | 2005
+4724            | 2011         | Vintage        | 2011
+4977            | 2011         | Vintage        | 2011
+5119            | 2011         | Vintage        | 2011
+5404            | 2011         | Vintage        | 2011
+5578            | 1991         | Vintage        | 2011
+8077            | 2011         | Vintage        | 2011
+;
+
+matchPhraseNotPushableAfterInlineStats
+required_capability: match_phrase_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| WHERE MATCH_PHRASE(author, "William Faulkner") OR LENGTH(title) < 5
+| KEEP book_no, max_year
+| SORT book_no
+;
+
+book_no:keyword | max_year:integer
+2713            | 2022
+2883            | 2022
+4724            | 2022
+4977            | 2022
+5119            | 2022
+5404            | 2022
+5578            | 2022
+8077            | 2022
+9896            | 2022
+;
+
 ###############################################
 # Tests for MATCH_PHRASE on runtime text expressions (not index-mapped fields)
 #
@@ -873,4 +939,316 @@ ROW content = ["foo", "bar", "foobar"]
 
 content:keyword
 [foobar, extra]
+;
+
+###############################################
+# Tests for MATCH_PHRASE options on runtime text expressions (not index-mapped fields)
+#
+
+matchPhraseOnRuntimeTextWithSlop
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_options
+
+ROW content = to_text(["a brown fox", "a brown quick fox", "a brown very quick fox"])
+| MV_EXPAND content
+| WHERE match_phrase(content, "brown fox", {"slop": 1})
+| SORT content
+;
+
+content:text
+a brown fox
+a brown quick fox
+;
+
+matchPhraseOnRuntimeTextWithExplicitSlopZero
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_options
+
+ROW content = to_text(["a brown fox", "a brown quick fox"])
+| MV_EXPAND content
+| WHERE match_phrase(content, "brown fox", {"slop": 0})
+;
+
+content:text
+a brown fox
+;
+
+matchPhraseOnRuntimeTextWithSlopTwoMatchesTransposedTerms
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_options
+
+// transposed terms have a slop of 2: "fox brown" matches "brown fox" with slop 2
+ROW content = to_text("a brown fox")
+| WHERE match_phrase(content, "fox brown", {"slop": 2})
+;
+
+content:text
+a brown fox
+;
+
+matchPhraseOnRuntimeTextWithSlopOneDoesNotMatchTransposedTerms
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_options
+
+ROW content = to_text("a brown fox")
+| WHERE match_phrase(content, "fox brown", {"slop": 1})
+;
+
+content:text
+;
+
+matchPhraseOnRuntimeTextWithZeroTermsQueryNone
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_options
+
+ROW content = to_text(["a brown fox", "the lazy dog"])
+| MV_EXPAND content
+| WHERE match_phrase(content, "", {"zero_terms_query": "none"})
+;
+
+content:text
+;
+
+matchPhraseOnRuntimeTextWithZeroTermsQueryAll
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_options
+
+ROW content = to_text(["a brown fox", "the lazy dog"])
+| MV_EXPAND content
+| WHERE match_phrase(content, "", {"zero_terms_query": "all"})
+| SORT content
+;
+
+content:text
+a brown fox
+the lazy dog
+;
+
+matchPhraseOnRuntimeTextWithBoost
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_options
+
+// boost only affects scoring, which runtime match_phrase does not contribute to
+ROW content = to_text(["a brown fox", "a brown quick fox"])
+| MV_EXPAND content
+| WHERE match_phrase(content, "brown fox", {"boost": 2.5})
+;
+
+content:text
+a brown fox
+;
+
+matchPhraseOnRuntimeTextWithIndexAndSlop
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_options
+
+FROM books
+| EVAL new_title = to_text(concat("TITLE: ", title))
+| WHERE match_phrase(new_title, "Lord of Rings", {"slop": 5})
+| KEEP book_no, new_title
+;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+2714            | TITLE: Return of the King Being the Third Part of The Lord of the Rings
+2675            | TITLE: The Lord of the Rings - Boxed Set
+4023            | TITLE: A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+matchPhraseOnRuntimeTextWithIndexAndZeroTermsQueryAll
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_options
+
+FROM books
+| EVAL new_title = to_text(concat("TITLE: ", title))
+| WHERE match_phrase(new_title, "", {"zero_terms_query": "all"})
+| SORT book_no
+| KEEP book_no, new_title
+| LIMIT 5
+;
+
+book_no:keyword | new_title:text
+1211            | TITLE: The brothers Karamazov
+1463            | TITLE: Realms of Tolkien: Images of Middle-earth
+1502            | TITLE: Selected Passages from Correspondence with Friends
+1937            | TITLE: The Best Short Stories of Dostoevsky (Modern Library)
+1985            | TITLE: Brothers Karamazov
+;
+
+###############################################
+# Tests for MATCH_PHRASE analyzer option on runtime text expressions
+#
+
+// The values analyzer of a runtime text column is declared through TO_TEXT's analyzer option; match_phrase's
+// own analyzer option covers the query string only and defaults to the values analyzer. The narrowing shipped
+// atomically with fn_to_text_analyzer, so that capability gates the query-only semantics too.
+
+matchPhraseOnRuntimeTextWithWhitespaceAnalyzer
+required_capability: match_phrase_function
+required_capability: fn_to_text_analyzer
+
+// the whitespace analyzer, declared as the values analyzer, does not lowercase; the query analyzer defaults to it
+ROW content = to_text(["a Brown Fox runs", "a brown fox runs"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| WHERE match_phrase(content, "Brown Fox")
+;
+
+content:text
+a Brown Fox runs
+;
+
+matchPhraseOnRuntimeTextWithKeywordAnalyzer
+required_capability: match_phrase_function
+required_capability: fn_to_text_analyzer
+
+// the keyword analyzer emits the whole value as a single token, so the phrase must equal the entire value
+ROW content = to_text(["brown fox", "a brown fox"], {"analyzer": "keyword"})
+| MV_EXPAND content
+| WHERE match_phrase(content, "brown fox")
+;
+
+content:text
+brown fox
+;
+
+matchPhraseOnRuntimeTextWithEnglishAnalyzer
+required_capability: match_phrase_function
+required_capability: fn_to_text_analyzer
+
+// the english analyzer stems both the values and (by default) the query: "dogs running" matches "dog runs"
+ROW content = to_text(["the dog runs", "the cat sleeps"], {"analyzer": "english"})
+| MV_EXPAND content
+| WHERE match_phrase(content, "dogs running")
+;
+
+content:text
+the dog runs
+;
+
+matchPhraseQueryAnalyzerAppliesToQueryStringOnly
+required_capability: match_phrase_function
+required_capability: fn_to_text_analyzer
+
+// match_phrase's analyzer option keeps the query's case while the values stay standard-analyzed
+// (lowercased), so the case-mismatched phrase matches nothing
+ROW content = to_text(["a Brown Fox runs", "a brown fox runs"])
+| MV_EXPAND content
+| WHERE match_phrase(content, "Brown Fox", {"analyzer": "whitespace"})
+;
+
+content:text
+;
+
+matchPhraseStopAnalyzerHonorsPositionGaps
+required_capability: match_phrase_function
+required_capability: fn_to_text_analyzer
+
+// the stop analyzer removes "and" from the query, leaving a position gap: quick@0, fox@2. Like on an indexed
+// stop-analyzed field, the phrase honors the gap: it matches a value whose surviving tokens sit exactly two
+// positions apart and rejects one where they are adjacent
+ROW content = to_text(["the quick brown fox", "the quick fox"], {"analyzer": "stop"})
+| MV_EXPAND content
+| WHERE match_phrase(content, "quick and fox")
+;
+
+content:text
+the quick brown fox
+;
+
+matchPhraseOnRuntimeTextWithAnalyzerAndSlop
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_options
+required_capability: fn_to_text_analyzer
+
+ROW content = to_text(["the Brown quick Fox", "the brown quick fox"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| WHERE match_phrase(content, "Brown Fox", {"slop": 1})
+;
+
+content:text
+the Brown quick Fox
+;
+
+matchPhraseOnRuntimeTextWithIndexAndKeywordAnalyzer
+required_capability: match_phrase_function
+required_capability: fn_to_text_analyzer
+
+FROM books
+| EVAL new_title = to_text(concat("TITLE: ", title), {"analyzer": "keyword"})
+| WHERE match_phrase(new_title, "TITLE: The Lord of the Rings - Boxed Set")
+| KEEP book_no, new_title
+;
+
+book_no:keyword | new_title:text
+2675            | TITLE: The Lord of the Rings - Boxed Set
+;
+
+matchPhraseOnRuntimeTextWithExplicitStandardAnalyzer
+required_capability: match_phrase_function
+required_capability: fn_to_text_analyzer
+
+// explicit "standard" declaration takes the fast token-stream path, same as the no-option default
+ROW content = to_text(["the quick brown fox", "the slow brown dog"], {"analyzer": "standard"})
+| MV_EXPAND content
+| WHERE match_phrase(content, "quick brown fox")
+;
+
+content:text
+the quick brown fox
+;
+
+matchPhraseOnRuntimeTextWithScore
+required_capability: match_phrase_function
+required_capability: metadata_score
+required_capability: fn_match_phrase_runtime_score
+
+// a runtime match_phrase scores the boost (1.0 by default) on match, not BM25: expressions have no index statistics
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match_phrase(content, "Lord of the Rings")
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 1.0
+2675            | 1.0
+2714            | 1.0
+;
+
+matchPhraseOnRuntimeTextWithBoostAndScore
+required_capability: match_phrase_function
+required_capability: metadata_score
+required_capability: fn_match_phrase_runtime_score
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match_phrase(content, "Lord of the Rings", {"boost": 2.5})
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 2.5
+2675            | 2.5
+2714            | 2.5
+;
+
+matchPhraseOnRuntimeKeywordWithScore
+required_capability: match_phrase_function
+required_capability: metadata_score
+required_capability: fn_match_phrase_runtime_score
+
+// keyword expressions match by exact value equality and score 1.0
+FROM employees METADATA _score
+| EVAL full_name = CONCAT(first_name, " ", last_name)
+| WHERE match_phrase(full_name, "Anneke Preusig")
+| KEEP emp_no, _score
+;
+
+emp_no:integer | _score:double
+10006          | 1.0
 ;

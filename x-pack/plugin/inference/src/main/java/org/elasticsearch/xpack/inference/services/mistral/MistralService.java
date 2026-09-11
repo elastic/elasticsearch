@@ -43,7 +43,7 @@ import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbe
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.request.completion.MistralChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -73,7 +73,7 @@ public class MistralService extends SenderService<MistralModel> {
     );
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new MistralUnifiedChatCompletionResponseHandler(
         "mistral chat completions",
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiCompletionResponseEntity::fromResponse
     );
     private static final MistralChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new MistralChatCompletionModelCreator();
     private static final Map<TaskType, ModelCreator<? extends MistralModel>> MODEL_CREATORS = Map.of(
@@ -166,7 +166,11 @@ public class MistralService extends SenderService<MistralModel> {
 
             for (var request : batchedRequests) {
                 var action = mistralEmbeddingsModel.accept(actionCreator);
-                action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+                action.execute(
+                    new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                    timeout,
+                    request.listener()
+                );
             }
         } else {
             listener.onFailure(createInvalidModelException(model));

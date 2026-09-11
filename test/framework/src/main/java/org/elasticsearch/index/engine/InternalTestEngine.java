@@ -54,13 +54,17 @@ class InternalTestEngine extends InternalEngine {
 
     @Override
     public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
-        for (Index index : batch.operations()) {
-            if (index.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                idToMaxSeqNo.compute(index.id(), (id, existing) -> {
+        final IndexOperationBatch indexBatch = batch.batch();
+        for (int i = 0; i < indexBatch.docCount(); i++) {
+            // seqNos are pre-assigned for REPLICA ops, UNASSIGNED for PRIMARY (engine assigns them later)
+            final long seqNo = indexBatch.seqNo(i);
+            if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                final String id = indexBatch.id(i);
+                idToMaxSeqNo.compute(id, (docId, existing) -> {
                     if (existing == null) {
-                        return index.seqNo();
+                        return seqNo;
                     } else {
-                        long maxSeqNo = Math.max(index.seqNo(), existing);
+                        long maxSeqNo = Math.max(seqNo, existing);
                         advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNo);
                         return maxSeqNo;
                     }

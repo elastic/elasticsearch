@@ -61,6 +61,7 @@ public class ViewService {
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );
+    public static final int MAX_VIEW_DESCRIPTION_LENGTH = 1_000;
 
     private volatile int maxViewsCount;
     private volatile int maxViewLength;
@@ -173,6 +174,14 @@ public class ViewService {
         if (view.query().length() > this.maxViewLength) {
             throw new IllegalArgumentException(
                 "view query is too large: " + view.query().length() + " characters, the maximum allowed is " + this.maxViewLength
+            );
+        }
+        if (view.description() != null && view.description().length() > MAX_VIEW_DESCRIPTION_LENGTH) {
+            throw new IllegalArgumentException(
+                "view description is too large: "
+                    + view.description().length()
+                    + " characters, the maximum allowed is "
+                    + MAX_VIEW_DESCRIPTION_LENGTH
             );
         }
         final ViewMetadata views = getMetadata(metadata);

@@ -11,6 +11,10 @@ apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.bc-upgrade-test'
 apply plugin: 'elasticsearch.internal-test-artifact' // needed to run logsdb rest tests in serverless
 
+// Test methods share the class-scoped cluster and upgrade it in place, so a method that passed must still run when a later
+// method is retried.
+smartRetry.pruneIndividualTests.set(false)
+
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)

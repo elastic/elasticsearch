@@ -1,0 +1,81 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.benchmark.vector.scorer;
+
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.benchmark.store.DirectoryType;
+import org.elasticsearch.benchmark.vector.VectorImplementation;
+import org.elasticsearch.simdvec.VectorSimilarityType;
+
+import java.util.List;
+
+public class VectorScorerInt7uBulkBenchmarkTests extends BenchmarkTest {
+
+    private final VectorSimilarityType function;
+    private final float delta = 1e-3f;
+    private final int dims;
+
+    public VectorScorerInt7uBulkBenchmarkTests(VectorSimilarityType function, int dims) {
+        this.function = function;
+        this.dims = dims;
+    }
+
+    @Override
+    protected List<VectorImplementation> implementations() {
+        return List.of(VectorImplementation.SCALAR, VectorImplementation.LUCENE, VectorImplementation.NATIVE);
+    }
+
+    public void testSequential() throws Exception {
+        test(this::createData, this::createBenchmark, DataAccessPattern.SEQUENTIAL, delta);
+    }
+
+    public void testRandom() throws Exception {
+        test(this::createData, this::createBenchmark, DataAccessPattern.RANDOM, delta);
+    }
+
+    public void testQuerySequential() throws Exception {
+        testQuery(this::createData, this::createBenchmark, DataAccessPattern.SEQUENTIAL, delta);
+    }
+
+    public void testQueryRandom() throws Exception {
+        testQuery(this::createData, this::createBenchmark, DataAccessPattern.RANDOM, delta);
+    }
+
+    private VectorScorerInt7uBulkBenchmark.VectorData createData(DataAccessPattern accessMode) {
+        return new VectorScorerInt7uBulkBenchmark.VectorData(dims, 1000, 200, random(), accessMode);
+    }
+
+    private VectorScorerInt7uBulkBenchmark createBenchmark(
+        VectorScorerInt7uBulkBenchmark.VectorData d,
+        VectorImplementation impl,
+        DataAccessPattern accessMode
+    ) throws java.io.IOException {
+        var bench = new VectorScorerInt7uBulkBenchmark();
+        bench.function = function;
+        bench.implementation = impl;
+        bench.directoryType = DirectoryType.MMAP;
+        bench.dims = dims;
+        bench.numVectors = 1000;
+        bench.numVectorsToScore = 200;
+        bench.bulkSize = 200;
+        bench.accessMode = accessMode;
+        bench.setup(d);
+        return bench;
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
+        return generateParameters(
+            VectorScorerInt7uBulkBenchmark.class.getField("function"),
+            VectorScorerInt7uBulkBenchmark.class.getField("dims")
+        );
+    }
+}

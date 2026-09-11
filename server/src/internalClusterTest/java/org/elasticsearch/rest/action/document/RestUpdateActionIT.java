@@ -67,7 +67,7 @@ public class RestUpdateActionIT extends ESIntegTestCase {
         getRestClient().performRequest(create);
 
         Request seedDoc = new Request("POST", "/slice-update-it/_doc/1");
-        seedDoc.addParameter("_slice", "s1");
+        seedDoc.addParameter("slice", "s1");
         seedDoc.setJsonEntity("""
             {
               "field": "value"
@@ -85,10 +85,10 @@ public class RestUpdateActionIT extends ESIntegTestCase {
         String missingSliceBody = Streams.copyToString(
             new InputStreamReader(missingSliceException.getResponse().getEntity().getContent(), UTF_8)
         );
-        assertThat(missingSliceBody, containsString("[_slice] is required when [index.slice.enabled] is true"));
+        assertThat(missingSliceBody, containsString("[slice] is required when [index.slice.enabled] is true"));
 
         Request invalidSlice = new Request("POST", "/slice-update-it/_update/1");
-        invalidSlice.addParameter("_slice", "_all");
+        invalidSlice.addParameter("slice", "_all");
         invalidSlice.setJsonEntity("""
             {
               "doc": {
@@ -99,7 +99,7 @@ public class RestUpdateActionIT extends ESIntegTestCase {
         String invalidSliceBody = Streams.copyToString(
             new InputStreamReader(invalidSliceException.getResponse().getEntity().getContent(), UTF_8)
         );
-        assertThat(invalidSliceBody, containsString("invalid [_slice] value"));
+        assertThat(invalidSliceBody, containsString("invalid [slice] value"));
 
         Request routingProvided = new Request("POST", "/slice-update-it/_update/1");
         routingProvided.addParameter("routing", "s1");
@@ -119,7 +119,7 @@ public class RestUpdateActionIT extends ESIntegTestCase {
         assertThat(routingProvidedBody, containsString("[routing] is not allowed when [index.slice.enabled] is true"));
 
         Request validSlice = new Request("POST", "/slice-update-it/_update/1");
-        validSlice.addParameter("_slice", "s1");
+        validSlice.addParameter("slice", "s1");
         validSlice.setJsonEntity("""
             {
               "doc": {
@@ -150,7 +150,7 @@ public class RestUpdateActionIT extends ESIntegTestCase {
         getRestClient().performRequest(seedDoc);
 
         Request request = new Request("POST", "/slice-update-disabled/_update/1");
-        request.addParameter("_slice", "s1");
+        request.addParameter("slice", "s1");
         request.setJsonEntity("""
             {
               "doc": {
@@ -159,13 +159,13 @@ public class RestUpdateActionIT extends ESIntegTestCase {
             }""");
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
-        assertThat(response, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(response, containsString("[slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testUpdateSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request request = new Request("POST", "/test_index/_update/1");
-        request.addParameter("_slice", "s1");
+        request.addParameter("slice", "s1");
         request.setJsonEntity("""
             {
               "doc": {
@@ -174,6 +174,6 @@ public class RestUpdateActionIT extends ESIntegTestCase {
             }""");
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
-        assertThat(response, containsString("request does not support [_slice]"));
+        assertThat(response, containsString("request does not support [slice]"));
     }
 }

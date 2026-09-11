@@ -33,7 +33,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.elasticsearch.index.codec.vectors.BQVectorUtils.discretize;
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.BULK_SIZE;
-import static org.elasticsearch.simdvec.ESVectorUtil.transposeHalfByte;
+import static org.elasticsearch.simdvec.ESVectorUtil.stride4BitValues;
 
 /**
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
@@ -57,6 +57,15 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
             ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO,
             ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
         );
+    }
+
+    private ES920DiskBBQVectorsReader(ES920DiskBBQVectorsReader other, GenericFlatVectorReaders genericReaders) {
+        super(other, genericReaders);
+    }
+
+    @Override
+    protected ES920DiskBBQVectorsReader mergeInstance(GenericFlatVectorReaders genericReaders) {
+        return new ES920DiskBBQVectorsReader(this, genericReaders);
     }
 
     public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
@@ -421,7 +430,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
         void quantizeQueryIfNecessary() throws IOException {
             if (this.nextCentroidOrdinal != currentCentroidOrdinal) {
                 queryCorrections = quantizer.scalarQuantize(target, scratch, quantizationScratch, (byte) 4, currentCentroid);
-                transposeHalfByte(quantizationScratch, quantizedQuery);
+                stride4BitValues(quantizationScratch, quantizedQuery);
                 currentCentroidOrdinal = this.nextCentroidOrdinal;
             }
         }

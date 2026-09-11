@@ -25,6 +25,7 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.MODE
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.NAME_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.CSP_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.GEO_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.REGION_DISPLAY_NAME_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.REGION_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.HEURISTICS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.END_OF_LIFE_DATE_FIELD_NAME;
@@ -35,6 +36,11 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.INTERNAL_FIE
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Internal.FINGERPRINT_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Internal.VERSION_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.METADATA_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.MODEL_IDENTITY_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentity.CREATOR_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentity.FAMILY_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentity.TIER_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentity.VERSION_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.REGIONS_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.common.parser.EnumParser.extractEnum;
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.extractLong;
@@ -65,10 +71,12 @@ public final class EndpointMetadataParser {
             return EndpointMetadata.EMPTY_INSTANCE;
         }
 
+        var modelIdentityMap = ServiceUtils.removeFromMap(metadataMap, MODEL_IDENTITY_FIELD_NAME);
         var heuristicsMap = ServiceUtils.removeFromMap(metadataMap, HEURISTICS_FIELD_NAME);
         var internalMap = ServiceUtils.removeFromMap(metadataMap, INTERNAL_FIELD_NAME);
         var displayMap = ServiceUtils.removeFromMap(metadataMap, DISPLAY_FIELD_NAME);
 
+        var modelIdentity = modelIdentityFromMap(modelIdentityMap, pathToKey(METADATA_FIELD_NAME, MODEL_IDENTITY_FIELD_NAME));
         var heuristics = heuristicsFromMap(heuristicsMap, pathToKey(METADATA_FIELD_NAME, HEURISTICS_FIELD_NAME));
         var internal = internalFromMap(internalMap, pathToKey(METADATA_FIELD_NAME, INTERNAL_FIELD_NAME));
         var display = displayFromMap(displayMap, pathToKey(METADATA_FIELD_NAME, DISPLAY_FIELD_NAME));
@@ -78,7 +86,7 @@ public final class EndpointMetadataParser {
             pathToKey(METADATA_FIELD_NAME, DENIED_BY_REGION_POLICY_FIELD_NAME)
         );
 
-        var endpointMetadata = new EndpointMetadata(heuristics, internal, display, regions, deniedByRegionPolicy);
+        var endpointMetadata = new EndpointMetadata(modelIdentity, heuristics, internal, display, regions, deniedByRegionPolicy);
         return EndpointMetadata.EMPTY_INSTANCE.equals(endpointMetadata) ? EndpointMetadata.EMPTY_INSTANCE : endpointMetadata;
     }
 
@@ -165,7 +173,13 @@ public final class EndpointMetadataParser {
             var csp = ObjectParserUtils.removeAsType(regionMap, CSP_FIELD.getPreferredName(), regionRoot, String.class);
             var region = ObjectParserUtils.removeAsType(regionMap, REGION_FIELD.getPreferredName(), regionRoot, String.class);
             var geo = ObjectParserUtils.removeAsType(regionMap, GEO_FIELD.getPreferredName(), regionRoot, String.class);
-            regions.add(new EndpointMetadata.EndpointRegion(csp, region, geo));
+            var regionDisplayName = ObjectParserUtils.removeAsType(
+                regionMap,
+                REGION_DISPLAY_NAME_FIELD.getPreferredName(),
+                regionRoot,
+                String.class
+            );
+            regions.add(new EndpointMetadata.EndpointRegion(csp, region, geo, regionDisplayName));
         }
         return List.copyOf(regions);
     }
@@ -180,6 +194,27 @@ public final class EndpointMetadataParser {
         }
         var value = ObjectParserUtils.removeAsType(map, DENIED_BY_REGION_POLICY_FIELD_NAME, root, Boolean.class);
         return value == null ? false : value;
+    }
+
+    /**
+     * Parse {@link EndpointMetadata.ModelIdentity} from a map with the same structure as the JSON produced by
+     * {@link EndpointMetadata.ModelIdentity#toXContent}. Returns {@link EndpointMetadata.ModelIdentity#EMPTY_INSTANCE}
+     * if the map is null or empty.
+     */
+    static EndpointMetadata.ModelIdentity modelIdentityFromMap(@Nullable Map<String, Object> map, String root) {
+        if (map == null || map.isEmpty()) {
+            return EndpointMetadata.ModelIdentity.EMPTY_INSTANCE;
+        }
+        var creator = ObjectParserUtils.removeAsType(map, CREATOR_FIELD, root, String.class);
+        var family = ObjectParserUtils.removeAsType(map, FAMILY_FIELD, root, String.class);
+        var tier = ObjectParserUtils.removeAsType(map, TIER_FIELD, root, String.class);
+        var version = ObjectParserUtils.removeAsType(map, VERSION_FIELD, root, String.class);
+
+        if (creator == null && family == null && tier == null && version == null) {
+            return EndpointMetadata.ModelIdentity.EMPTY_INSTANCE;
+        }
+
+        return new EndpointMetadata.ModelIdentity(creator, family, tier, version);
     }
 
     private EndpointMetadataParser() {}

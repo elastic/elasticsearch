@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -210,6 +211,35 @@ public class QueryBuilderStoreTests extends ESTestCase {
                     searchExecutionContext.releaseQueryConstructionMemory();
                 }
             }
+        }
+    }
+
+    public void testPercolateContextReleaseClearsPreChargedQueries() throws IOException {
+        String fieldName = "keyword_field";
+        QueryBuilder[] queryBuilders = new QueryBuilder[] { new TermQueryBuilder(fieldName, "value") };
+
+        try (Directory directory = newDirectory()) {
+            PercolatorTestSetup setup = setupPercolatorTest(directory, fieldName, queryBuilders);
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+            SearchExecutionContext baseContext = new SearchExecutionContext(setup.baseContext(), breaker);
+            SearchExecutionContext percolateContext = PercolateQueryBuilder.newPercolateSearchContext(baseContext, false);
+
+            long baselineUsed = breaker.getUsed();
+
+            new WildcardQueryBuilder(fieldName, "test*pattern*with*wildcards").toQuery(percolateContext);
+            new RegexpQueryBuilder(fieldName, ".*test.*regexp.*pattern.*").toQuery(percolateContext);
+
+            Query marker = new TermQuery(new Term(fieldName, "marker"));
+            percolateContext.markQueryMemoryPreCharged(marker);
+            assertTrue("query should be reported as pre-charged before release", percolateContext.isQueryMemoryPreCharged(marker));
+
+            percolateContext.releaseQueryConstructionMemory();
+
+            assertFalse(
+                "percolate context release must clear the pre-charged set so it does not retain query references",
+                percolateContext.isQueryMemoryPreCharged(marker)
+            );
+            assertThat("percolate context release must return the request breaker to baseline", breaker.getUsed(), equalTo(baselineUsed));
         }
     }
 

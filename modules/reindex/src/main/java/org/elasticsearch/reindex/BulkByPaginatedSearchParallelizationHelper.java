@@ -244,9 +244,9 @@ class BulkByPaginatedSearchParallelizationHelper {
     }
 
     /**
-     * Validates that {@code _slice} is provided when any non-wildcard target index has
-     * {@code index.slice.enabled=true}. Unlike pure search requests (which default to {@code _slice=_all}),
-     * write-backed operations such as update-by-query and delete-by-query require {@code _slice} because
+     * Validates that {@code slice} is provided when any non-wildcard target index has
+     * {@code index.slice.enabled=true}. Unlike pure search requests (which default to {@code slice=_all}),
+     * write-backed operations such as update-by-query and delete-by-query require {@code slice} because
      * the write phase always fails without it.
      */
     static void validateSliceRoutingForWriteBackedSearch(
@@ -268,7 +268,7 @@ class BulkByPaginatedSearchParallelizationHelper {
                     IndexMetadata meta = projectMetadata.index(index);
                     if (meta != null && IndexSettings.SLICE_ENABLED.get(meta.getSettings())) {
                         throw new IllegalArgumentException(
-                            "[_slice] is required when [index.slice.enabled] is true for "
+                            "[slice] is required when [index.slice.enabled] is true for "
                                 + requestDescription
                                 + " targeting ["
                                 + indexName

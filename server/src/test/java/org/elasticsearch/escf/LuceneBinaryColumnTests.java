@@ -17,6 +17,7 @@ import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.test.ESTestCase;
@@ -35,7 +36,8 @@ import java.util.Map;
 public class LuceneBinaryColumnTests extends ESTestCase {
 
     private static LuceneBinaryColumn buildArrayColumn(int docCount, int[] docs, String[] values) {
-        EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.hintScalar(EscfColumnKind.STRING); // an all-absent column still finishes as STRING
         for (int i = 0; i < docs.length; i++) {
             builder.setString(docs[i], new BytesRef(values[i]));
         }
@@ -253,5 +255,168 @@ public class LuceneBinaryColumnTests extends ESTestCase {
     public void testToLuceneColumnReturnsSelf() {
         LuceneBinaryColumn col = buildStringColumn("only");
         assertSame(col, col.toLuceneColumn());
+    }
+
+    // -------------------------------------------------------------------------
+    // Filter tests
+    // -------------------------------------------------------------------------
+
+    public void testFilterStringColumnTupleCursor() {
+        LuceneBinaryColumn col = buildStringColumn("a", "b", "c", "d", "e");
+        FixedBitSet filter = new FixedBitSet(5);
+        filter.set(1);
+        filter.set(3);
+        Map<Integer, List<String>> result = drainTupleCursor(col.withFilter(filter));
+        assertEquals(Map.of(1, List.of("b"), 3, List.of("d")), result);
+    }
+
+    public void testFilterStringColumnRowCursor() {
+        LuceneBinaryColumn col = buildStringColumn("a", "b", "c", "d", "e");
+        FixedBitSet filter = new FixedBitSet(5);
+        filter.set(0);
+        filter.set(4);
+        Map<Integer, List<String>> result = drainRowCursor(col.withFilter(filter).rowFieldCursor());
+        assertEquals(Map.of(0, List.of("a"), 4, List.of("e")), result);
+    }
+
+    public void testFilterForcesSparseDensity() {
+        LuceneBinaryColumn col = buildStringColumn("x", "y");
+        assertEquals(Column.Density.DENSE, col.density());
+        FixedBitSet filter = new FixedBitSet(2);
+        filter.set(0);
+        filter.set(1);
+        assertEquals(Column.Density.SPARSE, col.withFilter(filter).density());
+    }
+
+    public void testFilterEmptyResult() {
+        LuceneBinaryColumn col = buildStringColumn("a", "b", "c");
+        FixedBitSet filter = new FixedBitSet(3); // all bits clear
+        assertTrue("filter passes no docs → empty", drainTupleCursor(col.withFilter(filter)).isEmpty());
+    }
+
+    public void testFilterAllDocsPass() {
+        LuceneBinaryColumn col = buildStringColumn("a", "b", "c");
+        FixedBitSet filter = new FixedBitSet(3);
+        filter.set(0);
+        filter.set(1);
+        filter.set(2);
+        Map<Integer, List<String>> result = drainTupleCursor(col.withFilter(filter));
+        assertEquals(Map.of(0, List.of("a"), 1, List.of("b"), 2, List.of("c")), result);
+    }
+
+    public void testWithFilterNullIsNoOp() {
+        // withFilter(null) on a column that already has a filter preserves the existing filter.
+        LuceneBinaryColumn col = buildStringColumn("a", "b", "c");
+        FixedBitSet filter = new FixedBitSet(3);
+        filter.set(1);
+        LuceneBinaryColumn filtered = col.withFilter(filter);
+        LuceneBinaryColumn stillFiltered = filtered.withFilter(null);
+        assertEquals(drainTupleCursor(filtered), drainTupleCursor(stillFiltered));
+    }
+
+    public void testFilterTuplesAndRowCursorAgree() {
+        LuceneBinaryColumn col = buildStringColumn("p", "q", "r", "s", "t");
+        FixedBitSet filter = new FixedBitSet(5);
+        filter.set(0);
+        filter.set(2);
+        filter.set(4);
+        LuceneBinaryColumn filtered = col.withFilter(filter);
+        assertEquals(drainTupleCursor(filtered), drainRowCursor(filtered.rowFieldCursor()));
+    }
+
+    /** Filter on an array column: doc-level filter excludes all elements of filtered-out docs. */
+    public void testFilterArrayColumnTupleCursor() {
+        // doc 0: ["x","y"], doc 1: ["only"], doc 2: ["p","q","r"]. Filter passes docs {0, 2}.
+        LuceneBinaryColumn col = buildArrayColumn(3, new int[] { 0, 0, 1, 2, 2, 2 }, new String[] { "x", "y", "only", "p", "q", "r" });
+        FixedBitSet filter = new FixedBitSet(3);
+        filter.set(0);
+        filter.set(2);
+        Map<Integer, List<String>> result = drainTupleCursor(col.withFilter(filter));
+        assertEquals(2, result.size());
+        assertEquals(List.of("x", "y"), result.get(0));
+        assertEquals(List.of("p", "q", "r"), result.get(2));
+        assertNull("doc 1 filtered out", result.get(1));
+    }
+
+    /** Filter on array column's row cursor agrees with tuple cursor. */
+    public void testFilterArrayColumnRowCursorMatchesTupleCursor() {
+        LuceneBinaryColumn col = buildArrayColumn(4, new int[] { 0, 1, 1, 3 }, new String[] { "a", "b1", "b2", "d" });
+        FixedBitSet filter = new FixedBitSet(4);
+        filter.set(1);
+        filter.set(3);
+        LuceneBinaryColumn filtered = col.withFilter(filter);
+        assertEquals(drainTupleCursor(filtered), drainRowCursor(filtered.rowFieldCursor()));
+    }
+
+    /** slice() on a filtered column correctly windows the filter bitset. */
+    public void testFilteredSliceWindowsFilter() {
+        // 6 docs, filter passes {1, 3, 5}. slice(2, 4) → docs 2..5 become local 0..3.
+        // Original docs 3 and 5 land at local 1 and 3.
+        LuceneBinaryColumn col = buildStringColumn("a", "b", "c", "d", "e", "f");
+        FixedBitSet filter = new FixedBitSet(6);
+        filter.set(1);
+        filter.set(3);
+        filter.set(5);
+        LuceneBinaryColumn sliced = col.withFilter(filter).slice(2, 4);
+        Map<Integer, List<String>> result = drainTupleCursor(sliced);
+        assertEquals(Map.of(1, List.of("d"), 3, List.of("f")), result);
+    }
+
+    /** slice() whose window has all filter bits set produces a null windowed filter → DENSE. */
+    public void testFilteredSliceAllSetBecomesNull() {
+        LuceneBinaryColumn col = buildStringColumn("a", "b", "c", "d", "e");
+        FixedBitSet filter = new FixedBitSet(5);
+        filter.set(0);
+        filter.set(1);
+        filter.set(2);
+        filter.set(3);
+        filter.set(4);
+        // slice(1, 2) = docs 1,2; both set → windowed filter is all-set → null → DENSE
+        LuceneBinaryColumn sliced = col.withFilter(filter).slice(1, 2);
+        assertEquals(Column.Density.DENSE, sliced.density());
+        Map<Integer, List<String>> result = drainTupleCursor(sliced);
+        assertEquals(Map.of(0, List.of("b"), 1, List.of("c")), result);
+    }
+
+    public void testRowFieldCursorValuesSurviveAdvance() {
+        // Dense STRING column — exercises the BytesRefTupleCursor path in AbstractVarColumn.
+        {
+            LuceneBinaryColumn col = buildStringColumn("alpha", "beta", "gamma");
+            LuceneColumn.RowFieldCursor cursor = col.rowFieldCursor();
+            List<IndexableField> fields = new ArrayList<>();
+
+            // Collect all fields before reading any, mirroring RowCursor.advance() behaviour.
+            int doc;
+            while ((doc = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                cursor.appendCurrentFields(fields);
+                cursor.nextDoc(); // advance past the field before we read it
+                break;           // only need to show the first field survives one advance
+            }
+            // The BytesRef stored in the first field must still equal "alpha" even after nextDoc().
+            assertFalse("expected at least one field", fields.isEmpty());
+            assertEquals("alpha", fields.get(0).binaryValue().utf8ToString());
+        }
+
+        // ARRAY column — exercises the EscfArrayColumn.bytesRefCursor() path.
+        {
+            // 2 docs: doc 0 has ["hello", "world"], doc 1 has ["!"]
+            LuceneBinaryColumn col = buildArrayColumn(2, new int[] { 0, 0, 1 }, new String[] { "hello", "world", "!" });
+            LuceneColumn.RowFieldCursor cursor = col.rowFieldCursor();
+
+            // Mirror MappedColumns.RowCursor.advance(): appendCurrentFields then nextDoc, alternating.
+            // doc 0, first element "hello"
+            assertEquals(0, cursor.nextDoc());
+            List<IndexableField> doc0fields = new ArrayList<>();
+            cursor.appendCurrentFields(doc0fields);  // appends Field("hello")
+            // advance to second element of doc 0 — must not corrupt the "hello" Field
+            assertEquals(0, cursor.nextDoc());
+            cursor.appendCurrentFields(doc0fields);  // appends Field("world")
+            // advance to doc 1 — must not corrupt either doc 0 Field
+            assertEquals(1, cursor.nextDoc());
+
+            assertEquals(2, doc0fields.size());
+            assertEquals("hello", doc0fields.get(0).binaryValue().utf8ToString());
+            assertEquals("world", doc0fields.get(1).binaryValue().utf8ToString());
+        }
     }
 }

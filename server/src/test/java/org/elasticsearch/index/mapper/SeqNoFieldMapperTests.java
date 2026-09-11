@@ -15,8 +15,13 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
 
@@ -49,49 +54,61 @@ public class SeqNoFieldMapperTests extends MetadataMapperTestCase {
         assertTrue("supportsColumnarParse must be true for _seq_no", mapper.supportsColumnarParse(mapperService.getIndexSettings()));
 
         IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("1"), new IndexRequest("index").id("2") };
-        BatchMappingContext context = new BatchMappingContext(requests, mapperService.mappingLookup(), mapperService.getIndexSettings());
+        IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
+        try (
+            BatchMappingContext context = new BatchMappingContext(
+                batch,
+                mapperService.mappingLookup(),
+                mapperService.getIndexSettings(),
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            )
+        ) {
+            mapper.postColumnarParse(context);
 
-        mapper.postColumnarParse(context);
-
-        final MappedColumns mappedColumns = context.columns();
-        Column seqNoColumn = null;
-        Column primaryTermColumn = null;
-        for (Column column : mappedColumns.toColumnBatch().columns()) {
-            if (column.name().equals(SeqNoFieldMapper.NAME)) {
-                seqNoColumn = column;
-            } else if (column.name().equals(SeqNoFieldMapper.PRIMARY_TERM_NAME)) {
-                primaryTermColumn = column;
+            final MappedColumns mappedColumns = context.columns();
+            Column seqNoColumn = null;
+            Column primaryTermColumn = null;
+            for (Column column : mappedColumns.toColumnBatch().columns()) {
+                if (column.name().equals(SeqNoFieldMapper.NAME)) {
+                    seqNoColumn = column;
+                } else if (column.name().equals(SeqNoFieldMapper.PRIMARY_TERM_NAME)) {
+                    primaryTermColumn = column;
+                }
             }
+
+            assertNotNull("expected a _seq_no column", seqNoColumn);
+            assertNotNull("expected a _primary_term column", primaryTermColumn);
+
+            // Both columns must be NUMERIC doc-values-only.
+            assertEquals("_seq_no doc values type must be NUMERIC", DocValuesType.NUMERIC, seqNoColumn.fieldType().docValuesType());
+            assertEquals("_seq_no must have no inverted index", IndexOptions.NONE, seqNoColumn.fieldType().indexOptions());
+            assertFalse("_seq_no must not be stored", seqNoColumn.fieldType().stored());
+
+            assertEquals(
+                "_primary_term doc values type must be NUMERIC",
+                DocValuesType.NUMERIC,
+                primaryTermColumn.fieldType().docValuesType()
+            );
+            assertEquals("_primary_term must have no inverted index", IndexOptions.NONE, primaryTermColumn.fieldType().indexOptions());
+            assertFalse("_primary_term must not be stored", primaryTermColumn.fieldType().stored());
+
+            // The engine fills values later; the column should initially yield UNASSIGNED_SEQ_NO for _seq_no
+            // and 0L for _primary_term (zero-init).
+            LongColumn seqNoLongCol = (LongColumn) seqNoColumn;
+            var seqNoCursor = seqNoLongCol.tuples();
+            assertEquals(0, seqNoCursor.nextDoc());
+            assertEquals(SequenceNumbers.UNASSIGNED_SEQ_NO, seqNoCursor.longValue());
+            assertEquals(1, seqNoCursor.nextDoc());
+            assertEquals(SequenceNumbers.UNASSIGNED_SEQ_NO, seqNoCursor.longValue());
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, seqNoCursor.nextDoc());
+
+            LongColumn primaryTermLongCol = (LongColumn) primaryTermColumn;
+            var primaryTermCursor = primaryTermLongCol.tuples();
+            assertEquals(0, primaryTermCursor.nextDoc());
+            assertEquals(0L, primaryTermCursor.longValue());
+            assertEquals(1, primaryTermCursor.nextDoc());
+            assertEquals(0L, primaryTermCursor.longValue());
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, primaryTermCursor.nextDoc());
         }
-
-        assertNotNull("expected a _seq_no column", seqNoColumn);
-        assertNotNull("expected a _primary_term column", primaryTermColumn);
-
-        // Both columns must be NUMERIC doc-values-only.
-        assertEquals("_seq_no doc values type must be NUMERIC", DocValuesType.NUMERIC, seqNoColumn.fieldType().docValuesType());
-        assertEquals("_seq_no must have no inverted index", IndexOptions.NONE, seqNoColumn.fieldType().indexOptions());
-        assertFalse("_seq_no must not be stored", seqNoColumn.fieldType().stored());
-
-        assertEquals("_primary_term doc values type must be NUMERIC", DocValuesType.NUMERIC, primaryTermColumn.fieldType().docValuesType());
-        assertEquals("_primary_term must have no inverted index", IndexOptions.NONE, primaryTermColumn.fieldType().indexOptions());
-        assertFalse("_primary_term must not be stored", primaryTermColumn.fieldType().stored());
-
-        // The engine fills values later; the column should initially yield UNASSIGNED_SEQ_NO for _seq_no
-        // and 0L for _primary_term (zero-init).
-        LongColumn seqNoLongCol = (LongColumn) seqNoColumn;
-        var seqNoCursor = seqNoLongCol.tuples();
-        assertEquals(0, seqNoCursor.nextDoc());
-        assertEquals(SequenceNumbers.UNASSIGNED_SEQ_NO, seqNoCursor.longValue());
-        assertEquals(1, seqNoCursor.nextDoc());
-        assertEquals(SequenceNumbers.UNASSIGNED_SEQ_NO, seqNoCursor.longValue());
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, seqNoCursor.nextDoc());
-
-        LongColumn primaryTermLongCol = (LongColumn) primaryTermColumn;
-        var primaryTermCursor = primaryTermLongCol.tuples();
-        assertEquals(0, primaryTermCursor.nextDoc());
-        assertEquals(0L, primaryTermCursor.longValue());
-        assertEquals(1, primaryTermCursor.nextDoc());
-        assertEquals(0L, primaryTermCursor.longValue());
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, primaryTermCursor.nextDoc());
     }
 }

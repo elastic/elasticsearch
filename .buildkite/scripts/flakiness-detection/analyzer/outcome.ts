@@ -2,7 +2,7 @@
 // analyze step (which classifies every batch job from its rc + JUnit XML) and
 // its unit tests.
 
-export type FlakinessOutcome = "clean_pass" | "flaky_detected" | "timeout" | "hang" | "infra_fail" | "not_applicable";
+export type FlakinessOutcome = "clean_pass" | "flaky_detected" | "timeout" | "hang" | "infra_fail" | "not_applicable" | "build_failed";
 
 export interface OutcomeInput {
   // Wrapped command's return code (124 = our SIGTERM timeout, 137 = SIGKILL).

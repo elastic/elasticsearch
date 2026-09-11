@@ -24,11 +24,20 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -39,7 +48,10 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -53,12 +65,31 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /** Tests query building against {@link RuntimeSearchExecutionContext}. */
 public class HighlightQueryBuildersTests extends ESTestCase {
 
     private static final List<String> TITLE = List.of("title");
     private static final List<String> TITLE_BODY = List.of("title", "body");
+
+    private static AnalysisRegistry analysisRegistry;
+
+    @BeforeClass
+    public static void setupAnalysisRegistry() throws IOException {
+        analysisRegistry = new AnalysisModule(
+            TestEnvironment.newEnvironment(
+                Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+            ),
+            List.of(new CommonAnalysisPlugin()),
+            new StablePluginsRegistry()
+        ).getAnalysisRegistry();
+    }
+
+    @AfterClass
+    public static void tearDownAnalysisRegistry() {
+        analysisRegistry = null;
+    }
 
     private static final NamedAnalyzer STOP_ANALYZER = new NamedAnalyzer(
         "_stop",
@@ -132,6 +163,33 @@ public class HighlightQueryBuildersTests extends ESTestCase {
             () -> HighlightQueryBuilders.verify(of("fox"), TITLE, analyzer)
         );
         assertThat(e.getMessage(), containsString("test analyzer was used"));
+    }
+
+    // The registry hands plugin analyzers (AnalysisPlugin#getAnalyzers) back as bare Lucene analyzers with no position
+    // increment gap; resolution must restore the gap a mapped text field would have, or HIGHLIGHT phrases match across
+    // multi-value boundaries.
+    public void testResolvedPluginAnalyzerCarriesTextFieldPositionIncrementGap() throws IOException {
+        // Precondition: the registry returns this plugin analyzer bare, which is the case this test guards.
+        assertThat(analysisRegistry.getAnalyzer("fingerprint"), not(instanceOf(NamedAnalyzer.class)));
+        NamedAnalyzer named = asInstanceOf(NamedAnalyzer.class, PlannerUtils.resolveAnalyzer("fingerprint", analysisRegistry));
+        assertThat(named.name(), equalTo("fingerprint"));
+        assertThat(named.getPositionIncrementGap("title"), equalTo(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP));
+    }
+
+    public void testResolvedPrebuiltAnalyzerCarriesTextFieldPositionIncrementGap() {
+        Analyzer analyzer = PlannerUtils.resolveAnalyzer(HighlightQueryBuilders.DEFAULT_ANALYZER_NAME, analysisRegistry);
+        NamedAnalyzer named = asInstanceOf(NamedAnalyzer.class, analyzer);
+        assertThat(named.getPositionIncrementGap("title"), equalTo(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP));
+    }
+
+    public void testTranslateWithPluginAnalyzerKeepsPositionIncrementGap() {
+        HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
+            of("fox"),
+            TITLE,
+            "fingerprint",
+            analysisRegistry
+        );
+        assertThat(translated.analyzer().getPositionIncrementGap("title"), equalTo(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP));
     }
 
     public void testLiteralLeadingWildcardAllowed() {
@@ -241,10 +299,8 @@ public class HighlightQueryBuildersTests extends ESTestCase {
 
     public void testNot() {
         Not not = new Not(EMPTY, match("title", "fox", null));
-        // Non-scoring queries are wrapped in a zero-boost query.
-        BoostQuery boost = asInstanceOf(BoostQuery.class, translate(not, TITLE));
-        assertThat(boost.getBoost(), equalTo(0.0f));
-        BooleanQuery bq = asInstanceOf(BooleanQuery.class, boost.getQuery());
+        // A bool query with only must_not gets an implicit match_all filter.
+        BooleanQuery bq = asInstanceOf(BooleanQuery.class, translate(not, TITLE));
         BooleanClause filter = bq.clauses().stream().filter(c -> c.occur() == BooleanClause.Occur.FILTER).findFirst().orElseThrow();
         BooleanClause mustNot = bq.clauses().stream().filter(c -> c.occur() == BooleanClause.Occur.MUST_NOT).findFirst().orElseThrow();
         assertThat(filter.query(), instanceOf(MatchAllDocsQuery.class));
@@ -269,8 +325,12 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         assertThat(translate(matchPhrase("body", "quick fox", null), TITLE), instanceOf(MatchNoDocsQuery.class));
     }
 
-    public void testQueryStringDefaultFieldOutsideOnIsMatchNone() {
-        assertThat(translate(queryString("fox", options("default_field", "body")), TITLE), instanceOf(MatchNoDocsQuery.class));
+    public void testQueryStringDefaultFieldOutsideOnThrows() {
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> translate(queryString("fox", options("default_field", "body")), TITLE)
+        );
+        assertThat(e.getMessage(), containsString("field [body] is not one of the searchable fields [title]"));
     }
 
     public void testMatchInvalidOperatorThrows() {
@@ -291,9 +351,10 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         assertThat(term.getTerm(), equalTo(new Term("title", "fox")));
     }
 
-    public void testKqlFieldOutsideOnIsMatchNone() {
+    public void testKqlFieldOutsideOnThrows() {
         Kql kql = new Kql(EMPTY, of("body: fox"), null, TEST_CFG);
-        assertThat(translate(kql, TITLE), instanceOf(MatchNoDocsQuery.class));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> translate(kql, TITLE));
+        assertThat(e.getMessage(), containsString("field [body] is not one of the searchable fields [title]"));
     }
 
     private static List<Term> terms(Query query) {

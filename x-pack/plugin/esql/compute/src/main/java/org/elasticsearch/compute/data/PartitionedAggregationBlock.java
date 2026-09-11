@@ -20,9 +20,13 @@ import org.elasticsearch.core.Releasables;
 import java.io.IOException;
 
 /**
- * Not a row-by-row block, but holds partitioned keys and aggregation states of a partial hash aggregation.
+ * Not a row-by-row block: holds the partitioned keys and aggregation states of a partial hash aggregation.
  * When the partial and final aggregations run on the same node and there are many groups, the partial emits
- * this instead of intermediate rows, so the final only combines partitions
+ * this instead of intermediate rows, so the final only combines partitions.
+ * <p>
+ * Not serializable yet, so it never crosses the wire. Making it serializable would extend the optimization to
+ * multiple nodes: data nodes could send partitioned or regular blocks, and the final accepts both as long as it
+ * can partition on the coordinator and all nodes use the same partitioning scheme (hash function and partition count).
  */
 public class PartitionedAggregationBlock implements Block {
     private PartitionedHashTable.PartitionedHashKeys keys;
@@ -71,7 +75,8 @@ public class PartitionedAggregationBlock implements Block {
     }
 
     /**
-     * Moves the keys out of this block; the caller becomes responsible for releasing them. See also {@link #takeAggs()}.
+     * Moves the keys out of this block; the caller is responsible for releasing them.
+     * @see #takeAggs()
      */
     public PartitionedHashTable.PartitionedHashKeys takeKeys() {
         var result = keys;
@@ -80,7 +85,8 @@ public class PartitionedAggregationBlock implements Block {
     }
 
     /**
-     * Moves the aggregation states out of this block; the caller becomes responsible for releasing them.
+     * Moves the aggregation states out of this block; the caller is responsible for releasing them.
+     * @see #takeKeys()
      */
     public GroupingAggregatorFunction.PartitionedState[] takeAggs() {
         var result = aggs;

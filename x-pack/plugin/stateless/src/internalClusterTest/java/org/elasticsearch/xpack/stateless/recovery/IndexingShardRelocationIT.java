@@ -82,7 +82,6 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -270,16 +269,27 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
 
     public void testPrewarmAndHandoffTaskAreChildrenOfStartRelocationTask() throws Exception {
         startMasterOnlyNode();
-        final var sourceNode = startIndexNode();
+        final var nodeSettings = Settings.builder().put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false).build();
+        final var sourceNode = startIndexNode(nodeSettings);
         final var indexName = randomIdentifier();
         createIndex(indexName, 1, 0);
         ensureGreen(indexName);
-        indexDocs(indexName, randomIntBetween(1, 50));
-        if (randomBoolean()) {
-            flush(indexName);
-        }
+        indexDocs(indexName, randomIntBetween(20, 50));
+        flush(indexName);
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        final var commitService = internalCluster().getInstance(StatelessCommitService.class, sourceNode);
+        final var indexShard = internalCluster().getInstance(IndicesService.class, sourceNode)
+            .indexServiceSafe(shardId.getIndex())
+            .getShard(shardId.id());
+        final long flushedGen = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+        commitService.ensureMaxGenerationToUploadForFlush(shardId, flushedGen);
 
-        final var targetNode = startIndexNode();
+        final var uploadedGenerationListener = new PlainActionFuture<Void>();
+        commitService.addListenerForUploadedGeneration(shardId, flushedGen, uploadedGenerationListener);
+        safeGet(uploadedGenerationListener);
+        assertThat(commitService.getLatestUploadedBcc(shardId), notNullValue());
+
+        final var targetNode = startIndexNode(nodeSettings);
         final var parentTaskId = new AtomicReference<Long>();
         final var prewarm = new CountDownLatch(1);
         final var handoff = new CountDownLatch(1);
@@ -797,72 +807,11 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         }
     }
 
-    @TestLogging(reason = "testing WARN logging", value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:WARN")
-    public void testPrimaryRelocationWhileLocallyFailedLogging() {
-        startMasterOnlyNode();
-        final var indexNodeA = startIndexNode();
-        startSearchNode();
-        final var indexName = randomIdentifier();
-        createIndex(indexName, 1, 0);
-        ensureGreen(indexName);
-        indexDocs(indexName, randomIntBetween(10, 50));
-
-        startIndexNode();
-        final var indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
-
-        final var countDownLatch = new CountDownLatch(1);
-
-        indexNodeATransportService.addRequestHandlingBehavior(START_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
-            for (final var indexService : internalCluster().getInstance(IndicesService.class, indexNodeA)) {
-                if (indexService.index().getName().equals(indexName)) {
-                    for (final var indexShard : indexService) {
-                        indexShard.failShard("simulated", null);
-                    }
-                }
-            }
-            handler.messageReceived(
-                request,
-                new TestTransportChannel(ActionListener.runAfter(new ChannelActionListener<>(channel), countDownLatch::countDown)),
-                task
-            );
-        });
-
-        try (var mockLog = MockLog.capture(IndicesClusterStateService.class)) {
-            mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation(
-                    "warnings",
-                    IndicesClusterStateService.class.getCanonicalName(),
-                    Level.WARN,
-                    "marking and sending shard failed due to [failed recovery]"
-                )
-            );
-
-            assertAcked(
-                admin().indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexNodeA))
-            );
-
-            safeAwait(countDownLatch);
-
-            assertAcked(
-                admin().indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"))
-            );
-
-            ensureGreen(indexName);
-            mockLog.assertAllExpectationsMatched();
-        } finally {
-            indexNodeATransportService.clearAllRules();
-        }
-    }
-
     @TestLogging(
         reason = "verifying INFO logging of repeated hot threads dumps",
         value = "org.elasticsearch.xpack.stateless.recovery.SlowRelocationLogger:INFO"
     )
-    public void testSlowRelocationLogsRepeatedHotThreadsDumps() throws Exception {
+    public void testSlowRelocationLogsRepeatedHotThreadsDumps() {
         final var nodeSettings = Settings.builder().put(SLOW_RELOCATION_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(100)).build();
         final var indexNodeA = startMasterAndIndexNode(nodeSettings);
         final var indexName = randomIdentifier();

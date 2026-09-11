@@ -214,7 +214,7 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
         // directly and inside SPARKLINE), in which case its inner expression was already extracted into an identically-named synthetic
         // Eval by the global pass. Reusing that name here would make one of the two extractions be dropped by output-attribute merging,
         // leaving a dangling reference.
-        phase1Plan = new ReplaceAggregateNestedExpressionWithEval(true).apply(phase1Plan);
+        phase1Plan = new ReplaceAggregateNestedExpressionWithEval(true, false).apply(phase1Plan);
         return new FirstPhaseAggregateData(phase1Plan, sparklineValueAliases, toPartialAliases, originalAggFuncs, dateBucketAttr);
     }
 

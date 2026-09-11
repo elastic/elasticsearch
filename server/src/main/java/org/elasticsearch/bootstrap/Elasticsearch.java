@@ -243,6 +243,7 @@ class Elasticsearch {
                         bundle.getDir(),
                         bundle.pluginDescriptor().getName(),
                         bundle.pluginDescriptor().isModular(),
+                        bundle.pluginDescriptor().isStable(),
                         false
                     )
                 ),
@@ -252,6 +253,7 @@ class Elasticsearch {
                         bundle.getDir(),
                         bundle.pluginDescriptor().getName(),
                         bundle.pluginDescriptor().isModular(),
+                        bundle.pluginDescriptor().isStable(),
                         true
                     )
                 )
@@ -275,6 +277,7 @@ class Elasticsearch {
         EntitlementBootstrap.bootstrap(
             serverPolicyPatch,
             pluginPolicies,
+            PolicyUtils.stablePluginSyntheticModuleNames(pluginData),
             scopeResolver::resolveClassToScope,
             nodeEnv.settings()::getValues,
             nodeEnv.dataDirs(),

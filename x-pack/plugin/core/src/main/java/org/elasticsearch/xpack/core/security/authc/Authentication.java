@@ -868,6 +868,10 @@ public final class Authentication implements ToXContentObject {
         final Map<String, Object> metadata = getAuthenticatingSubject().getMetadata();
         builder.field(User.Fields.USERNAME.getPreferredName(), user.principal());
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
+        final List<String> limitedByRoleNames = effectiveSubject.getCloudLimitedByRoleNames();
+        if (limitedByRoleNames != null) {
+            builder.array(User.Fields.LIMITED_BY_ROLES.getPreferredName(), limitedByRoleNames.toArray(String[]::new));
+        }
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
         if (isServiceAccount()) {
@@ -885,6 +889,11 @@ public final class Authentication implements ToXContentObject {
                     "managed_by",
                     CredentialManagedBy.ELASTICSEARCH.getDisplayName()
                 )
+            );
+        } else if (isCloudServiceAccount()) {
+            builder.field(
+                User.Fields.TOKEN.getPreferredName(),
+                Map.of("type", CLOUD_SERVICE_ACCOUNT_REALM_TYPE, "managed_by", CredentialManagedBy.CLOUD.getDisplayName())
             );
         } else if (getAuthenticationType() == AuthenticationType.TOKEN) {
             String managedBy = (String) metadata.get("managed_by");

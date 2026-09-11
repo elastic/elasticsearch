@@ -964,6 +964,27 @@ public class AuthenticationTests extends ESTestCase {
         runWithAuthenticationToXContent(realmTokenAuth, m -> assertThat(m, hasEntry("token", Map.of("managed_by", "elasticsearch"))));
     }
 
+    public void testToXContentWithCloudLimitedByRoles() throws IOException {
+        final List<String> limitedByRoleNames = AuthenticationTestHelper.randomCloudLimitedByRoleNames();
+        final Authentication capped = AuthenticationTestHelper.randomCloudServiceAccountAuthentication(
+            randomAlphanumericOfLength(20),
+            limitedByRoleNames
+        );
+        runWithAuthenticationToXContent(capped, m -> {
+            assertThat(m, hasEntry("limited_by_roles", limitedByRoleNames));
+            assertThat(m, hasEntry("token", Map.of("type", "_cloud_service_account", "managed_by", "cloud")));
+        });
+
+        final Authentication uncapped = AuthenticationTestHelper.randomCloudServiceAccountAuthentication(
+            randomAlphanumericOfLength(20),
+            null
+        );
+        runWithAuthenticationToXContent(uncapped, m -> {
+            assertThat(m, not(hasKey("limited_by_roles")));
+            assertThat(m, hasEntry("token", Map.of("type", "_cloud_service_account", "managed_by", "cloud")));
+        });
+    }
+
     public void testBwcWithStoredAuthenticationHeaders() throws IOException {
         // Version 6.6.1
         final String headerV6 = "p/HxAgANZWxhc3RpYy1hZG1pbgEJc3VwZXJ1c2VyCgAAAAEABG5vZGUFZmlsZTEEZmlsZQA=";

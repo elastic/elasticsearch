@@ -346,9 +346,19 @@ sparkline:long                                                | value:long
 sparklineWithAggWithConstantInput
 required_capability: fix_aggs_multiple_input_fields
 FROM employees
-| STATS c = SPARKLINE(STD_DEV(1), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+| STATS sparkline = SPARKLINE(STD_DEV(1), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
 ;
 
-c:double
+sparkline:double
+[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+;
+
+sparklineWithAggWithNullInput
+required_capability: fix_aggs_multiple_input_fields
+FROM employees
+| STATS sparkline = SPARKLINE(STD_DEV(null), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+sparkline:double
 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 ;

@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -27,6 +28,7 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 
@@ -104,29 +106,29 @@ import java.util.List;
  * </p>
  */
 public class SparklineGenerateEmptyBucketsOperator implements Operator {
-    public record Factory(int numValueColumns, Rounding.Prepared dateBucketRounding, long minDate, long maxDate)
+    public record Factory(ElementType[] valueElementTypes, Rounding.Prepared dateBucketRounding, long minDate, long maxDate)
         implements
             OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new SparklineGenerateEmptyBucketsOperator(driverContext, numValueColumns, dateBucketRounding, minDate, maxDate);
+            return new SparklineGenerateEmptyBucketsOperator(driverContext, valueElementTypes, dateBucketRounding, minDate, maxDate);
         }
 
         @Override
         public String describe() {
-            return "SparklineGenerateEmptyBucketsOperator[numValueColumns=" + numValueColumns + "]";
+            return "SparklineGenerateEmptyBucketsOperator[numValueColumns=" + valueElementTypes.length + "]";
         }
     }
 
     private final DriverContext driverContext;
     private boolean finished;
     private final Deque<Page> outputPages;
-    private final int numValueColumns;
+    private final ElementType[] valueElementTypes;
     private final List<Long> dateBuckets;
 
     public SparklineGenerateEmptyBucketsOperator(
         DriverContext driverContext,
-        int numValueColumns,
+        ElementType[] valueElementTypes,
         Rounding.Prepared dateBucketRounding,
         long minDate,
         long maxDate
@@ -134,7 +136,7 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
         this.driverContext = driverContext;
         this.finished = false;
         outputPages = new ArrayDeque<>();
-        this.numValueColumns = numValueColumns;
+        this.valueElementTypes = valueElementTypes;
         this.dateBuckets = calculateDateBuckets(dateBucketRounding, minDate, maxDate);
     }
 
@@ -187,21 +189,22 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
 
     @Override
     public String toString() {
-        return "SparklineGenerateEmptyBucketsOperator[numValueColumns=" + numValueColumns + "]";
+        return "SparklineGenerateEmptyBucketsOperator[valueElementTypes=" + Arrays.toString(valueElementTypes) + "]";
     }
 
     private void createOutputPage(Page inputPage) {
-        LongBlock dateBlock = inputPage.getBlock(numValueColumns);
+        LongBlock dateBlock = inputPage.getBlock(valueElementTypes.length);
         int positionCount = inputPage.getBlock(0).getPositionCount();
 
-        Block[] outputValueBlocks = new Block[numValueColumns];
+        Block[] outputValueBlocks = new Block[valueElementTypes.length];
         try {
-            for (int v = 0; v < numValueColumns; v++) {
+            for (int v = 0; v < valueElementTypes.length; v++) {
                 Block valueBlock = inputPage.getBlock(v);
                 try (
                     // TODO we could probably build the output on the fly
                     OutputBucketedSort outputBucketedSort = new OutputBucketedSort(
                         valueBlock,
+                        valueElementTypes[v],
                         driverContext.bigArrays(),
                         dateBuckets.size()
                     )
@@ -237,7 +240,7 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
 
         // TODO appendBlocks?
         Page outputPage = new Page(outputValueBlocks);
-        int passthroughStart = numValueColumns + 1;
+        int passthroughStart = valueElementTypes.length + 1;
         for (int i = passthroughStart; i < inputPage.getBlockCount(); i++) {
             Block passthroughBlock = inputPage.getBlock(i);
             passthroughBlock.incRef();
@@ -260,33 +263,35 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
         // TODO replace BucketedSort with a little hand built copy-and-expand
         // TODO if the input block is *perfect* just use it
         private final Block valueBlock;
+        private final ElementType elementType;
         private final Releasable bucketedSort;
 
-        OutputBucketedSort(Block valueBlock, BigArrays bigArrays, int valueCountLimit) {
+        OutputBucketedSort(Block valueBlock, ElementType expectedType, BigArrays bigArrays, int valueCountLimit) {
             this.valueBlock = valueBlock;
-            switch (valueBlock.elementType()) {
+            this.elementType = expectedType;
+            switch (elementType) {
                 case LONG -> bucketedSort = new LongLongBucketedSort(bigArrays, SortOrder.ASC, valueCountLimit);
                 case INT -> bucketedSort = new LongIntBucketedSort(bigArrays, SortOrder.ASC, valueCountLimit);
                 case DOUBLE -> bucketedSort = new LongDoubleBucketedSort(bigArrays, SortOrder.ASC, valueCountLimit);
                 case FLOAT -> bucketedSort = new LongFloatBucketedSort(bigArrays, SortOrder.ASC, valueCountLimit);
                 case NULL -> bucketedSort = new LongLongBucketedSort(bigArrays, SortOrder.ASC, valueCountLimit);
-                default -> throw new IllegalArgumentException("Unsupported element type [" + valueBlock.elementType() + "]");
+                default -> throw new IllegalArgumentException("Unsupported element type [" + elementType + "]");
             }
         }
 
         public void collectDefaultValue(long dateBucket, int groupId) {
-            switch (valueBlock.elementType()) {
+            switch (elementType) {
                 case LONG -> ((LongLongBucketedSort) bucketedSort).collect(dateBucket, 0L, groupId);
                 case INT -> ((LongIntBucketedSort) bucketedSort).collect(dateBucket, 0, groupId);
                 case DOUBLE -> ((LongDoubleBucketedSort) bucketedSort).collect(dateBucket, 0d, groupId);
                 case FLOAT -> ((LongFloatBucketedSort) bucketedSort).collect(dateBucket, 0f, groupId);
                 case NULL -> ((LongLongBucketedSort) bucketedSort).collect(dateBucket, 0L, groupId);
-                default -> throw new IllegalArgumentException("Unsupported element type [" + valueBlock.elementType() + "]");
+                default -> throw new IllegalArgumentException("Unsupported element type [" + elementType + "]");
             }
         }
 
         public void collectValueBlockValueAtIndex(long dateBucket, int groupId, int valueIndex) {
-            switch (valueBlock.elementType()) {
+            switch (elementType) {
                 case LONG -> ((LongLongBucketedSort) bucketedSort).collect(
                     dateBucket,
                     ((LongBlock) valueBlock).getLong(valueIndex),
@@ -304,18 +309,18 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
                     groupId
                 );
                 case NULL -> ((LongLongBucketedSort) bucketedSort).collect(dateBucket, 0L, groupId);
-                default -> throw new IllegalArgumentException("Unsupported element type [" + valueBlock.elementType() + "]");
+                default -> throw new IllegalArgumentException("Unsupported element type [" + elementType + "]");
             }
         }
 
         private void toBlocks(BlockFactory blockFactory, Block[] blocks, IntVector groupIds) {
-            switch (valueBlock.elementType()) {
+            switch (elementType) {
                 case LONG -> ((LongLongBucketedSort) bucketedSort).toBlocks(blockFactory, blocks, 0, groupIds);
                 case INT -> ((LongIntBucketedSort) bucketedSort).toBlocks(blockFactory, blocks, 0, groupIds);
                 case DOUBLE -> ((LongDoubleBucketedSort) bucketedSort).toBlocks(blockFactory, blocks, 0, groupIds);
                 case FLOAT -> ((LongFloatBucketedSort) bucketedSort).toBlocks(blockFactory, blocks, 0, groupIds);
                 case NULL -> ((LongLongBucketedSort) bucketedSort).toBlocks(blockFactory, blocks, 0, groupIds);
-                default -> throw new IllegalArgumentException("Unsupported element type [" + valueBlock.elementType() + "]");
+                default -> throw new IllegalArgumentException("Unsupported element type [" + elementType + "]");
             }
         }
 

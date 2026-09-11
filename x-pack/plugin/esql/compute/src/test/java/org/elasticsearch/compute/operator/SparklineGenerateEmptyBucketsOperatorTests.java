@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
@@ -38,7 +39,7 @@ public class SparklineGenerateEmptyBucketsOperatorTests extends OperatorTestCase
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new SparklineGenerateEmptyBucketsOperator.Factory(1, ROUNDING, MIN_DATE, MAX_DATE);
+        return new SparklineGenerateEmptyBucketsOperator.Factory(new ElementType[] { ElementType.LONG }, ROUNDING, MIN_DATE, MAX_DATE);
     }
 
     @Override
@@ -133,7 +134,13 @@ public class SparklineGenerateEmptyBucketsOperatorTests extends OperatorTestCase
             dates = dateBuilder.build();
         }
         try (
-            SparklineGenerateEmptyBucketsOperator op = new SparklineGenerateEmptyBucketsOperator(ctx, 1, dailyRounding, minDate, maxDate)
+            SparklineGenerateEmptyBucketsOperator op = new SparklineGenerateEmptyBucketsOperator(
+                ctx,
+                new ElementType[] { ElementType.LONG },
+                dailyRounding,
+                minDate,
+                maxDate
+            )
         ) {
             op.addInput(new Page(values, dates));
             op.finish();

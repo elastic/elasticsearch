@@ -687,8 +687,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.FileSplitProviderTests
   method: testMultiFileParallelProbeAccumulatesCpuNanos
   issue: https://github.com/elastic/elasticsearch/issues/158462
-- class: org.elasticsearch.xpack.esql.datasources.FileSplitProviderTests
-  issue: https://github.com/elastic/elasticsearch/issues/158517
 - class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
   method: testMetricsCollectorMultiFileCsv
   issue: https://github.com/elastic/elasticsearch/issues/158463

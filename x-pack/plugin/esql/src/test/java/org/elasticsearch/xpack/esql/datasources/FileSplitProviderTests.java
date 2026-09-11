@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -1279,7 +1280,9 @@ public class FileSplitProviderTests extends ESTestCase {
             assertEquals(s.offset(), a.offset());
             assertEquals(s.length(), a.length());
         }
-        assertThat("range-aware async discovery must accumulate cpuNanos", asyncResult.cpuNanos(), greaterThan(0L));
+        if (Constants.WINDOWS == false) {
+            assertThat("range-aware async discovery must accumulate cpuNanos", asyncResult.cpuNanos(), greaterThan(0L));
+        }
     }
 
     /**
@@ -1417,6 +1420,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * involved here — only the per-file accumulation inside the BPG lambda in {@link FileSplitProvider}.
      */
     public void testMultiFileParallelDiscoveryAccumulatesCpuNanos() throws Exception {
+        assumeFalse("Windows has bad CPU counters, skip", Constants.WINDOWS);
         Map<String, byte[]> payloads = Map.of("one.csv", delimitedPayload("a,b,c\n"), "two.csv", delimitedPayload("d,e,f\n"));
         ExecutorService executor = Executors.newFixedThreadPool(4);
         SplitDiscoveryResult result;
@@ -1434,6 +1438,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * The BPG lambda in {@code probeDeferredBoundaries} must wrap each probe with {@link ThreadCpuTimer}.
      */
     public void testMultiFileParallelProbeAccumulatesCpuNanos() throws Exception {
+        assumeFalse("Windows has bad CPU counters, skip", Constants.WINDOWS);
         // Files ~3.5x stride → each file needs exactly one probe position in Phase 3.
         long stride = 2 * CSV_MIN_SEGMENT_BYTES;
         Map<String, byte[]> payloads = Map.of("one.csv", delimitedPayload("a,b,c\n"), "two.csv", delimitedPayload("d,e,f\n"));
@@ -1453,6 +1458,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * the IO hop; wrapping only the joining BPG path is not enough.
      */
     public void testAsyncSplitDiscoveryAccumulatesCpuNanos() throws Exception {
+        assumeFalse("Windows has bad CPU counters, skip", Constants.WINDOWS);
         Map<String, byte[]> payloads = Map.of("one.csv", delimitedPayload("a,b,c\n"), "two.csv", delimitedPayload("d,e,f\n"));
         ExecutorService executor = Executors.newFixedThreadPool(4);
         SplitDiscoveryResult result;
@@ -1468,6 +1474,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * Async Phase-3 probes must land on the recording fan-out executor the same way joining BPG does.
      */
     public void testAsyncSplitDiscoveryProbesAccumulateCpuNanos() throws Exception {
+        assumeFalse("Windows has bad CPU counters, skip", Constants.WINDOWS);
         long stride = 2 * CSV_MIN_SEGMENT_BYTES;
         Map<String, byte[]> payloads = Map.of("one.csv", delimitedPayload("a,b,c\n"), "two.csv", delimitedPayload("d,e,f\n"));
         ExecutorService executor = Executors.newFixedThreadPool(4);

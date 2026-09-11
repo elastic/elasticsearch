@@ -42,4 +42,64 @@ public class NodeHeapMetricsTests extends ESTestCase {
         assertThat(nodeHeapMetrics.estimatedFreeBytesAsPercentage(), lessThanOrEqualTo(100.0));
         assertEquals(nodeHeapMetrics.estimatedFreeBytesAsPercentage(), 100.0 * estimatedFreeBytes / totalBytes, 0.0001);
     }
+
+    public void testUpdateEstimatedUsagePositiveDeltas() {
+        final String nodeId = randomUUID();
+        final long totalBytes = randomLongBetween(1000, Long.MAX_VALUE / 2);
+        final long initialTotal = randomLongBetween(0, totalBytes / 4);
+        final long initialShards = randomLongBetween(0, initialTotal);
+        final NodeHeapMetrics original = new NodeHeapMetrics(nodeId, totalBytes, new NodeHeapEstimates(initialTotal, initialShards));
+
+        final long indexDelta = randomLongBetween(0, totalBytes / 4);
+        final long shardsDelta = randomLongBetween(0, totalBytes / 4);
+        final long expectedUsageDelta = indexDelta + shardsDelta;
+
+        final NodeHeapMetrics updated = original.updateEstimatedUsage(indexDelta, shardsDelta);
+
+        assertEquals(nodeId, updated.nodeId());
+        assertEquals(totalBytes, updated.totalBytes());
+        assertEquals(initialTotal + expectedUsageDelta, updated.nodeHeapEstimates().totalHeapUsage());
+        assertEquals(initialShards + expectedUsageDelta, updated.nodeHeapEstimates().hostedShardsHeapUsage());
+    }
+
+    public void testUpdateEstimatedUsageZeroDeltas() {
+        final long totalBytes = randomNonNegativeLong();
+        final long initialTotal = randomLongBetween(0, totalBytes);
+        final long initialShards = randomLongBetween(0, initialTotal);
+        final NodeHeapMetrics original = new NodeHeapMetrics(randomUUID(), totalBytes, new NodeHeapEstimates(initialTotal, initialShards));
+
+        final NodeHeapMetrics updated = original.updateEstimatedUsage(0, 0);
+
+        assertEquals(original.nodeId(), updated.nodeId());
+        assertEquals(original.totalBytes(), updated.totalBytes());
+        assertEquals(initialTotal, updated.nodeHeapEstimates().totalHeapUsage());
+        assertEquals(initialShards, updated.nodeHeapEstimates().hostedShardsHeapUsage());
+    }
+
+    public void testUpdateEstimatedUsageNegativeDeltas() {
+        final long totalBytes = randomLongBetween(1000, Long.MAX_VALUE / 2);
+        final long initialTotal = randomLongBetween(totalBytes / 2, totalBytes);
+        final long initialShards = randomLongBetween(initialTotal / 2, initialTotal);
+        final NodeHeapMetrics original = new NodeHeapMetrics(randomUUID(), totalBytes, new NodeHeapEstimates(initialTotal, initialShards));
+
+        final long indexDelta = -randomLongBetween(0, initialTotal / 4);
+        final long shardsDelta = -randomLongBetween(0, initialTotal / 4);
+        final long expectedUsageDelta = indexDelta + shardsDelta;
+
+        final NodeHeapMetrics updated = original.updateEstimatedUsage(indexDelta, shardsDelta);
+
+        assertEquals(initialTotal + expectedUsageDelta, updated.nodeHeapEstimates().totalHeapUsage());
+        assertEquals(initialShards + expectedUsageDelta, updated.nodeHeapEstimates().hostedShardsHeapUsage());
+    }
+
+    public void testUpdateEstimatedUsageDeltaSumOverflowThrows() {
+        final NodeHeapMetrics original = new NodeHeapMetrics(randomUUID(), Long.MAX_VALUE, new NodeHeapEstimates(0, 0));
+        expectThrows(ArithmeticException.class, () -> original.updateEstimatedUsage(Long.MAX_VALUE, 1));
+    }
+
+    public void testUpdateEstimatedUsageTotalOverflowThrows() {
+        final NodeHeapMetrics original = new NodeHeapMetrics(randomUUID(), Long.MAX_VALUE, new NodeHeapEstimates(2, 0));
+        // usageDelta = Long.MAX_VALUE; totalHeapUsage = 2 + Long.MAX_VALUE overflows
+        expectThrows(ArithmeticException.class, () -> original.updateEstimatedUsage(Long.MAX_VALUE, 0));
+    }
 }

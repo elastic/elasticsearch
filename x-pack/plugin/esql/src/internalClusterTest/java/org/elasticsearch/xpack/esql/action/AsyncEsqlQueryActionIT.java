@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -131,6 +132,8 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
 
     public void testLaterForkBranchDoesNotFinalizeClusterEarly() throws Exception {
         scriptPermits.drainPermits();
+        scriptWaits.drainPermits();
+        String id = null;
         EsqlQueryRequest request = asyncEsqlQueryRequest("""
             FROM test
             | FORK
@@ -152,9 +155,12 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
         request.waitForCompletionTimeout(TimeValue.timeValueNanos(1));
         request.keepOnCompletion(true);
         request.keepAlive(randomKeepAlive());
-        try (EsqlQueryResponse initial = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
+        EsqlQueryResponse initial = null;
+        try {
+            initial = startHeldAsync(request);
+            id = initial.asyncExecutionId().orElse(null);
+            assertThat(id, notNullValue());
             assertThat(initial.isRunning(), is(true));
-            String id = initial.asyncExecutionId().get();
             assertTrue(scriptWaits.tryAcquire(1, TimeUnit.MINUTES));
 
             var getHeld = new GetAsyncResultRequest(id);
@@ -182,8 +188,12 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 assertThat(info.overallTook().millis(), greaterThanOrEqualTo(0L));
             }
             assertThat(deleteAsyncId(id).isAcknowledged(), equalTo(true));
+            id = null;
         } finally {
-            scriptPermits.drainPermits();
+            if (initial != null) {
+                initial.close();
+            }
+            releaseHeldAsync(id);
         }
     }
 
@@ -194,6 +204,8 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
      */
     public void testFinishSessionEarlyFindsActiveForkExchange() throws Exception {
         scriptPermits.drainPermits();
+        scriptWaits.drainPermits();
+        String id = null;
         EsqlQueryRequest request = asyncEsqlQueryRequest("""
             FROM test
             | FORK
@@ -215,9 +227,12 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
         request.waitForCompletionTimeout(TimeValue.timeValueNanos(1));
         request.keepOnCompletion(true);
         request.keepAlive(randomKeepAlive());
-        try (EsqlQueryResponse initial = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
+        EsqlQueryResponse initial = null;
+        try {
+            initial = startHeldAsync(request);
+            id = initial.asyncExecutionId().orElse(null);
+            assertThat(id, notNullValue());
             assertThat(initial.isRunning(), is(true));
-            String id = initial.asyncExecutionId().get();
             assertTrue(scriptWaits.tryAcquire(1, TimeUnit.MINUTES));
 
             String sessionId = null;
@@ -257,6 +272,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 assertThat(done.isRunning(), is(false));
             }
 
+            String asyncId = id;
             assertBusy(() -> {
                 for (String node : internalCluster().getNodeNames()) {
                     TransportService ts = internalCluster().getInstance(TransportService.class, node);
@@ -264,7 +280,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                         if (task instanceof EsqlQueryTask queryTask
                             && queryTask.getCurrentResult().isAsync()
                             && queryTask.getCurrentResult().asyncExecutionId().isPresent()
-                            && queryTask.getCurrentResult().asyncExecutionId().get().equals(id)) {
+                            && queryTask.getCurrentResult().asyncExecutionId().get().equals(asyncId)) {
                             fail("async FORK task still registered on [" + node + "]");
                         }
                     }
@@ -277,9 +293,52 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 }
             });
             assertThat(deleteAsyncId(id).isAcknowledged(), equalTo(true));
+            id = null;
         } finally {
-            scriptPermits.drainPermits();
+            if (initial != null) {
+                initial.close();
+            }
+            releaseHeldAsync(id);
         }
+    }
+
+    private EsqlQueryResponse startHeldAsync(EsqlQueryRequest request) {
+        ActionFuture<EsqlQueryResponse> future = client().execute(EsqlQueryAction.INSTANCE, request);
+        try {
+            return future.actionGet(60, TimeUnit.SECONDS);
+        } catch (RuntimeException e) {
+            future.cancel(true);
+            cancelUnidentifiedAsyncQueries();
+            throw e;
+        }
+    }
+
+    private void cancelUnidentifiedAsyncQueries() {
+        try {
+            client().admin()
+                .cluster()
+                .prepareCancelTasks()
+                .setActions(EsqlQueryAction.NAME + AsyncTaskManagementService.ASYNC_ACTION_SUFFIX)
+                .waitForCompletion(true)
+                .get();
+        } catch (Exception e) {
+            logger.warn("cancel of unidentified async ES|QL query failed", e);
+        }
+    }
+
+    private void releaseHeldAsync(String id) {
+        scriptPermits.release(numberOfDocs());
+        if (id != null) {
+            try {
+                deleteAsyncId(id);
+            } catch (ResourceNotFoundException ignored) {
+                // already deleted on the success path
+            }
+        } else {
+            cancelUnidentifiedAsyncQueries();
+        }
+        scriptPermits.drainPermits();
+        scriptWaits.drainPermits();
     }
 
     public void testGetAsyncWhileQueryTaskIsBeingCancelled() throws Exception {

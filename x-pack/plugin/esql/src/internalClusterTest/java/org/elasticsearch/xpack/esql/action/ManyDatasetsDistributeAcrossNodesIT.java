@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -109,17 +111,19 @@ public class ManyDatasetsDistributeAcrossNodesIT extends AbstractExternalDataSou
 
         StringBuilder query = new StringBuilder("FROM ").append(String.join(", ", datasets)).append("\n| FORK\n");
         for (int i = 0; i < DATASETS; i++) {
-            query.append("    (WHERE name == \"ds").append(i).append("\" | STATS c = COUNT(*))\n");
+            query.append("    (STATS c = COUNT(*))\n");
         }
         query.append("| KEEP _fork, c\n| SORT _fork");
 
         var request = syncEsqlQueryRequest(query.toString());
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 2).build()));
+        request.acceptedPragmaRisks(true);
         try (EsqlQueryResponse response = run(request, TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(8));
             for (int i = 0; i < DATASETS; i++) {
                 assertThat(rows.get(i).get(0).toString(), equalTo("fork" + (i + 1)));
-                assertThat(((Number) rows.get(i).get(1)).longValue(), equalTo((long) ROWS_PER_DATASET));
+                assertThat(((Number) rows.get(i).get(1)).longValue(), equalTo((long) (DATASETS * ROWS_PER_DATASET)));
             }
         }
     }

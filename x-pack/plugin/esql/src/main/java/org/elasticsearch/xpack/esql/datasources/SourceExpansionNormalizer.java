@@ -20,10 +20,13 @@ import java.util.List;
 
 /**
  * Lowers provisional source-expansion groups after authorized dataset rewriting and before
- * {@code PreAnalyzer}. A group with an actual external producer becomes the final flat
- * {@link SourceFanInUnionAll}. An index-only group is restored to the equivalent
- * {@link ViewUnionAll} (or the surviving producer) so ordinary index queries do not enter
- * the source-fan-in execution path.
+ * {@code PreAnalyzer}. A group becomes a final flat {@link SourceFanInUnionAll} only when it
+ * already contains a nested final source fan-in plus an external producer. That is the
+ * source-only view composition that FORK can accept: a view whose body is already a
+ * multi-source {@code FROM}, composed with another source. Overlapping single-dataset
+ * views and a lone dataset beside an index stay {@link ViewUnionAll} (or the surviving
+ * producer). An index-only group is restored the same way so ordinary index queries do
+ * not enter the source-fan-in execution path.
  */
 public final class SourceExpansionNormalizer {
 
@@ -64,7 +67,7 @@ public final class SourceExpansionNormalizer {
      * that wrapper when an outer group later found a dataset.
      */
     private static LogicalPlan normalizeCandidate(SourceFanInUnionAll candidate) {
-        if (hasExternalProducer(candidate)) {
+        if (hasExternalProducer(candidate) && hasNestedFinalFanIn(candidate)) {
             List<LogicalPlan> leaves = new ArrayList<>();
             collectSourceLeaves(candidate, leaves);
             int definite = DatasetRewriter.definiteProducerCount(leaves);
@@ -104,6 +107,37 @@ public final class SourceExpansionNormalizer {
         if (body instanceof SourceFanInUnionAll fanIn) {
             for (LogicalPlan child : fanIn.children()) {
                 if (hasExternalProducer(child)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * True when a descendant is already a finished source fan-in. The candidate itself is
+     * provisional, so only its children are inspected.
+     */
+    private static boolean hasNestedFinalFanIn(LogicalPlan plan) {
+        LogicalPlan body = unwrapNamedSubquery(plan);
+        if (body instanceof SourceFanInUnionAll fanIn) {
+            for (LogicalPlan child : fanIn.children()) {
+                if (containsFinalFanIn(child)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsFinalFanIn(LogicalPlan plan) {
+        LogicalPlan body = unwrapNamedSubquery(plan);
+        if (body instanceof SourceFanInUnionAll fanIn) {
+            if (fanIn.isProvisional() == false) {
+                return true;
+            }
+            for (LogicalPlan child : fanIn.children()) {
+                if (containsFinalFanIn(child)) {
                     return true;
                 }
             }

@@ -9,10 +9,24 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.operator.AggregationOperator;
+import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.DriverTaskRunner;
+import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -26,6 +40,7 @@ import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,6 +48,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -57,7 +75,7 @@ public class FromDatasetFanInFailureIT extends AbstractExternalDataSourceIT {
     private static final String GOOD_CSV = "v:integer,name:keyword\n1,a\n2,b\n";
     private static final String BAD_CSV = "v:integer,name:keyword\nnot-a-number,x\n";
     private static final String EMPTY_CSV = "v:integer,name:keyword\n";
-    private static final String GOOD_THEN_BAD_CSV = "v:integer,name:keyword\n1,a\n2,b\nnot-a-number,x\n";
+    private static final String COMPLETION_FAILURE = "simulated producer completion failure";
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -206,6 +224,12 @@ public class FromDatasetFanInFailureIT extends AbstractExternalDataSourceIT {
             Throwable security = ExceptionsHelper.unwrap(failure, ElasticsearchSecurityException.class);
             assertThat(security, instanceOf(ElasticsearchSecurityException.class));
             assertThat(security.getMessage(), containsString("denied"));
+
+            String peer = registerCsv("good_security_peer", GOOD_CSV);
+            Exception fanInFailure = expectThrows(Exception.class, () -> runStats("round_robin", good + ", " + peer, true).close());
+            Throwable fanInSecurity = ExceptionsHelper.unwrap(fanInFailure, ElasticsearchSecurityException.class);
+            assertThat(fanInSecurity, instanceOf(ElasticsearchSecurityException.class));
+            assertThat(fanInSecurity.getMessage(), containsString("denied"));
         } finally {
             for (String node : internalCluster().getNodeNames()) {
                 MockTransportService.getInstance(node).clearAllRules();
@@ -223,57 +247,73 @@ public class FromDatasetFanInFailureIT extends AbstractExternalDataSourceIT {
             assertPartial(response);
             assertThat(getValuesList(response), equalTo(List.of(List.of(3L, 2L))));
         }
-    }
-
-    public void testRawRowsThenFailureOnSingleProducerFailsRequest() throws Exception {
-        String mixed = registerCsv("good_then_bad_raw", GOOD_THEN_BAD_CSV);
-        for (String strategy : STRATEGIES) {
-            Exception failure = expectThrows(
-                Exception.class,
-                () -> run(queryRequest(strategy, "FROM " + mixed + " | WHERE v IS NOT NULL | KEEP v", true), TIMEOUT).close()
-            );
-            assertAllSourcesFailed(failure);
+        String peer = registerCsv("mixed_splits_peer", GOOD_CSV);
+        try (EsqlQueryResponse response = runStats("round_robin", mixed + ", " + peer, true)) {
+            assertPartial(response);
+            assertThat(getValuesList(response), equalTo(List.of(List.of(6L, 4L))));
         }
     }
 
-    public void testAggregateStateThenFailureOnSingleProducerFailsRequest() throws Exception {
-        String mixed = registerCsv("good_then_bad_agg", GOOD_THEN_BAD_CSV);
-        for (String strategy : STRATEGIES) {
-            Exception failure = expectThrows(Exception.class, () -> runStats(strategy, mixed, true).close());
-            assertAllSourcesFailed(failure);
+    public void testRawRowsFetchedBeforeAllProducerCompletionsFail() throws Exception {
+        String left = registerCsv("completion_raw_left", GOOD_CSV);
+        String right = registerCsv("completion_raw_right", GOOD_CSV);
+        try (CompletionFailureFixture fixture = new CompletionFailureFixture(2)) {
+            fixture.start(queryRequest("round_robin", "FROM " + left + ", " + right + " | KEEP v | LIMIT 10", true));
+            fixture.assertCoordinatorConsumed("final", 4, false);
+            fixture.failCompletions();
+            assertAllSourcesFailed(expectThrows(Exception.class, fixture::result));
         }
     }
 
-    public void testIndexForkAllBranchesFailedIsTheControl() throws Exception {
-        createFailingIndex("fail_fork_idx");
+    public void testSyntheticAggregateStatesFetchedBeforeAllProducerCompletionsFail() throws Exception {
+        String left = registerCsv("completion_empty_left", EMPTY_CSV);
+        String right = registerCsv("completion_empty_right", EMPTY_CSV);
+        try (CompletionFailureFixture fixture = new CompletionFailureFixture(2)) {
+            fixture.start(statsRequest("round_robin", left + ", " + right, true));
+            fixture.assertCoordinatorConsumed("final", 2, true);
+            fixture.failCompletions();
+            assertAllSourcesFailed(expectThrows(Exception.class, fixture::result));
+        }
+    }
+
+    public void testIndexRowsFetchedBeforeCompletionFailureArePartial() throws Exception {
+        createOkIndex("completion_idx", 10);
         try {
-            // Ordinary index execution with partial results does not abort when every shard
-            // fails to load fail_me. Dataset all-failed cases above stay failed; this pins
-            // the already-supported shape rather than copying it onto datasets.
-            try (EsqlQueryResponse raw = run(queryRequest("coordinator_only", "FROM fail_fork_idx | KEEP fail_me", true), TIMEOUT)) {
-                assertPartial(raw);
-            }
-
-            try (
-                EsqlQueryResponse aggregate = run(
-                    queryRequest("coordinator_only", "FROM fail_fork_idx | STATS c = COUNT(fail_me)", true),
-                    TIMEOUT
-                )
-            ) {
-                assertPartial(aggregate);
-            }
-
-            try (EsqlQueryResponse fork = run(queryRequest("coordinator_only", """
-                FROM fail_fork_idx
-                | FORK
-                    (KEEP fail_me)
-                    (WHERE fail_me IS NOT NULL | KEEP fail_me)
-                | KEEP _fork, fail_me
-                """, true), TIMEOUT)) {
-                assertPartial(fork);
+            try (CompletionFailureFixture fixture = new CompletionFailureFixture(1)) {
+                fixture.start(queryRequest("round_robin", "FROM completion_idx | KEEP v | LIMIT 10", true));
+                fixture.assertCoordinatorConsumed("final", 1, false);
+                fixture.failCompletions();
+                EsqlQueryResponse response = fixture.result();
+                assertPartial(response);
+                assertThat(getValuesList(response), equalTo(List.of(List.of(10))));
+                EsqlExecutionInfo.Cluster local = response.getExecutionInfo().getCluster("");
+                assertThat(local.getSuccessfulShards(), equalTo(0));
+                assertThat(local.getFailedShards(), equalTo(1));
+                assertThat(local.getFailures().getFirst().reason(), containsString(COMPLETION_FAILURE));
             }
         } finally {
-            wipeTestIndex("fail_fork_idx");
+            wipeTestIndex("completion_idx");
+        }
+    }
+
+    public void testIndexForkRowsFetchedBeforeAllCompletionsFail() throws Exception {
+        createOkIndex("completion_fork_idx", 10);
+        try {
+            try (CompletionFailureFixture fixture = new CompletionFailureFixture(2)) {
+                fixture.start(queryRequest("round_robin", """
+                    FROM completion_fork_idx
+                    | FORK
+                        (KEEP v)
+                        (EVAL v = v + 1 | KEEP v)
+                    | KEEP _fork, v
+                    | LIMIT 10
+                    """, true));
+                fixture.assertCoordinatorConsumed("main.final", 2, false);
+                fixture.failCompletions();
+                assertAllSourcesFailed(expectThrows(Exception.class, fixture::result));
+            }
+        } finally {
+            wipeTestIndex("completion_fork_idx");
         }
     }
 
@@ -285,12 +325,19 @@ public class FromDatasetFanInFailureIT extends AbstractExternalDataSourceIT {
         String allBad = registerCsvDataset("all_bad_splits", StoragePath.fileUri(dir) + "/*.csv");
         Exception failure = expectThrows(Exception.class, () -> runStats("round_robin", allBad, true).close());
         assertAllSourcesFailed(failure);
+        String allBadPeer = registerCsv("all_bad_peer", BAD_CSV);
+        Exception fanInFailure = expectThrows(Exception.class, () -> runStats("round_robin", allBad + ", " + allBadPeer, true).close());
+        assertAllSourcesFailed(fanInFailure);
     }
 
     private static void assertAllSourcesFailed(Exception failure) {
         assertThat(
             ExceptionsHelper.stackTrace(failure),
-            anyOf(containsString("not-a-number"), containsString("nodes assigned external splits failed"))
+            anyOf(
+                containsString("not-a-number"),
+                containsString("nodes assigned external splits failed"),
+                containsString(COMPLETION_FAILURE)
+            )
         );
     }
 
@@ -321,7 +368,13 @@ public class FromDatasetFanInFailureIT extends AbstractExternalDataSourceIT {
     }
 
     private void createOkIndex(String name, int value) {
-        assertAcked(client().admin().indices().prepareCreate(name).setMapping("v", "type=integer", "name", "type=keyword"));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(name)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setMapping("v", "type=integer", "name", "type=keyword")
+        );
         client().prepareBulk()
             .add(new IndexRequest(name).id("1").source("v", value, "name", "idx"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -361,6 +414,173 @@ public class FromDatasetFanInFailureIT extends AbstractExternalDataSourceIT {
             client().admin().indices().prepareDelete(name).get();
         } catch (Exception e) {
             logger.warn("index cleanup [{}] failed", name, e);
+        }
+    }
+
+    /**
+     * Holds successful compute responses, not reader input: even an empty source can finish
+     * its INITIAL aggregation and deliver a synthetic state before its completion fails.
+     */
+    private class CompletionFailureFixture implements AutoCloseable {
+        private final String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        private final NodeClient coordinatorClient = internalCluster().getInstance(NodeClient.class, coordinator);
+        private final MockTransportService coordinatorTransport = MockTransportService.getInstance(coordinator);
+        private final List<MockTransportService> transports = new ArrayList<>();
+        private final String opaqueId = "completion-failure-" + randomAlphaOfLength(10);
+        private final PlainActionFuture<EsqlQueryResponse> future = new PlainActionFuture<>();
+        private final SubscribableListener<Void> release = new SubscribableListener<>();
+        private final AtomicInteger completions = new AtomicInteger();
+        private final int expectedCompletions;
+        private CancellableTask queryTask;
+        private String sessionId;
+
+        CompletionFailureFixture(int expectedCompletions) {
+            this.expectedCompletions = expectedCompletions;
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService transport = MockTransportService.getInstance(node);
+                transports.add(transport);
+                transport.addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
+                    if (opaqueId.equals(task.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER)) == false) {
+                        handler.messageReceived(request, channel, task);
+                        return;
+                    }
+                    handler.messageReceived(request, new TransportChannel() {
+                        @Override
+                        public String getProfileName() {
+                            return channel.getProfileName();
+                        }
+
+                        @Override
+                        public void sendResponse(TransportResponse response) {
+                            release.addListener(
+                                ActionListener.wrap(
+                                    ignored -> channel.sendResponse(new IOException(COMPLETION_FAILURE)),
+                                    channel::sendResponse
+                                )
+                            );
+                            completions.incrementAndGet();
+                        }
+
+                        @Override
+                        public void sendResponse(Exception exception) {
+                            channel.sendResponse(exception);
+                        }
+                    }, task);
+                });
+            }
+        }
+
+        void start(EsqlQueryRequest request) {
+            request.includeExecutionMetadata(true);
+            try (ThreadContext.StoredContext ignored = coordinatorTransport.getThreadPool().getThreadContext().stashContext()) {
+                coordinatorTransport.getThreadPool().getThreadContext().putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId);
+                queryTask = asInstanceOf(
+                    CancellableTask.class,
+                    coordinatorClient.executeAndReturnTask(
+                        EsqlQueryAction.INSTANCE,
+                        request,
+                        future.delegateFailureAndWrap((listener, response) -> {
+                            response.mustIncRef();
+                            listener.onResponse(response);
+                        })
+                    )
+                );
+            }
+        }
+
+        void assertCoordinatorConsumed(String description, long expectedRows, boolean aggregate) throws Exception {
+            assertBusy(() -> assertEquals(expectedCompletions, completions.get()), 60, TimeUnit.SECONDS);
+            assertFalse("query must await the held completion responses", future.isDone());
+            assertBusy(() -> {
+                var tasks = coordinatorClient.admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setNodesIds(coordinator)
+                    .setActions(DriverTaskRunner.ACTION_NAME)
+                    .setDetailed(true)
+                    .get();
+                tasks.rethrowFailures("list driver tasks");
+                List<DriverStatus> drivers = tasks.getTasks()
+                    .stream()
+                    .filter(task -> opaqueId.equals(task.headers().get(Task.X_OPAQUE_ID_HTTP_HEADER)))
+                    .map(TaskInfo::status)
+                    .filter(DriverStatus.class::isInstance)
+                    .map(DriverStatus.class::cast)
+                    .filter(status -> description.equals(status.description()))
+                    .toList();
+                assertThat(drivers, hasSize(1));
+                DriverStatus driver = drivers.getFirst();
+                sessionId = driver.sessionId().split("/", 2)[0];
+                List<OperatorStatus> operators = new ArrayList<>(driver.completedOperators());
+                operators.addAll(driver.activeOperators());
+                long consumed = 0;
+                long aggregateInput = 0;
+                for (OperatorStatus operator : operators) {
+                    if (operator.status() instanceof ExchangeSourceOperator.Status source) {
+                        consumed += source.rowsEmitted();
+                    }
+                    if (operator.status() instanceof AggregationOperator.Status aggregation) {
+                        aggregateInput += aggregation.rowsReceived();
+                    }
+                }
+                assertThat(consumed, equalTo(expectedRows));
+                if (aggregate) {
+                    assertThat(aggregateInput, equalTo(expectedRows));
+                }
+            });
+        }
+
+        void failCompletions() {
+            if (release.isDone() == false) {
+                release.onResponse(null);
+            }
+        }
+
+        EsqlQueryResponse result() {
+            return future.actionGet(60, TimeUnit.SECONDS);
+        }
+
+        @Override
+        public void close() throws Exception {
+            try {
+                failCompletions();
+                if (queryTask != null && future.isDone() == false) {
+                    PlainActionFuture<Void> cancelled = new PlainActionFuture<>();
+                    coordinatorTransport.getTaskManager()
+                        .cancelTaskAndDescendants(queryTask, "completion-failure fixture cleanup", true, cancelled);
+                    cancelled.actionGet(60, TimeUnit.SECONDS);
+                }
+                if (queryTask != null) {
+                    assertBusy(() -> assertTrue(future.isDone()), 60, TimeUnit.SECONDS);
+                    try {
+                        future.result().close();
+                    } catch (ExecutionException expected) {
+                        // The scenario asserts the query failure; there is no response to release.
+                    }
+                }
+                assertBusy(() -> {
+                    var tasks = coordinatorClient.admin().cluster().prepareListTasks().get();
+                    tasks.rethrowFailures("list tasks");
+                    assertFalse(
+                        tasks.getTasks().stream().anyMatch(task -> opaqueId.equals(task.headers().get(Task.X_OPAQUE_ID_HTTP_HEADER)))
+                    );
+                    if (sessionId != null) {
+                        for (String node : internalCluster().getNodeNames()) {
+                            assertFalse(
+                                internalCluster().getInstance(ExchangeService.class, node)
+                                    .sinkKeys()
+                                    .stream()
+                                    .anyMatch(key -> key.startsWith(sessionId))
+                            );
+                        }
+                    }
+                });
+                if (queryTask != null) {
+                    assertEquals(expectedCompletions, completions.get());
+                }
+            } finally {
+                transports.forEach(MockTransportService::clearAllRules);
+            }
         }
     }
 }

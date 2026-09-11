@@ -178,7 +178,7 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(flattened, instanceOf(ViewUnionAll.class));
     }
 
-    public void testProvisionalSingleDatasetPlusIndexFlattens() {
+    public void testProvisionalSingleDatasetPlusIndexDoesNotFlatten() {
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
         ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("ds1", ds1), Set.of("some_idx"));
@@ -191,9 +191,9 @@ public class DatasetRewriterTests extends ESTestCase {
         LogicalPlan composed = SourceFanInUnionAll.provisional(Source.EMPTY, children, List.of());
 
         LogicalPlan flattened = SourceExpansionNormalizer.normalize(composed);
-        assertThat(flattened, instanceOf(SourceFanInUnionAll.class));
-        assertThat(((SourceFanInUnionAll) flattened).isProvisional(), equalTo(false));
+        assertThat(flattened, instanceOf(ViewUnionAll.class));
         assertThat(flattened.children(), hasSize(2));
+        assertFalse(flattened.anyMatch(p -> p instanceof SourceFanInUnionAll));
     }
 
     public void testViewUnionAllWithPipelineSiblingDoesNotFlatten() {

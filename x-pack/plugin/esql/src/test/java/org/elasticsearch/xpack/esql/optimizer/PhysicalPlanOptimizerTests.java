@@ -230,6 +230,7 @@ import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_D
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.planner.mapper.MapperUtils.hasScoreAttribute;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -3942,6 +3943,80 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(as(plannedJoin.lookup(), FragmentExec.class).fragment(), instanceOf(EsRelation.class));
     }
 
+    public void testProjectAwayColumnsLookupKeepsJoinKeyOnLeftExchange() {
+        var rule = new ProjectAwayColumns();
+        EsField leftField = new EsField("language_code", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        var leftIndex = EsIndexGenerator.esIndex("test", Map.of(leftField.getName(), leftField));
+        Attribute leftKey = new FieldAttribute(Source.EMPTY, null, null, leftField.getName(), leftField);
+        EsRelation leftRelation = new EsRelation(
+            Source.EMPTY,
+            leftIndex.name(),
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            leftIndex.indexProperties(),
+            List.of(leftKey)
+        );
+        EsField lookupKeyField = new EsField("language_code", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        EsField lookupNameField = new EsField("language_name", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        var lookupIndex = EsIndexGenerator.esIndex(
+            "languages_lookup",
+            Map.of(lookupKeyField.getName(), lookupKeyField, lookupNameField.getName(), lookupNameField)
+        );
+        Attribute lookupKey = new FieldAttribute(Source.EMPTY, null, null, lookupKeyField.getName(), lookupKeyField);
+        Attribute languageName = new FieldAttribute(Source.EMPTY, null, null, lookupNameField.getName(), lookupNameField);
+        EsRelation lookupRelation = new EsRelation(
+            Source.EMPTY,
+            lookupIndex.name(),
+            IndexMode.LOOKUP,
+            Map.of(),
+            Map.of(),
+            lookupIndex.indexProperties(),
+            List.of(lookupKey, languageName)
+        );
+        LookupJoinExec join = new LookupJoinExec(
+            Source.EMPTY,
+            new ExchangeExec(Source.EMPTY, new FragmentExec(leftRelation)),
+            new FragmentExec(lookupRelation),
+            List.of(leftKey),
+            List.of(lookupKey),
+            List.of(languageName),
+            null
+        );
+
+        ProjectExec planned = as(rule.apply(new ProjectExec(Source.EMPTY, join, List.of(languageName))), ProjectExec.class);
+        LookupJoinExec plannedJoin = as(planned.child(), LookupJoinExec.class);
+        assertThat(as(plannedJoin.lookup(), FragmentExec.class).fragment(), instanceOf(EsRelation.class));
+        Project leftProject = as(as(as(plannedJoin.left(), ExchangeExec.class).child(), FragmentExec.class).fragment(), Project.class);
+        assertThat(Expressions.names(leftProject.projections()), contains("language_code"));
+        assertFalse(Expressions.names(leftProject.projections()).contains("language_name"));
+    }
+
+    public void testProjectAwayColumnsLookupKeepsJoinKeyWhenOutputIsLookupField() {
+        var plan = physicalPlanNoSerializationCheck("""
+              FROM test
+            | RENAME languages AS language_code
+            | LIMIT 10
+            | LOOKUP JOIN languages_lookup ON language_code
+            | KEEP language_name
+            """);
+        Holder<LookupJoinExec> found = new Holder<>();
+        plan.forEachDown(LookupJoinExec.class, found::set);
+        LookupJoinExec join = found.get();
+        assertNotNull(join);
+        assertThat(as(join.lookup(), FragmentExec.class).fragment(), instanceOf(EsRelation.class));
+        List<String> leftNames = Expressions.names(join.left().output());
+        assertThat(leftNames, anyOf(hasItem("language_code"), hasItem("languages")));
+        assertFalse(leftNames.contains("language_name"));
+        Holder<ExchangeExec> leftExchange = new Holder<>();
+        join.left().forEachDown(ExchangeExec.class, leftExchange::set);
+        if (leftExchange.get() != null) {
+            List<String> exchangeNames = Expressions.names(leftExchange.get().output());
+            assertThat(exchangeNames, anyOf(hasItem("language_code"), hasItem("languages")));
+            assertFalse(exchangeNames.contains("language_name"));
+        }
+    }
+
     public void testEstimateRowSizeIsolatedAcrossForkBranches() {
         Attribute value = new ReferenceAttribute(Source.EMPTY, "value", DataType.KEYWORD);
         LocalSourceExec localSource = new LocalSourceExec(Source.EMPTY, List.of(value), EmptyLocalSupplier.EMPTY);
@@ -3961,11 +4036,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testEstimateRowSizeIsolatedAcrossForkAndFanIn() {
         Attribute value = new ReferenceAttribute(Source.EMPTY, "value", DataType.KEYWORD);
         LocalSourceExec localSource = new LocalSourceExec(Source.EMPTY, List.of(value), EmptyLocalSupplier.EMPTY);
-        EvalExec localBranch = new EvalExec(
+        EvalExec localEval = new EvalExec(
             Source.EMPTY,
             localSource,
             List.of(new Alias(Source.EMPTY, "added", new Literal(Source.EMPTY, 1, DataType.INTEGER)))
         );
+        ProjectExec localBranch = new ProjectExec(Source.EMPTY, localEval, List.of(value));
         FragmentExec firstProducer = new FragmentExec(new LocalRelation(Source.EMPTY, List.of(value), EmptyLocalSupplier.EMPTY));
         FragmentExec secondProducer = new FragmentExec(new LocalRelation(Source.EMPTY, List.of(value), EmptyLocalSupplier.EMPTY));
         SourceFanInExec fanIn = new SourceFanInExec(Source.EMPTY, List.of(firstProducer, secondProducer), List.of(value), false);
@@ -3982,6 +4058,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             assertNotNull(estimatedFanIn);
             for (PhysicalPlan producer : estimatedFanIn.producers()) {
                 assertThat(as(producer, FragmentExec.class).estimatedRowSize(), equalTo(0));
+            }
+            SourceFanInExec leaked = as(EstimatesRowSize.estimateRowSize(DataType.INTEGER.estimatedSize(), fanIn), SourceFanInExec.class);
+            for (PhysicalPlan producer : leaked.producers()) {
+                assertThat(as(producer, FragmentExec.class).estimatedRowSize(), equalTo(DataType.INTEGER.estimatedSize()));
             }
         }
     }

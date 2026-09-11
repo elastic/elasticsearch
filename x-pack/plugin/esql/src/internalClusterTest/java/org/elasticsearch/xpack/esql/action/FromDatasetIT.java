@@ -308,6 +308,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "mapped_dataset_view",
         "fork_dataset_view",
         "fork_dataset_view_a",
+        "fork_dataset_view_a_again",
         "fork_dataset_view_b"
     );
 
@@ -6010,24 +6011,19 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("fork_dataset_view_a", "FROM fork_view_dataset_a")));
         assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("fork_dataset_view_b", "FROM fork_view_dataset_b")));
 
-        for (String source : List.of(
-            "fork_dataset_view",
-            "fork_dataset_view_a, fork_view_dataset_b",
-            "fork_dataset_view_a, fork_dataset_view_b"
-        )) {
-            String query = "FROM " + source + """
-                 | FORK
-                     (STATS count = COUNT(*))
-                     (WHERE emp_no >= 10 | STATS count = COUNT(*))
-                 | KEEP _fork, count
-                 | SORT _fork
-                """;
-            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
-                List<List<Object>> rows = getValuesList(response);
-                assertThat(rows, hasSize(2));
-                assertThat(rows.get(0).get(1), equalTo(5L));
-                assertThat(rows.get(1).get(1), equalTo(2L));
-            }
+        String query = """
+            FROM fork_dataset_view
+             | FORK
+                 (STATS count = COUNT(*))
+                 (WHERE emp_no >= 10 | STATS count = COUNT(*))
+             | KEEP _fork, count
+             | SORT _fork
+            """;
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(1), equalTo(5L));
+            assertThat(rows.get(1).get(1), equalTo(2L));
         }
 
         String composed = """
@@ -6043,6 +6039,31 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows, hasSize(2));
             assertThat(rows.get(0).get(1), equalTo(8L));
             assertThat(rows.get(1).get(1), equalTo(2L));
+        }
+
+        String mergedSingles = """
+            FROM fork_dataset_view_a, fork_dataset_view_b
+             | FORK
+                 (STATS count = COUNT(*))
+                 (WHERE emp_no >= 10 | STATS count = COUNT(*))
+             | KEEP _fork, count
+             | SORT _fork
+            """;
+        try (var response = run(syncEsqlQueryRequest(mergedSingles), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(1), equalTo(5L));
+            assertThat(rows.get(1).get(1), equalTo(2L));
+        }
+
+        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("fork_dataset_view_a_again", "FROM fork_view_dataset_a")));
+        for (String source : List.of("fork_dataset_view_a, fork_view_dataset_a", "fork_dataset_view_a, fork_dataset_view_a_again")) {
+            Exception failure = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM " + source + """
+                 | FORK
+                     (STATS count = COUNT(*))
+                     (WHERE emp_no >= 10 | STATS count = COUNT(*))
+                """), TIMEOUT).close());
+            assertThat(failure.getMessage(), containsString("FORK after subquery is not supported"));
         }
     }
 

@@ -76,20 +76,20 @@ public class SourceExpansionNormalizerTests extends ESTestCase {
         assertFalse(normalized.anyMatch(p -> p instanceof SourceFanInUnionAll));
     }
 
-    public void testExternalCandidateFlattensToFinalFanIn() {
+    public void testExternalCandidateWithoutNestedFanInRestoresViewUnionAll() {
         LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
         branches.put("left", external("s3://a/"));
         branches.put("right", external("s3://b/"));
         SourceFanInUnionAll candidate = SourceFanInUnionAll.provisional(Source.EMPTY, branches, List.of());
 
         LogicalPlan normalized = SourceExpansionNormalizer.normalize(candidate);
-        assertThat(normalized, instanceOf(SourceFanInUnionAll.class));
-        SourceFanInUnionAll fanIn = (SourceFanInUnionAll) normalized;
-        assertFalse(fanIn.isProvisional());
-        assertThat(fanIn.children(), hasSize(2));
+        assertThat(normalized, instanceOf(ViewUnionAll.class));
+        ViewUnionAll restored = (ViewUnionAll) normalized;
+        assertThat(restored.children(), hasSize(2));
+        assertFalse(normalized.anyMatch(p -> p instanceof SourceFanInUnionAll));
     }
 
-    public void testMixedNestedGroupFlattensIndexOnlyChildWithDataset() {
+    public void testMixedNestedGroupWithoutFinalFanInRestoresViewUnionAll() {
         LinkedHashMap<String, LogicalPlan> indexOnly = new LinkedHashMap<>();
         indexOnly.put("first", relation("idx"));
         indexOnly.put("second", relation("idx"));
@@ -101,13 +101,23 @@ public class SourceExpansionNormalizerTests extends ESTestCase {
         SourceFanInUnionAll candidate = SourceFanInUnionAll.provisional(Source.EMPTY, outer, List.of());
 
         LogicalPlan normalized = SourceExpansionNormalizer.normalize(candidate);
+        assertThat(normalized, instanceOf(ViewUnionAll.class));
+        assertTrue(normalized.anyMatch(p -> p instanceof UnresolvedExternalRelation));
+        assertFalse(normalized.anyMatch(p -> p instanceof SourceFanInUnionAll fanIn && fanIn.isProvisional() == false));
+    }
+
+    public void testNestedFinalFanInPlusDatasetFlattens() {
+        SourceFanInUnionAll nested = new SourceFanInUnionAll(Source.EMPTY, List.of(external("s3://a/"), external("s3://b/")), List.of());
+        LinkedHashMap<String, LogicalPlan> outer = new LinkedHashMap<>();
+        outer.put("fan", nested);
+        outer.put("extra", external("s3://c/"));
+        SourceFanInUnionAll candidate = SourceFanInUnionAll.provisional(Source.EMPTY, outer, List.of());
+
+        LogicalPlan normalized = SourceExpansionNormalizer.normalize(candidate);
         assertThat(normalized, instanceOf(SourceFanInUnionAll.class));
         SourceFanInUnionAll fanIn = (SourceFanInUnionAll) normalized;
         assertFalse(fanIn.isProvisional());
         assertThat(fanIn.children(), hasSize(3));
-        assertFalse(normalized.anyMatch(p -> p instanceof ViewUnionAll));
-        assertThat(fanIn.children().stream().filter(c -> c instanceof UnresolvedRelation).count(), equalTo(2L));
-        assertThat(fanIn.children().stream().filter(c -> c instanceof UnresolvedExternalRelation).count(), equalTo(1L));
     }
 
     public void testRelationalWrapperIsNotPromoted() {

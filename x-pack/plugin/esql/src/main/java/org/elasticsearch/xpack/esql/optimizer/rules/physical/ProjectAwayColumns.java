@@ -141,7 +141,12 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
             if (currentPlanNode instanceof LookupJoinExec join) {
                 keepTraversing.set(FALSE);
                 AttributeSet required = requiredAttrBuilder.build();
-                PhysicalPlan newLeft = apply(join.left(), isForkBranch, required, inProducer);
+                AttributeSet.Builder leftRequired = required.asBuilder();
+                AttributeSet.Builder addedAttrBuilder = join.outputSet().asBuilder();
+                addedAttrBuilder.removeIf(join.inputSet()::contains);
+                leftRequired.removeIf(addedAttrBuilder::contains);
+                leftRequired.addAll(join.references());
+                PhysicalPlan newLeft = apply(join.left(), isForkBranch, leftRequired.build(), inProducer);
                 PhysicalPlan newRight = apply(join.right(), isForkBranch, required, false);
                 if (newLeft == join.left() && newRight == join.right()) {
                     return join;

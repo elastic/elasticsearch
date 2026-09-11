@@ -853,6 +853,18 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         List<Column> previousSchema,
         CommandGenerator.CommandDescription command
     ) {
+        return computeIndexMapped(newSchema, previousSchema, command);
+    }
+
+    /**
+     * Package-private static core of {@link #updateIndexMapped} so the schema-tracking rules can be unit-tested
+     * without a running cluster (see {@code GenerativeRestTestTests}).
+     */
+    static List<Column> computeIndexMapped(
+        List<Column> newSchema,
+        List<Column> previousSchema,
+        CommandGenerator.CommandDescription command
+    ) {
         if (newSchema == null || newSchema.isEmpty()) {
             return newSchema;
         }
@@ -957,16 +969,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             }
             case LookupJoinGenerator.LOOKUP_JOIN -> {
                 // LookupJoinGenerator embeds RENAME commands before the actual LOOKUP JOIN to align
-                // left-side key columns with lookup index key names. Process these renames so that
-                // fields renamed from non-index-mapped sources correctly inherit indexMapped=false
-                // instead of picking up the old indexMapped status of a same-named existing field.
+                // left-side key columns with lookup index key names. Mark each renamed target non-index-mapped,
+                // matching the standalone RENAME rule (handleRenameIndexMapped): a renamed column is a
+                // ReferenceAttribute, so full-text options are rejected on it even when the source was index-mapped.
                 Matcher rm = EMBEDDED_RENAME_PATTERN.matcher(command.commandString());
                 while (rm.find()) {
                     String oldName = unquote(rm.group(1).trim());
                     String newName = unquote(rm.group(2).trim());
-                    boolean wasMapped = prevMapped.getOrDefault(oldName, false);
                     prevMapped.remove(oldName);
-                    prevMapped.put(newName, wasMapped);
+                    prevMapped.put(newName, false);
                 }
             }
             default -> {

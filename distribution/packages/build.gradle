@@ -114,7 +114,9 @@ def commonPackageConfig(String type, String architecture) {
     // Follow elasticsearch's file naming convention
     String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}${type}"
     destinationDirectory = file("${prefix}/build/distributions")
-    archiveFileName.value(project.provider({ "${packageName}-${project.version}-${archString}.${type}" }))
+    // capture the version at configuration time so the archive file name provider does not access Task.project at execution time (configuration cache)
+    String esVersion = project.version
+    archiveFileName.value(project.provider({ "${packageName}-${esVersion}-${archString}.${type}" }))
     String packagingFiles = "build/packaging/${type}"
 
     String scripts = "${packagingFiles}/scripts"
@@ -502,8 +504,10 @@ subprojects {
 
     tasks.register("checkNotice") {
       dependsOn buildDist, "checkExtraction"
-      onlyIf("${project.name.contains('deb') ? 'dpkg' : 'rpm'} exists") {
-        (project.name.contains('deb') && dpkgExists.call(it)) || (project.name.contains('rpm') && rpmExists.call(it))
+      // capture whether this is a deb package at configuration time so the onlyIf spec does not access Task.project at execution time (configuration cache)
+      boolean isDeb = project.name.contains('deb')
+      onlyIf("${isDeb ? 'dpkg' : 'rpm'} exists") {
+        (isDeb && dpkgExists.call(it)) || (isDeb == false && rpmExists.call(it))
       }
       doLast {
         final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2024 Elasticsearch")

@@ -3,7 +3,7 @@ asm = "9.10.1"
 jackson = "2.18.9"
 junit = "6.1.3"
 spock = "2.3-groovy-4.0"
-nmcp = "0.1.5"
+nmcp = "1.6.2"
 
 [libraries]
 ant = "org.apache.ant:ant:1.10.12"

@@ -12,7 +12,6 @@ import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
-import nmcp.NmcpAggregationExtension
 
 import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.Version
@@ -66,24 +65,31 @@ version = VersionProperties.elasticsearch
  * indicating the artifact is meant for beeing published to maven central.
  * */
 nmcpAggregation {
+  // nmcp 1.6.x strips the non-required `.sha256` checksums by default. Keep publishing them
+  // for now so the aggregation layout matches what we produced with nmcp 0.1.x.
+  publishAllChecksums = true
+  // Elasticsearch has multiple subprojects that share the same (leaf) name. nmcp 1.4.3+ rejects
+  // this by default because it can confuse aggregation dependency resolution; none of the duplicates
+  // contribute publications, so opt out of the check.
+  allowDuplicateProjectNames = true
 }
 
-def nmcpConsumerConfiguration = extensions.getByType(NmcpAggregationExtension).'getConsumerConfiguration$nmcp'()
+def nmcpConsumerConfiguration = configurations.named('nmcpAggregation')
 allprojects { publishedProject ->
   publishedProject.pluginManager.withPlugin('maven-publish') {
     rootProject.dependencies.add(nmcpConsumerConfiguration.name, rootProject.dependencies.project(path: publishedProject.path))
   }
 }
 
-tasks.named('zipAggregation').configure {
+tasks.named('nmcpZipAggregation').configure {
   // put this in a place that works well with our DRA infrastructure
   archiveFileName.unset();
   archiveBaseName.set("elasticsearch-maven-aggregation")
   archiveVersion.set(VersionProperties.elasticsearch)
   destinationDirectory.set(layout.buildDirectory.dir("distributions"));
 
-  dependsOn gradle.includedBuild('build-tools').task(':zipElasticPublication')
-  from(zipTree("build-tools/build/nmcp/zip/publicationElastic.zip"))
+  dependsOn gradle.includedBuild('build-tools').task(':nmcpZipAllPublications')
+  from(zipTree("build-tools/build/nmcp/zip/allPublications.zip"))
 }
 
 /**

@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.inference.services.huggingface.rerank;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -27,6 +28,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 
 public class HuggingFaceRerankServiceSettingsTests extends AbstractWireSerializingTestCase<HuggingFaceRerankServiceSettings> {
@@ -36,35 +40,26 @@ public class HuggingFaceRerankServiceSettingsTests extends AbstractWireSerializi
 
     private static final int TEST_RATE_LIMIT = 50;
     private static final int INITIAL_TEST_RATE_LIMIT = 100;
+    private static final int DEFAULT_RATE_LIMIT = 3000;
 
-    public void testFromMap_Minimal_Success() {
-        var serviceSettings = HuggingFaceRerankServiceSettings.fromMap(
-            buildServiceSettingsMap(INITIAL_TEST_URI.toString(), null),
-            randomFrom(ConfigurationParseContext.values())
-        );
-        assertThat(serviceSettings, is(new HuggingFaceRerankServiceSettings(INITIAL_TEST_URI, null)));
+    public static HuggingFaceRerankServiceSettings createRandom() {
+        return new HuggingFaceRerankServiceSettings(randomAlphaOfLength(15));
     }
 
-    public void testFromMap_AllFields_Success() {
-        var serviceSettings = HuggingFaceRerankServiceSettings.fromMap(
-            buildServiceSettingsMap(TEST_URI.toString(), TEST_RATE_LIMIT),
-            randomFrom(ConfigurationParseContext.values())
-        );
-
-        assertThat(serviceSettings, is(new HuggingFaceRerankServiceSettings(TEST_URI, new RateLimitSettings(TEST_RATE_LIMIT))));
-    }
-
-    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var settingsMap = buildServiceSettingsMap(TEST_URI.toString(), TEST_RATE_LIMIT);
+    public void testUpdateServiceSettings_OnlyRateLimit_IsUpdated() {
         var originalServiceSettings = new HuggingFaceRerankServiceSettings(
             INITIAL_TEST_URI,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
+        var updateMap = buildServiceSettingsMap(null, TEST_RATE_LIMIT);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(updateMap);
+
         assertThat(
             updatedServiceSettings,
             is(new HuggingFaceRerankServiceSettings(INITIAL_TEST_URI, new RateLimitSettings(TEST_RATE_LIMIT)))
         );
+        // The caller relies on updateServiceSettings consuming the parsed entries to verify that no unknown settings remain.
+        assertThat(updateMap, is(anEmptyMap()));
     }
 
     public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
@@ -75,17 +70,152 @@ public class HuggingFaceRerankServiceSettingsTests extends AbstractWireSerializi
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
     }
 
+    public void testUpdateServiceSettings_RateLimitNull_ResetsToDefault() {
+        var originalServiceSettings = new HuggingFaceRerankServiceSettings(
+            INITIAL_TEST_URI,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var updateMap = new HashMap<String, Object>();
+        updateMap.put(RateLimitSettings.FIELD_NAME, null);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(updateMap);
+
+        assertThat(
+            updatedServiceSettings,
+            is(new HuggingFaceRerankServiceSettings(INITIAL_TEST_URI, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+        );
+    }
+
+    public void testUpdateServiceSettings_GivenImmutableUrl_ThrowsException() {
+        var originalServiceSettings = new HuggingFaceRerankServiceSettings(
+            INITIAL_TEST_URI,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var e = expectThrows(
+            XContentParseException.class,
+            () -> originalServiceSettings.updateServiceSettings(new HashMap<>(Map.of(ServiceFields.URL, "value")))
+        );
+        assertThat(
+            e.getMessage(),
+            endsWith(Strings.format("[%s] unknown field [%s]", ModelConfigurations.SERVICE_SETTINGS, ServiceFields.URL))
+        );
+    }
+
+    public void testFromMap_AllFields_Success() {
+        var settingsMap = buildServiceSettingsMap(TEST_URI.toString(), TEST_RATE_LIMIT);
+        var serviceSettings = HuggingFaceRerankServiceSettings.fromMap(settingsMap, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(serviceSettings, is(new HuggingFaceRerankServiceSettings(TEST_URI, new RateLimitSettings(TEST_RATE_LIMIT))));
+        // The caller relies on fromMap consuming the parsed entries to verify that no unknown settings remain.
+        assertThat(settingsMap, is(anEmptyMap()));
+    }
+
+    public void testFromMap_OnlyMandatoryFields_Success() {
+        var serviceSettings = HuggingFaceRerankServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_URI.toString(), null),
+            randomFrom(ConfigurationParseContext.values())
+        );
+
+        assertThat(serviceSettings, is(new HuggingFaceRerankServiceSettings(TEST_URI.toString())));
+    }
+
+    /**
+     * An explicit {@code "rate_limit": null} was accepted by the old map-based parsing (it fell back to the default), but the
+     * {@code ObjectParser} rejects it, the same behavior as the other parser-based services (for example Groq).
+     */
+    public void testFromMap_ExplicitNullRateLimit_ThrowsException() {
+        var settings = buildServiceSettingsMap(TEST_URI.toString(), null);
+        settings.put(RateLimitSettings.FIELD_NAME, null);
+
+        var thrownException = expectThrows(
+            XContentParseException.class,
+            () -> HuggingFaceRerankServiceSettings.fromMap(settings, randomFrom(ConfigurationParseContext.values()))
+        );
+
+        assertThat(thrownException.getMessage(), containsString(RateLimitSettings.FIELD_NAME));
+    }
+
+    public void testFromMap_EmptyUrl_ThrowsError() {
+        var thrownException = expectThrows(
+            IllegalArgumentException.class,
+            () -> HuggingFaceRerankServiceSettings.fromMap(
+                buildServiceSettingsMap("", null),
+                randomFrom(ConfigurationParseContext.values())
+            )
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            is(Strings.format("[service_settings] Invalid value empty string. [%s] must be a non-empty string", ServiceFields.URL))
+        );
+    }
+
     public void testFromMap_MissingUrl_ThrowsError() {
         var thrownException = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> HuggingFaceRerankServiceSettings.fromMap(new HashMap<>(), randomFrom(ConfigurationParseContext.values()))
         );
 
-        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.validationErrors().getFirst(),
+            thrownException.getMessage(),
             is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.URL))
         );
+    }
+
+    public void testFromMap_InvalidUrl_ThrowsError() {
+        String invalidTestUrl = "https://www.abc^.com";
+        var thrownException = expectThrows(
+            IllegalArgumentException.class,
+            () -> HuggingFaceRerankServiceSettings.fromMap(
+                buildServiceSettingsMap(invalidTestUrl, null),
+                randomFrom(ConfigurationParseContext.values())
+            )
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            is(
+                Strings.format(
+                    "[service_settings] Invalid url [%s] received for field [url]. "
+                        + "Error: unable to parse url [%s]. Reason: Illegal character in authority",
+                    invalidTestUrl,
+                    invalidTestUrl
+                )
+            )
+        );
+    }
+
+    public void testFromMap_UnknownField_RequestContext_ThrowsError() {
+        var settings = buildServiceSettingsMap(TEST_URI.toString(), null);
+        settings.put("unknown_field", "value");
+
+        var thrownException = expectThrows(
+            XContentParseException.class,
+            () -> HuggingFaceRerankServiceSettings.fromMap(settings, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(thrownException.getMessage(), containsString("unknown field [unknown_field]"));
+    }
+
+    public void testFromMap_UnknownField_PersistentContext_IsIgnored() {
+        var settings = buildServiceSettingsMap(TEST_URI.toString(), null);
+        settings.put("unknown_field", "value");
+
+        var serviceSettings = HuggingFaceRerankServiceSettings.fromMap(settings, ConfigurationParseContext.PERSISTENT);
+
+        assertThat(serviceSettings, is(new HuggingFaceRerankServiceSettings(TEST_URI.toString())));
+    }
+
+    public void testFromMap_ApiKey_IsIgnored() {
+        // In REST requests api_key appears in the same JSON block as service_settings; DefaultSecretSettings extracts it separately, so the
+        // strict parser must accept it as a no-op.
+        var settings = buildServiceSettingsMap(TEST_URI.toString(), null);
+        settings.put("api_key", "some-secret");
+
+        var serviceSettings = HuggingFaceRerankServiceSettings.fromMap(settings, ConfigurationParseContext.REQUEST);
+
+        assertThat(serviceSettings, is(new HuggingFaceRerankServiceSettings(TEST_URI.toString())));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
@@ -114,7 +244,7 @@ public class HuggingFaceRerankServiceSettingsTests extends AbstractWireSerializi
 
     @Override
     protected HuggingFaceRerankServiceSettings createTestInstance() {
-        return new HuggingFaceRerankServiceSettings(randomAlphaOfLength(15));
+        return createRandom();
     }
 
     @Override

@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.benchmark.vector.VectorizationInfo;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.script.field.vectors.BFloat16RankVectors;
 import org.elasticsearch.script.field.vectors.ByteRankVectors;
@@ -43,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 public class RankVectorsMaxSimDotProductBenchmark {
     static {
         BenchmarkLogging.configure();
+        VectorizationInfo.printOnce();
     }
 
     public enum RankVectorType {

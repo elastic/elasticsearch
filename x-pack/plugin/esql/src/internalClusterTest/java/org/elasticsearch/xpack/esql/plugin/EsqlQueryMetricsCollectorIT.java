@@ -283,6 +283,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
      * Uses a glob URI so {@code FileSplitProvider} receives multiple file tasks and spawns BPG workers.
      */
     public void testMetricsCollectorMultiFileCsv() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         Path dir = createTempDir();
         for (int i = 0; i < 3; i++) {
             Files.writeString(dir.resolve("data_" + i + ".csv"), createCsv(20));

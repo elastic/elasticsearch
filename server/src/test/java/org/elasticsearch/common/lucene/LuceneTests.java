@@ -66,6 +66,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSo
 import org.elasticsearch.index.fielddata.fieldcomparator.HalfFloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.test.ESTestCase;
@@ -718,7 +719,7 @@ public class LuceneTests extends ESTestCase {
                     reverse,
                     missingValue,
                     randomBoolean(),
-                    randomFrom(org.elasticsearch.index.mapper.BinaryDocValuesFormat.values())
+                    randomFrom(BinaryDocValuesFormat.values())
                 );
                 SortField expected = new SortField(field, SortField.Type.STRING, reverse, missingValue);
                 return Tuple.tuple(sortField, expected);
@@ -849,12 +850,17 @@ public class LuceneTests extends ESTestCase {
     }
 
     public void testRewriteMergeSortFieldForBinaryDocValues() {
-        final SortField bsf = new MultiValuedBinaryDocValuesSortField("kw", true, SortField.STRING_FIRST, false);
-        final SortField rewritten = Lucene.rewriteMergeSortField(bsf);
-        assertEquals(SortField.Type.STRING, rewritten.getType());
-        assertEquals("kw", rewritten.getField());
-        assertTrue(rewritten.getReverse());
-        assertSame(SortField.STRING_FIRST, rewritten.getMissingValue());
+        for (BinaryDocValuesFormat format : BinaryDocValuesFormat.values()) {
+            for (boolean reverse : new boolean[] { false, true }) {
+                final Object missing = reverse ? SortField.STRING_FIRST : SortField.STRING_LAST;
+                final SortField bsf = new MultiValuedBinaryDocValuesSortField("kw", reverse, missing, false, format);
+                final SortField rewritten = Lucene.rewriteMergeSortField(bsf);
+                assertEquals("format=" + format + " reverse=" + reverse, SortField.Type.STRING, rewritten.getType());
+                assertEquals("format=" + format + " reverse=" + reverse, "kw", rewritten.getField());
+                assertEquals("format=" + format + " reverse=" + reverse, reverse, rewritten.getReverse());
+                assertSame("format=" + format + " reverse=" + reverse, missing, rewritten.getMissingValue());
+            }
+        }
     }
 
     public void testCanEarlyTerminateColumnarKeywordIndexSort() {

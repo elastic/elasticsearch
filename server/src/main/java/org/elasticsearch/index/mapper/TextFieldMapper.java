@@ -1868,13 +1868,12 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         return fieldType().usesBinaryDocValues()
             && (fieldType().usesArrayOrderBinaryDocValues() || docValuesParameters.multiValue() == false)
             && prefixFieldInfo == null
             && phraseFieldInfo == null
-            && copyTo().copyToFields().isEmpty()
-            && multiFieldsSupportColumnarParse(indexSettings);
+            && copyTo().copyToFields().isEmpty();
     }
 
     private static EscfColumnBuilder mergeStringColumn(Recycler<BytesRef> recycler) {
@@ -1890,12 +1889,12 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     /**
-     * Simplified port of {@link KeywordFieldMapper#mapColumnBatch}: text has no
+     * Simplified port of {@link KeywordFieldMapper#doMapColumnBatch}: text has no
      * {@code ignore_above}/{@code null_value}/normalizer, so only the indexed (tokenized) field
      * and binary doc-values encoding need reproducing.
      */
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE;
         final boolean emitDvs = docValuesParameters.enabled();
         if (emitTerms || emitDvs) {
@@ -1905,72 +1904,76 @@ public final class TextFieldMapper extends FieldMapper {
                 mapColumnBatchSingleValue(ctx, source, emitTerms, emitDvs);
             }
         }
-        mapColumnBatchToMultiFields(ctx, source);
     }
 
     private void mapColumnBatchArrayOrder(BatchMappingContext ctx, EscfColumn source, boolean emitTerms, boolean emitDvs) {
         final int docCount = ctx.docCount();
 
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
-        final EscfColumnBuilder terms = emitTerms ? mergeStringColumn(ctx.recycler()) : null;
-        final EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn(ctx.recycler()) : null;
-        final EscfColumnBuilder dvCounts = emitDvs ? mergeLongColumn(ctx.recycler()) : null;
+        try (
+            EscfColumnBuilder terms = emitTerms ? mergeStringColumn(ctx.recycler()) : null;
+            EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn(ctx.recycler()) : null;
+            EscfColumnBuilder dvCounts = emitDvs ? mergeLongColumn(ctx.recycler()) : null
+        ) {
+            int currentDoc = -1;
+            final BytesRefBuilder docBlob = emitDvs ? new BytesRefBuilder() : null;
+            int pos = 0;
+            int docSlotCount = 0;
+            int lastValueLength = 0;
+            boolean hasNonNull = false;
 
-        int currentDoc = -1;
-        final BytesRefBuilder docBlob = emitDvs ? new BytesRefBuilder() : null;
-        int pos = 0;
-        int docSlotCount = 0;
-        int lastValueLength = 0;
-        boolean hasNonNull = false;
-
-        while (true) {
-            final int nextDoc = cursor.nextDoc();
-            if (nextDoc != currentDoc) {
-                if (binaryDvs != null && docSlotCount > 0) {
-                    dvCounts.setLong(currentDoc, docSlotCount);
-                    if (hasNonNull) {
-                        final int length = docSlotCount == 1 ? lastValueLength : pos;
-                        binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
+            while (true) {
+                final int nextDoc = cursor.nextDoc();
+                if (nextDoc != currentDoc) {
+                    if (binaryDvs != null && docSlotCount > 0) {
+                        dvCounts.setLong(currentDoc, docSlotCount);
+                        if (hasNonNull) {
+                            final int length = docSlotCount == 1 ? lastValueLength : pos;
+                            binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
+                        }
+                        pos = 0;
+                        docSlotCount = 0;
+                        hasNonNull = false;
                     }
-                    pos = 0;
-                    docSlotCount = 0;
-                    hasNonNull = false;
+                    if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                        break;
+                    }
+                    currentDoc = nextDoc;
                 }
-                if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
-                    break;
+
+                final BytesRef value = cursor.value();
+
+                if (value == null) {
+                    if (binaryDvs != null) {
+                        pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                        docSlotCount++;
+                    }
+                    continue;
                 }
-                currentDoc = nextDoc;
-            }
 
-            final BytesRef value = cursor.value();
-
-            if (value == null) {
+                if (terms != null) {
+                    terms.setString(currentDoc, value);
+                }
                 if (binaryDvs != null) {
-                    pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                    pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, value);
+                    lastValueLength = value.length;
                     docSlotCount++;
+                    hasNonNull = true;
                 }
-                continue;
             }
 
-            if (terms != null) {
-                terms.setString(currentDoc, value);
+            if (terms != null && terms.isEmpty() == false) {
+                final EscfColumnData termsData = terms.finish(docCount);
+                ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), fieldType), termsData);
             }
-            if (binaryDvs != null) {
-                pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, value);
-                lastValueLength = value.length;
-                docSlotCount++;
-                hasNonNull = true;
+            if (binaryDvs != null && binaryDvs.isEmpty() == false) {
+                final EscfColumnData binaryDvsData = binaryDvs.finish(docCount);
+                ctx.addColumn(LuceneBinaryColumn.of(binaryDvsData, fieldType().name(), CustomDocValuesField.TYPE), binaryDvsData);
             }
-        }
-
-        if (terms != null && terms.isEmpty() == false) {
-            ctx.addColumn(LuceneBinaryColumn.of(terms.finish(docCount), fieldType().name(), fieldType));
-        }
-        if (binaryDvs != null && binaryDvs.isEmpty() == false) {
-            ctx.addColumn(LuceneBinaryColumn.of(binaryDvs.finish(docCount), fieldType().name(), CustomDocValuesField.TYPE));
-        }
-        if (dvCounts != null && dvCounts.isEmpty() == false) {
-            ctx.addColumn(LuceneLongColumn.counts(dvCounts.finish(docCount), fieldType().name()));
+            if (dvCounts != null && dvCounts.isEmpty() == false) {
+                final EscfColumnData dvCountsData = dvCounts.finish(docCount);
+                ctx.addColumn(LuceneLongColumn.counts(dvCountsData, fieldType().name()), dvCountsData);
+            }
         }
     }
 
@@ -1982,48 +1985,53 @@ public final class TextFieldMapper extends FieldMapper {
         boolean valuesProduced = false;
 
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
-        EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && (emitTerms || emitDvs)
-            ? mergeStringColumn(ctx.recycler())
-            : null;
+        try (
+            EscfColumnBuilder valuesBuilder = source.leafValueKind() != EscfColumnKind.STRING && (emitTerms || emitDvs)
+                ? mergeStringColumn(ctx.recycler())
+                : null
+        ) {
+            int currentDoc = -1;
+            boolean valueSeenThisDoc = false;
+            while (true) {
+                final int nextDoc = cursor.nextDoc();
+                if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                    break;
+                }
+                if (nextDoc != currentDoc) {
+                    currentDoc = nextDoc;
+                    valueSeenThisDoc = false;
+                }
+                final BytesRef value = cursor.value();
+                if (value == null) {
+                    continue;
+                }
 
-        int currentDoc = -1;
-        boolean valueSeenThisDoc = false;
-        while (true) {
-            final int nextDoc = cursor.nextDoc();
-            if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
-                break;
-            }
-            if (nextDoc != currentDoc) {
-                currentDoc = nextDoc;
-                valueSeenThisDoc = false;
-            }
-            final BytesRef value = cursor.value();
-            if (value == null) {
-                continue;
+                if (valueSeenThisDoc) {
+                    throw new UnsupportedOperationException(
+                        "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
+                    );
+                }
+                valueSeenThisDoc = true;
+                valuesProduced = true;
+
+                if (valuesBuilder != null) {
+                    valuesBuilder.setString(currentDoc, value);
+                }
             }
 
-            if (valueSeenThisDoc) {
-                throw new UnsupportedOperationException(
-                    "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
-                );
-            }
-            valueSeenThisDoc = true;
-            valuesProduced = true;
-
-            if (values != null) {
-                values.setString(currentDoc, value);
-            }
-        }
-
-        if (valuesProduced) {
-            assert values != null || source.leafValueKind() == EscfColumnKind.STRING
-                : "zero-copy reuse of source.columnData() is only safe for STRING columns";
-            final EscfColumnData data = values != null ? values.finish(docCount) : source.columnData();
-            if (emitTerms) {
-                ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
-            }
-            if (emitDvs) {
-                ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
+            if (valuesProduced) {
+                assert valuesBuilder != null || source.leafValueKind() == EscfColumnKind.STRING
+                    : "zero-copy reuse of source.columnData() is only safe for STRING columns";
+                final EscfColumnData data = valuesBuilder != null ? valuesBuilder.finish(docCount) : source.columnData();
+                if (valuesBuilder != null) {
+                    ctx.addResource(data);
+                }
+                if (emitTerms) {
+                    ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
+                }
+                if (emitDvs) {
+                    ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
+                }
             }
         }
     }

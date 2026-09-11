@@ -219,10 +219,8 @@ final class IntBlockHash extends PartitionedBlockHash {
         if (hash instanceof LongSwissHash swiss) {
             // Swiss ordinals are 0-indexed but group IDs reserve 0 for null, so non-null keys start at 1.
             // withOffset(+1) shifts firstId so the aggregation splitter reads from the correct group-ID slots.
-            PartitionedHashTable.PartitionedHashKeys keys = swiss.splitPartition(
-                breaker,
-                PartitionedHashTable.PartitionSplitter.withOffset(partitionSplitter, 1)
-            );
+            var groupIdSplitter = PartitionedHashTable.PartitionSplitter.withOffset(partitionSplitter, 1);
+            PartitionedHashTable.PartitionedHashKeys keys = swiss.splitPartition(breaker, groupIdSplitter);
             if (seenNull) {
                 // Emit null's aggregation state (group ID 0) as one extra entry appended to partition 0.
                 int nullOffset = keys.keysInPartition(0);

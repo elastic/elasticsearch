@@ -252,7 +252,8 @@ public class CsvRecordTokenizerTests extends ESTestCase {
 
     /** Jackson's withNullValue substitutes null for a field equal to nullValue; fold both arms to one token. */
     private static String normalizeNull(String value, CsvFormatOptions options) {
-        // Objects.equals: nullValue is null when no null token is configured, and a raw field is never null.
+        // Objects.equals: handles a null nullValue (= no token configured).
+        // The short-circuit on value == null covers a field already resolved to null upstream.
         if (value == null || Objects.equals(value, options.nullValue())) {
             return " NULL ";
         }

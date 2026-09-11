@@ -10,9 +10,9 @@
 //     drops a row group whose predicate column has no min/max before anything is decoded.
 //   - the null runs are far longer than the 1000-row external-source page size, so whole decode
 //     windows are null and the reader hands the evaluator a ConstantNullBlock.
-//   - the nulls are spelled `null` in the CSV. A blank cell parses as null too now
-//     (CsvFixtureParser#parseCell), so either spelling works, but the explicit one says what is
-//     meant: these cases pin nothing at all if the column ends up without nulls.
+//   - the nulls are spelled `null` in the CSV. CsvFixtureParser#parseCell treats a blank cell
+//     the same way, so either spelling works, but the explicit one says what is meant: these
+//     cases pin nothing at all if the column ends up without nulls.
 //
 // This is the shape users hit on GBIF. The sibling cases in parquet-multifile.csv-spec cover the
 // adjacent missing-column route, which never crashed.

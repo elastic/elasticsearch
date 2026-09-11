@@ -3936,6 +3936,7 @@ public class EsqlCapabilities {
          */
         EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED,
 
+        /**
          * Materialize more aggregate inputs into a synthetic pre-agg eval.
          * This covers two cases that previously failed, namely expressions in an aggregate
          * parameter (e.g. {@code TOP(field, 1, "asc", CONCAT("first", " ", "last")}), and

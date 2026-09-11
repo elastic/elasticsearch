@@ -28,7 +28,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -376,10 +375,10 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(mapping2, equalTo(new ColumnMapping(new int[] { 0 }, null)));
     }
 
-    public void testUnionByNameLongToDoubleWidensToKeyword() {
-        // The lossy LONG + DOUBLE pair is intentionally outside the lossless table (>2^53 precision
-        // loss). Under UBN it falls back to KEYWORD with a warning — louder than silent precision
-        // loss and consistent with the cross-type floor in DuckDB / Spark / ClickHouse.
+    public void testUnionByNameLongToDoubleWidensToDouble() {
+        // LONG + DOUBLE is a join promotion to DOUBLE. The long file is cast; the double file is
+        // already the unified type. Integers above 2^53 are not exact, so a precision-loss warning
+        // is emitted instead of stringifying the column.
         List<Attribute> schema1 = List.of(attr("val", DataType.LONG));
         List<Attribute> schema2 = List.of(attr("val", DataType.DOUBLE));
 
@@ -388,16 +387,96 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        List<String> warnings = drainWarningMessages();
 
-        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
-        // Both files contributed non-string types → both file mappings carry a KEYWORD cast.
+        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
         ColumnMapping m1 = result.perFileInfo().get(f1).mapping();
         ColumnMapping m2 = result.perFileInfo().get(f2).mapping();
-        assertThat(m1, equalTo(new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD })));
-        assertThat(m2, equalTo(new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD })));
+        assertThat(m1, equalTo(new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DOUBLE })));
+        assertThat(m2, equalTo(new ColumnMapping(new int[] { 0 }, null)));
 
+        assertWarningMentionsAll(warnings, "val", "long", "double", "f1.parquet", "f2.parquet", "widened to double", "2^53");
+        String joined = String.join(" || ", warnings);
+        assertThat(joined, not(containsString("widened to keyword")));
+    }
+
+    public void testUnionByNameWarningSinkReceivesPrecisionLossAndSkipsHeaderWarning() {
+        List<Attribute> schema1 = List.of(attr("val", DataType.LONG));
+        List<Attribute> schema2 = List.of(attr("val", DataType.DOUBLE));
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
+
+        List<String> sunk = new ArrayList<>();
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, sunk::add);
+
+        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
+        assertWarningMentionsAll(sunk, "val", "long", "double", "widened to double", "2^53");
+        assertThat(String.join(" || ", sunk), not(containsString("widened to keyword")));
+        assertNoResponseWarnings();
+    }
+
+    public void testUnionByNameIntegerLongDoubleWidensToDouble() {
+        List<Attribute> schema1 = List.of(attr("val", DataType.INTEGER));
+        List<Attribute> schema2 = List.of(attr("val", DataType.LONG));
+        List<Attribute> schema3 = List.of(attr("val", DataType.DOUBLE));
+
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        StoragePath f3 = path("s3://b/f3.parquet");
+
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        metadata.put(f1, meta(schema1));
+        metadata.put(f2, meta(schema2));
+        metadata.put(f3, meta(schema3));
+
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
         List<String> warnings = drainWarningMessages();
-        assertWarningMentionsAll(warnings, "val", "long", "double", "f1.parquet", "f2.parquet");
+
+        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
+        assertWarningMentionsAll(warnings, "val", "long", "double", "widened to double", "2^53");
+        assertThat(String.join(" || ", warnings), not(containsString("widened to keyword")));
+    }
+
+    public void testUnionByNameLongDoubleKeywordStaysKeyword() {
+        List<Attribute> schema1 = List.of(attr("val", DataType.LONG));
+        List<Attribute> schema2 = List.of(attr("val", DataType.DOUBLE));
+        List<Attribute> schema3 = List.of(attr("val", DataType.KEYWORD));
+
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        StoragePath f3 = path("s3://b/f3.parquet");
+
+        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
+        metadata.put(f1, meta(schema1));
+        metadata.put(f2, meta(schema2));
+        metadata.put(f3, meta(schema3));
+
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        List<String> warnings = drainWarningMessages();
+
+        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
+        assertWarningMentionsAll(warnings, "val", "widened to keyword");
+        assertThat(String.join(" || ", warnings), not(containsString("widened to double")));
+        assertThat(String.join(" || ", warnings), not(containsString("2^53")));
+    }
+
+    public void testUnionByNameTextLongToDoublePinsLongFile() {
+        List<Attribute> schema1 = List.of(attr("val", DataType.LONG));
+        List<Attribute> schema2 = List.of(attr("val", DataType.DOUBLE));
+
+        StoragePath f1 = path("s3://b/f1.ndjson");
+        StoragePath f2 = path("s3://b/f2.ndjson");
+
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "ndjson"), f2, meta(schema2, "ndjson"));
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        drainWarningMessages();
+
+        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
+        assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
+        assertThat(result.perFileInfo().get(f1).inferredTypes(), equalTo(Map.of("val", DataType.LONG)));
+        assertThat(result.perFileInfo().get(f2).fileSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
+        assertThat(result.perFileInfo().get(f2).inferredTypes(), nullValue());
     }
 
     public void testUnionByNameColumnOrdering() {
@@ -433,16 +512,12 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.LONG));
     }
 
-    // === Cross-file scalar/object shape conflict tests (esql-planning#1050) ===
+    // === Cross-file dotted names under UNION_BY_NAME ===
     //
-    // A field that is a scalar leaf in one file's schema and a dotted-prefix parent in another's
-    // (an NDJSON field that is a scalar in one file and an object in the other) must reconcile to
-    // a single shape under UNION_BY_NAME — mirroring the per-file single-shape rule from
-    // esql-planning#1028 (first shape wins). Before this fix, [user] and [user.id]/[user.tier]
-    // never collided by name, so the unified schema fabricated both shapes and the losing file's
-    // values vanished silently. See SchemaReconciliation#resolveShapeConflicts.
+    // NDJSON treats a dot as an ordinary character in a column name, the same as CSV: user and
+    // user.id are independent columns. UNION_BY_NAME keeps both and null-fills per file.
 
-    public void testUnionByNameScalarVsObjectShapeConflictResolvesToScalar() {
+    public void testUnionByNameNdjsonScalarAndDottedColumnsCoexist() {
         List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
         List<Attribute> objectFile = List.of(
             attr("event", DataType.INTEGER),
@@ -455,16 +530,14 @@ public class SchemaReconciliationTests extends ESTestCase {
         Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile, "ndjson"), b, meta(objectFile, "ndjson"));
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
 
-        assertThat(
-            "expected exactly the first file's scalar [user] shape in the unified schema",
-            userFamily(result),
-            equalTo(List.of("user"))
-        );
-        drainWarningMessages();
+        assertThat(userFamily(result), equalTo(List.of("user", "user.id", "user.tier")));
+        assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(scalarFile));
+        assertThat(result.perFileInfo().get(b).fileSchema().attributes(), equalTo(objectFile));
+        assertNoResponseWarnings();
     }
 
-    /** Mirror of {@link #testUnionByNameScalarVsObjectShapeConflictResolvesToScalar}: object-shape file first. */
-    public void testUnionByNameObjectVsScalarShapeConflictResolvesToObject() {
+    /** File order does not drop either shape. */
+    public void testUnionByNameNdjsonObjectThenScalarColumnsCoexist() {
         List<Attribute> objectFile = List.of(
             attr("event", DataType.INTEGER),
             attr("user.id", DataType.KEYWORD),
@@ -477,199 +550,48 @@ public class SchemaReconciliationTests extends ESTestCase {
         Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(objectFile, "ndjson"), b, meta(scalarFile, "ndjson"));
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
 
-        assertThat(
-            "expected exactly the first file's nested [user.*] shape in the unified schema",
-            userFamily(result),
-            equalTo(List.of("user.id", "user.tier"))
-        );
-        drainWarningMessages();
+        assertThat(userFamily(result), equalTo(List.of("user.id", "user.tier", "user")));
+        assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(objectFile));
+        assertThat(result.perFileInfo().get(b).fileSchema().attributes(), equalTo(scalarFile));
+        assertNoResponseWarnings();
     }
 
-    /**
-     * The unified schema shape is only half the fix: the losing (object-shaped) file's own
-     * {@code readSchema} pin must carry the winning scalar attribute, not its own
-     * [user.id]/[user.tier] sub-schema — that's what routes the file's real values through the
-     * existing per-file shape-conflict/{@code ErrorPolicy} handling (elastic/esql-planning#1028)
-     * at read time instead of silently vanishing.
-     */
-    public void testUnionByNameShapeConflictOverridesLosingFileReadSchema() {
+    public void testUnionByNameNdjsonMixedFileKeepsEveryName() {
         List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
         List<Attribute> objectFile = List.of(
             attr("event", DataType.INTEGER),
             attr("user.id", DataType.KEYWORD),
             attr("user.tier", DataType.KEYWORD)
         );
-
-        StoragePath a = path("s3://b/a.ndjson");
-        StoragePath b = path("s3://b/b.ndjson");
-        Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile, "ndjson"), b, meta(objectFile, "ndjson"));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
-
-        List<Attribute> losingReadSchema = result.perFileInfo().get(b).fileSchema().attributes();
-        List<String> losingNames = losingReadSchema.stream().map(Attribute::name).toList();
-        assertThat(losingNames, equalTo(List.of("event", "user")));
-        assertThat(losingReadSchema.get(losingNames.indexOf("user")).dataType(), equalTo(DataType.KEYWORD));
-
-        // The winning file's own read schema is untouched.
-        assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(scalarFile));
-        drainWarningMessages();
-    }
-
-    public void testUnionByNameShapeConflictEmitsWarning() {
-        List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
-        List<Attribute> objectFile = List.of(
+        List<Attribute> bothFile = List.of(
             attr("event", DataType.INTEGER),
-            attr("user.id", DataType.KEYWORD),
-            attr("user.tier", DataType.KEYWORD)
+            attr("user", DataType.KEYWORD),
+            attr("user.tag", DataType.KEYWORD)
         );
-
-        StoragePath a = path("s3://b/a.ndjson");
-        StoragePath b = path("s3://b/b.ndjson");
-        Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile, "ndjson"), b, meta(objectFile, "ndjson"));
-        SchemaReconciliation.reconcileUnionByName(metadata);
-
-        List<String> warnings = drainWarningMessages();
-        assertWarningMentionsAll(warnings, "user", "a.ndjson", "b.ndjson", "scalar", "object");
-    }
-
-    /**
-     * Three files, two contributing the object shape: the winner is still "first file overall"
-     * (the anchor semantics from #1028/{@code FIRST_FILE_WINS}), and every losing file — not just
-     * the first one encountered — gets its own {@code readSchema} overridden.
-     */
-    public void testUnionByNameShapeConflictThreeFilesFirstFileWins() {
-        List<Attribute> objectFile1 = List.of(attr("event", DataType.INTEGER), attr("user.id", DataType.KEYWORD));
-        List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
-        List<Attribute> objectFile2 = List.of(attr("event", DataType.INTEGER), attr("user.id", DataType.KEYWORD));
 
         StoragePath a = path("s3://b/a.ndjson");
         StoragePath b = path("s3://b/b.ndjson");
         StoragePath c = path("s3://b/c.ndjson");
         Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
-        metadata.put(a, meta(objectFile1, "ndjson"));
-        metadata.put(b, meta(scalarFile, "ndjson"));
-        metadata.put(c, meta(objectFile2, "ndjson"));
+        metadata.put(a, meta(scalarFile, "ndjson"));
+        metadata.put(b, meta(objectFile, "ndjson"));
+        metadata.put(c, meta(bothFile, "ndjson"));
 
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
 
-        assertThat(userFamily(result), equalTo(List.of("user.id")));
-        assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(objectFile1));
-        assertThat(result.perFileInfo().get(c).fileSchema().attributes(), equalTo(objectFile2));
-        assertThat(
-            result.perFileInfo().get(b).fileSchema().attributes().stream().map(Attribute::name).toList(),
-            equalTo(List.of("event", "user.id"))
-        );
-        drainWarningMessages();
+        assertThat(userFamily(result), equalTo(List.of("user", "user.id", "user.tier", "user.tag")));
+        assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(scalarFile));
+        assertThat(result.perFileInfo().get(b).fileSchema().attributes(), equalTo(objectFile));
+        assertThat(result.perFileInfo().get(c).fileSchema().attributes(), equalTo(bothFile));
+        assertNoResponseWarnings();
     }
 
     /**
-     * A file that carries <em>both</em> the bare name and an unrelated dotted child for the same
-     * root in one file (e.g. a literal flat {@code "user.tag"} key coexisting with scalar
-     * {@code "user"}) has its dotted column excluded from the family — that column is already
-     * disambiguated per-file as a flat key, not a nested child (see
-     * {@code NdJsonPageDecoder#hasDottedPrefixConflict}) — but its bare {@code user} leaf still
-     * fully participates in the cross-file vote like any other file's. Here it happens to *agree*
-     * with the (scalar) winner, so both its columns stay untouched. See
-     * {@link #testUnionByNameShapeConflictFileWithBothShapesDisagreeingIsAlsoOverridden} for the
-     * disagreeing case.
+     * {@code STRICT} rejects files whose column sets differ (scalar {@code user} vs dotted
+     * {@code user.id}/{@code user.tier}) rather than attempting UNION_BY_NAME-style resolution.
+     * It is the differing column count that is rejected, not the pair of names.
      */
-    public void testUnionByNameShapeConflictFileWithBothShapesAgreeingIsUnaffected() {
-        List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
-        List<Attribute> objectFile = List.of(
-            attr("event", DataType.INTEGER),
-            attr("user.id", DataType.KEYWORD),
-            attr("user.tier", DataType.KEYWORD)
-        );
-        List<Attribute> bothShapesFile = List.of(
-            attr("event", DataType.INTEGER),
-            attr("user", DataType.KEYWORD),
-            attr("user.tag", DataType.KEYWORD)
-        );
-
-        StoragePath scalarPath = path("s3://b/a.ndjson");
-        StoragePath objectPath = path("s3://b/b.ndjson");
-        StoragePath bothPath = path("s3://b/c.ndjson");
-        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
-        metadata.put(scalarPath, meta(scalarFile, "ndjson"));
-        metadata.put(objectPath, meta(objectFile, "ndjson"));
-        metadata.put(bothPath, meta(bothShapesFile, "ndjson"));
-
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
-
-        assertThat(userFamily(result), equalTo(List.of("user", "user.tag")));
-        assertThat(result.perFileInfo().get(bothPath).fileSchema().attributes(), equalTo(bothShapesFile));
-        assertThat(
-            result.perFileInfo().get(objectPath).fileSchema().attributes().stream().map(Attribute::name).toList(),
-            equalTo(List.of("event", "user"))
-        );
-        drainWarningMessages();
-    }
-
-    /**
-     * Mirror of {@link #testUnionByNameShapeConflictFileWithBothShapesAgreeingIsUnaffected}: when
-     * the both-shapes file's own bare {@code user} *disagrees* with the winning shape (here the
-     * winner is the nested object, contributed by a different file), that leaf column is
-     * overridden exactly like any other losing file's — only the file's unrelated dotted column
-     * ({@code user.tag}, a literal flat key per {@code NdJsonPageDecoder#hasDottedPrefixConflict})
-     * stays untouched. Guards the fix to {@code resolveFamily}: an earlier version exempted a
-     * both-shapes file from the win/loss vote entirely, which let its scalar {@code user} value
-     * silently keep coexisting with the winning nested shape in the unified schema — reopening
-     * the exact scalar/object ambiguity this pass exists to close.
-     */
-    public void testUnionByNameShapeConflictFileWithBothShapesDisagreeingIsAlsoOverridden() {
-        List<Attribute> objectFile = List.of(
-            attr("event", DataType.INTEGER),
-            attr("user.id", DataType.KEYWORD),
-            attr("user.tier", DataType.KEYWORD)
-        );
-        List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
-        List<Attribute> bothShapesFile = List.of(
-            attr("event", DataType.INTEGER),
-            attr("user", DataType.KEYWORD),
-            attr("user.tag", DataType.KEYWORD)
-        );
-
-        StoragePath objectPath = path("s3://b/a.ndjson");
-        StoragePath scalarPath = path("s3://b/b.ndjson");
-        StoragePath bothPath = path("s3://b/c.ndjson");
-        Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
-        metadata.put(objectPath, meta(objectFile, "ndjson"));
-        metadata.put(scalarPath, meta(scalarFile, "ndjson"));
-        metadata.put(bothPath, meta(bothShapesFile, "ndjson"));
-
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
-
-        // The scalar [user] shape is now fully gone from the unified schema -- both of its
-        // contributors (scalarFile and bothShapesFile) lost the vote -- while the unrelated
-        // [user.tag] flat key survives untouched.
-        assertThat(userFamily(result), equalTo(List.of("user.id", "user.tier", "user.tag")));
-
-        List<String> bothOverrideNames = result.perFileInfo()
-            .get(bothPath)
-            .fileSchema()
-            .attributes()
-            .stream()
-            .map(Attribute::name)
-            .toList();
-        assertThat("own unrelated [user.tag] column must survive untouched", bothOverrideNames, hasItem("user.tag"));
-        assertThat("own [user] leaf must be pinned to the winning nested shape", bothOverrideNames, hasItem("user.id"));
-        assertThat("own [user] leaf must no longer appear on its own", bothOverrideNames, not(hasItem("user")));
-
-        assertThat(
-            result.perFileInfo().get(scalarPath).fileSchema().attributes().stream().map(Attribute::name).toList(),
-            equalTo(List.of("event", "user.id", "user.tier"))
-        );
-        // The winning file's own read schema is untouched.
-        assertThat(result.perFileInfo().get(objectPath).fileSchema().attributes(), equalTo(objectFile));
-        drainWarningMessages();
-    }
-
-    /**
-     * Pins that {@code STRICT} still rejects the exact esql-planning#1050 repro shape outright
-     * (differing column counts) rather than ever attempting the UNION_BY_NAME-style resolution —
-     * the issue calls this out as already-correct behavior to guard, not change.
-     */
-    public void testStrictRejectsScalarVsObjectShapeConflict() {
+    public void testStrictRejectsScalarAndDottedColumnSets() {
         List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
         List<Attribute> objectFile = List.of(
             attr("event", DataType.INTEGER),
@@ -686,14 +608,9 @@ public class SchemaReconciliationTests extends ESTestCase {
     }
 
     /**
-     * Regression for the review feedback on #152775: {@link SchemaReconciliation#resolveFamily}
-     * only has flattened column names to work with, so a {@code root}/{@code root.*} pair can be a
-     * genuine cross-file scalar/object conflict (NDJSON) or two entirely unrelated, independent
-     * columns that merely share a naming prefix — e.g. a CSV file whose header is literally
-     * {@code user.tag} next to another CSV file's ordinary {@code user} column. CSV headers are
-     * never nested, so these must both survive in the unified schema, NULL-filled in whichever
-     * file lacks them, exactly like any other unrelated pair of column names — not be treated as a
-     * shape conflict that silently drops one of them.
+     * A {@code root}/{@code root.*} pair that merely shares a naming prefix must both survive in
+     * the unified schema, NULL-filled in whichever file lacks them. CSV headers are never nested,
+     * so these are unrelated column names and neither one may be dropped.
      */
     public void testUnionByNameScalarAndDottedLiteralCoexistForNonNdjsonFormat() {
         List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
@@ -724,13 +641,11 @@ public class SchemaReconciliationTests extends ESTestCase {
     }
 
     /**
-     * Same regression as {@link #testUnionByNameScalarAndDottedLiteralCoexistForNonNdjsonFormat}
-     * but for Parquet: unlike CSV, Parquet's reader genuinely flattens nested structs into dotted
-     * names, but it has no equivalent of NDJSON's {@code shapeConflict} read-time fallback for a
-     * column pinned to a shape that disagrees with the file's own footer-declared type — so this
-     * pass must not touch Parquet files either. See {@code supportsShapeConflictResolution}.
+     * Same as {@link #testUnionByNameScalarAndDottedLiteralCoexistForNonNdjsonFormat} for Parquet, which does
+     * flatten nested structs into dotted names: even there, reconciliation merges by exact name only, so the
+     * scalar and the dotted columns coexist rather than one shape being chosen for the whole query.
      */
-    public void testUnionByNameScalarVsObjectConflictIgnoredForParquetFormat() {
+    public void testUnionByNameScalarAndDottedColumnsCoexistForParquetFormat() {
         List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
         List<Attribute> objectFile = List.of(
             attr("event", DataType.INTEGER),
@@ -750,12 +665,11 @@ public class SchemaReconciliationTests extends ESTestCase {
     }
 
     /**
-     * A single NDJSON file's nested {@code user.*} shape must not be treated as conflicting with a
-     * literal {@code user.tag} column from an unrelated CSV file in the same query — only files
-     * whose format actually supports shape-conflict resolution ever enter the family vote, and one
-     * ndjson contributor alone (agreeing with itself) is not a conflict.
+     * A query that mixes formats keeps every name each file contributes: an NDJSON file's nested
+     * {@code user.id}/{@code user.tier} and an unrelated CSV file's literal {@code user.tag} are three
+     * columns, and the format a name came from does not change how it merges.
      */
-    public void testUnionByNameMixedFormatsOnlyNdjsonParticipatesInFamily() {
+    public void testUnionByNameMixedFormatsKeepEveryDottedName() {
         List<Attribute> ndjsonFile = List.of(
             attr("event", DataType.INTEGER),
             attr("user.id", DataType.KEYWORD),
@@ -1086,17 +1000,16 @@ public class SchemaReconciliationTests extends ESTestCase {
     }
 
     public void testSchemaWidenLongDoubleStaysNullForStrictCallers() {
-        // The strict-only entry point keeps returning null so future non-UBN callers that want the
-        // lossless-only semantic still have it. UBN's widenToCommonOrKeyword is the additive layer
-        // — verified indirectly via testUnionByNameLongToDoubleWidensToKeyword above.
+        // schemaWiden is the lossless form: LONG + DOUBLE has no lossless supertype, even though
+        // UBN join answers DOUBLE.
         assertThat(SchemaReconciliation.schemaWiden(DataType.LONG, DataType.DOUBLE), nullValue());
         assertThat(SchemaReconciliation.schemaWiden(DataType.DOUBLE, DataType.LONG), nullValue());
     }
 
     public void testUnionByNameDenseVectorWithIntegerFallsBackToKeyword() {
         // Defensive: we do not delegate wholesale to EsqlDataTypeConverter.commonType (which would
-        // pick DENSE_VECTOR here). The UBN path uses its own widenToCommonOrKeyword and falls back
-        // to KEYWORD for any pair the lossless table cannot widen.
+        // pick DENSE_VECTOR here). The UBN path uses TypeWidening.join, whose top is KEYWORD for
+        // this pair.
         List<Attribute> schema1 = List.of(attr("v", DataType.DENSE_VECTOR));
         List<Attribute> schema2 = List.of(attr("v", DataType.INTEGER));
 

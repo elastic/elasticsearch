@@ -265,7 +265,27 @@ PUT /test/_settings
 If `size` is more than `1` the `top_metrics` aggregation can’t be the **target** of a sort.
 ::::
 
+### Use in transforms [search-aggregations-metrics-top-metrics-transforms]
 
+Pivot transforms persist `top_metrics` on the **single destination document** for each `group_by` key. They do not write one dest doc per hit.
+
+* The historical flatten is always written: the first hit’s `metrics` map under the aggregation name, for example `token.path`.
+* A `top` array is also written on that dest doc for every `size` (including `1`), matching `_search` (`sort` plus `metrics` per hit, in aggregation sort order). The array length is the number of actual hits, not padded to `size`. A later continuous checkpoint **replaces** the array; it is not concatenated across checkpoints.
+
+```js
+{
+  "session": "s1",
+  "token": {
+    "path": "/home",
+    "top": [
+      { "sort": ["2026-08-16T10:00:00.000Z"], "metrics": { "path": "/home" } },
+      { "sort": ["2026-08-16T10:01:00.000Z"], "metrics": { "path": "/shop" } }
+    ]
+  }
+}
+```
+
+Do not raise `index.top_metrics_max_size` unless you need more than the default maximum of 10.
 
 ## Examples [_examples_3]
 

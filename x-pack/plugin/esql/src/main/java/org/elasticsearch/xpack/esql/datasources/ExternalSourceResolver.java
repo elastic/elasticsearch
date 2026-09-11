@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -204,14 +203,19 @@ public class ExternalSourceResolver {
     private final Supplier<ThreadContext.StoredContext> restorableContext;
 
     /**
-     * Hive-partition shadow-column warning messages collected during one {@link #resolve} call's schema-resolution
-     * chain (see {@link #warnOnShadowedColumns}). That chain runs on {@link #metadataReadExecutor} — a real thread
-     * pool in production, so a direct {@code HeaderWarning.addWarning} call from inside it would land on that
-     * executor thread's {@link ThreadContext} rather than the originating request's, and never reach the client.
-     * Messages are instead buffered here and replayed via {@code HeaderWarning} from {@link #resolve}'s completion
-     * listener, once {@link #restorableContext} has restored the caller's original context. Cleared at the start of
-     * each {@link #resolve} call; safe for concurrent per-file callbacks (see {@link #metadataReadConcurrency}) since
-     * it is append-only until the single flush at completion.
+     * Resolve-time warning messages collected during one {@link #resolve} call: Hive-partition
+     * shadow-column notices (see {@link #warnOnShadowedColumns}), {@code UNION_BY_NAME}
+     * schema-reconciliation notices (keyword fallback and long/double precision loss), and
+     * the factories' config-validation warnings
+     * (see {@code ExternalSourceFactory#validateConfig(String, Map, Consumer)}). That chain
+     * runs on {@link #metadataReadExecutor}, a real thread pool in production, so a direct
+     * {@code HeaderWarning.addWarning} call from inside it would land on that executor thread's
+     * {@link ThreadContext} rather than the originating request's, and never reach the client.
+     * Messages are instead buffered here and attached to the {@link ExternalSourceResolution} completed by
+     * {@link #resolveNextPath}, so {@code EsqlSession} can merge them into {@code DriverCompletionInfo} for
+     * {@code TransportEsqlQueryAction#toResponse} to emit on the thread that builds the client response.
+     * Cleared at the start of each {@link #resolve} call; safe for concurrent per-file callbacks (see
+     * {@link #metadataReadConcurrency}) since it is append-only until the single attach at completion.
      */
     private final List<String> pendingShadowWarnings = new CopyOnWriteArrayList<>();
 
@@ -429,9 +433,13 @@ public class ExternalSourceResolver {
         }
 
         // Fresh per-call: resolve() is the single entry point for one query's external-source resolution, so
-        // clearing here (rather than after the previous call's flush) also covers a resolver instance reused
+        // clearing here (rather than after the previous call's attach) also covers a resolver instance reused
         // across resolve() calls in tests.
         pendingShadowWarnings.clear();
+
+        // Once per query, before the per-path recursion: one warning per column however many paths and files the
+        // resource expands to, and on the strict rail, which never reaches the non-strict overlay.
+        warnOnSubstitutedDeclaredTypes(declaredMappings, pendingShadowWarnings::add);
 
         // Resolution runs on the caller-supplied executor (esql_worker in production, isolated from SEARCH so a wide
         // wildcard cannot starve regular ES searches). The initial dispatch performs the cheap synchronous prep (glob
@@ -445,21 +453,18 @@ public class ExternalSourceResolver {
         // aborts its glob-expansion and anchor/single-file read backoff promptly, matching the per-read wrapping the
         // async fan-out already gets.
         //
-        // Flush any Hive-partition shadow-column warnings buffered in pendingShadowWarnings (see its javadoc) before
-        // delegating to the caller's listener, so HeaderWarning.addWarning is called from here rather than from
-        // whatever executor thread actually ran the schema reconciliation.
-        ActionListener<ExternalSourceResolution> withShadowWarnings = ActionListener.runBefore(
-            listener,
-            () -> pendingShadowWarnings.forEach(HeaderWarning::addWarning)
-        );
+        // Hive-partition shadow-column warnings stay on the ExternalSourceResolution (see pendingShadowWarnings)
+        // rather than being flushed to HeaderWarning here: ContextPreservingActionListener restores a copy of the
+        // request context that close() then discards, so a resolve-time HeaderWarning write is racy
+        // (elastic/elasticsearch#153780).
+        //
         // Wrap the outward listener so that when a factory's async metadata read completes on a non-ES thread (e.g.
         // a Netty I/O thread owned by a native async storage SDK client), the caller's authenticated ThreadContext is
         // restored before the listener's continuation runs — covering the rest of the synchronous chain back through
-        // EsqlSession and into the compute transport send, and (per above) the shadow-warning flush itself. See the
-        // field javadoc on restorableContext for details.
+        // EsqlSession and into the compute transport send. See the field javadoc on restorableContext for details.
         ActionListener<ExternalSourceResolution> resolveListener = restorableContext == null
-            ? withShadowWarnings
-            : new ContextPreservingActionListener<>(restorableContext, withShadowWarnings);
+            ? listener
+            : new ContextPreservingActionListener<>(restorableContext, listener);
         Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
         metadataReadExecutor.execute(
             () -> resolveNextPath(paths, 0, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, resolved, resolveListener)
@@ -481,7 +486,7 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (index == paths.size()) {
-            listener.onResponse(new ExternalSourceResolution(resolved));
+            listener.onResponse(new ExternalSourceResolution(resolved, List.copyOf(pendingShadowWarnings)));
             return;
         }
         String path = paths.get(index);
@@ -548,9 +553,8 @@ public class ExternalSourceResolver {
             return new ExternalUnavailableException(
                 unavailable.throttling(),
                 unavailable,
-                "Failed to resolve external source [{}]: {}",
-                path,
-                unavailable.getMessage()
+                "{}",
+                ExternalFailures.locate("Failed to resolve external source", path, unavailable.getMessage())
             );
         }
         // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it
@@ -565,7 +569,7 @@ public class ExternalSourceResolver {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
             EsRejectedExecutionException wrapped = new EsRejectedExecutionException(
-                String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, rejected.getMessage())
+                ExternalFailures.locate("Failed to resolve external source", path, rejected.getMessage())
             );
             wrapped.initCause(rejected);
             return wrapped;
@@ -603,7 +607,9 @@ public class ExternalSourceResolver {
             recordDiscoveryFailure();
             String detail = ExternalFailures.rootDetail(e);
             LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
-            return new ExternalClientException(e, "Failed to resolve external source [{}]: {}", path, detail);
+            // Chain ioError, not e: e is the cache's ExecutionException whose own message is the cause's
+            // toString(), so chaining it renders "java.io.IOException: ..." into the user's caused_by.
+            return new ExternalClientException(ioError, "{}", ExternalFailures.locate("Failed to resolve external source", path, detail));
         }
         recordDiscoveryFailure();
         // rootDetail, not getMessage: the file-metadata rail raises a plain IOException that arrives inside the
@@ -611,7 +617,13 @@ public class ExternalSourceResolver {
         // print "java.io.IOException: Object not found: ..." at the user.
         String detail = ExternalFailures.rootDetail(e);
         LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
-        return new ExternalServerException(e, "Failed to resolve external source [{}]: {}", path, detail);
+        // Chain the root, not e: e may be the cache's ExecutionException whose message is the cause's toString(),
+        // which would render a JVM type name into the user's caused_by exactly as the IOException arm above did.
+        return new ExternalServerException(
+            ExternalFailures.rootCause(e),
+            "{}",
+            ExternalFailures.locate("Failed to resolve external source", path, detail)
+        );
     }
 
     private void resolveSource(
@@ -677,21 +689,34 @@ public class ExternalSourceResolver {
 
             ExternalSourceMetadata extMetadata;
             StorageEntry storageEntry;
+            SourceStatistics harvestedStatistics = null;
             if (isCacheable(provider)) {
                 // Warm path is zero-I/O: the file-metadata cache holds {length, mtime} within the schema TTL, so a warm
                 // single-file resolve never touches a live object (fileMetadataOf). mtime is the cache key's version token;
                 // length + mtime rebuild the singleton FileList.
                 FileMetadata meta = fileMetadataOf(storagePath, provider, config);
                 String formatType = detectFormatType(storagePath);
-                SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), meta.mtimeMillis(), formatType, config);
+                SchemaCacheKey schemaKey = SchemaCacheKey.build(
+                    storagePath.toString(),
+                    meta.mtimeMillis(),
+                    formatType,
+                    storageConfig(config)
+                );
+                SourceStatistics[] computedStatistics = new SourceStatistics[1];
                 SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                    return stampInferredReadConfig(SchemaCacheEntry.from(resolveSingleSource(path, config)));
+                    SourceMetadata metadata = resolveSingleSource(path, config);
+                    computedStatistics[0] = metadata.statistics().orElse(null);
+                    return stampInferredReadConfig(SchemaCacheEntry.from(metadata));
                 });
+                harvestedStatistics = computedStatistics[0];
                 List<Attribute> schema = schemaEntry.toAttributes();
-                extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
+                extMetadata = buildMetadataFromCache(schemaEntry, schema, config, harvestedStatistics);
                 storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
             } else {
                 SourceMetadata metadata = resolveSingleSource(path, config);
+                // Read the statistics off the reader's metadata before wrapping: wrapAsExternalSourceMetadata folds
+                // them into sourceMetadata() but does not override statistics(), so they are unreachable afterwards.
+                harvestedStatistics = metadata.statistics().orElse(null);
                 extMetadata = wrapAsExternalSourceMetadata(metadata, config, declaredReadSpecOf(declaredMapping));
                 StorageObject object = provider.newObject(storagePath);
                 storageEntry = new StorageEntry(storagePath, object.length(), object.lastModified());
@@ -704,8 +729,12 @@ public class ExternalSourceResolver {
             List<Attribute> fileSchema = extMetadata.schema();
 
             FileList singletonList = GlobExpander.fileListOf(List.of(storageEntry), path);
-            // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping.
-            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, fileSchema);
+            // Single-file: degenerate case of the general flow, with a one-entry schemaMap and identity mapping.
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(
+                storagePath,
+                fileSchema,
+                SourceStatisticsSerializer.fromSource(extMetadata)
+            );
             listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap));
         } finally {
             StorageProviderCache.closeLease(provider);
@@ -714,13 +743,14 @@ public class ExternalSourceResolver {
 
     private static Map<StoragePath, SchemaReconciliation.FileSchemaInfo> singleEntrySchemaMap(
         StoragePath path,
-        @Nullable List<Attribute> schema
+        @Nullable List<Attribute> schema,
+        @Nullable SourceStatistics statistics
     ) {
         if (schema == null || schema.isEmpty()) {
             return Map.of();
         }
         ColumnMapping identityMapping = new ColumnMapping(identityMapping(schema.size()), null);
-        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(schema), identityMapping, null));
+        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(schema), identityMapping, statistics));
     }
 
     private void resolveMultiFileSource(
@@ -748,41 +778,17 @@ public class ExternalSourceResolver {
             FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
             boolean cacheable = isCacheable(provider);
 
-            if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-                int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
-                int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
-                long discoveryStartNanos = System.nanoTime();
-                FileList raw = GlobExpander.expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
-                recordDiscovery(raw, discoveryStartNanos, storagePath.scheme());
-                if (raw.fileCount() == 0) {
-                    throw new IllegalArgumentException("Glob pattern matched no files: " + path);
-                }
-                resolveMultiFileWithReconciliation(raw, config, schemaResolution, cacheable, listener);
-                return;
-            }
-
-            FileList listing;
-            long discoveryStartNanos = System.nanoTime();
-            if (cacheable) {
-                listing = cachedListing(path, storagePath, provider, hints, config);
-            } else {
-                listing = expandAndCompact(path, provider, hints, config, storagePath);
-            }
-            recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
-
+            FileList listing = listAndRecord(path, storagePath, provider, hints, config, cacheable);
             if (listing.fileCount() == 0) {
                 throw new IllegalArgumentException("Glob pattern matched no files: " + path);
             }
-
-            int anchor = 0;
-            for (int i = 1; i < listing.fileCount(); i++) {
-                if (listing.path(i).toString().compareTo(listing.path(anchor).toString()) < 0) {
-                    anchor = i;
-                }
+            if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+                resolveMultiFileWithReconciliation(listing, config, schemaResolution, cacheable, listener);
+                return;
             }
 
-            StoragePath anchorPath = listing.path(anchor);
-            long anchorMtime = listing.lastModifiedMillis(anchor);
+            StoragePath anchorPath = listing.path(0);
+            long anchorMtime = listing.lastModifiedMillis(0);
 
             // Glob expansion / cache listing above can be slow on wide globs; re-check before the anchor footer read.
             throwIfCancelled();
@@ -793,7 +799,7 @@ public class ExternalSourceResolver {
             // across the anchor footer read. Unlike the single-file getOrComputeSchema path this does not coalesce
             // concurrent misses for the same anchor key; that matches the fan-out's peek/put trade-off and is safe
             // because footer resolution is idempotent (see cachedResolveSingleSourceAsync).
-            ListingHint anchorHint = new ListingHint(listing.size(anchor), anchorMtime);
+            ListingHint anchorHint = new ListingHint(listing.size(0), anchorMtime);
             final FileList finalListing = listing;
             ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
                 anchorMetadata -> completeFirstFileWins(anchorMetadata, finalListing, config, requiresStats, cacheable, listener),
@@ -871,7 +877,7 @@ public class ExternalSourceResolver {
                             base,
                             config
                         );
-                        listener.onResponse(finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, effective)));
+                        listener.onResponse(finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, effective), config));
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
@@ -886,9 +892,9 @@ public class ExternalSourceResolver {
                 // representative of the whole glob, so mark them partial — exactly the state the failed-aggregation
                 // path produces, which downstream already handles (SplitStats.resolveEffectiveStats returns null
                 // rather than consuming anchor stats as global). STATS_FILE_COUNT, stamped above, is preserved.
-                listener.onResponse(finishFirstFileWins(listing, markStatsAsPartial(base)));
+                listener.onResponse(finishFirstFileWins(listing, markStatsAsPartial(base), config));
             } else {
-                listener.onResponse(finishFirstFileWins(listing, base));
+                listener.onResponse(finishFirstFileWins(listing, base, config));
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -973,7 +979,11 @@ public class ExternalSourceResolver {
      * coordinator schema with partition columns, and pins the anchor's physical schema for every file via an
      * (identity or narrowing) per-file mapping. Purely CPU-bound.
      */
-    private ExternalSourceResolution.ResolvedSource finishFirstFileWins(FileList listing, ExternalSourceMetadata extMetadata) {
+    private ExternalSourceResolution.ResolvedSource finishFirstFileWins(
+        FileList listing,
+        ExternalSourceMetadata extMetadata,
+        Map<String, Object> config
+    ) {
         // The anchor's pre-enrichment schema is the physical read schema every file's reader parses. Partition
         // columns are path-derived (injected by VirtualColumnIterator at read time), so they are never part of the
         // physical read schema; the data-only view below drives the mapping output width.
@@ -1005,7 +1015,18 @@ public class ExternalSourceResolver {
                 ? new ColumnMapping(identityMapping(physicalSchema.size()), null)
                 : SchemaReconciliation.computeMapping(dataOnlySchema, physicalSchema);
             for (int i = 0; i < listing.fileCount(); i++) {
-                perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(fileSchema, mapping, null));
+                // The dataset-level aggregate on extMetadata is a fold and cannot be assigned to an
+                // individual file. Each file's own harvest lives on its schema-cache entry (and, for a
+                // one-file listing, on the anchor metadata). That per-file harvest is what split
+                // discovery uses to skip a second footer open when readableUnitCount is 1.
+                perFileInfo.put(
+                    listing.path(i),
+                    new SchemaReconciliation.FileSchemaInfo(
+                        fileSchema,
+                        mapping,
+                        fileStatisticsForFirstFileWins(listing, i, extMetadata, config)
+                    )
+                );
             }
             schemaMap = Collections.unmodifiableMap(perFileInfo);
         } else {
@@ -1015,12 +1036,74 @@ public class ExternalSourceResolver {
         return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
     }
 
+    /**
+     * Per-file harvest for the FIRST_FILE_WINS schema map. Prefers the schema-cache entry for this
+     * path (populated by an eager gather or a previous resolve). A one-file listing falls back to
+     * the anchor metadata: that harvest is the file's own, not a cross-file fold.
+     */
+    @Nullable
+    private SourceStatistics fileStatisticsForFirstFileWins(
+        FileList listing,
+        int index,
+        ExternalSourceMetadata extMetadata,
+        @Nullable Map<String, Object> config
+    ) {
+        SourceStatistics cached = fileStatisticsFromCache(listing.path(index), listing.lastModifiedMillis(index), config);
+        if (cached != null) {
+            return cached;
+        }
+        if (listing.fileCount() == 1) {
+            return SourceStatisticsSerializer.fromSource(extMetadata);
+        }
+        return null;
+    }
+
+    /**
+     * Reconstructs this file's harvest from the schema cache, or null when the cache is off or
+     * this path has no entry. Zero I/O: a miss leaves FileSchemaInfo.statistics null and split
+     * discovery opens the footer.
+     */
+    @Nullable
+    private SourceStatistics fileStatisticsFromCache(StoragePath path, long mtimeMillis, @Nullable Map<String, Object> config) {
+        if (cacheService == null || cacheService.isEnabled() == false) {
+            return null;
+        }
+        SchemaCacheKey key = SchemaCacheKey.build(path.toString(), mtimeMillis, detectFormatType(path), storageConfig(config));
+        SchemaCacheEntry entry = cacheService.getSchemaIfPresent(key);
+        if (entry == null) {
+            return null;
+        }
+        return SourceStatisticsSerializer.extractStatistics(entry.safeMetadata()).orElse(null);
+    }
+
     private static int[] identityMapping(int n) {
         int[] m = new int[n];
         for (int i = 0; i < n; i++) {
             m[i] = i;
         }
         return m;
+    }
+
+    /**
+     * Lists (and, when cacheable, caches) the inferred multi-file glob. FIRST_FILE_WINS, UNION_BY_NAME,
+     * and inferred STRICT share this so a cacheable provider hits {@link #cachedListing} regardless of
+     * merge strategy. Declared-schema resolution stays in {@link #resolveStrictMultiFile}.
+     */
+    private FileList listAndRecord(
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        boolean cacheable
+    ) throws Exception {
+        long discoveryStartNanos = System.nanoTime();
+        FileList listing = cacheable
+            ? cachedListing(path, storagePath, provider, hints, config)
+            : expandAndCompact(path, provider, hints, config, storagePath);
+        GlobExpander.replayExclusionWarnings(listing);
+        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
+        return listing;
     }
 
     private FileList expandAndCompact(
@@ -1053,7 +1136,8 @@ public class ExternalSourceResolver {
             storagePath.scheme(),
             storagePath.host(),
             storagePath.path(),
-            config,
+            storageConfig(config),
+            // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
             GlobExpander.listingCacheDiscriminator(path, hints, config)
         );
         return cacheService.getOrComputeListing(listingKey, k -> expandAndCompact(path, provider, hints, config, storagePath));
@@ -1078,7 +1162,7 @@ public class ExternalSourceResolver {
      */
     private FileMetadata fileMetadataOf(StoragePath storagePath, StorageProvider provider, Map<String, Object> config) throws Exception {
         if (isCacheable(provider)) {
-            FileMetadataCacheKey metaKey = FileMetadataCacheKey.build(storagePath.toString(), config);
+            FileMetadataCacheKey metaKey = FileMetadataCacheKey.build(storagePath.toString(), storageConfig(config));
             return cacheService.getOrComputeFileMetadata(metaKey, k -> probeFileMetadata(storagePath, provider));
         }
         return probeFileMetadata(storagePath, provider);
@@ -1185,6 +1269,15 @@ public class ExternalSourceResolver {
         List<Attribute> schema,
         Map<String, Object> queryConfig
     ) {
+        return buildMetadataFromCache(entry, schema, queryConfig, null);
+    }
+
+    private static ExternalSourceMetadata buildMetadataFromCache(
+        SchemaCacheEntry entry,
+        List<Attribute> schema,
+        Map<String, Object> queryConfig,
+        @Nullable SourceStatistics harvestedStatistics
+    ) {
         // Merge cached connector config (e.g. Flight endpoint/target) with query-level params.
         // Query-level params take precedence, matching the merge in wrapAsExternalSourceMetadata.
         Map<String, Object> cachedConnectorConfig = entry.connectorConfig();
@@ -1233,6 +1326,11 @@ public class ExternalSourceResolver {
             public Map<String, Object> config() {
                 return mergedConfig;
             }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return Optional.ofNullable(harvestedStatistics);
+            }
         };
     }
 
@@ -1268,7 +1366,7 @@ public class ExternalSourceResolver {
             listing.originalPattern(),
             listing.fileSetFingerprint(),
             detectFormatType(listing.path(0)),
-            config
+            storageConfig(config)
         );
     }
 
@@ -1392,7 +1490,7 @@ public class ExternalSourceResolver {
         }
         Map<String, Object> referenceMetadata = referenceMeta.sourceMetadata();
         Object stamped = referenceMetadata != null ? referenceMetadata.get(ExternalStats.CONFIG_FINGERPRINT_KEY) : null;
-        String fingerprint = stamped instanceof String s ? s : SchemaCacheKey.buildFormatConfig(config);
+        String fingerprint = stamped instanceof String s ? s : SchemaCacheKey.buildFormatConfig(storageConfig(config));
         cacheService.registerPendingDatasetAggregate(
             datasetKey,
             pathToMtime,
@@ -1441,7 +1539,7 @@ public class ExternalSourceResolver {
                 if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
                     result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
                 } else {
-                    result = SchemaReconciliation.reconcileUnionByName(allMetadata);
+                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingShadowWarnings::add);
                 }
 
                 // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
@@ -1471,7 +1569,7 @@ public class ExternalSourceResolver {
                 Map<StoragePath, Set<String>> perFilePinnedColumns = new HashMap<>();
                 for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : result.perFileInfo().entrySet()) {
                     SchemaReconciliation.FileSchemaInfo info = e.getValue();
-                    perFileTypes.put(e.getKey(), attributesToTypeMap(info.fileSchema().attributes()));
+                    perFileTypes.put(e.getKey(), statsFileTypesOf(info));
                     Set<String> pinnedColumns = pinnedColumnsOf(info);
                     if (pinnedColumns.isEmpty() == false) {
                         perFilePinnedColumns.put(e.getKey(), pinnedColumns);
@@ -1684,7 +1782,7 @@ public class ExternalSourceResolver {
         ActionListener<SourceMetadata> listener
     ) {
         String formatType = detectFormatType(filePath);
-        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), hint.lastModifiedMillis(), formatType, config);
+        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), hint.lastModifiedMillis(), formatType, storageConfig(config));
         SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
         if (cached != null) {
             listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), config));
@@ -1693,7 +1791,7 @@ public class ExternalSourceResolver {
         resolveSingleSourceAsync(filePath.toString(), hint, config, listener.map(meta -> {
             SchemaCacheEntry entry = stampInferredReadConfig(SchemaCacheEntry.from(meta));
             cacheService.putSchema(schemaKey, entry);
-            return buildMetadataFromCache(entry, entry.toAttributes(), config);
+            return buildMetadataFromCache(entry, entry.toAttributes(), config, meta.statistics().orElse(null));
         }));
     }
 
@@ -1720,10 +1818,11 @@ public class ExternalSourceResolver {
     /**
      * Reconciliation-path aggregate: normalizes each file's per-column min/max to the reconciled unified type
      * ({@link SourceStatisticsSerializer#normalizeStatsToReconciled}) BEFORE the cross-file fold, so a column that
-     * mixes units/representations across files (DATETIME epoch-millis vs DATE_NANOS epoch-nanos; numeric vs the
-     * KEYWORD non-widenable fallback) is folded in ONE type and served result-identical to a full scan — or
-     * safe-misses when a value cannot be normalized. {@code perFileTypes} maps each file's path to its own column
-     * types; {@code reconciledTypes} is the unified schema's types. Without this, the source-level warm
+     * mixes units/representations across files (DATETIME epoch-millis vs DATE_NANOS epoch-nanos; a file type
+     * that {@code TypeWidening.join}s to DOUBLE; numeric vs the KEYWORD non-widenable fallback) is folded in
+     * ONE type and served result-identical to a full scan, or safe-misses when a value cannot be normalized.
+     * {@code perFileTypes} maps each file's path to its footer or inferred column types (not a pinned or
+     * unified type); {@code reconciledTypes} is the unified schema's types. Without this, the source-level warm
      * MIN/MAX/COUNT would compare raw file-local values unit-blind (a wrong answer).
      * <p>
      * {@code perFilePinnedColumns} names, per file, the columns a text-format UNION_BY_NAME pin retyped above their
@@ -1833,6 +1932,17 @@ public class ExternalSourceResolver {
             types.put(a.name(), a.dataType());
         }
         return types;
+    }
+
+    /**
+     * The type authority for normalizing this file's cached or footer stats to the reconciled type: the pre-retype
+     * inferred types when a pin or overlay populated them, otherwise the file schema itself (nothing retyped this
+     * file). A text UNION_BY_NAME pin stores the reconciled type on {@code fileSchema}, so using that map as the file
+     * type would make {@code file == reconciled} and skip {@code LONG} to {@code DOUBLE} conversion.
+     */
+    public static Map<String, DataType> statsFileTypesOf(SchemaReconciliation.FileSchemaInfo info) {
+        Map<String, DataType> inferred = info.inferredTypes();
+        return inferred != null ? inferred : attributesToTypeMap(info.fileSchema().attributes());
     }
 
     /**
@@ -2102,8 +2212,9 @@ public class ExternalSourceResolver {
             if (factory.canHandle(path, config)) {
                 // Validate outside the try block so a user config error (unknown key) propagates
                 // immediately rather than being swallowed as a factory failure and retried against
-                // the next factory in the registry.
-                factory.validateConfig(path, config);
+                // the next factory in the registry. Warnings are buffered, not emitted here: this
+                // runs on the metadata-read executor, whose ThreadContext never reaches the client.
+                factory.validateConfig(path, config, pendingShadowWarnings::add);
                 try {
                     return factory.resolveMetadata(path, config);
                 } catch (Exception e) {
@@ -2216,7 +2327,7 @@ public class ExternalSourceResolver {
             resolveWithFactory(path, hint, config, candidates, index + 1, e, listener);
         });
         try {
-            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, next);
+            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, pendingShadowWarnings::add, next);
         } catch (Exception e) {
             // A factory that throws synchronously from dispatch (before invoking the listener) must not abort the
             // whole resolve: fall through to the next candidate exactly as the async onFailure path does.
@@ -2309,7 +2420,7 @@ public class ExternalSourceResolver {
 
     /**
      * Like {@link #enrichSchemaWithPartitionColumns(ExternalSourceMetadata, PartitionMetadata)}, but routes any
-     * shadowed-column warning through {@code warningSink} instead of writing to {@link HeaderWarning} directly —
+     * shadowed-column warning through {@code warningSink} instead of writing to {@code HeaderWarning} directly —
      * see {@link #warnOnShadowedColumns} for why that matters for callers running inside the async resolution chain.
      */
     static ExternalSourceMetadata enrichSchemaWithPartitionColumns(
@@ -2370,6 +2481,66 @@ public class ExternalSourceResolver {
     }
 
     /**
+     * Warns that a column declared {@code text} is read as {@code keyword} — see
+     * {@link DeclaredSchemaResolver#declaredTypeAsRead}, which substitutes rather than failing the query.
+     * <p>
+     * The bytes match, so the message is about matching: {@code MATCH}/{@code MATCH_PHRASE} do not analyze a
+     * {@code keyword} column, {@code MATCH} scores it a flat 1.0 rather than by matched terms, and either function
+     * rejects options on it, since both accept options on a runtime-search field only at type {@code TEXT}. The
+     * scoring one reorders results in silence and the options one needs the query edited, so all three are named.
+     * <p>
+     * {@code warningSink} rather than {@code HeaderWarning}: buffered onto {@link ExternalSourceResolution} (see
+     * {@link #pendingShadowWarnings}) the message reaches the client through
+     * {@code TransportEsqlQueryAction#toResponse} whatever thread {@code resolve} ran on, which is the one route
+     * every warning here takes. This one runs synchronously above the {@link #metadataReadExecutor} dispatch, so
+     * the racy-context constraint on {@link #warnOnShadowedColumns} does not bind it.
+     */
+    private static void warnOnSubstitutedDeclaredTypes(
+        @Nullable Map<String, DatasetMapping> declaredMappings,
+        @Nullable Consumer<String> warningSink
+    ) {
+        if (declaredMappings == null || declaredMappings.isEmpty()) {
+            return;
+        }
+        // Keyed by resource path, so one dataset contributes an entry per path it expands to. Dedupe by logical
+        // column name: a column the user has to fix once is a column named once, and a column name is the only
+        // thing unambiguous from here — hence no dataset name in the message.
+        Map<String, DeclaredSchemaResolver.Substitution> substituted = new LinkedHashMap<>();
+        for (DatasetMapping mapping : declaredMappings.values()) {
+            for (DeclaredSchemaResolver.Substitution s : DeclaredSchemaResolver.substitutions(mapping)) {
+                substituted.putIfAbsent(s.column(), s);
+            }
+        }
+        if (substituted.isEmpty()) {
+            return;
+        }
+        // Both type halves come from what was found rather than from a literal. The read side is `keyword` for
+        // every substitution `noText` can make, so the consequences below hold whatever was declared; the declared
+        // side is named so the line a user reads first carries the type they have to go and change.
+        Set<String> declaredTypes = new LinkedHashSet<>();
+        for (DeclaredSchemaResolver.Substitution s : substituted.values()) {
+            declaredTypes.add("[" + s.declared().typeName() + "]");
+        }
+        String withdrawn = declaredTypes.size() == 1
+            ? "the withdrawn " + declaredTypes.iterator().next() + " type"
+            : "the withdrawn types " + String.join(", ", declaredTypes);
+        SkipWarnings warnings = new SkipWarnings(
+            "one or more columns are declared with "
+                + withdrawn
+                + " and are read as [keyword]; matching on them is no longer analyzed and scores 1.0 instead of "
+                + "by matched terms, and a MATCH or MATCH_PHRASE that passes options on one now fails "
+                + "verification. Re-declare those columns as [keyword], and apply TO_TEXT in the query where an "
+                + "analyzed column is wanted.",
+            warningSink
+        );
+        for (DeclaredSchemaResolver.Substitution s : substituted.values()) {
+            warnings.add(
+                "column [" + s.column() + "] is declared [" + s.declared().typeName() + "] and is read as [" + s.read().typeName() + "]"
+            );
+        }
+    }
+
+    /**
      * Emits one client-facing response-header WARN per physical column that a same-named Hive
      * partition key shadows. Shadowing follows Spark (SPARK-27356) and DuckDB: the partition
      * (path-derived) value wins and the physical column is hidden. The warning lets clients notice
@@ -2378,13 +2549,14 @@ public class ExternalSourceResolver {
      * Delegates to {@link SkipWarnings}, which emits the summary once on the first detail. Every
      * caller reachable from {@link #resolve}'s async schema-resolution chain (which runs on
      * {@link #metadataReadExecutor}, not the originating request thread) MUST pass a non-null
-     * {@code warningSink} — e.g. {@code pendingShadowWarnings::add} — so the message is buffered and
-     * replayed via {@link org.elasticsearch.common.logging.HeaderWarning} once back on a thread whose
-     * {@code ThreadContext} response headers actually feed the client response (see
-     * {@link #pendingShadowWarnings} and the flush in {@link #resolve}). A direct-to-{@code HeaderWarning}
-     * write (passing {@code null}) is only safe for callers that are themselves already on such a
-     * thread, e.g. tests exercising this method directly on the test thread. A no-op when nothing is
-     * shadowed.
+     * {@code warningSink} — e.g. {@code pendingShadowWarnings::add} — so the message is buffered
+     * onto {@link ExternalSourceResolution} at resolve completion (see {@link #pendingShadowWarnings})
+     * and later emitted by {@code TransportEsqlQueryAction#toResponse}. Do not re-add a
+     * resolve-time {@code HeaderWarning} flush: that write is discarded when
+     * {@code ContextPreservingActionListener} closes (elastic/elasticsearch#153780). A
+     * direct-to-{@code HeaderWarning} write (passing {@code null}) is only safe for callers that
+     * are themselves already on a thread whose response headers feed the client, e.g. tests
+     * exercising this method directly on the test thread. A no-op when nothing is shadowed.
      */
     private static void warnOnShadowedColumns(List<String> shadowedColumns, @Nullable Consumer<String> warningSink) {
         if (shadowedColumns.isEmpty()) {
@@ -2510,7 +2682,8 @@ public class ExternalSourceResolver {
             List.of(new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()))),
             path
         );
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, logicalSchema);
+        // Strict declares the whole schema, so no per-file footer statistics were harvested.
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, logicalSchema, null);
         return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
     }
 
@@ -2545,8 +2718,9 @@ public class ExternalSourceResolver {
      *       folded from a possibly differently-declared harvest — strict MIN/MAX re-scans instead of warming;</li>
      *   <li>the row-count is served only under a {@link ErrorPolicy.Mode#FAIL_FAST} error policy — the one policy
      *       where a SUCCESSFUL scan's row-count equals the physical record count for ANY declaration (any structural
-     *       error, e.g. a malformed record, aborts the query before publish, and declared binding imposes no
-     *       row-width limit in either direction, so no row is lost to the declaration's width). Under
+     *       error, e.g. a malformed record, aborts the query before publish, and a declared read's row-width limit is
+     *       the FILE's own width, never the declaration's, so no row is lost to how many columns the declaration
+     *       happens to name). Under
      *       {@code skip_row} or {@code null_field} a committed count is a survivor count, not guaranteed to be the
      *       physical record count, so it may not be shared across declarations;
      *       {@link #warmsRowCountSafely} keeps those off the warm path — they re-scan, still returning the correct
@@ -2557,21 +2731,25 @@ public class ExternalSourceResolver {
      * javadoc disclosed a different residual here, which does not exist: a strict dataset
      * declaring FEWER columns than the file was believed to ERROR on {@code COUNT(*)} under {@code FAIL_FAST}
      * (rows overflowing the declared width), which a foreign declaration's warm count would then mask. The premise
-     * is false: a DECLARED schema binds by name and imposes no row-width limit — the CSV reader's
-     * "row has [N] columns but schema defines [M]" tripwire applies only to positional (pinned-INFERRED) binding
-     * ({@code CsvFormatReader#initProjection} lifts the limit whenever a declared field-index binding is present),
-     * a declared column the file lacks null-fills with a warning, and declared-type/date-pattern conversion touches
+     * is false: a DECLARED schema binds by name, and the row-width limit it carries is the FILE's own column count,
+     * never the declaration's ({@code CsvFormatReader#initProjection} takes the bound from the bound file's header,
+     * or lifts it entirely for a headerless file, which supplies no width) — so declaring FEWER columns than the file
+     * does not shrink how wide a row may be, and no row overflows a narrower declaration. A declared column the file
+     * lacks null-fills with a warning, and declared-type/date-pattern conversion touches
      * only projected columns, of which an ungrouped {@code COUNT(*)} has none. NDJSON binds by key with no width
      * concept. So a narrower strict declaration's own {@code COUNT(*)} commits the physical record count — the same
      * number the shared entry serves — and the file+config-shared entry is exact for the one statistic it serves.
      * <p>
      * The direction that IS open runs the other way, and is a pre-existing property of the {@code FAIL_FAST}
      * licence rather than anything this identity introduces. A read bound POSITIONALLY — a pinned-inferred read —
-     * does carry the row-width tripwire, so a file whose later rows are wider than its inference sample aborts on
-     * {@code COUNT(*)} when read that way. A by-name declared read of the same file+config completes, commits the
-     * physical count, and stamps it read-configuration-independent; the entry matches on path, mtime and config
-     * fingerprint, so the licence carries that count back to the positional reader, which then answers where its
-     * own scan errors. A masked abort, not a wrong number, and it flaps with cache state. Withdrawing the licence
+     * carries a row-width tripwire set by the PINNED schema's width, so a file whose later rows are wider than that
+     * aborts on {@code COUNT(*)} when read that way. A declared read of the same file+config can still complete where
+     * the positional one aborts, commit the physical count, and stamp it read-configuration-independent; the entry
+     * matches on path, mtime and config fingerprint, so the licence carries that count back to the positional reader,
+     * which then answers where its own scan errors. A masked abort, not a wrong number, and it flaps with cache
+     * state. The gap is narrower than it was: a headered declared read now aborts on any row wider than that file's
+     * own header, so the two diverge only where the pinned width differs from the file's header (a glob whose later
+     * files are wider than the first), or for a HEADERLESS declared read, which carries no width bound at all. Withdrawing the licence
      * would close it and stop every strict dataset warming; scoping it to the binding mode that produced the count
      * would close it without that cost, and is the shape of the fix if this is ever worth closing.
      * File-typed (columnar) formats are excluded: they already warm via split-discovery per-split stats, and the strict
@@ -2593,7 +2771,7 @@ public class ExternalSourceResolver {
     ) throws Exception {
         if (isCacheable(provider) && FILE_TYPED_FORMATS.contains(sourceType) == false && warmsRowCountSafely(sourceType, config)) {
             String formatType = detectFormatType(storagePath) + STRICT_DECLARED_SCHEMA_MARKER;
-            SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtimeMillis, formatType, config);
+            SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtimeMillis, formatType, storageConfig(config));
             // Seed the identity — mtime, config fingerprint, read configuration; the row-count is absent until the
             // first query's data node harvests
             // it (reconcileSourceStats matches on those two + the path, then overlays STATS_ROW_COUNT). Store no
@@ -2611,7 +2789,7 @@ public class ExternalSourceResolver {
                         ExternalStats.MTIME_MILLIS_KEY,
                         mtimeMillis,
                         ExternalStats.CONFIG_FINGERPRINT_KEY,
-                        SchemaCacheKey.buildFormatConfig(config),
+                        SchemaCacheKey.buildFormatConfig(storageConfig(config)),
                         // Seed the read configuration too, from the declaration this entry was minted for. Without it the seed
                         // would carry no read configuration while every harvest carries one, so the first contribution would match
                         // nothing and the strict warm rail would die silently — the failure the reverted stopgap hit.
@@ -2649,9 +2827,9 @@ public class ExternalSourceResolver {
     /**
      * True when a successful scan's row-count is INDEPENDENT of the declared schema, so it is safe to serve from a
      * file+config-shared cache entry. This holds only under a {@link ErrorPolicy.Mode#FAIL_FAST} policy: any
-     * structural error (e.g. a malformed record) aborts the query before publish, and declared binding imposes no
-     * row-width limit in either direction, so a committed {@code FAIL_FAST} row-count equals the physical record
-     * count for any declaration. Under {@link ErrorPolicy.Mode#SKIP_ROW} or {@link ErrorPolicy.Mode#NULL_FIELD}
+     * structural error (e.g. a malformed record) aborts the query before publish, and a declared read's row-width
+     * limit is the FILE's own width rather than the declaration's, so a committed {@code FAIL_FAST} row-count equals
+     * the physical record count for any declaration. Under {@link ErrorPolicy.Mode#SKIP_ROW} or {@link ErrorPolicy.Mode#NULL_FIELD}
      * rows can be dropped (the CSV reader drops a structurally-malformed row even under NULL_FIELD), so a committed
      * count is a survivor count; only {@code FAIL_FAST} guarantees the physical record count, and lenient reads
      * conservatively stay off the shared warm path. Resolved through {@link ErrorPolicy#fromConfig} against the reader's own default so
@@ -2696,8 +2874,10 @@ public class ExternalSourceResolver {
             listing = GlobExpander.expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
         } else if (isCacheable(provider)) {
             listing = cachedListing(path, storagePath, provider, hints, config);
+            GlobExpander.replayExclusionWarnings(listing);
         } else {
             listing = expandAndCompact(path, provider, hints, config, storagePath);
+            GlobExpander.replayExclusionWarnings(listing);
         }
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
         if (listing.fileCount() == 0) {
@@ -2745,7 +2925,8 @@ public class ExternalSourceResolver {
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = new HashMap<>();
         for (int i = 0; i < listing.fileCount(); i++) {
-            schemaMap.putAll(singleEntrySchemaMap(listing.path(i), logicalSchema));
+            // Strict reads only the anchor's footer for the coercibility check, so no file has harvested statistics.
+            schemaMap.putAll(singleEntrySchemaMap(listing.path(i), logicalSchema, null));
         }
         return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
     }
@@ -2882,7 +3063,9 @@ public class ExternalSourceResolver {
             if (inferredType == null) {
                 continue; // absence is handled by the overlay's own missing-column check
             }
-            DataType declaredType = DataType.fromNameOrAlias(e.getValue().type());
+            // Through the resolver, not DataType.fromNameOrAlias: a stored `text` reads as keyword, so it is the
+            // keyword pair that has to be coercible here.
+            DataType declaredType = DeclaredSchemaResolver.declaredTypeAsRead(e.getValue().type());
             boolean coercible = coercing ? DeclaredTypeCoercions.supports(inferredType, declaredType) : declaredType == inferredType;
             if (coercible == false) {
                 throw new IllegalArgumentException(
@@ -3108,7 +3291,7 @@ public class ExternalSourceResolver {
 
     private SourceMetadata cachedResolveSingleSource(StoragePath filePath, long mtime, Map<String, Object> config) throws Exception {
         String formatType = detectFormatType(filePath);
-        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, config);
+        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, storageConfig(config));
         SchemaCacheEntry entry = cacheService.getOrComputeSchema(
             schemaKey,
             k -> SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config))

@@ -78,6 +78,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -335,60 +336,62 @@ public final class DatafeedManager {
                     // from the rollback-snapshot gate: unset project_routing is not pinned to origin at query time.
                     final boolean userInitiatedProjectRoutingChange = defaultedProjectRoutingForMigration == false
                         && DatafeedUpdate.isUserInitiatedProjectRoutingChange(current, update);
-                    final boolean rollbackSnapshotRetained = requiresRollbackSnapshotBeforeScopeChange(
+                    final boolean requiresRollbackSnapshot = requiresRollbackSnapshotBeforeScopeChange(
                         defaultedProjectRoutingForMigration,
                         current,
                         update
                     );
-                    ActionListener<PutDatafeedAction.Response> updateListener;
-                    if (defaultedProjectRoutingForMigration) {
-                        updateListener = ActionListener.wrap(response -> {
-                            logger.info(
-                                "[{}] CPS migration: defaulting project_routing to [{}] to preserve local search scope",
-                                current.getId(),
-                                defaultProjectRouting
-                            );
-                            auditor.info(
-                                current.getJobId(),
-                                Messages.getMessage(
-                                    Messages.JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED,
-                                    defaultProjectRouting
-                                )
-                            );
-                            l.onResponse(response);
-                        }, l::onFailure);
-                    } else if (userInitiatedProjectRoutingChange) {
-                        updateListener = l.delegateFailureAndWrap((delegate, response) -> {
-                            delegate.onResponse(response);
-                            notifyUserInitiatedProjectRoutingChange(current, update, threadPool, rollbackSnapshotRetained);
-                        });
-                    } else {
-                        updateListener = l;
-                    }
                     // KEEP with an existing CPS envelope must not stamp caller security headers
                     // over the minted key's Authentication stored at mint time.
                     final Map<String, String> headersForUpdate = intent == CredentialTransitions.Intent.KEEP
                         && current.getCloudInternalCredential() != null ? Map.of() : headers;
-                    Runnable executeUpdate = () -> credentialTransitions.executeUpdate(
-                        intent,
-                        effectiveRequest,
-                        current.getJobId(),
-                        headersForUpdate,
-                        state,
-                        threadPool,
-                        securityContext,
-                        wrappedValidator,
-                        updateListener
-                    );
-                    if (rollbackSnapshotRetained) {
+                    final Consumer<Boolean> executeUpdate = rollbackSnapshotRetained -> {
+                        ActionListener<PutDatafeedAction.Response> updateListener;
+                        if (defaultedProjectRoutingForMigration) {
+                            updateListener = ActionListener.wrap(response -> {
+                                logger.info(
+                                    "[{}] CPS migration: defaulting project_routing to [{}] to preserve local search scope",
+                                    current.getId(),
+                                    defaultProjectRouting
+                                );
+                                auditor.info(
+                                    current.getJobId(),
+                                    Messages.getMessage(
+                                        Messages.JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED,
+                                        defaultProjectRouting
+                                    )
+                                );
+                                l.onResponse(response);
+                            }, l::onFailure);
+                        } else if (userInitiatedProjectRoutingChange) {
+                            updateListener = l.delegateFailureAndWrap((delegate, response) -> {
+                                delegate.onResponse(response);
+                                notifyUserInitiatedProjectRoutingChange(current, update, threadPool, rollbackSnapshotRetained);
+                            });
+                        } else {
+                            updateListener = l;
+                        }
+                        credentialTransitions.executeUpdate(
+                            intent,
+                            effectiveRequest,
+                            current.getJobId(),
+                            headersForUpdate,
+                            state,
+                            threadPool,
+                            securityContext,
+                            wrappedValidator,
+                            updateListener
+                        );
+                    };
+                    if (requiresRollbackSnapshot) {
                         retainRollbackSnapshotBeforeScopeChange(
                             current,
                             update,
                             state,
-                            l.delegateFailureAndWrap((v, ll) -> executeUpdate.run())
+                            l.delegateFailureAndWrap((v, retained) -> executeUpdate.accept(retained))
                         );
                     } else {
-                        executeUpdate.run();
+                        executeUpdate.accept(false);
                     }
                 } catch (Exception e) {
                     l.onFailure(e);
@@ -475,7 +478,7 @@ public final class DatafeedManager {
         DatafeedConfig current,
         DatafeedUpdate rawUpdate,
         ClusterState state,
-        ActionListener<Void> listener
+        ActionListener<Boolean> listener
     ) {
         PersistentTasksCustomMetadata tasks = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         JobState jobState = MlTasks.getJobState(current.getJobId(), tasks);
@@ -492,11 +495,8 @@ public final class DatafeedManager {
             Job job = jobBuilder.build();
             String snapshotId = job.getModelSnapshotId();
             if (snapshotId == null || snapshotId.isEmpty()) {
-                delegate.onFailure(
-                    ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATAFEED_SCOPE_CHANGE_REQUIRES_SNAPSHOT, current.getId(), current.getJobId())
-                    )
-                );
+                // No current model snapshot exists, so there is no rollback point to retain; allow the scope change.
+                delegate.onResponse(false);
                 return;
             }
 
@@ -514,7 +514,7 @@ public final class DatafeedManager {
                         job.getId(),
                         Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ROLLBACK_SNAPSHOT_RETAINED, snapshotId, description)
                     );
-                    d.onResponse(null);
+                    d.onResponse(true);
                 })
             );
         }));

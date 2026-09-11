@@ -4277,6 +4277,71 @@ public class FieldNameUtilsTests extends ESTestCase {
         );
     }
 
+    // IN subqueries in INLINE STATS WHERE filter tests
+
+    public void testInSubqueryInInlineStatsWhereWithRow() {
+        assertFieldNames("""
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE salary IN (ROW a = 1 | KEEP a)
+            | KEEP emp_no""", Set.of("_index", "salary", "salary.*", "emp_no", "emp_no.*"));
+    }
+
+    public void testMultiColumnInSubqueryInInlineStatsWhereWithRow() {
+        checkMultiColumnInSubquery();
+        assertFieldNames("""
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE (salary, languages) IN (ROW a = 1, b = 2 | KEEP a, b)
+            | KEEP emp_no""", Set.of("_index", "salary", "salary.*", "languages", "languages.*", "emp_no", "emp_no.*"));
+    }
+
+    public void testInSubqueryInInlineStatsWhereWithTs() {
+        String query = """
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE emp_no IN (TS metrics | STATS r = rate(foo.baz) BY bar | KEEP r)
+            | KEEP emp_no""";
+        Set<String> expected = Set.of("_index", "emp_no", "emp_no.*", "foo.baz", "foo.baz.*", "bar", "bar.*", "@timestamp", "@timestamp.*");
+        if (includePrefixFields) {
+            expected = new HashSet<>(expected);
+            expected.add("foo");
+        }
+        assertFieldNames(query, expected);
+    }
+
+    public void testInSubqueryInCaseInInlineStatsWhereWithRow() {
+        assertFieldNames("""
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE CASE(emp_no IN (ROW a = 1 | KEEP a), true, false)
+            | KEEP emp_no""", Set.of("_index", "emp_no", "emp_no.*"));
+    }
+
+    public void testInSubqueryInCoalesceInInlineStatsWhereWithTs() {
+        String query = """
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE COALESCE(emp_no IN (TS metrics | STATS r = avg_over_time(foo.baz) BY bar | KEEP r), false)
+            | KEEP emp_no""";
+        Set<String> expected = Set.of("_index", "emp_no", "emp_no.*", "foo.baz", "foo.baz.*", "bar", "bar.*", "@timestamp", "@timestamp.*");
+        if (includePrefixFields) {
+            expected = new HashSet<>(expected);
+            expected.add("foo");
+        }
+        assertFieldNames(query, expected);
+    }
+
+    public void testInSubqueryInIsNullInInlineStatsWhereWithTs() {
+        String query = """
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE (emp_no IN (TS metrics | KEEP emp_no)) IS NULL
+            | KEEP emp_no""";
+        assertFieldNames(query, Set.of("_index", "emp_no", "emp_no.*", "@timestamp", "@timestamp.*"));
+    }
+
+    public void testInSubqueryInIsNotNullInInlineStatsWhereWithRow() {
+        assertFieldNames("""
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE (emp_no IN (ROW a = 1 | KEEP a)) IS NOT NULL
+            | KEEP emp_no""", Set.of("_index", "emp_no", "emp_no.*"));
+    }
+
     /**
      * Both {@code FROM}-style source leaves are alias-safe: a source relation is a tree leaf and cannot shadow an
      * alias defined above it, so {@link FieldNameUtils} must collect the same fields whether the leaf is an

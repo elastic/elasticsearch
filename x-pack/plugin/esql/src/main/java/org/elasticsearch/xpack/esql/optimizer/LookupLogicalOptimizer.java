@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LookupPruneFilters;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceComparisonWithConstantFromMinMax;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -33,7 +34,13 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operat
 public class LookupLogicalOptimizer extends LocalLogicalPlanOptimizer {
 
     private static final List<Batch<LogicalPlan>> RULES = List.of(
-        new Batch<>("Lookup local rewrite", Limiter.ONCE, new ReplaceFieldWithConstantOrNull(), new InferIsNotNull()),
+        new Batch<>(
+            "Lookup local rewrite",
+            Limiter.ONCE,
+            new ReplaceFieldWithConstantOrNull(),
+            new InferIsNotNull(),
+            new ReplaceComparisonWithConstantFromMinMax()
+        ),
         lookupOperators()
     );
 

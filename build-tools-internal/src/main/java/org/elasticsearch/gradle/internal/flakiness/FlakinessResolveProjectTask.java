@@ -88,6 +88,21 @@ public abstract class FlakinessResolveProjectTask extends DefaultTask {
 
     /**
      * Repo root, used to resolve repo-relative changed-file paths and for the class-ref filesystem probe.
+     *
+     * <p>{@code @Internal} on purpose: the resolver probes arbitrary source files under it, so declaring it
+     * as an input would fingerprint the whole repo on every run.
+     *
+     * <p>That makes the probe an <b>undeclared input</b>, which is the same situation
+     * {@link FlakinessScanTask} answers with {@code doNotTrackState}. This task deliberately stays tracked,
+     * because the exposure is not the same. Going stale needs a run where the refs and this project's model
+     * are both byte-identical to the previous one while the source tree underneath has changed - adding a
+     * source file does not alter the model, which records {@code srcDirs} rather than file lists. Neither
+     * path this task is invoked from can reach that state: CI runs on a fresh agent with no prior outputs, so
+     * the task always executes, and {@code local.ts} deletes the targets directory first, which removes the
+     * output and invalidates the task anyway. What remains is invoking {@code flakinessResolveProject} by hand
+     * twice in one workspace, where {@code --rerun-tasks} is the answer. Tracking is worth keeping for that
+     * trade: it is what lets an unchanged project skip re-resolving across the ~450 projects this task is
+     * registered in.
      */
     @Internal
     public abstract DirectoryProperty getRepoRoot();

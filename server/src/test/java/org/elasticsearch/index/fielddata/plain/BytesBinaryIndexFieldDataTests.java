@@ -40,7 +40,7 @@ public class BytesBinaryIndexFieldDataTests extends ESTestCase {
         for (final BinaryDocValuesFormat format : BinaryDocValuesFormat.values()) {
             final BytesBinaryIndexFieldData fd = fieldData(format);
             for (final boolean reverse : new boolean[] { false, true }) {
-                for (final String mv : new String[] { "_last", "_first" }) {
+                for (final Object mv : new Object[] { null, "_last", "_first" }) {
                     for (final MultiValueMode mode : new MultiValueMode[] { MultiValueMode.MIN, MultiValueMode.MAX }) {
                         final SortField querySf = fd.sortField(mv, mode, null, reverse);
                         final SortField indexSf = fd.indexSort(IndexVersion.current(), mv, mode, reverse);
@@ -48,6 +48,44 @@ public class BytesBinaryIndexFieldDataTests extends ESTestCase {
                     }
                 }
             }
+        }
+    }
+
+    public void testOldSeparateCountSortFieldDivergesFromIndexSort() {
+        final IndexVersion old = IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION;
+        final BytesBinaryIndexFieldData fd = fieldData(BinaryDocValuesFormat.SEPARATE_COUNT, old);
+        final SortField querySf = fd.sortField("_last", MultiValueMode.MIN, null, false);
+        final SortField indexSf = fd.indexSort(old, "_last", MultiValueMode.MIN, false);
+        assertThat(querySf, not(instanceOf(MultiValuedBinaryDocValuesSortField.class)));
+        assertThat(indexSf, instanceOf(MultiValuedBinaryDocValuesSortField.class));
+        assertNotEquals(querySf, indexSf);
+    }
+
+    public void testNonSeparateCountFormatsIgnoreIndexVersionForSortField() {
+        final IndexVersion old = IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION;
+        for (final BinaryDocValuesFormat format : new BinaryDocValuesFormat[] {
+            BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL,
+            BinaryDocValuesFormat.COLUMNAR_PAYLOAD }) {
+            final SortField sf = fieldData(format, old).sortField("_last", MultiValueMode.MIN, null, false);
+            assertThat(sf, instanceOf(MultiValuedBinaryDocValuesSortField.class));
+        }
+    }
+
+    public void testFuzzyLiteralMissingValueAlwaysFallsBackToComparatorSource() {
+        for (int i = 0; i < 20; i++) {
+            final String literal = randomValueOtherThanMany(
+                v -> v == null || "_first".equals(v) || "_last".equals(v),
+                () -> randomAlphaOfLengthBetween(1, 20)
+            );
+            final BinaryDocValuesFormat format = randomFrom(BinaryDocValuesFormat.values());
+            final SortField sf = fieldData(format).sortField(
+                literal,
+                randomFrom(MultiValueMode.MIN, MultiValueMode.MAX),
+                null,
+                randomBoolean()
+            );
+            assertThat(sf, not(instanceOf(MultiValuedBinaryDocValuesSortField.class)));
+            assertThat(sf.getComparatorSource(), instanceOf(BytesRefFieldComparatorSource.class));
         }
     }
 

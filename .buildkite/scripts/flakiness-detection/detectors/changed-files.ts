@@ -1,14 +1,11 @@
 import type { ClassifiedTest } from "../domain.ts";
 
-import { isSeparateBuild, SOURCE_SET_PATTERNS, toFqcn, toGradleProject } from "../domain.ts";
+import { SOURCE_SET_PATTERNS, toFqcn, toGradleProject } from "../domain.ts";
 
 export function classifyChangedFiles(files: string[]): ClassifiedTest[] {
   const tests: ClassifiedTest[] = [];
 
   for (const file of files) {
-    // A task path for these does not resolve, which fails the compile gate.
-    if (isSeparateBuild(file)) continue;
-
     for (const pattern of SOURCE_SET_PATTERNS) {
       const match = file.match(pattern.regex);
       if (match) {

@@ -63,17 +63,6 @@ export interface TestRef {
   method?: string;
 }
 
-/**
- * Directories that are their own Gradle build. The root build cannot compile or run tests under them, so a
- * `:plugins:examples:...` task path does not resolve and the compile gate fails. The `example-plugins` job builds them.
- */
-const SEPARATE_BUILD_PREFIXES = ["plugins/examples/"];
-
-/** True if `path` belongs to a build the root build cannot address. */
-export function isSeparateBuild(path: string): boolean {
-  return SEPARATE_BUILD_PREFIXES.some((prefix) => path.startsWith(prefix));
-}
-
 export function toGradleProject(path: string): string {
   const segments = path.split("/");
   // Mirror the rename in settings.gradle: direct children of :test:external-modules

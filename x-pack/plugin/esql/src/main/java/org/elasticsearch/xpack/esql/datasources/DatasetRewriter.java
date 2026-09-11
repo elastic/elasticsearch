@@ -273,7 +273,7 @@ public final class DatasetRewriter {
         Set<String> nonDatasetNamesList = resolution.nonDatasetNames();
 
         // One rail for every FROM shape — dataset-only and heterogeneous (index + dataset). The non-remotable-abstraction
-        // CPS rule (a remote view fails, a remote dataset is invisible, and a remote index of the same name reads) must
+        // CPS rule (a remote view is invisible, a remote dataset is invisible, and a remote index of the same name reads) must
         // hold uniformly, so the cross-project siblings below are appended regardless of whether the FROM also names
         // local indices. Keeping the two shapes on one path is what stops them drifting.
         List<LogicalPlan> children = new ArrayList<>();

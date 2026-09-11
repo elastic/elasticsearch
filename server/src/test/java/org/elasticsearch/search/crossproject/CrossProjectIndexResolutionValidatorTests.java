@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
-import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -28,7 +27,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,7 +41,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
     private boolean useProjectRouting;
 
     @Before
-    public void initProjectRouting() throws Exception {
+    public void initProjectRouting() {
         useProjectRouting = randomBoolean();
     }
 
@@ -1773,52 +1771,6 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         );
         assertNotNull(e);
         assertThat(e.getMessage(), equalTo("no such index [P1:logs]"));
-    }
-
-    public void testRemoteViewNotSupportedExceptionFromLinkedProject() {
-        ResolvedIndexExpressions local = flatExpressionWithRemoteFanout("my-view", "P1:my-view");
-        Map<String, Exception> remoteExceptions = Map.of(
-            "P1",
-            new RemoteTransportException("test failure", new RemoteViewNotSupportedException(List.of("P1:my-view")))
-        );
-
-        var e = CrossProjectIndexResolutionValidator.validate(
-            randomBoolean() ? getStrictIgnoreUnavailable() : getLenientIndicesOptions(),
-            useProjectRouting ? "_alias:*" : null,
-            local,
-            Map.of(),
-            remoteExceptions
-        );
-        assertThat(e, instanceOf(RemoteResourceNotSupportedException.class));
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "ES|QL queries with remote views are not supported. Matched [P1:my-view]."
-                    + " Remove them from the query pattern or exclude them with [P1:-my-view] if matched by a wildcard."
-            )
-        );
-        assertThat(e.getMetadata("es.esql.view.names"), equalTo(List.of("P1:my-view")));
-    }
-
-    public void testRemoteResourceNotSupportedExceptionAggregatesMultipleViewsAcrossLinkedProjects() {
-        ResolvedIndexExpressions local = flatExpressionWithRemoteFanout("logs-*", "P1:logs-*", "P2:logs-*");
-        Map<String, Exception> remoteExceptions = Map.of(
-            "P1",
-            new RemoteTransportException("test failure", new RemoteViewNotSupportedException(List.of("P1:view-1"))),
-            "P2",
-            new RemoteTransportException("test failure", new RemoteViewNotSupportedException(List.of("P2:view-2")))
-        );
-
-        var e = CrossProjectIndexResolutionValidator.validate(
-            randomBoolean() ? getStrictIgnoreUnavailable() : getLenientIndicesOptions(),
-            useProjectRouting ? "_alias:*" : null,
-            local,
-            Map.of(),
-            remoteExceptions
-        );
-        assertThat(e, instanceOf(RemoteResourceNotSupportedException.class));
-        assertThat(e.getMessage(), containsString("ES|QL queries with remote views are not supported."));
-        assertThat(e.getMetadata("es.esql.view.names"), containsInAnyOrder("P1:view-1", "P2:view-2"));
     }
 
     /**

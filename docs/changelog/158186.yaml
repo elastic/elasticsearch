@@ -1,0 +1,5 @@
+pr: 158186
+summary: Fix `model.failed_category_count` in `_cat/ml/anomaly_detectors` reporting the dead category count
+area: Machine Learning
+type: bug
+issues: []

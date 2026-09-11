@@ -47,7 +47,6 @@ public class RemoteFetchHandleDecodeOperatorTests extends OperatorTestCase {
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         List<BytesRef> handles = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            // Doc positions are unique per handle, matching production where each handle points at a distinct doc.
             handles.add(new RemoteFetchHandle("node-1", "session-1", between(0, 10), between(0, 100), i).toBytesRef());
         }
         return new BytesRefBlockSourceOperator(blockFactory, handles);
@@ -64,6 +63,7 @@ public class RemoteFetchHandleDecodeOperatorTests extends OperatorTestCase {
             assertThat(outputPage.getBlockCount(), equalTo(includePositionMapping ? 2 : 1));
             BytesRefBlock handlesBlock = inputPage.getBlock(0);
             DocBlock docBlock = outputPage.getBlock(0);
+            assertTrue(docBlock.asVector().mayContainDuplicates());
             for (int position = 0; position < inputPage.getPositionCount(); position++) {
                 RemoteFetchHandle handle = RemoteFetchHandle.fromBytesRef(
                     handlesBlock.getBytesRef(handlesBlock.getFirstValueIndex(position), scratch)
@@ -98,12 +98,48 @@ public class RemoteFetchHandleDecodeOperatorTests extends OperatorTestCase {
             assertThat(output.getPositionCount(), equalTo(2));
 
             DocBlock docBlock = output.getBlock(0);
+            assertTrue(docBlock.asVector().mayContainDuplicates());
             assertThat(docBlock.asVector().shards().getInt(0), equalTo(3));
             assertThat(docBlock.asVector().segments().getInt(0), equalTo(7));
             assertThat(docBlock.asVector().docs().getInt(0), equalTo(11));
             assertThat(docBlock.asVector().shards().getInt(1), equalTo(5));
             assertThat(docBlock.asVector().segments().getInt(1), equalTo(13));
             assertThat(docBlock.asVector().docs().getInt(1), equalTo(17));
+        } finally {
+            if (input != null) {
+                input.releaseBlocks();
+            }
+            if (output != null) {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    public void testDecodeHandlesAllowsDuplicateDocs() {
+        Page input = null;
+        Page output = null;
+        RemoteFetchHandle shared = new RemoteFetchHandle("node-1", "session-1", 3, 7, 11);
+        try (
+            RemoteFetchHandleDecodeOperator operator = new RemoteFetchHandleDecodeOperator(TestBlockFactory.getNonBreakingInstance(), false)
+        ) {
+            input = handlesPage(List.of(shared, shared, new RemoteFetchHandle("node-1", "session-1", 5, 13, 17)));
+            operator.addInput(input);
+            input = null;
+
+            output = operator.getOutput();
+            assertThat(output.getPositionCount(), equalTo(3));
+
+            DocBlock docBlock = output.getBlock(0);
+            assertTrue(docBlock.asVector().mayContainDuplicates());
+            assertThat(docBlock.asVector().shards().getInt(0), equalTo(3));
+            assertThat(docBlock.asVector().segments().getInt(0), equalTo(7));
+            assertThat(docBlock.asVector().docs().getInt(0), equalTo(11));
+            assertThat(docBlock.asVector().shards().getInt(1), equalTo(3));
+            assertThat(docBlock.asVector().segments().getInt(1), equalTo(7));
+            assertThat(docBlock.asVector().docs().getInt(1), equalTo(11));
+            assertThat(docBlock.asVector().shards().getInt(2), equalTo(5));
+            assertThat(docBlock.asVector().segments().getInt(2), equalTo(13));
+            assertThat(docBlock.asVector().docs().getInt(2), equalTo(17));
         } finally {
             if (input != null) {
                 input.releaseBlocks();

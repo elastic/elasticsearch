@@ -233,7 +233,7 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
         return new ColumnarStringAutomatonQuery(
             FIELD,
             Operations.determinize(
-                WildcardQuery.toAutomaton(new Term(FIELD, pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
+                WildcardQuery.toAutomaton(new Term(FIELD, pattern)),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
             ),
             "pattern=" + pattern,
@@ -245,7 +245,7 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
     private static List<Integer> accepted(List<String> values, String pattern) {
         final ByteRunAutomaton automaton = new ByteRunAutomaton(
             Operations.determinize(
-                WildcardQuery.toAutomaton(new Term(FIELD, pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
+                WildcardQuery.toAutomaton(new Term(FIELD, pattern)),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
             )
         );

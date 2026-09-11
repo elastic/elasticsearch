@@ -121,7 +121,7 @@ public final class ScanningBinaryDocValuesAutomatonQuery extends AbstractBinaryD
         if (caseInsensitive) {
             automaton = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term);
         } else {
-            automaton = WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            automaton = Operations.determinize(WildcardQuery.toAutomaton(term), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         }
         return automaton;
     }

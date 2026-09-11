@@ -193,7 +193,7 @@ teardown:
       esql.get_dataset:
         name: events_eu
 
-  - match: { settings.region: eu-west-1 }
+  - match: { datasets.0.settings.region: eu-west-1 }
 
   - do:
       esql.delete_dataset:

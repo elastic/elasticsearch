@@ -129,7 +129,7 @@ teardown:
 
   - do:
       warnings:
-        - "[region] on a data source is deprecated and will be ignored; set [region] on the dataset instead, or omit it to have the bucket region detected automatically"
+        - "[region] on a data source is deprecated and will be ignored; set [region] on the dataset instead, or [sts_region] for the STS endpoint region on a federated source, or omit it to have the bucket region detected automatically"
       esql.put_data_source:
         name: ds_region_warn
         body:

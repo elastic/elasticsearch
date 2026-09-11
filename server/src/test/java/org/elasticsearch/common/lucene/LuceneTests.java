@@ -673,7 +673,7 @@ public class LuceneTests extends ESTestCase {
 
     private static Tuple<SortField, SortField> randomCustomSortField() {
         String field = randomAlphaOfLengthBetween(3, 10);
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 4)) {
             case 0 -> {
                 SortField sortField = LatLonDocValuesField.newDistanceSort(field, 0, 0);
                 SortField expected = new SortField(field, SortField.Type.DOUBLE, false, Double.POSITIVE_INFINITY);
@@ -707,6 +707,20 @@ public class LuceneTests extends ESTestCase {
             case 3 -> {
                 ShardDocSortField sortField = new ShardDocSortField(randomIntBetween(0, 100), randomBoolean());
                 SortField expected = new SortField(ShardDocSortField.NAME, SortField.Type.LONG, sortField.getReverse());
+                return Tuple.tuple(sortField, expected);
+            }
+            case 4 -> {
+                // NOTE: rewriteMergeSortField() converts BinarySortField to SortField(STRING) before wire serialization.
+                boolean reverse = randomBoolean();
+                Object missingValue = randomBoolean() ? SortField.STRING_FIRST : SortField.STRING_LAST;
+                MultiValuedBinaryDocValuesSortField sortField = new MultiValuedBinaryDocValuesSortField(
+                    field,
+                    reverse,
+                    missingValue,
+                    randomBoolean(),
+                    randomFrom(org.elasticsearch.index.mapper.BinaryDocValuesFormat.values())
+                );
+                SortField expected = new SortField(field, SortField.Type.STRING, reverse, missingValue);
                 return Tuple.tuple(sortField, expected);
             }
             default -> throw new UnsupportedOperationException();
@@ -866,8 +880,6 @@ public class LuceneTests extends ESTestCase {
         assertTrue(Lucene.canEarlyTerminate(new Sort(queryFieldAsc), new Sort(indexField, secondField)));
         assertFalse(Lucene.canEarlyTerminate(new Sort(queryFieldAsc, queryTs), new Sort(indexField)));
 
-        // MIN and MAX modes must not be treated as equivalent: a MAX query sort against a MIN index sort is
-        // a different ordering and early termination must not fire.
         SortField indexFieldMin = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
         SortField queryFieldMax = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, true);
         assertFalse(Lucene.canEarlyTerminate(new Sort(queryFieldMax), new Sort(indexFieldMin)));

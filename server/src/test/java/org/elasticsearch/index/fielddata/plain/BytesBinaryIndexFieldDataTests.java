@@ -11,11 +11,14 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class BytesBinaryIndexFieldDataTests extends ESTestCase {
 
@@ -68,5 +71,14 @@ public class BytesBinaryIndexFieldDataTests extends ESTestCase {
             false
         );
         assertNotEquals("Different binary formats must not be equal", separateCount, inlineNull);
+    }
+
+    public void testSortFieldWithNestedFallsBackToComparatorSource() {
+        // NOTE: BinarySortField has no nested support; the nested path must use BytesRefFieldComparatorSource.
+        final Nested nested = new Nested(null, null, null, null);
+        final SortField sf = fieldData(BinaryDocValuesFormat.SEPARATE_COUNT).sortField("_last", MultiValueMode.MIN, nested, false);
+        assertThat(sf, not(instanceOf(MultiValuedBinaryDocValuesSortField.class)));
+        assertThat(sf.getComparatorSource(), instanceOf(BytesRefFieldComparatorSource.class));
+        assertEquals(SortField.Type.CUSTOM, sf.getType());
     }
 }

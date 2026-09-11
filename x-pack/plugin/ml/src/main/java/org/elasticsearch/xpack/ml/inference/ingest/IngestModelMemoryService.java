@@ -9,14 +9,19 @@ package org.elasticsearch.xpack.ml.inference.ingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.IngestModelMemoryProvider;
@@ -40,6 +45,8 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
 
     private static final Logger logger = LogManager.getLogger(IngestModelMemoryService.class);
 
+    static final TimeValue RESOLVED_MODEL_SIZE_REVALIDATE_INTERVAL = TimeValue.timeValueSeconds(30);
+
     private final TrainedModelProvider trainedModelProvider;
     private final ThreadPool threadPool;
 
@@ -48,6 +55,8 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
     private final Set<String> fetchScheduledModelIds = ConcurrentHashMap.newKeySet();
     private final AtomicReference<HeapRequirement> cachedRequirement = new AtomicReference<>(new HeapRequirement(0L, true));
     private final AtomicBoolean initialized = new AtomicBoolean(false);
+    private volatile TimeValue resolvedModelSizeRevalidateInterval = RESOLVED_MODEL_SIZE_REVALIDATE_INTERVAL;
+    private volatile Scheduler.Cancellable revalidateCancellable;
 
     public IngestModelMemoryService(TrainedModelProvider trainedModelProvider, ThreadPool threadPool) {
         this.trainedModelProvider = trainedModelProvider;
@@ -69,6 +78,7 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
 
         if (initialized.compareAndSet(false, true)) {
             repopulateAllProjects(event.state());
+            startPeriodicRevalidation();
             return;
         }
 
@@ -120,10 +130,45 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
     }
 
     private void clearAllState() {
+        stopPeriodicRevalidation();
         referencedModelsByProject.clear();
         globalModelSizes.clear();
         fetchScheduledModelIds.clear();
         recomputeHeapRequirement();
+    }
+
+    private synchronized void startPeriodicRevalidation() {
+        if (revalidateCancellable != null) {
+            return;
+        }
+        TimeValue interval = resolvedModelSizeRevalidateInterval;
+        if (interval == null || interval.millis() <= 0) {
+            return;
+        }
+        try {
+            revalidateCancellable = threadPool.scheduleWithFixedDelay(
+                this::revalidateResolvedModelSizes,
+                interval,
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+            );
+        } catch (EsRejectedExecutionException e) {
+            if (e.isExecutorShutdown() == false) {
+                throw e;
+            }
+        }
+    }
+
+    private synchronized void stopPeriodicRevalidation() {
+        if (revalidateCancellable != null && revalidateCancellable.isCancelled() == false) {
+            revalidateCancellable.cancel();
+            revalidateCancellable = null;
+        }
+    }
+
+    private void revalidateResolvedModelSizes() {
+        for (String modelId : globalModelSizes.keySet()) {
+            scheduleRevalidateIfNeeded(modelId);
+        }
     }
 
     private synchronized void recomputeHeapRequirement() {
@@ -158,9 +203,10 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
         }
         for (String modelId : added) {
             perProject.add(modelId);
-            if (globalModelSizes.putIfAbsent(modelId, OptionalLong.empty()) == null) {
-                scheduleFetchIfNeeded(modelId);
-            }
+            globalModelSizes.putIfAbsent(modelId, OptionalLong.empty());
+        }
+        for (String modelId : nowReferenced) {
+            scheduleFetchIfNeeded(modelId);
         }
         recomputeHeapRequirement();
     }
@@ -179,6 +225,18 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
         if (currentSize == null || currentSize.isPresent()) {
             return;
         }
+        scheduleModelSizeFetch(modelId, false);
+    }
+
+    private void scheduleRevalidateIfNeeded(String modelId) {
+        OptionalLong currentSize = globalModelSizes.get(modelId);
+        if (currentSize == null || currentSize.isEmpty() || currentSize.getAsLong() <= 0) {
+            return;
+        }
+        scheduleModelSizeFetch(modelId, true);
+    }
+
+    private void scheduleModelSizeFetch(String modelId, boolean revalidate) {
         if (fetchScheduledModelIds.add(modelId) == false) {
             return;
         }
@@ -192,12 +250,38 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
                         fetchScheduledModelIds.remove(modelId);
                         propagateModelSize(modelId, storedSizeForConfig(config));
                     }, e -> {
-                        logger.debug("Could not fetch config for ingest model [{}]: {}", modelId, e.getMessage());
                         fetchScheduledModelIds.remove(modelId);
-                        propagateModelSize(modelId, OptionalLong.of(0L));
+                        if (revalidate) {
+                            handleRevalidationFetchFailure(modelId, e);
+                        } else {
+                            handleInitialFetchFailure(modelId, e);
+                        }
                     })
                 )
             );
+    }
+
+    private void handleInitialFetchFailure(String modelId, Exception e) {
+        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+            // Inference endpoint, typo, or permanently missing model — terminal zero ingest heap.
+            logger.debug("Ingest model [{}] not found; treating heap contribution as 0: {}", modelId, e.getMessage());
+            propagateModelSize(modelId, OptionalLong.of(0L));
+        } else {
+            // Transient error — leave empty so the next ingest/alias change can retry.
+            logger.debug("Could not fetch config for ingest model [{}]: {}", modelId, e.getMessage());
+            recomputeHeapRequirement();
+        }
+    }
+
+    private void handleRevalidationFetchFailure(String modelId, Exception e) {
+        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+            logger.debug("Ingest model [{}] deleted; treating heap contribution as 0: {}", modelId, e.getMessage());
+            propagateModelSize(modelId, OptionalLong.of(0L));
+        } else {
+            // Keep the last resolved size — safe over-estimate without worsening autoscaling.
+            logger.debug("Could not revalidate ingest model [{}]: {}", modelId, e.getMessage());
+            recomputeHeapRequirement();
+        }
     }
 
     private static OptionalLong storedSizeForConfig(TrainedModelConfig config) {
@@ -239,5 +323,13 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
 
     boolean hasScheduledFetchesForTests() {
         return fetchScheduledModelIds.isEmpty() == false;
+    }
+
+    void setResolvedModelSizeRevalidateIntervalForTests(TimeValue interval) {
+        this.resolvedModelSizeRevalidateInterval = interval;
+    }
+
+    void revalidateResolvedModelSizesForTests() {
+        revalidateResolvedModelSizes();
     }
 }

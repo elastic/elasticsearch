@@ -87,6 +87,7 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
             new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
         );
         service = new IngestModelMemoryService(trainedModelProvider, threadPool);
+        service.setResolvedModelSizeRevalidateIntervalForTests(null);
     }
 
     @After
@@ -213,12 +214,19 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
         assertThat(fetchAttempts.get(), equalTo(1));
     }
 
-    public void testFailedModelFetchShouldResolveToExactZeroWithoutRefetch() throws Exception {
+    public void testTransientFirstFetchFailureShouldStayInexactUntilIngestChangeRetries() throws Exception {
         AtomicInteger fetchAttempts = new AtomicInteger();
         doAnswer(invocation -> {
             fetchAttempts.incrementAndGet();
             ActionListener<TrainedModelConfig> listener = invocation.getArgument(3);
-            listener.onFailure(new RuntimeException("transient failure"));
+            if (fetchAttempts.get() == 1) {
+                listener.onFailure(new RuntimeException("transient failure"));
+            } else {
+                TrainedModelConfig trainedModelConfig = mock(TrainedModelConfig.class);
+                when(trainedModelConfig.getModelSize()).thenReturn(100L);
+                when(trainedModelConfig.getModelType()).thenReturn(null);
+                listener.onResponse(trainedModelConfig);
+            }
             return null;
         }).when(trainedModelProvider).getTrainedModel(eq("model-a"), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
 
@@ -227,13 +235,98 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
 
         assertBusy(() -> {
             assertThat(fetchAttempts.get(), equalTo(1));
-            IngestModelMemoryProvider.HeapRequirement requirement = service.getRequiredHeapBytes();
-            assertThat(requirement.heapBytes(), equalTo(0L));
-            assertThat(requirement.isExact(), is(true));
+            OptionalLong modelSize = service.getGlobalModelSizeForTests("model-a");
+            assertThat(modelSize, notNullValue());
+            assertThat(modelSize.isPresent(), is(false));
+            assertThat(service.getRequiredHeapBytes().isExact(), is(false));
         });
 
         service.clusterChanged(new ClusterChangedEvent("test", current, current));
         assertThat(fetchAttempts.get(), equalTo(1));
+
+        ClusterState ingestChanged = masterClusterState(withIngestModels(Map.of(PROJECT_A, "model-a,model-b")));
+        stubModelConfig("model-b", 0L);
+        service.clusterChanged(new ClusterChangedEvent("test", ingestChanged, current));
+
+        assertBusy(() -> {
+            assertThat(fetchAttempts.get(), equalTo(2));
+            assertThat(service.getRequiredHeapBytes().heapBytes(), equalTo(100L));
+            assertThat(service.getRequiredHeapBytes().isExact(), is(true));
+        });
+    }
+
+    public void testDeletedResolvedDfaModelShouldZeroOnPeriodicRevalidation() throws Exception {
+        stubModelConfig("model-a", 500L);
+        ClusterState current = masterClusterState(withIngestModels(Map.of(PROJECT_A, "model-a")));
+        service.clusterChanged(new ClusterChangedEvent("test", current, masterClusterState(ClusterState.EMPTY_STATE.metadata())));
+
+        assertBusy(() -> assertThat(service.getRequiredHeapBytes().heapBytes(), equalTo(500L)));
+
+        doAnswer(invocation -> {
+            ActionListener<TrainedModelConfig> listener = invocation.getArgument(3);
+            listener.onFailure(new ResourceNotFoundException("Could not find trained model [model-a]"));
+            return null;
+        }).when(trainedModelProvider).getTrainedModel(eq("model-a"), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
+
+        service.revalidateResolvedModelSizesForTests();
+
+        assertBusy(() -> {
+            OptionalLong modelSize = service.getGlobalModelSizeForTests("model-a");
+            assertThat(modelSize, notNullValue());
+            assertThat(modelSize.isPresent(), is(true));
+            assertThat(modelSize.getAsLong(), equalTo(0L));
+            assertThat(service.getRequiredHeapBytes().heapBytes(), equalTo(0L));
+            assertThat(service.getRequiredHeapBytes().isExact(), is(true));
+        });
+    }
+
+    public void testTransientRevalidationFailureShouldKeepLastResolvedSize() throws Exception {
+        stubModelConfig("model-a", 500L);
+        ClusterState current = masterClusterState(withIngestModels(Map.of(PROJECT_A, "model-a")));
+        service.clusterChanged(new ClusterChangedEvent("test", current, masterClusterState(ClusterState.EMPTY_STATE.metadata())));
+
+        assertBusy(() -> assertThat(service.getRequiredHeapBytes().heapBytes(), equalTo(500L)));
+
+        doAnswer(invocation -> {
+            ActionListener<TrainedModelConfig> listener = invocation.getArgument(3);
+            listener.onFailure(new RuntimeException("transient failure"));
+            return null;
+        }).when(trainedModelProvider).getTrainedModel(eq("model-a"), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
+
+        service.revalidateResolvedModelSizesForTests();
+
+        assertBusy(() -> {
+            assertThat(service.getRequiredHeapBytes().heapBytes(), equalTo(500L));
+            assertThat(service.getRequiredHeapBytes().isExact(), is(true));
+        });
+        verify(trainedModelProvider, times(2)).getTrainedModel(eq("model-a"), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
+    }
+
+    public void testResolvedZeroShouldNotBePeriodicallyRefetched() throws Exception {
+        doAnswer(invocation -> {
+            ActionListener<TrainedModelConfig> listener = invocation.getArgument(3);
+            listener.onFailure(new ResourceNotFoundException("Could not find trained model [my-endpoint]"));
+            return null;
+        }).when(trainedModelProvider).getTrainedModel(eq("my-endpoint"), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
+
+        ClusterState current = masterClusterState(withIngestModels(Map.of(PROJECT_A, "my-endpoint")));
+        service.clusterChanged(new ClusterChangedEvent("test", current, masterClusterState(ClusterState.EMPTY_STATE.metadata())));
+
+        assertBusy(() -> {
+            OptionalLong modelSize = service.getGlobalModelSizeForTests("my-endpoint");
+            assertThat(modelSize, notNullValue());
+            assertThat(modelSize.isPresent(), is(true));
+            assertThat(modelSize.getAsLong(), equalTo(0L));
+        });
+
+        service.revalidateResolvedModelSizesForTests();
+
+        verify(trainedModelProvider, times(1)).getTrainedModel(
+            eq("my-endpoint"),
+            eq(GetTrainedModelsAction.Includes.empty()),
+            any(),
+            any()
+        );
     }
 
     public void testUnresolvedModelFetchShouldNotWarn() throws Exception {

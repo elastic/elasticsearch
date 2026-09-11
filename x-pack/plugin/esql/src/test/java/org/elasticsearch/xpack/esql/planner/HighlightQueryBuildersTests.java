@@ -54,6 +54,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
@@ -72,6 +73,8 @@ public class HighlightQueryBuildersTests extends ESTestCase {
 
     private static final List<String> TITLE = List.of("title");
     private static final List<String> TITLE_BODY = List.of("title", "body");
+
+    private static final Map<String, NamedAnalyzer> TITLE_STANDARD = Map.of("title", Lucene.STANDARD_ANALYZER);
 
     private static AnalysisRegistry analysisRegistry;
 
@@ -104,6 +107,11 @@ public class HighlightQueryBuildersTests extends ESTestCase {
     private static Query translate(Expression query, List<String> fields, NamedAnalyzer analyzer) {
         QueryBuilder builder = HighlightQueryBuilders.toQueryBuilder(query, fields);
         return HighlightQueryBuilders.toLuceneQuery(builder, RuntimeSearchExecutionContext.create(fields, analyzer));
+    }
+
+    private static Query translateLenient(Expression query, List<String> fields) {
+        QueryBuilder builder = HighlightQueryBuilders.toQueryBuilder(query, fields);
+        return HighlightQueryBuilders.toLuceneQuery(builder, RuntimeSearchExecutionContext.create(fields, Lucene.STANDARD_ANALYZER, true));
     }
 
     private static Query translateLiteral(String text) {
@@ -152,17 +160,35 @@ public class HighlightQueryBuildersTests extends ESTestCase {
 
     public void testVerifyUsesProvidedAnalyzer() {
         // A failing analyzer makes it observable which analyzer verify uses without mocking the query machinery.
-        Analyzer analyzer = new Analyzer() {
+        NamedAnalyzer analyzer = new NamedAnalyzer("_throwing", AnalyzerScope.GLOBAL, new Analyzer() {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {
                 throw new IllegalStateException("test analyzer was used");
             }
-        };
+        });
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> HighlightQueryBuilders.verify(of("fox"), TITLE, analyzer)
+            () -> HighlightQueryBuilders.verify(of("fox"), Map.of("title", analyzer), true, false, null)
         );
         assertThat(e.getMessage(), containsString("test analyzer was used"));
+    }
+
+    public void testVerifyCanSkipExplicitOnFieldEnforcement() {
+        Expression query = match("body", "fox", null);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightQueryBuilders.verify(query, TITLE_STANDARD, true, false, null)
+        );
+        assertThat(e.getMessage(), containsString("HIGHLIGHT query field [body] is not in ON fields [title]"));
+        HighlightQueryBuilders.verify(query, TITLE_STANDARD, false, false, null);
+    }
+
+    // An implicit query verifies against a lenient context, so a QSTR or KQL naming a field outside ON becomes match-none.
+    public void testVerifyImplicitQueryFieldOutsideOnIsLenient() {
+        HighlightQueryBuilders.verify(queryString("body:fox", null), TITLE_STANDARD, false, true, null);
+        HighlightQueryBuilders.verify(queryString("fox", options("default_field", "body")), TITLE_STANDARD, false, true, null);
+        Kql kql = new Kql(EMPTY, of("body: fox"), null, TEST_CFG);
+        HighlightQueryBuilders.verify(kql, TITLE_STANDARD, false, true, null);
     }
 
     // The registry hands plugin analyzers (AnalysisPlugin#getAnalyzers) back as bare Lucene analyzers with no position
@@ -185,11 +211,13 @@ public class HighlightQueryBuildersTests extends ESTestCase {
     public void testTranslateWithPluginAnalyzerKeepsPositionIncrementGap() {
         HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
             of("fox"),
-            TITLE,
-            "fingerprint",
+            Map.of("title", "fingerprint"),
             analysisRegistry
         );
-        assertThat(translated.analyzer().getPositionIncrementGap("title"), equalTo(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP));
+        assertThat(
+            translated.fieldAnalyzers().get("title").getPositionIncrementGap("title"),
+            equalTo(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP)
+        );
     }
 
     public void testLiteralLeadingWildcardAllowed() {
@@ -333,6 +361,13 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("field [body] is not one of the searchable fields [title]"));
     }
 
+    public void testFieldsOutsideOnAreMatchNoneInLenientContext() {
+        assertThat(translateLenient(queryString("body:fox", null), TITLE), instanceOf(MatchNoDocsQuery.class));
+        assertThat(translateLenient(queryString("fox", options("default_field", "body")), TITLE), instanceOf(MatchNoDocsQuery.class));
+        Kql kql = new Kql(EMPTY, of("body: fox"), null, TEST_CFG);
+        assertThat(translateLenient(kql, TITLE), instanceOf(MatchNoDocsQuery.class));
+    }
+
     public void testMatchInvalidOperatorThrows() {
         expectThrows(IllegalArgumentException.class, () -> translate(match("title", "fox", options("operator", "xor")), TITLE));
     }
@@ -355,6 +390,46 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         Kql kql = new Kql(EMPTY, of("body: fox"), null, TEST_CFG);
         QueryShardException e = expectThrows(QueryShardException.class, () -> translate(kql, TITLE));
         assertThat(e.getMessage(), containsString("field [body] is not one of the searchable fields [title]"));
+    }
+
+    public void testQuoteAnalyzerAppliesWithAnalysisRegistry() {
+        QueryString qstr = queryString("\"Fox Bar\"", options("quote_analyzer", "keyword"));
+        HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
+            qstr,
+            Map.of("title", HighlightQueryBuilders.DEFAULT_ANALYZER_NAME),
+            analysisRegistry
+        );
+        TermQuery term = asInstanceOf(TermQuery.class, translated.query());
+        assertThat(term.getTerm(), equalTo(new Term("title", "Fox Bar")));
+    }
+
+    public void testQuoteAnalyzerUnresolvableWithoutAnalysisRegistry() {
+        QueryString qstr = queryString("\"Fox Bar\"", options("quote_analyzer", "keyword"));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> translate(qstr, TITLE));
+        assertThat(e.getMessage(), containsString("quote_analyzer [keyword] not found"));
+    }
+
+    public void testVerifyResolvesQuoteAnalyzerWithRegistry() {
+        QueryString qstr = queryString("\"Fox Bar\"", options("quote_analyzer", "keyword"));
+        HighlightQueryBuilders.verify(qstr, TITLE_STANDARD, true, false, analysisRegistry);
+    }
+
+    public void testVerifyUnresolvableQuoteAnalyzerThrowsWithRegistry() {
+        QueryString qstr = queryString("\"Fox Bar\"", options("quote_analyzer", "not-a-real-analyzer"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightQueryBuilders.verify(qstr, TITLE_STANDARD, true, false, analysisRegistry)
+        );
+        assertThat(e.getMessage(), containsString("not-a-real-analyzer"));
+    }
+
+    public void testVerifyMultiFieldResolvesOffOnFieldLeafAnalyzerWithRegistry() {
+        Expression query = new Or(EMPTY, match("title", "fox", null), match("body", "bar", options("analyzer", "simple")));
+        Map<String, NamedAnalyzer> fieldAnalyzers = HighlightQueryBuilders.resolveFieldAnalyzers(
+            Map.of("title", HighlightQueryBuilders.DEFAULT_ANALYZER_NAME),
+            analysisRegistry
+        );
+        HighlightQueryBuilders.verify(query, fieldAnalyzers, false, true, analysisRegistry);
     }
 
     private static List<Term> terms(Query query) {

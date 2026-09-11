@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -31,13 +30,18 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Builds HIGHLIGHT queries through Query DSL. Verification and local planning share this path so they accept the same
@@ -67,27 +71,24 @@ public final class HighlightQueryBuilders {
     /**
      * Checks that the expression contains only full-text functions supported by HIGHLIGHT.
      */
-    private static void verifyQueryStructure(Expression expr, List<String> onFields) {
+    private static void verifyQueryStructure(Expression expr, @Nullable List<String> onFields) {
         // TODO: Allow HIGHLIGHT queries to use expressions other than full-text functions.
         switch (expr) {
             case Match match -> requireOnField(fieldName(match.field()), onFields);
             case MatchPhrase matchPhrase -> requireOnField(fieldName(matchPhrase.field()), onFields);
             case QueryString queryString -> {
-                String defaultField = queryStringDefaultField(queryString);
+                String defaultField = HighlightSupport.queryStringDefaultField(queryString);
                 if (defaultField != null) {
                     requireOnField(defaultField, onFields);
                 }
             }
-            case And and -> {
-                verifyQueryStructure(and.left(), onFields);
-                verifyQueryStructure(and.right(), onFields);
-            }
-            case Or or -> {
-                verifyQueryStructure(or.left(), onFields);
-                verifyQueryStructure(or.right(), onFields);
+            case BinaryLogic binary -> {
+                verifyQueryStructure(binary.left(), onFields);
+                verifyQueryStructure(binary.right(), onFields);
             }
             case Not not -> verifyQueryStructure(not.field(), onFields);
-            // KQL resolves fields while rewriting its query builder. Unknown fields become match-none.
+            // KQL resolves fields while rewriting its query builder; against a lenient context an unknown field
+            // resolves to nothing and the clause becomes match-none, so nothing is checked here.
             case Kql kql -> {
             }
             // String literals use query_string semantics over the ON fields.
@@ -101,41 +102,10 @@ public final class HighlightQueryBuilders {
         }
     }
 
-    /**
-     * Verifies that a HIGHLIGHT query uses supported full-text forms, references its {@code onFields}, and translates
-     * with the {@code analyzer} that execution will use.
-     */
-    public static void verify(Expression queryExpr, List<String> onFields, Analyzer analyzer) {
-        String literal = queryTextIfLiteral(queryExpr);
-        // Pushdown accepts more expressions than the runtime context, so check the query shape first.
-        if (literal == null) {
-            verifyQueryStructure(queryExpr, onFields);
-        }
-        // Translate before planning to catch invalid options, syntax, and fields outside ON.
-        try {
-            translate(queryExpr, onFields, runtimeContext(onFields, analyzer));
-        } catch (RuntimeException e) {
-            throw new IllegalArgumentException(
-                "Invalid query [" + (literal != null ? literal : queryExpr.sourceText()) + "] in HIGHLIGHT: " + e.getMessage(),
-                e
-            );
-        }
-    }
-
-    private static void requireOnField(String field, List<String> onFields) {
-        if (onFields.contains(field) == false) {
+    private static void requireOnField(String field, @Nullable List<String> onFields) {
+        if (onFields != null && onFields.contains(field) == false) {
             throw new IllegalArgumentException("HIGHLIGHT query field [" + field + "] is not in ON fields " + onFields);
         }
-    }
-
-    private static String queryStringDefaultField(QueryString queryString) {
-        if (queryString.options() instanceof MapExpression map) {
-            Expression value = map.get("default_field");
-            if (value != null && value.foldable()) {
-                return BytesRefs.toString(value.fold(FoldContext.small()));
-            }
-        }
-        return null;
     }
 
     /**
@@ -153,6 +123,9 @@ public final class HighlightQueryBuilders {
         return build(queryExpr);
     }
 
+    // This switch, verifyQueryStructure above, and HighlightSupport#isSupportedImplicitPredicate/deriveFields all walk
+    // the same full-text expression hierarchy and must stay in sync as new forms are added. This one is the most
+    // important to keep current: a missing case here throws IllegalStateException at runtime, not at verification.
     private static QueryBuilder build(Expression expr) {
         return switch (expr) {
             case And and -> QueryBuilders.boolQuery().must(build(and.left())).must(build(and.right()));
@@ -179,41 +152,113 @@ public final class HighlightQueryBuilders {
         return context.toQuery(builder).query();
     }
 
-    private static RuntimeSearchExecutionContext runtimeContext(List<String> fieldNames, Analyzer analyzer) {
-        NamedAnalyzer namedAnalyzer = analyzer instanceof NamedAnalyzer na
-            ? na
-            : new NamedAnalyzer("_override", AnalyzerScope.GLOBAL, analyzer);
-        return RuntimeSearchExecutionContext.create(fieldNames, namedAnalyzer);
+    /** Per-field context plus extra analyzer names ({@code quote_analyzer}, off-ON leaf analyzers) when a registry is present. */
+    private static RuntimeSearchExecutionContext runtimeContext(
+        Expression queryExpr,
+        Map<String, NamedAnalyzer> fieldAnalyzers,
+        boolean lenientFields,
+        @Nullable AnalysisRegistry analysisRegistry
+    ) {
+        Set<String> extraAnalyzerNames = new LinkedHashSet<>(HighlightSupport.extraAnalyzerNamesOf(queryExpr));
+        extraAnalyzerNames.addAll(HighlightSupport.primaryAnalyzerNamesOf(queryExpr));
+        return RuntimeSearchExecutionContext.create(
+            fieldAnalyzers,
+            resolveExtraAnalyzers(extraAnalyzerNames, analysisRegistry),
+            lenientFields
+        );
     }
 
-    private static TranslatedQuery translate(Expression queryExpr, List<String> fieldNames, RuntimeSearchExecutionContext context) {
-        String literal = queryTextIfLiteral(queryExpr);
-        String queryText = literal != null ? literal : queryExpr.sourceText();
-        Query query = toLuceneQuery(toQueryBuilder(queryExpr, fieldNames), context);
-        return new TranslatedQuery(queryText, query, context.searchAnalyzer());
+    /** Resolves {@code extraAnalyzerNames} through {@code analysisRegistry}, or an empty map when either is empty. */
+    private static Map<String, NamedAnalyzer> resolveExtraAnalyzers(
+        Set<String> extraAnalyzerNames,
+        @Nullable AnalysisRegistry analysisRegistry
+    ) {
+        if (analysisRegistry == null || extraAnalyzerNames.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, NamedAnalyzer> extraAnalyzers = new LinkedHashMap<>();
+        for (String extraName : extraAnalyzerNames) {
+            extraAnalyzers.put(extraName, asNamedAnalyzer(extraName, PlannerUtils.resolveAnalyzer(extraName, analysisRegistry)));
+        }
+        return extraAnalyzers;
+    }
+
+    private static NamedAnalyzer asNamedAnalyzer(String name, Analyzer analyzer) {
+        return analyzer instanceof NamedAnalyzer na ? na : new NamedAnalyzer(name, AnalyzerScope.GLOBAL, analyzer);
     }
 
     /**
-     * Builds the runtime query with the analyzer used to index each row's text.
+     * Resolves {@code fieldAnalyzerNames} (field to analyzer name, from {@link HighlightSupport#fieldAnalyzers})
+     * through {@code analysisRegistry}. Distinct names are resolved once and shared across fields.
      */
-    private static TranslatedQuery translate(Expression queryExpr, List<String> fieldNames, Analyzer analyzer) {
-        return translate(queryExpr, fieldNames, runtimeContext(fieldNames, analyzer));
+    public static Map<String, NamedAnalyzer> resolveFieldAnalyzers(
+        Map<String, String> fieldAnalyzerNames,
+        @Nullable AnalysisRegistry analysisRegistry
+    ) {
+        Map<String, NamedAnalyzer> resolvedByName = new HashMap<>();
+        Map<String, NamedAnalyzer> result = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : fieldAnalyzerNames.entrySet()) {
+            String name = entry.getValue();
+            NamedAnalyzer resolved = resolvedByName.computeIfAbsent(
+                name,
+                n -> asNamedAnalyzer(n, PlannerUtils.resolveAnalyzer(n, analysisRegistry))
+            );
+            result.put(entry.getKey(), resolved);
+        }
+        return result;
     }
 
     /**
-     * Resolves {@code analyzerName} from {@code analysisRegistry}, then builds the runtime query. A {@code null} name
-     * selects the {@link #DEFAULT_ANALYZER_NAME default} analyzer.
+     * Verifies that a HIGHLIGHT query uses supported full-text forms, references only the fields of
+     * {@code fieldAnalyzers} (when {@code enforceOnFields}), and translates against the same per-field analyzers
+     * execution will use. An {@code implicit} query may name fields outside ON and is translated leniently
+     * (match-none) rather than failing; its errors are framed as derived from WHERE.
+     */
+    public static void verify(
+        Expression queryExpr,
+        Map<String, NamedAnalyzer> fieldAnalyzers,
+        boolean enforceOnFields,
+        boolean implicit,
+        @Nullable AnalysisRegistry analysisRegistry
+    ) {
+        List<String> fields = List.copyOf(fieldAnalyzers.keySet());
+        String literal = queryTextIfLiteral(queryExpr);
+        if (literal == null) {
+            verifyQueryStructure(queryExpr, enforceOnFields ? fields : null);
+        }
+        try {
+            translate(queryExpr, fields, runtimeContext(queryExpr, fieldAnalyzers, implicit, analysisRegistry));
+        } catch (RuntimeException e) {
+            String prefix = implicit
+                ? "Invalid query derived from WHERE for HIGHLIGHT: "
+                : "Invalid query [" + (literal != null ? literal : queryExpr.sourceText()) + "] in HIGHLIGHT: ";
+            throw new IllegalArgumentException(prefix + e.getMessage(), e);
+        }
+    }
+
+    private static void translate(Expression queryExpr, List<String> fieldNames, RuntimeSearchExecutionContext context) {
+        toLuceneQuery(toQueryBuilder(queryExpr, fieldNames), context);
+    }
+
+    /**
+     * Resolves {@code fieldAnalyzerNames} per field, then builds the runtime query against a per-field analyzer
+     * context. The context is always lenient about fields outside {@code fieldAnalyzerNames}: verification has
+     * already rejected any explicit query naming such a field.
      */
     public static TranslatedQuery translate(
         Expression queryExpr,
-        List<String> fieldNames,
-        @Nullable String analyzerName,
+        Map<String, String> fieldAnalyzerNames,
         @Nullable AnalysisRegistry analysisRegistry
     ) {
-        String name = analyzerName != null ? analyzerName : DEFAULT_ANALYZER_NAME;
-        return translate(queryExpr, fieldNames, PlannerUtils.resolveAnalyzer(name, analysisRegistry));
+        Map<String, NamedAnalyzer> fieldAnalyzers = resolveFieldAnalyzers(fieldAnalyzerNames, analysisRegistry);
+        List<String> fieldNames = List.copyOf(fieldAnalyzerNames.keySet());
+        RuntimeSearchExecutionContext context = runtimeContext(queryExpr, fieldAnalyzers, true, analysisRegistry);
+        String literal = queryTextIfLiteral(queryExpr);
+        String queryText = literal != null ? literal : queryExpr.sourceText();
+        Query query = toLuceneQuery(toQueryBuilder(queryExpr, fieldNames), context);
+        return new TranslatedQuery(queryText, query, fieldAnalyzers);
     }
 
-    /** Runtime query state produced by {@link #translate}. */
-    public record TranslatedQuery(String queryText, Query query, Analyzer analyzer) {}
+    /** Runtime query state produced by {@link #translate(Expression, Map, AnalysisRegistry)}. */
+    public record TranslatedQuery(String queryText, Query query, Map<String, NamedAnalyzer> fieldAnalyzers) {}
 }

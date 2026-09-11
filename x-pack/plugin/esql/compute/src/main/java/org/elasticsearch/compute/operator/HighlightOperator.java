@@ -21,6 +21,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.highlight.DefaultEncoder;
@@ -43,6 +44,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.lucene.search.uhighlight.BoundedBreakIteratorScanner;
 import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
@@ -73,7 +75,7 @@ import java.util.function.Supplier;
  * row. Query DSL behaves the same when it re-analyzes a field. It can match beyond the limit only when offsets come from
  * the index, which this operator does not use.
  * <p>
- * TODO: use real index offsets and per-field analyzers when highlighting can run against shard data.
+ * TODO: use real index offsets and per-field mapped analyzers when highlighting can run against shard data.
  */
 public class HighlightOperator extends AbstractPageMappingOperator {
 
@@ -97,7 +99,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private final HighlightConfig config;
     private final Query query;
     private final List<String> fieldNames;
-    private final Analyzer analyzer;
+    private final List<NamedAnalyzer> fieldAnalyzers;
     private final PassageFormatter formatter;
     private final int indexMaxAnalyzedOffset;
     private final QueryMaxAnalyzedOffset queryMaxAnalyzedOffset;
@@ -112,11 +114,13 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         this.blockFactory = blockFactory;
         this.config = config;
         this.fieldEvaluators = fieldEvaluators;
-        this.analyzer = config.requiredAnalyzer();
+        this.fieldAnalyzers = config.requiredFieldAnalyzers();
         this.query = config.requiredQuery();
         this.fieldNames = config.fieldNames();
         assert fieldNames.size() == fieldEvaluators.length
             : "HIGHLIGHT ON field count [" + fieldNames.size() + "] does not match ON expression count [" + fieldEvaluators.length + "]";
+        assert fieldNames.size() == fieldAnalyzers.size()
+            : "HIGHLIGHT ON field count [" + fieldNames.size() + "] does not match analyzer count [" + fieldAnalyzers.size() + "]";
         Encoder encoder = HighlightConfig.HTML_ENCODER.equals(config.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
         this.formatter = new CustomPassageFormatter(config.preTag(), config.postTag(), encoder, config.numberOfFragments());
         // Coordinator-side highlighting has no IndexSettings yet, so the index cap is just the default. Clamping the
@@ -138,7 +142,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         IndexSearcher searcher = memoryIndex.createSearcher();
         this.highlighters = new CustomUnifiedHighlighter[fieldNames.size()];
         for (int i = 0; i < fieldNames.size(); i++) {
-            UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
+            UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, fieldAnalyzers.get(i));
             builder.withFormatter(formatter);
             builder.withBreakIterator(breakIteratorSupplier);
             highlighters[i] = new CustomUnifiedHighlighter(
@@ -199,6 +203,10 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
         @Override
         public void visitLeaf(Query query) {
+            if (query instanceof MatchNoDocsQuery) {
+                // Match-none contributes no terms and can never match, so it must not disable the keep-set optimisation.
+                return;
+            }
             unfilterable = true;
         }
 
@@ -333,11 +341,16 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private LeafReader indexRow(HighlightField[] fields) {
         memoryIndex.reset();
         boolean keptToken = false;
-        for (HighlightField field : fields) {
+        for (int i = 0; i < fields.length; i++) {
+            HighlightField field = fields[i];
             if (field.rowText == null) {
                 continue;
             }
-            TokenStream tokenStream = new LimitTokenOffsetFilter(rowTokenStream(field), queryMaxAnalyzedOffset.getNotNull(), false);
+            TokenStream tokenStream = new LimitTokenOffsetFilter(
+                rowTokenStream(field, fieldAnalyzers.get(i)),
+                queryMaxAnalyzedOffset.getNotNull(),
+                false
+            );
             KeepQueryTermsFilter filtered = null;
             if (keepSet != null) {
                 tokenStream = filtered = new KeepQueryTermsFilter(tokenStream, keepSet);
@@ -386,7 +399,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
      * when indexed: the analyzer never sees the separator, the position increment gap keeps phrases from matching
      * across values, and offsets are rebased onto the joined row text the highlighter cuts passages from.
      */
-    private TokenStream rowTokenStream(HighlightField field) {
+    private TokenStream rowTokenStream(HighlightField field, Analyzer analyzer) {
         int firstValueEnd = field.rowText.indexOf(CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR);
         if (firstValueEnd < 0) {
             return analyzer.tokenStream(field.name, field.rowText);

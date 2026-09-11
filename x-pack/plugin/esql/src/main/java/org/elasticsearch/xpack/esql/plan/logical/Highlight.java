@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -33,18 +33,24 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPlan<Highlight>, PostAnalysisVerificationAware {
+public class Highlight extends UnaryPlan
+    implements
+        TelemetryAware,
+        GeneratingPlan<Highlight>,
+        PostAnalysisVerificationAware,
+        DocPreserving {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -54,6 +60,14 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     /** Minimum transport version that knows how to deserialize this plan node. */
     public static final TransportVersion ESQL_HIGHLIGHT = TransportVersion.fromName("esql_highlight");
+
+    /**
+     * Older peers only know explicit {@code HIGHLIGHT <query> ON <fields>}; they do not serialize
+     * {@link #implicitQuery} or {@link #derivedFields}.
+     */
+    public static final TransportVersion ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS = TransportVersion.fromName(
+        "esql_highlight_implicit_query_and_fields"
+    );
 
     public static final String DEFAULT_PREFIX = "highlight_";
 
@@ -85,6 +99,12 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     private final String prefix;
     private final Expression query;
+    /** True once analysis has borrowed the query from an upstream full-text WHERE. False at parse time. */
+    private final boolean implicitQuery;
+    /**
+     * True when ON was omitted or is {@code *}. Set at parse time and kept after the field list is filled in.
+     */
+    private final boolean derivedFields;
     private final List<NamedExpression> fields;
     private final MapExpression options;
     /**
@@ -99,6 +119,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         LogicalPlan child,
         String prefix,
         Expression query,
+        boolean implicitQuery,
+        boolean derivedFields,
         List<NamedExpression> fields,
         MapExpression options,
         List<Attribute> generatedFields
@@ -106,6 +128,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         super(source, child);
         this.prefix = prefix;
         this.query = query;
+        this.implicitQuery = implicitQuery;
+        this.derivedFields = derivedFields;
         this.fields = fields;
         this.options = options;
         this.generatedFields = generatedFields;
@@ -117,6 +141,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
             in.readNamedWriteable(LogicalPlan.class),
             in.readString(),
             in.readOptionalNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) ? in.readBoolean() : false,
+            in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) ? in.readBoolean() : false,
             in.readNamedWriteableCollectionAsList(NamedExpression.class),
             // MapExpression is registered under the Expression category, not its own, so read it as an Expression.
             (MapExpression) in.readOptionalNamedWriteable(Expression.class),
@@ -130,6 +156,19 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         out.writeNamedWriteable(child());
         out.writeString(prefix);
         out.writeOptionalNamedWriteable(query);
+        if (out.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS)) {
+            out.writeBoolean(implicitQuery);
+            out.writeBoolean(derivedFields);
+        } else if (implicitQuery || derivedFields) {
+            // Dropping the flags would make a derived query look explicit on the peer, changing ON-list verification.
+            throw new IllegalArgumentException(
+                "HIGHLIGHT with a derived query or field list is not supported in peer node's version ["
+                    + out.getTransportVersion()
+                    + "]. Upgrade to version ["
+                    + ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS
+                    + "] or newer."
+            );
+        }
         out.writeNamedWriteableCollection(fields);
         out.writeOptionalNamedWriteable(options);
         out.writeNamedWriteableCollection(generatedFields);
@@ -146,6 +185,14 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     public Expression query() {
         return query;
+    }
+
+    public boolean implicitQuery() {
+        return implicitQuery;
+    }
+
+    public boolean derivedFields() {
+        return derivedFields;
     }
 
     public List<NamedExpression> fields() {
@@ -170,21 +217,67 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
             .toList();
     }
 
+    private Highlight copy(
+        LogicalPlan child,
+        Expression query,
+        List<NamedExpression> fields,
+        MapExpression options,
+        List<Attribute> generatedFields
+    ) {
+        return new Highlight(source(), child, prefix, query, implicitQuery, derivedFields, fields, options, generatedFields);
+    }
+
     public Highlight withOptions(MapExpression newOptions) {
         if (Objects.equals(options, newOptions)) {
             return this;
         }
-        return new Highlight(source(), child(), prefix, query, fields, newOptions, generatedFields);
+        return copy(child(), query, fields, newOptions, generatedFields);
+    }
+
+    /**
+     * Keeps {@link #derivedFields} while replacing the rest: verification reads it to skip ON-membership enforcement
+     * for a field list the user never wrote. Pass {@code newGeneratedFields} through unchanged unless
+     * {@code newFields} changed, since {@code generatedAttributesFor} mints fresh {@link NameId}s on every call.
+     */
+    public Highlight withResolved(
+        Expression newQuery,
+        boolean newImplicitQuery,
+        List<NamedExpression> newFields,
+        List<Attribute> newGeneratedFields
+    ) {
+        return new Highlight(source(), child(), prefix, newQuery, newImplicitQuery, derivedFields, newFields, options, newGeneratedFields);
+    }
+
+    /**
+     * Narrows this HIGHLIGHT to a subset of its ON fields and their aligned generated columns, keeping {@link #query},
+     * {@link #implicitQuery} and {@link #derivedFields}. Column pruning uses this to drop ON fields whose generated
+     * {@code <prefix><field>} column is never consumed downstream, except fields the query still translates against.
+     * This runs after verification, so ON-membership is unaffected; a literal query simply spans fewer fields, but a
+     * {@code QSTR} or {@code MATCH} that names a pruned field would fail at runtime.
+     */
+    public Highlight withPrunedFields(List<NamedExpression> prunedFields, List<Attribute> prunedGeneratedFields) {
+        return copy(child(), query, prunedFields, options, prunedGeneratedFields);
     }
 
     @Override
     public Highlight replaceChild(LogicalPlan newChild) {
-        return new Highlight(source(), newChild, prefix, query, fields, options, generatedFields);
+        return copy(newChild, query, fields, options, generatedFields);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Highlight::new, child(), prefix, query, fields, options, generatedFields);
+        return NodeInfo.create(
+            this,
+            Highlight::new,
+            child(),
+            prefix,
+            query,
+            implicitQuery,
+            derivedFields,
+            fields,
+            options,
+            generatedFields
+        );
     }
 
     @Override
@@ -206,7 +299,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
             String newName = newNames.get(i);
             renamed.add(newName.equals(attr.name()) ? attr : attr.withName(newName).withId(new NameId()));
         }
-        return new Highlight(source(), child(), prefix, query, fields, options, renamed);
+        return copy(child(), query, fields, options, renamed);
     }
 
     @Override
@@ -217,7 +310,10 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     @Override
     public boolean expressionsResolved() {
-        if (query != null && query.resolved() == false) {
+        // No ON list (bare HIGHLIGHT / HIGHLIGHT <query>): analysis still has to derive fields,
+        // and until then output() has no generated columns. ON * is [UnresolvedStar] and is
+        // rejected by the loop below, not by isEmpty().
+        if (fields.isEmpty() || (query != null && query.resolved() == false)) {
             return false;
         }
         for (NamedExpression field : fields) {
@@ -231,6 +327,17 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     @Override
     public void postAnalysisVerification(Failures failures) {
         verifyFieldTypes(failures);
+        if (query == null) {
+            // ResolveHighlight stores the borrowed query, not why borrowing failed, so recompute the reason here.
+            failures.add(fail(this, "{}", HighlightSupport.collectImplicitQuery(child(), source()).reasonIfMissing()));
+        } else if (fields.isEmpty()) {
+            failures.add(fail(this, "{}", HighlightSupport.noHighlightableFieldsMessage(query)));
+        } else if (implicitQuery && query.resolved()) {
+            String mismatch = HighlightSupport.implicitQueryFieldMismatchMessage(query, fields);
+            if (mismatch != null) {
+                failures.add(fail(this, "{}", mismatch));
+            }
+        }
         if (options == null) {
             return;
         }
@@ -245,46 +352,92 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     @Override
     public void postAnalysisVerification(AnalysisRegistry analysisRegistry, Failures failures) {
         postAnalysisVerification(failures);
-        Analyzer analyzer;
-        try {
-            analyzer = resolveAnalyzer(analysisRegistry);
-        } catch (InvalidArgumentException e) {
-            // The analyzer name is a valid string but doesn't resolve.
-            failures.add(fail(this, "{}", e.getMessage()));
+        if (query == null || query.resolved() == false || fields.isEmpty()) {
             return;
+        }
+        String commandAnalyzerName;
+        try {
+            commandAnalyzerName = analyzerOptionName();
         } catch (IllegalArgumentException e) {
             // The analyzer value isn't a string. Type errors have already been reported by verifyValue, but still
-            // validate the query with the default analyzer so query errors are surfaced too.
-            verifyQuery(defaultAnalyzer(analysisRegistry), failures);
-            return;
-        }
-        verifyQuery(analyzer, failures);
-    }
-
-    private Analyzer resolveAnalyzer(AnalysisRegistry analysisRegistry) {
-        Expression value = options == null ? null : foldableOption(ANALYZER);
-        if (value == null) {
-            return defaultAnalyzer(analysisRegistry);
-        }
-        String name = HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
-        return PlannerUtils.resolveAnalyzer(name, analysisRegistry);
-    }
-
-    private static Analyzer defaultAnalyzer(AnalysisRegistry analysisRegistry) {
-        return PlannerUtils.resolveAnalyzer(HighlightQueryBuilders.DEFAULT_ANALYZER_NAME, analysisRegistry);
-    }
-
-    private void verifyQuery(Analyzer analyzer, Failures failures) {
-        if (query == null || query.resolved() == false) {
-            return;
+            // validate the query with the default per-field analyzers so query errors are surfaced too.
+            commandAnalyzerName = null;
         }
         List<String> fieldNames = fields.stream().map(NamedExpression::name).toList();
+        Map<String, String> fieldAnalyzerNames;
         try {
-            HighlightQueryBuilders.verify(query, fieldNames, analyzer);
+            fieldAnalyzerNames = HighlightSupport.fieldAnalyzers(query, commandAnalyzerName, fieldNames);
+        } catch (IllegalArgumentException e) {
+            failures.add(fail(this, "{}", e.getMessage()));
+            return;
+        }
+        verifyQuery(fieldAnalyzerNames, failures, analysisRegistry);
+    }
+
+    /** The user-set {@code WITH {"analyzer": ...}} name, or {@code null} when absent. */
+    private String analyzerOptionName() {
+        Expression value = options == null ? null : foldableOption(ANALYZER);
+        return value == null ? null : HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
+    }
+
+    /**
+     * Message when a borrowed WHERE analyzer is not a node-level analyzer. Covers ON-field primaries, off-ON leaf
+     * analyzers, and {@code quote_analyzer}. A name the user typed in {@code WITH} keeps the raw failure.
+     */
+    private String unresolvedAnalyzerMessage(String fallback) {
+        if (implicitQuery == false) {
+            return fallback;
+        }
+        for (String name : HighlightSupport.primaryAnalyzerNamesOf(query)) {
+            String rewritten = borrowedUnresolvedAnalyzerMessage(name, fallback);
+            if (rewritten != null) {
+                return rewritten;
+            }
+        }
+        for (String name : HighlightSupport.extraAnalyzerNamesOf(query)) {
+            String rewritten = borrowedUnresolvedAnalyzerMessage(name, fallback);
+            if (rewritten != null) {
+                return rewritten;
+            }
+        }
+        return fallback;
+    }
+
+    private static String borrowedUnresolvedAnalyzerMessage(String name, String fallback) {
+        if (fallback.contains("[" + name + "] is not a registered analyzer") == false) {
+            return null;
+        }
+        return "HIGHLIGHT auto-derived analyzer ["
+            + name
+            + "] from WHERE, but ["
+            + name
+            + "] is not a registered node-level analyzer. Custom per-index analyzers cannot be used "
+            + "through HIGHLIGHT; write an explicit HIGHLIGHT ... WITH {\"analyzer\": "
+            + "\"<a-registered-name>\"}.";
+    }
+
+    private void verifyQuery(Map<String, String> fieldAnalyzerNames, Failures failures, AnalysisRegistry analysisRegistry) {
+        Map<String, NamedAnalyzer> fieldAnalyzers;
+        try {
+            fieldAnalyzers = HighlightQueryBuilders.resolveFieldAnalyzers(fieldAnalyzerNames, analysisRegistry);
+        } catch (InvalidArgumentException e) {
+            failures.add(fail(this, "{}", unresolvedAnalyzerMessage(e.getMessage())));
+            return;
+        }
+        try {
+            // ON membership is enforced only when the user wrote both the query and the field list. A borrowed
+            // query translates leniently so a predicate naming a non-ON field becomes match-none rather than failing.
+            HighlightQueryBuilders.verify(
+                query,
+                fieldAnalyzers,
+                implicitQuery == false && derivedFields == false,
+                implicitQuery,
+                analysisRegistry
+            );
         } catch (IllegalArgumentException e) {
             // Attach to the query node, not this Highlight node: failures dedupe by node, so pinning it here would let a
             // co-located option/analyzer failure on this node swallow the query error (see VerifierTests#testHighlightAnalyzerOption).
-            failures.add(fail(query, "{}", e.getMessage()));
+            failures.add(fail(query, "{}", unresolvedAnalyzerMessage(e.getMessage())));
         }
     }
 
@@ -343,6 +496,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         Highlight other = (Highlight) o;
         return Objects.equals(prefix, other.prefix)
             && Objects.equals(query, other.query)
+            && implicitQuery == other.implicitQuery
+            && derivedFields == other.derivedFields
             && Objects.equals(fields, other.fields)
             && Objects.equals(options, other.options)
             && Objects.equals(generatedFields, other.generatedFields);
@@ -350,6 +505,6 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), prefix, query, fields, options, generatedFields);
+        return Objects.hash(super.hashCode(), prefix, query, implicitQuery, derivedFields, fields, options, generatedFields);
     }
 }

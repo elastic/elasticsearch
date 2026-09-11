@@ -819,6 +819,62 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     }
 
     /**
+     * Nested subfields are in the mapping but {@code IndexResolver} applies {@code -nested}
+     * on the field-caps request. Stats must treat them as absent so {@code exists}/{@code count}
+     * match extraction.
+     * If ES|QL later supports nested fields, these expectations will need updating.
+     */
+    public void testNestedSubfieldIsNotExtractable() throws IOException {
+        final List<Closeable> toClose = new ArrayList<>();
+        try {
+            final MapperService nestedMapper = createMapperService("""
+                { "doc": { "properties": {
+                    "id": { "type": "keyword" },
+                    "item": { "type": "nested", "properties": { "value": { "type": "integer" } } }
+                }}}""");
+            final Directory nestedDir = newDirectory();
+            final IndexReader nestedReader;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), nestedDir)) {
+                writer.addDocument(List.of(new StringField("id", "nested", Field.Store.NO)));
+                nestedReader = writer.getReader();
+            }
+            toClose.add(nestedReader);
+            toClose.add(nestedMapper);
+            toClose.add(nestedDir);
+            SearchExecutionContext nestedContext = createSearchExecutionContext(nestedMapper, newSearcher(nestedReader));
+            assertTrue("nested subfield is present in the mapping", nestedContext.isMappedField("item.value"));
+            assertNotNull(nestedContext.nestedLookup().getNestedParent("item.value"));
+
+            SearchStats nestedOnly = SearchContextStats.from(List.of(nestedContext));
+            FieldAttribute.FieldName field = new FieldAttribute.FieldName("item.value");
+            assertFalse("nested-only shard: field caps hides the field, so exists is false", nestedOnly.exists(field));
+            assertEquals(0L, nestedOnly.count(field));
+
+            final MapperService objectMapper = createMapperService("""
+                { "doc": { "properties": {
+                    "id": { "type": "keyword" },
+                    "item": { "properties": { "value": { "type": "long" } } }
+                }}}""");
+            final Directory objectDir = newDirectory();
+            final IndexReader objectReader;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), objectDir)) {
+                writer.addDocument(List.of(new LongField("item.value", 7L, Field.Store.NO), new StringField("id", "obj", Field.Store.NO)));
+                objectReader = writer.getReader();
+            }
+            toClose.add(objectReader);
+            toClose.add(objectMapper);
+            toClose.add(objectDir);
+            SearchExecutionContext objectContext = createSearchExecutionContext(objectMapper, newSearcher(objectReader));
+
+            SearchStats mixed = SearchContextStats.from(List.of(nestedContext, objectContext));
+            assertTrue("object shard maps the field, so exists is true across mixed shards", mixed.exists(field));
+            assertEquals("count must ignore the nested shard", 1L, mixed.count(field));
+        } finally {
+            IOUtils.close(toClose);
+        }
+    }
+
+    /**
      * A single-valued numeric field with a point index must be reported as single-valued via the
      * {@code PointValues.size() == PointValues.getDocCount()} check. Covers the points branch of
      * {@code detectSingleValue}, as opposed to the doc-values-skipper branch.

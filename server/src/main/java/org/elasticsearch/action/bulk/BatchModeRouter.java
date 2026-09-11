@@ -527,7 +527,6 @@ final class BatchModeRouter implements Releasable {
         } catch (Exception e) {
             // The trio does not give us a row index, so we cannot isolate which row(s) caused the
             // problem. Fail every deferred item with the same exception.
-            logger.warn("batch routing failed for pre-built batch [{}] with {} rows", indexAbstractionName, source.docCount(), e);
             scattered = true; // prevent shardBatches() from attempting a stale scatter
             for (int i = 0; i < source.docCount(); i++) {
                 if (items[i] != null) {

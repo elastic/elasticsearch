@@ -35,9 +35,8 @@
  *     <li>{@link org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter} — the dataset <em>policy</em> over
  *     that mechanism: it targets external leaves, and gates the rewrite. An unsupported clause is dropped with a
  *     warning naming the construct and its dataset, so it costs the caller that clause rather than the whole query;
- *     because the applied predicate is never tighter than the filter, a drop can only over-return. It is feature-flagged
- *     (on in snapshot builds, excluded from release) and version-gated, because
- *     the translated predicate can contain expressions older nodes cannot deserialize.</li>
+ *     because the applied predicate is never tighter than the filter, a drop can only over-return. It is version-gated,
+ *     because the translated predicate can contain expressions older nodes cannot deserialize.</li>
  * </ul>
  *
  * <h2>Two invariants the whole thing rests on</h2>

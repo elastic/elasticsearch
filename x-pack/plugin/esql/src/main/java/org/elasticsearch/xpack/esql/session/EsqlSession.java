@@ -551,7 +551,6 @@ public class EsqlSession {
                         plan = RequestFilterRewriter.rewrite(
                             analyzedPlan.inner(),
                             request.filter(),
-                            RequestFilterRewriter.REQUEST_FILTER_ON_DATASET_FEATURE_FLAG.isEnabled(),
                             finalConfiguration,
                             minimumVersion,
                             true // drop untranslatable clauses with a warning; the strict arm is test-only

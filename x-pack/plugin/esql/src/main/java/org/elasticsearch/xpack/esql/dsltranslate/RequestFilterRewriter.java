@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.dsltranslate;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -41,40 +40,23 @@ import java.util.Set;
  * clause, remains reachable through {@code dropUntranslatableWithWarning} so both policies stay under test. Nothing
  * selects it in production, and no request parameter exposes it.
  *
- * <p>The rewrite is <em>feature-flagged</em>. Applying the filter to datasets changes what an existing dataset query
- * returns — a filter that used to be dropped now selects rows, and DSL outside the supported subset now fails the
- * query — so it is gated on {@link #REQUEST_FILTER_ON_DATASET_FEATURE_FLAG}: on by default in snapshot builds (so
- * development, CI and tests exercise it) and excluded from release builds until we choose to ship it. While it is off
- * the relation is read unfiltered <em>with a warning</em>, which is the behavior datasets had before this feature
- * existed — never a silent drop.
- *
- * <p>Version-gated on {@link #ESQL_REQUEST_FILTER_ON_DATASET}: the translated filter may contain
- * {@code mv_in_range}/{@code mv_greater}/{@code mv_less}, which older nodes cannot deserialize. Below that version the
- * rewrite is skipped (unfiltered + warning).
+ * <p>Version-gated on {@link #ESQL_DATASET_REQUEST_FILTER_PATTERNS}: the translated filter may contain
+ * {@code mv_in_range} (with its bound-inclusivity options), {@code mv_greater}, {@code mv_less}, {@code mv_like} and
+ * {@code mv_rlike}, which older nodes cannot deserialize. Below that version the rewrite is skipped, and the relation
+ * is read unfiltered <em>with a warning</em> — never a silent drop.
  */
 public final class RequestFilterRewriter {
 
-    /**
-     * Gates applying the request filter to datasets: on by default in snapshot builds, excluded from release builds
-     * unless {@code -Des.esql_request_filter_on_dataset_feature_flag_enabled=true}. Shipping this code therefore cannot
-     * change what an existing dataset query returns until we decide to turn it on.
-     */
-    public static final FeatureFlag REQUEST_FILTER_ON_DATASET_FEATURE_FLAG = new FeatureFlag("esql_request_filter_on_dataset");
-
-    static final TransportVersion ESQL_REQUEST_FILTER_ON_DATASET = TransportVersion.fromName("esql_request_filter_on_dataset");
+    static final TransportVersion ESQL_DATASET_REQUEST_FILTER_PATTERNS = TransportVersion.fromName("esql_dataset_request_filter_patterns");
 
     private RequestFilterRewriter() {}
 
     /**
-     * @param enabled               whether the feature is on (production passes
-     *                              {@link #REQUEST_FILTER_ON_DATASET_FEATURE_FLAG}); when {@code false} the relation
-     *                              is read unfiltered with a warning. A parameter rather than a direct flag read so
-     *                              the disabled path is unit-testable.
      * @param configuration         the query configuration — anchors {@code now} date math so a request filter over
      *                              an external source resolves {@code "now-15m"} to the same instant the index path
      *                              would, and supplies the locale for case-folding.
      * @param minimumVersion        the minimum transport version across the nodes this plan targets; below
-     *                              {@link #ESQL_REQUEST_FILTER_ON_DATASET} the rewrite is skipped (see the class
+     *                              {@link #ESQL_DATASET_REQUEST_FILTER_PATTERNS} the rewrite is skipped (see the class
      *                              javadoc).
      * @param dropUntranslatableWithWarning when {@code true}, unsupported DSL clauses are dropped with a warning rather
      *                                      than failing the query. Production always passes {@code true}; the
@@ -83,7 +65,6 @@ public final class RequestFilterRewriter {
     public static LogicalPlan rewrite(
         LogicalPlan analyzed,
         QueryBuilder requestFilter,
-        boolean enabled,
         Configuration configuration,
         TransportVersion minimumVersion,
         boolean dropUntranslatableWithWarning
@@ -91,11 +72,7 @@ public final class RequestFilterRewriter {
         if (requestFilter == null) {
             return analyzed;
         }
-        if (enabled == false) {
-            warnNotApplied(analyzed, "applying the request filter to datasets is not enabled in this build");
-            return analyzed;
-        }
-        if (minimumVersion.supports(ESQL_REQUEST_FILTER_ON_DATASET) == false) {
+        if (minimumVersion.supports(ESQL_DATASET_REQUEST_FILTER_PATTERNS) == false) {
             warnNotApplied(analyzed, "the cluster contains a node too old to evaluate the translated filter");
             return analyzed;
         }

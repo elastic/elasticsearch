@@ -18,6 +18,7 @@ import org.apache.lucene.search.LongValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -54,7 +55,9 @@ public abstract class ItemSetMapReduceValueSource {
             int id,
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization ordinalOptimization,
-            Optional<LeafReaderContext> ctx
+            Optional<LeafReaderContext> ctx,
+            int maxRegexLength,
+            CircuitBreaker breaker
         ) throws IOException;
     }
 
@@ -346,7 +349,9 @@ public abstract class ItemSetMapReduceValueSource {
             int id,
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization ordinalOptimization,
-            Optional<LeafReaderContext> ctx
+            Optional<LeafReaderContext> ctx,
+            int maxRegexLength,
+            CircuitBreaker breaker
         ) throws IOException {
             super(config, id, ValueFormatter.BYTES_REF);
 
@@ -359,14 +364,14 @@ public abstract class ItemSetMapReduceValueSource {
                 this.executionStrategy = new GlobalOrdinalsStrategy(
                     getField(),
                     (Bytes.WithOrdinals) config.getValuesSource(),
-                    includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(config.format()),
+                    includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(config.format(), maxRegexLength, breaker),
                     ctx.get()
                 );
             } else {
                 this.executionStrategy = new MapStrategy(
                     getField(),
                     (Bytes) config.getValuesSource(),
-                    includeExclude == null ? null : includeExclude.convertToStringFilter(config.format())
+                    includeExclude == null ? null : includeExclude.convertToStringFilter(config.format(), maxRegexLength, breaker)
                 );
             }
         }
@@ -396,7 +401,9 @@ public abstract class ItemSetMapReduceValueSource {
             int id,
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization unusedOrdinalOptimization,
-            Optional<LeafReaderContext> unusedCtx
+            Optional<LeafReaderContext> unusedCtx,
+            int unusedMaxRegexLength,
+            CircuitBreaker unusedBreaker
         ) {
             super(config, id, ValueFormatter.LONG);
             this.source = (Numeric) config.getValuesSource();

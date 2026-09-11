@@ -20,6 +20,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.IpFieldMapper;
@@ -54,6 +55,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetsAggregationBuilder.EXECUTION_HINT_ALLOWED_MODES;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 
 public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
 
@@ -92,6 +94,37 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             null,
             randomFrom(EXECUTION_HINT_ALLOWED_MODES)
         );
+    }
+
+    /** The include/exclude regex of a field is bounded by {@code index.max_regex_length}, as in the terms aggregation. */
+    public void testIncludeExcludeRegexLengthLimit() throws IOException {
+        int maxRegexLength = IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY);
+        String tooLong = "a".repeat(maxRegexLength + 1);
+        MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD1);
+        for (IncludeExclude includeExclude : List.of(
+            new IncludeExclude(tooLong, null, null, null),
+            new IncludeExclude(null, tooLong, null, null)
+        )) {
+            FrequentItemSetsAggregationBuilder builder = new FrequentItemSetsAggregationBuilder(
+                "fi",
+                List.of(new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD1).setIncludeExclude(includeExclude).build()),
+                FrequentItemSetsAggregationBuilder.DEFAULT_MINIMUM_SUPPORT,
+                FrequentItemSetsAggregationBuilder.DEFAULT_MINIMUM_SET_SIZE,
+                FrequentItemSetsAggregationBuilder.DEFAULT_SIZE,
+                null,
+                randomFrom(EXECUTION_HINT_ALLOWED_MODES)
+            );
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> testCase(
+                    iw -> iw.addDocument(List.of(new SortedSetDocValuesField(KEYWORD_FIELD1, new BytesRef("item-1")))),
+                    results -> fail("the regex must be rejected"),
+                    new AggTestConfig(builder, keywordType)
+                )
+            );
+            assertThat(e.getMessage(), containsString("The length of regex [" + tooLong.length() + "]"));
+            assertThat(e.getMessage(), containsString("allowed maximum of [" + maxRegexLength + "]"));
+        }
     }
 
     public void testKeywordsArray() throws IOException {

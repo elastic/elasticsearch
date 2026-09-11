@@ -1,0 +1,5 @@
+area: Aggregations
+issues: []
+pr: 158570
+summary: Bound include/exclude regex in terms aggregations
+type: bug

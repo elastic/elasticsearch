@@ -16,6 +16,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -254,6 +255,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         this.aggregatorSupplier = aggregatorSupplier;
         this.order = order;
         this.includeExclude = includeExclude;
+        if (includeExclude != null) {
+            includeExclude.validateRegex(context.getIndexSettings().getMaxRegexLength());
+        }
         this.executionHint = executionHint;
         this.collectMode = collectMode;
         this.bucketCountThresholds = bucketCountThresholds;
@@ -402,7 +406,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             ) throws IOException {
                 IncludeExclude.StringFilter filter = includeExclude == null
                     ? null
-                    : includeExclude.convertToStringFilter(valuesSourceConfig.format());
+                    : includeExclude.convertToStringFilter(
+                        valuesSourceConfig.format(),
+                        context.getIndexSettings().getMaxRegexLength(),
+                        context.breaker()
+                    );
                 return new MapStringTermsAggregator(
                     name,
                     factories,
@@ -445,6 +453,15 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 ValuesSource.Bytes.WithOrdinals ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSourceConfig
                     .getValuesSource();
                 SortedSetDocValues values = globalOrdsValues(context, ordinalsValuesSource);
+                // Built once: the filter-by-filter attempt below can decline and fall through to the standard aggregator,
+                // and compiling the include/exclude regex twice per shard doubles the cost this class bounds.
+                LongPredicate acceptedOrds = gloabalOrdsFilter(
+                    includeExclude,
+                    valuesSourceConfig.format(),
+                    values,
+                    context.getIndexSettings().getMaxRegexLength(),
+                    context.breaker()
+                );
                 long maxOrd = values.getValueCount();
                 if (maxOrd > 0
                     && maxOrd <= MAX_ORDS_TO_TRY_FILTERS
@@ -462,7 +479,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         valuesSourceConfig,
                         order,
                         bucketCountThresholds,
-                        gloabalOrdsFilter(includeExclude, valuesSourceConfig.format(), values),
+                        acceptedOrds,
                         () -> globalOrdsValues(context, ordinalsValuesSource)
                     );
                     if (adapted != null) {
@@ -557,7 +574,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     order,
                     valuesSourceConfig.format(),
                     bucketCountThresholds,
-                    gloabalOrdsFilter(includeExclude, valuesSourceConfig.format(), values),
+                    acceptedOrds,
                     context,
                     parent,
                     remapGlobalOrds,
@@ -617,12 +634,17 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         return valuesSource.globalOrdinalsValues(reader.leaves().get(0));
     }
 
-    public static LongPredicate gloabalOrdsFilter(IncludeExclude includeExclude, DocValueFormat format, SortedSetDocValues values)
-        throws IOException {
+    public static LongPredicate gloabalOrdsFilter(
+        IncludeExclude includeExclude,
+        DocValueFormat format,
+        SortedSetDocValues values,
+        int maxRegexLength,
+        CircuitBreaker breaker
+    ) throws IOException {
 
         if (includeExclude == null) {
             return GlobalOrdinalsStringTermsAggregator.ALWAYS_TRUE;
         }
-        return includeExclude.convertToOrdinalsFilter(format).acceptedGlobalOrdinals(values)::get;
+        return includeExclude.convertToOrdinalsFilter(format, maxRegexLength, breaker).acceptedGlobalOrdinals(values)::get;
     }
 }

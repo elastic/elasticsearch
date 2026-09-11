@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.searchbusinessrules;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
-import org.elasticsearch.plugins.SearchPlugin.RetrieverSpec;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.searchbusinessrules.retriever.PinnedRetrieverBuilder;
 

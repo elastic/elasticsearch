@@ -138,24 +138,38 @@ class NdJsonUtils {
             alreadyCrossedLine = tracker.wasLastConsumedByteTerminator(baos.size());
         }
 
+        // Unwrap the tracker so RecoveredStream.prependReleasedBuffer can coalesce across recoveries,
+        // and the scan reads directly from the underlying stream without disturbing tracking state.
+        LineTerminatorTrackingStream outerTracker = null;
+        InputStream base = input;
+        if (input instanceof LineTerminatorTrackingStream ltt) {
+            outerTracker = ltt;
+            base = ltt.baseStream();
+        }
+
         if (baos.size() > 0) {
-            if (input instanceof RecoveredStream recoveredStream) {
+            if (base instanceof RecoveredStream recoveredStream) {
                 recoveredStream.prependReleasedBuffer(baos);
             } else {
-                input = new RecoveredStream(baos, input);
+                base = new RecoveredStream(baos, base);
             }
         }
 
         if (alreadyCrossedLine == false) {
             int c;
-            while ((c = input.read()) != -1) {
+            while ((c = base.read()) != -1) {
                 if (c == '\n' || c == '\r') {
                     break;
                 }
             }
         }
 
-        return input;
+        // Reset and reuse the tracker (resets totalDelivered to 0 so the next parser starts fresh).
+        if (outerTracker != null) {
+            outerTracker.reset(base);
+            return outerTracker;
+        }
+        return base;
     }
 
     /**
@@ -197,18 +211,43 @@ class NdJsonUtils {
         public int read(byte[] b, int off, int len) throws IOException {
             int n = in.read(b, off, len);
             if (n > 0) {
-                int start = (int) (totalDelivered % RING_SIZE);
-                int end = start + n;
+                // If n exceeds the ring, only the tail (last RING_SIZE bytes) matters for lookbehind.
+                int toCopy = Math.min(n, RING_SIZE);
+                int srcOff = off + n - toCopy;
+                int start = (int) ((totalDelivered + n - toCopy) % RING_SIZE);
+                int end = start + toCopy;
                 if (end <= RING_SIZE) {
-                    System.arraycopy(b, off, ring, start, n);
+                    System.arraycopy(b, srcOff, ring, start, toCopy);
                 } else {
                     int firstPart = RING_SIZE - start;
-                    System.arraycopy(b, off, ring, start, firstPart);
-                    System.arraycopy(b, off + firstPart, ring, 0, n - firstPart);
+                    System.arraycopy(b, srcOff, ring, start, firstPart);
+                    System.arraycopy(b, srcOff + firstPart, ring, 0, toCopy - firstPart);
                 }
                 totalDelivered += n;
             }
             return n;
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            long skipped = 0;
+            byte[] buf = new byte[(int) Math.min(n, 4096)];
+            while (skipped < n) {
+                int toRead = (int) Math.min(n - skipped, buf.length);
+                int r = read(buf, 0, toRead);
+                if (r < 0) break;
+                skipped += r;
+            }
+            return skipped;
+        }
+
+        InputStream baseStream() {
+            return in;
+        }
+
+        void reset(InputStream newIn) {
+            this.in = newIn;
+            this.totalDelivered = 0;
         }
 
         /**

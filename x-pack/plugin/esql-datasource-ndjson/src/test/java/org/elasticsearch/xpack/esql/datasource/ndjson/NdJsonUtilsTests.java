@@ -207,6 +207,73 @@ public class NdJsonUtilsTests extends ESTestCase {
     }
 
     /**
+     * {@link NdJsonUtils.LineTerminatorTrackingStream#reset} must clear {@code totalDelivered}
+     * so the next parser starts fresh. After reset, the tracker behaves identically to a newly
+     * constructed one wrapping the supplied stream.
+     */
+    public void testTrackingStreamReset() throws IOException {
+        // Deliver one byte, then reset with a new stream containing '\n'.
+        NdJsonUtils.LineTerminatorTrackingStream tracker = new NdJsonUtils.LineTerminatorTrackingStream(
+            new ByteArrayInputStream(new byte[] { 'a' })
+        );
+        assertEquals('a', tracker.read());
+        // Before reset: totalDelivered = 1, last byte is 'a' (not a terminator).
+        assertFalse("last byte 'a': must return false before reset", tracker.wasLastConsumedByteTerminator(0));
+
+        // Reset with a new stream.
+        tracker.reset(new ByteArrayInputStream(new byte[] { '\n' }));
+        // After reset: totalDelivered = 0, no bytes consumed yet.
+        assertFalse("no bytes after reset: must return false", tracker.wasLastConsumedByteTerminator(0));
+
+        assertEquals('\n', tracker.read());
+        assertTrue("last byte '\\n' after reset: must return true", tracker.wasLastConsumedByteTerminator(0));
+    }
+
+    /**
+     * {@link NdJsonUtils.LineTerminatorTrackingStream#skip} must route through {@link
+     * NdJsonUtils.LineTerminatorTrackingStream#read} so the ring buffer is updated. Without the
+     * override, {@link java.io.FilterInputStream#skip} delegates to {@code in.skip()}, bypassing
+     * the ring entirely and leaving {@code wasLastConsumedByteTerminator} unable to see the skipped
+     * bytes.
+     */
+    public void testTrackingStreamSkipUpdatesRing() throws IOException {
+        // Stream: "hello\n" — skip all but the last byte.
+        byte[] data = "hello\n".getBytes(StandardCharsets.UTF_8);
+        NdJsonUtils.LineTerminatorTrackingStream tracker = new NdJsonUtils.LineTerminatorTrackingStream(new ByteArrayInputStream(data));
+        long skipped = tracker.skip(data.length - 1); // skip "hello"
+        assertEquals(data.length - 1, skipped);
+        // Now read the '\n'.
+        assertEquals('\n', tracker.read());
+        assertTrue("last byte '\\n' after skip: must return true", tracker.wasLastConsumedByteTerminator(0));
+    }
+
+    /**
+     * When a single bulk read returns more than {@code RING_SIZE} bytes, the ring must not
+     * attempt to write all {@code n} bytes (which would overflow). Only the tail (last
+     * {@code RING_SIZE} bytes) is stored.
+     */
+    public void testTrackingStreamBulkReadLargerThanRing() throws IOException {
+        int ringSize = 8193;
+        // Produce ringSize + 10 bytes: ringSize bytes of 'a', then 10 bytes of '\n'.
+        byte[] data = new byte[ringSize + 10];
+        Arrays.fill(data, 0, ringSize, (byte) 'a');
+        Arrays.fill(data, ringSize, ringSize + 10, (byte) '\n');
+
+        // Wrap with a stream that returns ALL bytes in one read call.
+        NdJsonUtils.LineTerminatorTrackingStream tracker = new NdJsonUtils.LineTerminatorTrackingStream(new ByteArrayInputStream(data));
+        byte[] buf = new byte[data.length];
+        int n = tracker.read(buf, 0, buf.length);
+        assertEquals(data.length, n);
+
+        // Last byte delivered is '\n': releasedSize=0 → pos = totalDelivered-1 = last '\n'.
+        assertTrue("last byte '\\n': must return true", tracker.wasLastConsumedByteTerminator(0));
+        // 10 bytes back is still '\n'.
+        assertTrue("9 bytes back is still '\\n': must return true", tracker.wasLastConsumedByteTerminator(9));
+        // 11 bytes back lands in the 'a' region.
+        assertFalse("11 bytes back is 'a': must return false", tracker.wasLastConsumedByteTerminator(10));
+    }
+
+    /**
      * Behavioural check for {@code AUTO_CLOSE_SOURCE = false}: closing the parser must not
      * close the underlying stream. Schema inference and parse-error recovery rely on this.
      */

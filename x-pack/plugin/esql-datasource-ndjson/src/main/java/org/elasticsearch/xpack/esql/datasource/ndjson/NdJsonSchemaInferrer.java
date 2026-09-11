@@ -108,8 +108,7 @@ public class NdJsonSchemaInferrer {
                     // fails the query or drops with a warning.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, tracking);
-                    tracking = new NdJsonUtils.LineTerminatorTrackingStream(inputStream);
-                    parser = NdJsonUtils.JSON_FACTORY.createParser(tracking);
+                    parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                     continue;
                 }
 
@@ -120,8 +119,7 @@ public class NdJsonSchemaInferrer {
                     // See comment above: deferred to the slice read for policy-driven handling.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, tracking);
-                    tracking = new NdJsonUtils.LineTerminatorTrackingStream(inputStream);
-                    parser = NdJsonUtils.JSON_FACTORY.createParser(tracking);
+                    parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                 }
 
                 // Mark fields we haven't seen in this round as nullable

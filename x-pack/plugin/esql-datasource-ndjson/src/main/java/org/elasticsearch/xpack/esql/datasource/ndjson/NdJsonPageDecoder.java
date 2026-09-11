@@ -755,14 +755,9 @@ public class NdJsonPageDecoder implements Closeable {
             this.parserSliceStart = next;
             this.parser = jsonFactory.createParser(sourceBytes, next, sourceEnd - next);
         } else {
+            // moveToNextLine resets the LineTerminatorTrackingStream in-place and returns it,
+            // so this.input continues to be the same tracker (now reset to totalDelivered=0).
             this.input = NdJsonUtils.moveToNextLine(failedParser, this.input);
-            // Each fresh parser needs its own LineTerminatorTrackingStream so moveToNextLine
-            // can detect the invalid-bare-token overshoot on any subsequent recovery.
-            // prependReleasedBuffer in RecoveredStream does not fire because the outer type is
-            // LineTerminatorTrackingStream; consecutive recoveries add two stream layers each.
-            // For typical error rates this is harmless; a future improvement could re-collapse by
-            // looking through the tracker wrapper.
-            this.input = new NdJsonUtils.LineTerminatorTrackingStream(this.input);
             this.parser = jsonFactory.createParser(this.input);
             // The fresh parser's byte offsets restart at the recovery point while parserSliceStart stays 0, so
             // every subsequent tokenStartOffset() is short by the pre-recovery bytes. Record offsets are no longer

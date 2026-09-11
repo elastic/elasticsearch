@@ -33,6 +33,10 @@ import java.util.function.BooleanSupplier;
  *        Parquet footer reads) aborts promptly when the originating query is cancelled. Defaults to
  *        {@code () -> false} ("never cancelled") for callers and SPI impls that do not carry a
  *        {@code CancellableTask}.
+ * @param datasetName the dataset identity used as the per-file {@code _index} constant during
+ *        discovery filter evaluation. {@code FileSplitProvider} overlays it onto a discovery-only
+ *        value map; other {@link SplitProvider}s ignore it. {@code null} when the query has no
+ *        dataset identity (bare-glob {@code FROM}, {@code EXTERNAL}).
  */
 public record SplitDiscoveryContext(
     SourceMetadata metadata,
@@ -48,7 +52,8 @@ public record SplitDiscoveryContext(
     // The declared read-instructions (renames / declared-type columns / date formats). Lets split discovery make the
     // declared overlay a stats boundary — rekey physical->logical + poison retyped columns' footer stats. NONE when the
     // dataset carries no declared mapping (every current SplitProvider but FileSplitProvider ignores it).
-    DeclaredReadSpec declaredReadSpec
+    DeclaredReadSpec declaredReadSpec,
+    @Nullable String datasetName
 ) {
     public SplitDiscoveryContext(
         SourceMetadata metadata,
@@ -68,7 +73,8 @@ public record SplitDiscoveryContext(
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE
+            DeclaredReadSpec.NONE,
+            null
         );
     }
 
@@ -91,7 +97,8 @@ public record SplitDiscoveryContext(
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE
+            DeclaredReadSpec.NONE,
+            null
         );
     }
 
@@ -115,7 +122,34 @@ public record SplitDiscoveryContext(
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE
+            DeclaredReadSpec.NONE,
+            null
+        );
+    }
+
+    public SplitDiscoveryContext(
+        SourceMetadata metadata,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        Map<String, Object> config,
+        PartitionMetadata partitionInfo,
+        List<Expression> filterHints,
+        ExternalSchema querySchema,
+        @Nullable String datasetName
+    ) {
+        this(
+            metadata,
+            fileList,
+            schemaMap,
+            config,
+            partitionInfo,
+            filterHints,
+            querySchema,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            DeclaredReadSpec.NONE,
+            datasetName
         );
     }
 

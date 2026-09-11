@@ -19,6 +19,7 @@ import org.junit.ClassRule;
 
 /** Runs yaml rest tests */
 public class RestMainClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+    // Touched by the flakiness-detection CI drive. No behaviour change; see the PR description.
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("rest-root").build();
 

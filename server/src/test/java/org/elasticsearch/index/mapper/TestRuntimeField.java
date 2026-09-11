@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.stream.Stream;
 
 public final class TestRuntimeField implements RuntimeField {
+    // Touched by the flakiness-detection CI drive. No behaviour change; see the PR description.
 
     public static final String CONTENT_TYPE = "test-composite";
 

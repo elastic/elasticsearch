@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
 public class EnrollmentProcessTests extends PackagingTestCase {
+    // Touched by the flakiness-detection CI drive. No behaviour change; see the PR description.
 
     public void test10ArchiveAutoFormCluster() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */

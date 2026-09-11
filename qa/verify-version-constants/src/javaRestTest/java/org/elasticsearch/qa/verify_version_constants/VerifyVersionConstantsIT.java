@@ -28,6 +28,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class VerifyVersionConstantsIT extends ESRestTestCase {
+    // Touched by the flakiness-detection CI drive. No behaviour change; see the PR description.
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

@@ -14,3 +14,5 @@
         nodes.info: {}
 
     - contains:  { nodes.$master.modules: { name: lang-expression  } }
+
+# Touched by the flakiness-detection CI drive. No behaviour change; see the PR description.

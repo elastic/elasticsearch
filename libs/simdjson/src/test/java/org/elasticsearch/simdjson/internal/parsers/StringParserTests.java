@@ -21,6 +21,7 @@ import static org.elasticsearch.simdjson.SimdJsonTestCase.makeJsonString;
 
 // Unit tests for StringParser (JSON string unescaping with SIMD + scalar tail).
 public class StringParserTests extends ESTestCase {
+    // Touched by the flakiness-detection CI drive. No behaviour change; see the PR description.
 
     @BeforeClass
     public static void requireVectorSupport() {

@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SizeMappingIT extends ESIntegTestCase {
+    // Touched by the flakiness-detection CI drive. No behaviour change; see the PR description.
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

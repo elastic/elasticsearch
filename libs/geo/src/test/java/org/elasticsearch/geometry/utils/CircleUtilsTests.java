@@ -24,6 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
  * classified two different ways.
  */
 public class CircleUtilsTests extends ESTestCase {
+    // Touched by the flakiness-detection CI drive. No behaviour change; see the PR description.
 
     public void testCreateRegularGeoShapePolygon() {
         final Circle circle = randomValueOtherThanMany(

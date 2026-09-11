@@ -24,6 +24,7 @@ import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
@@ -50,6 +51,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.GroupedReleasables;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
@@ -1067,7 +1069,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             Automaton a = caseInsensitive
                 ? AutomatonQueries.caseInsensitivePrefix(prefix)
-                : Operations.concatenate(Automata.makeString(prefix), Automata.makeAnyString());
+                : Operations.concatenate(List.of(Automata.makeString(prefix), Automata.makeAnyString()));
             assert a.isDeterministic();
 
             CompiledAutomaton automaton = new CompiledAutomaton(a, true, true);
@@ -1628,7 +1630,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // TIME_SERIES is accepted by the mode gate, but every keyword field in a TSDB index resolves to
         // DocValuesDiskFormat.SORTED_SET (see Builder#diskFormat), which supportsColumnarDocValues() does
         // not accept yet — so TSDB keywords still fall back to the row path until SORTED_SET emission lands.
@@ -1636,7 +1638,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             && supportsColumnarDocValues()
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
             && normalizerName == null
             && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
     }
@@ -1672,8 +1673,19 @@ public final class KeywordFieldMapper extends FieldMapper {
         return b;
     }
 
+    private static void addOwnedBinaryColumn(
+        BatchMappingContext ctx,
+        EscfColumnBuilder builder,
+        int docCount,
+        String fieldName,
+        IndexableFieldType luceneFieldType
+    ) {
+        final EscfColumnData data = builder.finish(docCount);
+        ctx.addColumn(LuceneBinaryColumn.of(data, fieldName, luceneFieldType), data);
+    }
+
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored();
         // emitTerms omits docValuesType != NONE deliberately: supportsColumnarParse requires usesBinaryDocValues(),
         // so a SORTED_SET keyword (which Lucene does enforce MAX_TERM_LENGTH on) can never reach mapColumnBatch.
@@ -1714,145 +1726,151 @@ public final class KeywordFieldMapper extends FieldMapper {
         // retainValues=false: each value is appended to the document blob before the cursor advances, so no
         // value has to outlive the nextDoc() that moves past it.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
-        // TODO: make the batch return these column builders to wire up recycling
-        final EscfColumnBuilder terms = emitTerms ? mergeStringColumn() : null;
-        final EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn() : null;
         // A columnar field's payload carries its own count, so it needs no companion column.
         final boolean columnar = fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD;
-        final EscfColumnBuilder dvCounts = emitDvs && columnar == false ? mergeLongColumn() : null;
-        final EscfColumnBuilder fallback = emitFallback ? mergeStringColumn() : null;
-        final EscfColumnBuilder fallbackCounts = emitFallback ? mergeLongColumn() : null;
         final BytesRef nullValueBytes = fieldType().nullUtf8Value;
 
-        int currentDoc = -1;
-        boolean ignoredThisDoc = false;
-        // Buffer null when not emitted. Each document's slots are appended as they are read and
-        // the finished blob is handed to binaryDvs.setString, which copies it out immediately, so the
-        // buffer is free to be rewritten.
-        final BytesRefBuilder docBlob = emitDvs && columnar == false ? new BytesRefBuilder() : null;
-        // A columnar field's slots go through the payload builder, which carries the count for them; see
-        // ColumnarBinaryDocValuesField for why the codec needs it in the blob.
-        final StringBinaryPayload.Builder payload = emitDvs && columnar ? new StringBinaryPayload.Builder() : null;
-        int pos = 0;
-        int docSlotCount = 0;
-        int lastValueLength = 0;
-        // True when the current doc has at least one non-null slot; gates binary dv blob emission.
-        boolean hasNonNull = false;
+        // TODO: make the batch return these column builders to wire up recycling
+        try (
+            EscfColumnBuilder terms = emitTerms ? mergeStringColumn() : null;
+            EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn() : null;
+            EscfColumnBuilder dvCounts = emitDvs && columnar == false ? mergeLongColumn() : null;
+            EscfColumnBuilder fallback = emitFallback ? mergeStringColumn() : null;
+            EscfColumnBuilder fallbackCounts = emitFallback ? mergeLongColumn() : null
+        ) {
+            int currentDoc = -1;
+            boolean ignoredThisDoc = false;
+            // Buffer null when not emitted. Each document's slots are appended as they are read and
+            // the finished blob is handed to binaryDvs.setString, which copies it out immediately, so the
+            // buffer is free to be rewritten.
+            final BytesRefBuilder docBlob = emitDvs && columnar == false ? new BytesRefBuilder() : null;
+            // A columnar field's slots go through the payload builder, which carries the count for them; see
+            // ColumnarBinaryDocValuesField for why the codec needs it in the blob.
+            final StringBinaryPayload.Builder payload = emitDvs && columnar ? new StringBinaryPayload.Builder() : null;
+            int pos = 0;
+            int docSlotCount = 0;
+            int lastValueLength = 0;
+            // True when the current doc has at least one non-null slot; gates binary dv blob emission.
+            boolean hasNonNull = false;
 
-        while (true) {
-            final int nextDoc = cursor.nextDoc();
-            if (nextDoc != currentDoc) {
-                // Flush the completed doc's elements.
-                // All-null docs write counts (matching ArrayOrderInlineNull.recordNull) but no blob.
-                if (binaryDvs != null && docSlotCount > 0) {
-                    // TODO: considering appending slots straight into the column builder's stream.
-                    if (columnar) {
-                        // An all-null document is a payload like any other, which is why no companion count
-                        // column is emitted alongside.
-                        final BytesRef blob = payload.build();
-                        binaryDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
-                        payload.reset();
-                    } else {
-                        dvCounts.setLong(currentDoc, docSlotCount);
-                        if (hasNonNull) {
-                            // A single non-null slot is stored raw, so drop its length prefix; both cases end at pos.
-                            final int length = docSlotCount == 1 ? lastValueLength : pos;
-                            binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
-                        }
-                    }
-                    pos = 0;
-                    docSlotCount = 0;
-                    hasNonNull = false;
-                }
-                if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
-                    break;
-                }
-                currentDoc = nextDoc;
-                ignoredThisDoc = false;
-            }
-
-            BytesRef binaryValue = cursor.value();
-
-            // Explicit JSON null: apply null_value substitution if configured; otherwise record a
-            // null doc-values slot (no term, no ignore_above check), mirroring the row-path's
-            // ArrayOrderInlineNull.recordNull for an absent value with no null_value.
-            if (binaryValue == null) {
-                if (nullValueBytes != null) {
-                    binaryValue = nullValueBytes;
-                    // Fall through to normal value processing below.
-                } else {
-                    if (binaryDvs != null) {
+            while (true) {
+                final int nextDoc = cursor.nextDoc();
+                if (nextDoc != currentDoc) {
+                    // Flush the completed doc's elements.
+                    // All-null docs write counts (matching ArrayOrderInlineNull.recordNull) but no blob.
+                    if (binaryDvs != null && docSlotCount > 0) {
+                        // TODO: considering appending slots straight into the column builder's stream.
                         if (columnar) {
-                            payload.appendSlot(null);
+                            // An all-null document is a payload like any other, which is why no companion count
+                            // column is emitted alongside.
+                            final BytesRef blob = payload.build();
+                            binaryDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
+                            payload.reset();
                         } else {
-                            pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                            dvCounts.setLong(currentDoc, docSlotCount);
+                            if (hasNonNull) {
+                                // A single non-null slot is stored raw, so drop its length prefix; both cases end at pos.
+                                final int length = docSlotCount == 1 ? lastValueLength : pos;
+                                binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
+                            }
                         }
-                        docSlotCount++;
-                        // hasNonNull stays false: null slots do not produce a binary dv blob.
+                        pos = 0;
+                        docSlotCount = 0;
+                        hasNonNull = false;
+                    }
+                    if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                        break;
+                    }
+                    currentDoc = nextDoc;
+                    ignoredThisDoc = false;
+                }
+
+                BytesRef binaryValue = cursor.value();
+
+                // Explicit JSON null: apply null_value substitution if configured; otherwise record a
+                // null doc-values slot (no term, no ignore_above check), mirroring the row-path's
+                // ArrayOrderInlineNull.recordNull for an absent value with no null_value.
+                if (binaryValue == null) {
+                    if (nullValueBytes != null) {
+                        binaryValue = nullValueBytes;
+                        // Fall through to normal value processing below.
+                    } else {
+                        if (binaryDvs != null) {
+                            if (columnar) {
+                                payload.appendSlot(null);
+                            } else {
+                                pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                            }
+                            docSlotCount++;
+                            // hasNonNull stays false: null slots do not produce a binary dv blob.
+                        }
+                        continue;
+                    }
+                }
+
+                // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older indices.
+                if (checkIgnoreAbove && fieldType().ignoreAbove().isIgnored(binaryValue)) {
+                    if (ignoredThisDoc == false) {
+                        ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
+                        if (fallback != null) {
+                            fallback.setString(currentDoc, binaryValue);
+                            fallbackCounts.setLong(currentDoc, 1L);
+                        }
+                        ignoredThisDoc = true;
+                    } else if (fallback != null) {
+                        // TODO: support multiple ignore_above-exceeded values per doc (multi-valued
+                        // fallback requires SeparateCount vint-length encoding across multiple values).
+                        throw new UnsupportedOperationException(
+                            "mapColumnBatch: more than one ignore_above-exceeded value in field ["
+                                + fullPath()
+                                + "] for doc ["
+                                + currentDoc
+                                + "]; multi-valued synthetic-source fallback is not yet supported"
+                        );
                     }
                     continue;
                 }
-            }
 
-            // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older indices.
-            if (checkIgnoreAbove && fieldType().ignoreAbove().isIgnored(binaryValue)) {
-                if (ignoredThisDoc == false) {
-                    ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
-                    if (fallback != null) {
-                        fallback.setString(currentDoc, binaryValue);
-                        fallbackCounts.setLong(currentDoc, 1L);
+                if (emitTerms && binaryValue.length > MAX_TERM_LENGTH) {
+                    throw largeTermException(binaryValue);
+                }
+
+                if (terms != null) {
+                    terms.setString(currentDoc, binaryValue);
+                }
+                if (binaryDvs != null) {
+                    if (columnar) {
+                        payload.appendSlot(binaryValue);
+                    } else {
+                        pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, binaryValue);
                     }
-                    ignoredThisDoc = true;
-                } else if (fallback != null) {
-                    // TODO: support multiple ignore_above-exceeded values per doc (multi-valued
-                    // fallback requires SeparateCount vint-length encoding across multiple values).
-                    throw new UnsupportedOperationException(
-                        "mapColumnBatch: more than one ignore_above-exceeded value in field ["
-                            + fullPath()
-                            + "] for doc ["
-                            + currentDoc
-                            + "]; multi-valued synthetic-source fallback is not yet supported"
-                    );
+                    lastValueLength = binaryValue.length;
+                    docSlotCount++;
+                    hasNonNull = true;
                 }
-                continue;
             }
 
-            if (emitTerms && binaryValue.length > MAX_TERM_LENGTH) {
-                throw largeTermException(binaryValue);
+            // Attach output columns. Terms, binary-dv blob, and counts are each emitted independently.
+            // Without the codec, all-null docs emit counts but no binary blob, so binaryDvs and dvCounts are decoupled;
+            // a columnar field writes a payload for every shape and emits no counts column at all.
+            // Each builder owns its buffers, so every finished column is registered for release with the batch.
+            if (terms != null && terms.isEmpty() == false) {
+                addOwnedBinaryColumn(ctx, terms, docCount, fieldType().name(), fieldType);
             }
-
-            if (terms != null) {
-                terms.setString(currentDoc, binaryValue);
+            if (binaryDvs != null && binaryDvs.isEmpty() == false) {
+                addOwnedBinaryColumn(ctx, binaryDvs, docCount, fieldType().name(), CustomDocValuesField.TYPE);
             }
-            if (binaryDvs != null) {
-                if (columnar) {
-                    payload.appendSlot(binaryValue);
-                } else {
-                    pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, binaryValue);
-                }
-                lastValueLength = binaryValue.length;
-                docSlotCount++;
-                hasNonNull = true;
+            // A columnar field's payload carries its own count, so it emits no companion column at all.
+            if (columnar == false && dvCounts != null && dvCounts.isEmpty() == false) {
+                final EscfColumnData dvCountData = dvCounts.finish(docCount);
+                ctx.addColumn(LuceneLongColumn.counts(dvCountData, fieldType().name()), dvCountData);
             }
-        }
-
-        // Attach output columns. Terms, binary-dv blob, and counts are each emitted independently.
-        // Without the codec, all-null docs emit counts but no binary blob, so binaryDvs and dvCounts are decoupled;
-        // a columnar field writes a payload for every shape and emits no counts column at all.
-        if (terms != null && terms.isEmpty() == false) {
-            ctx.addColumn(LuceneBinaryColumn.of(terms.finish(docCount), fieldType().name(), fieldType));
-        }
-        if (binaryDvs != null && binaryDvs.isEmpty() == false) {
-            ctx.addColumn(LuceneBinaryColumn.of(binaryDvs.finish(docCount), fieldType().name(), CustomDocValuesField.TYPE));
-        }
-        // A columnar field's payload carries its own count, so it emits no companion column at all.
-        if (columnar == false && dvCounts != null && dvCounts.isEmpty() == false) {
-            ctx.addColumn(LuceneLongColumn.counts(dvCounts.finish(docCount), fieldType().name()));
-        }
-        if (emitFallback && fallback != null && fallback.isEmpty() == false) {
-            final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
-            ctx.addColumn(LuceneBinaryColumn.of(fallback.finish(docCount), fallbackFieldName, CustomDocValuesField.TYPE));
-            ctx.addColumn(LuceneLongColumn.counts(fallbackCounts.finish(docCount), fallbackFieldName));
+            if (emitFallback && fallback != null && fallback.isEmpty() == false) {
+                final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
+                addOwnedBinaryColumn(ctx, fallback, docCount, fallbackFieldName, CustomDocValuesField.TYPE);
+                final EscfColumnData fallbackCountData = fallbackCounts.finish(docCount);
+                ctx.addColumn(LuceneLongColumn.counts(fallbackCountData, fallbackFieldName), fallbackCountData);
+            }
         }
     }
 
@@ -1874,100 +1892,114 @@ public final class KeywordFieldMapper extends FieldMapper {
         // column of their own. See ColumnarBinaryDocValuesField for why the count travels in the blob.
         final boolean columnar = fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD;
         final boolean emitSharedColumn = emitTerms || (emitDvs && columnar == false);
-        EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && emitSharedColumn ? mergeStringColumn() : null;
-        final EscfColumnBuilder payloadDvs = emitDvs && columnar ? mergeStringColumn() : null;
-        final StringBinaryPayload.Builder payload = payloadDvs != null ? new StringBinaryPayload.Builder() : null;
-        final EscfColumnBuilder fallback = emitFallback ? mergeStringColumn() : null;
         final BytesRef nullValueBytes = fieldType().nullUtf8Value;
 
-        int currentDoc = -1;
-        boolean valueSeenThisDoc = false;
-        while (true) {
-            final int nextDoc = cursor.nextDoc();
-            if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
-                break;
-            }
-            if (nextDoc != currentDoc) {
-                currentDoc = nextDoc;
-                valueSeenThisDoc = false;
-            }
-            BytesRef binaryValue = cursor.value();
-            if (binaryValue == null) {
-                if (nullValueBytes != null) {
-                    binaryValue = nullValueBytes;  // substitute, fall through to normal processing
-                } else {
-                    continue;  // null without null_value -> absent (row-path parity)
+        // `values` is created lazily when the zero-copy plan is abandoned mid-loop, so it cannot sit in the
+        // try-with-resources header; the group releases whichever builders were actually created.
+        try (GroupedReleasables pending = new GroupedReleasables(4)) {
+            EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && emitSharedColumn
+                ? pending.add(mergeStringColumn())
+                : null;
+            final EscfColumnBuilder payloadDvs = emitDvs && columnar ? pending.add(mergeStringColumn()) : null;
+            final StringBinaryPayload.Builder payload = payloadDvs != null ? new StringBinaryPayload.Builder() : null;
+            final EscfColumnBuilder fallback = emitFallback ? pending.add(mergeStringColumn()) : null;
+
+            int currentDoc = -1;
+            boolean valueSeenThisDoc = false;
+            while (true) {
+                final int nextDoc = cursor.nextDoc();
+                if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                    break;
+                }
+                if (nextDoc != currentDoc) {
+                    currentDoc = nextDoc;
+                    valueSeenThisDoc = false;
+                }
+                BytesRef binaryValue = cursor.value();
+                if (binaryValue == null) {
+                    if (nullValueBytes != null) {
+                        binaryValue = nullValueBytes;  // substitute, fall through to normal processing
+                    } else {
+                        continue;  // null without null_value -> absent (row-path parity)
+                    }
+                }
+
+                // TODO: Can move this validation earlier based on array type
+                if (valueSeenThisDoc) {
+                    // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
+                    // which raises the correct per-doc error (on_failure=FAIL).
+                    throw new UnsupportedOperationException(
+                        "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
+                    );
+                }
+                valueSeenThisDoc = true;
+
+                // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older indices.
+                if (checkIgnoreAbove && fieldType().ignoreAbove().isIgnored(binaryValue)) {
+                    ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
+                    // Deoptimize: we were planning to zero-copy the source column, but now we must
+                    // exclude this doc's value from the output. Lazily create the builder and backfill
+                    // all accepted values from before this doc, then continue building per-value.
+                    if (values == null && emitSharedColumn) {
+                        values = pending.add(mergeStringColumn());
+                        EscfColumnTransforms.backfillUtf8Before(values, source, currentDoc);
+                    }
+                    if (fallback != null) {
+                        fallback.setString(currentDoc, binaryValue);
+                    }
+                    continue;
+                }
+                if (emitTerms && binaryValue.length > MAX_TERM_LENGTH) {
+                    throw largeTermException(binaryValue);
+                }
+
+                valuesProduced = true;
+                if (values != null) {
+                    values.setString(currentDoc, binaryValue);
+                }
+                if (payloadDvs != null) {
+                    // One slot, and the count in front of it, so the blob is the same payload the row path writes.
+                    payload.reset();
+                    payload.appendSlot(binaryValue);
+                    final BytesRef blob = payload.build();
+                    payloadDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
                 }
             }
 
-            // TODO: Can move this validation earlier based on array type
-            if (valueSeenThisDoc) {
-                // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
-                // which raises the correct per-doc error (on_failure=FAIL).
-                throw new UnsupportedOperationException(
-                    "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
+            // Emit one term column (frozen fieldType, DocValuesType=NONE for HIGH cardinality) and one
+            // plain binary DV column (BinaryDocValuesField.TYPE, omitNorms=false) — no .counts sidecar.
+            // Both are the value's own bytes, so they share one finished EscfColumnData: one serialization,
+            // two field-type wrappers. A columnar field's doc values are framed and so cannot join them.
+            if (valuesProduced) {
+                if (emitSharedColumn) {
+                    final EscfColumnData data = values != null ? values.finish(docCount) : source.columnData();
+                    if (values != null) {
+                        // Only the built column owns buffers; the zero-copy branch aliases the source batch,
+                        // which releases them itself. Registered once because two columns share the data.
+                        ctx.addResource(data);
+                    }
+                    if (emitTerms) {
+                        ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
+                    }
+                    if (emitDvs && columnar == false) {
+                        ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
+                    }
+                }
+                // A columnar field's doc values are framed, so they are a column of their own rather than a second wrapper
+                // over the terms serialization. The type is the one ColumnarBinaryDocValuesField carries on the row path.
+                if (payloadDvs != null) {
+                    addOwnedBinaryColumn(ctx, payloadDvs, docCount, fieldType().name(), CustomDocValuesField.TYPE);
+                }
+            }
+            // Synthetic-source fallback for ignore_above values: single BinaryDocValuesField (no counts),
+            // mirroring the row-path's addBinaryFieldLegacyEncodingAware isSingleValued() branch.
+            if (fallback != null && fallback.isEmpty() == false) {
+                final EscfColumnData fallbackData = fallback.finish(docCount);
+                ctx.addColumn(
+                    LuceneBinaryColumn.of(fallbackData, fieldType().syntheticSourceFallbackFieldName(), BinaryDocValuesField.TYPE),
+                    fallbackData
                 );
             }
-            valueSeenThisDoc = true;
-
-            // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older indices.
-            if (checkIgnoreAbove && fieldType().ignoreAbove().isIgnored(binaryValue)) {
-                ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
-                // Deoptimize: we were planning to zero-copy the source column, but now we must
-                // exclude this doc's value from the output. Lazily create the builder and backfill
-                // all accepted values from before this doc, then continue building per-value.
-                if (values == null && emitSharedColumn) {
-                    values = mergeStringColumn();
-                    EscfColumnTransforms.backfillUtf8Before(values, source, currentDoc);
-                }
-                if (fallback != null) {
-                    fallback.setString(currentDoc, binaryValue);
-                }
-                continue;
-            }
-            if (emitTerms && binaryValue.length > MAX_TERM_LENGTH) {
-                throw largeTermException(binaryValue);
-            }
-
-            valuesProduced = true;
-            if (values != null) {
-                values.setString(currentDoc, binaryValue);
-            }
-            if (payloadDvs != null) {
-                // One slot, and the count in front of it, so the blob is the same payload the row path writes.
-                payload.reset();
-                payload.appendSlot(binaryValue);
-                final BytesRef blob = payload.build();
-                payloadDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
-            }
-        }
-
-        // Emit one term column (frozen fieldType, DocValuesType=NONE for HIGH cardinality) and one
-        // plain binary DV column (BinaryDocValuesField.TYPE, omitNorms=false) — no .counts sidecar.
-        // Both are the value's own bytes, so they share one finished EscfColumnData: one serialization,
-        // two field-type wrappers. A columnar field's doc values are framed and so cannot join them.
-        if (valuesProduced) {
-            if (emitSharedColumn) {
-                final EscfColumnData data = values != null ? values.finish(docCount) : source.columnData();
-                if (emitTerms) {
-                    ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
-                }
-                if (emitDvs && columnar == false) {
-                    ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
-                }
-            }
-            // A columnar field's doc values are framed, so they are a column of their own rather than a second wrapper
-            // over the terms serialization. The type is the one ColumnarBinaryDocValuesField carries on the row path.
-            if (payloadDvs != null) {
-                ctx.addColumn(LuceneBinaryColumn.of(payloadDvs.finish(docCount), fieldType().name(), CustomDocValuesField.TYPE));
-            }
-        }
-        // Synthetic-source fallback for ignore_above values: single BinaryDocValuesField (no counts),
-        // mirroring the row-path's addBinaryFieldLegacyEncodingAware isSingleValued() branch.
-        if (fallback != null && fallback.isEmpty() == false) {
-            ctx.addColumn(
-                LuceneBinaryColumn.of(fallback.finish(docCount), fieldType().syntheticSourceFallbackFieldName(), BinaryDocValuesField.TYPE)
-            );
         }
     }
 

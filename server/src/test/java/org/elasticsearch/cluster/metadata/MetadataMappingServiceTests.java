@@ -13,7 +13,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetadataMappingService.PutMappingClusterStateUpdateTask;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -39,6 +44,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 
@@ -77,6 +83,39 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         );
         // since we never committed the cluster state update, the in-memory state is unchanged
         assertThat(indexService.mapperService().documentMapper().mappingSource(), equalTo(currentMapping));
+    }
+
+    public void testMappingUpdateInProjectUnderDeletion() throws Exception {
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
+        final ProjectId projectId = randomUniqueProjectId();
+        final Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexService.getMetadata(), false)).build();
+        final ClusterState initialState = ClusterState.builder(getInstanceFromNode(ClusterService.class).state())
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .blocks(ClusterBlocks.builder().addProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK))
+            .build();
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            """
+                { "properties": { "field": { "type": "text" }}}""",
+            false,
+            indexService.index()
+        );
+        final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
+
+        final ClusterState resultingState = ClusterStateTaskExecutorUtils.executeHandlingResults(
+            initialState,
+            mappingService.new PutMappingExecutor(),
+            singleTask(request),
+            task -> fail("mapping update should have failed"),
+            (task, e) -> {
+                assertThat(e, instanceOf(ClusterBlockException.class));
+                final ClusterBlockException clusterBlockException = (ClusterBlockException) e;
+                assertTrue(clusterBlockException.blocks().contains(ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK));
+            }
+        );
+        assertSame(initialState, resultingState);
     }
 
     public void testClusterStateIsNotChangedWithIdenticalMappings() throws Exception {

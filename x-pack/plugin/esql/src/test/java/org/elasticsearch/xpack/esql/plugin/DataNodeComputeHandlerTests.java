@@ -122,7 +122,8 @@ public class DataNodeComputeHandlerTests extends ESTestCase {
             IndicesOptions.STRICT_EXPAND_OPEN,
             true,
             true,
-            true
+            true,
+            randomBoolean()
         );
     }
 }

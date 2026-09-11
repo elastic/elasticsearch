@@ -17,7 +17,6 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KnnVectorValues;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.search.IndexSearcher;
@@ -30,9 +29,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
-import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
@@ -45,10 +43,12 @@ import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es94.ES94HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.store.FsDirectoryFactory;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -56,16 +56,12 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * Tests that formats based on {@link DirectIOCapableFlatVectorsFormat} open the raw vector data
- * with direct I/O for both searches and merges when direct I/O is requested, and that merges
+ * with direct I/O for searches and merges where the format engages it, and that merges
  * create the merged raw vector data with direct I/O where the format takes the write side, while
  * flush-time writes and search-hot files (quantized vectors, HNSW graph, plain HNSW's raw vectors)
  * stay buffered.
  */
-public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
-
-    static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
+public class DirectIOCapableFlatVectorsFormatTests extends ESTestCase {
 
     @BeforeClass
     public static void checkDirectIOSupported() throws IOException {
@@ -276,7 +272,13 @@ public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
                 for (int segment = 0; segment < 2; segment++) {
                     for (int i = 0; i < 20; i++) {
                         Document doc = new Document();
-                        doc.add(new KnnFloatVectorField("v", randomVector(dims), VectorSimilarityFunction.EUCLIDEAN));
+                        doc.add(
+                            new KnnFloatVectorField(
+                                "v",
+                                BaseKnnVectorsFormatTestCase.randomNormalizedVector(dims),
+                                VectorSimilarityFunction.EUCLIDEAN
+                            )
+                        );
                         writer.addDocument(doc);
                     }
                     writer.commit();
@@ -329,10 +331,10 @@ public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
         boolean expectDirectIOWrites
     ) throws IOException {
         int dims = 64;
-        int docsPerSegment = 50;
+        int docsPerSegment = randomIntBetween(30, 120);
         float[][] vectors = new float[docsPerSegment * 2][];
         for (int i = 0; i < vectors.length; i++) {
-            vectors[i] = randomVector(dims);
+            vectors[i] = BaseKnnVectorsFormatTestCase.randomNormalizedVector(dims);
         }
 
         Path path = createTempDir("directIOMerge");
@@ -366,21 +368,6 @@ public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
                 writer.forceMerge(1);
             }
             writer.commit();
-
-            try (DirectoryReader reader = DirectoryReader.open(writer)) {
-                LeafReader leafReader = getOnlyLeafReader(reader);
-                FloatVectorValues values = leafReader.getFloatVectorValues("v");
-                KnnVectorValues.DocIndexIterator iterator = values.iterator();
-                int count = 0;
-                while (iterator.nextDoc() != NO_MORE_DOCS) {
-                    assertTrue(containsVector(vectors, values.vectorValue(iterator.index())));
-                    count++;
-                }
-                assertEquals(vectors.length, count);
-
-                TopDocs topDocs = new IndexSearcher(reader).search(new KnnFloatVectorQuery("v", vectors[0], 5), 5);
-                assertEquals(5, topDocs.scoreDocs.length);
-            }
 
             List<FileIO> vecOpens = dir.recorded.stream().filter(io -> io.op() == Op.OPEN && io.name().endsWith(".vec")).toList();
             assertTrue("expected at least one open of a raw vector file", vecOpens.isEmpty() == false);
@@ -461,16 +448,58 @@ public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
         }
     }
 
-    private static boolean containsVector(float[][] vectors, float[] candidate) {
-        for (float[] vector : vectors) {
-            if (sameVector(vector, candidate)) {
-                return true;
+    /**
+     * A data-level check the context assertions above do not make: after a merge that wrote the merged
+     * raw vectors with direct I/O, they read back intact and search. bfloat16 flat, whose raw writer
+     * is ours; a tolerance of 0.01 covers its 8-bit mantissa.
+     */
+    public void testMergedVectorsSurviveDirectIOMergeWrites() throws IOException {
+        int dims = 64;
+        int docsPerSegment = randomIntBetween(30, 120);
+        float[][] vectors = new float[docsPerSegment * 2][];
+        for (int i = 0; i < vectors.length; i++) {
+            vectors[i] = BaseKnnVectorsFormatTestCase.randomNormalizedVector(dims);
+        }
+        IndexWriterConfig config = new IndexWriterConfig().setCodec(
+            TestUtil.alwaysKnnVectorsFormat(new ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, true))
+        );
+        config.setUseCompoundFile(false);
+        config.getMergePolicy().setNoCFSRatio(0.0);
+        try (
+            Directory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(createTempDir("directIOMergeData")),
+                64
+            );
+            IndexWriter writer = new IndexWriter(dir, config)
+        ) {
+            for (int i = 0; i < vectors.length; i++) {
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("v", vectors[i], VectorSimilarityFunction.EUCLIDEAN));
+                writer.addDocument(doc);
+                if (i == docsPerSegment - 1) {
+                    writer.commit();
+                }
+            }
+            writer.commit();
+            writer.forceMerge(1);
+            writer.commit();
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                FloatVectorValues values = getOnlyLeafReader(reader).getFloatVectorValues("v");
+                KnnVectorValues.DocIndexIterator iterator = values.iterator();
+                int count = 0;
+                while (iterator.nextDoc() != NO_MORE_DOCS) {
+                    float[] candidate = values.vectorValue(iterator.index());
+                    assertTrue(Arrays.stream(vectors).anyMatch(vector -> sameVector(vector, candidate)));
+                    count++;
+                }
+                assertEquals(vectors.length, count);
+                TopDocs topDocs = new IndexSearcher(reader).search(new KnnFloatVectorQuery("v", vectors[0], 5), 5);
+                assertEquals(5, topDocs.scoreDocs.length);
             }
         }
-        return false;
     }
 
-    /** Exact for float32 formats; within bfloat16's 8-bit mantissa for the bfloat16 format. */
     private static boolean sameVector(float[] vector, float[] candidate) {
         if (vector.length != candidate.length) {
             return false;
@@ -483,11 +512,4 @@ public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
         return true;
     }
 
-    private static float[] randomVector(int dims) {
-        float[] vector = new float[dims];
-        for (int i = 0; i < dims; i++) {
-            vector[i] = random().nextFloat();
-        }
-        return vector;
-    }
 }

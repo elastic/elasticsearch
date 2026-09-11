@@ -95,12 +95,11 @@ public class MergeReaderWrapper extends FlatVectorsReader {
         mainReader.search(field, target, knnCollector, acceptDocs);
     }
 
-    // the merge thread calls getMergeInstance() and finishMerge(); close() comes from whichever thread
-    // releases the last reference to the pooled reader, so the lazily-created merge reader is guarded:
-    // it must not be created after close() has run, and close() must see it once it exists
+    // only the single thread running the merge calls getMergeInstance() and finishMerge(); close() runs
+    // once the merge has released the pooled reader, so no synchronization is needed
 
     @Override
-    public synchronized FlatVectorsReader getMergeInstance() throws IOException {
+    public FlatVectorsReader getMergeInstance() throws IOException {
         if (closed) {
             throw new AlreadyClosedException("this MergeReaderWrapper is closed");
         }
@@ -115,7 +114,7 @@ public class MergeReaderWrapper extends FlatVectorsReader {
     }
 
     @Override
-    public synchronized void finishMerge() throws IOException {
+    public void finishMerge() throws IOException {
         // the merge reader exists iff a merge began
         if (mergeReader != null) {
             mergeReader.finishMerge();
@@ -140,12 +139,12 @@ public class MergeReaderWrapper extends FlatVectorsReader {
             return Map.of(); // no off-heap when using direct IO
         }
         // a memory-mapped search reader has the same off-heap footprint whether or not merges
-        // use direct I/O; the merge reader is short-lived and not part of what searches hold
+        // use direct I/O; the merge reader is not part of what searches hold
         return mainReader.getOffHeapByteSize(fieldInfo);
     }
 
     @Override
-    public synchronized void close() throws IOException {
+    public void close() throws IOException {
         if (closed) {
             return;
         }

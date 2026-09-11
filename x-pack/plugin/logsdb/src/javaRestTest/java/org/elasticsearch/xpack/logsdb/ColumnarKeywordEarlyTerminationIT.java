@@ -22,21 +22,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- * Verifies that the ES-side early-termination gate works for keyword sorts on
- * {@code logsdb_columnar} indices after the fix in #158928.
- *
- * <p>In {@code logsdb_columnar} mode the keyword index-sort field for {@code host.name} is stored
- * as a {@code MultiValuedBinaryDocValuesSortField} (a subclass of Lucene's {@code BinarySortField}).
- * The query-side sort field wraps a {@code BytesRefFieldComparatorSource} (type
- * {@code SortField.Type.CUSTOM}). Before the fix, {@code Lucene.canEarlyTerminate()} delegated to
- * {@code SortField.equals()}, which compared comparator sources and returned false because the two
- * field types differ, even though field name, direction, and missing-value sentinel all match.
- *
- * <p>The observable consequence: {@code QueryPhase} skips injecting a
- * {@code SearchAfterSortedDocQuery} for {@code search_after} requests, so every page re-scans
- * the full segment instead of pruning already-seen documents.
- */
 public class ColumnarKeywordEarlyTerminationIT extends ESRestTestCase {
 
     private static final String USER = "x_pack_rest_user";

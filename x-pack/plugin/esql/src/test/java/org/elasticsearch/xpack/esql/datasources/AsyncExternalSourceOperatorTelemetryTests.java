@@ -76,7 +76,8 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         // Inject known read/CPU nanos (42 ms wall, 37 ms CPU) so duration assertions are exact.
         buffer.readCounters().add(42_000_000L, 37_000_000L);
 
-        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext(), metrics, "s3a", "ndjson");
+        DriverContext driverContext = driverContext();
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext, metrics, "s3a", "ndjson");
 
         Page page = operator.getOutput();
         assertNotNull("the buffered page must be emitted", page);
@@ -87,6 +88,7 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         assertNull(operator.getOutput());
 
         operator.close();
+        driverContext.finish();
 
         // time_to_first_row recorded exactly once (on the first page), tagged with type and format. The value is
         // the wall gap from operator construction to the first page (sub-ms in-process, so >= 0 rather than a forced
@@ -139,13 +141,15 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         buffer.incSplitsProcessed();
         buffer.addPage(createTestPage(1, 1));
 
-        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext(), metrics, "s3", "parquet");
+        DriverContext driverContext = driverContext();
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext, metrics, "s3", "parquet");
         Page page = operator.getOutput();
         assertNotNull(page);
         page.releaseBlocks();
         buffer.finish(true);
         assertNull(operator.getOutput());
         operator.close();
+        driverContext.finish();
 
         Measurement splits = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_SPLITS_SCANNED);
         assertThat("must record this operator's processed splits (2), not the global total (10)", splits.getLong(), equalTo(2L));
@@ -164,9 +168,11 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         buffer.setSplitsTotal(10);
         buffer.finish(true);
 
-        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext(), metrics, "s3", "parquet");
+        DriverContext driverContext = driverContext();
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext, metrics, "s3", "parquet");
         assertNull(operator.getOutput());
         operator.close();
+        driverContext.finish();
 
         assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.PARSE_ROWS_TOTAL), hasSize(0));
         assertThat(measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION), hasSize(0));
@@ -184,9 +190,11 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
         buffer.finish(true);
 
-        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext(), metrics, "s3", "parquet");
+        DriverContext driverContext = driverContext();
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext, metrics, "s3", "parquet");
         assertNull(operator.getOutput());
         operator.close();
+        driverContext.finish();
 
         assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.PARSE_ROWS_TOTAL), hasSize(0));
         assertThat(measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION), hasSize(0));

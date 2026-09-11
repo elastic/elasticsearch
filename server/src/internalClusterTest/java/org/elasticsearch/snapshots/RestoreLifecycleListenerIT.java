@@ -41,11 +41,6 @@ public class RestoreLifecycleListenerIT extends AbstractSnapshotIntegTestCase {
     private static final String SNAP = "test-snap";
     private static final String IDX = "test-idx";
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(MockRepository.Plugin.class);
-    }
-
     /**
      * Verifies that {@code onRestoreInitialized} fires exactly once when the cluster-state update
      * installs the {@link RestoreInProgress} entry, and that {@code onRestoreCompleted} fires

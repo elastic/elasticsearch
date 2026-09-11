@@ -683,7 +683,7 @@ public class RestoreServiceTests extends ESTestCase {
         assertTrue(RestoreService.isRestoringShardFromSnapshot(initRestore, s.primary()));
     }
 
-    // ---- hook setter and executeRestoreCleanup tests (#4818) -----------------
+    // ---- hook setter and executeRestoreCleanup tests -----------------
 
     /** Builds a minimal mocked {@link RestoreService} so instance methods can be exercised without a full cluster. */
     private RestoreService createMinimalRestoreService() {

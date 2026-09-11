@@ -1204,12 +1204,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // usesBinaryDocValues() requires doc_values to be enabled which means synthetic-source stored-fallback is unreachable.
         // Additionally, this excludes the low-cardinality SORTED_SET encoding.
         // copy_to has no equivalent in mapColumnBatch (no per-value dispatch to other fields), so fields using it fall back.
         // match_only_text has no ignore_above/null_value/normalizer; multi-fields are handled by the base class.
-        return fieldType().usesBinaryDocValues() && copyTo().copyToFields().isEmpty();
+        return fieldType().usesBinaryDocValues()
+            && (fieldType().usesArrayOrderBinaryDocValues() || docValuesParameters.multiValue() == false)
+            && copyTo().copyToFields().isEmpty();
     }
 
     // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
@@ -1226,7 +1228,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = indexed;
         final boolean emitDvs = docValuesParameters.enabled();
         if (emitTerms == false && emitDvs == false) {
@@ -1326,6 +1328,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     private void mapColumnBatchSingleValue(BatchMappingContext ctx, EscfColumn source, boolean emitTerms, boolean emitDvs) {
         final int docCount = ctx.docCount();
+        assert docValuesParameters.multiValue() == false
+            : "mapColumnBatchSingleValue called on multi_value=true field [" + fullPath() + "]; this would corrupt doc-values";
         boolean valuesProduced = false;
 
         // retainValues=false: every value is consumed within one loop iteration, before the cursor advances.

@@ -11,8 +11,8 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -41,6 +41,7 @@ import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
@@ -76,7 +77,7 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
             randomIntBetween(1, 256)
         );
         DriverContext driverContext = driverContext();
-        runTest(between(100, 1000), driverContext.blockFactory(), driverContext, config);
+        runTest(between(100, 1000), randomBoolean(), randomBoolean(), driverContext.blockFactory(), driverContext, config);
     }
 
     public void testLarge() {
@@ -87,7 +88,7 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
             randomIntBetween(256, 4 * 1024)
         );
         DriverContext driverContext = driverContext();
-        runTest(between(10 * 1024, 100 * 1000), driverContext.blockFactory(), driverContext(), config);
+        runTest(between(10 * 1024, 100 * 1000), randomBoolean(), randomBoolean(), driverContext.blockFactory(), driverContext(), config);
     }
 
     public void testRejectionButOkay() {
@@ -98,7 +99,7 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
             randomIntBetween(256, 4 * 1024)
         );
         DriverContext driverContext = driverContext();
-        runTest(between(10 * 1024, 100 * 1000), driverContext.blockFactory(), driverContext(), config);
+        runTest(between(10 * 1024, 100 * 1000), randomBoolean(), randomBoolean(), driverContext.blockFactory(), driverContext(), config);
     }
 
     public void testCranky() {
@@ -109,13 +110,20 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
             randomIntBetween(256, 1024)
         );
         try {
-            runTest(between(1000, 100 * 1000), driverContext().blockFactory(), crankyDriverContext(), config);
+            runTest(
+                between(1000, 100 * 1000),
+                randomBoolean(),
+                randomBoolean(),
+                driverContext().blockFactory(),
+                crankyDriverContext(),
+                config
+            );
         } catch (CircuitBreakingException ignored) {
 
         }
     }
 
-    public void testStatus() {
+    public void testSinglePassStatus() {
         HashAggregationOperator.ParallelConfig config = new HashAggregationOperator.ParallelConfig(
             randomWorkerExecutor(),
             randomIntBetween(1, 32),
@@ -123,85 +131,91 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
             1024
         );
         DriverContext driverContext = driverContext();
-        var status = runTest(4096, driverContext.blockFactory(), driverContext, config);
+        var status = runTest(4096, true, randomBoolean(), driverContext.blockFactory(), driverContext, config);
         assertThat(status.completedOperators(), hasSize(3));
         OperatorStatus operatorStatus = status.completedOperators().get(1);
         assertThat(operatorStatus.operator(), equalTo("ParallelHashAggregationOperator"));
     }
 
+    public void testTwoPassesStatus() {
+        HashAggregationOperator.ParallelConfig config = new HashAggregationOperator.ParallelConfig(
+            randomWorkerExecutor(),
+            randomIntBetween(1, 32),
+            randomIntBetween(1, 1024),
+            1024
+        );
+        DriverContext driverContext = driverContext();
+        var status = runTest(4096, false, true, driverContext.blockFactory(), driverContext, config);
+        assertThat(status.completedOperators(), hasSize(3));
+        OperatorStatus operatorStatus = status.completedOperators().get(1);
+        assertThat(operatorStatus.operator(), equalTo("ParallelHashAggregationOperator"));
+        HashAggregationOperator.Status hashStatus = (HashAggregationOperator.Status) operatorStatus.status();
+        var partitioningStatus = (ParallelHashAggregationOperator.PartitioningStatus) hashStatus.extraFields.get(0);
+        assertThat(partitioningStatus.partitionedBlocksReceived, greaterThan(0));
+    }
+
     record Key(long longValue, int intValue) {}
 
-    record Row(Key key, long[] counts) {}
+    record Row(Key key, int[] sums) {}
 
     DriverStatus runTest(
         int numValues,
+        boolean singlePass,
+        boolean allowPartitionedOutput,
         BlockFactory sourceBlockFactory,
         DriverContext driverContext,
         HashAggregationOperator.ParallelConfig parallelConfig
     ) {
-        int countAggregations = between(0, 4);
+        int aggregations = between(0, 4);
         List<Row> inputRows = new ArrayList<>(numValues);
         for (int i = 0; i < numValues; i++) {
-            long[] counts = new long[countAggregations];
-            for (int v = 0; v < countAggregations; v++) {
-                counts[v] = randomIntBetween(0, Integer.MAX_VALUE);
+            int[] sums = new int[aggregations];
+            for (int v = 0; v < aggregations; v++) {
+                sums[v] = randomIntBetween(0, Integer.MAX_VALUE);
             }
             Key key = new Key(randomLongBetween(0, numValues * 2L), randomIntBetween(0, numValues * 2));
-            inputRows.add(new Row(key, counts));
+            inputRows.add(new Row(key, sums));
         }
-        List<GroupingAggregator.Factory> aggregatorFactories = new ArrayList<>(countAggregations);
-        for (int a = 0; a < countAggregations; a++) {
-            final int valueChannel = 2 + 2 * a;
-            aggregatorFactories.add(
-                CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(valueChannel, valueChannel + 1))
-            );
-        }
-        Map<Key, long[]> expected = expected(inputRows, countAggregations);
-        List<Page> inputPages = inputPages(sourceBlockFactory, inputRows, countAggregations);
+        Map<Key, long[]> expected = expected(inputRows, aggregations);
+        List<Page> inputPages = inputPages(sourceBlockFactory, inputRows, aggregations);
         var groupSpecs = List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.INT));
         List<Page> outputPages = new ArrayList<>();
         final DriverStatus status;
+        final Function<DriverContext, BlockHash> blockHashSupplier;
+        if (randomBoolean()) {
+            blockHashSupplier = dc -> BlockHash.build(groupSpecs, dc.blockFactory(), between(128, 1024), false);
+        } else {
+            blockHashSupplier = dc -> BlockHash.buildPackedValuesBlockHash(groupSpecs, dc.blockFactory(), between(128, 1024));
+        }
         try (SourceOperator sourceOperator = new CannedSourceOperator(inputPages.iterator())) {
-            final Function<DriverContext, BlockHash> blockHashSupplier;
-            if (randomBoolean()) {
-                blockHashSupplier = dc -> BlockHash.build(groupSpecs, dc.blockFactory(), between(128, 1024), false);
-            } else {
-                blockHashSupplier = dc -> BlockHash.buildPackedValuesBlockHash(groupSpecs, dc.blockFactory(), between(128, 1024));
-            }
-            HashAggregationOperator hashOperator = new HashAggregationOperator(
-                AggregatorMode.FINAL,
-                aggregatorFactories,
-                blockHashSupplier,
-                randomIntBetween(1, 1024),
-                randomDouble(),
-                randomIntBetween(128, 4096),
-                null,
-                null,
-                driverContext,
-                parallelConfig,
-                randomBoolean()
-            );
-            try (
-                Driver d = TestDriverFactory.create(
+            if (singlePass) {
+                status = runSinglePassAggregation(
                     driverContext,
                     sourceOperator,
-                    List.of(hashOperator),
-                    new TestResultPageSinkOperator(outputPages::add),
-                    TimeValue.timeValueNanos(randomIntBetween(1, 1000_000_000)),
-                    () -> {}
-                )
-            ) {
-                new TestDriverRunner().run(d);
-                status = d.status();
+                    blockHashSupplier,
+                    aggregations,
+                    parallelConfig,
+                    outputPages
+                );
+            } else {
+                status = runTwoPassesAggregation(
+                    driverContext,
+                    sourceOperator,
+                    blockHashSupplier,
+                    aggregations,
+                    parallelConfig,
+                    allowPartitionedOutput,
+                    outputPages
+                );
             }
             Map<Key, long[]> actual = new HashMap<>();
             for (Page page : outputPages) {
-                assertThat(page.getBlockCount(), equalTo(2 + countAggregations));
+                assertThat(page.getBlockCount(), equalTo(2 + aggregations));
                 LongBlock longBlock = page.getBlock(0);
                 IntBlock intBlock = page.getBlock(1);
                 for (int i = 0; i < page.getPositionCount(); i++) {
-                    long[] counts = new long[countAggregations];
-                    for (int a = 0; a < countAggregations; a++) {
+                    long[] counts = new long[aggregations];
+                    for (int a = 0; a < aggregations; a++) {
                         counts[a] = ((LongBlock) page.getBlock(2 + a)).getLong(i);
                     }
                     assertNull(actual.put(new Key(longBlock.getLong(i), intBlock.getInt(i)), counts));
@@ -217,31 +231,142 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
         return status;
     }
 
+    private DriverStatus runSinglePassAggregation(
+        DriverContext driverContext,
+        SourceOperator sourceOperator,
+        Function<DriverContext, BlockHash> blockHashSupplier,
+        int numAggregations,
+        HashAggregationOperator.ParallelConfig parallelConfig,
+        List<Page> outputPages
+    ) {
+        HashAggregationOperator hashOperator = new HashAggregationOperator(
+            AggregatorMode.SINGLE,
+            aggregatorFactories(AggregatorMode.SINGLE, numAggregations),
+            blockHashSupplier,
+            randomIntBetween(1, 1024),
+            randomDouble(),
+            randomIntBetween(128, 4096),
+            null,
+            null,
+            driverContext,
+            parallelConfig,
+            randomBoolean()
+        );
+        try (
+            Driver d = TestDriverFactory.create(
+                driverContext,
+                sourceOperator,
+                List.of(hashOperator),
+                new TestResultPageSinkOperator(outputPages::add),
+                TimeValue.timeValueNanos(randomIntBetween(1, 1000_000_000)),
+                () -> {}
+            )
+        ) {
+            new TestDriverRunner().run(d);
+            return d.status();
+        }
+    }
+
+    private DriverStatus runTwoPassesAggregation(
+        DriverContext driverContext,
+        SourceOperator rawInputSource,
+        Function<DriverContext, BlockHash> blockHashSupplier,
+        int numAggregations,
+        HashAggregationOperator.ParallelConfig parallelConfig,
+        boolean allowPartitionedOutput,
+        List<Page> outputPages
+    ) {
+        final List<Page> partialPages = new ArrayList<>();
+        try {
+            HashAggregationOperator initialHash = new HashAggregationOperator(
+                AggregatorMode.INITIAL,
+                aggregatorFactories(AggregatorMode.INITIAL, numAggregations),
+                blockHashSupplier,
+                randomIntBetween(1, 1024),
+                randomDouble(),
+                randomIntBetween(128, 4096),
+                null,
+                null,
+                driverContext,
+                parallelConfig,
+                allowPartitionedOutput
+            );
+            try (Driver d = TestDriverFactory.create(driverContext, rawInputSource, List.of(initialHash), new PageConsumerOperator(p -> {
+                p.allowPassingToDifferentDriver();
+                partialPages.add(p);
+            }), TimeValue.timeValueNanos(randomIntBetween(1, 1000_000_000)), () -> {})) {
+                new TestDriverRunner().run(d);
+            }
+            try (SourceOperator partialInputSource = new CannedSourceOperator(partialPages.iterator())) {
+                DriverContext finalDriveContext = driverContext(driverContext.blockFactory().parent());
+                HashAggregationOperator finalHash = new HashAggregationOperator(
+                    AggregatorMode.FINAL,
+                    aggregatorFactories(AggregatorMode.FINAL, numAggregations),
+                    blockHashSupplier,
+                    randomIntBetween(1, 1024),
+                    randomDouble(),
+                    randomIntBetween(128, 4096),
+                    null,
+                    null,
+                    finalDriveContext,
+                    parallelConfig,
+                    true
+                );
+                try (
+                    Driver d = TestDriverFactory.create(
+                        finalDriveContext,
+                        partialInputSource,
+                        List.of(finalHash),
+                        new TestResultPageSinkOperator(outputPages::add),
+                        TimeValue.timeValueNanos(randomIntBetween(1, 1000_000_000)),
+                        () -> {}
+                    )
+                ) {
+                    new TestDriverRunner().run(d);
+                    return d.status();
+                }
+            }
+        } finally {
+            Releasables.close(partialPages);
+        }
+    }
+
+    private List<GroupingAggregator.Factory> aggregatorFactories(AggregatorMode mode, int aggregations) {
+        List<GroupingAggregator.Factory> factories = new ArrayList<>();
+        for (int c = 0; c < aggregations; c++) {
+            if (mode.isInputPartial()) {
+                int valueChanel = 2 + c * 2;
+                factories.add(
+                    new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(mode, List.of(valueChanel, valueChanel + 1))
+                );
+            } else {
+                factories.add(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(mode, List.of(2 + c)));
+            }
+        }
+        return factories;
+    }
+
     static Map<Key, long[]> expected(List<Row> rows, int countAggregations) {
         Map<Key, long[]> expected = new HashMap<>();
         for (Row row : rows) {
             expected.compute(row.key, (k, v) -> {
-                if (v == null) {
-                    return row.counts;
-                } else {
-                    long[] sum = new long[countAggregations];
-                    for (int i = 0; i < countAggregations; i++) {
-                        sum[i] = v[i] + row.counts[i];
-                    }
-                    return sum;
+                long[] sum = new long[countAggregations];
+                for (int i = 0; i < countAggregations; i++) {
+                    sum[i] = (v != null ? v[i] : 0) + row.sums[i];
                 }
+                return sum;
             });
         }
         return expected;
     }
 
-    static List<Page> inputPages(BlockFactory blockFactory, List<Row> rows, int countAggregations) {
+    static List<Page> inputPages(BlockFactory blockFactory, List<Row> rows, int aggregations) {
         List<Page> pages = new ArrayList<>();
         boolean success = false;
         try {
             for (int start = 0; start < rows.size();) {
                 int end = Math.min(rows.size(), start + between(1, 1024));
-                pages.add(inputPage(blockFactory, rows.subList(start, end), countAggregations));
+                pages.add(inputPage(blockFactory, rows.subList(start, end), aggregations));
                 start = end;
             }
             success = true;
@@ -253,34 +378,33 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
         }
     }
 
-    static Page inputPage(BlockFactory blockFactory, List<Row> rows, int countAggregations) {
-        Block[] blocks = new Block[2 + countAggregations * 2];
-        List<LongBlock.Builder> countBuilders = new ArrayList<>(countAggregations);
+    static Page inputPage(BlockFactory blockFactory, List<Row> rows, int sumAggregations) {
+        Block[] blocks = new Block[2 + sumAggregations];
+        List<IntBlock.Builder> sumBuilders = new ArrayList<>(sumAggregations);
         boolean success = false;
         try (
             LongBlock.Builder longKeys = blockFactory.newLongBlockBuilder(rows.size());
             IntBlock.Builder intKeys = blockFactory.newIntBlockBuilder(rows.size())
         ) {
-            for (int a = 0; a < countAggregations; a++) {
-                countBuilders.add(blockFactory.newLongBlockBuilder(rows.size()));
+            for (int a = 0; a < sumAggregations; a++) {
+                sumBuilders.add(blockFactory.newIntBlockBuilder(rows.size()));
             }
             for (Row row : rows) {
                 longKeys.appendLong(row.key.longValue);
                 intKeys.appendInt(row.key.intValue);
-                for (int a = 0; a < countAggregations; a++) {
-                    countBuilders.get(a).appendLong(row.counts[a]);
+                for (int a = 0; a < sumAggregations; a++) {
+                    sumBuilders.get(a).appendInt(row.sums[a]);
                 }
             }
             blocks[0] = longKeys.build();
             blocks[1] = intKeys.build();
-            for (int a = 0; a < countAggregations; a++) {
-                blocks[2 + 2 * a] = countBuilders.get(a).build();
-                blocks[2 + 2 * a + 1] = blockFactory.newConstantBooleanBlockWith(true, rows.size());
+            for (int a = 0; a < sumAggregations; a++) {
+                blocks[2 + a] = sumBuilders.get(a).build();
             }
             success = true;
             return new Page(blocks);
         } finally {
-            Releasables.close(countBuilders);
+            Releasables.close(sumBuilders);
             if (success == false) {
                 Releasables.close(blocks);
             }

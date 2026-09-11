@@ -21,18 +21,15 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -49,7 +46,6 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
@@ -634,33 +630,16 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                     }
                     assertThat(docIds, hasSize(leafReader.maxDoc()));
 
-                    // Call getPostingVisitor directly, bypassing the assertion in getNumberOfVectors,
-                    // to test the fix in the numSlices==0 branch itself. With the old dead null-guard
-                    // (esAccept.sliceAcceptDocs() != null) this threw NullPointerException; with the
-                    // fix it throws AssertionError so the contract is explicit.
+                    // Call getPostingVisitor directly via a package-private test helper, bypassing the
+                    // assertion in getNumberOfVectors, to test the fix in the numSlices==0 branch itself.
+                    // With the old dead null-guard (esAccept.sliceAcceptDocs() != null) this threw
+                    // NullPointerException; with the fix it throws AssertionError.
                     ESNextDiskBBQVectorsReader esNextReader = (ESNextDiskBBQVectorsReader) vectorReader;
-                    FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(vectorField);
-
-                    ESNextDiskBBQVectorsReader.NextFieldEntry entry = getNextFieldEntry(esNextReader, fieldInfo);
-                    try (
-                        IndexInput centroidSlice = entry.centroidSlice(getIvfInput(esNextReader, "ivfCentroids").clone());
-                        IndexInput postingSlice = entry.postingListSlice(getIvfInput(esNextReader, "ivfClusters").clone())
-                    ) {
-                        KnnVectorValues values = leafReader.getFloatVectorValues(vectorField);
-                        AssertionError error = expectThrows(
-                            AssertionError.class,
-                            () -> esNextReader.getPostingVisitor(
-                                fieldInfo,
-                                values,
-                                postingSlice,
-                                new IVFVectorsReader.QueryTarget.FloatQuery(vector),
-                                null,
-                                centroidSlice,
-                                new ESAcceptDocs.ESAcceptDocsAll()
-                            )
-                        );
-                        assertThat(error.getMessage(), equalTo("sliced segment searched without a slice ordinal"));
-                    }
+                    AssertionError error = expectThrows(
+                        AssertionError.class,
+                        () -> esNextReader.getPostingVisitorForTest(vectorField, vector, new ESAcceptDocs.ESAcceptDocsAll())
+                    );
+                    assertThat(error.getMessage(), equalTo("sliced segment searched without a slice ordinal"));
                 }
             }
         }
@@ -854,29 +833,6 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                     assertThat(uniqueDocIds, hasSize(expectedDocs));
                 }
             }
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static ESNextDiskBBQVectorsReader.NextFieldEntry getNextFieldEntry(ESNextDiskBBQVectorsReader reader, FieldInfo fieldInfo) {
-        try {
-            java.lang.reflect.Field f = IVFVectorsReader.class.getDeclaredField("fields");
-            f.setAccessible(true);
-            IntObjectHashMap<ESNextDiskBBQVectorsReader.NextFieldEntry> fields = (IntObjectHashMap<
-                ESNextDiskBBQVectorsReader.NextFieldEntry>) f.get(reader);
-            return fields.get(fieldInfo.number);
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static IndexInput getIvfInput(ESNextDiskBBQVectorsReader reader, String fieldName) {
-        try {
-            java.lang.reflect.Field f = IVFVectorsReader.class.getDeclaredField(fieldName);
-            f.setAccessible(true);
-            return (IndexInput) f.get(reader);
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
         }
     }
 

@@ -625,6 +625,27 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         return super.getOffHeapByteSize(fieldInfo);
     }
 
+    /**
+     * Calls {@link #getPostingVisitor} directly for a named float-vector field, bypassing
+     * {@link #getNumberOfVectors} and its assertion. Used in tests to exercise the
+     * {@code acceptDocs} handling in the {@code numSlices == 0} branch in isolation.
+     */
+    // package-private for testing
+    PostingVisitor getPostingVisitorForTest(String field, float[] query, ESAcceptDocs acceptDocs) throws IOException {
+        FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
+        NextFieldEntry entry = fields.get(fieldInfo.number);
+        KnnVectorValues values = getFloatVectorValues(field);
+        return getPostingVisitor(
+            fieldInfo,
+            values,
+            entry.postingListSlice(ivfClusters.clone()),
+            new QueryTarget.FloatQuery(query),
+            null,
+            entry.centroidSlice(ivfCentroids.clone()),
+            acceptDocs
+        );
+    }
+
     private static class SlicedMemorySegmentPostingsVisitor extends MemorySegmentPostingsVisitor {
         final int startDocId;
         final int endDocId;

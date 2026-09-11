@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
@@ -101,6 +102,26 @@ public class FileSourceFactoryTests extends ESTestCase {
 
         // A scheme-only location has no host and is never claimed, even with an explicit format.
         assertFalse("scheme-only location is not claimed", fileSourceFactory.canHandle("s3://", explicitFormat));
+    }
+
+    /**
+     * {@link FileSourceFactory#validateConfig} is the query-time validator for inline {@code FROM "..." WITH {...}}
+     * queries. It must emit the same value-aware deprecation warning as the CRUD-time path
+     * ({@link FileDataSourceValidator#validateDataset}) — inline queries have no CRUD path, so this is the only
+     * site that fires for them.
+     */
+    public void testValidateConfigEmitsHivePartitioningDeprecationWarning() {
+        FileSourceFactory factory = newFileSourceFactory();
+        // false: names the canonical replacement
+        factory.validateConfig("s3://bucket/data.parquet", Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, "false"));
+        assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
+        factory.validateConfig("s3://bucket/data.parquet", Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, false));
+        assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE);
+        // non-false: tells the user to remove the key
+        for (Object value : List.of("true", true, "yes", "banana")) {
+            factory.validateConfig("s3://bucket/data.parquet", Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, value));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE);
+        }
     }
 
     private static FileSourceFactory newFileSourceFactory() {

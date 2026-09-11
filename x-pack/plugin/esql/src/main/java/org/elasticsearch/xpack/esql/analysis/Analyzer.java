@@ -2804,6 +2804,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan resolveInferencePlan(InferencePlan<?> plan, AnalyzerContext context) {
             assert plan.inferenceId().resolved() && plan.inferenceId().foldable();
 
+            if (plan instanceof DenseVector denseVector && denseVector.selectsDefaultInferenceId()) {
+                DenseVector selected = selectDefaultInferenceId(denseVector, context);
+                if (selected.inferenceId().resolved() == false) {
+                    return selected;
+                }
+                plan = selected;
+            }
+
             String inferenceId = BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
             ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(inferenceId);
 
@@ -2837,6 +2845,39 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return plan;
+        }
+
+        /**
+         * Picks the first of {@link DenseVector#DEFAULT_INFERENCE_ID_CANDIDATES} that this deployment has and that serves the
+         * command's input, so a query naming no endpoint runs wherever one of them exists. Pre-analysis resolved every candidate
+         * (see {@link InferencePlan#candidateInferenceIds()}), so the chosen endpoint carries a validated task type; resolution
+         * runs once, and an endpoint first named here could not be checked.
+         * <p>
+         * Returns the plan carrying a resolution error that names each candidate and why it was rejected, when this deployment
+         * can use none of them.
+         */
+        private DenseVector selectDefaultInferenceId(DenseVector denseVector, AnalyzerContext context) {
+            EnumSet<TaskType> acceptedTaskTypes = denseVector.acceptedTaskTypes();
+            List<String> rejections = new ArrayList<>(DenseVector.DEFAULT_INFERENCE_ID_CANDIDATES.size());
+            for (String candidate : DenseVector.DEFAULT_INFERENCE_ID_CANDIDATES) {
+                ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(candidate);
+                if (resolvedInference == null) {
+                    rejections.add("[" + candidate + "]: " + context.inferenceResolution().getError(candidate));
+                } else if (acceptedTaskTypes.contains(resolvedInference.taskType()) == false) {
+                    rejections.add("[" + candidate + "]: task type [" + resolvedInference.taskType() + "] is not supported");
+                } else {
+                    return denseVector.withInferenceId(Literal.keyword(denseVector.inferenceId().source(), candidate));
+                }
+            }
+
+            String error = "no inference endpoint is available for the "
+                + denseVector.nodeName()
+                + " command: "
+                + String.join("; ", rejections)
+                + ". Specify an endpoint using the ["
+                + InferencePlan.INFERENCE_ID_OPTION_NAME
+                + "] option.";
+            return denseVector.withInferenceResolutionError(DenseVector.DEFAULT_INFERENCE_ID, error);
         }
 
         /**

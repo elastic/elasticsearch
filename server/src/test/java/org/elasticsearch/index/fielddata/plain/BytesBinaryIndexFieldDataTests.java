@@ -11,6 +11,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
@@ -24,6 +25,10 @@ public class BytesBinaryIndexFieldDataTests extends ESTestCase {
 
     private static BytesBinaryIndexFieldData fieldData(BinaryDocValuesFormat format) {
         return new BytesBinaryIndexFieldData("kw", null, null, IndexVersion.current(), format);
+    }
+
+    private static BytesBinaryIndexFieldData fieldData(BinaryDocValuesFormat format, IndexVersion indexVersion) {
+        return new BytesBinaryIndexFieldData("kw", null, null, indexVersion, format);
     }
 
     public void testSortFieldWithoutNestedReturnsBinaryDocValuesSortField() {
@@ -74,11 +79,24 @@ public class BytesBinaryIndexFieldDataTests extends ESTestCase {
     }
 
     public void testSortFieldWithNestedFallsBackToComparatorSource() {
-        // NOTE: BinarySortField has no nested support; the nested path must use BytesRefFieldComparatorSource.
         final Nested nested = new Nested(null, null, null, null);
         final SortField sf = fieldData(BinaryDocValuesFormat.SEPARATE_COUNT).sortField("_last", MultiValueMode.MIN, nested, false);
         assertThat(sf, not(instanceOf(MultiValuedBinaryDocValuesSortField.class)));
         assertThat(sf.getComparatorSource(), instanceOf(BytesRefFieldComparatorSource.class));
         assertEquals(SortField.Type.CUSTOM, sf.getType());
+    }
+
+    public void testSortFieldWithLiteralMissingValueFallsBackToComparatorSource() {
+        final SortField sf = fieldData(BinaryDocValuesFormat.SEPARATE_COUNT).sortField("missing-literal", MultiValueMode.MIN, null, false);
+        assertThat(sf, not(instanceOf(MultiValuedBinaryDocValuesSortField.class)));
+        assertThat(sf.getComparatorSource(), instanceOf(BytesRefFieldComparatorSource.class));
+    }
+
+    public void testOldSeparateCountIndexFallsBackToComparatorSource() {
+        final IndexVersion old = IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION;
+        final BytesBinaryIndexFieldData fd = fieldData(BinaryDocValuesFormat.SEPARATE_COUNT, old);
+        final SortField sf = fd.sortField("_last", MultiValueMode.MIN, null, false);
+        assertThat(sf, not(instanceOf(MultiValuedBinaryDocValuesSortField.class)));
+        assertThat(sf.getComparatorSource(), instanceOf(BytesRefFieldComparatorSource.class));
     }
 }

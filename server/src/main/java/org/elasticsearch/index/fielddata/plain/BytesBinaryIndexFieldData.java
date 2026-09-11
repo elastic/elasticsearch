@@ -14,6 +14,7 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -76,14 +77,18 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
 
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        if (nested == null) {
+        if (nested == null && isStandardMissingSentinel(missingValue)) {
             return binaryDocValuesSortField(missingValue, sortMode, reverse);
         }
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
         return new SortField(getFieldName(), source, reverse);
     }
 
-    private MultiValuedBinaryDocValuesSortField binaryDocValuesSortField(Object missingValue, MultiValueMode sortMode, boolean reverse) {
+    private SortField binaryDocValuesSortField(Object missingValue, MultiValueMode sortMode, boolean reverse) {
+        if (binaryFormat == BinaryDocValuesFormat.SEPARATE_COUNT
+            && indexVersion.before(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
+            return new SortField(getFieldName(), new BytesRefFieldComparatorSource(this, missingValue, sortMode, null), reverse);
+        }
         Object luceneMissingValue = XFieldComparatorSource.sortMissingLast(missingValue) ^ reverse
             ? SortField.STRING_LAST
             : SortField.STRING_FIRST;
@@ -94,6 +99,10 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
             sortMode == MultiValueMode.MAX,
             binaryFormat
         );
+    }
+
+    private static boolean isStandardMissingSentinel(Object missingValue) {
+        return missingValue == null || "_first".equals(missingValue) || "_last".equals(missingValue);
     }
 
     @Override

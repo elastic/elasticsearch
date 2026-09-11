@@ -1779,6 +1779,27 @@ bytes_in:double | step:datetime            | cluster:keyword
 404.0           | 2024-05-10T00:10:00.000Z | prod
 ;
 
+sort_range_query_does_not_reorder
+required_capability: promql_command_v0
+required_capability: promql_implicit_type_coercion
+required_capability: to_gauge
+required_capability: promql_sort
+PROMQL index=k8s step=10m bytes_in=(sort(round(avg by (cluster) (avg_over_time(network.bytes_in[10m])), 4)))
+| SORT bytes_in DESC, step, cluster | LIMIT 10;
+warningRegex:.*sort: ordering is discarded for range queries.*
+
+bytes_in:double | step:datetime            | cluster:keyword
+776.0           | 2024-05-10T00:30:00.000Z | qa
+692.0           | 2024-05-10T00:30:00.000Z | prod
+560.0           | 2024-05-10T00:20:00.000Z | prod
+512.0           | 2024-05-10T00:20:00.000Z | qa
+500.0           | 2024-05-10T00:10:00.000Z | qa
+496.0           | 2024-05-10T00:10:00.000Z | staging
+432.0           | 2024-05-10T00:20:00.000Z | staging
+416.0           | 2024-05-10T00:30:00.000Z | staging
+404.0           | 2024-05-10T00:10:00.000Z | prod
+;
+
 label_matching_on_non_string_label
 required_capability: promql_command_v0
 required_capability: time_series_translation_in_analyzer

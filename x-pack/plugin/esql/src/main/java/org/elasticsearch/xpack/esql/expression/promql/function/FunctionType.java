@@ -128,6 +128,19 @@ public enum FunctionType {
     SCALAR_CONVERSION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.SCALAR),
 
     /**
+     * Orders the final result without changing which series exist.
+     * <p>
+     * Input: Instant vector.
+     * <br>
+     * Output: Instant vector with the same series, reordered.
+     * <br>
+     * Grouping: none.
+     * <p>
+     * Examples: {@code sort()}, {@code sort_desc()}
+     */
+    RESULT_ORDERING(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
+
+    /**
      * Produces a scalar without consuming an input argument.
      * <p>
      * Examples: {@code pi()}, {@code time()}

@@ -109,31 +109,6 @@ public record SplitDiscoveryContext(
         Map<String, Object> config,
         PartitionMetadata partitionInfo,
         List<Expression> filterHints,
-        ExternalSchema querySchema
-    ) {
-        this(
-            metadata,
-            fileList,
-            schemaMap,
-            config,
-            partitionInfo,
-            filterHints,
-            querySchema,
-            null,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false,
-            DeclaredReadSpec.NONE,
-            null
-        );
-    }
-
-    public SplitDiscoveryContext(
-        SourceMetadata metadata,
-        FileList fileList,
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
-        Map<String, Object> config,
-        PartitionMetadata partitionInfo,
-        List<Expression> filterHints,
         ExternalSchema querySchema,
         @Nullable String datasetName
     ) {

@@ -234,7 +234,7 @@ public class FileSplitProviderTests extends ESTestCase {
         schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("name"))), null, null));
         schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, null));
         Expression filter = new GreaterThan(SRC, fieldAttr("price"), intLiteral(100), null);
-        // 7-arg ctor so schemaMap is populated; the 5-arg ctor would skip the missing-column check.
+        // schemaMap is populated so the missing-column check runs; the 5-arg ctor would skip it.
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
             null,
             fileList,
@@ -242,7 +242,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(filter),
-            ExternalSchema.EMPTY
+            ExternalSchema.EMPTY,
+            null
         );
         SplitDiscoveryResult result = provider.discoverSplits(ctx);
 
@@ -4071,7 +4072,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            new ExternalSchema(List.of(refAttr("id")))
+            new ExternalSchema(List.of(refAttr("id"))),
+            null
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4114,7 +4116,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            new ExternalSchema(List.of(refAttr("id")))
+            new ExternalSchema(List.of(refAttr("id"))),
+            null
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4148,7 +4151,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            new ExternalSchema(List.of(refAttr("id")))
+            new ExternalSchema(List.of(refAttr("id"))),
+            null
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4187,7 +4191,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            new ExternalSchema(List.of(refAttr("id")))
+            new ExternalSchema(List.of(refAttr("id"))),
+            null
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4217,7 +4222,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            new ExternalSchema(List.of(refAttr("id")))
+            new ExternalSchema(List.of(refAttr("id"))),
+            null
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4931,7 +4937,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            new ExternalSchema(List.of(refAttr("id"), refAttr("name")))
+            new ExternalSchema(List.of(refAttr("id"), refAttr("name"))),
+            null
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
@@ -4965,7 +4972,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            new ExternalSchema(List.of(refAttr("id"), refAttr("name")))
+            new ExternalSchema(List.of(refAttr("id"), refAttr("name"))),
+            null
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
@@ -4992,7 +5000,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            ExternalSchema.EMPTY
+            ExternalSchema.EMPTY,
+            null
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
@@ -5043,7 +5052,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             partitions,
             List.of(),
-            new ExternalSchema(List.of(refAttr("year")))
+            new ExternalSchema(List.of(refAttr("year"))),
+            null
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
@@ -5071,7 +5081,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            new ExternalSchema(List.of(refAttr("id"), refAttr("name")))
+            new ExternalSchema(List.of(refAttr("id"), refAttr("name"))),
+            null
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
@@ -5114,7 +5125,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             partitions,
             List.of(yearFilter),
-            new ExternalSchema(List.of(refAttr("id"), refAttr("name")))
+            new ExternalSchema(List.of(refAttr("id"), refAttr("name"))),
+            null
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
@@ -5213,7 +5225,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             partitions,
             List.of(yearFilter),
-            new ExternalSchema(List.of(refAttr("id")))
+            new ExternalSchema(List.of(refAttr("id"))),
+            null
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
@@ -5233,7 +5246,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(indexFilter),
-            new ExternalSchema(List.of(refAttr("id")))
+            new ExternalSchema(List.of(refAttr("id"))),
+            null
         );
         assertEquals("_index is engine-materialised, not missing from the file", 1, provider.discoverSplits(ctx).splits().size());
     }
@@ -5270,7 +5284,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(recordRefFilter),
-            new ExternalSchema(List.of(refAttr("id")))
+            new ExternalSchema(List.of(refAttr("id"))),
+            null
         );
         assertEquals("_file.record_ref is composed per record, not missing from the file", 1, provider.discoverSplits(ctx).splits().size());
     }
@@ -5288,7 +5303,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(idFilter),
-            new ExternalSchema(List.of(refAttr("id")))
+            new ExternalSchema(List.of(refAttr("id"))),
+            null
         );
         assertEquals("_id is composed per record, not missing from the file", 1, provider.discoverSplits(ctx).splits().size());
     }
@@ -5306,7 +5322,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(sourceFilter),
-            new ExternalSchema(List.of(refAttr("id")))
+            new ExternalSchema(List.of(refAttr("id"))),
+            null
         );
         assertEquals("_source is composed per record, not missing from the file", 1, provider.discoverSplits(ctx).splits().size());
     }
@@ -5328,7 +5345,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(idEquals),
-            new ExternalSchema(List.of(refAttr("id")))
+            new ExternalSchema(List.of(refAttr("id"))),
+            null
         );
         assertEquals("_id equality is per-row, so the file is kept for scan", 1, provider.discoverSplits(ctx).splits().size());
     }
@@ -5397,7 +5415,8 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             partitions,
             filters,
-            new ExternalSchema(List.of(refAttr("id"), refAttr("price")))
+            new ExternalSchema(List.of(refAttr("id"), refAttr("price"))),
+            null
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 

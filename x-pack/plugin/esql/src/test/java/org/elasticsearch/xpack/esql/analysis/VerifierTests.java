@@ -4902,6 +4902,14 @@ public class VerifierTests extends ESTestCase {
         supportsHighlight(fullText()).query(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title WITH { \"analyzer\": \"standard\" }"
         );
+        // Full-text functions inside a HIGHLIGHT query are used to define highlighting terms, not as Lucene filter predicates.
+        // They must be allowed on non-STANDARD (e.g. time-series) indices.
+        supportsHighlight(k8s()).query("TS k8s | HIGHLIGHT MATCH(event_log, \"fox\") ON event_log");
+        supportsHighlight(k8s()).query("TS k8s | HIGHLIGHT event_log : \"fox\" ON event_log");
+        supportsHighlight(k8s()).query("TS k8s | HIGHLIGHT (event_log : \"fox\") OR (event_log : \"dog\") ON event_log");
+        supportsHighlight(k8s()).query(
+            "TS k8s | LIMIT 100 | HIGHLIGHT MATCH(event_log, \"fox\") OR MATCH(event_log, \"dog\") ON event_log"
+        );
     }
 
     public void testHighlightAnalyzerOption() {

@@ -20,6 +20,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.View;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
@@ -170,136 +172,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Names every dataset a {@code testXxx} body PUTs via the raw {@link PutDatasetAction} (our tests carry declared
-     * mappings, which the base {@code registerDataset} helper does not model). New tests must register their dataset
-     * name here so the SUITE-scoped cluster doesn't carry state across methods — {@link #cleanupRawDatasets} deletes
-     * them (the base {@code cleanupRegistry} only tears down datasets created through its own helpers).
-     */
-    private static final Set<String> CREATED_DATASETS = Set.of(
-        "employees",
-        "employees_alt",
-        "logs_dataset",
-        "events_hive",
-        "employees_external",
-        "employees_mixed",
-        "stats_ds",
-        "employees_strict",
-        "employees_nonstrict",
-        "employees_strict_multi",
-        "employees_nonstrict_multi",
-        "employees_rename_strict",
-        "employees_headerless_strict",
-        "employees_headerless_dynamic",
-        "employees_absent_warn",
-        "employees_parity_strict",
-        "employees_parity_dynamic",
-        "employees_order_strict",
-        "employees_order_dynamic",
-        "employees_rename_nonstrict",
-        "employees_rename_keep",
-        "employees_ndjson_rename_strict",
-        "employees_ndjson_rename_nonstrict",
-        "employees_parquet_rename",
-        "employees_rename_multi",
-        "employees_swap",
-        "employees_id_from_col",
-        "employees_id_bad_path",
-        "employees_id_renamed",
-        "employees_strict_hive",
-        "employees_strict_hive_collide",
-        "employees_parquet_type_conflict",
-        "employees_strict_wrong_order",
-        "logs_csv_strict",
-        "logs_csv_nonstrict",
-        "logs_csv_filelevel",
-        "logs_csv_iso",
-        "logs_parquet_format",
-        "logs_ndjson",
-        "logs_csv_rename",
-        "logs_csv_gz",
-        "logs_csv_gz_strict",
-        "logs_tsv_gz_strict",
-        "logs_ndjson_gz_strict",
-        "logs_csv_gz_strict_multi",
-        "logs_parquet_strict_format",
-        "logs_noext_strict",
-        "logs_noext_parquet_strict",
-        "logs_noext_parquet_strict_sr",
-        "employees_extensionless",
-        "logs_id_partition",
-        "logs_partition_collide_nonstrict",
-        "logs_partition_collide_none",
-        "logs_partition_collide_path",
-        "employees_strict_coerce",
-        "employees_strict_uncoercible",
-        "employees_strict_coerce_multi",
-        "employees_int_to_long",
-        "employees_declared_narrow",
-        "logs_parquet_string_date",
-        "coerced_long_to_double",
-        "logs_csv_equiv",
-        "logs_parquet_equiv",
-        "long_csv_equiv",
-        "long_parquet_equiv",
-        "typed_strings_parquet",
-        "empty_string_double",
-        "logs_deferred_coerce",
-        "logs_bad_date_token",
-        "logs_bad_date_failfast",
-        "logs_csv_bad_date_failfast",
-        "logs_ndjson_bad_date_failfast",
-        "logs_ndjson_bad_date_permissive",
-        "employees_divergent_multi",
-        "tsv_declared_type",
-        "tsv_declared_date",
-        "tsv_declared_rename",
-        "mapped_ds_for_view",
-        "mapped_ds_for_subquery",
-        "ndjson_mv_coerce",
-        "logs_ts_declared_long",
-        "logs_date_inferred",
-        "rp_micros",
-        "rp_nanos",
-        "rp_millis",
-        "rp_bare_s",
-        "rp_bare_ms",
-        "rp_date",
-        "rpn_bare_ns",
-        "rpn_bare_s",
-        "rpn_micros",
-        "rp_prune_s",
-        "rpn_prune_s",
-        "scale_diff_a",
-        "scale_diff_b",
-        "scale_diff_c",
-        "scale_diff_d",
-        "scale_diff_e",
-        "scale_diff_f",
-        "scale_diff_g",
-        "scale_xdecl_seconds",
-        "scale_xdecl_millis",
-        "cb_inferred",
-        "cb_nonstrict",
-        "cb_strict",
-        "cb_ndjson_inferred",
-        "cb_ndjson_nonstrict",
-        "cb_ndjson_strict",
-        "epoch_ovf_pq_null",
-        "epoch_ovf_pq_skip",
-        "epoch_ovf_pq_fail",
-        "epoch_ovf_csv_null",
-        "epoch_ovf_csv_skip",
-        "epoch_ovf_csv_fail",
-        "epoch_ovf_nj_null",
-        "epoch_ovf_nj_skip",
-        "epoch_ovf_nj_fail",
-        "employees_parquet_absent_warn",
-        "employees_ndjson_absent_warn",
-        "mixed_ts_inferred",
-        "mixed_int_inferred"
-    );
-
-    /**
      * Names every {@code testXxx} body creates via {@link PutViewAction}. As with datasets, the SUITE-scoped
      * cluster requires explicit teardown so views don't leak across methods.
      */
@@ -309,7 +181,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void cleanupViews() throws Exception {
         for (String view : CREATED_VIEWS) {
             try {
-                client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).get(30, java.util.concurrent.TimeUnit.SECONDS);
+                client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).actionGet(30, SECONDS);
             } catch (ResourceNotFoundException ignored) {
                 // already deleted by the test itself
             } catch (Exception e) {
@@ -319,25 +191,24 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Tears down the datasets our tests create through the raw {@link PutDatasetAction} (they carry declared mappings,
-     * which the base {@code registerDataset} helper does not model, so they are not in the base registry). The base
-     * {@code cleanupRegistry} runs alongside this and clears anything created through its own helpers; a distinct name
-     * keeps both from overriding each other.
+     * Tears down every dataset in cluster state, not just those the base {@code registerDataset} helper recorded: tests
+     * here PUT through the raw {@link PutDatasetAction} (declared mappings the helper does not model), and a
+     * hand-maintained allowlist of their names kept drifting, leaking datasets into a later {@code FROM logs_*} on this
+     * SUITE-scoped cluster. A distinct name keeps this from overriding the base {@code cleanupRegistry}.
      */
     @After
     public void cleanupRawDatasets() throws Exception {
-        for (String ds : CREATED_DATASETS) {
+        GetDatasetAction.Request allDatasets = new GetDatasetAction.Request(TIMEOUT);
+        allDatasets.indices("*");
+        for (Dataset ds : client().execute(GetDatasetAction.INSTANCE, allDatasets).get(30, SECONDS).getDatasets()) {
             try {
-                client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds)).get(30, java.util.concurrent.TimeUnit.SECONDS);
-            } catch (ResourceNotFoundException ignored) {
-                // already deleted by the test itself
+                client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds.name())).actionGet(30, SECONDS);
             } catch (Exception e) {
-                logger.warn("dataset cleanup [{}] failed", ds, e);
+                logger.warn("dataset cleanup [{}] failed", ds.name(), e);
             }
         }
         try {
-            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds"))
-                .get(30, java.util.concurrent.TimeUnit.SECONDS);
+            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds")).actionGet(30, SECONDS);
         } catch (ResourceNotFoundException ignored) {
             // already deleted by the test itself
         } catch (Exception e) {

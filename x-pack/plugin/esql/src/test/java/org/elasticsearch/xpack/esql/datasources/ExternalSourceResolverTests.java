@@ -535,6 +535,93 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(4L, ((Number) widen.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
+    public void testAlignHarvestWithAnchorTypesRewritesUnrepresentableFooterColumn() {
+        Map<String, Object> later = new HashMap<>();
+        later.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        later.put(SourceStatisticsSerializer.columnMinKey("x"), -10L);
+        later.put(SourceStatisticsSerializer.columnMaxKey("x"), 20L);
+        later.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        later.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+        Map<String, Object> frozen = Map.copyOf(later);
+
+        Map<String, Object> aligned = ExternalSourceResolver.alignHarvestWithAnchorTypes(
+            frozen,
+            Map.of("x", DataType.LONG),
+            Map.of("x", DataType.INTEGER),
+            true,
+            Set.of()
+        );
+
+        assertNotSame(frozen, aligned);
+        assertEquals(0L, aligned.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertEquals(2L, aligned.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertNull(aligned.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(aligned.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertEquals(-10L, frozen.get(SourceStatisticsSerializer.columnMinKey("x")));
+    }
+
+    public void testAlignHarvestWithAnchorTypesEncodesUnsignedLongVersusSigned() {
+        Map<String, Object> later = new HashMap<>();
+        later.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        later.put(SourceStatisticsSerializer.columnMinKey("x"), 0L);
+        later.put(SourceStatisticsSerializer.columnMaxKey("x"), 200L);
+        later.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        later.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+
+        Map<String, Object> aligned = ExternalSourceResolver.alignHarvestWithAnchorTypes(
+            later,
+            Map.of("x", DataType.LONG),
+            Map.of("x", DataType.UNSIGNED_LONG),
+            true,
+            Set.of()
+        );
+
+        assertEquals(DeclaredTypeCoercions.coerceToUnsignedLong(0L), aligned.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertEquals(DeclaredTypeCoercions.coerceToUnsignedLong(200L), aligned.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertEquals(2L, ((Number) aligned.get(SourceStatisticsSerializer.columnValueCountKey("x"))).longValue());
+    }
+
+    public void testAlignHarvestWithAnchorTypesLeavesTextUnrepresentableForFold() {
+        Map<String, Object> later = new HashMap<>();
+        later.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        later.put(SourceStatisticsSerializer.columnMinKey("x"), -10L);
+        later.put(SourceStatisticsSerializer.columnMaxKey("x"), 20L);
+        later.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        later.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+        Map<String, Object> frozen = Map.copyOf(later);
+
+        assertSame(
+            frozen,
+            ExternalSourceResolver.alignHarvestWithAnchorTypes(
+                frozen,
+                Map.of("x", DataType.LONG),
+                Map.of("x", DataType.INTEGER),
+                false,
+                Set.of()
+            )
+        );
+    }
+
+    public void testAlignHarvestWithAnchorTypesSkipsDeclaredCoercibleColumn() {
+        Map<String, Object> later = new HashMap<>();
+        later.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        later.put(SourceStatisticsSerializer.columnMinKey("x"), -10L);
+        later.put(SourceStatisticsSerializer.columnMaxKey("x"), 20L);
+        later.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        Map<String, Object> frozen = Map.copyOf(later);
+
+        assertSame(
+            frozen,
+            ExternalSourceResolver.alignHarvestWithAnchorTypes(
+                frozen,
+                Map.of("x", DataType.LONG),
+                Map.of("x", DataType.INTEGER),
+                true,
+                Set.of("x")
+            )
+        );
+    }
+
     /**
      * Text FIRST_FILE_WINS does not whole-column null-fill, so an unrepresentable column's extrema are
      * poisoned and its counts are dropped. The harvest describes a read under each file's own schema,
@@ -689,6 +776,18 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertNull(agg.get(SourceStatisticsSerializer.columnValueCountKey("x")));
         assertNull(agg.get(SourceStatisticsSerializer.columnNullCountKey("x")));
         assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+
+        Map<String, Object> rawLaterFile = new HashMap<>();
+        rawLaterFile.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        rawLaterFile.put(SourceStatisticsSerializer.columnMinKey("x"), -10L);
+        rawLaterFile.put(SourceStatisticsSerializer.columnMaxKey("x"), 200L);
+        rawLaterFile.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        rawLaterFile.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+        Map<String, Object> aligned = SourceStatisticsSerializer.alignHarvestWithFold(rawLaterFile, agg);
+        assertNull(aligned.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertNull(aligned.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertEquals(Boolean.TRUE, aligned.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(Boolean.TRUE, aligned.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
     }
 
     public void testFfwTextAggregateDropsCountsWhenExtremaLeavePlannerDomain() {

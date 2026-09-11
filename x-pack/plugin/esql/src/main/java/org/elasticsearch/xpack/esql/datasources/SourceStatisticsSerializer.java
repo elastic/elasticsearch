@@ -298,6 +298,63 @@ public final class SourceStatisticsSerializer {
     }
 
     /**
+     * Copies fold-level unservability onto a per-file or per-range harvest so split merge cannot
+     * serve a column the coordinator fold already dropped or poisoned. Only columns the fold
+     * mentions are touched. When {@code folded} marks extrema unservable, harvest extrema are
+     * poisoned. When {@code folded} has neither a value count nor a null count for that column,
+     * harvest counts are dropped. Returns {@code harvest} when nothing changes. {@code harvest}
+     * is not mutated.
+     */
+    @Nullable
+    public static Map<String, Object> alignHarvestWithFold(@Nullable Map<String, Object> harvest, @Nullable Map<String, Object> folded) {
+        if (harvest == null || harvest.isEmpty() || folded == null || folded.isEmpty()) {
+            return harvest;
+        }
+        Map<String, Object> out = null;
+        for (String column : columnNamesIn(harvest)) {
+            boolean foldPoisoned = Boolean.TRUE.equals(folded.get(columnMinUnservableKey(column)))
+                || Boolean.TRUE.equals(folded.get(columnMaxUnservableKey(column)));
+            boolean foldHasCounts = folded.containsKey(columnValueCountKey(column)) || folded.containsKey(columnNullCountKey(column));
+            boolean foldHasExtrema = folded.containsKey(columnMinKey(column)) || folded.containsKey(columnMaxKey(column)) || foldPoisoned;
+            if (foldHasCounts == false && foldHasExtrema == false) {
+                continue;
+            }
+            boolean foldDroppedCounts = foldHasCounts == false
+                && (harvest.containsKey(columnValueCountKey(column)) || harvest.containsKey(columnNullCountKey(column)));
+            if (foldPoisoned == false && foldDroppedCounts == false) {
+                continue;
+            }
+            if (out == null) {
+                out = new HashMap<>(harvest);
+            }
+            if (foldPoisoned) {
+                poisonColumnExtrema(out, column);
+            }
+            if (foldDroppedCounts) {
+                out.remove(columnValueCountKey(column));
+                out.remove(columnNullCountKey(column));
+            }
+        }
+        return out != null ? out : harvest;
+    }
+
+    private static Set<String> columnNamesIn(Map<String, Object> statsMap) {
+        Set<String> names = new HashSet<>();
+        for (String key : statsMap.keySet()) {
+            if (key.startsWith(STATS_COL_PREFIX) == false) {
+                continue;
+            }
+            String rest = key.substring(STATS_COL_PREFIX.length());
+            int dotIdx = rest.lastIndexOf('.');
+            if (dotIdx <= 0) {
+                continue;
+            }
+            names.add(rest.substring(0, dotIdx));
+        }
+        return names;
+    }
+
+    /**
      * Rewrites one column to the all-null contract {@link SplitStats} already skips without poisoning
      * siblings: {@code value_count = 0}, {@code null_count = row_count}, no min/max, no unservable
      * markers. Used when a footer read discards the column (the planner type cannot represent the file

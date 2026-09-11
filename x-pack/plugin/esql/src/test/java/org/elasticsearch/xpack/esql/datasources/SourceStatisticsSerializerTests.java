@@ -788,6 +788,77 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertEquals(-10L, frozen.get(SourceStatisticsSerializer.columnMinKey("x")));
     }
 
+    public void testAlignHarvestWithFoldPoisonsAndDropsCountsWhenFoldDroppedTheColumn() {
+        Map<String, Object> harvest = new HashMap<>();
+        harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        harvest.put(SourceStatisticsSerializer.columnMinKey("x"), -10L);
+        harvest.put(SourceStatisticsSerializer.columnMaxKey("x"), 200L);
+        harvest.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        harvest.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+        harvest.put(SourceStatisticsSerializer.columnMinKey("id"), 1L);
+        Map<String, Object> frozenHarvest = Map.copyOf(harvest);
+
+        Map<String, Object> folded = new HashMap<>();
+        folded.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 4L);
+        folded.put(SourceStatisticsSerializer.columnMinUnservableKey("x"), Boolean.TRUE);
+        folded.put(SourceStatisticsSerializer.columnMaxUnservableKey("x"), Boolean.TRUE);
+
+        Map<String, Object> out = SourceStatisticsSerializer.alignHarvestWithFold(frozenHarvest, folded);
+
+        assertNotSame(frozenHarvest, out);
+        assertEquals(2L, out.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertNull(out.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertEquals(1L, out.get(SourceStatisticsSerializer.columnMinKey("id")));
+        assertEquals(-10L, frozenHarvest.get(SourceStatisticsSerializer.columnMinKey("x")));
+    }
+
+    public void testAlignHarvestWithFoldPoisonsExtremaAndKeepsCountsWhenFoldKeptCounts() {
+        Map<String, Object> harvest = new HashMap<>();
+        harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        harvest.put(SourceStatisticsSerializer.columnMinKey("x"), 1L);
+        harvest.put(SourceStatisticsSerializer.columnMaxKey("x"), 2L);
+        harvest.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        harvest.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+
+        Map<String, Object> folded = new HashMap<>();
+        folded.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 4L);
+        folded.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        folded.put(SourceStatisticsSerializer.columnNullCountKey("x"), 2L);
+        folded.put(SourceStatisticsSerializer.columnMinUnservableKey("x"), Boolean.TRUE);
+        folded.put(SourceStatisticsSerializer.columnMaxUnservableKey("x"), Boolean.TRUE);
+
+        Map<String, Object> out = SourceStatisticsSerializer.alignHarvestWithFold(harvest, folded);
+
+        assertNull(out.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(2L, out.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertEquals(0L, out.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+    }
+
+    public void testAlignHarvestWithFoldIsIdentityWhenFoldServedTheColumn() {
+        Map<String, Object> harvest = new HashMap<>();
+        harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        harvest.put(SourceStatisticsSerializer.columnMinKey("x"), -10L);
+        harvest.put(SourceStatisticsSerializer.columnMaxKey("x"), 20L);
+        harvest.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        harvest.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+        Map<String, Object> frozen = Map.copyOf(harvest);
+
+        Map<String, Object> folded = new HashMap<>();
+        folded.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 4L);
+        folded.put(SourceStatisticsSerializer.columnMinKey("x"), 1L);
+        folded.put(SourceStatisticsSerializer.columnMaxKey("x"), 2L);
+        folded.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        folded.put(SourceStatisticsSerializer.columnNullCountKey("x"), 2L);
+
+        assertSame(frozen, SourceStatisticsSerializer.alignHarvestWithFold(frozen, folded));
+    }
+
     public void testOverlayPinnedColumnsPoisonsExtremaAndDropsCountsKeepingRowCount() {
         Map<String, Object> stats = new HashMap<>();
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 3L);

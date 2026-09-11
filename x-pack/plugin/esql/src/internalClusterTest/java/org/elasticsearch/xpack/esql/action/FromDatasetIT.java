@@ -300,6 +300,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "widen_pq_type_ffw",
         "drift_csv_type_ffw",
         "ul_pq_type_ffw",
+        "ul_pq_neg_ffw",
         "drift_pq_declared_ffw",
         "mixed_ts_inferred",
         "mixed_int_inferred"
@@ -6330,6 +6331,14 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
         assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(1, 2, 2L)));
         assertThat(documentsReadBy("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+        // KEEP leaves a Project between STATS and the relation, so skip-discovery fails and split
+        // merge must stamp the rewritten harvest, not the later file's raw extrema.
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(
+            firstRowOf("FROM drift_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(1, 2, 2L))
+        );
+        assertThat(documentsReadBy("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(0L));
         assertThat(
             collectWarningsContaining("FROM drift_pq_type_ffw | STATS c = COUNT(x)", "incompatible with planner type"),
             not(empty())
@@ -6386,6 +6395,23 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         List<Object> scan = firstRowOf("FROM ul_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)");
         assertThat(firstRowOf("FROM ul_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(scan));
         assertThat(documentsReadBy("FROM ul_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+        assertThat(firstRowOf("FROM ul_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(scan));
+        assertThat(documentsReadBy("FROM ul_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+    }
+
+    public void testFirstFileWinsUnsignedEncodeFailureScansToMatchTheScan() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeInt64Parquet(dir.resolve("part-a.parquet"), true, 1L, 2L);
+        writeInt64Parquet(dir.resolve("part-b.parquet"), false, -10L, 200L);
+        putFirstFileWinsGlob("ul_pq_neg_ffw", dir);
+
+        // -10 is out of the unsigned_long domain, so the scan nulls that cell: 1, 2, null, 200.
+        // The fold cannot encode that file's extrema and must not let split merge serve the raw harvest.
+        List<Object> scan = firstRowOf("FROM ul_pq_neg_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)");
+        assertThat(firstRowOf("FROM ul_pq_neg_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(scan));
+        assertThat(firstRowOf("FROM ul_pq_neg_ffw | STATS c = COUNT(x)"), equalTo(List.of(3L)));
+        assertThat(documentsReadBy("FROM ul_pq_neg_ffw | STATS c = COUNT(x)"), equalTo(4L));
     }
 
     public void testFirstFileWinsDeclaredIntegerMatchesTheScanOnDivergentColumnTypes() throws Exception {

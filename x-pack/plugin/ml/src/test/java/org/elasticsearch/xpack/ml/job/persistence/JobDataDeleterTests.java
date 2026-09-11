@@ -19,8 +19,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
-import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
@@ -218,8 +218,8 @@ public class JobDataDeleterTests extends ESTestCase {
 
     public void testDeleteInterimResultsShouldUseSingleSlice() throws Exception {
         MockWritableIndexExpander.create(true);
-        PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
-        future.onResponse(emptyBulkByPaginatedSearchResponse());
+        PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        future.onResponse(emptyBulkByScrollResponse());
         when(client.execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture())).thenReturn(future);
 
         JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID);
@@ -247,11 +247,11 @@ public class JobDataDeleterTests extends ESTestCase {
         );
 
         doAnswer(invocation -> {
-            ActionListener<BulkByPaginatedSearchResponse> listener = invocation.getArgument(2);
+            ActionListener<BulkByScrollResponse> listener = invocation.getArgument(2);
             if (executeCount.incrementAndGet() == 1) {
                 listener.onResponse(searchContextMissingResponse());
             } else {
-                listener.onResponse(emptyBulkByPaginatedSearchResponse());
+                listener.onResponse(emptyBulkByScrollResponse());
             }
             return null;
         }).when(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
@@ -285,11 +285,11 @@ public class JobDataDeleterTests extends ESTestCase {
         when(threadPool.schedule(retryRunnableCaptor.capture(), any(TimeValue.class), any())).thenReturn(mock(ScheduledCancellable.class));
 
         doAnswer(invocation -> {
-            ActionListener<BulkByPaginatedSearchResponse> listener = invocation.getArgument(2);
+            ActionListener<BulkByScrollResponse> listener = invocation.getArgument(2);
             if (executeCount.incrementAndGet() == 1) {
                 listener.onFailure(scm);
             } else {
-                listener.onResponse(emptyBulkByPaginatedSearchResponse());
+                listener.onResponse(emptyBulkByScrollResponse());
             }
             return null;
         }).when(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
@@ -316,7 +316,7 @@ public class JobDataDeleterTests extends ESTestCase {
         when(threadPool.schedule(retryRunnableCaptor.capture(), any(TimeValue.class), any())).thenReturn(mock(ScheduledCancellable.class));
 
         doAnswer(invocation -> {
-            ActionListener<BulkByPaginatedSearchResponse> listener = invocation.getArgument(2);
+            ActionListener<BulkByScrollResponse> listener = invocation.getArgument(2);
             listener.onResponse(searchContextMissingResponse());
             return null;
         }).when(client).execute(eq(DeleteByQueryAction.INSTANCE), any(), any());
@@ -346,7 +346,7 @@ public class JobDataDeleterTests extends ESTestCase {
         MockWritableIndexExpander.create(true);
         RuntimeException failure = new RuntimeException("boom");
         doAnswer(invocation -> {
-            ActionListener<BulkByPaginatedSearchResponse> listener = invocation.getArgument(2);
+            ActionListener<BulkByScrollResponse> listener = invocation.getArgument(2);
             listener.onFailure(failure);
             return null;
         }).when(client).execute(eq(DeleteByQueryAction.INSTANCE), any(), any());
@@ -371,21 +371,21 @@ public class JobDataDeleterTests extends ESTestCase {
         verify(client, times(1)).threadPool();
     }
 
-    private static BulkByPaginatedSearchResponse emptyBulkByPaginatedSearchResponse() {
-        return new BulkByPaginatedSearchResponse(
+    private static BulkByScrollResponse emptyBulkByScrollResponse() {
+        return new BulkByScrollResponse(
             TimeValue.ZERO,
-            new BulkByPaginatedSearchTask.Status(Collections.emptyList(), null, 0f),
+            new BulkByScrollTask.Status(Collections.emptyList(), null),
             Collections.emptyList(),
             Collections.emptyList(),
             false
         );
     }
 
-    private static BulkByPaginatedSearchResponse searchContextMissingResponse() {
+    private static BulkByScrollResponse searchContextMissingResponse() {
         SearchContextMissingException scm = new SearchContextMissingException(new ShardSearchContextId("s", 1L));
-        return new BulkByPaginatedSearchResponse(
+        return new BulkByScrollResponse(
             TimeValue.ZERO,
-            new BulkByPaginatedSearchTask.Status(Collections.emptyList(), null, 0f),
+            new BulkByScrollTask.Status(Collections.emptyList(), null),
             Collections.emptyList(),
             List.of(new PaginatedSearchFailure(scm)),
             false

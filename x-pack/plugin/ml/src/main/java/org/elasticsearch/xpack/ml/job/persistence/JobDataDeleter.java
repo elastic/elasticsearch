@@ -231,7 +231,8 @@ public class JobDataDeleter {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
-            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
+            .setSlices(DELETE_SLICES)
+            .setScroll(DELETE_SCROLL_KEEP_ALIVE);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
@@ -282,7 +283,7 @@ public class JobDataDeleter {
         }
     }
 
-    private static boolean hasSearchContextMissingFailure(BulkByPaginatedSearchResponse response) {
+    private static boolean hasSearchContextMissingFailure(BulkByScrollResponse response) {
         for (PaginatedSearchFailure failure : response.getSearchFailures()) {
             if (org.elasticsearch.ExceptionsHelper.unwrap(failure.getReason(), SearchContextMissingException.class) != null) {
                 return true;
@@ -291,7 +292,7 @@ public class JobDataDeleter {
         return false;
     }
 
-    private static Exception searchContextMissingFromResponse(BulkByPaginatedSearchResponse response) {
+    private static Exception searchContextMissingFromResponse(BulkByScrollResponse response) {
         for (PaginatedSearchFailure failure : response.getSearchFailures()) {
             Throwable cause = org.elasticsearch.ExceptionsHelper.unwrap(failure.getReason(), SearchContextMissingException.class);
             if (cause != null) {
@@ -360,11 +361,6 @@ public class JobDataDeleter {
             () -> listener.onResponse(true)
         );
         if (indicesToQuery.length == 0) return;
-        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setAbortOnVersionConflict(false)
-            .setRefresh(true)
-            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
 
         executeDeleteByQueryWithScrollContextRetry(() -> newDeleteByQueryRequest(indicesToQuery, query), listener);
     }
@@ -378,7 +374,7 @@ public class JobDataDeleter {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(false)
-            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
+            .setSlices(DELETE_SLICES);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);

@@ -464,6 +464,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
@@ -785,7 +786,7 @@ public class MachineLearning extends Plugin
      * {@link org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.OpenJobRetryableAction}.
      * See elastic/elasticsearch#153260.
      */
-    public static final Setting<TimeValue> JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY = Setting.timeSetting(
+    public static final Setting<TimeValue> JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY = capacityRetryTimeSetting(
         "xpack.ml.job_open_capacity_retry_initial_delay",
         TimeValue.timeValueSeconds(30),
         JOB_OPEN_NORMAL_RETRY_INITIAL_DELAY,
@@ -799,7 +800,7 @@ public class MachineLearning extends Plugin
      * default 5m cap so repeated capacity failures back off further, letting scroll contexts expire between attempts.
      * See elastic/elasticsearch#153260.
      */
-    public static final Setting<TimeValue> JOB_OPEN_CAPACITY_RETRY_MAX_DELAY = Setting.timeSetting(
+    public static final Setting<TimeValue> JOB_OPEN_CAPACITY_RETRY_MAX_DELAY = capacityRetryTimeSetting(
         "xpack.ml.job_open_capacity_retry_max_delay",
         TimeValue.timeValueMinutes(10),
         JOB_OPEN_NORMAL_RETRY_MAX_DELAY,
@@ -2535,6 +2536,42 @@ public class MachineLearning extends Plugin
         if (enabled) {
             mlLifeCycleService.get().signalGracefulShutdown(shutdownNodeIds);
         }
+    }
+
+    private static Setting<TimeValue> capacityRetryTimeSetting(
+        String key,
+        TimeValue defaultValue,
+        TimeValue minValue,
+        TimeValue maxValue,
+        Setting.Validator<TimeValue> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValue.getStringRep(), s -> {
+            TimeValue value = TimeValue.parseTimeValue(s, key);
+            if (value.millis() < minValue.millis()) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "failed to parse value [%s] for setting [%s], must be >= [%s]",
+                        s,
+                        key,
+                        minValue.getStringRep()
+                    )
+                );
+            }
+            if (value.millis() > maxValue.millis()) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "failed to parse value [%s] for setting [%s], must be <= [%s]",
+                        s,
+                        key,
+                        maxValue.getStringRep()
+                    )
+                );
+            }
+            return value;
+        }, validator, properties);
     }
 
     private static final class CapacityRetryInitialDelayValidator implements Setting.Validator<TimeValue> {

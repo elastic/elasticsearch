@@ -273,9 +273,9 @@ public final class DatasetRewriter {
         Set<String> nonDatasetNamesList = resolution.nonDatasetNames();
 
         // One rail for every FROM shape — dataset-only and heterogeneous (index + dataset). The non-remotable-abstraction
-        // CPS rule (a remote view/dataset fails; a remote index of the same name reads both) must hold uniformly, so the
-        // cross-project siblings below are appended regardless of whether the FROM also names local indices. Keeping the
-        // two shapes on one path is what stops them drifting.
+        // CPS rule (a remote view fails, a remote dataset is invisible, and a remote index of the same name reads) must
+        // hold uniformly, so the cross-project siblings below are appended regardless of whether the FROM also names
+        // local indices. Keeping the two shapes on one path is what stops them drifting.
         List<LogicalPlan> children = new ArrayList<>();
         for (String name : datasetNames) {
             children.add(buildDatasetBranch(name, datasets, dataSources, relation.source(), relation.metadataFields()));
@@ -284,8 +284,8 @@ public final class DatasetRewriter {
         // Index branch: the concrete local non-dataset names plus, under cross-project, any preserved positive
         // wildcards — joined into one UnresolvedRelation so the resolver dedups a local index matched by both a
         // concrete name and a wildcard (no double read) and the wildcard's remote half reaches field-caps (closing
-        // #151977's dropped-remote-wildcard gap). The resolveDatasets rail on this branch also fails a remote
-        // dataset/view the wildcard matches. METADATA fields ride along so _index/_id resolve on the index rows.
+        // #151977's dropped-remote-wildcard gap). A remote view the wildcard matches still fails there; a remote dataset
+        // is not matched at all. METADATA fields ride along so _index/_id resolve on the index rows.
         List<String> indexBranch = new ArrayList<>(nonDatasetNamesList);
         if (crossProjectEnabled) {
             indexBranch.addAll(crossProjectPatternsToPreserve(patternsOf(relation)));
@@ -319,8 +319,8 @@ public final class DatasetRewriter {
         }
 
         // CPS: an exact (non-wildcard) dataset name has no wildcard to re-emit, so its remote half rides a
-        // DatasetShadowRelation — a remote index of the same name federates in, a remote dataset/view of the same
-        // name fails (the detection rail). See DatasetShadowRelation for the full lifecycle. This stays inert until
+        // DatasetShadowRelation — a remote index of the same name federates in, a remote view of the same name fails,
+        // and a remote dataset of the same name is invisible. See DatasetShadowRelation for the full lifecycle. This stays inert until
         // datasets exist: datasetNames is non-empty only once datasets are registered, which the upstream
         // esql_external_datasources feature flag controls — this method enforces no flag check of its own.
         if (crossProjectEnabled) {

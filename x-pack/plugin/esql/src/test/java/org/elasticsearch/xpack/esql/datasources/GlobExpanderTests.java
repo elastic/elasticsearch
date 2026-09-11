@@ -36,13 +36,13 @@ public class GlobExpanderTests extends ESTestCase {
     /** No partition settings: the default, which resolves to AUTO and behaves as Hive detection did. */
     private static final Map<String, Object> HIVE_ON = Map.of();
 
-    /** The legacy switch that turns partition detection off, now folded into Strategy.NONE. */
-    private static final Map<String, Object> HIVE_OFF = Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, "false");
+    /** Detection disabled via the canonical setting. */
+    private static final Map<String, Object> HIVE_OFF = Map.of(PartitionConfig.CONFIG_PARTITIONING_DETECTION, "none");
 
-    /** Hive off, and every exclusion off. Directory placeholder keys are still skipped regardless. */
+    /** Detection disabled, and every exclusion off. Directory placeholder keys are still skipped regardless. */
     private static final Map<String, Object> NO_EXCLUSION = Map.of(
-        PartitionConfig.CONFIG_PARTITIONING_HIVE,
-        "false",
+        PartitionConfig.CONFIG_PARTITIONING_DETECTION,
+        "none",
         ExclusionConfig.CONFIG_FILE_EXCLUSIONS,
         List.of()
     );
@@ -1673,7 +1673,7 @@ public class GlobExpanderTests extends ESTestCase {
             GlobExpander.listingCacheDiscriminator(keyed, year2025, HIVE_ON)
         );
 
-        // hive_partitioning gates the rewrite and selects the partition metadata carried by the cached listing.
+        // partition_detection:none disables the rewrite and selects the partition metadata carried by the cached listing.
         assertNotEquals(unhintedKeyed, GlobExpander.listingCacheDiscriminator(keyed, null, HIVE_OFF));
 
         var fileName = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "a.parquet"));

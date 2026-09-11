@@ -76,6 +76,8 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
 
+    public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
+
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
     public static final Setting<MappedFieldType.FieldExtractPreference> FIELD_EXTRACT_PREFERENCE = Setting.enumSetting(
@@ -242,7 +244,8 @@ public final class QueryPragmas implements Writeable {
         FORCE_DOC_SEQUENCE,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
-        KNN_RUNTIME_FIELD
+        KNN_RUNTIME_FIELD,
+        SINGLE_NODE_OPTIMIZATIONS
 
     ).map(Setting::getKey).toList();
 
@@ -345,6 +348,13 @@ public final class QueryPragmas implements Writeable {
      */
     public boolean nodeLevelReduction() {
         return NODE_LEVEL_REDUCTION.get(settings);
+    }
+
+    /**
+     * Disable or enable the single node optimizations in case the query executes against a single node
+     */
+    public boolean singleNodeOptimizations() {
+        return SINGLE_NODE_OPTIMIZATIONS.get(settings);
     }
 
     /**

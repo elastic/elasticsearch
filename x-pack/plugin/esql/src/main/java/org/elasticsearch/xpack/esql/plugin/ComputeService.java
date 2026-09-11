@@ -1250,6 +1250,7 @@ public class ComputeService {
                 foldContext,
                 null,
                 exchangeSinkSupplier,
+                false,
                 false
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
@@ -1370,6 +1371,7 @@ public class ComputeService {
                             foldContext,
                             exchangeSource::createExchangeSource,
                             exchangeSinkSupplier,
+                            false,
                             false
                         ),
                         coordinatorPlan,
@@ -1511,6 +1513,7 @@ public class ComputeService {
                     foldContext,
                     exchangeSource::createExchangeSource,
                     exchangeSinkSupplier,
+                    false,
                     false
                 ),
                 coordinatorPlan,
@@ -1745,7 +1748,14 @@ public class ComputeService {
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            var localExecutionPlan = planner.plan(context.description(), context.foldCtx(), plannerSettings, planToExecute, shardContexts);
+            var localExecutionPlan = planner.plan(
+                context.description(),
+                context.foldCtx(),
+                plannerSettings,
+                planToExecute,
+                shardContexts,
+                context.singleNodeOptimizations()
+            );
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }

@@ -569,6 +569,7 @@ final class SubPlansExecutor {
                         foldContext,
                         mergeContext.exchangeSource::createExchangeSource,
                         mergeContext.parentSink == null ? null : () -> mergeContext.parentSink.handler.createExchangeSink(() -> {}),
+                        false,
                         false
                     ),
                     mergeContext.plan,

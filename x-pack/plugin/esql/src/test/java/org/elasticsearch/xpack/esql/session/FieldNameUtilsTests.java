@@ -54,10 +54,6 @@ public class FieldNameUtilsTests extends ESTestCase {
      */
     private final boolean includePrefixFields;
 
-    private static void checkMultiColumnInSubquery() {
-        assumeTrue("multi-column IN subquery", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
-    }
-
     public FieldNameUtilsTests(@Name("unmappedFieldLoad") boolean includePrefixFields) {
         this.includePrefixFields = includePrefixFields;
     }
@@ -3806,7 +3802,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     // Multi-column IN subquery tests
 
     public void testMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM employees | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary) | KEEP emp_no, first_name",
             Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*")
@@ -3814,7 +3809,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnNotInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames("""
             FROM employees
             | WHERE (emp_no, salary) NOT IN (FROM employees | WHERE languages == 4 | KEEP emp_no, salary)
@@ -3823,7 +3817,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryNoFieldReduction() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             """
                 FROM employees
@@ -3839,7 +3832,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBeforeMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames("""
             FROM employees
             | KEEP emp_no, first_name, salary, languages
@@ -3850,7 +3842,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFromSubqueryBeforeMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames("""
             FROM
               (FROM employees | SORT emp_no | LIMIT 50 | KEEP emp_no, first_name, salary),
@@ -3863,7 +3854,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     // Mixed single-column and multi-column IN subquery tests
 
     public void testMixedSingleAndMultiColumnInSubqueryWithAnd() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             """
                 FROM employees
@@ -3890,7 +3880,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     // Nested multi-column IN subquery tests
 
     public void testNestedMultiColumnInSubqueryInsideMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames("""
             FROM employees
             | WHERE (emp_no, salary) IN (
@@ -3903,7 +3892,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testNestedSingleColumnInSubqueryInsideMultiColumnInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames("""
             FROM employees
             | WHERE (emp_no, salary) IN (
@@ -3916,7 +3904,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testNestedMultiColumnInSubqueryInsideSingleColumnInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames("""
             FROM employees
             | WHERE emp_no IN (
@@ -4120,7 +4107,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnTsInSubqueryInEval() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM main | EVAL z = (f1, f2) IN (TS sub | KEEP f1, f2) | KEEP f1",
             Set.of("_index", "f1", "f1.*", "f2", "f2.*", "@timestamp", "@timestamp.*")
@@ -4128,7 +4114,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnRowInSubqueryInEval() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM main | EVAL z = (f1, f2) IN (ROW f1 = 1, f2 = 2 | KEEP f1, f2) | KEEP f1",
             Set.of("_index", "f1", "f1.*", "f2", "f2.*")
@@ -4136,7 +4121,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInCaseInEval() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM main | EVAL z = CASE((f1, f2) IN (FROM sub | KEEP f1, f2), true, false) | KEEP f1",
             Set.of("_index", "f1", "f1.*", "f2", "f2.*")
@@ -4144,7 +4128,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInCoalesceInEval() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM main | EVAL z = COALESCE((f1, f2) IN (TS sub | KEEP f1, f2), false) | KEEP f1",
             Set.of("_index", "f1", "f1.*", "f2", "f2.*", "@timestamp", "@timestamp.*")
@@ -4152,7 +4135,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryNestedInIsNullInEval() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             "FROM main | EVAL z = ((f1, f2) IN (FROM sub | KEEP f1, f2)) IS NULL | KEEP f1",
             Set.of("_index", "f1", "f1.*", "f2", "f2.*")
@@ -4431,7 +4413,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testStatsWhereMultiColumnRowInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames("""
             FROM employees
             | STATS count = COUNT(*) WHERE (emp_no, salary) IN (ROW a = 1, b = 2 | KEEP a, b)
@@ -4439,7 +4420,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testStatsWhereMultiColumnTsInSubquery() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             """
                 FROM employees
@@ -4466,7 +4446,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testStatsWhereInSubqueryInComplexNesting() {
-        checkMultiColumnInSubquery();
         assertFieldNames(
             """
                 FROM employees
@@ -4513,7 +4492,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryInInlineStatsWhereWithRow() {
-        checkMultiColumnInSubquery();
         assertFieldNames("""
             FROM employees
             | INLINE STATS c = COUNT(*) WHERE (salary, languages) IN (ROW a = 1, b = 2 | KEEP a, b)

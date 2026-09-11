@@ -33,8 +33,13 @@ import static org.hamcrest.Matchers.hasSize;
  * the secret, expecting it to be carried forward. When the update lands on a node that has not yet applied
  * the publication carrying the create, that node cannot see the stored secret and must not validate the
  * request as if none had ever been set.
+ *
+ * <p>Three master-eligible nodes keep a quorum of two when one is blocked from applying cluster
+ * state, so the create still commits. Two nodes would not: blocking the non-master node leaves no
+ * quorum, the publication does not commit, and the follow-up PUT then fails as if no secret had
+ * ever been stored.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 0, supportsDedicatedMasters = false)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 3, numClientNodes = 0, supportsDedicatedMasters = false)
 public class DataSourcePutStaleCurrentIT extends ESIntegTestCase {
 
     /** Short, so the blocked node's missing ack is not waited out for the full default. */

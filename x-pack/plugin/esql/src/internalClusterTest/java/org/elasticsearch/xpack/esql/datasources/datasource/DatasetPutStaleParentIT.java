@@ -31,8 +31,13 @@ import static org.hamcrest.Matchers.hasSize;
  * When the two land on different nodes and the second node has not yet applied the publication that
  * carries the parent, the request must still be registered: the master re-validates authoritatively
  * and holds the only state that can decide.
+ *
+ * <p>Three master-eligible nodes keep a quorum of two when one is blocked from applying cluster
+ * state, so the create still commits. Two nodes would not: blocking the non-master node leaves no
+ * quorum, the publication does not commit, and the follow-up PUT then fails as if the parent never
+ * existed.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 0, supportsDedicatedMasters = false)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 3, numClientNodes = 0, supportsDedicatedMasters = false)
 public class DatasetPutStaleParentIT extends ESIntegTestCase {
 
     /** Short, so the blocked node's missing ack is not waited out for the full default. */

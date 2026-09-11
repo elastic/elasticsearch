@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -245,7 +246,10 @@ public class DatasetSchemaSampleSizeValidationIT extends AbstractExternalDataSou
                 new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, dataSource, resource, null, new HashMap<>(settings))
             ).get()
         );
-        assertThat(err.getCause(), instanceOf(ValidationException.class));
-        return (ValidationException) err.getCause();
+        // PUT is decided on the elected master; a coordinator other than that node wraps the
+        // ValidationException in RemoteTransportException.
+        Throwable cause = ExceptionsHelper.unwrapCause(err.getCause());
+        assertThat(cause, instanceOf(ValidationException.class));
+        return (ValidationException) cause;
     }
 }

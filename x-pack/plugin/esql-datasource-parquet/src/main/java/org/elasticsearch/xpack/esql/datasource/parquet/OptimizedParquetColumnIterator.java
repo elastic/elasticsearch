@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
@@ -430,11 +431,18 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         ColumnDescriptor sortColumnDescriptor,
         ParquetReaderCounters counters,
         ErrorPolicy errorPolicy,
-        @Nullable Consumer<String> warningSink
+        @Nullable Consumer<String> warningSink,
+        @Nullable SharedErrorBudget sharedErrorBudget
     ) {
         this.errorPolicy = errorPolicy;
         this.warningSink = warningSink;
-        this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(errorPolicy, fileLocation, warningSink);
+        this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(
+            errorPolicy,
+            fileLocation,
+            warningSink,
+            false,
+            sharedErrorBudget
+        );
         this.reader = reader;
         this.projectedSchema = projectedSchema;
         this.attributes = attributes;
@@ -477,7 +485,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         this.isPredicateColumn = classifyPredicateColumns(attributes, columnInfos, pushedExpressions);
         this.lateMaterialization = pushedExpressions != null;
         // Built before unfilteredLimit below, which has to know whether this read can drop rows.
-        this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
+        this.rowDropHelper = sharedErrorBudget != null
+            ? ColumnarRowDropHelper.forSharedBudget(sharedErrorBudget)
+            : ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
         this.unfilteredLimit = ParquetFormatReader.unfilteredLimit(
             rowBudget,
             survivingRowGroups != null,

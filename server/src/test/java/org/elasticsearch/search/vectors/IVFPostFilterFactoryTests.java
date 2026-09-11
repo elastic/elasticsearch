@@ -318,12 +318,12 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
 
     /** The negative of the completeness test above: a subtype with no switch arm must fail loudly via the default arm. */
     public void testCloneWithParamsRejectsAnUnknownSubtype() {
-        FooIVFQuery unknown = new FooIVFQuery();
+        UnregisteredIVFQuery unknown = new UnregisteredIVFQuery();
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> unknown.clone(unknown.filter, unknown.k(), unknown.numCands(), unknown.postFilterDelegate)
         );
-        assertThat(e.getMessage(), containsString(FooIVFQuery.class.getName()));
+        assertThat(e.getMessage(), containsString(UnregisteredIVFQuery.class.getName()));
     }
 
     /** The delegate flag changes results, so it must take part in equality. */
@@ -445,8 +445,8 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
      * A concrete {@link AbstractIVFKnnVectorQuery} with no {@link IVFKnnQueryFactory} switch arm - a stand-in for a
      * subtype added without wiring up reconstruction. Search methods are stubbed; these tests only drive cloneWithParams.
      */
-    private static class FooIVFQuery extends AbstractIVFKnnVectorQuery {
-        FooIVFQuery() {
+    private static class UnregisteredIVFQuery extends AbstractIVFKnnVectorQuery {
+        UnregisteredIVFQuery() {
             super(FIELD, VISIT_RATIO, K, NUM_CANDS, filter(), RESOLVER);
         }
 
@@ -473,7 +473,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
 
         @Override
         public String toString(String field) {
-            return "FooIVFQuery";
+            return "UnregisteredIVFQuery";
         }
     }
 }

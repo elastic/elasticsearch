@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryVocabulary;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
@@ -24,6 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 
@@ -44,10 +47,12 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationU
  * registered format name, or {@link FormatNameResolver#FORMAT_AUTO} / absent to infer
  * from the resource extension). Format-specific dataset fields (e.g. CSV's
  * {@code delimiter}) are validated against the
- * <em>resolved</em> format: explicit {@code format} → resource extension → unknown.
- * Both require a {@link FormatConfigKeyResolver} set via
- * {@link #withFormatConfigKeyResolver}. Without a resolver the validator cannot know
- * any format names, so {@code format} and all format-specific fields are rejected and
+ * <em>resolved</em> format: explicit {@code format} → registry extension lookup → unknown.
+ * Extension inference delegates to {@link FormatNameResolver#resolveFormatName} via
+ * {@link #withFormatReaderRegistry}; it does not walk suffixes itself.
+ * A {@link FormatConfigKeyResolver} (via {@link #withFormatConfigKeyResolver}) supplies
+ * per-format config keys and known format names. Without a resolver the validator cannot
+ * know any format names, so {@code format} and all format-specific fields are rejected and
  * only the base dataset fields are accepted, preserving backward compatibility.
  */
 public class FileDataSourceValidator implements DataSourceValidator {
@@ -63,7 +68,12 @@ public class FileDataSourceValidator implements DataSourceValidator {
             + "it is disabled by default";
 
     // Dataset settings are plain values — no secrets. Credentials are inherited from the parent datasource.
-    private static final String SCHEMA_SAMPLE_SIZE = "schema_sample_size";
+    /**
+     * The schema-sampling bound — format-specific vocabulary owned by the text formats (CSV/TSV and NDJSON
+     * claim it; the self-describing Parquet does not). Public so the query path can tolerate it on datasets
+     * stored before it became format-scoped; see {@code FileSourceFactory#LEGACY_VOCABULARY_KEYS}.
+     */
+    public static final String SCHEMA_SAMPLE_SIZE = "schema_sample_size";
     /**
      * Upper bound accepted for {@code schema_sample_size} at registration. It MUST NOT sit below any reader's own
      * default for the setting, or the validator forbids the value the reader uses when the user says nothing: the
@@ -104,7 +114,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * readers, not the coordinator). Format-specific fields are unioned on per-resource against the
      * resolved format in {@link #validateDataset}.
      */
-    private static final Set<String> DATASET_FIELDS;
+    static final Set<String> DATASET_FIELDS;
     static {
         Set<String> fields = new HashSet<>(COORDINATOR_DATASET_KEYS);
         fields.add(SCHEMA_SAMPLE_SIZE);
@@ -112,14 +122,15 @@ public class FileDataSourceValidator implements DataSourceValidator {
     }
 
     /**
-     * Base dataset fields excluding the {@code format} selector, used by the no-resolver path: without a
-     * {@link FormatConfigKeyResolver} the validator cannot validate a {@code format} value, so it rejects
-     * {@code format} (and every format-specific key) just as it did before {@code format} became a
-     * first-class setting.
+     * {@link #COORDINATOR_DATASET_KEYS} plus {@link #SCHEMA_SAMPLE_SIZE} minus the {@code format} selector,
+     * used only by the no-resolver path: with no format names to validate against it rejects {@code format}
+     * and every format-specific key, but keeps accepting {@code schema_sample_size} (bounded-int validated)
+     * as it did before the key became format-scoped. Production always wires a resolver (see {@code EsqlPlugin}).
      */
     private static final Set<String> DATASET_FIELDS_WITHOUT_FORMAT;
     static {
-        Set<String> fields = new HashSet<>(DATASET_FIELDS);
+        Set<String> fields = new HashSet<>(COORDINATOR_DATASET_KEYS);
+        fields.add(SCHEMA_SAMPLE_SIZE);
         fields.remove(FormatNameResolver.CONFIG_FORMAT);
         DATASET_FIELDS_WITHOUT_FORMAT = Set.copyOf(fields);
     }
@@ -129,16 +140,20 @@ public class FileDataSourceValidator implements DataSourceValidator {
     private final Set<String> supportedSchemes;
     @Nullable
     private final FormatConfigKeyResolver formatConfigKeyResolver;
-    private final Set<String> compressionExtensions;
     private final BooleanSupplier managedIdentityEnabled;
     private final BooleanSupplier federatedIdentityEnabled;
+    @Nullable
+    private final FormatReaderRegistry formatReaderRegistry;
+    @Nullable
+    private final FileDataSourceConfiguration.AuthMode fixedAuthMode;
+    private final BiConsumer<String, ValidationException> resourceCheck;
 
     public FileDataSourceValidator(
         String type,
         BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false, () -> false);
+        this(type, configFactory, supportedSchemes, null, () -> false, () -> false, null, null, (r, e) -> {});
     }
 
     private FileDataSourceValidator(
@@ -146,38 +161,60 @@ public class FileDataSourceValidator implements DataSourceValidator {
         BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes,
         @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
-        Set<String> compressionExtensions,
         BooleanSupplier managedIdentityEnabled,
-        BooleanSupplier federatedIdentityEnabled
+        BooleanSupplier federatedIdentityEnabled,
+        @Nullable FormatReaderRegistry formatReaderRegistry,
+        @Nullable FileDataSourceConfiguration.AuthMode fixedAuthMode,
+        BiConsumer<String, ValidationException> resourceCheck
     ) {
         this.type = type;
         this.configFactory = configFactory;
-        this.supportedSchemes = supportedSchemes;
+        this.supportedSchemes = Set.copyOf(supportedSchemes);
         this.formatConfigKeyResolver = formatConfigKeyResolver;
-        this.compressionExtensions = compressionExtensions;
         this.managedIdentityEnabled = managedIdentityEnabled;
         this.federatedIdentityEnabled = federatedIdentityEnabled;
+        this.formatReaderRegistry = formatReaderRegistry;
+        this.fixedAuthMode = fixedAuthMode;
+        this.resourceCheck = resourceCheck;
     }
 
     /**
      * Returns a new validator that resolves a dataset's file format (from an explicit {@code format}
      * setting or the resource extension) and validates format-specific fields against it. The resolver
-     * maps a format name to its config keys, an extension to its format name, and enumerates the known
-     * format names for error messages.
-     *
-     * <p>The {@code compressionExtensions} set restricts compound-extension fallback
-     * (e.g. {@code data.csv.gz}) to only known compression suffixes, mirroring the
-     * runtime resolution in {@code FormatReaderRegistry}/{@code DecompressionCodecRegistry}.
+     * maps a format name to its config keys and enumerates the known format names for error messages.
+     * Compound-extension inference is performed by {@link FormatReaderRegistry} after
+     * {@link #withFormatReaderRegistry}.
      */
-    public FileDataSourceValidator withFormatConfigKeyResolver(FormatConfigKeyResolver resolver, Set<String> compressionExtensions) {
+    public FileDataSourceValidator withFormatConfigKeyResolver(FormatConfigKeyResolver resolver) {
         return new FileDataSourceValidator(
             type,
             configFactory,
             supportedSchemes,
             resolver,
-            compressionExtensions,
             managedIdentityEnabled,
-            federatedIdentityEnabled
+            federatedIdentityEnabled,
+            formatReaderRegistry,
+            fixedAuthMode,
+            resourceCheck
+        );
+    }
+
+    /**
+     * Returns a new validator that infers a dataset's format from the resource name through
+     * {@link FormatNameResolver#resolveFormatName}. Production wiring in {@code EsqlPlugin} always
+     * applies this; without it, extension inference returns {@code null}.
+     */
+    public FileDataSourceValidator withFormatReaderRegistry(FormatReaderRegistry registry) {
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            managedIdentityEnabled,
+            federatedIdentityEnabled,
+            registry,
+            fixedAuthMode,
+            resourceCheck
         );
     }
 
@@ -194,9 +231,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
             configFactory,
             supportedSchemes,
             formatConfigKeyResolver,
-            compressionExtensions,
             supplier,
-            federatedIdentityEnabled
+            federatedIdentityEnabled,
+            formatReaderRegistry,
+            fixedAuthMode,
+            resourceCheck
         );
     }
 
@@ -211,15 +250,111 @@ public class FileDataSourceValidator implements DataSourceValidator {
             configFactory,
             supportedSchemes,
             formatConfigKeyResolver,
-            compressionExtensions,
             managedIdentityEnabled,
-            supplier
+            supplier,
+            formatReaderRegistry,
+            fixedAuthMode,
+            resourceCheck
+        );
+    }
+
+    /**
+     * Returns a new validator that reports a fixed auth mode for inventory (http/local are not
+     * {@link FileDataSourceConfiguration}s and have no credential fields to infer from).
+     */
+    public FileDataSourceValidator withFixedAuthMode(FileDataSourceConfiguration.AuthMode mode) {
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            managedIdentityEnabled,
+            federatedIdentityEnabled,
+            formatReaderRegistry,
+            mode,
+            resourceCheck
+        );
+    }
+
+    /**
+     * Returns a new validator that runs {@code check} against the resource URI after the scheme check.
+     * The check receives the raw resource string and the accumulating {@link ValidationException}; it
+     * should call {@link ValidationException#addValidationError} for each problem it finds.
+     * Precedent for the shape: {@link #withManagedIdentityEnabled(BooleanSupplier)}.
+     */
+    public FileDataSourceValidator withResourceCheck(BiConsumer<String, ValidationException> check) {
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            managedIdentityEnabled,
+            federatedIdentityEnabled,
+            formatReaderRegistry,
+            fixedAuthMode,
+            check
         );
     }
 
     @Override
     public String type() {
         return type;
+    }
+
+    /** URI schemes this validator accepts on a dataset resource. */
+    Set<String> supportedSchemes() {
+        return supportedSchemes;
+    }
+
+    @Override
+    public String authModeOrNull(Map<String, DataSourceSetting> stored) {
+        if (fixedAuthMode != null) {
+            return fixedAuthMode.name().toLowerCase(Locale.ROOT);
+        }
+        try {
+            Map<String, Object> raw = new HashMap<>();
+            Set<String> existingSecretKeys = new HashSet<>();
+            if (stored != null) {
+                for (var entry : stored.entrySet()) {
+                    DataSourceSetting setting = entry.getValue();
+                    if (setting.secret()) {
+                        if (setting.presentationValue() != null) {
+                            existingSecretKeys.add(entry.getKey());
+                        }
+                    } else {
+                        raw.put(entry.getKey(), setting.nonSecretValue());
+                    }
+                }
+            }
+            // Same split as PUT-as-update: non-secret stored fields as {@code raw}, secret names as preexisting keys.
+            DataSourceConfiguration config = configFactory.apply(raw, existingSecretKeys);
+            if (config == null) {
+                return existingSecretKeys.isEmpty()
+                    ? null
+                    : FileDataSourceConfiguration.AuthMode.STATIC_CREDENTIALS.name().toLowerCase(Locale.ROOT);
+            }
+            if (config instanceof FileDataSourceConfiguration file) {
+                FileDataSourceConfiguration.AuthMode mode = file.resolveAuthModeOrNull();
+                return mode == null ? null : mode.name().toLowerCase(Locale.ROOT);
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
+    public DatasetShape datasetShape(Map<String, Object> datasetSettings, String resource) {
+        Map<String, Object> settings = datasetSettings == null ? Map.of() : datasetSettings;
+        String format = explicitFormat(settings);
+        if (format == null && resource != null) {
+            try {
+                format = formatFromExtension(resource);
+            } catch (IllegalArgumentException e) {
+                // registry veto (e.g. parquet.gz); leave format unresolved
+            }
+        }
+        return new DatasetShape(format, compressionNameFromResource(resource));
     }
 
     @Override
@@ -268,8 +403,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
         Map<String, Object> result = new HashMap<>();
 
-        // schema_sample_size keeps its dedicated bounded-int validation, which also stores the parsed int.
-        validateInt(settings, result, SCHEMA_SAMPLE_SIZE, 1, SCHEMA_SAMPLE_SIZE_MAX, errors);
+        // Only validate schema_sample_size when the resolved format claims it (CSV/NDJSON do; Parquet does not).
+        if (acceptedFields.contains(SCHEMA_SAMPLE_SIZE)) {
+            validateInt(settings, result, SCHEMA_SAMPLE_SIZE, 1, SCHEMA_SAMPLE_SIZE_MAX, errors);
+        }
 
         // Strictly validate the data-shape coordinator keys by delegating to the very parsers the
         // query path uses, so a malformed setting is rejected at PUT time with the same message it
@@ -381,14 +518,17 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * {@code format}, or format-specific settings on a resource whose format cannot be determined).
      *
      * <p>The format is resolved as: explicit {@code format} setting → resource extension → unknown.
-     * A known format accepts the base fields plus that format's keys (strict). An unknown format
-     * accepts the base fields only; a remaining key that some registered format recognises draws a
-     * targeted "set format" error, while a key no format recognises is reported as a plain unknown
-     * setting. Without a resolver, {@code format} itself is rejected (see {@link #DATASET_FIELDS_WITHOUT_FORMAT}).
+     * A known format accepts the coordinator fields plus that format's keys, with rejections split by
+     * {@link #acceptForFormat}. An unknown format accepts the coordinator fields only; a remaining key
+     * that some registered format recognises draws a targeted "set format" error, while a key no format
+     * recognises is reported as a plain unknown setting. Without a resolver, {@code format} itself is
+     * rejected (see {@link #DATASET_FIELDS_WITHOUT_FORMAT}).
+     * Registry vetoes (whole-file compression on parquet/ORC, a non-GA codec on release) are recorded
+     * as validation errors and also return {@code null} so the PUT fails on that one reason.
      *
      * <p>Returns {@code null} to signal that an explicit {@code format} value is not a registered
-     * format: the caller short-circuits on the single {@code unknown format} error rather than piling
-     * on per-key messages.
+     * format, or that the registry vetoed the resource: the caller short-circuits on that one error
+     * rather than piling on per-key messages.
      */
     @Nullable
     private Set<String> resolveAcceptedFields(@Nullable String resource, Map<String, Object> settings, ValidationException errors) {
@@ -405,17 +545,27 @@ public class FileDataSourceValidator implements DataSourceValidator {
                 errors.addValidationError(unknownFormatError(explicitFormat, formatConfigKeyResolver.knownFormats()));
                 return null;
             }
-            return acceptStrict(settings, formatKeys, errors);
+            if (recordRegistryVeto(explicitFormat, resource, errors)) {
+                return null;
+            }
+            return acceptForFormat(settings, explicitFormat, formatKeys, errors);
         }
 
         // No usable explicit format: infer the format from the resource extension.
-        String extensionFormat = resource == null ? null : formatFromExtension(resource);
+        String extensionFormat;
+        try {
+            extensionFormat = resource == null ? null : formatFromExtension(resource);
+        } catch (IllegalArgumentException e) {
+            errors.addValidationError(e.getMessage());
+            return null;
+        }
         if (extensionFormat != null) {
             Set<String> formatKeys = formatConfigKeyResolver.configKeysForFormat(extensionFormat);
-            return acceptStrict(settings, formatKeys != null ? formatKeys : Set.of(), errors);
+            return acceptForFormat(settings, extensionFormat, formatKeys != null ? formatKeys : Set.of(), errors);
         }
 
-        // Format unknown: accept the base fields only. Split the remaining keys so each gets the right
+        // Format unknown: accept the coordinator fields only, so no format-specific key is stored where
+        // it might not apply. Split the remaining keys so each gets the right
         // diagnosis. A key some registered format recognises cannot be validated here (we do not know
         // which format it belongs to), so it draws a targeted "set format" hint — but only when there
         // is a resource URI to anchor the hint to (null resource already produces its own "[resource]
@@ -426,7 +576,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         Map<String, Object> unknownKeys = new HashMap<>();
         for (Map.Entry<String, Object> entry : settings.entrySet()) {
             String key = entry.getKey();
-            if (DATASET_FIELDS.contains(key)) {
+            if (COORDINATOR_DATASET_KEYS.contains(key)) {
                 continue;
             }
             if (allFormatKeys.contains(key)) {
@@ -435,11 +585,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
                 unknownKeys.put(key, entry.getValue());
             }
         }
-        rejectUnknownFields(unknownKeys, DATASET_FIELDS, errors);
+        rejectUnknownFields(unknownKeys, COORDINATOR_DATASET_KEYS, errors);
         if (needFormat.isEmpty() == false) {
             errors.addValidationError(cannotDetermineFormatError(resource, needFormat));
         }
-        return DATASET_FIELDS;
+        return COORDINATOR_DATASET_KEYS;
     }
 
     /**
@@ -477,11 +627,37 @@ public class FileDataSourceValidator implements DataSourceValidator {
         return "cannot determine format for [" + resource + "]; set \"format\" to use settings like " + new TreeSet<>(formatSpecificKeys);
     }
 
-    /** Accepts the base dataset fields unioned with {@code formatKeys}, rejecting anything else. */
-    private static Set<String> acceptStrict(Map<String, Object> settings, Set<String> formatKeys, ValidationException errors) {
-        Set<String> accepted = new HashSet<>(DATASET_FIELDS);
+    /**
+     * Reported when a setting is real format vocabulary — some registered format claims it — but the
+     * resolved format does not: not a typo, so not an "unknown setting". Exposed so tests assert the
+     * exact production message.
+     */
+    public static String notSupportedByFormatError(String setting, String format) {
+        return "[" + setting + "] is not supported for format [" + format + "]";
+    }
+
+    /**
+     * Accepts {@link #COORDINATOR_DATASET_KEYS} unioned with {@code formatKeys}. Rejections are split:
+     * a key claimed by some other registered format draws {@link #notSupportedByFormatError} naming the
+     * resolved format; anything else is a typo reported as a generic unknown setting.
+     */
+    private Set<String> acceptForFormat(Map<String, Object> settings, String format, Set<String> formatKeys, ValidationException errors) {
+        Set<String> accepted = new HashSet<>(COORDINATOR_DATASET_KEYS);
         accepted.addAll(formatKeys);
-        rejectUnknownFields(settings, accepted, errors);
+        Set<String> allFormatKeys = allFormatConfigKeys();
+        Map<String, Object> unknownKeys = new HashMap<>();
+        for (Map.Entry<String, Object> entry : settings.entrySet()) {
+            String key = entry.getKey();
+            if (accepted.contains(key)) {
+                continue;
+            }
+            if (allFormatKeys.contains(key)) {
+                errors.addValidationError(notSupportedByFormatError(key, format));
+            } else {
+                unknownKeys.put(key, entry.getValue());
+            }
+        }
+        rejectUnknownFields(unknownKeys, accepted, errors);
         return accepted;
     }
 
@@ -498,56 +674,91 @@ public class FileDataSourceValidator implements DataSourceValidator {
     }
 
     /**
-     * Resolves the logical format name from a resource's file extension, or {@code null} if the
-     * extension maps to no registered format. Handles compound extensions (e.g. {@code data.csv.gz})
-     * by stripping a known compression suffix and resolving the inner extension, mirroring the
-     * runtime resolution in {@code FormatReaderRegistry}.
-     *
-     * <p>Uses {@link StoragePath} for URI parsing to avoid diverging from the read path's own URI
-     * model. A bare authority with no path component (e.g. {@code s3://my.bucket}) returns an empty
-     * object name and resolves to {@code null}, consistent with {@link StoragePath#objectName()}.
-     *
-     * <p>Extension extraction delegates to
-     * {@link org.elasticsearch.xpack.esql.datasources.FormatNameResolver#extractCleanExtension},
-     * which is scheme-aware: for {@code http}/{@code https} it uses {@link StoragePath#objectName()}
-     * to obtain the path without any query string or fragment before the last-dot scan, so presigned
-     * URLs with dotted queries (e.g. {@code ?v=1.2}) do not mislead the extension lookup.
+     * Resolves the logical format name from a resource through
+     * {@link FormatNameResolver#resolveFormatName}. Returns {@code null} when no registry is
+     * attached or the name is unreadable (no extension, or an extension the registry cannot map).
+     * Whole-file-compression vetoes from the registry propagate as {@link IllegalArgumentException}
+     * so CRUD can surface them as validation errors. This method does not walk suffixes itself.
      */
     @Nullable
-    private String formatFromExtension(String resource) {
-        StoragePath sp;
+    String formatFromExtension(String resource) {
+        if (formatReaderRegistry == null) {
+            return null;
+        }
+        String objectName = objectNameForResolution(resource);
+        if (objectName == null || objectName.isEmpty()) {
+            return null;
+        }
         try {
-            sp = StoragePath.of(resource);
+            return FormatNameResolver.resolveFormatName(null, objectName, formatReaderRegistry);
+        } catch (FormatReaderRegistry.UnreadableObjectException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Runs the named format through {@link FormatReaderRegistry#byNameForObject} so an explicit
+     * {@code format} cannot skip a wrapWithCodec veto (e.g. {@code format: parquet} on
+     * {@code data.parquet.gz}). Returns {@code true} when a veto was recorded.
+     */
+    private boolean recordRegistryVeto(String formatName, @Nullable String resource, ValidationException errors) {
+        if (formatReaderRegistry == null || resource == null) {
+            return false;
+        }
+        String objectName = objectNameForResolution(resource);
+        if (objectName == null || objectName.isEmpty()) {
+            return false;
+        }
+        try {
+            formatReaderRegistry.byNameForObject(formatName, objectName);
+            return false;
         } catch (IllegalArgumentException e) {
+            errors.addValidationError(e.getMessage());
+            return true;
+        }
+    }
+
+    /**
+     * Object name the registry should see. {@link StoragePath} is scheme-aware: HTTP/HTTPS strip
+     * query/fragment, object-store schemes keep {@code ?} and {@code #} as literal key characters.
+     * Scheme-less names (the consistency pin) fall back to the raw string.
+     */
+    @Nullable
+    private static String objectNameForResolution(String resource) {
+        if (resource == null || resource.isEmpty()) {
             return null;
         }
-        String objectName = sp.objectName();
-        if (objectName.isEmpty()) {
-            return null;
-        }
-
-        String rawExt = FormatNameResolver.extractCleanExtension(objectName);
-        if (rawExt == null) {
-            return null;
-        }
-        String ext = "." + rawExt;
-
-        String format = formatConfigKeyResolver.formatForExtension(ext);
-        if (format != null) {
-            return format;
-        }
-
-        // Compound extension: only fall back to the inner extension when the outermost
-        // is a known compression suffix (e.g. .gz, .zst). This mirrors the read-path
-        // behavior in DecompressionCodecRegistry/FormatReaderRegistry.
-        if (compressionExtensions.contains(ext)) {
-            String inner = objectName.substring(0, objectName.lastIndexOf('.'));
-            String innerRawExt = FormatNameResolver.extractCleanExtension(inner);
-            if (innerRawExt != null) {
-                return formatConfigKeyResolver.formatForExtension("." + innerRawExt);
+        try {
+            String objectName = StoragePath.of(resource).objectName();
+            if (objectName.isEmpty() == false) {
+                return objectName;
             }
+        } catch (IllegalArgumentException e) {
+            // bare names such as data.csv are not StoragePath URIs
         }
-        return null;
+        return resource;
+    }
+
+    /**
+     * Codec name for the resource's outer compression suffix, {@code uncompressed} when the object
+     * name has no known compression suffix, or {@code null} when the resource cannot be resolved.
+     */
+    @Nullable
+    private String compressionNameFromResource(String resource) {
+        if (resource == null) {
+            return null;
+        }
+        String objectName = objectNameForResolution(resource);
+        if (objectName == null) {
+            return null;
+        }
+        int lastDot = objectName.lastIndexOf('.');
+        if (lastDot < 0 || lastDot == objectName.length() - 1) {
+            return "uncompressed";
+        }
+        String ext = objectName.substring(lastDot).toLowerCase(Locale.ROOT);
+        String name = DataSourceInventoryVocabulary.COMPRESSION_BY_EXTENSION.get(ext);
+        return name != null ? name : "uncompressed";
     }
 
     private void validateResource(String resource, ValidationException errors) {
@@ -577,6 +788,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             }
             sb.append(']');
             errors.addValidationError("[resource] must use one of the supported URI schemes " + sb + " but was [" + resource + "]");
+        } else {
+            resourceCheck.accept(resource, errors);
         }
     }
 

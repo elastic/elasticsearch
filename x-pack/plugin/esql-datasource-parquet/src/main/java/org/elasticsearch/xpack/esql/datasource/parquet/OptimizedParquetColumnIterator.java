@@ -103,9 +103,10 @@ import java.util.function.IntConsumer;
  * prefetch, the iterator drains speculative reservations and retries that row group through
  * the same breaker-accounted chunk machinery using synchronous I/O. The fallback can therefore
  * also be refused when the row group's chunks do not fit. {@link #fillPrefetchQueue} admits
- * unread queued groups under {@link #MAX_QUEUED_PREFETCH_BYTES}; {@link #prefetchDepth} is a
- * count wish, not the memory bound. An empty queue always starts the next group so the scan
- * cannot stall.
+ * unread queued groups under {@link #MAX_QUEUED_PREFETCH_BYTES} and the node-wide
+ * {@link ParquetIoWatermark}; {@link #prefetchDepth} is a count wish, not the memory bound.
+ * An empty queue may start the next group so the scan cannot stall, subject to one node-wide
+ * overshoot when that group exceeds the watermark.
  *
  * <p><b>Trivially-passes guard:</b> when late materialization is enabled and row-group
  * statistics prove every row satisfies the pushed filter ({@link TriviallyPassesChecker}),
@@ -534,13 +535,16 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     /**
      * Fills the prefetch queue starting from ordinal {@code fromOrdinal}. Admission requires
      * both {@code size < prefetchDepth} (count wish) and, when the queue is non-empty,
-     * {@code queuedPrefetchBytes + next <= prefetchByteBudget}. An empty queue always
-     * dispatches the next surviving group, even when that group exceeds the byte cap, so the
+     * {@code queuedPrefetchBytes + next <= prefetchByteBudget}. The node-wide
+     * {@link ParquetIoWatermark} is a second gate: look-ahead is refused when {@code used + next}
+     * would exceed {@code heap / 8}; an empty queue may take one node-wide overshoot so the
      * scan cannot stall. Stops early when no more surviving row groups remain. Breaker
-     * accounting for the prefetched bytes happens inside {@code readBytesAsync} via
-     * {@code DirectBufferFactory.forBreaker}; if a prefetch trips the breaker it surfaces as
-     * a failed future and {@link #takePendingPrefetch} falls back to breaker-accounted sync I/O
-     * for that row group.
+     * accounting for the prefetched bytes happens inside {@code readBytesAsync}. Actual
+     * {@code DirectReadBuffer} sizes are charged to the watermark at alloc; each alloc drops
+     * that many leftover {@link ParquetIoWatermark.AdmitHold} estimate bytes so sibling in-flight
+     * GETs stay charged. Leftover estimate is dropped when the future settles. If a prefetch
+     * trips the breaker it surfaces as a failed future and {@link #takePendingPrefetch} falls
+     * back to breaker-accounted sync I/O for that row group.
      */
     private void fillPrefetchQueue(int fromOrdinal) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
@@ -565,18 +569,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
                 continue;
             }
-            long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(nextBlock, phaseColumns);
-            if (prefetchBytes <= 0) {
-                nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
-                continue;
-            }
-            // Remaining capacity, not a sum: a huge footer length cannot wrap a long add and
-            // admit a group we already know cannot fit. When queued already exceeds the cap
-            // (empty-queue overrun), the right-hand side is negative and any positive
-            // prefetchBytes fails the check.
-            if (pendingPrefetches.isEmpty() == false && prefetchBytes > prefetchByteBudget - queuedPrefetchBytes) {
-                break;
-            }
             try {
                 RowRanges nextRowRanges = allRowRanges != null && nextOrdinal < allRowRanges.length ? allRowRanges[nextOrdinal] : null;
                 RowRanges thresholdRanges = thresholdRowRanges(nextOrdinal, nextBlock);
@@ -600,23 +592,72 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 if (nextRowRanges != null && canSynchronizeListRows(nextOrdinal) == false) {
                     nextRowRanges = null;
                 }
-                CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future;
+                long prefetchBytes;
                 if (nextRowRanges != null) {
-                    future = ColumnChunkPrefetcher.prefetchAsync(
-                        storageObject,
-                        nextBlock,
-                        phaseColumns,
-                        nextRowRanges,
-                        preloadedMetadata,
-                        nextOrdinal,
-                        nextBlock.getRowCount(),
-                        breaker
+                    prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(
+                        ColumnChunkPrefetcher.computeFilteredPageRanges(
+                            nextBlock,
+                            nextRowRanges,
+                            preloadedMetadata,
+                            nextOrdinal,
+                            phaseColumns,
+                            nextBlock.getRowCount()
+                        )
                     );
                 } else {
-                    future = ColumnChunkPrefetcher.prefetchAsync(storageObject, nextBlock, phaseColumns, breaker);
+                    prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(nextBlock, phaseColumns);
                 }
-                pendingPrefetches.addLast(new PendingPrefetch(nextOrdinal, future, prefetchBytes));
-                queuedPrefetchBytes += prefetchBytes;
+                if (prefetchBytes <= 0) {
+                    nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
+                    continue;
+                }
+                // Remaining capacity, not a sum: a huge footer length cannot wrap a long add and
+                // admit a group we already know cannot fit. When queued already exceeds the cap
+                // (empty-queue overrun), the right-hand side is negative and any positive
+                // prefetchBytes fails the check.
+                if (pendingPrefetches.isEmpty() == false && prefetchBytes > prefetchByteBudget - queuedPrefetchBytes) {
+                    break;
+                }
+                boolean lookahead = pendingPrefetches.isEmpty() == false;
+                ParquetIoWatermark.AdmitHold admitHold = formatReader.ioWatermark().tryAdmit(prefetchBytes, lookahead);
+                if (admitHold == null) {
+                    break;
+                }
+                boolean reserved = true;
+                try {
+                    CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future;
+                    if (nextRowRanges != null) {
+                        future = ColumnChunkPrefetcher.prefetchAsync(
+                            storageObject,
+                            nextBlock,
+                            phaseColumns,
+                            nextRowRanges,
+                            preloadedMetadata,
+                            nextOrdinal,
+                            nextBlock.getRowCount(),
+                            breaker,
+                            formatReader.ioWatermark(),
+                            admitHold
+                        );
+                    } else {
+                        future = ColumnChunkPrefetcher.prefetchAsync(
+                            storageObject,
+                            nextBlock,
+                            phaseColumns,
+                            breaker,
+                            formatReader.ioWatermark(),
+                            admitHold
+                        );
+                    }
+                    future.whenComplete((ignored, error) -> admitHold.drop());
+                    reserved = false;
+                    pendingPrefetches.addLast(new PendingPrefetch(nextOrdinal, future, prefetchBytes));
+                    queuedPrefetchBytes += prefetchBytes;
+                } finally {
+                    if (reserved) {
+                        admitHold.drop();
+                    }
+                }
             } catch (Exception e) {
                 logger.debug("Failed to initiate prefetch for row group [{}] in [{}]: {}", nextOrdinal, fileLocation, e.getMessage());
                 break;
@@ -1339,7 +1380,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                             storageObjectForFallback(),
                             block,
                             predicateColumnPaths,
-                            breaker
+                            breaker,
+                            formatReader.ioWatermark()
                         );
                         currentChunksReleasable = fetched.release();
                         chunks = fetched.chunks();
@@ -1399,7 +1441,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                             preloadedMetadata,
                             rowGroupOrdinal,
                             block.getRowCount(),
-                            breaker
+                            breaker,
+                            formatReader.ioWatermark()
                         );
                         currentChunksReleasable = fetched.release();
                         chunks = fetched.chunks();
@@ -1906,7 +1949,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = null;
         try {
             future = rowRanges == null
-                ? ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projectionOnlyColumnPaths, breaker)
+                ? ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projectionOnlyColumnPaths, breaker, formatReader.ioWatermark())
                 : ColumnChunkPrefetcher.prefetchAsync(
                     storageObject,
                     block,
@@ -1915,7 +1958,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     preloadedMetadata,
                     rowGroupOrdinal,
                     block.getRowCount(),
-                    breaker
+                    breaker,
+                    formatReader.ioWatermark()
                 );
             return StorageRetryCancellation.getWithCancellationChecks(future);
         } catch (TaskCancelledException cancelled) {
@@ -1944,7 +1988,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 // currentChunksReleasable, so the trivially-passes path can keep Phase 1 live.
                 drainPendingPrefetches(detachPendingPrefetches());
                 return rowRanges == null
-                    ? ColumnChunkPrefetcher.fetchSync(storageObjectForFallback(), block, projectionOnlyColumnPaths, breaker)
+                    ? ColumnChunkPrefetcher.fetchSync(
+                        storageObjectForFallback(),
+                        block,
+                        projectionOnlyColumnPaths,
+                        breaker,
+                        formatReader.ioWatermark()
+                    )
                     : ColumnChunkPrefetcher.fetchSync(
                         storageObjectForFallback(),
                         block,
@@ -1953,7 +2003,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         preloadedMetadata,
                         rowGroupOrdinal,
                         block.getRowCount(),
-                        breaker
+                        breaker,
+                        formatReader.ioWatermark()
                     );
             } catch (Throwable retryFailure) {
                 if (retryFailure != asyncFailure) {
@@ -2144,8 +2195,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 if (head.ordinal() == expectedOrdinal) {
                     break;
                 }
-                assert head.ordinal() <= expectedOrdinal
-                    : "prefetch queue has ordinal " + head.ordinal() + " > expected " + expectedOrdinal;
+                if (head.ordinal() > expectedOrdinal) {
+                    // Current group was not queued (zero-byte filtered ranges). Keep later work.
+                    return selection;
+                }
                 selection.stage(dequeuePending());
             }
 
@@ -2292,6 +2345,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     void refillPrefetchQueue() {
         cancelPendingPrefetch();
         fillPrefetchQueue(nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1));
+    }
+
+    /**
+     * Test-only: attempt more look-ahead without cancelling in-flight groups. Used to assert the
+     * node watermark refuses extra groups while the current overshoot is still held.
+     */
+    void fillLookaheadPrefetches() {
+        int fromOrdinal = pendingPrefetches.isEmpty()
+            ? nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1)
+            : nextSurvivingRowGroupOrdinal(pendingPrefetches.peekLast().ordinal() + 1);
+        fillPrefetchQueue(fromOrdinal);
     }
 
     private PendingPrefetch dequeuePending() {

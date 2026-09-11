@@ -2915,6 +2915,32 @@ public class EsqlCapabilities {
         EXTERNAL_SOURCE_READ_SCHEMA,
 
         /**
+         * External glob resolution accepts {@code file_sort_by} and {@code file_order}, allowing
+         * first-file-wins tests and callers to select the schema donor deterministically.
+         */
+        EXTERNAL_SOURCE_FILE_ORDER_OPTIONS,
+
+        /**
+         * A UNION_BY_NAME query keeps files that contribute rows containing only nulls for the
+         * projected columns. This matters when a projected, filtered, or grouped column is absent
+         * from a file: the file's rows must not disappear merely because its physical projection is empty.
+         */
+        EXTERNAL_UNION_BY_NAME_PRESERVES_NULL_ONLY_FILES,
+
+        /**
+         * A declared CSV schema does not bypass physical row-width validation. Ragged rows are
+         * handled by {@code error_mode} before declared-column coercion.
+         */
+        EXTERNAL_CSV_DECLARED_SCHEMA_ROW_WIDTH_VALIDATION,
+
+        /**
+         * CompressionDelegatingFormatReader forwards the wrapped reader's typed profile status.
+         * Older nodes still execute compressed reads but expose an empty {@code format_reader}
+         * object in the external-source operator profile.
+         */
+        EXTERNAL_COMPRESSED_READER_STATUS,
+
+        /**
          * Always-on {@code _file.*} virtual columns ({@code _file.path}, {@code _file.name}, {@code _file.directory},
          * {@code _file.size}, {@code _file.modified}) added to every external-source schema. Older coordinators do
          * not know these columns and fail verification with {@code Unknown column [_file.*]} when CCQ routes a query
@@ -3017,16 +3043,16 @@ public class EsqlCapabilities {
          * <p>
          * Gates the csv-spec tests that assert this, because it changes results for an ordinary NDJSON read: a
          * pre-change node resolves dotted names by a schema heuristic instead. One of those cases lives in the
-         * shared cross-format {@code external-declared-schema.csv-spec}, which the mixed-cluster suite generates a
-         * per-file IT for in both coordinator directions, so the gate is what skips it against a pre-change node.
+         * shared cross-format {@code datasources/external-declared-schema.csv-spec}, which each owning BWC suite
+         * executes in both coordinator directions, so the gate skips it against a pre-change node.
          */
         EXTERNAL_NDJSON_DOTTED_FIELD_RESOLUTION,
 
         /**
          * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.
          * See <a href="https://github.com/elastic/elasticsearch/pull/145334">#145334</a>. Used to gate the affected
-         * {@code external-basic.csv-spec} tests so they are skipped on mixed clusters where a pre-change coordinator
-         * still maps string typed-schema/Parquet-String/ORC-String to {@code TEXT} - see
+         * {@code datasources/external-basic.csv-spec} tests so they are skipped on mixed clusters where a pre-change
+         * coordinator still maps string typed-schema/Parquet-String/ORC-String to {@code TEXT} - see
          * <a href="https://github.com/elastic/elasticsearch/issues/145352">#145352</a> and
          * <a href="https://github.com/elastic/elasticsearch/issues/145353">#145353</a>.
          */

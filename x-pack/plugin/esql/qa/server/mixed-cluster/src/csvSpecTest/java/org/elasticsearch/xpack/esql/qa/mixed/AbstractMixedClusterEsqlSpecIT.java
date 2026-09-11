@@ -19,6 +19,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.ClassRule;
 
@@ -58,7 +59,7 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster(CSV_DATA_PATH, true);
 
-    static final Version bwcVersion = MixedClusterTestSupport.bwcVersion();
+    static final Version bwcVersion = EsqlDataSourceMixedClusterTestSupport.bwcVersion();
 
     protected AbstractMixedClusterEsqlSpecIT(
         String fileName,
@@ -100,7 +101,7 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         HttpHost[] allHosts = parseClusterHosts(cluster.getHttpAddresses()).toArray(HttpHost[]::new);
         try (RestClient probe = buildClient(restAdminSettings(), allHosts)) {
             ObjectPath nodes = ObjectPath.createFromResponse(probe.performRequest(new Request("GET", "/_nodes")));
-            return MixedClusterTestSupport.httpAddressesForCoordinator(nodes, oldCoordinator);
+            return EsqlDataSourceMixedClusterTestSupport.httpAddressesForCoordinator(nodes, oldCoordinator);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to resolve coordinator addresses from /_nodes", e);
         }

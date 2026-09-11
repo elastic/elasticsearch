@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.esql.qa.csv;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceCodecEligibility;
 
 import java.util.List;
 
@@ -24,11 +25,8 @@ import java.util.List;
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class CsvCompressedFormatSpecIT extends AbstractCsvExternalSpecTestCase {
 
-    // bzip2 is outside the GA text-format codec surface (uncompressed/gzip/zstd) and is rejected on release
-    // builds, so .csv.bz2/.csv.bz are exercised on snapshot builds only. See elastic/esql-planning#938.
-    private static final List<String> COMPRESSED_FORMATS = Build.current().isSnapshot()
-        ? List.of("csv.gz", "csv.zst", "csv.zstd", "csv.bz2", "csv.bz")
-        : List.of("csv.gz", "csv.zst", "csv.zstd");
+    private static final BwcMatrixPolicy BWC_MATRIX_POLICY = COMPRESSED_BWC_MATRIX_POLICY;
+    private static final List<String> COMPRESSED_FORMATS = EsqlDataSourceCodecEligibility.textCompressionFormats("csv");
 
     public CsvCompressedFormatSpecIT(
         String fileName,
@@ -43,6 +41,11 @@ public class CsvCompressedFormatSpecIT extends AbstractCsvExternalSpecTestCase {
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, format);
     }
 
+    @Override
+    protected BwcMatrixPolicy bwcMatrixPolicy() {
+        return BWC_MATRIX_POLICY;
+    }
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
         // external-basic / external-multifile read the multi-value employees fixture, which does not
@@ -50,10 +53,11 @@ public class CsvCompressedFormatSpecIT extends AbstractCsvExternalSpecTestCase {
         // csv-headerless, and csv-multifile (both opt into brackets explicitly where they read bracket
         // data) to restore the equivalent coverage.
         return readExternalSpecTestsWithFormats(
+            BWC_MATRIX_POLICY,
             COMPRESSED_FORMATS,
             "/csv-basic.csv-spec",
             "/csv-declared-schema.csv-spec",
-            "/external-declared-schema.csv-spec",
+            "/datasources/external-declared-schema.csv-spec",
             "/csv-declared-schema-multifile.csv-spec",
             "/csv-headerless.csv-spec",
             "/csv-multifile.csv-spec",

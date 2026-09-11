@@ -6,16 +6,20 @@
 // `multi_value_syntax` key (ConfigKeyValidator), so this spec carries the SAME queries WITHOUT the
 // WITH clause — each format reads its native MV representation.
 //
-// SISTER FILE: csv-multivalue.csv-spec carries the identical employees query shapes with the brackets opt-in
-// for the CSV reader path. When adding / changing a query here, mirror it there (or vice versa).
+// SISTER FILE: esql-datasource-csv/qa's csv-multivalue.csv-spec carries the identical employees query
+// shapes with the brackets opt-in for the CSV reader path. When adding / changing a query here, mirror it
+// there (or vice versa).
 //
 // EsqlSpecTestCase (single-node / mixed-cluster / multi-cluster / multi-node, no AbstractExternalSource
-// resolver) is gated OUT by a fileName-based assumeFalseLogging — the local CSV reader on these clusters
-// would default to multi_value_syntax: none and misalign columns on the bracket-MV employees.csv.
+// resolver) never sees this file: those suites glob the resource root, and this directory is reachable only
+// through the /datasources/external-*.csv-spec patterns the format suites use. That matters because the local
+// CSV reader on those clusters defaults to multi_value_syntax: none and would misalign columns on the
+// bracket-MV employees.csv.
 //
 // Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The external-source
 // format ITs (ORC/NDJSON/Java-Parquet/multi-node) register the dataset on every storage backend and run the
-// FROM query verbatim; the generic EsqlSpecTestCase families that share this file skip it (no fixture).
+// FROM query verbatim. Any suite that did discover this file without provisioning a dataset would skip it on
+// the `dataset:` directive anyway (see EsqlSpecTestCase#doTest).
 // employees / books collide with their ES|QL index twins, so the datasets are named employees_ds / books_ds.
 
 mvExpandFromSplit

@@ -14,6 +14,7 @@ import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 
 import java.nio.file.Path;
 import java.util.Map;
@@ -244,14 +245,12 @@ public class Clusters {
     }
 
     /**
-     * The local-disk allowlist setting under the name a cluster of this version knows: it shipped in 9.5.0 as
-     * {@code esql.datasource.local_allowed_paths} and was renamed to {@code esql.external.local_allowed_paths} in
-     * 9.6.0. A node rejects an unknown setting and fails to start, so each cluster gets its own version's spelling.
+     * The local-disk allowlist setting under the name a cluster of this version knows. A node rejects an unknown
+     * setting and fails to start, so each cluster gets its own version's spelling. The rename boundary lives with the
+     * mixed-version data-source support rather than being spelled out per suite.
      */
     private static String localAllowedPathsSetting(org.elasticsearch.Version version) {
-        return version.onOrAfter(org.elasticsearch.Version.V_9_6_0)
-            ? "esql.external.local_allowed_paths"
-            : "esql.datasource.local_allowed_paths";
+        return EsqlDataSourceMixedClusterTestSupport.localAllowedPathsSetting(version);
     }
 
     /**

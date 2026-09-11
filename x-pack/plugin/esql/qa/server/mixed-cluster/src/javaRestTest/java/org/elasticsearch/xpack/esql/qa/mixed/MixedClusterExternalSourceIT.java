@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -66,11 +67,11 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
             assumeFalse("FIPS mode requires security enabled; this test uses a plain HTTP S3 fixture", inFipsJvm());
             assumeTrue(
                 "external data-source BWC coverage starts at 9.5.0",
-                MixedClusterTestSupport.bwcVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)
+                EsqlDataSourceMixedClusterTestSupport.bwcVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)
             );
             assumeTrue(
                 "requires distinguishable old and current nodes",
-                MixedClusterTestSupport.bwcVersion().before(org.elasticsearch.Version.CURRENT)
+                EsqlDataSourceMixedClusterTestSupport.bwcVersion().before(org.elasticsearch.Version.CURRENT)
             );
             base.evaluate();
         }
@@ -141,14 +142,20 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
         registerDatasets();
 
         ObjectPath nodesInfo = ObjectPath.createFromResponse(adminClient().performRequest(new Request("GET", "/_nodes")));
-        List<MixedClusterTestSupport.Node> oldNodes = MixedClusterTestSupport.nodesForCoordinator(nodesInfo, true);
-        List<MixedClusterTestSupport.Node> currentNodes = MixedClusterTestSupport.nodesForCoordinator(nodesInfo, false);
+        List<EsqlDataSourceMixedClusterTestSupport.Node> oldNodes = EsqlDataSourceMixedClusterTestSupport.nodesForCoordinator(
+            nodesInfo,
+            true
+        );
+        List<EsqlDataSourceMixedClusterTestSupport.Node> currentNodes = EsqlDataSourceMixedClusterTestSupport.nodesForCoordinator(
+            nodesInfo,
+            false
+        );
 
         QueryResult expectedProjection = null;
         QueryResult expectedDistributedAggregate = null;
         QueryResult expectedCacheAggregate = null;
         QueryResult expectedDeclared = null;
-        for (MixedClusterTestSupport.Node coordinator : List.of(oldNodes.get(0), currentNodes.get(0))) {
+        for (EsqlDataSourceMixedClusterTestSupport.Node coordinator : List.of(oldNodes.get(0), currentNodes.get(0))) {
             try (RestClient coordinatorClient = coordinatorClient(coordinator)) {
                 Map<String, Object> projection = runQuery(
                     coordinatorClient,
@@ -236,7 +243,7 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
         return "s3://" + BUCKET + "/" + prefix + "/*.csv";
     }
 
-    private RestClient coordinatorClient(MixedClusterTestSupport.Node coordinator) throws IOException {
+    private RestClient coordinatorClient(EsqlDataSourceMixedClusterTestSupport.Node coordinator) throws IOException {
         return buildClient(restClientSettings(), new HttpHost[] { HttpHost.create(coordinator.httpAddress()) });
     }
 
@@ -299,18 +306,18 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     private static void assertDistributedCsvProfile(
         Map<String, Object> response,
-        List<MixedClusterTestSupport.Node> oldNodes,
-        List<MixedClusterTestSupport.Node> currentNodes
+        List<EsqlDataSourceMixedClusterTestSupport.Node> oldNodes,
+        List<EsqlDataSourceMixedClusterTestSupport.Node> currentNodes
     ) {
         Set<String> csvReaderNodes = csvReaderNodes(response);
         assertFalse("profile must contain a CsvReaderStatus", csvReaderNodes.isEmpty());
         assertTrue(
             "round_robin must execute CSV scans on every old node; saw " + csvReaderNodes,
-            csvReaderNodes.containsAll(oldNodes.stream().map(MixedClusterTestSupport.Node::name).toList())
+            csvReaderNodes.containsAll(oldNodes.stream().map(EsqlDataSourceMixedClusterTestSupport.Node::name).toList())
         );
         assertTrue(
             "round_robin must execute CSV scans on every current node; saw " + csvReaderNodes,
-            csvReaderNodes.containsAll(currentNodes.stream().map(MixedClusterTestSupport.Node::name).toList())
+            csvReaderNodes.containsAll(currentNodes.stream().map(EsqlDataSourceMixedClusterTestSupport.Node::name).toList())
         );
     }
 

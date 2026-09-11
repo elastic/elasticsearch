@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 import org.elasticsearch.xpack.esql.qa.rest.FieldExtractorTestCase;
 import org.hamcrest.Matcher;
 import org.junit.ClassRule;
@@ -42,6 +43,9 @@ public class FieldExtractorIT extends FieldExtractorTestCase {
 
     @Override
     protected void canUsePragmasOk() {
-        assumeTrue("pragma ok not supported", MixedClusterTestSupport.bwcVersion().onOrAfter(org.elasticsearch.Version.V_8_16_0));
+        assumeTrue(
+            "pragma ok not supported",
+            EsqlDataSourceMixedClusterTestSupport.bwcVersion().onOrAfter(org.elasticsearch.Version.V_8_16_0)
+        );
     }
 }

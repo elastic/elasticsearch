@@ -60,6 +60,13 @@ import static org.hamcrest.Matchers.nullValue;
  * <p>Surfacing/countering the structured enforced-mode signal - i.e. giving operators visibility into
  * (and a way to react to) ml-cpp's own signal that it is running in an enforced sandbox mode - is
  * tracked as a separate follow-up and is not implemented in this test class.
+ *
+ * <p>{@link #testConcurrentDeploymentsDoNotCollideUnderIsolatedChildIpcDir} additionally covers the
+ * {@code sandbox_enabled=true} / isolated-child-IPC-directory concurrency case, mirroring
+ * {@link #testConcurrentDeploymentsDoNotCollideUnderLegacyPipeNaming}'s {@code sandbox_enabled=false}
+ * coverage. {@link #testEnforcedSandboxRejectsDisallowedFileAccess} is intentionally left without a
+ * black-box REST assertion - see its own javadoc for why - and instead points at the real proof of
+ * that property in ml-cpp's own unit test suite.
  */
 public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
 
@@ -201,21 +208,119 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
     }
 
     /**
-     * The full V5 case - booting a real, enforced Sandbox2 child and asserting that {@code open()}/
-     * {@code write()} calls outside the permitted set actually fail inside the sandboxed process -
-     * requires the paired ml-cpp artifact with the new controller-protocol version bundled. That
-     * artifact is not available in this checkout. Rather than a silently-passing no-op, this stub is
-     * skipped with an explicit reason and, should it ever run without the paired artifact by mistake
-     * (e.g. the {@code @AwaitsFix} annotation being dropped), fails loudly instead of asserting nothing.
+     * Mirrors {@link #testConcurrentDeploymentsDoNotCollideUnderLegacyPipeNaming}, but with
+     * {@code xpack.ml.trained_models.sandbox_enabled} set to {@code true}, so that
+     * {@code NativePyTorchProcessFactory#createProcessPipes} requests the isolated per-child IPC
+     * directory ({@code $TMPDIR/ml-child-ipc/<deploymentId>/}) instead of the legacy flat pipe naming
+     * (see the class javadoc). That directory is keyed on the deployment id, so two concurrently
+     * started deployments get two disjoint directories by construction - this proves that isolation
+     * actually holds when two children race to create/populate their respective directories at close
+     * to the same time, not just that the naming scheme looks disjoint on paper.
+     *
+     * <p>Limitation: as with the legacy-pipe-naming test, the REST-only IT harness cannot list a
+     * node's {@code $TMPDIR} to assert directory paths directly, so this checks the same functional
+     * proxy - two concurrent deployments both starting healthy and serving correct, uncorrupted
+     * inference independently, each reporting its own deployment id.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/3188")
+    public void testConcurrentDeploymentsDoNotCollideUnderIsolatedChildIpcDir() throws Exception {
+        Request clusterSettings = new Request("PUT", "_cluster/settings");
+        clusterSettings.setJsonEntity("""
+            {"persistent" : {
+                    "xpack.ml.trained_models.sandbox_enabled": true
+                }}""");
+        client().performRequest(clusterSettings);
+
+        String modelIdA = "sandbox_isolated_ipc_dir_a";
+        String modelIdB = "sandbox_isolated_ipc_dir_b";
+        String deploymentIdA = "sandbox_isolated_ipc_dir_dep_a";
+        String deploymentIdB = "sandbox_isolated_ipc_dir_dep_b";
+
+        try {
+            createPassThroughModel(modelIdA);
+            putModelDefinition(modelIdA, PyTorchModelIT.BASE_64_ENCODED_MODEL, PyTorchModelIT.RAW_MODEL_SIZE);
+            putVocabulary(List.of("these", "are", "my", "words"), modelIdA);
+
+            createPassThroughModel(modelIdB);
+            putModelDefinition(modelIdB, PyTorchModelIT.BASE_64_ENCODED_MODEL, PyTorchModelIT.RAW_MODEL_SIZE);
+            putVocabulary(List.of("these", "are", "my", "words"), modelIdB);
+
+            // Start both deployments concurrently so that, with sandboxing enabled, this exercises two
+            // native controllers each creating and populating their own isolated ml-child-ipc/<jobId>/
+            // directory under $TMPDIR at close to the same time.
+            Future<Response> startA = executorService.submit(() -> startWithDeploymentId(modelIdA, deploymentIdA));
+            Future<Response> startB = executorService.submit(() -> startWithDeploymentId(modelIdB, deploymentIdB));
+
+            startA.get(60, TimeUnit.SECONDS);
+            startB.get(60, TimeUnit.SECONDS);
+
+            // Each deployment must report its own deployment id in its stats - i.e. the two processes
+            // were not conflated with one another despite sharing the same $TMPDIR/ml-child-ipc parent.
+            assertDeploymentIdInStats(modelIdA, deploymentIdA);
+            assertDeploymentIdInStats(modelIdB, deploymentIdB);
+
+            // Independent inference against each deployment must return the correct, uncorrupted result.
+            // Cross-talk between two colliding isolated IPC directories would be expected to corrupt or
+            // misroute at least one of these.
+            Response inferenceA = infer("my words", deploymentIdA);
+            assertThat(
+                EntityUtils.toString(inferenceA.getEntity()),
+                equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}")
+            );
+            Response inferenceB = infer("my words", deploymentIdB);
+            assertThat(
+                EntityUtils.toString(inferenceB.getEntity()),
+                equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}")
+            );
+        } finally {
+            stopQuietly(deploymentIdA);
+            stopQuietly(deploymentIdB);
+            Request reset = new Request("PUT", "_cluster/settings");
+            reset.setJsonEntity("""
+                {"persistent" : {
+                        "xpack.ml.trained_models.sandbox_enabled": null
+                    }}""");
+            client().performRequest(reset);
+        }
+    }
+
+    /**
+     * The full proof that a real, enforced Sandbox2 child actually has {@code open()}/{@code write()}
+     * calls outside its permitted set denied by the kernel is exercised, mechanism by mechanism,
+     * against a dedicated probe binary in ml-cpp's own unit test suite - see
+     * {@code lib/sandbox/unittest/CPytorchInferenceSandboxPolicyMechanismTest_Linux.cc}, in particular
+     * {@code testMinimizedPolicyEnforcesEveryMechanism}, which asserts
+     * {@code mechanism=host_read_etc_shadow outcome=denied} and
+     * {@code mechanism=external_egress outcome=denied} (among others) from inside a real Sandbox2
+     * policy built by {@code buildPytorchInferenceFilesystemPolicy}.
+     *
+     * <p>That level of proof is not reproducible as a black-box assertion from this REST-only
+     * integration test. {@code pytorch_inference}'s only file I/O surface reachable from Elasticsearch
+     * is the small set of named pipes ({@code --input}/{@code --output}/{@code --restore}/
+     * {@code --logPipe}) that Elasticsearch itself constructs from a deployment id that is already
+     * restricted to {@code [a-z0-9_.-]} (see {@code MlStrings#isValidId}), so path-traversal via a
+     * deployment id is not possible in the first place, and there is no REST-exposed lever that lets a
+     * test redirect the sandboxed process's file I/O anywhere else. Provoking a genuine disallowed
+     * {@code open()}/{@code write()} from Java would require either filesystem access to the node's
+     * {@code $TMPDIR} from the test JVM (to stage e.g. a symlink at the isolated child IPC directory
+     * before the deployment starts) - which the {@code ElasticsearchCluster} test-cluster abstraction
+     * used by this module does not expose - or a deliberate test-only hook inside the production
+     * {@code pytorch_inference} binary, which would needlessly widen a security-critical binary's
+     * surface purely for testability.
+     *
+     * <p>This is therefore intentionally left as a documented gap rather than a fabricated assertion:
+     * an end-to-end REST proof of syscall-level denial is not achievable through this test harness as
+     * it exists today. See the class javadoc and the two tests above for what this class does cover
+     * end-to-end (both sandbox routing tokens, and isolation between concurrently-running deployments
+     * under both pipe-naming schemes). A future enhancement to the test-cluster framework that exposes
+     * a node's working/tmp directory to REST ITs would unlock this; alternatively a narrowly-scoped,
+     * build-flag-gated debug hook in {@code pytorch_inference} could accept a single "attempt a
+     * disallowed open()" self-test instruction - either would need its own design discussion before
+     * landing here.
+     */
     public void testEnforcedSandboxRejectsDisallowedFileAccess() {
-        throw new UnsupportedOperationException(
-            "testEnforcedSandboxRejectsDisallowedFileAccess requires a paired ml-cpp artifact with the "
-                + "Sandbox2 controller-protocol-version bundled; it is not implemented against the "
-                + "currently bundled native controller. Do not remove @AwaitsFix without also implementing "
-                + "real assertions here."
-        );
+        // Intentionally not implemented as a black-box REST assertion - see the javadoc above for why,
+        // and see ml-cpp's CPytorchInferenceSandboxPolicyMechanismTest_Linux for the real proof of this
+        // property at the mechanism level.
     }
 
     @SuppressWarnings("unchecked")

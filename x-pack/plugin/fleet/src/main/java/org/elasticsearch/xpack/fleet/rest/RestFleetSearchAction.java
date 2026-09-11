@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.fleet.rest;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -21,6 +23,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.usage.SearchUsageHolder;
 
@@ -105,22 +108,24 @@ public class RestFleetSearchAction extends BaseRestHandler {
                 searchRequest.source().close();
             }
         }
-        // Note: close() is idempotent; if parseSearchRequest already closed source, this is a no-op.
-
+        final SearchSourceBuilder parsedSource = searchRequest.source();
         return new RestChannelConsumer() {
-            private boolean dispatched = false;
-
             @Override
             public void accept(RestChannel channel) throws Exception {
-                dispatched = true;
                 RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-                cancelClient.execute(TransportSearchAction.TYPE, searchRequest, new RestRefCountedChunkedToXContentListener<>(channel));
+                ActionListener<SearchResponse> completionListener = new RestRefCountedChunkedToXContentListener<>(channel);
+                cancelClient.execute(
+                    TransportSearchAction.TYPE,
+                    searchRequest,
+                    parsedSource != null ? ActionListener.runAfter(completionListener, parsedSource::close) : completionListener
+                );
             }
 
             @Override
             public void close() {
-                if (dispatched == false && searchRequest.source() != null) {
-                    searchRequest.source().close();
+                // Abandonment path: parsed but never dispatched. SearchSourceBuilder.close() is idempotent.
+                if (parsedSource != null) {
+                    parsedSource.close();
                 }
             }
         };

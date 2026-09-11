@@ -9,6 +9,7 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -101,10 +102,19 @@ public class RestMultiSearchAction extends BaseRestHandler {
             cancellableClient.execute(
                 TransportMultiSearchAction.TYPE,
                 multiSearchRequest,
-                RestActions.wrapWithSearchMetricsHeader(
-                    client.threadPool().getThreadContext(),
-                    MultiSearchResponse::mergeDirectoryMetrics,
-                    new RestRefCountedChunkedToXContentListener<>(channel)
+                ActionListener.runAfter(
+                    RestActions.wrapWithSearchMetricsHeader(
+                        client.threadPool().getThreadContext(),
+                        MultiSearchResponse::mergeDirectoryMetrics,
+                        new RestRefCountedChunkedToXContentListener<>(channel)
+                    ),
+                    () -> {
+                        for (SearchRequest sr : multiSearchRequest.requests()) {
+                            if (sr.source() != null) {
+                                sr.source().close();
+                            }
+                        }
+                    }
                 )
             );
         };

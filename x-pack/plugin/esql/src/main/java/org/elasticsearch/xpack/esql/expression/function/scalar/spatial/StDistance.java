@@ -434,7 +434,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
         CARTESIAN.distancePointDocValuesAndSource(results, p, left, right);
     }
 
-    @Evaluator(extraName = "GeoPointDocValuesAndDocValues", warnExceptions = { IllegalArgumentException.class })
+    @Evaluator(extraName = "GeoPointDocValuesAndDocValues")
     static void processGeoPointDocValuesAndDocValues(DoubleBlock.Builder results, @Position int p, LongBlock left, LongBlock right) {
         GEO.distancePointDocValuesAndDocValues(results, p, left, right);
     }

@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
-import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -74,12 +73,7 @@ public final class StDistanceGeoPointDocValuesAndDocValuesEvaluator implements E
           result.appendNull();
           continue position;
         }
-        try {
-          StDistance.processGeoPointDocValuesAndDocValues(result, p, leftBlock, rightBlock);
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
+        StDistance.processGeoPointDocValuesAndDocValues(result, p, leftBlock, rightBlock);
       }
       return result.build();
     }

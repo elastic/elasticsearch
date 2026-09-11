@@ -720,12 +720,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.stats.SearchContextStatsTests
   method: testSkipperKeywordSingleValuedWithAbsentSegmentIsDetectedAsSingleValued
   issue: https://github.com/elastic/elasticsearch/issues/158895
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=search/351_point_in_time_slice/PIT search respects slice scoping}
-  issue: https://github.com/elastic/elasticsearch/issues/158908
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=search/351_point_in_time_slice/PIT open with slice scopes shards}
-  issue: https://github.com/elastic/elasticsearch/issues/158909
 - class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/158911
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT

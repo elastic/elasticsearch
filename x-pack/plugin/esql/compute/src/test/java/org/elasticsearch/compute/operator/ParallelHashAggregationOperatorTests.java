@@ -151,7 +151,7 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
         assertThat(operatorStatus.operator(), equalTo("ParallelHashAggregationOperator"));
         HashAggregationOperator.Status hashStatus = (HashAggregationOperator.Status) operatorStatus.status();
         var partitioningStatus = (ParallelHashAggregationOperator.PartitioningStatus) hashStatus.extraFields.get(0);
-        assertThat(partitioningStatus.partitionedBlocksReceived, greaterThan(0));
+        assertThat(partitioningStatus.partitionedBlocksReceived(), greaterThan(0));
     }
 
     record Key(long longValue, int intValue) {}

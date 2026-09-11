@@ -1561,7 +1561,7 @@ public class EsqlCapabilities {
         /**
          * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
          */
-        WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
+        WHERE_IN_MULTI_COLUMN_SUBQUERY,
 
         /**
          * Support non-correlated IN subqueries in the {@code EVAL} command.
@@ -3787,6 +3787,11 @@ public class EsqlCapabilities {
          * Support for PromQL {@code histogram_fraction()} on native histograms.
          */
         PROMQL_HISTOGRAM_FRACTION,
+
+        /**
+         * Support for PromQL {@code histogram_fraction()} over classic histograms with {@code le} buckets.
+         */
+        PROMQL_HISTOGRAM_FRACTION_CLASSIC,
 
         /**
          * Fix PromQL {@code topk()} over an already-aggregated vector (e.g. {@code topk(k, sum by (...) (...))}).

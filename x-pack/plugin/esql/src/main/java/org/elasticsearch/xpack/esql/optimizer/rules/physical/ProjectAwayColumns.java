@@ -91,6 +91,16 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
 
             if (currentPlanNode instanceof SourceFanInExec fanIn) {
                 keepTraversing.set(FALSE);
+                if (fanIn.inBetweenAggs()) {
+                    // Producers already hold a logical Aggregate whose output is the user
+                    // aggregates. The fan-in exchanges a wider intermediate attribute list.
+                    // Those widths differ by design; the fragments are not projected.
+                    List<PhysicalPlan> newProducers = fanIn.producers().stream().map(producer -> apply(producer, false, true)).toList();
+                    if (newProducers.equals(fanIn.producers())) {
+                        return fanIn;
+                    }
+                    return fanIn.withProducers(newProducers, fanIn.output(), true);
+                }
                 List<PhysicalPlan> newProducers = fanIn.producers().stream().map(producer -> {
                     List<Attribute> commonOutput = fanIn.output();
                     List<Attribute> producerOutput = producer.output();

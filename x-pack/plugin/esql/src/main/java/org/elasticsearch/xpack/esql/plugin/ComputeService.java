@@ -1792,38 +1792,32 @@ public class ComputeService {
                     @Override
                     public void onResponse(Releasable permit) {
                         ActionListener<DriverCompletionInfo> releasingListener = ActionListener.runAfter(producerListener, permit::close);
-                        if (rootTask.isCancelled()) {
-                            releasingListener.onFailure(new TaskCancelledException(rootTask.getReasonCancelled()));
-                            return;
-                        }
-                        if (execInfo.isStopped() || exchangeSource.isFinished()) {
-                            releasingListener.onResponse(DriverCompletionInfo.EMPTY);
-                            return;
-                        }
-                        try {
-                            executeSourceProducer(
-                                sessionId,
-                                producerIndex,
-                                fanInPlan.producers().size(),
-                                rootTask,
-                                flags,
-                                producer,
-                                configuration,
-                                // A FoldContext is a mutable byte budget and is not thread safe, so a producer
-                                // cannot share the one the coordinator plan above is folding against. Each gets
-                                // its own, as every data-node and remote-cluster request already does.
-                                configuration.newFoldContext(),
-                                execInfo,
-                                profileQualifier,
-                                initialClusterStatuses,
-                                exchangeSource,
-                                cancelQueryOnFailure,
-                                sourceOutcomes,
-                                releasingListener
-                            );
-                        } catch (Exception e) {
-                            releasingListener.onFailure(e);
-                        }
+                        startOrSkipQueuedSourceProducer(rootTask, execInfo, exchangeSource, releasingListener, () -> {
+                            try {
+                                executeSourceProducer(
+                                    sessionId,
+                                    producerIndex,
+                                    fanInPlan.producers().size(),
+                                    rootTask,
+                                    flags,
+                                    producer,
+                                    configuration,
+                                    // A FoldContext is a mutable byte budget and is not thread safe, so a producer
+                                    // cannot share the one the coordinator plan above is folding against. Each gets
+                                    // its own, as every data-node and remote-cluster request already does.
+                                    configuration.newFoldContext(),
+                                    execInfo,
+                                    profileQualifier,
+                                    initialClusterStatuses,
+                                    exchangeSource,
+                                    cancelQueryOnFailure,
+                                    sourceOutcomes,
+                                    releasingListener
+                                );
+                            } catch (Exception e) {
+                                releasingListener.onFailure(e);
+                            }
+                        });
                     }
 
                     @Override
@@ -2134,12 +2128,26 @@ public class ComputeService {
     }
 
     /**
-     * Warning text for an external source failure the query chose to tolerate. An external producer has no
-     * {@code EsqlExecutionInfo.Cluster} entry to carry failures, so this is the only place the cause of the
-     * missing rows reaches the caller.
+     * Queued producers take their exchange-source lease before they run. If the query
+     * is cancelled, STOP'd, or the coordinator exchange has already finished, complete
+     * the listener without starting compute so the lease and permit are released.
      */
-    private static String toleratedExternalFailureWarning(Exception e) {
-        return "external source failed, results may be incomplete: " + ExceptionsHelper.unwrapCause(e).getMessage();
+    static void startOrSkipQueuedSourceProducer(
+        CancellableTask rootTask,
+        EsqlExecutionInfo execInfo,
+        ExchangeSourceHandler exchangeSource,
+        ActionListener<DriverCompletionInfo> listener,
+        Runnable start
+    ) {
+        if (rootTask.isCancelled()) {
+            listener.onFailure(new TaskCancelledException(rootTask.getReasonCancelled()));
+            return;
+        }
+        if (execInfo.isStopped() || exchangeSource.isFinished()) {
+            listener.onResponse(DriverCompletionInfo.EMPTY);
+            return;
+        }
+        start.run();
     }
 
     private void executeLocalSourceProducer(
@@ -2162,73 +2170,29 @@ public class ComputeService {
             configuration.pragmas().exchangeBufferSize()
         );
         boolean failFast = configuration.allowPartialResults() == false;
-        AtomicReference<DriverCompletionInfo> computeInfo = new AtomicReference<>();
-        AtomicBoolean sinkFinished = new AtomicBoolean();
-        AtomicBoolean published = new AtomicBoolean();
-        // A tolerated producer failure loses rows that the drivers never saw, so nothing in the completion
-        // info records the loss. Carry it here and flag the published info, which is what the coordinator
-        // ORs into the response's is_partial. An external producer has no EsqlExecutionInfo.Cluster entry to
-        // hang the failure off, so the warning is the only place the cause reaches the user.
-        AtomicBoolean externalPartial = new AtomicBoolean();
-        List<String> toleratedFailures = Collections.synchronizedList(new ArrayList<>());
-        Runnable publishIfReady = () -> {
-            DriverCompletionInfo info = computeInfo.get();
-            if (info != null && sinkFinished.get() && published.compareAndSet(false, true)) {
-                // finishSinkHandler(e) completes fetchPageAsync with finished=true, so the remote
-                // sink listener's onResponse is not proof the producer produced rows. Record
-                // success only when neither side marked the producer partial.
-                if (externalPartial.get()) {
-                    info = info.withPartial().withAdditionalWarnings(toleratedFailures);
-                } else {
-                    sourceOutcomes.recordExternalSuccess();
-                }
-                listener.onResponse(info);
-            }
-        };
-        ActionListener<Void> remoteSinkListener = failFast ? ActionListener.noop() : new ActionListener<>() {
-            @Override
-            public void onResponse(Void ignored) {
-                sinkFinished.set(true);
-                publishIfReady.run();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                sourceOutcomes.recordExternalFailure(e);
-                externalPartial.set(true);
-                toleratedFailures.add(toleratedExternalFailureWarning(e));
-                sinkFinished.set(true);
-                publishIfReady.run();
-            }
-        };
-        exchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, failFast, () -> {}, 1, remoteSinkListener);
+        LocalSourceProducerLifecycle lifecycle = LocalSourceProducerLifecycle.register(
+            exchangeSource,
+            exchangeSink::fetchPageAsync,
+            failFast,
+            sourceOutcomes,
+            listener
+        );
+        ActionListener<DriverCompletionInfo> computeListener = lifecycle.computeListener();
         ActionListener<DriverCompletionInfo> sinkListener = new ActionListener<>() {
             @Override
             public void onResponse(DriverCompletionInfo completionInfo) {
                 exchangeSink.addCompletionListener(
                     ActionListener.running(() -> exchangeService.finishSinkHandler(producerSessionId, null))
                 );
-                if (failFast) {
-                    sourceOutcomes.recordExternalSuccess();
-                    listener.onResponse(completionInfo);
-                    return;
-                }
-                computeInfo.set(completionInfo);
-                publishIfReady.run();
+                computeListener.onResponse(completionInfo);
             }
 
             @Override
             public void onFailure(Exception e) {
+                // finishSinkHandler(e) completes fetchPageAsync with finished=true, so the fetch
+                // listener's onResponse is not proof the producer produced rows.
                 exchangeService.finishSinkHandler(producerSessionId, e);
-                if (failFast == false && EsqlCCSUtils.canAllowPartial(e)) {
-                    sourceOutcomes.recordExternalFailure(e);
-                    externalPartial.set(true);
-                    toleratedFailures.add(toleratedExternalFailureWarning(e));
-                    computeInfo.set(DriverCompletionInfo.EMPTY);
-                    publishIfReady.run();
-                } else {
-                    listener.onFailure(e);
-                }
+                computeListener.onFailure(e);
             }
         };
         try {

@@ -3856,6 +3856,29 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             Project producerProject = as(as(producer, FragmentExec.class).fragment(), Project.class);
             assertThat(producerProject.projections().get(0).name(), equalTo(ProjectAwayColumns.ALL_FIELDS_PROJECTED));
         }
+
+        Count countStar = new Count(Source.EMPTY, new Literal(Source.EMPTY, 1, DataType.INTEGER));
+        Alias userCount = new Alias(Source.EMPTY, "c", countStar);
+        Alias userSum = new Alias(Source.EMPTY, "s", new Count(Source.EMPTY, some_field1));
+        Aggregate producerAgg = new Aggregate(Source.EMPTY, relation, List.of(), List.of(userSum, userCount));
+        List<Attribute> intermediates = List.of(
+            new ReferenceAttribute(Source.EMPTY, "sum_inter", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "sum_seen", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "count_inter", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "count_seen", DataType.LONG)
+        );
+        SourceFanInExec betweenAggs = new SourceFanInExec(
+            Source.EMPTY,
+            List.of(new FragmentExec(producerAgg), new FragmentExec(producerAgg)),
+            intermediates,
+            true
+        );
+        SourceFanInExec keptBetweenAggs = as(rule.apply(betweenAggs), SourceFanInExec.class);
+        assertTrue(keptBetweenAggs.inBetweenAggs());
+        assertThat(keptBetweenAggs.output(), equalTo(intermediates));
+        for (PhysicalPlan producer : keptBetweenAggs.producers()) {
+            assertThat(as(producer, FragmentExec.class).fragment(), instanceOf(Aggregate.class));
+        }
     }
 
     public void testProjectAwayColumnsLeavesOrdinaryLookupJoinRelation() {

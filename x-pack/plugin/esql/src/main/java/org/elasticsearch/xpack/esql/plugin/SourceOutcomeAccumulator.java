@@ -85,6 +85,10 @@ final class SourceOutcomeAccumulator {
         return externalSourceSucceeded.get();
     }
 
+    List<Exception> externalSourceFailures() {
+        return List.copyOf(externalSourceFailures);
+    }
+
     void failIfAllSourcesFailed(EsqlExecutionInfo execInfo, List<Page> finalResults) {
         if (externalSourceSucceeded() || indexSourceSucceeded.get()) {
             return;

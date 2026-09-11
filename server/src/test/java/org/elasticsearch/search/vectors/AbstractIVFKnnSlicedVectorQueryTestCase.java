@@ -23,7 +23,6 @@ import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -35,6 +34,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
@@ -147,7 +147,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
         iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
         // Retain soft-deleted tombstones through merges, as Elasticsearch does. Otherwise a randomized merge policy
         // can expunge every tombstone before the reader opens and no leaf remains sparse.
-        iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, iwc.getMergePolicy()));
+        iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, () -> Queries.ALL_DOCS_INSTANCE, iwc.getMergePolicy()));
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         // Keep segments small enough to exercise both single- and multi-segment readers. Tombstones are interleaved
         // with routed documents below, so at least one segment contains both kinds of documents.

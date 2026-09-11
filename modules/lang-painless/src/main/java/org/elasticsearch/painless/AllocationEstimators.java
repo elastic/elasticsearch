@@ -70,6 +70,11 @@ public final class AllocationEstimators {
         return AllocSizes.arrayBytes(receiver.length(), 2);
     }
 
+    /** Cost of {@code Iterable.iterator()}. See {@link AllocSizes#ITERATOR_BYTES}. */
+    public static long iteratorBytes(Iterable<?> receiver) {
+        return AllocSizes.ITERATOR_BYTES;
+    }
+
     /**
      * Cost of {@code String.trim()}/{@code strip()} and {@code toLowerCase()}/{@code toUpperCase()}: a new String whose length
      * is approximately the receiver's. This is a heuristic — case mapping can change the length slightly (e.g. {@code ß} to

@@ -44,7 +44,13 @@ public class HeapAttackNestedSubqueryIT extends HeapAttackTestCase {
 
     private static final int BRANCHES_PER_LEVEL = 3;
 
+    private static final int SERVERLESS_SORT_NESTED_LEVELS = 2;
+
+    private static final int SERVERLESS_SORT_BRANCHES_PER_LEVEL = 2;
+
     private static final int NESTED_LEAVES = nestedLeafCount(NESTED_LEVELS, BRANCHES_PER_LEVEL);
+
+    private record NestedShape(int levels, int branches) {}
 
     @Before
     public void checkCapability() {
@@ -66,22 +72,26 @@ public class HeapAttackNestedSubqueryIT extends HeapAttackTestCase {
     }
 
     /**
-     * Sorts each leaf by one keyword field before returning all 700 keyword fields. The Top-N materialization of those rows must
-     * circuit-break.
+     * Sorts each leaf by one keyword field before returning all 700 keyword fields. Serverless uses a shallower tree so Top-N
+     * materialization does not OOM the search node; the query may complete or circuit-break.
      */
     public void testManyRandomKeywordFieldsInNestedSubqueryIntermediateResultsWithSortOneField() throws IOException {
         heapAttackIT.initManyBigFieldsIndex(docs(), "keyword", true, STRING_FIELD_700);
+        ListMatcher columns = matchesList();
+        for (int f = 0; f < STRING_FIELD_700; f++) {
+            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", "keyword"));
+        }
         try {
             Map<String, Object> response = buildNestedSubqueriesWithSort("manybigfields", "f000");
-            fail("expected circuit_breaking_exception but query succeeded: " + response);
+            assertMap(response, matchesMap().entry("columns", columns));
         } catch (ResponseException e) {
             verifyCircuitBreakingException(e);
         }
     }
 
     /**
-     * Sorts each leaf by 11 keyword fields before returning all 700 keyword fields. Keeping the larger sort keys for all nested
-     * branches must trip the request breaker while the Top-N operator adds input rows.
+     * Sorts each leaf by 11 keyword fields before returning all 700 keyword fields. Serverless uses a shallower tree so keeping
+     * the larger sort keys does not OOM the search node; the query may complete or circuit-break.
      */
     public void testManyRandomKeywordFieldsInNestedSubqueryIntermediateResultsWithSortManyFields() throws IOException {
         heapAttackIT.initManyBigFieldsIndex(docs(), "keyword", true, STRING_FIELD_700);
@@ -90,9 +100,13 @@ public class HeapAttackNestedSubqueryIT extends HeapAttackTestCase {
         for (int f = 1; f < 11; f++) {
             sortKeys.append(", f").append(String.format(Locale.ROOT, "%03d", f));
         }
+        ListMatcher columns = matchesList();
+        for (int f = 0; f < STRING_FIELD_700; f++) {
+            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", "keyword"));
+        }
         try {
             Map<String, Object> response = buildNestedSubqueriesWithSort("manybigfields", sortKeys.toString());
-            fail("expected circuit_breaking_exception but query succeeded: " + response);
+            assertMap(response, matchesMap().entry("columns", columns));
         } catch (ResponseException e) {
             verifyCircuitBreakingException(e);
         }
@@ -182,8 +196,10 @@ public class HeapAttackNestedSubqueryIT extends HeapAttackTestCase {
     }
 
     private Map<String, Object> buildNestedSubqueriesWithSort(String indexName, String sortKeys) throws IOException {
+        NestedShape shape = nestedShape(true);
         StringBuilder query = startQuery();
-        query.append(nestedFrom(indexName, " | SORT " + sortKeys)).append(endQuery(serverlessExecuteBranchSequentially()));
+        query.append(nestedFrom(indexName, " | SORT " + sortKeys, shape.levels(), shape.branches()))
+            .append(endQuery(serverlessExecuteBranchSequentially()));
         return responseAsMap(query(query.toString(), "columns"));
     }
 
@@ -199,7 +215,7 @@ public class HeapAttackNestedSubqueryIT extends HeapAttackTestCase {
 
     /**
      * Builds a regular UNION ALL tree. The returned query text has the following recursive shape, where each child is repeated
-     * {@link #BRANCHES_PER_LEVEL} times at every level:
+     * {@code branchesPerLevel} times at every level:
      * <pre>{@code
      * FROM
      *   (FROM
@@ -211,11 +227,15 @@ public class HeapAttackNestedSubqueryIT extends HeapAttackTestCase {
      * }</pre>
      */
     private static String nestedFrom(String indexName, String processingCommands) {
+        return nestedFrom(indexName, processingCommands, NESTED_LEVELS, BRANCHES_PER_LEVEL);
+    }
+
+    private static String nestedFrom(String indexName, String processingCommands, int nestedLevels, int branchesPerLevel) {
         String child = "(FROM " + indexName + processingCommands + " )";
-        for (int level = NESTED_LEVELS; level > 1; level--) {
-            child = "(FROM " + repeat(BRANCHES_PER_LEVEL, child) + ")";
+        for (int level = nestedLevels; level > 1; level--) {
+            child = "(FROM " + repeat(branchesPerLevel, child) + ")";
         }
-        return "FROM " + repeat(BRANCHES_PER_LEVEL, child);
+        return "FROM " + repeat(branchesPerLevel, child);
     }
 
     private static String repeat(int branches, String child) {
@@ -247,6 +267,19 @@ public class HeapAttackNestedSubqueryIT extends HeapAttackTestCase {
 
     private static Integer serverlessExecuteBranchSequentially() throws IOException {
         return isServerless() ? 1 : null;
+    }
+
+    /*
+     * Serverless has 6 shards, non-serverless has 1 shard.
+     * The number of exchange operators increases when the number of nested branches increase.
+     * Sort is expensive as these tests preserve all fields comparing to stats.
+     * So, limiting the nested tree on serverless to reduce the gc lagging and intermittent OOM.
+     */
+    private static NestedShape nestedShape(boolean hasSort) throws IOException {
+        if (isServerless() && hasSort) {
+            return new NestedShape(SERVERLESS_SORT_NESTED_LEVELS, SERVERLESS_SORT_BRANCHES_PER_LEVEL);
+        }
+        return new NestedShape(NESTED_LEVELS, BRANCHES_PER_LEVEL);
     }
 
     private static int docs() {

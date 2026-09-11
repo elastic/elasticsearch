@@ -218,7 +218,6 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         } else {
             assertThat(safeGet(preFlush.waitIfOngoing()), is(false));
         }
-        TestStatelessPlugin.resetFlushInterceptor();
 
         // Unblock the initial flush: it commits, releases flushLock, and starts the BCC upload.
         unblockCommitLatch.countDown();

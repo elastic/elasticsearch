@@ -35,7 +35,7 @@ import java.util.Map;
  * </pre>
  * becomes:
  * <pre>
- *     EVAL `a + 1` = a + 1, `x % 2` = x % 2 | STATS SUM(`a + 1`) BY `x % 2`
+ *     EVAL `a + 1` = a + 1, `x % 2` = x % 2 | STATS SUM(`a + 1`_ref) BY `x % 2`_ref
  * </pre>
  * The same applies to {@code INLINE STATS}:
  * <pre>
@@ -43,7 +43,7 @@ import java.util.Map;
  * </pre>
  * becomes:
  * <pre>
- *     EVAL `a + 1` = a + 1, `x % 2` = x % 2 | INLINE STATS SUM(`a + 1`) BY `x % 2`
+ *     EVAL `a + 1` = a + 1, `x % 2` = x % 2 | INLINE STATS SUM(`a + 1`_ref) BY `x % 2`_ref
  * </pre>
  * <p>
  * When {@code extractConstants} is set, constant fields  are materialized too. For example:
@@ -52,7 +52,7 @@ import java.util.Map;
  * </pre>
  * becomes:
  * <pre>
- *     EVAL `42` = 42, `n/a` = "n/a" | STATS TOP(`42`, 10, "asc", `n/a`)
+ *     EVAL `42` = 42, `n/a` = "n/a" | STATS TOP(`42`_ref, 10, "asc", `n/a`_ref)
  * </pre>
  */
 public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {

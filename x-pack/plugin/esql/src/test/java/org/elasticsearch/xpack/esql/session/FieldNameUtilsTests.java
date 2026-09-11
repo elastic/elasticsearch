@@ -4412,6 +4412,44 @@ public class FieldNameUtilsTests extends ESTestCase {
             """, Set.of("_index", "emp_no", "emp_no.*", "xx_dense_vector", "xx_dense_vector.*"));
     }
 
+    /**
+     * The metrics query of TS_EXEMPLARS is only planned; its STATS must not narrow the field-caps request, since the exemplar rows
+     * the main pipeline continues with carry all fields of the exemplar relation.
+     */
+    public void testTimeSeriesExemplars() {
+        assertFieldNames("""
+            TS_EXEMPLARS (TS metrics-* | WHERE attributes.state == "idle" | STATS AVG(metrics.cpu_time))
+            """, ALL_FIELDS);
+        assertFieldNames("""
+            TS_EXEMPLARS (TS metrics-* | WHERE attributes.state == "idle" | STATS AVG(metrics.cpu_time))
+            | SORT @timestamp
+            | LIMIT 10
+            """, ALL_FIELDS);
+        // once the main pipeline narrows the columns, the fields the metrics query reads are requested alongside them, as the
+        // rewritten exemplar query filters on them
+        Set<String> expected = Set.of(
+            "_index",
+            "@timestamp",
+            "@timestamp.*",
+            "attributes.state",
+            "attributes.state.*",
+            "metrics.cpu_time",
+            "metrics.cpu_time.*",
+            "trace_id",
+            "trace_id.*"
+        );
+        if (includePrefixFields) {
+            // dot-delimited prefixes are additionally requested
+            expected = new HashSet<>(expected);
+            expected.add("attributes");
+            expected.add("metrics");
+        }
+        assertFieldNames("""
+            TS_EXEMPLARS (TS metrics-* | WHERE attributes.state == "idle" | STATS AVG(metrics.cpu_time))
+            | KEEP trace_id
+            """, expected);
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
         assertFieldNames(query, false, expected, Set.of());
     }

@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.IndicesOptions.CrossProjectModeOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.compute.operator.MetricsInfoOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -56,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -195,6 +197,53 @@ public class IndexResolver {
             listener
         );
     }
+
+    /**
+     * Resolves a pattern of data streams that was derived from the backing indices another pattern matched, like the exemplar data
+     * streams of {@code TS_EXEMPLARS}. Unlike a user-written pattern, some of these data streams may not exist: field caps tolerates
+     * that, but executing the query against them would not. So instead of the requested expressions, the data streams of the backing
+     * indices that field caps did match become the original indices of the relation (see {@link #MATCHED_DATA_STREAMS}).
+     */
+    public void resolveDerivedDataStreamsVersioned(
+        String indexPattern,
+        Set<String> fieldNames,
+        QueryBuilder requestFilter,
+        TransportVersion minimumVersion,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported,
+        boolean hasTimeSeriesAggregation,
+        boolean trackUnmappedFieldIndices,
+        ActionListener<Versioned<IndexResolution>> listener
+    ) {
+        doResolveIndices(
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, false, false),
+            indexPattern,
+            true, /* the derived data streams may not exist */
+            minimumVersion,
+            useAggregateMetricDoubleWhenNotSupported,
+            useDenseVectorWhenNotSupported,
+            hasTimeSeriesAggregation,
+            trackUnmappedFieldIndices,
+            null,
+            MATCHED_DATA_STREAMS,
+            listener
+        );
+    }
+
+    /**
+     * Original indices for a pattern of data streams: per cluster, the distinct data streams of the backing indices field caps matched,
+     * recovered from the backing index names the same way {@code METRICS_INFO} does. A backing index whose name does not follow the
+     * data stream naming is kept as is, which is still a valid target to execute against.
+     */
+    static final OriginalIndexExtractor MATCHED_DATA_STREAMS = (indexPattern, fieldCapabilitiesResponse) -> {
+        Map<String, Set<String>> dataStreams = new HashMap<>();
+        for (FieldCapabilitiesIndexResponse indexResponse : fieldCapabilitiesResponse.getIndexResponses()) {
+            var split = RemoteClusterAware.splitIndexName(indexResponse.getIndexName());
+            dataStreams.computeIfAbsent(split.getClusterGroupingKey(), k -> new LinkedHashSet<>())
+                .add(MetricsInfoOperator.resolveDataStreamName(split.indexExpression()));
+        }
+        return Maps.transformValues(dataStreams, List::copyOf);
+    };
 
     /**
      * Like {@code IndexResolver#resolveIndicesVersioned} but for flat (CPS) queries. Set

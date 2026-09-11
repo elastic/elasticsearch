@@ -101,6 +101,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#timeSeriesExemplarsCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitTimeSeriesExemplarsCommand(EsqlBaseParser.TimeSeriesExemplarsCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#externalCommand}.
    * @param ctx the parse tree
    * @return the visitor result

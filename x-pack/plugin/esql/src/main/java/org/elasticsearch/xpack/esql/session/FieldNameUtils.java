@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesExemplars;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
@@ -451,6 +452,11 @@ public class FieldNameUtils {
         // force the main pipeline into explicit field collection.
         if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
             return mainQueryRequiresFieldCollection(subqueryJoin.left(), inlinestatsAggs);
+        }
+        // The metrics query of TS_EXEMPLARS is planned but never executed and its STATS does not narrow the exemplar columns the
+        // main pipeline continues with; the exemplar relation that takes its place is a plain source.
+        if (plan instanceof TimeSeriesExemplars) {
+            return false;
         }
         for (LogicalPlan child : plan.children()) {
             if (mainQueryRequiresFieldCollection(child, inlinestatsAggs)) {

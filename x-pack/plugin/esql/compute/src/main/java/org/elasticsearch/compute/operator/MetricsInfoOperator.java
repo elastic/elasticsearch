@@ -440,7 +440,7 @@ public class MetricsInfoOperator implements Operator {
      * Handles cluster-alias prefixed names (e.g. {@code remote:.ds-k8s-2024.01.15-000001})
      * so that the output preserves the cluster qualifier (e.g. {@code remote:k8s}).
      */
-    static String resolveDataStreamName(String indexName) {
+    public static String resolveDataStreamName(String indexName) {
         var split = RemoteClusterAware.splitIndexName(indexName);
         Matcher m = BACKING_INDEX_PATTERN.matcher(split.indexExpression());
         String resolved = m.matches() ? m.group(1) : split.indexExpression();

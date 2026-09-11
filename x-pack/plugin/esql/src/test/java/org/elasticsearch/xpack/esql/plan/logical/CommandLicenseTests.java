@@ -153,7 +153,8 @@ public class CommandLicenseTests extends ESTestCase {
             "IP_LOCATION"
         );
         Map<String, String> commandPackageMapper = Map.of("Rerank", planPackage + ".inference", "LookupJoin", planPackage + ".join");
-        Set<String> ignoredClasses = Set.of("Processing", "TimeSeries", "Completion", "Source", "From", "Row");
+        // source commands (and the TS_EXEMPLARS source command wrapper) have no Kibana command definition
+        Set<String> ignoredClasses = Set.of("Processing", "TimeSeries", "TimeSeriesExemplars", "Completion", "Source", "From", "Row");
 
         for (Method method : EsqlBaseParserVisitor.class.getMethods()) {
             String methodName = method.getName();

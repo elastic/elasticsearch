@@ -78,7 +78,9 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
 
             ProcessingContext finalContext = context;
             bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
-                if (bulkResponse.hasFailures() || finalContext.getIgnoredItems() > 0) {
+                if (bulkResponse.hasFailures()
+                    || finalContext.getIgnoredItems() > 0
+                    || finalContext.getWarningMessage().isEmpty() == false) {
                     handlePartialSuccess(bulkResponse, finalContext, delegate);
                 } else {
                     delegate.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
@@ -128,6 +130,13 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         }
 
         default String getIgnoredItemsMessage(int limit) {
+            return "";
+        }
+
+        /**
+         * Returns a warning that should produce a partial-success response without increasing the rejected-item count.
+         */
+        default String getWarningMessage() {
             return "";
         }
 
@@ -222,6 +231,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             }
         }
         failureMessageBuilder.append(context.getIgnoredItemsMessage(10));
+        failureMessageBuilder.append(context.getWarningMessage());
         String message = failureMessageBuilder.toString();
         if (status == RestStatus.TOO_MANY_REQUESTS) {
             listener.onFailure(new ElasticsearchStatusException(message, RestStatus.TOO_MANY_REQUESTS));

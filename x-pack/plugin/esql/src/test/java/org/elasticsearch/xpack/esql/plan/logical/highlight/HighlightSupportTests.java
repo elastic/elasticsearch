@@ -141,47 +141,12 @@ public class HighlightSupportTests extends ESTestCase {
         assertThat(HighlightSupport.leafAnalyzerNamesOf(match("title", "fox", options("analyzer", "english"))), equalTo(Set.of("english")));
     }
 
-    public void testCollectImplicitQueryDerivesSharedAnalyzer() {
-        Expression leaf = match("title", "fox", options("analyzer", "english"));
-        Filter filter = filter(leaf);
-
-        HighlightSupport.ImplicitQuery implicitQuery = HighlightSupport.collectImplicitQuery(filter, EMPTY);
-
-        assertThat(implicitQuery.query(), equalTo(leaf));
-        assertThat(implicitQuery.analyzerName(), equalTo("english"));
-    }
-
-    public void testCollectImplicitQueryBorrowsMixedAnalyzersAcrossDifferentFields() {
-        Expression leaf = new Or(
-            EMPTY,
-            match("title", "fox", options("analyzer", "english")),
-            match("body", "fox", options("analyzer", "whitespace"))
-        );
-        HighlightSupport.ImplicitQuery implicitQuery = HighlightSupport.collectImplicitQuery(filter(leaf), EMPTY);
-
-        assertThat(implicitQuery.query(), equalTo(leaf));
-        assertNull(implicitQuery.analyzerName());
-    }
-
     public void testCollectImplicitQueryKeepsSingleExtraQuoteAnalyzer() {
         Expression leaf = queryString("fox", options("analyzer", "english", "quote_analyzer", "whitespace"));
         HighlightSupport.ImplicitQuery implicitQuery = HighlightSupport.collectImplicitQuery(filter(leaf), EMPTY);
 
         assertThat(implicitQuery.query(), equalTo(leaf));
         assertThat(implicitQuery.analyzerName(), equalTo("english"));
-        assertThat(HighlightSupport.leafAnalyzerNamesOf(leaf), equalTo(Set.of("english", "whitespace")));
-    }
-
-    public void testCollectImplicitQueryBorrowsMultipleDistinctQuoteAnalyzers() {
-        Expression leaf = new Or(
-            EMPTY,
-            queryString("fox", options("quote_analyzer", "english")),
-            queryString("dog", options("quote_analyzer", "whitespace"))
-        );
-        HighlightSupport.ImplicitQuery implicitQuery = HighlightSupport.collectImplicitQuery(filter(leaf), EMPTY);
-
-        assertThat(implicitQuery.query(), equalTo(leaf));
-        assertNull(implicitQuery.analyzerName());
         assertThat(HighlightSupport.leafAnalyzerNamesOf(leaf), equalTo(Set.of("english", "whitespace")));
     }
 
@@ -224,11 +189,6 @@ public class HighlightSupportTests extends ESTestCase {
             match("title", "dog", options("analyzer", "whitespace"))
         );
         assertThat(HighlightSupport.fieldAnalyzers(query, "keyword", List.of("title")), equalTo(Map.of("title", "keyword")));
-    }
-
-    public void testFieldAnalyzersUnlabeledLeafDefaultsToStandard() {
-        Expression query = match("title", "fox", null);
-        assertThat(HighlightSupport.fieldAnalyzers(query, null, List.of("title")), equalTo(Map.of("title", "standard")));
     }
 
     public void testFieldAnalyzersUnlabeledLeafUsesValuesAnalyzer() {

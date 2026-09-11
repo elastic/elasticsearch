@@ -30,6 +30,7 @@ import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.StringColumnSource;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
@@ -584,6 +585,96 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
         return new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, maxMode, COLUMNAR_PAYLOAD).getSortKeyDocValues(
             leaf
         );
+    }
+
+    // =========================================================================
+    // equals and hashCode
+    // =========================================================================
+
+    public void testEqualsIsReflexive() {
+        final MultiValuedBinaryDocValuesSortField sf = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        assertEquals(sf, sf);
+        assertEquals(sf.hashCode(), sf.hashCode());
+    }
+
+    public void testEqualsIsSymmetric() {
+        final MultiValuedBinaryDocValuesSortField a = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        final MultiValuedBinaryDocValuesSortField b = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        assertEquals(a, b);
+        assertEquals(b, a);
+        assertEquals(a.hashCode(), b.hashCode());
+    }
+
+    public void testEqualsDistinguishesMaxMode() {
+        final MultiValuedBinaryDocValuesSortField min = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        final MultiValuedBinaryDocValuesSortField max = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, true);
+        assertNotEquals(min, max);
+        assertNotEquals(max, min);
+    }
+
+    public void testEqualsDistinguishesBinaryFormat() {
+        final MultiValuedBinaryDocValuesSortField sc = new MultiValuedBinaryDocValuesSortField(
+            "kw",
+            false,
+            SortField.STRING_LAST,
+            false,
+            SEPARATE_COUNT
+        );
+        final MultiValuedBinaryDocValuesSortField ao = new MultiValuedBinaryDocValuesSortField(
+            "kw",
+            false,
+            SortField.STRING_LAST,
+            false,
+            ARRAY_ORDER_INLINE_NULL
+        );
+        final MultiValuedBinaryDocValuesSortField cp = new MultiValuedBinaryDocValuesSortField(
+            "kw",
+            false,
+            SortField.STRING_LAST,
+            false,
+            COLUMNAR_PAYLOAD
+        );
+        assertNotEquals(sc, ao);
+        assertNotEquals(sc, cp);
+        assertNotEquals(ao, cp);
+    }
+
+    public void testEqualsDistinguishesFieldName() {
+        final MultiValuedBinaryDocValuesSortField a = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        final MultiValuedBinaryDocValuesSortField b = new MultiValuedBinaryDocValuesSortField("other", false, SortField.STRING_LAST, false);
+        assertNotEquals(a, b);
+    }
+
+    public void testEqualsDistinguishesReverse() {
+        final MultiValuedBinaryDocValuesSortField asc = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        final MultiValuedBinaryDocValuesSortField desc = new MultiValuedBinaryDocValuesSortField("kw", true, SortField.STRING_FIRST, false);
+        assertNotEquals(asc, desc);
+    }
+
+    public void testEqualsDistinguishesMissingValue() {
+        final MultiValuedBinaryDocValuesSortField last = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        final MultiValuedBinaryDocValuesSortField first = new MultiValuedBinaryDocValuesSortField(
+            "kw",
+            false,
+            SortField.STRING_FIRST,
+            false
+        );
+        assertNotEquals(last, first);
+    }
+
+    public void testFuzzyEqualsHashCode() {
+        final BinaryDocValuesFormat[] formats = BinaryDocValuesFormat.values();
+        for (int i = 0; i < 20; i++) {
+            final String field = randomAlphaOfLengthBetween(1, 20);
+            final boolean reverse = randomBoolean();
+            final Object missing = randomFrom(SortField.STRING_FIRST, SortField.STRING_LAST);
+            final boolean maxMode = randomBoolean();
+            final BinaryDocValuesFormat format = randomFrom(formats);
+            final MultiValuedBinaryDocValuesSortField a = new MultiValuedBinaryDocValuesSortField(field, reverse, missing, maxMode, format);
+            final MultiValuedBinaryDocValuesSortField b = new MultiValuedBinaryDocValuesSortField(field, reverse, missing, maxMode, format);
+            assertEquals("iteration " + i, a, b);
+            assertEquals("hashCode iteration " + i, a.hashCode(), b.hashCode());
+        }
     }
 
     // =========================================================================

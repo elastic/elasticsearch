@@ -216,7 +216,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * @return A map of node id to node-heap-estimate objects
      */
     public Map<String, NodeHeapEstimates> getPerNodeMemoryMetrics(ClusterState clusterState) {
-        return computeNodeMemoryMetrics(clusterState, getShardHeapUsageEstimates(snapshotShardMemoryMetrics())).nodeHeapEstimates();
+        return computeNodeMemoryMetrics(clusterState, getShardHeapUsageEstimates()).nodeHeapEstimates();
     }
 
     private EstimatedHeapUsageStats computeNodeMemoryMetrics(ClusterState clusterState, ShardHeapUsageEstimates shardHeapUsageEstimates) {
@@ -237,7 +237,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * Computes node and shard heap usage estimates from the same snapshot of shard memory metrics.
      */
     public EstimatedHeapUsageStats getEstimatedHeapUsageStats(ClusterState clusterState) {
-        final ShardHeapUsageEstimates shardHeapUsageEstimates = getShardHeapUsageEstimates(snapshotShardMemoryMetrics());
+        final ShardHeapUsageEstimates shardHeapUsageEstimates = getShardHeapUsageEstimates();
         return computeNodeMemoryMetrics(clusterState, shardHeapUsageEstimates);
     }
 
@@ -663,19 +663,17 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             );
         }
 
-        synchronized ShardMemoryMetrics snapshot() {
-            return new ShardMemoryMetrics(
-                mappingSizeInBytes,
-                numSegments,
-                totalFields,
-                postingsInMemoryBytes,
-                liveDocsBytes,
-                pointsInMemoryBytes,
-                shardMemoryOverheadBytes,
-                seqNo,
-                metricQuality,
-                metricShardNodeId,
-                updateTimestampNanos
+        /**
+         * Take a snapshot of the shard heap estimate guaranteeing a consistent state
+         *
+         * @param estimator The estimator to use to calculate the estimate
+         * @return The shard and index heap usage
+         */
+        synchronized ShardAndIndexHeapUsage snapshot(ShardHeapEstimator estimator) {
+            return new ShardAndIndexHeapUsage(
+                estimator.computeShardHeapUsage(this),
+                estimator.computeIndexHeapUsage(this),
+                estimator.getShardPostingsInBytes(this)
             );
         }
 
@@ -857,14 +855,10 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * {@link org.elasticsearch.cluster.ClusterInfoSimulator}.
      */
     public ShardHeapUsageEstimates getShardHeapUsageEstimates() {
-        return getShardHeapUsageEstimates(snapshotShardMemoryMetrics());
-    }
-
-    private ShardHeapUsageEstimates getShardHeapUsageEstimates(Map<ShardId, ShardMemoryMetrics> shardMemoryMetricsSnapshot) {
         final var shardHeapEstimator = createShardHeapEstimator(SelfReportedShardOverhead.DEFAULT);
         final Map<ShardId, ShardAndIndexHeapUsage> heapUsagePerShard = new HashMap<>();
-        for (Map.Entry<ShardId, ShardMemoryMetrics> entry : shardMemoryMetricsSnapshot.entrySet()) {
-            heapUsagePerShard.put(entry.getKey(), getShardAndIndexHeapUsage(shardHeapEstimator, entry.getValue()));
+        for (Map.Entry<ShardId, ShardMemoryMetrics> entry : shardMemoryMetrics.entrySet()) {
+            heapUsagePerShard.put(entry.getKey(), entry.getValue().snapshot(shardHeapEstimator));
         }
         ShardMemoryMetrics uninitialised = newUninitialisedShardMemoryMetrics(relativeTimeInNanos());
         ShardAndIndexHeapUsage defaultForShardsWithoutMetrics = getShardAndIndexHeapUsage(shardHeapEstimator, uninitialised);
@@ -880,12 +874,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             shardHeapEstimator.computeIndexHeapUsage(shardMemoryMetrics),
             shardHeapEstimator.getShardPostingsInBytes(shardMemoryMetrics)
         );
-    }
-
-    private Map<ShardId, ShardMemoryMetrics> snapshotShardMemoryMetrics() {
-        Map<ShardId, ShardMemoryMetrics> snapshot = new HashMap<>();
-        shardMemoryMetrics.forEach((shardId, shardMemoryMetric) -> snapshot.put(shardId, shardMemoryMetric.snapshot()));
-        return snapshot;
     }
 
     /**

@@ -270,8 +270,8 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         }
 
         @Override
-        synchronized StatelessMemoryMetricsService.ShardMemoryMetrics snapshot() {
-            final StatelessMemoryMetricsService.ShardMemoryMetrics snapshot = super.snapshot();
+        synchronized ShardAndIndexHeapUsage snapshot(ShardHeapEstimator shardHeapEstimator) {
+            final ShardAndIndexHeapUsage snapshot = super.snapshot(shardHeapEstimator);
             if (updatedDuringSnapshot == false) {
                 update(
                     updatedMappingSize.mappingSizeInBytes(),

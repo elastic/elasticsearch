@@ -16,7 +16,6 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.simdjson.SimdJsonParserPool;
 import org.elasticsearch.simdjson.SimdJsonSupport;
-import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -57,16 +56,16 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * that are paid per bulk rather than per document land inside the measured region:
  * <ul>
  *   <li>A fresh {@link EscfEncoder} is constructed per invocation and closed at the end, matching
- *       {@code BulkBatchEncoders}, which creates one encoder per concrete index in a bulk and
- *       closes it once the shard requests are dispatched. The encoder resolves its thread's parser
- *       from {@link SimdJsonParserPool} at construction and publishes learned field names on
- *       close, so both of those per-bulk costs are measured.</li>
+ *       the encode pass, which creates one encoder per index-abstraction key in a bulk and closes
+ *       it once the shard requests are dispatched. The encoder resolves its thread's parser from
+ *       {@link SimdJsonParserPool} at construction and publishes learned field names on close, so
+ *       both of those per-bulk costs are measured.</li>
  *   <li>{@code docCount} spans realistic bulk sizes. The small values are the interesting ones for
  *       per-bulk overhead: at 10k documents the per-encoder work is amortized to invisibility,
  *       which is not representative of a typical bulk.</li>
- *   <li>Rows are committed round-robin across {@code shardCount} partitions and each is built
- *       separately, matching {@code BulkBatchEncoders.finalizeBatches}, which calls
- *       {@code buildPartition} once per destination shard on the same encoder.</li>
+ *   <li>All rows are encoded into a single batch via {@link EscfEncoder#addDocument} and the
+ *       batch is built once via {@link EscfEncoder#build()}, matching the encode-then-scatter
+ *       design where shard fanout happens after encoding completes.</li>
  * </ul>
  *
  * <p>Not covered: sources are all zero-offset {@code BytesArray}, whereas bulk items are usually
@@ -112,13 +111,6 @@ public class SimdJsonParserBenchmark {
     private long seed;
 
     /**
-     * Destination shards for the index, i.e. how many partitions the encoder fans rows out to and
-     * how many times {@code buildPartition} is called per bulk.
-     */
-    @Param({ "5" })
-    private int shardCount;
-
-    /**
      * Document shape. {@code otel_nested} is omitted by default to keep the parameter matrix small;
      * pass it explicitly with {@code -p shape=...}.
      */
@@ -144,11 +136,10 @@ public class SimdJsonParserBenchmark {
         }
 
         System.out.printf(
-            "[setup] thread=%s shape=%s docCount=%d shardCount=%d docSize min=%d avg=%d max=%d nativeStage1=%s maxSimdDocBytes=%d%n",
+            "[setup] thread=%s shape=%s docCount=%d docSize min=%d avg=%d max=%d nativeStage1=%s maxSimdDocBytes=%d%n",
             Thread.currentThread().getName(),
             shape,
             docCount,
-            shardCount,
             minLen,
             totalLen / docCount,
             maxLen,
@@ -172,25 +163,16 @@ public class SimdJsonParserBenchmark {
     }
 
     /**
-     * Encodes one bulk's worth of documents, fanning rows across shard partitions and building each,
-     * as {@code BulkBatchEncoders} does during routing and {@code finalizeBatches}.
+     * Encodes one bulk's worth of documents into a single batch, as the encode pass does before
+     * handing the batch to the router for shard fanout.
      */
     private int encodeBulk(EscfEncoder encoder) throws IOException {
-        for (int i = 0; i < docs.length; i++) {
-            encoder.parseToScratch(docs[i], XContentType.JSON, LeafSink.NO_OP);
-            encoder.commitScratchTo(i % shardCount);
+        for (BytesReference doc : docs) {
+            encoder.addDocument(doc, XContentType.JSON);
         }
-        int leafCount = 0;
-        for (int partition = 0; partition < shardCount; partition++) {
-            // A shard that received no rows is skipped, matching finalizeBatches iterating only
-            // over shards with pending attachments.
-            if (encoder.hasPartition(partition)) {
-                try (EscfBatch batch = encoder.buildPartition(partition)) {
-                    leafCount += batch.schema().leafCount();
-                }
-            }
+        try (EscfBatch batch = encoder.build()) {
+            return batch.schema().leafCount();
         }
-        return leafCount;
     }
 
     // ------------------------------------------------------------------

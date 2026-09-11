@@ -1,0 +1,9 @@
+{
+    "dynamic": "false",
+    "properties": {
+        "id": { "type": "keyword" }
+    },
+    "_source": {
+        "includes": ["id", "arr"]
+    }
+}

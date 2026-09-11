@@ -1869,10 +1869,8 @@ public final class TextFieldMapper extends FieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        return indexSettings.getMode().isStrictColumnar()
-            && fieldType().usesBinaryDocValues()
+        return fieldType().usesBinaryDocValues()
             && (fieldType().usesArrayOrderBinaryDocValues() || docValuesParameters.multiValue() == false)
-            && offsetsFieldName == null
             && prefixFieldInfo == null
             && phraseFieldInfo == null
             && copyTo().copyToFields().isEmpty()

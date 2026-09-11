@@ -1663,11 +1663,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * document source before writing back, preventing pipeline-leaked empty containers (e.g. {@code {"system":{"syslog":{}}}}
      * after groking fields out) from disabling batch indexing permanently on every bulk request.
      */
-    private static void updateIndexRequestSource(
-        final IndexRequest request,
-        final IngestDocument document,
-        final ProjectMetadata project
-    ) {
+    private static void updateIndexRequestSource(final IndexRequest request, final IngestDocument document, final ProjectMetadata project) {
         if (isStrictColumnarTarget(request, project)) {
             removeEmptyObjects(document.getSource());
         }

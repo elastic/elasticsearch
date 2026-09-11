@@ -32,15 +32,20 @@ public class IndexTemplateMetadataRamBytesUsedTests extends AbstractAccountableF
     }
 
     @Override
-    protected Set<String> fieldsExcludedFromRamBytesUsed() {
-        return Set.of();
-    }
-
-    @Override
     protected boolean assertsAgainstRamUsageTester() {
         // Settings.estimatedRamBytesUsed() deliberately omits interned keys/values; a full-graph RamUsageTester walk would count them
         // and fail estimate >= actual by design.
         return false;
+    }
+
+    @Override
+    protected Accountable createRandomTestInstance() {
+        IndexTemplateMetadata.Builder builder = IndexTemplateMetadata.builder(randomAlphaOfLengthBetween(3, 12))
+            .patterns(randomList(1, 4, () -> randomAlphaOfLengthBetween(1, 6) + "-*"));
+        if (randomBoolean()) {
+            builder.putAlias(AliasMetadata.builder(randomAlphaOfLengthBetween(3, 8)).build());
+        }
+        return builder.build();
     }
 
     /**

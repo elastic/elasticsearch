@@ -943,10 +943,39 @@ public class QueryDslTranslatorTests extends ESTestCase {
         }
         // A whole in-range value still matches, so the assertions above are not vacuous.
         assertThat(translate(QueryBuilders.termQuery("quota", 42)), instanceOf(MvContains.class));
-        // Whitespace around a numeric string is ignored by the index's parse, so it must not degrade here either.
-        assertThat(translate(QueryBuilders.termQuery("quota", " 42")), instanceOf(MvContains.class));
+        assertThat(translate(QueryBuilders.termQuery("quota", "42")), instanceOf(MvContains.class));
         // A non-numeric value is malformed, not unmatchable: it degrades, as on every other integral type.
         assertFalse(translateResult(QueryBuilders.termQuery("quota", "not-a-number")).isComplete());
+    }
+
+    /**
+     * unsigned_long does not coerce a term the way integer and long do: UnsignedLongFieldType.parseTerm takes only an
+     * integral box, an in-range BigInteger, or what Long.parseUnsignedLong reads. A whole double, a "42.0" and a
+     * padded " 42" are well-formed numbers no unsigned_long equals, so each matches nothing — where the same shapes
+     * on a long field are 42.
+     */
+    public void testUnsignedLongTermDoesNotCoerceLikeLong() {
+        for (Object value : List.of(42.0d, "42.0", " 42")) {
+            assertEquals(
+                "[" + value + "] is not a term unsigned_long accepts",
+                Literal.FALSE,
+                translate(QueryBuilders.termQuery("quota", value))
+            );
+            assertThat(
+                "the same shape on a long field does coerce",
+                translate(QueryBuilders.termQuery("bytes", value)),
+                instanceOf(MvContains.class)
+            );
+        }
+        // terms applies the same rule value by value: the unmatchable one is dropped, the rest still select.
+        MvIntersects kept = (MvIntersects) translate(QueryBuilders.termsQuery("quota", List.of("42.0", 43)));
+        assertEquals(List.of(EsqlDataTypeConverter.stringToUnsignedLong("43")), ((Literal) kept.children().get(1)).value());
+    }
+
+    /** An unsigned_long RANGE bound does coerce a decimal, but Numbers.newBigDecimal rejects padding. */
+    public void testUnsignedLongRangeBoundRejectsPaddingButTakesDecimals() {
+        assertThat(translate(QueryBuilders.rangeQuery("quota").gte("0.5")), instanceOf(MvInRange.class));
+        assertFalse(translateResult(QueryBuilders.rangeQuery("quota").gte(" 42")).isComplete());
     }
 
     /** A bound outside the unsigned_long range clamps rather than degrading, so gte -5 keeps matching everything. */

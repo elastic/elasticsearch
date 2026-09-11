@@ -339,6 +339,10 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
      */
     public void testUnsignedLongUnmatchableValuesAndInwardBounds() {
         assertSelectsSameRows(QueryBuilders.termQuery("quota", 700.9));
+        // parseTerm does not coerce: a whole double, a "700.0" and a padded " 700" are each unmatchable.
+        assertSelectsSameRows(QueryBuilders.termQuery("quota", 700.0));
+        assertSelectsSameRows(QueryBuilders.termQuery("quota", "700.0"));
+        assertSelectsSameRows(QueryBuilders.termQuery("quota", " 700"));
         assertSelectsSameRows(QueryBuilders.termQuery("quota", -5));
         assertSelectsSameRows(QueryBuilders.termsQuery("quota", List.of(700.9, 800)));
         assertSelectsSameRows(QueryBuilders.rangeQuery("quota").gte(0.5));
@@ -368,6 +372,19 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
     public void testLenientlyEscapedWildcard() {
         assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", "\\t*"));
         assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", "t1\\"));
+    }
+
+    /**
+     * The escaped character is a literal, so escaping a RegExp metacharacter must not hand mv_rlike that character's
+     * RegExp meaning. {@code t\.} selects nothing on the index — no tag is "t." — and a raw {@code .} would make it
+     * select every row; {@code t\|1} under-matched the same way, returning FEWER rows than the index.
+     */
+    public void testWildcardEscapingARegexpMetacharacter() {
+        for (String pattern : List.of("t\\.", "t\\|1", "t\\+", "t\\@", "t\\~", "t\\&", "t\\#", "t\\(", "t\\[")) {
+            assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", pattern));
+        }
+        // The positive control: the same characters unescaped keep their RegExp meaning on both sides.
+        assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", "t."));
     }
 
     /** regexp is Lucene RegExp syntax on both sides, with the same RegexpFlag.ALL parse. */

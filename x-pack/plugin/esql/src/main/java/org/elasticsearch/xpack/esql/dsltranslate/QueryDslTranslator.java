@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.dsltranslate;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Booleans;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -416,21 +418,19 @@ public final class QueryDslTranslator {
      * malformed — a lenient match matches nothing, a strict one degrades (the term precedent, matching the index's 400).
      */
     private Expression integralEquality(Expression field, DataType type, Object value, boolean lenient) {
-        BigDecimal number;
+        Number literal;
         try {
-            // Trim a string value: the index parses integral bounds via Double.parseDouble, which ignores surrounding
-            // whitespace, so " 300" must resolve like "300" rather than degrading.
-            number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(String.valueOf(value).trim());
+            literal = integralTermValue(type, value);
         } catch (NumberFormatException e) {
             if (lenient && isPresent(field)) {
                 return Literal.FALSE;
             }
             throw new TranslationUnsupportedException("match[integral value on " + type.typeName() + "]");
         }
-        if (number.stripTrailingZeros().scale() > 0 || number.compareTo(integralMin(type)) < 0 || number.compareTo(integralMax(type)) > 0) {
+        if (literal == null) {
             return Literal.FALSE;
         }
-        return checkedLeaf(field, new MvContains(Source.EMPTY, field, new Literal(Source.EMPTY, integralLiteral(type, number), type)));
+        return checkedLeaf(field, new MvContains(Source.EMPTY, field, new Literal(Source.EMPTY, literal, type)));
     }
 
     /**
@@ -712,7 +712,11 @@ public final class QueryDslTranslator {
     private static BigDecimal effectiveIntegralBound(DataType type, Object value, boolean lower, boolean inclusive) {
         BigDecimal number;
         try {
-            number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(String.valueOf(value).trim());
+            // integer/long bounds go through Double.parseDouble on the index, which ignores surrounding whitespace;
+            // an unsigned_long bound goes through Numbers.newBigDecimal, which rejects it and fails the query. We
+            // cannot fail the query, so a padded unsigned_long bound degrades instead of quietly meaning more.
+            String text = type == DataType.UNSIGNED_LONG ? String.valueOf(value) : String.valueOf(value).trim();
+            number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(text);
         } catch (NumberFormatException e) {
             throw new TranslationUnsupportedException("range[bound on " + type.typeName() + "]");
         }
@@ -826,8 +830,6 @@ public final class QueryDslTranslator {
     }
 
     /**
-    /** Inclusive DSL bound → {@code include_bound: true}; exclusive omits options (default). */
-    /**
      * {@code prefix} is the wildcard pattern {@code <literal>*}. The literal is escaped first so a {@code *} or
      * {@code ?} inside it stays a character rather than becoming a wildcard — {@code prefix} has no metacharacters.
      */
@@ -858,6 +860,11 @@ public final class QueryDslTranslator {
         if (regexp.flags() != RegexpQueryBuilder.DEFAULT_FLAGS_VALUE) {
             throw new TranslationUnsupportedException("regexp[flags]");
         }
+        // Only an automaton-size budget, so it cannot change which rows match — but mv_rlike applies its own limit
+        // and cannot be told this one, so an explicitly chosen budget is an unhonoured option like any other.
+        if (regexp.maxDeterminizedStates() != RegexpQueryBuilder.DEFAULT_MAX_DETERMINIZED_STATES) {
+            throw new TranslationUnsupportedException("regexp[max_determinized_states]");
+        }
         Expression field = fieldBinder.apply(regexp.fieldName());
         return checkedLeaf(field, validated(new MvRLike(Source.EMPTY, field, Literal.keyword(Source.EMPTY, regexp.value()))));
     }
@@ -868,8 +875,13 @@ public final class QueryDslTranslator {
      * the pattern goes across verbatim, which also keeps the affix fast paths ({@code foo*}, the shape a {@code prefix}
      * always takes). It is narrower in one place: ES|QL rejects a trailing backslash and an escape of anything other
      * than {@code * ? \}, both of which Lucene reads leniently. Those spellings take {@code mv_rlike} through the
-     * total wildcard-to-RegExp conversion, which reproduces that leniency, so every pattern the index accepts
-     * translates rather than dropping the clause.
+     * total wildcard-to-RegExp conversion, so every pattern the index accepts translates rather than dropping the
+     * clause.
+     *
+     * <p>One residual, shared with every other string leaf here: on the index a {@code keyword} field may carry a
+     * {@code normalizer}, and {@code KeywordFieldType.wildcardQuery} runs it over the pattern's literal runs. A
+     * dataset column has no normalizer, so the two agree on a plain {@code keyword} field and diverge on a normalized
+     * one — the same gap the {@code case_insensitive} discussion on {@link #caseInsensitiveEquality} describes.
      */
     private Expression wildcardLeaf(Expression field, String luceneWildcard) {
         try {
@@ -921,6 +933,7 @@ public final class QueryDslTranslator {
         return new MapExpression(Source.EMPTY, entries);
     }
 
+    /** Inclusive DSL bound → {@code include_bound: true}; exclusive omits options (default). */
     private static Expression includeBoundOptions(boolean includeBound) {
         if (includeBound == false) {
             return null;
@@ -961,6 +974,54 @@ public final class QueryDslTranslator {
     /** A field the source actually has, as opposed to the {@link Literal#NULL} a missing field binds to. */
     private static boolean isPresent(Expression field) {
         return DataType.isNull(field.dataType()) == false;
+    }
+
+    /**
+     * The value an integral field can equal, or {@code null} when no value of the type equals it — the index's
+     * match-no-docs. A malformed value throws {@link NumberFormatException} so each caller can apply its own policy.
+     *
+     * <p>{@code integer} and {@code long} follow {@code NumberFieldMapper}, which coerces: {@code "300.0"} and a padded
+     * {@code " 300"} are 300, and a fractional or out-of-range value matches nothing. {@code unsigned_long} has its own
+     * rule, below, and it is stricter.
+     */
+    private static Number integralTermValue(DataType type, Object value) {
+        if (type == DataType.UNSIGNED_LONG) {
+            return unsignedLongTermValue(value);
+        }
+        // Trim a string value: the index parses these via Double.parseDouble, which ignores surrounding whitespace.
+        BigDecimal number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(String.valueOf(value).trim());
+        if (number.stripTrailingZeros().scale() > 0 || number.compareTo(integralMin(type)) < 0 || number.compareTo(integralMax(type)) > 0) {
+            return null;
+        }
+        return integralLiteral(type, number);
+    }
+
+    /**
+     * Mirrors {@code UnsignedLongFieldType.parseTerm}, which does <em>not</em> coerce the way the other integral types
+     * do: its number arm accepts only an integral box or an in-range {@code BigInteger}, and its string arm only what
+     * {@code Long.parseUnsignedLong} reads. So a whole {@code Double}, the string {@code "42.0"} and a padded
+     * {@code " 42"} are well-formed numbers that no unsigned_long equals, and each matches nothing rather than 42.
+     * Only a string that is not a number at all is malformed, which is the one case that throws.
+     */
+    private static Number unsignedLongTermValue(Object value) {
+        if (value instanceof Long || value instanceof Integer || value instanceof Short || value instanceof Byte) {
+            long exact = ((Number) value).longValue();
+            return exact < 0 ? null : NumericUtils.asLongUnsigned(BigInteger.valueOf(exact));
+        }
+        if (value instanceof BigInteger big) {
+            return NumericUtils.isUnsignedLong(big) ? NumericUtils.asLongUnsigned(big) : null;
+        }
+        if (value instanceof Number) {
+            return null; // a double, even a whole one: the index's number arm does not accept it
+        }
+        String text = String.valueOf(value);
+        Numbers.checkNumericStringLength(text);
+        try {
+            return NumericUtils.asLongUnsigned(new BigInteger(Long.toUnsignedString(Long.parseUnsignedLong(text))));
+        } catch (NumberFormatException notAnUnsignedLong) {
+            Double.parseDouble(text); // a well-formed number that is simply unmatchable; anything else rethrows
+            return null;
+        }
     }
 
     /**
@@ -1014,16 +1075,11 @@ public final class QueryDslTranslator {
      * malformed and degrades the clause, matching the term path.
      */
     private static Number narrowIntegralValue(DataType type, Object value) {
-        BigDecimal number;
         try {
-            number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(String.valueOf(value).trim());
+            return integralTermValue(type, value);
         } catch (NumberFormatException e) {
             throw new TranslationUnsupportedException("terms[integral value on " + type.typeName() + "]");
         }
-        if (number.stripTrailingZeros().scale() > 0 || number.compareTo(integralMin(type)) < 0 || number.compareTo(integralMax(type)) > 0) {
-            return null;
-        }
-        return integralLiteral(type, number);
     }
 
     private Literal literalFor(Expression field, Object value) {

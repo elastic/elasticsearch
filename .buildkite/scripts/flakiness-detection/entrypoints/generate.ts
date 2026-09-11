@@ -85,14 +85,17 @@ function defaultIO(): GenerateIO {
 
 /**
  * Surface the resolver's enrichment so abstract expansions, capped task fan-outs and unresolved refs are
- * never silently dropped.
+ * never silently dropped, and return the unresolved refs that have to fail the step.
  *
  * Expansions and task selections are logged to the console only - they are already recorded in
- * flakiness-plan.json, so an annotation would just be noise. Unresolved refs, by contrast, get a `warning`
- * annotation WHEN non-empty: a silently-unresolved unmute is a real false-negative (a test we meant to
- * re-check but never did). When there are no unresolved refs, no annotation is emitted.
+ * flakiness-plan.json, so an annotation would just be noise.
+ *
+ * Unresolved refs get one annotation listing all of them, and none at all when there are none. Both its
+ * style and the return value turn on whether any of them NAMED a class: an unresolved unmute or explicit
+ * spec is a real false-negative - a test we meant to re-check and never did - so it annotates `error` and is
+ * returned for the caller to fail on. A run where only changed-file refs went unresolved annotates
+ * `warning` and returns nothing, because most changed files are not tests.
  */
-/** Reports the resolver's enrichment decisions and returns the unresolved refs that must fail the step. */
 function reportEnrichment(plan: FlakinessPlan, io: GenerateIO): PlanUnresolved[] {
   for (const e of plan.expansions ?? []) {
     io.log(`expanded abstract ${e.abstractFqcn} -> ran ${e.ran} of ${e.total} concrete subclasses (cap ${e.cap})`);

@@ -31,6 +31,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.IndexingDiskController;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.TestUtils;
@@ -85,7 +86,8 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
-            .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), TimeValue.timeValueHours(1));
+            .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), TimeValue.timeValueHours(1))
+            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.MINUS_ONE);
     }
 
     /// A BCC upload is in flight when the relocation starts. The pre-flush drains it via `waitForCurrentCommitDurability`,

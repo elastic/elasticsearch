@@ -236,7 +236,7 @@ public class HighlightVsDslBenchmark {
             HighlightOptions.ORDER_SCORE.equals(options.order()),
             options.analyzerName(),
             options.maxAnalyzedOffset()
-        ).withExecutionContext(analyzer, luceneQuery, List.of(FIELD));
+        ).withExecutionContext(List.of(analyzer), luceneQuery, List.of(FIELD));
         return new HighlightOperator(blockFactory, config, new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) });
     }
 

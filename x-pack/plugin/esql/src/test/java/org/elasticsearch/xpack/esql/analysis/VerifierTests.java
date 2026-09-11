@@ -4946,6 +4946,24 @@ public class VerifierTests extends ESTestCase {
                 not(containsString("[my_custom_analyzer] is not a registered analyzer"))
             )
         );
+        // Off-ON leaf analyzers are extras resolved inside verify, not resolveFieldAnalyzers.
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"my_custom_analyzer\"}) AND MATCH(body, \"bar\") | HIGHLIGHT ON body",
+            allOf(
+                containsString("HIGHLIGHT auto-derived analyzer [my_custom_analyzer] from WHERE"),
+                containsString("Custom per-index analyzers cannot be used through HIGHLIGHT"),
+                not(containsString("[my_custom_analyzer] is not a registered analyzer"))
+            )
+        );
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE QSTR(\"title:\\\"return\\\"\", {\"analyzer\": \"standard\", \"quote_analyzer\": \"my_custom_analyzer\"})"
+                + " | HIGHLIGHT ON title",
+            allOf(
+                containsString("HIGHLIGHT auto-derived analyzer [my_custom_analyzer] from WHERE"),
+                containsString("Custom per-index analyzers cannot be used through HIGHLIGHT"),
+                not(containsString("[my_custom_analyzer] is not a registered analyzer"))
+            )
+        );
     }
 
     public void testHighlightImplicitRejectedOnOlderTransportVersion() {

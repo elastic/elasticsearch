@@ -35,14 +35,12 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
@@ -383,38 +381,39 @@ public class Highlight extends UnaryPlan
     }
 
     /**
-     * Message when a borrowed WHERE analyzer is not a node-level analyzer. A name the user typed in {@code WITH}
-     * keeps the raw failure, which already names their option.
+     * Message when a borrowed WHERE analyzer is not a node-level analyzer. Covers ON-field primaries, off-ON leaf
+     * analyzers, and {@code quote_analyzer}. A name the user typed in {@code WITH} keeps the raw failure.
      */
-    private String unresolvedAnalyzerMessage(
-        Map<String, String> fieldAnalyzerNames,
-        AnalysisRegistry analysisRegistry,
-        InvalidArgumentException failure
-    ) {
-        if (implicitQuery) {
-            Set<String> fromWhereLeaves = HighlightSupport.primaryAnalyzerNamesOf(query);
-            for (String name : fieldAnalyzerNames.values()) {
-                if (fromWhereLeaves.contains(name) && resolves(name, analysisRegistry) == false) {
-                    return "HIGHLIGHT auto-derived analyzer ["
-                        + name
-                        + "] from WHERE, but ["
-                        + name
-                        + "] is not a registered node-level analyzer. Custom per-index analyzers cannot be used "
-                        + "through HIGHLIGHT; write an explicit HIGHLIGHT ... WITH {\"analyzer\": "
-                        + "\"<a-registered-name>\"}.";
-                }
+    private String unresolvedAnalyzerMessage(String fallback) {
+        if (implicitQuery == false) {
+            return fallback;
+        }
+        for (String name : HighlightSupport.primaryAnalyzerNamesOf(query)) {
+            String rewritten = borrowedUnresolvedAnalyzerMessage(name, fallback);
+            if (rewritten != null) {
+                return rewritten;
             }
         }
-        return failure.getMessage();
+        for (String name : HighlightSupport.extraAnalyzerNamesOf(query)) {
+            String rewritten = borrowedUnresolvedAnalyzerMessage(name, fallback);
+            if (rewritten != null) {
+                return rewritten;
+            }
+        }
+        return fallback;
     }
 
-    private static boolean resolves(String analyzerName, AnalysisRegistry analysisRegistry) {
-        try {
-            PlannerUtils.resolveAnalyzer(analyzerName, analysisRegistry);
-            return true;
-        } catch (InvalidArgumentException e) {
-            return false;
+    private static String borrowedUnresolvedAnalyzerMessage(String name, String fallback) {
+        if (fallback.contains("[" + name + "] is not a registered analyzer") == false) {
+            return null;
         }
+        return "HIGHLIGHT auto-derived analyzer ["
+            + name
+            + "] from WHERE, but ["
+            + name
+            + "] is not a registered node-level analyzer. Custom per-index analyzers cannot be used "
+            + "through HIGHLIGHT; write an explicit HIGHLIGHT ... WITH {\"analyzer\": "
+            + "\"<a-registered-name>\"}.";
     }
 
     private void verifyQuery(Map<String, String> fieldAnalyzerNames, Failures failures, AnalysisRegistry analysisRegistry) {
@@ -422,7 +421,7 @@ public class Highlight extends UnaryPlan
         try {
             fieldAnalyzers = HighlightQueryBuilders.resolveFieldAnalyzers(fieldAnalyzerNames, analysisRegistry);
         } catch (InvalidArgumentException e) {
-            failures.add(fail(this, "{}", unresolvedAnalyzerMessage(fieldAnalyzerNames, analysisRegistry, e)));
+            failures.add(fail(this, "{}", unresolvedAnalyzerMessage(e.getMessage())));
             return;
         }
         try {
@@ -438,7 +437,7 @@ public class Highlight extends UnaryPlan
         } catch (IllegalArgumentException e) {
             // Attach to the query node, not this Highlight node: failures dedupe by node, so pinning it here would let a
             // co-located option/analyzer failure on this node swallow the query error (see VerifierTests#testHighlightAnalyzerOption).
-            failures.add(fail(query, "{}", e.getMessage()));
+            failures.add(fail(query, "{}", unresolvedAnalyzerMessage(e.getMessage())));
         }
     }
 

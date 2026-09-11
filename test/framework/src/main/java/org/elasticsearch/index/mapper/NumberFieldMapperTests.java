@@ -460,11 +460,12 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             } else {
                 Stream<Object> nonMalformed = values.stream().filter(v -> v.v2() instanceof Number).map(t -> round.apply((Number) t.v2()));
                 List<Object> outList = (isColumnar ? nonMalformed : nonMalformed.sorted()).collect(Collectors.toCollection(ArrayList::new));
-                List<Object> malformed = values.stream()
-                    .filter(v -> false == v.v2() instanceof Number)
-                    .map(Tuple::v2)
-                    .sorted(SyntheticSourceMalformedValueSorter.comparator())
-                    .toList();
+                // Columnar indices route malformed values to the UNSORTED ._on_failure column (encounter order);
+                // non-columnar indices use the SORTED ._ignore_malformed column.
+                Stream<Object> malformedStream = values.stream().filter(v -> false == v.v2() instanceof Number).map(Tuple::v2);
+                List<Object> malformed = (isColumnar
+                    ? malformedStream
+                    : malformedStream.sorted(SyntheticSourceMalformedValueSorter.comparator())).toList();
                 malformed.forEach(outList::add);
                 var out = outList.size() == 1 ? outList.get(0) : outList;
 

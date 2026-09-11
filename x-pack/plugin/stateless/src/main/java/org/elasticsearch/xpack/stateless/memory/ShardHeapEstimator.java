@@ -33,42 +33,36 @@ public class ShardHeapEstimator {
     private final double adaptiveExtraOverheadRatio;
     private final long adaptiveShardMemoryEstimationMinThreshold;
     private final boolean selfReportedShardMemoryOverheadEnabled;
-    private final boolean includePostingsInEstimate;
 
     public ShardHeapEstimator(
         ByteSizeValue fixedShardMemoryOverhead,
         double adaptiveExtraOverheadRatio,
         long adaptiveShardMemoryEstimationMinThreshold,
-        boolean selfReportedShardMemoryOverheadEnabled,
-        boolean includePostingsInEstimate
+        boolean selfReportedShardMemoryOverheadEnabled
     ) {
         this.fixedShardMemoryOverhead = fixedShardMemoryOverhead;
         this.adaptiveExtraOverheadRatio = adaptiveExtraOverheadRatio;
         this.adaptiveShardMemoryEstimationMinThreshold = adaptiveShardMemoryEstimationMinThreshold;
         this.selfReportedShardMemoryOverheadEnabled = selfReportedShardMemoryOverheadEnabled;
-        this.includePostingsInEstimate = includePostingsInEstimate;
     }
 
     /// Computes the shard-level heap usage: the self-reported overhead if [#selfReportedShardMemoryOverheadEnabled] is true and
-    /// there is one available, otherwise [#estimateShardOverheadExcludingPostings] adding postings if
-    /// [#includePostingsInEstimate] is true.
+    /// there is one available, otherwise [#estimateShardOverheadExcludingPostings] this estimate excludes postings.
     ///
     /// Ignores index-level heap usage, [#computeIndexHeapUsage] should be called for that.
     public long computeShardHeapUsage(StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics) {
         if (isSelfReportedShardMemoryOverheadAvailable(shardMemoryMetrics)) {
             return shardMemoryMetrics.getShardMemoryOverheadBytes();
         }
-        final long postingsMemoryInBytes = includePostingsInEstimate ? shardMemoryMetrics.getPostingsInMemoryBytes() : 0;
-        return estimateShardOverheadExcludingPostings(shardMemoryMetrics) + postingsMemoryInBytes;
+        return estimateShardOverheadExcludingPostings(shardMemoryMetrics);
     }
 
-    /// Get the "effective postings". If we're tracking postings separately, and the shard doesn't have a self-reported
-    /// overhead, or self-reported overheads are disabled, [StatelessMemoryMetricsService.ShardMemoryMetrics#getPostingsInMemoryBytes()]
-    /// is returned. Otherwise, zero is returned, because any postings will be included in [#computeShardHeapUsage]
-    public long getEffectiveShardPostingsInBytes(StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics) {
-        if (includePostingsInEstimate == false
-            && (selfReportedShardMemoryOverheadEnabled == false
-                || shardMemoryMetrics.getShardMemoryOverheadBytes() == UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES)) {
+    /// Get the amount of memory required for the shard's postings. If the shard doesn't have a self-reported overhead, or self-reported
+    /// overheads are disabled, [StatelessMemoryMetricsService.ShardMemoryMetrics#getPostingsInMemoryBytes()] is returned.
+    /// Otherwise, zero is returned.
+    public long getShardPostingsInBytes(StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics) {
+        if (selfReportedShardMemoryOverheadEnabled == false
+            || shardMemoryMetrics.getShardMemoryOverheadBytes() == UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES) {
             return shardMemoryMetrics.getPostingsInMemoryBytes();
         }
         return 0;

@@ -25,7 +25,7 @@ public class StatelessMemoryMetricsServiceTestUtils {
         return new ShardAndIndexHeapEstimate(
             shardHeapEstimator.computeShardHeapUsage(shardMemoryMetrics),
             shardHeapEstimator.computeIndexHeapUsage(shardMemoryMetrics),
-            shardHeapEstimator.getEffectiveShardPostingsInBytes(shardMemoryMetrics)
+            shardHeapEstimator.getShardPostingsInBytes(shardMemoryMetrics)
         );
     }
 

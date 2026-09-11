@@ -878,7 +878,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return new ShardAndIndexHeapUsage(
             shardHeapEstimator.computeShardHeapUsage(shardMemoryMetrics),
             shardHeapEstimator.computeIndexHeapUsage(shardMemoryMetrics),
-            shardHeapEstimator.getEffectiveShardPostingsInBytes(shardMemoryMetrics)
+            shardHeapEstimator.getShardPostingsInBytes(shardMemoryMetrics)
         );
     }
 
@@ -950,8 +950,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             fixedShardMemoryOverhead,
             adaptiveExtraOverheadRatio,
             adaptiveShardMemoryEstimationMinThresholdEnabled ? getAdaptiveShardMemoryEstimationMinThreshold() : 0,
-            useSelfReportedShardOverhead,
-            false
+            useSelfReportedShardOverhead
         );
     }
 

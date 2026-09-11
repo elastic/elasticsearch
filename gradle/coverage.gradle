@@ -1,0 +1,113 @@
+/*
+ * Code-coverage instrumentation, applied as an init script:
+ *
+ *   ./gradlew -I gradle/coverage.gradle -Dcoverage.agent=... -Dcoverage.projects=':x-pack:plugin:esql-datasource-*' ...
+ *
+ * Attaches the JaCoCo agent to the JVMs that actually execute product code. There are two of
+ * those, and the second is the one that is easy to get wrong:
+ *
+ *   1. Forked test JVMs — unit tests and internalClusterTest (whose cluster is in-JVM), reached
+ *      through jvmArgumentProviders.
+ *
+ *   2. Test-cluster node processes — javaRestTest/yamlRestTest/qa run product code in separate ES
+ *      node JVMs that Gradle does not launch. AbstractLocalClusterFactory joins the test JVM's
+ *      `tests.jvm.argline` system property into each node's ES_JAVA_OPTS, so setting it per test
+ *      task is how the agent gets in. (Setting it as a *task* system property reaches only the
+ *      node JVMs; ElasticsearchTestBasePlugin reads the same-named property from the build JVM,
+ *      absent here, so the test JVM does not get a second agent.)
+ *
+ * Nodes use output=tcpclient rather than a file, for three independent reasons:
+ *
+ *   - Cluster teardown is forcible: DefaultLocalClusterHandle.close() calls stop(true), which is
+ *     ProcessUtils.stopHandle -> destroyForcibly. No shutdown hook runs, so `dumponexit` never
+ *     writes. Coverage has to leave the process before it dies.
+ *   - Even on a graceful stop, the entitlements runtime denies the JaCoCo shutdown-hook file
+ *     write inside the node process (NotEntitledException on FileOutput.write, verified
+ *     2026-07-29). In tcpclient mode all file I/O happens in the collector process instead.
+ *   - `tests.jvm.argline` is task-wide, so every concurrent node gets identical options. With
+ *     output=tcpserver they would all try to bind the same port and all but one would fail.
+ *
+ * In tcpclient mode each node dials out to CollectorServer, which requests dumps while the node is
+ * still alive. See .buildkite/scripts/coverage/CollectorServer.java. The node channels are armed
+ * only when -Dcoverage.port is set (the runner sets it for the cluster layer only), so unit and
+ * internal-cluster runs never configure an agent that would dial a dead port.
+ *
+ * This file is deliberately parameterised: it hardcodes the mechanism, never the target.
+ */
+
+import org.gradle.process.CommandLineArgumentProvider
+
+// --- Parameters. Everything about *what* is measured comes from here. ---------------------------
+
+// Gradle project-path pattern selecting the projects to instrument, e.g. ':x-pack:plugin:esql*'.
+// Standard Gradle path syntax; '*' matches any run of characters.
+def projectPattern = System.getProperty('coverage.projects', ':x-pack:plugin:esql*')
+
+// JaCoCo class-include pattern, colon-separated. Standard agent syntax.
+def includes = System.getProperty(
+    'coverage.includes',
+    'org.elasticsearch.xpack.esql.*:org.elasticsearch.compute.*:org.elasticsearch.arrow.*'
+)
+
+// Where exec files land, and where CollectorServer is listening for node connections. The node
+// channels are configured only when coverage.port is set.
+def outputDir = new File(System.getProperty('coverage.output', "${System.getProperty('java.io.tmpdir')}/coverage"))
+def agentJar = System.getProperty('coverage.agent')
+def collectorPort = System.getProperty('coverage.port')
+
+if (agentJar == null) {
+    throw new GradleException('coverage.agent is required: -Dcoverage.agent=/path/to/org.jacoco.agent-runtime.jar')
+}
+
+def execDir = new File(outputDir, 'exec')
+execDir.mkdirs()
+
+// Translate the project-path pattern into a regex once. '*' matches any run of characters,
+// including ':'. Keep in sync with coverage_pattern_regex in .buildkite/scripts/coverage/lib.sh.
+def projectRegex = ~('^' + java.util.regex.Pattern.quote(projectPattern).replace('*', '\\E.*\\Q') + '$')
+
+// --- Mechanism. Fixed; do not parameterise. ----------------------------------------------------
+
+allprojects { proj ->
+    if (!projectRegex.matcher(proj.path).matches()) {
+        return
+    }
+
+    proj.tasks.withType(Test).configureEach { t ->
+
+        // (1) The forked test JVM itself. Covers unit tests, and internalClusterTest because its
+        // cluster runs in-process.
+        def dest = new File(execDir, (proj.path + '__' + t.name).replaceAll('[:/#]', '_') + '.exec')
+        t.jvmArgumentProviders.add(new CommandLineArgumentProvider() {
+            @Override
+            Iterable<String> asArguments() {
+                return ["-javaagent:${agentJar}=destfile=${dest.absolutePath},append=true,output=file,dumponexit=true,includes=${includes}".toString()]
+            }
+        })
+
+        // (2) Test-cluster node processes launched by the JUnit local-cluster framework
+        // (ElasticsearchCluster @ClassRule). Read the header comment before changing any of this.
+        if (collectorPort != null) {
+            t.systemProperty(
+                'tests.jvm.argline',
+                "-javaagent:${agentJar}=output=tcpclient,address=127.0.0.1,port=${collectorPort},includes=${includes}".toString()
+            )
+        }
+    }
+
+    // (3) Node processes launched by the legacy Gradle testclusters plugin. The ES|QL qa suites
+    // do not use this (verified: their clusters come from the JUnit local-cluster framework), but
+    // other targets of the parameterised scope may. Same tcpclient channel, same collector.
+    if (collectorPort != null) {
+        proj.plugins.withId('elasticsearch.testclusters') {
+            def container = proj.extensions.findByName('testClusters')
+            if (container != null) {
+                container.configureEach { cluster ->
+                    cluster.jvmArgs(
+                        "-javaagent:${agentJar}=output=tcpclient,address=127.0.0.1,port=${collectorPort},includes=${includes}".toString()
+                    )
+                }
+            }
+        }
+    }
+}

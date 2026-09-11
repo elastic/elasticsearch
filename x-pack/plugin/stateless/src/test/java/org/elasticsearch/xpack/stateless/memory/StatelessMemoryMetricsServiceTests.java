@@ -133,13 +133,13 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         var shardHeapUsages = service.getShardHeapUsages();
         {
             final var estimate = estimateHeapUsageExcludingPostings(service, shardMemoryMetrics1);
-            assertThat(shardHeapUsages.get(shardId1).shardHeapUsageBytes(), equalTo(estimate.shardHeapEstimate()));
+            assertThat(shardHeapUsages.get(shardId1).shardHeapUsageExcludingPostingsBytes(), equalTo(estimate.shardHeapEstimate()));
             assertThat(shardHeapUsages.get(shardId1).indexHeapUsageBytes(), equalTo(estimate.indexHeapEstimate()));
             assertThat(shardHeapUsages.get(shardId1).shardPostingsHeapUsageBytes(), equalTo(estimate.shardPostingsHeapEstimate()));
         }
         {
             final var estimate = estimateHeapUsageExcludingPostings(service, shardMemoryMetrics2);
-            assertThat(shardHeapUsages.get(shardId2).shardHeapUsageBytes(), equalTo(estimate.shardHeapEstimate()));
+            assertThat(shardHeapUsages.get(shardId2).shardHeapUsageExcludingPostingsBytes(), equalTo(estimate.shardHeapEstimate()));
             assertThat(shardHeapUsages.get(shardId2).indexHeapUsageBytes(), equalTo(estimate.indexHeapEstimate()));
             assertThat(shardHeapUsages.get(shardId2).shardPostingsHeapUsageBytes(), equalTo(estimate.shardPostingsHeapEstimate()));
         }
@@ -220,7 +220,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             initialEstimate.shardPostingsHeapEstimate()
         );
         final long expectedHostedShardsHeapUsage = Math.addExact(
-            Math.addExact(expectedShardHeapUsage.shardHeapUsageBytes(), expectedShardHeapUsage.indexHeapUsageBytes()),
+            Math.addExact(expectedShardHeapUsage.shardHeapUsageExcludingPostingsBytes(), expectedShardHeapUsage.indexHeapUsageBytes()),
             expectedShardHeapUsage.shardPostingsHeapUsageBytes()
         );
         final long expectedNonShardHeapUsage = Math.addExact(
@@ -338,7 +338,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
                 var perShardUsages = service.getShardHeapUsages();
                 if (perShardUsages.containsKey(shardId)) {
-                    assertThat(perShardUsages.get(shardId).shardHeapUsageBytes(), equalTo(estimate.shardHeapEstimate()));
+                    assertThat(perShardUsages.get(shardId).shardHeapUsageExcludingPostingsBytes(), equalTo(estimate.shardHeapEstimate()));
                     assertThat(perShardUsages.get(shardId).indexHeapUsageBytes(), equalTo(estimate.indexHeapEstimate()));
                     assertThat(perShardUsages.get(shardId).shardPostingsHeapUsageBytes(), equalTo(estimate.shardPostingsHeapEstimate()));
                 }

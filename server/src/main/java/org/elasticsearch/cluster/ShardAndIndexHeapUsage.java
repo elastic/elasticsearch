@@ -20,14 +20,15 @@ import static org.elasticsearch.cluster.NodeHeapEstimates.EXPLICIT_HEAP_ESTIMATE
 /**
  * Tracks the heap usage inputs for a shard when deriving node-level heap estimates.
  *
- * @param shardHeapUsageBytes heap usage attributed directly to the shard, excluding postings heap that must be handled separately
+ * @param shardHeapUsageExcludingPostingsBytes heap usage attributed directly to the shard, excluding postings heap that must be handled
+ *                                             separately
  * @param indexHeapUsageBytes heap usage attributed to the shard's index; counted once per index on each node that hosts a shard of the
  *                            index
  * @param shardPostingsHeapUsageBytes postings heap usage attributed to the shard; tracked separately because total heap usage uses the
  *                                    maximum hosted postings heap across the estimated nodes, while hosted-shards usage uses the node-local
  *                                    postings value
  */
-public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsageBytes, long shardPostingsHeapUsageBytes)
+public record ShardAndIndexHeapUsage(long shardHeapUsageExcludingPostingsBytes, long indexHeapUsageBytes, long shardPostingsHeapUsageBytes)
     implements
         Writeable {
 
@@ -39,7 +40,7 @@ public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsa
     }
 
     public ShardAndIndexHeapUsage {
-        assert shardHeapUsageBytes >= 0;
+        assert shardHeapUsageExcludingPostingsBytes >= 0;
         assert indexHeapUsageBytes >= 0;
         assert shardPostingsHeapUsageBytes >= 0;
     }
@@ -49,18 +50,18 @@ public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsa
     }
 
     public long shardHeapUsageIncludingPostingsBytes() {
-        return Math.addExact(shardHeapUsageBytes, shardPostingsHeapUsageBytes);
+        return Math.addExact(shardHeapUsageExcludingPostingsBytes, shardPostingsHeapUsageBytes);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(EXPLICIT_HEAP_ESTIMATE_COMPONENTS)) {
-            out.writeLong(this.shardHeapUsageBytes);
+            out.writeLong(this.shardHeapUsageExcludingPostingsBytes);
             out.writeLong(this.indexHeapUsageBytes);
             out.writeLong(this.shardPostingsHeapUsageBytes);
         } else {
             // Legacy readers do not have a separate postings field, so keep their effective shard heap unchanged.
-            out.writeLong(Math.addExact(this.shardHeapUsageBytes, this.shardPostingsHeapUsageBytes));
+            out.writeLong(Math.addExact(this.shardHeapUsageExcludingPostingsBytes, this.shardPostingsHeapUsageBytes));
             out.writeLong(this.indexHeapUsageBytes);
         }
     }
@@ -68,8 +69,8 @@ public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsa
     @Override
     public String toString() {
         return getClass().getSimpleName()
-            + "{shardHeapUsageBytes="
-            + shardHeapUsageBytes
+            + "{shardHeapUsageExcludingPostingsBytes="
+            + shardHeapUsageExcludingPostingsBytes
             + ", indexHeapUsageBytes="
             + indexHeapUsageBytes
             + ", shardPostingsHeapUsageBytes="

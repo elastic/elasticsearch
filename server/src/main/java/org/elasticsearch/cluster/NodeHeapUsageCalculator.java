@@ -152,7 +152,7 @@ public final class NodeHeapUsageCalculator {
 
         private void add(ShardId shardId) {
             final var shardAndIndexHeapUsage = shardHeapUsageEstimates.getOrDefault(shardId);
-            shardHeapUsage = Math.addExact(shardHeapUsage, shardAndIndexHeapUsage.shardHeapUsageBytes());
+            shardHeapUsage = Math.addExact(shardHeapUsage, shardAndIndexHeapUsage.shardHeapUsageExcludingPostingsBytes());
             postingsHeapUsage = Math.addExact(postingsHeapUsage, shardAndIndexHeapUsage.shardPostingsHeapUsageBytes());
             if (seenIndices.add(shardId.getIndex())) {
                 indexHeapUsage = Math.addExact(indexHeapUsage, shardAndIndexHeapUsage.indexHeapUsageBytes());

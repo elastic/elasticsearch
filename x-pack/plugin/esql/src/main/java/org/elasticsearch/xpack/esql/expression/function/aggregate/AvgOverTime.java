@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.data.HistogramBlock;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -41,7 +42,8 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
         OptionalArgument,
         SurrogateExpression,
         TimestampAware,
-        AggregateMetricDoubleNativeSupport {
+        AggregateMetricDoubleNativeSupport,
+        AnyNullIsNull {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(AvgOverTime.class)
         .ternary(AvgOverTime::new)
         .name("avg_over_time");

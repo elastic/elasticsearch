@@ -17,6 +17,7 @@ import org.elasticsearch.compute.aggregation.IrateLongAggregatorFunctionSupplier
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -49,7 +50,8 @@ public class Irate extends TimeSeriesAggregateFunction
         ToAggregator,
         TimestampAware,
         TemporalityAware,
-        TransportVersionAware {
+        TransportVersionAware,
+        AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Irate_v2",

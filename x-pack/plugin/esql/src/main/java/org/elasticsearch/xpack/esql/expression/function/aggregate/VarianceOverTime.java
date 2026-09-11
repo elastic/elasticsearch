@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -31,7 +32,7 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link Variance}, but it is used to calculate the variance over a time series of values from the given field.
  */
-public class VarianceOverTime extends TimeSeriesAggregateFunction implements ToAggregator {
+public class VarianceOverTime extends TimeSeriesAggregateFunction implements ToAggregator, AnyNullIsNull {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(VarianceOverTime.class)
         .binary(VarianceOverTime::new)
         .name("variance_over_time", "stdvar_over_time");

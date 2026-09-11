@@ -19,6 +19,7 @@ import org.elasticsearch.compute.aggregation.SampleLongAggregatorFunctionSupplie
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -47,7 +48,7 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionVa
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeLimit;
 
-public class Sample extends UnaryAggregateFunction implements ToAggregator, PostOptimizationVerificationAware {
+public class Sample extends UnaryAggregateFunction implements ToAggregator, PostOptimizationVerificationAware, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sample", Sample::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sample.class)
         .binary(Sample::new)

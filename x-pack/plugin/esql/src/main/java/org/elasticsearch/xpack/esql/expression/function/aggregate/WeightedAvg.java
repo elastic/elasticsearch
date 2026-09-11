@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -34,7 +35,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class WeightedAvg extends AggregateFunction implements OnlySurrogateExpression {
+public class WeightedAvg extends AggregateFunction implements OnlySurrogateExpression, AnyNullIsNull {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(WeightedAvg.class)
         .binary(WeightedAvg::new)
         .name("weighted_avg");

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -31,7 +32,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 /**
  * Returns the sample value if there is exactly one element, otherwise returns NaN.
  */
-public class Scalar extends UnaryAggregateFunction implements SurrogateExpression {
+public class Scalar extends UnaryAggregateFunction implements SurrogateExpression, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Scalar", Scalar::new);
 
     public Scalar(Source source, Expression field) {

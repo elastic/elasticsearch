@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -43,7 +44,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *     </li>
  * </ul>
  */
-public abstract class NumericAggregate extends UnaryAggregateFunction implements ToAggregator {
+public abstract class NumericAggregate extends UnaryAggregateFunction implements ToAggregator, AnyNullIsNull {
 
     NumericAggregate(Source source, Expression field, Expression filter, Expression window, List<Expression> parameters) {
         super(source, field, filter, window, parameters);

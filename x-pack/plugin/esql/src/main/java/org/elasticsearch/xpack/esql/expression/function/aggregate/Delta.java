@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.DeltaDoubleAggregatorFunctionSuppli
 import org.elasticsearch.compute.aggregation.DeltaIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DeltaLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -40,7 +41,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 
-public class Delta extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
+public class Delta extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Delta", Delta::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Delta.class).ternary(Delta::new).name("delta");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()

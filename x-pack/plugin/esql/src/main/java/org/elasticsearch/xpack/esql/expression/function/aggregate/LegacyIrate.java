@@ -15,6 +15,7 @@ import org.elasticsearch.compute.aggregation.LegacyIrateIntAggregatorFunctionSup
 import org.elasticsearch.compute.aggregation.LegacyIrateLongAggregatorFunctionSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -36,7 +37,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * This is used for backwards compatibility with older cluster nodes.
  * New code should use {@link Irate} instead.
  */
-public class LegacyIrate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware, TemporalityAware {
+public class LegacyIrate extends TimeSeriesAggregateFunction
+    implements
+        OptionalArgument,
+        ToAggregator,
+        TimestampAware,
+        TemporalityAware,
+        AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Irate",

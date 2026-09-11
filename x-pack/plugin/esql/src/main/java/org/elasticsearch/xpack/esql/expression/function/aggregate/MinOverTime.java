@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -42,7 +43,8 @@ public class MinOverTime extends TimeSeriesAggregateFunction
         SurrogateExpression,
         TimestampAware,
         AggregateMetricDoubleNativeSupport,
-        ToAggregator {
+        ToAggregator,
+        AnyNullIsNull {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MinOverTime.class)
         .ternary(MinOverTime::new)
         .name("min_over_time");

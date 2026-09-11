@@ -18,6 +18,7 @@ import org.elasticsearch.compute.aggregation.LastFloatByTimestampAggregatorFunct
 import org.elasticsearch.compute.aggregation.LastIntByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastLongByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -44,7 +45,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class LastOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
+public class LastOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "LastOverTime",

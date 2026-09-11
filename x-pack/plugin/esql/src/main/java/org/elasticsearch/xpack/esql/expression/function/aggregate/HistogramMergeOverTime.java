@@ -15,6 +15,7 @@ import org.elasticsearch.compute.aggregation.IncreaseExponentialHistogramGroupin
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -50,7 +51,8 @@ public class HistogramMergeOverTime extends TimeSeriesAggregateFunction
         TimestampAware,
         TemporalityAware,
         TransportVersionAware,
-        SurrogateExpression {
+        SurrogateExpression,
+        AnyNullIsNull {
 
     public static final TransportVersion INTRODUCTION_VERSION = TransportVersion.fromName("histogram_merge_over_time_cumulative_exp_histo");
 

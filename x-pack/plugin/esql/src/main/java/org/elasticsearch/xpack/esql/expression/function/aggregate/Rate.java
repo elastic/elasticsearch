@@ -15,6 +15,7 @@ import org.elasticsearch.compute.aggregation.RateIntGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.RateLongGroupingAggregatorFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -41,7 +42,13 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Rate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware, TemporalityAware {
+public class Rate extends TimeSeriesAggregateFunction
+    implements
+        OptionalArgument,
+        ToAggregator,
+        TimestampAware,
+        TemporalityAware,
+        AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Rate.class)

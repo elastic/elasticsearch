@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -23,7 +24,7 @@ import java.util.List;
  * The purpose of this class is to provide a better type resolution error message for implicit time-series aggregations.
  * It avoids having to change the source text of the field expression, which would be more invasive.
  */
-public class DefaultTimeSeriesAggregateFunction extends TimeSeriesAggregateFunction implements SurrogateExpression {
+public class DefaultTimeSeriesAggregateFunction extends TimeSeriesAggregateFunction implements SurrogateExpression, AnyNullIsNull {
 
     private final TimeSeriesAggregateFunction delegate;
     private final Expression timestamp;

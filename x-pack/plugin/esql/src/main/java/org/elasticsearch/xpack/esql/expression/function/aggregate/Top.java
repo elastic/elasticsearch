@@ -48,6 +48,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -90,7 +91,8 @@ public class Top extends AggregateFunction
         TwoOptionalArguments,
         ToAggregator,
         SurrogateExpression,
-        PostOptimizationVerificationAware {
+        PostOptimizationVerificationAware,
+        AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Top.class)
         .quaternary(Top::new)
@@ -476,9 +478,6 @@ public class Top extends AggregateFunction
     @Override
     public Expression surrogate() {
         var s = source();
-        if (field().dataType() == DataType.NULL || (outputField() != null && outputField().dataType() == DataType.NULL)) {
-            return new Literal(s, null, DataType.NULL);
-        }
         // If the `outputField` is specified but its value is the same as `field` then we do not need to handle `outputField` separately.
         if (outputField() != null && field().semanticEquals(outputField())) {
             return new Top(s, field(), null, filter(), window(), limitField(), orderField());

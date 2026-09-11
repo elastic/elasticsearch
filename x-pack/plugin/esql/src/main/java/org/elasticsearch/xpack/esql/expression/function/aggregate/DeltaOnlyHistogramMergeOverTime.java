@@ -16,6 +16,7 @@ import org.elasticsearch.compute.aggregation.DeltaOnlyHistogramMergeOverTimeTDig
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -51,7 +52,8 @@ public class DeltaOnlyHistogramMergeOverTime extends TimeSeriesAggregateFunction
         OptionalArgument,
         ToAggregator,
         TemporalityAware,
-        TransportVersionAware {
+        TransportVersionAware,
+        AnyNullIsNull {
 
     /**
      * Prior to this version, {@link DeltaOnlyHistogramMergeOverTime} had no aggregator.

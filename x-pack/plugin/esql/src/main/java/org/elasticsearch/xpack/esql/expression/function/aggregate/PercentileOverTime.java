@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -31,7 +32,12 @@ import java.util.List;
 /**
  * Similar to {@link Percentile}, but it is used to calculate the percentile value over a time series of values from the given field.
  */
-public class PercentileOverTime extends TimeSeriesAggregateFunction implements SurrogateExpression, TimestampAware, ToAggregator {
+public class PercentileOverTime extends TimeSeriesAggregateFunction
+    implements
+        SurrogateExpression,
+        TimestampAware,
+        ToAggregator,
+        AnyNullIsNull {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(PercentileOverTime.class)
         .ternary(PercentileOverTime::new)
         .name("percentile_over_time");

@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -25,7 +26,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproxima
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
@@ -138,15 +141,14 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
         if (hasFalseFilter(aggFunction)) {
             return true;
         }
-        /*
-         * Look for aggregations operating on `null`. If they are wrapped in FROM_PARTIAL
-         * or TO_PARTIAL, then unwrap them and operate on the internal agg.
-         */
-        if (aggFunction instanceof ToPartial toPartial && toPartial.function() instanceof AggregateFunction inner) {
-            // TODO(jan): investigate
-            return DataType.isNull(inner.fields().getFirst().dataType());
+        aggFunction = unwrapToPartial(unwrapFromPartial(aggFunction));
+        if (aggFunction instanceof AnyNullIsNull || mapNullToValue(aggFunction) != null) {
+            return aggFunction.fields().stream().anyMatch(field -> DataType.isNull(field.dataType()));
         }
-        return DataType.isNull(unwrapFromPartial(aggFunction).fields().getFirst().dataType());
+        if (aggFunction instanceof First || aggFunction instanceof Last) {
+            return DataType.isNull(aggFunction.fields().getFirst().dataType());
+        }
+        return false;
     }
 
     private static boolean hasFalseFilter(AggregateFunction aggFunction) {
@@ -159,6 +161,17 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
      */
     private static AggregateFunction unwrapFromPartial(AggregateFunction aggFunction) {
         if (aggFunction instanceof FromPartial fromPartial && fromPartial.function() instanceof AggregateFunction inner) {
+            return inner;
+        }
+        return aggFunction;
+    }
+
+    /**
+     * If {@code aggFunction} is a {@link ToPartial} whose inner function is an {@link AggregateFunction},
+     * returns that inner function; otherwise returns {@code aggFunction} itself.
+     */
+    private static AggregateFunction unwrapToPartial(AggregateFunction aggFunction) {
+        if (aggFunction instanceof ToPartial toPartial && toPartial.function() instanceof AggregateFunction inner) {
             return inner;
         }
         return aggFunction;

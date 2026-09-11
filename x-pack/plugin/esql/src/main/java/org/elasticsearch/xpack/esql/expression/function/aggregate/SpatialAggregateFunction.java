@@ -12,6 +12,7 @@ import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -25,7 +26,7 @@ import static java.util.Collections.emptyList;
  * The AggregateMapper class will generate multiple aggregation functions for each combination, allowing the planner to
  * select the best one.
  */
-public abstract class SpatialAggregateFunction extends UnaryAggregateFunction implements LicenseAware {
+public abstract class SpatialAggregateFunction extends UnaryAggregateFunction implements LicenseAware, AnyNullIsNull {
     protected final FieldExtractPreference fieldExtractPreference;
 
     protected SpatialAggregateFunction(

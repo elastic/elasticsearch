@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.HistogramBlock;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -41,7 +42,8 @@ public class SumOverTime extends TimeSeriesAggregateFunction
         SurrogateExpression,
         TimestampAware,
         AggregateMetricDoubleNativeSupport,
-        ToAggregator {
+        ToAggregator,
+        AnyNullIsNull {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(SumOverTime.class)
         .ternary(SumOverTime::new)
         .name("sum_over_time");

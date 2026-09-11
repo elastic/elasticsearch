@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer.FoldInferenceFunctions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer.LogicalPlanPreOptimizerRule;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer.WarnNullMisuse;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
@@ -26,7 +27,7 @@ public class LogicalPlanPreOptimizer {
     private final List<LogicalPlanPreOptimizerRule> preOptimizerRules;
 
     public LogicalPlanPreOptimizer(LogicalPreOptimizerContext preOptimizerContext) {
-        this(List.of(new FoldInferenceFunctions(preOptimizerContext)));
+        this(List.of(new WarnNullMisuse(), new FoldInferenceFunctions(preOptimizerContext)));
     }
 
     LogicalPlanPreOptimizer(List<LogicalPlanPreOptimizerRule> preOptimizerRules) {

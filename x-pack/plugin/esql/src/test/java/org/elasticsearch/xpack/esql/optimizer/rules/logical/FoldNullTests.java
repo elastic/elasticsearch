@@ -53,10 +53,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
@@ -67,6 +69,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
@@ -306,6 +310,78 @@ public class FoldNullTests extends ESTestCase {
         Literal folded = as(foldNull(add), Literal.class);
         assertNull(folded.value());
         assertEquals(add.dataType(), folded.dataType());
+    }
+
+    public void testAnyNullIsNullFoldsEvenIfASiblingIsUnknownNullable() {
+        Concat concat = new Concat(
+            EMPTY,
+            new Coalesce(EMPTY, getFieldAttribute("a", KEYWORD), List.of(Literal.keyword(EMPTY, "x"))),
+            List.of(NULL)
+        );
+        assertNullLiteral(foldNull(concat));
+    }
+
+    public void testEqualsNullSuggestsIsNull() {
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 19, "emp_no"));
+        Equals equals = new Equals(new Source(1, 19, "emp_no == NULL"), field, NULL);
+        assertNullLiteral(foldNull(equals));
+        assertEquals("emp_no IS NULL", equals.nullMisuseAlternative());
+    }
+
+    public void testNotEqualsNullSuggestsIsNotNull() {
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 19, "emp_no"));
+        NotEquals notEquals = new NotEquals(new Source(1, 19, "emp_no != NULL"), field, NULL);
+        assertNullLiteral(foldNull(notEquals));
+        assertEquals("emp_no IS NOT NULL", notEquals.nullMisuseAlternative());
+    }
+
+    public void testInsensitiveEqualsNullSuggestsIsNull() {
+        var field = getFieldAttribute("name", KEYWORD).withLocation(new Source(1, 12, "name"));
+        InsensitiveEquals insensitiveEquals = new InsensitiveEquals(new Source(1, 12, "name =~ NULL"), field, NULL);
+        assertNullLiteral(foldNull(insensitiveEquals));
+        assertEquals("name IS NULL", insensitiveEquals.nullMisuseAlternative());
+    }
+
+    public void testNotSuggestsIsNotNullWhenChildIsEquals() {
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 24, "emp_no"));
+        Equals equals = new Equals(new Source(1, 24, "emp_no == NULL"), field, NULL);
+        Not not = new Not(new Source(1, 19, "NOT (emp_no == NULL)"), equals);
+        assertNullLiteral(foldNull(not));
+        assertEquals("emp_no IS NOT NULL", not.nullMisuseAlternative());
+    }
+
+    public void testInAllNullListSuggestsIsNull() {
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 12, "emp_no"));
+        In in = new In(new Source(1, 12, "emp_no IN (NULL, NULL)"), field, List.of(NULL, NULL));
+        assertNullLiteral(foldNull(in));
+        assertEquals("emp_no IS NULL", in.nullMisuseAlternative());
+    }
+
+    public void testInNullValueHasNoAlternative() {
+        var field = getFieldAttribute("emp_no");
+        In in = new In(new Source(1, 12, "NULL IN (emp_no, 1)"), NULL, List.of(field, L(1)));
+        assertNullLiteral(foldNull(in));
+        assertNull(in.nullMisuseAlternative());
+    }
+
+    public void testInValueAndNullDoesNotFold() {
+        var field = getFieldAttribute("emp_no");
+        In in = new In(EMPTY, field, List.of(L(1), NULL));
+        assertSame(in, foldNull(in));
+        assertNull(in.nullMisuseAlternative());
+    }
+
+    public void testNotInAllNullListSuggestsIsNotNull() {
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 12, "emp_no"));
+        In in = new In(new Source(1, 12, "emp_no NOT IN (NULL, NULL)"), field, List.of(NULL, NULL));
+        Not not = new Not(new Source(1, 12, "emp_no NOT IN (NULL, NULL)"), in);
+        assertNullLiteral(foldNull(not));
+        assertEquals("emp_no IS NOT NULL", not.nullMisuseAlternative());
+    }
+
+    public void testArithmeticNullHasNoAlternative() {
+        var field = getFieldAttribute("emp_no");
+        assertNullLiteral(foldNull(new Add(new Source(1, 16, "emp_no + NULL"), field, NULL, TEST_CFG)));
     }
 
     private void assertNullLiteral(Expression expression) {

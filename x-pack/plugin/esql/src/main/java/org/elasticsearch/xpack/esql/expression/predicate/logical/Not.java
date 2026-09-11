@@ -14,7 +14,10 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -22,6 +25,9 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
@@ -30,7 +36,13 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoolean;
 
-public class Not extends UnaryScalarFunction implements EvaluatorMapper, Negatable<Expression>, TranslationAware, AnyNullIsNull {
+public class Not extends UnaryScalarFunction
+    implements
+        EvaluatorMapper,
+        Negatable<Expression>,
+        TranslationAware,
+        AnyNullIsNull,
+        NullMisuseSuggestion {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Not", Not::new);
 
     public Not(Source source, Expression child) {
@@ -99,6 +111,44 @@ public class Not extends UnaryScalarFunction implements EvaluatorMapper, Negatab
 
     static Expression negate(Expression exp) {
         return exp instanceof Negatable ? ((Negatable) exp).negate() : new Not(exp.source(), exp);
+    }
+
+    @Override
+    public String nullMisuseAlternative() {
+        Expression kept = keptNonNullOperand();
+        // Suggesting `<literal> IS NOT NULL` (e.g. `5 IS NOT NULL`) is never what the user meant.
+        if (kept == null || kept instanceof Literal) {
+            return null;
+        }
+        String text = kept.sourceText();
+        return text.isEmpty() ? null : text + " IS NOT NULL";
+    }
+
+    /**
+     * Operand that would remain after rewriting {@code NOT (x == NULL)} / {@code x NOT IN (NULL)}
+     * as {@code x IS NOT NULL}, or {@code null} if this {@code NOT} is not that shape.
+     */
+    private Expression keptNonNullOperand() {
+        if (field() instanceof Equals equals) {
+            return keptNonNullOperand(equals.left(), equals.right());
+        }
+        if (field() instanceof InsensitiveEquals insensitiveEquals) {
+            return keptNonNullOperand(insensitiveEquals.left(), insensitiveEquals.right());
+        }
+        if (field() instanceof In in && in.list().stream().allMatch(Expressions::isGuaranteedNull)) {
+            return in.value();
+        }
+        return null;
+    }
+
+    private static Expression keptNonNullOperand(Expression left, Expression right) {
+        if (Expressions.isGuaranteedNull(right)) {
+            return left;
+        }
+        if (Expressions.isGuaranteedNull(left)) {
+            return right;
+        }
+        return null;
     }
 
     @Override

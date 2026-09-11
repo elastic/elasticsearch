@@ -154,16 +154,9 @@ public class S3HttpHandler implements HttpHandler {
             if (request.isHeadBucketRequest()) {
                 final String cr = correctRegion;
                 if (cr != null) {
-                    final byte[] body = ("""
-                        <?xml version="1.0" encoding="UTF-8"?>
-                        <Error>
-                          <Code>AuthorizationHeaderMalformed</Code>
-                          <Message>The authorization header is malformed; the region '%s' is wrong; expecting '%s'</Message>
-                        </Error>""".formatted("us-east-1", cr)).getBytes(StandardCharsets.UTF_8);
+                    // HEAD responses carry no body per HTTP; the SDK reads x-amz-bucket-region from the header only.
                     exchange.getResponseHeaders().add("x-amz-bucket-region", cr);
-                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                    exchange.sendResponseHeaders(400, body.length);
-                    exchange.getResponseBody().write(body);
+                    exchange.sendResponseHeaders(400, -1);
                 } else {
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }

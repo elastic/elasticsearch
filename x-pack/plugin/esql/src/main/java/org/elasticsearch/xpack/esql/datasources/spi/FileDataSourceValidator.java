@@ -479,6 +479,16 @@ public class FileDataSourceValidator implements DataSourceValidator {
             return Map.of();
         }
 
+        // Plugin-provided dataset keys (e.g. region) are accepted as raw values; validate here that
+        // they are non-empty strings, since the rest of validateDataset trusts acceptedFields without
+        // re-checking value types.
+        for (String key : additionalDatasetKeys) {
+            Object value = settings.get(key);
+            if (value != null && (value instanceof String s ? s.isBlank() : true)) {
+                errors.addValidationError("[" + key + "] must be a non-empty string");
+            }
+        }
+
         Map<String, Object> result = new HashMap<>();
 
         // schema_sample_size keeps its dedicated bounded-int validation, which also stores the parsed int.

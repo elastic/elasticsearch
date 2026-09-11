@@ -190,6 +190,12 @@ teardown:
             region: eu-west-1
 
   - do:
+      esql.get_dataset:
+        name: events_eu
+
+  - match: { settings.region: eu-west-1 }
+
+  - do:
       esql.delete_dataset:
         name: events_eu
         ignore: 404

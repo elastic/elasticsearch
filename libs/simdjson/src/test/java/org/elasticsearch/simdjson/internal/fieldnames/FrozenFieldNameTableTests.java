@@ -431,13 +431,13 @@ public class FrozenFieldNameTableTests extends ESTestCase {
     // of both, without disturbing the identity of names current already had.
     public void testUnionBuildsSupersetPreservingExistingIdentity() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
-        List<String> existingNames = randomDistinctFieldNames(randomIntBetween(3, 10));
+        int existingCount = randomIntBetween(3, 10);
+        int newCount = randomIntBetween(3, 10);
+        List<String> allNames = randomDistinctFieldNames(existingCount + newCount);
+        List<String> existingNames = allNames.subList(0, existingCount);
+        List<String> newNames = allNames.subList(existingCount, allNames.size());
         FrozenFieldNameTable.Frozen current = publish(table, existingNames);
-
-        List<String> newNames = randomDistinctFieldNames(randomIntBetween(3, 10));
-        List<String> candidateNames = new ArrayList<>(existingNames);
-        candidateNames.addAll(newNames);
-        NameArrays candidates = NameArrays.of(candidateNames);
+        NameArrays candidates = NameArrays.of(allNames);
 
         FrozenFieldNameTable.Frozen merged = table.union(
             current,

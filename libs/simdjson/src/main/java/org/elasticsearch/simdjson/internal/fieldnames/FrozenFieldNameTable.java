@@ -24,7 +24,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 /**
  * Optimized field name table that freezes on a child's first {@link Child#freeze()} into
  * a compact power-of-two hash table sized to ~2x however many names the child had learned
- * by then.Uses:
+ * by then. Uses:
  * <ul>
  *   <li>Same wyhash as {@link FieldNameHash} for compatibility with
  *       {@link FieldNameHash#scanAndHash}.</li>
@@ -384,9 +384,7 @@ public final class FrozenFieldNameTable {
          * buffer does not hold costs about 7ns more to reject.
          *
          * <p>The cost of keeping it small is only how long convergence takes, since a child learns
-         * at most this many new names per batch. {@code FieldNameConvergenceReport} shows a
-         * 300-name sparse mapping converging in single-digit batches either way, which is not worth
-         * a slower miss path.
+         * at most this many new names per batch.
          */
         static final int MAX_OVERFLOW = 32;
 
@@ -583,6 +581,9 @@ public final class FrozenFieldNameTable {
 
             /** A set capped at {@code capacity} entries; further adds beyond that are silently dropped. */
             static NameSet capped(int capacity) {
+                if (capacity <= 0) {
+                    throw new IllegalArgumentException("non-positive capacity:" + capacity);
+                }
                 return new NameSet(capacity);
             }
 

@@ -10,6 +10,7 @@
 package org.elasticsearch.simdjson.internal.fieldnames;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable.Child.NameSet;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -30,17 +31,15 @@ public class NameSetTests extends ESTestCase {
     // An empty set, growable or capped, must reject every lookup without touching its (null)
     // backing arrays.
     public void testLookupOnEmptySetReturnsNull() {
-        assertNull(lookup(FrozenFieldNameTable.Child.NameSet.growable(), "anything"));
-        assertNull(lookup(FrozenFieldNameTable.Child.NameSet.capped(4), "anything"));
+        assertNull(lookup(NameSet.growable(), "anything"));
+        assertNull(lookup(NameSet.capped(4), "anything"));
+        assertNull(lookup(NameSet.capped(randomIntBetween(1, 16)), randomAlphaOfLengthBetween(1, 20)));
     }
 
     // add() followed by lookup() with the same bytes/hash must return the exact name instance
     // that was added, for both a growable and a capped set.
     public void testAddThenLookupReturnsSameInstance() {
-        for (FrozenFieldNameTable.Child.NameSet set : List.of(
-            FrozenFieldNameTable.Child.NameSet.growable(),
-            FrozenFieldNameTable.Child.NameSet.capped(4)
-        )) {
+        for (NameSet set : List.of(NameSet.growable(), NameSet.capped(4))) {
             String name = randomAlphaOfLengthBetween(1, 20);
             String added = add(set, name);
             assertSame("lookup must return the exact instance add() was given", added, lookup(set, name));
@@ -49,9 +48,10 @@ public class NameSetTests extends ESTestCase {
 
     // A name never added must not be found among others that were.
     public void testLookupMissesAnUnaddedName() {
-        FrozenFieldNameTable.Child.NameSet set = FrozenFieldNameTable.Child.NameSet.growable();
-        add(set, "present");
-        assertNull(lookup(set, "absent"));
+        for (NameSet set : List.of(NameSet.growable(), NameSet.capped(4))) {
+            add(set, "present");
+            assertNull(lookup(set, "absent"));
+        }
     }
 
     // ---- Hash-based disambiguation ----
@@ -60,7 +60,7 @@ public class NameSetTests extends ESTestCase {
     // entries can deliberately share a hash without needing a real collision: lookup must fall
     // through to the full byte comparison and never confuse them.
     public void testLookupDistinguishesEntriesWithTheSameHash() {
-        FrozenFieldNameTable.Child.NameSet set = FrozenFieldNameTable.Child.NameSet.growable();
+        NameSet set = NameSet.growable();
         int sharedHash = 42;
         byte[] bufA = toBytes("alpha");
         byte[] bufB = toBytes("bravo");
@@ -74,9 +74,11 @@ public class NameSetTests extends ESTestCase {
     // ---- Growable: unbounded, doubles on demand ----
 
     // Every entry added must remain resolvable across repeated doublings (128 -> 256 -> 512),
-    // including right at the boundary.
+    // including right at the boundary. This also confirms a growable set never rejects an add,
+    // however many entries it already holds: a dropped add would surface here as a count or
+    // lookup mismatch.
     public void testGrowableSurvivesRepeatedDoubling() {
-        FrozenFieldNameTable.Child.NameSet set = FrozenFieldNameTable.Child.NameSet.growable();
+        NameSet set = NameSet.growable();
         List<String> names = randomDistinctFieldNames(randomIntBetween(300, 600));
         for (String name : names) {
             add(set, name);
@@ -87,29 +89,17 @@ public class NameSetTests extends ESTestCase {
         }
     }
 
-    // A growable set never rejects an add, however many entries it already holds.
-    public void testGrowableNeverRejectsAnAdd() {
-        FrozenFieldNameTable.Child.NameSet set = FrozenFieldNameTable.Child.NameSet.growable();
-        int count = randomIntBetween(200, 400);
-        for (int i = 0; i < count; i++) {
-            add(set, "field_" + i);
-        }
-        assertEquals(count, set.count());
-    }
-
     // ---- Capped: bounded, rejects past capacity ----
 
     // A capped set accepts exactly up to its capacity and silently drops the rest: dropped names
     // are not recorded (absent from lookup) but the count never exceeds the cap.
     public void testCappedAcceptsUpToCapacityThenDrops() {
         int capacity = randomIntBetween(2, 10);
-        FrozenFieldNameTable.Child.NameSet set = FrozenFieldNameTable.Child.NameSet.capped(capacity);
+        NameSet set = NameSet.capped(capacity);
         List<String> names = randomDistinctFieldNames(capacity + randomIntBetween(1, 10));
-
         for (String name : names) {
             add(set, name);
         }
-
         assertEquals("count must never exceed the cap", capacity, set.count());
         for (int i = 0; i < names.size(); i++) {
             String name = names.get(i);
@@ -127,60 +117,63 @@ public class NameSetTests extends ESTestCase {
     // middle, end, none, or all - and repack survivors so they still resolve, regardless of
     // where in the original set they were dropped from.
     public void testRetainIfCompactsToArbitrarySubsets() {
-        for (int trial = 0; trial < 20; trial++) {
+        int iterations = atLeast(20);
+        for (int itr = 0; itr < iterations; itr++) {
             int total = randomIntBetween(1, 12);
             List<String> names = randomDistinctFieldNames(total);
             List<byte[]> bufs = new ArrayList<>(total);
             List<Integer> hashes = new ArrayList<>(total);
 
-            FrozenFieldNameTable.Child.NameSet set = FrozenFieldNameTable.Child.NameSet.growable();
-            for (String name : names) {
-                byte[] buf = toBytes(name);
-                int hash = FieldNameHash.hashName(buf, 0, buf.length);
-                set.add(name, buf, 0, buf.length, hash);
-                bufs.add(buf);
-                hashes.add(hash);
-            }
-
-            boolean[] keep = new boolean[total];
-            for (int i = 0; i < total; i++) {
-                keep[i] = randomBoolean();
-            }
-            set.retainIf(i -> keep[i]);
-
-            int expectedKept = 0;
-            for (int i = 0; i < total; i++) {
-                byte[] buf = bufs.get(i);
-                int hash = hashes.get(i);
-                if (keep[i]) {
-                    expectedKept++;
-                    assertEquals("kept entry must still resolve: " + names.get(i), names.get(i), set.lookup(buf, 0, buf.length, hash));
-                } else {
-                    assertNull("dropped entry must no longer resolve: " + names.get(i), set.lookup(buf, 0, buf.length, hash));
+            for (NameSet set : List.of(NameSet.growable(), NameSet.capped(total))) {
+                for (String name : names) {
+                    byte[] buf = toBytes(name);
+                    int hash = FieldNameHash.hashName(buf, 0, buf.length);
+                    set.add(name, buf, 0, buf.length, hash);
+                    bufs.add(buf);
+                    hashes.add(hash);
                 }
+
+                boolean[] keep = new boolean[total];
+                for (int i = 0; i < total; i++) {
+                    keep[i] = randomBoolean();
+                }
+                set.retainIf(i -> keep[i]);
+
+                int expectedKept = 0;
+                for (int i = 0; i < total; i++) {
+                    byte[] buf = bufs.get(i);
+                    int hash = hashes.get(i);
+                    if (keep[i]) {
+                        expectedKept++;
+                        assertEquals("kept entry must still resolve: " + names.get(i), names.get(i), set.lookup(buf, 0, buf.length, hash));
+                    } else {
+                        assertNull("dropped entry must no longer resolve: " + names.get(i), set.lookup(buf, 0, buf.length, hash));
+                    }
+                }
+                assertEquals("count must match the number of retained entries", expectedKept, set.count());
             }
-            assertEquals("count must match the number of retained entries", expectedKept, set.count());
         }
     }
 
     // After retainIf compacts a set, further adds must append correctly from the reduced count,
     // without disturbing the entries retainIf kept.
     public void testAddAfterRetainIfContinuesFromCompactedCount() {
-        FrozenFieldNameTable.Child.NameSet set = FrozenFieldNameTable.Child.NameSet.growable();
-        add(set, "a");
-        add(set, "b");
-        add(set, "c");
+        for (NameSet set : List.of(NameSet.growable(), NameSet.capped(randomIntBetween(3, 16)))) {
+            add(set, "a");
+            add(set, "b");
+            add(set, "c");
 
-        set.retainIf(i -> i != 1); // drop "b", keep "a" and "c"
-        assertEquals(2, set.count());
+            set.retainIf(i -> i != 1); // drop "b", keep "a" and "c"
+            assertEquals(2, set.count());
 
-        add(set, "d");
-        assertEquals(3, set.count());
+            add(set, "d");
+            assertEquals(3, set.count());
 
-        assertEquals("a", lookup(set, "a"));
-        assertNull(lookup(set, "b"));
-        assertEquals("c", lookup(set, "c"));
-        assertEquals("d", lookup(set, "d"));
+            assertEquals("a", lookup(set, "a"));
+            assertNull(lookup(set, "b"));
+            assertEquals("c", lookup(set, "c"));
+            assertEquals("d", lookup(set, "d"));
+        }
     }
 
     private static List<String> randomDistinctFieldNames(int count) {
@@ -191,14 +184,14 @@ public class NameSetTests extends ESTestCase {
         return List.copyOf(unique);
     }
 
-    private static String add(FrozenFieldNameTable.Child.NameSet set, String name) {
+    private static String add(NameSet set, String name) {
         byte[] buf = toBytes(name);
         int hash = FieldNameHash.hashName(buf, 0, buf.length);
         set.add(name, buf, 0, buf.length, hash);
         return name;
     }
 
-    private static String lookup(FrozenFieldNameTable.Child.NameSet set, String name) {
+    private static String lookup(NameSet set, String name) {
         byte[] buf = toBytes(name);
         int hash = FieldNameHash.hashName(buf, 0, buf.length);
         return set.lookup(buf, 0, buf.length, hash);

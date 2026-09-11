@@ -16,16 +16,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Prints which {@link ESVectorizationProvider} the JVM resolved.
- *
- * <p>{@code ESVectorizationProvider.lookup} degrades silently: without a readable
- * {@code jdk.incubator.vector} it returns the scalar default, and without the native library it
- * returns a Panama implementation. Either way a benchmark still produces numbers, just not for the
- * implementation the author meant to measure, and the warnings that explain it go to a logger whose
- * level depends on whatever log4j configuration the benchmark classpath happens to carry. The
- * resolved class name separates the four outcomes unambiguously, on stdout, next to the results.
- *
- * <p>The provider is a JVM-wide singleton, so one line per JMH fork says it for every benchmark in
- * that fork.
  */
 public final class VectorizationInfo {
 

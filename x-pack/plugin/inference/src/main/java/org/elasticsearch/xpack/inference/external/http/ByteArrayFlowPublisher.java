@@ -164,6 +164,7 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
         private final Deque<byte[]> contentQueue = new ConcurrentLinkedDeque<>();
         private final AtomicBoolean terminated = new AtomicBoolean(false);
         private final AtomicLong unreleasedBytes = new AtomicLong(0);
+        private final AtomicLong pendingRequests = new AtomicLong(0);
         private volatile Flow.Subscription upstreamSubscription;
         private volatile Exception error;
         private volatile boolean completed = false;
@@ -180,7 +181,13 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
                 @Override
                 public void request(long n) {
                     touch();
+                    if (n <= 0) {
+                        abort(new IllegalArgumentException("Subscriber requested a non-positive number " + n));
+                        return;
+                    }
+                    pendingRequests.addAndGet(n);
                     subscription.request(n);
+                    taskRunner.requestNextRun();
                 }
 
                 @Override
@@ -235,20 +242,25 @@ class ByteArrayFlowPublisher implements Flow.Publisher<byte[]> {
         }
 
         private void sendToSubscriber() {
+            // Deliver at most `pendingRequests` chunks, decrementing per delivery, so the downstream never receives more signals
+            // than it requested. An error preempts queued data, matching the previous publisher's behavior.
             byte[] nextBytes;
-            while ((nextBytes = contentQueue.poll()) != null) {
+            while (error == null && pendingRequests.get() > 0 && (nextBytes = contentQueue.poll()) != null) {
+                pendingRequests.decrementAndGet();
                 releaseBreakerBytes(nextBytes.length);
                 downstream.onNext(nextBytes);
             }
 
-            // the upstream only emits what the downstream requested, so the queue can only refill after another onNext delivery,
-            // which will schedule another run; the terminal signal is delivered once the queue has fully drained
+            // Terminal signals also consume a unit of demand, so they are only delivered when the downstream has an outstanding
+            // request. If it does not yet, the next request(n) reschedules this run and delivers them then.
             if (error != null) {
-                if (terminated.compareAndSet(false, true)) {
+                if (pendingRequests.get() > 0 && terminated.compareAndSet(false, true)) {
+                    pendingRequests.decrementAndGet();
                     close();
                     downstream.onError(error);
                 }
-            } else if (completed && contentQueue.isEmpty() && terminated.compareAndSet(false, true)) {
+            } else if (completed && contentQueue.isEmpty() && pendingRequests.get() > 0 && terminated.compareAndSet(false, true)) {
+                pendingRequests.decrementAndGet();
                 close();
                 downstream.onComplete();
             }

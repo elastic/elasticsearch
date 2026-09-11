@@ -587,10 +587,6 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
         );
     }
 
-    // =========================================================================
-    // equals and hashCode
-    // =========================================================================
-
     public void testEqualsIsReflexive() {
         final MultiValuedBinaryDocValuesSortField sf = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
         assertEquals(sf, sf);

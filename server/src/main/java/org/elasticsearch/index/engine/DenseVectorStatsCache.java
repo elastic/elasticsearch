@@ -11,7 +11,6 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -109,10 +108,7 @@ final class DenseVectorStatsCache {
 
     private static Map<String, Long> offHeapByteSize(LeafReader leafReader, FieldInfo info) throws IOException {
         final SegmentReader segmentReader = Lucene.segmentReader(leafReader);
-        KnnVectorsReader vectorsReader = segmentReader.getVectorReader();
-        if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-            vectorsReader = fieldsReader.getFieldReader(info.name);
-        }
+        KnnVectorsReader vectorsReader = segmentReader.getVectorReader().unwrapReaderForField(info.name);
         return vectorsReader.getOffHeapByteSize(info);
     }
 

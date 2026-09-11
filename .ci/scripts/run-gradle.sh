@@ -51,7 +51,9 @@ GRADLEW_ARGS="${GRADLEW#./gradlew }"
 
 echo "--- Running gradle tasks"
 
-if command -v java > /dev/null; then
+if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/java" ]]; then
+  "$JAVA_HOME/bin/java" -jar "$RUNNER_JAR" -- $GRADLEW_ARGS -S --max-workers=$MAX_WORKERS $@
+elif command -v java > /dev/null; then
   java -jar "$RUNNER_JAR" -- $GRADLEW_ARGS -S --max-workers=$MAX_WORKERS $@
 else
   "$GRADLEW" -S --max-workers=$MAX_WORKERS $@

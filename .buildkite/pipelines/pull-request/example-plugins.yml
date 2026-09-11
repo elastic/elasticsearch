@@ -4,6 +4,9 @@ config:
     - build-tools/.*
     - build-tools-internal/.*
     - plugins/examples/.*
+    - ^\.ci/scripts/example-plugins\.sh$
+    - ^\.ci/scripts/run-gradle\.sh$
+    - ^\.buildkite/pipelines/pull-request/example-plugins\.yml$
 steps:
   - label: example-plugins
     command: |-

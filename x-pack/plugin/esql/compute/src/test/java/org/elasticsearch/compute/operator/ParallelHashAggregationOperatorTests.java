@@ -178,7 +178,8 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
                 null,
                 null,
                 driverContext,
-                parallelConfig
+                parallelConfig,
+                randomBoolean()
             );
             try (
                 Driver d = TestDriverFactory.create(

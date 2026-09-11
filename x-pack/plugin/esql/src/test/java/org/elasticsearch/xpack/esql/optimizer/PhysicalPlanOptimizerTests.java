@@ -9875,7 +9875,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             MatcherWatchdog.noop()
         );
 
-        return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance());
+        return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance(), randomBoolean());
     }
 
     private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {

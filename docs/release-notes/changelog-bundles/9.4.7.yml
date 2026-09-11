@@ -1,0 +1,245 @@
+version: 9.4.7
+released: false
+generated: 2026-09-11T00:08:33.894988994Z
+changelogs:
+  - pr: 2841
+    summary: Better messaging regarding OOM process termination
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2846
+    summary: Report the actual memory usage of the autodetect process
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2848
+    summary: Improve adherence to memory limits for the bucket gatherer
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2851
+    summary: Restrict file system access for pytorch models
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2863
+    summary: Update the PyTorch library to version 2.7.1
+    area: Machine Learning
+    type: upgrade
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2889
+    summary: Downgrade log severity for a batch of recoverable errors
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2894
+    summary: Better error handling regarding quantiles state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2895
+    summary: Better handling of invalid JSON state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3008
+    summary: Harden pytorch_inference with TorchScript model graph validation
+    area: Machine Learning
+    type: enhancement
+    issues:
+      - 2890
+    source_repo: elastic/ml-cpp
+  - pr: 3015
+    summary: Add EuroBERT and Jina v5 ops to graph validation allowlist
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3017
+    summary: Fix flaky CIoManagerTest/testFileIoGood test
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3078
+    summary: Reject TorchScript custom state hooks before load and forbid inductor::_reinterpret_tensor
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3080
+    summary: Reject non-native ABIs in ML seccomp filter (socketcall/getuid collision)
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3081
+    summary: Mark ML controller non-dumpable before accepting commands
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3090
+    summary: Fix flaky concurrent LFU cache count invariant under lock timeouts
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3143
+    summary: Fail gracefully when restoring a categorizer with an out-of-range token ID
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3149
+    summary: Fail closed on incomplete `TorchScript` pre-load state-hook scan
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 154480
+    summary: Bound `min_hash` filter params to prevent OOM
+    area: Analysis
+    type: bug
+    issues: []
+  - pr: 155310
+    summary: Treat ML node exhaustion as 4xx
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 156412
+    summary: Fix ROUND of an integer with a negative precision silently overflowing to a negative value
+    area: ES|QL
+    type: bug
+    issues:
+      - 156411
+  - pr: 157044
+    summary: Honor pruning in the `_shard_doc` sort comparator
+    area: Search
+    type: bug
+    issues:
+      - 155559
+  - pr: 157567
+    summary: Surface CCS skipped-cluster stats on datafeed extraction failure
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 157634
+    summary: "`DataStreamAutoShardingService.calculate()` works on stale data [#134505]"
+    area: Data streams
+    type: bug
+    issues:
+      - 134505
+  - pr: 157642
+    summary: "Msearch/template parity with msearch: memory bounds, cancellation, metrics"
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 157730
+    summary: Fix bfloat16 reading from old index versions with endianness mismatches
+    area: Vector Search
+    type: bug
+    issues:
+      - 157696
+  - pr: 157752
+    summary: Fix result size limit check on INSERT
+    area: SQL
+    type: bug
+    issues: []
+  - pr: 157760
+    summary: "Audit: reject oversized request bodies"
+    area: Audit
+    type: enhancement
+    issues: []
+  - pr: 157798
+    summary: Fix backwards read of `_ignored_source` doc values
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 157889
+    summary: Fix FLS field names term state filtering
+    area: Authorization
+    type: bug
+    issues: []
+  - pr: 157929
+    summary: Reject blank datafeed ID in stop datafeed request
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 157968
+    summary: Guard against protobuf label/attribute fan-out
+    area: TSDB
+    type: bug
+    issues: []
+  - pr: 158020
+    summary: Reject blank job id on close request
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 158060
+    summary: Fix composite agg on doc values skipper fields
+    area: Mapping
+    type: bug
+    issues:
+      - 158008
+  - pr: 158143
+    summary: "Audit: emit `request.raw_body` for protobuf bodies"
+    area: Audit
+    type: enhancement
+    issues: []
+  - pr: 158175
+    summary: Reduce memory usage during serialization when retrieving component and composable templates via the GET APIs
+    area: Templates
+    type: bug
+    issues: []
+  - pr: 158211
+    summary: Cap `min_hash` filter params
+    area: Analysis
+    type: bug
+    issues: []
+  - pr: 158296
+    summary: Update knn query automatic pre-filtering to handle exists queries on inference fields
+    area: Search
+    type: bug
+    issues:
+      - 157951
+  - pr: 158301
+    summary: Return 400 for unresolved MMR query vector
+    area: ES|QL
+    type: bug
+    issues:
+      - 157876
+  - pr: 158527
+    summary: Fix NPE in Amazon Bedrock chat completion when a message has no content
+    area: Inference
+    type: bug
+    issues:
+      - 158521
+  - pr: 158537
+    summary: Fix synthetic `_id` `Terms#getMax` crash during relocation id-lookup prewarm
+    area: Codec
+    type: bug
+    issues: []
+  - pr: 158713
+    summary: Add option to limit the number of characters in analyze filters
+    area: Analysis
+    type: bug
+    issues: []
+  - pr: 158745
+    summary: "When reversing strings, treat Carriage Return Line Feed as a single control character, in line with UTF guidelines"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 158831
+    summary: Reject `allow_restricted_indices=true` consistently in roles granted by users with the `manage_roles` privilege.
+    area: Authorization
+    type: bug
+    issues: []

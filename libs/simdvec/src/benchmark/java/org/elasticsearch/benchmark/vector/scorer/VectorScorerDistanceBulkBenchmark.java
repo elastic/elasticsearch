@@ -10,6 +10,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.benchmark.vector.VectorizationInfo;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -42,6 +43,7 @@ public class VectorScorerDistanceBulkBenchmark {
 
     static {
         BenchmarkLogging.configure();
+        VectorizationInfo.printOnce();
     }
 
     @Param({ "384", "782", "1024" })

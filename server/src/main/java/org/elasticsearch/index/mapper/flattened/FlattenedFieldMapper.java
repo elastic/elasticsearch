@@ -1983,9 +1983,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                                         + "] exceeds ignore_above; the ignored-values channel is not yet supported"
                                 );
                             }
-                            if (keyPrefix.length + value.length > IndexWriter.MAX_TERM_LENGTH) {
-                                throw immenseKeyedValueException(relativeKeys[k], value.length);
-                            }
                         }
 
                         pos = MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.appendSlot(docBlob, pos, keyPrefix, value);

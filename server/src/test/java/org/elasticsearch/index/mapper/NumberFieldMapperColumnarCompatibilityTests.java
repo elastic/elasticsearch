@@ -12,11 +12,16 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Parity tests for {@link NumberFieldMapper#mapColumnBatch} against the row path.
@@ -373,15 +378,295 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
      * columnar index off the columnar path. Multi-valued documents arrive as an ESCF {@code ARRAY}
      * column, which {@link NumberFieldMapper#mapColumnBatch} maps into a sortable-long array column
      * plus the positional offsets sidecar the row path records for synthetic source.
+     *
+     * <p>Which column kind a multi-valued document produces follows the JSON literals rather than the
+     * mapping: the encoder classifies every element by width, and an array whose elements land in
+     * different width classes packs as a {@code UNION} the mapper refuses, falling the batch back to
+     * the row path. This walks every numeric type against every applicable {@link ArrayShape}, in both
+     * {@link IndexProfile}s, under every available encoder, and asserts the outcome
+     * {@link #expectedOutcome} declares — so a shape moving between parity and fallback in either
+     * direction fails here.
+     *
+     * <p>One cell of that table is asymmetric on purpose: the encoders disagree about
+     * {@link ArrayShape#MIXED_NUMERIC_WIDTH} on floating-point types, because Jackson reports every
+     * JSON float literal as {@code DOUBLE} while simdjson classifies each value on whether it
+     * round-trips through {@code float}. Reconciling them is follow-up work in the encoder, after
+     * which the floating-point entry for that shape reads {@code EQUAL} under both.
      */
-    public void testLongField_multiValue() throws IOException {
-        assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
-            multiValueColumnarSettings(),
-            // Every present value is an array so the column is a plain ARRAY; mixing in a scalar
-            // would make it a UNION and trip the same switch for a different reason.
-            batch("long multi-value", 1L, doc("d1", 1L, "{\"f\":[1,2,3]}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":[7]}"))
-        );
+    public void testMultiValueShapesAcrossEncoders() throws IOException {
+        for (NumberType type : NumberType.values()) {
+            for (ArrayShape shape : ArrayShape.values()) {
+                if (shape.appliesTo(type) == false) {
+                    continue;
+                }
+                for (IndexProfile profile : IndexProfile.values()) {
+                    for (SourceEncoder encoder : SourceEncoder.available()) {
+                        assertShape(
+                            new ShapeCase(
+                                type,
+                                shape,
+                                profile,
+                                encoder,
+                                profile.allowsStore() && randomBoolean(),
+                                randomBoolean(),
+                                randomSources(profile, type, shape)
+                            )
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    private enum Outcome {
+        EQUAL,
+        FALLBACK_UNION
+    }
+
+    /**
+     * The index configurations a numeric field can take the columnar path in. Columnar mode rejects
+     * {@code store} at mapping-parse time, so stored multi-value coverage has to run in time-series
+     * mode, which brings its own {@code @timestamp} and dimension requirements.
+     */
+    private enum IndexProfile {
+        COLUMNAR,
+        TSDB;
+
+        boolean allowsStore() {
+            return switch (this) {
+                case COLUMNAR -> false;
+                case TSDB -> true;
+            };
+        }
+
+        Settings settings() {
+            return switch (this) {
+                case COLUMNAR -> multiValueColumnarSettings();
+                case TSDB -> tsdbSettings();
+            };
+        }
+    }
+
+    /**
+     * The element-type mix inside a multi-valued document. Shapes are named after the encoder's own
+     * width classes — {@code INT} against {@code LONG} for integral types, float-representable
+     * against double-only for floating ones — because those classes, not the field mapping, decide
+     * whether an array packs as a fixed array or as a union.
+     */
+    private enum ArrayShape {
+        HOMOGENEOUS_NUMBER,
+        MIXED_NUMERIC_WIDTH,
+        NUMERIC_STRINGS,
+        MIXED_NUMBER_STRING;
+
+        /**
+         * Whether the type's own range admits two width classes. Every value a {@code byte},
+         * {@code short} or {@code integer} field accepts falls in the narrow class, so a mixed-width
+         * array is unreachable for them without going out of range, which both paths reject anyway.
+         */
+        boolean appliesTo(NumberType type) {
+            return switch (this) {
+                case HOMOGENEOUS_NUMBER, NUMERIC_STRINGS, MIXED_NUMBER_STRING -> true;
+                case MIXED_NUMERIC_WIDTH -> switch (type) {
+                    case BYTE, SHORT, INTEGER -> false;
+                    case LONG, HALF_FLOAT, FLOAT, DOUBLE -> true;
+                };
+            };
+        }
+    }
+
+    private record ShapeCase(
+        NumberType type,
+        ArrayShape shape,
+        IndexProfile profile,
+        SourceEncoder encoder,
+        boolean stored,
+        boolean indexed,
+        List<String> sources
+    ) {
+        @Override
+        public String toString() {
+            return type.typeName()
+                + " "
+                + shape
+                + " profile="
+                + profile
+                + " encoder="
+                + encoder
+                + " stored="
+                + stored
+                + " indexed="
+                + indexed
+                + " sources="
+                + sources;
+        }
+    }
+
+    private static Outcome expectedOutcome(NumberType type, ArrayShape shape, SourceEncoder encoder) {
+        return switch (shape) {
+            case HOMOGENEOUS_NUMBER, NUMERIC_STRINGS -> Outcome.EQUAL;
+            case MIXED_NUMBER_STRING -> Outcome.FALLBACK_UNION;
+            case MIXED_NUMERIC_WIDTH -> switch (type) {
+                case LONG -> Outcome.FALLBACK_UNION;
+                case HALF_FLOAT, FLOAT, DOUBLE -> switch (encoder) {
+                    case JACKSON -> Outcome.EQUAL;
+                    case SIMD -> Outcome.FALLBACK_UNION;
+                };
+                case BYTE, SHORT, INTEGER -> throw new AssertionError(shape + " does not apply to " + type);
+            };
+        };
+    }
+
+    private void assertShape(ShapeCase testCase) throws IOException {
+        switch (expectedOutcome(testCase.type(), testCase.shape(), testCase.encoder())) {
+            case EQUAL -> assertColumnarMatchesXContent(
+                mapping(shapeMapping(testCase)),
+                testCase.profile().settings(),
+                testCase.encoder(),
+                batch(testCase.toString(), 1L, shapeDocs(testCase))
+            );
+            case FALLBACK_UNION -> {
+                final MapperService mapperService = createMapperService(testCase.profile().settings(), mapping(shapeMapping(testCase)));
+                final UnsupportedOperationException ex = expectThrows(
+                    UnsupportedOperationException.class,
+                    testCase.toString(),
+                    () -> mapColumnarLeaf(mapperService, FIELD, testCase.encoder(), testCase.sources().toArray(String[]::new))
+                );
+                assertTrue(
+                    testCase + ": expected a UNION refusal but got: " + ex.getMessage(),
+                    ex.getMessage().contains("ESCF column kind [UNION]")
+                );
+            }
+        }
+    }
+
+    private static CheckedConsumer<XContentBuilder, IOException> shapeMapping(ShapeCase testCase) {
+        return b -> {
+            if (testCase.profile() == IndexProfile.TSDB) {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            }
+            b.startObject(FIELD).field("type", testCase.type().typeName());
+            if (testCase.stored()) {
+                b.field("store", true);
+            }
+            if (testCase.indexed()) {
+                b.field("index", true);
+            }
+            b.endObject();
+        };
+    }
+
+    private static Doc[] shapeDocs(ShapeCase testCase) {
+        final List<String> sources = testCase.sources();
+        final Doc[] docs = new Doc[sources.size()];
+        for (int i = 0; i < docs.length; i++) {
+            docs[i] = switch (testCase.profile()) {
+                case COLUMNAR -> doc("d" + i, i + 1L, sources.get(i));
+                // The tsid the coordinator would have computed is handed to both paths, as the other
+                // time-series scenarios do; only the timestamp varies, to keep the _id values distinct.
+                case TSDB -> doc(
+                    TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A + i),
+                    ST_ROUTING,
+                    ST_TSID,
+                    i + 1L,
+                    sources.get(i)
+                );
+            };
+        }
+        return docs;
+    }
+
+    /**
+     * Complete JSON sources for one shape. The first document is always multi-valued so the shape
+     * reaches the column kind it is named for; the rest vary between multi-valued, single-element and
+     * absent to keep the validity bitset and the single-slot offsets decision in play.
+     */
+    private static List<String> randomSources(IndexProfile profile, NumberType type, ArrayShape shape) {
+        final int docCount = randomIntBetween(2, 4);
+        final List<String> sources = new ArrayList<>(docCount);
+        sources.add(source(profile, 0, arrayField(type, shape, randomIntBetween(2, 4))));
+        for (int i = 1; i < docCount; i++) {
+            final String field = switch (randomIntBetween(0, 2)) {
+                case 0 -> arrayField(type, shape, randomIntBetween(2, 4));
+                case 1 -> arrayField(type, shape, 1);
+                case 2 -> "";
+                default -> throw new AssertionError("unreachable");
+            };
+            sources.add(source(profile, i, field));
+        }
+        return sources;
+    }
+
+    private static String source(IndexProfile profile, int docIndex, String field) {
+        return switch (profile) {
+            case COLUMNAR -> "{" + field + "}";
+            case TSDB -> "{\"@timestamp\":" + (ST_TS_A + docIndex) + (field.isEmpty() ? "" : "," + field) + "}";
+        };
+    }
+
+    private static String arrayField(NumberType type, ArrayShape shape, int elementCount) {
+        return "\"" + FIELD + "\":[" + String.join(",", elements(type, shape, elementCount)) + "]";
+    }
+
+    private static List<String> elements(NumberType type, ArrayShape shape, int elementCount) {
+        final List<String> elements = new ArrayList<>(elementCount);
+        switch (shape) {
+            case HOMOGENEOUS_NUMBER -> {
+                final boolean wide = ArrayShape.MIXED_NUMERIC_WIDTH.appliesTo(type) && randomBoolean();
+                for (int i = 0; i < elementCount; i++) {
+                    elements.add(wide ? wideLiteral(type) : narrowLiteral(type));
+                }
+            }
+            case MIXED_NUMERIC_WIDTH -> {
+                elements.add(narrowLiteral(type));
+                if (elementCount > 1) {
+                    elements.add(wideLiteral(type));
+                }
+                for (int i = 2; i < elementCount; i++) {
+                    elements.add(randomBoolean() ? narrowLiteral(type) : wideLiteral(type));
+                }
+            }
+            case NUMERIC_STRINGS -> {
+                for (int i = 0; i < elementCount; i++) {
+                    elements.add(quoted(narrowLiteral(type)));
+                }
+            }
+            case MIXED_NUMBER_STRING -> {
+                elements.add(narrowLiteral(type));
+                if (elementCount > 1) {
+                    elements.add(quoted(narrowLiteral(type)));
+                }
+                for (int i = 2; i < elementCount; i++) {
+                    elements.add(randomBoolean() ? narrowLiteral(type) : quoted(narrowLiteral(type)));
+                }
+            }
+        }
+        return elements;
+    }
+
+    private static String quoted(String literal) {
+        return "\"" + literal + "\"";
+    }
+
+    /** A literal in the type's narrow width class: {@code INT} for integral types, float-exact for floating ones. */
+    private static String narrowLiteral(NumberType type) {
+        return switch (type) {
+            case BYTE -> Integer.toString(randomIntBetween(Byte.MIN_VALUE, Byte.MAX_VALUE));
+            case SHORT -> Integer.toString(randomIntBetween(Short.MIN_VALUE, Short.MAX_VALUE));
+            case INTEGER, LONG -> Integer.toString(randomIntBetween(-1000, 1000));
+            // Halves are exact in float and in half_float, so the encoder classifies them as FLOAT.
+            case HALF_FLOAT, FLOAT, DOUBLE -> Double.toString(randomIntBetween(-1000, 1000) + 0.5);
+        };
+    }
+
+    /** A literal in the type's wide width class: beyond {@code int} range, or not representable as a {@code float}. */
+    private static String wideLiteral(NumberType type) {
+        return switch (type) {
+            case LONG -> Long.toString(randomLongBetween(Integer.MAX_VALUE + 1L, Long.MAX_VALUE / 2));
+            case HALF_FLOAT, FLOAT, DOUBLE -> randomFrom("0.1", "2.718281828", "1.2345678901234567");
+            case BYTE, SHORT, INTEGER -> throw new AssertionError("no wide literal fits in " + type);
+        };
     }
 
     /**
@@ -426,78 +711,6 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         );
     }
 
-    public void testIntegerField_multiValue() throws IOException {
-        assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "integer").endObject()),
-            multiValueColumnarSettings(),
-            batch(
-                "integer multi-value",
-                1L,
-                doc("d1", 1L, "{\"f\":[2147483647,-2147483648,0]}"),
-                doc("d2", 2L, "{}"),
-                doc("d3", 3L, "{\"f\":[7]}")
-            )
-        );
-    }
-
-    public void testShortField_multiValue() throws IOException {
-        assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "short").endObject()),
-            multiValueColumnarSettings(),
-            batch("short multi-value", 1L, doc("d1", 1L, "{\"f\":[32767,-32768,3]}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":[1,1]}"))
-        );
-    }
-
-    public void testByteField_multiValue() throws IOException {
-        assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "byte").endObject()),
-            multiValueColumnarSettings(),
-            batch("byte multi-value", 1L, doc("d1", 1L, "{\"f\":[127,-128,0]}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":[9,9]}"))
-        );
-    }
-
-    public void testFloatField_multiValue() throws IOException {
-        assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "float").endObject()),
-            multiValueColumnarSettings(),
-            batch(
-                "float multi-value",
-                1L,
-                doc("d1", 1L, "{\"f\":[1.5,-2.25,3.75]}"),
-                doc("d2", 2L, "{}"),
-                doc("d3", 3L, "{\"f\":[0.5,0.5]}")
-            )
-        );
-    }
-
-    public void testDoubleField_multiValue() throws IOException {
-        assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "double").endObject()),
-            multiValueColumnarSettings(),
-            batch(
-                "double multi-value",
-                1L,
-                doc("d1", 1L, "{\"f\":[1.5,-2.25,2.718281828]}"),
-                doc("d2", 2L, "{}"),
-                doc("d3", 3L, "{\"f\":[0.5,0.5]}")
-            )
-        );
-    }
-
-    public void testHalfFloatField_multiValue() throws IOException {
-        assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "half_float").endObject()),
-            multiValueColumnarSettings(),
-            batch(
-                "half_float multi-value",
-                1L,
-                doc("d1", 1L, "{\"f\":[1.5,-2.25,3.0]}"),
-                doc("d2", 2L, "{}"),
-                doc("d3", 3L, "{\"f\":[0.5,0.5]}")
-            )
-        );
-    }
-
     public void testHalfFloatField_multiValueIndexed() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "half_float").field("index", true).endObject()),
@@ -527,8 +740,8 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
     }
 
     /**
-     * As {@link #testLongField_multiValue}, for a null value. A null makes the column a UNION rather
-     * than a plain LONG, which the same kind switch rejects.
+     * As {@link #testMultiValueShapesAcrossEncoders}, for a null value. A null makes the column a UNION
+     * rather than a plain LONG, which the same kind switch rejects.
      */
     @AwaitsFix(bugUrl = "columnar mapColumnBatch does not implement null numeric values; UNION columns fall back to the row path")
     public void testLongField_nullValue() throws IOException {
@@ -660,52 +873,6 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         }),
             tsdbSettings(),
             batch("half_float stored", 1L, doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":1.5}"))
-        );
-    }
-
-    public void testLongField_storedMultiValue() throws IOException {
-        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
-        final String idB = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_B);
-        assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject("@timestamp").field("type", "date").endObject();
-            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
-            b.startObject(FIELD).field("type", "long").field("store", true).endObject();
-        }),
-            tsdbSettings(),
-            batch(
-                "long stored multi-value",
-                1L,
-                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[42,7,42]}"),
-                doc(idB, ST_ROUTING, ST_TSID, 2L, "{\"@timestamp\":" + ST_TS_B + ",\"f\":[1]}")
-            )
-        );
-    }
-
-    public void testIntegerField_storedMultiValue() throws IOException {
-        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
-        assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject("@timestamp").field("type", "date").endObject();
-            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
-            b.startObject(FIELD).field("type", "integer").field("store", true).endObject();
-        }),
-            tsdbSettings(),
-            batch("integer stored multi-value", 1L, doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[7,-3,7]}"))
-        );
-    }
-
-    public void testDoubleField_storedMultiValue() throws IOException {
-        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
-        assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject("@timestamp").field("type", "date").endObject();
-            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
-            b.startObject(FIELD).field("type", "double").field("store", true).endObject();
-        }),
-            tsdbSettings(),
-            batch(
-                "double stored multi-value",
-                1L,
-                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[2.718281828,-1.5,2.718281828]}")
-            )
         );
     }
 

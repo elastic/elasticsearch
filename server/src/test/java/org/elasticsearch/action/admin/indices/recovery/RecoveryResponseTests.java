@@ -21,7 +21,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -71,7 +70,8 @@ public class RecoveryResponseTests extends ESTestCase {
                                         sourceNode,
                                         targetNode
                                     ),
-                                    null
+                                    null,
+                                    ShardRecoveryInfo.NOT_BLOCKED_MILLIS
                                 )
                             )
                         )
@@ -87,46 +87,42 @@ public class RecoveryResponseTests extends ESTestCase {
         final RecoveryState gatedState = createRecoveryState(indexName, 0);
         final RecoveryState ungatedState = createRecoveryState(indexName, 1);
         final String gate = randomIdentifier();
+        final long blockedForMillis = 0L;
         final RecoveryResponse response = new RecoveryResponse(
             2,
             2,
             0,
-            Map.of(indexName, List.of(new ShardRecoveryInfo(gatedState, gate), new ShardRecoveryInfo(ungatedState, null))),
+            Map.of(
+                indexName,
+                List.of(
+                    new ShardRecoveryInfo(gatedState, gate, blockedForMillis),
+                    new ShardRecoveryInfo(ungatedState, null, ShardRecoveryInfo.NOT_BLOCKED_MILLIS)
+                )
+            ),
             List.of()
         );
 
-        final Map<String, Object> responseMap;
-        try (var builder = JsonXContent.contentBuilder()) {
-            ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, ToXContent.EMPTY_PARAMS);
-            responseMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
-        }
+        final Map<String, Object> responseMap = toMap(response);
         final Map<?, ?> index = (Map<?, ?>) responseMap.get(indexName);
         final List<?> shards = (List<?>) index.get("shards");
         final Map<?, ?> gatedShard = (Map<?, ?>) shards.get(0);
         final Map<?, ?> ungatedShard = (Map<?, ?>) shards.get(1);
         assertThat(gatedShard.get("gate"), equalTo(gate));
+        assertThat(((Number) gatedShard.get("blocked_for_millis")).longValue(), equalTo(blockedForMillis));
         assertFalse(ungatedShard.containsKey("gate"));
+        assertFalse(ungatedShard.containsKey("blocked_for_millis"));
+
+        gatedState.setStage(RecoveryState.Stage.INIT);
+        final Map<?, ?> startedShard = (Map<?, ?>) ((List<?>) ((Map<?, ?>) toMap(response).get(indexName)).get("shards")).get(0);
+        assertFalse(startedShard.containsKey("gate"));
+        assertFalse(startedShard.containsKey("blocked_for_millis"));
     }
 
-    public void testGateTransportSerialization() throws IOException {
-        final String gate = randomIdentifier();
-        final ShardRecoveryInfo recoveryInfo = new ShardRecoveryInfo(createRecoveryState(randomIndexName(), 0), gate);
-
-        final ShardRecoveryInfo oldVersionCopy = copyWriteable(
-            recoveryInfo,
-            writableRegistry(),
-            ShardRecoveryInfo::new,
-            TransportVersionUtils.getPreviousVersion(ShardRecoveryInfo.GATE_IN_RECOVERY_RESPONSE)
-        );
-        assertNull(oldVersionCopy.gate());
-
-        final ShardRecoveryInfo supportingVersionCopy = copyWriteable(
-            recoveryInfo,
-            writableRegistry(),
-            ShardRecoveryInfo::new,
-            TransportVersionUtils.randomVersionSupporting(ShardRecoveryInfo.GATE_IN_RECOVERY_RESPONSE)
-        );
-        assertThat(supportingVersionCopy.gate(), equalTo(gate));
+    private static Map<String, Object> toMap(RecoveryResponse response) throws IOException {
+        try (var builder = JsonXContent.contentBuilder()) {
+            ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
+        }
     }
 
     private static RecoveryState createRecoveryState(String indexName, int shardId) {

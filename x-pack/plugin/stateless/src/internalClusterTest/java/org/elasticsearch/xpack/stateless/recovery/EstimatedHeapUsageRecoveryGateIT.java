@@ -39,6 +39,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -79,7 +80,7 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
             () -> assertThat(
                 "a gate-deferred recovery must identify its gate in the recovery API",
                 indicesAdmin().prepareRecoveries(indexName).get().toString(),
-                containsString("\"gate\" : \"estimated_heap\"")
+                allOf(containsString("\"gate\" : \"estimated_heap\""), containsString("\"blocked_for_millis\""))
             )
         );
 
@@ -114,7 +115,7 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         assertThat(
             "the gate field must disappear after the recovery is released",
             indicesAdmin().prepareRecoveries(indexName).get().toString(),
-            not(containsString("\"gate\""))
+            allOf(not(containsString("\"gate\"")), not(containsString("\"blocked_for_millis\"")))
         );
 
         telemetry.collect();

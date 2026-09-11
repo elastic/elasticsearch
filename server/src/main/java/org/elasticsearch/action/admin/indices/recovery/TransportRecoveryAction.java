@@ -54,6 +54,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
     private final ThrottlingRecoveryService throttlingRecoveryService;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportRecoveryAction(
@@ -77,6 +78,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<
         this.indicesService = indicesService;
         this.projectResolver = projectResolver;
         this.throttlingRecoveryService = throttlingRecoveryService;
+        this.threadPool = transportService.getThreadPool();
     }
 
     @Override
@@ -130,29 +132,32 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
             assert shardRouting.allocationId() != null;
             final RecoveryState recoveryState = indexShard.recoveryState();
-            return new ShardRecoveryInfo(recoveryState, nodeContext.gateFor(shardRouting.allocationId().getId(), recoveryState.getStage()));
+            final BlockedState blockedState = nodeContext.blockedState();
+            if (blockedState != null && nodeContext.allocationIds().contains(shardRouting.allocationId().getId())) {
+                return new ShardRecoveryInfo(recoveryState, blockedState.gateName(), nodeContext.blockedForMillis());
+            }
+            return new ShardRecoveryInfo(recoveryState, null, ShardRecoveryInfo.NOT_BLOCKED_MILLIS);
         });
     }
 
     @Override
     protected BlockedRecoveries createNodeContext() {
         final Set<String> queuedAllocationIds = throttlingRecoveryService.queuedAllocationIds();
-        return new BlockedRecoveries(throttlingRecoveryService.blockedState(), queuedAllocationIds);
+        final BlockedState blockedState = throttlingRecoveryService.blockedState();
+        return new BlockedRecoveries(blockedState, queuedAllocationIds, threadPool.relativeTimeInMillis());
     }
 
     /// Captures the recoveries that are blocked by a recovery gate.
-    record BlockedRecoveries(@Nullable BlockedState blockedState, Set<String> allocationIds) {
+    record BlockedRecoveries(@Nullable BlockedState blockedState, Set<String> allocationIds, long currentRelativeTimeMillis) {
         BlockedRecoveries {
             allocationIds = Set.copyOf(allocationIds);
         }
 
-        @Nullable
-        String gateFor(String allocationId, RecoveryState.Stage stage) {
-            // the gate is only reported for recoveries that are queued and have not yet started, i.e. those in the CREATED stage.
-            // Once a recovery has started, it is no longer queued and the gate is no longer relevant.
-            return blockedState != null && stage == RecoveryState.Stage.CREATED && allocationIds.contains(allocationId)
-                ? blockedState.gateName()
-                : null;
+        long blockedForMillis() {
+            assert blockedState != null;
+            final long blockedForMillis = currentRelativeTimeMillis - blockedState.sinceRelativeMillis();
+            assert blockedForMillis >= 0L;
+            return blockedForMillis;
         }
     }
 

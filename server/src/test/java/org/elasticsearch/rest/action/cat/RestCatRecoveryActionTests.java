@@ -111,7 +111,10 @@ public class RestCatRecoveryActionTests extends ESTestCase {
 
         final List<RecoveryState> shuffle = new ArrayList<>(recoveryStates);
         Randomness.shuffle(shuffle);
-        shardRecoveryInfos.put("index", shuffle.stream().map(state -> new ShardRecoveryInfo(state, null)).toList());
+        shardRecoveryInfos.put(
+            "index",
+            shuffle.stream().map(state -> new ShardRecoveryInfo(state, null, ShardRecoveryInfo.NOT_BLOCKED_MILLIS)).toList()
+        );
 
         final List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
         final RecoveryResponse response = new RecoveryResponse(

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.recovery;
 
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService.BlockedState;
 import org.elasticsearch.test.ESTestCase;
 
@@ -19,27 +18,20 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TransportRecoveryActionTests extends ESTestCase {
 
-    public void testGateIsOnlyReportedForQueuedCreatedRecoveries() {
+    public void testBlockedForMillis() {
         final String allocationId = randomIdentifier();
         final String gate = randomIdentifier();
+        final long sinceRelativeMillis = randomLongBetween(0L, 1_000_000L);
+        final long blockedForMillis = randomLongBetween(0L, 1_000_000L);
+        final BlockedState blockedState = new BlockedState(gate, sinceRelativeMillis);
         final var blockedRecoveries = new TransportRecoveryAction.BlockedRecoveries(
-            new BlockedState(gate, randomNonNegativeLong()),
-            Set.of(allocationId)
+            blockedState,
+            Set.of(allocationId),
+            sinceRelativeMillis + blockedForMillis
         );
 
-        assertThat(blockedRecoveries.gateFor(allocationId, RecoveryState.Stage.CREATED), equalTo(gate));
-        assertNull(blockedRecoveries.gateFor(randomIdentifier(), RecoveryState.Stage.CREATED));
-        for (RecoveryState.Stage stage : RecoveryState.Stage.values()) {
-            if (stage != RecoveryState.Stage.CREATED) {
-                assertNull(blockedRecoveries.gateFor(allocationId, stage));
-            }
-        }
-    }
-
-    public void testNoGateIsReportedWhenNodeIsNotBlocked() {
-        final String allocationId = randomIdentifier();
-        final var blockedRecoveries = new TransportRecoveryAction.BlockedRecoveries(null, Set.of(allocationId));
-
-        assertNull(blockedRecoveries.gateFor(allocationId, RecoveryState.Stage.CREATED));
+        assertThat(blockedRecoveries.blockedState(), equalTo(blockedState));
+        assertThat(blockedRecoveries.allocationIds(), equalTo(Set.of(allocationId)));
+        assertThat(blockedRecoveries.blockedForMillis(), equalTo(blockedForMillis));
     }
 }

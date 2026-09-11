@@ -119,7 +119,10 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
 
         final Map<String, List<ShardRecoveryInfo>> shardRecoveryInfos = new HashMap<>();
         final RecoveryState recoveryState = new RecoveryState(shardRouting, discoveryNodeOne, discoveryNodeOne);
-        shardRecoveryInfos.put("_shard_0", singletonList(new ShardRecoveryInfo(recoveryState, null)));
+        shardRecoveryInfos.put(
+            "_shard_0",
+            singletonList(new ShardRecoveryInfo(recoveryState, null, ShardRecoveryInfo.NOT_BLOCKED_MILLIS))
+        );
 
         // Start the recovery before stopping its timer, so we report and test a non-0 total time
         recoveryState.setStage(RecoveryState.Stage.INIT);

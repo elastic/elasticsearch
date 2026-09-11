@@ -85,8 +85,10 @@ public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedTo
                     for (ShardRecoveryInfo recoveryInfo : entry.getValue()) {
                         b.startObject();
                         recoveryInfo.recoveryState().toXContent(b, p);
-                        if (recoveryInfo.gate() != null) {
-                            b.field("gate", recoveryInfo.gate());
+                        String gate = recoveryInfo.blockedByGate();
+                        if (gate != null) {
+                            b.field("gate", gate);
+                            b.field("blocked_for_millis", recoveryInfo.blockedForMillis());
                         }
                         b.endObject();
                     }

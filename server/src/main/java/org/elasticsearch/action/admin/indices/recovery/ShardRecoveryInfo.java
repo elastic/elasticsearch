@@ -19,42 +19,67 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import java.io.IOException;
 import java.util.Objects;
 
+/// Combines a shard's recovery state with a snapshot of the recovery gate that may be blocking it.
 public final class ShardRecoveryInfo implements Writeable {
 
     public static final TransportVersion GATE_IN_RECOVERY_RESPONSE = TransportVersion.fromName("gate_in_recovery_response");
 
+    /// Sentinel duration used when the recovery is not blocked by a gate.
+    public static final long NOT_BLOCKED_MILLIS = -1L;
+
     private final RecoveryState recoveryState;
     private final @Nullable String gate;
+    private final long blockedForMillis;
 
     /// @param recoveryState the underlying shard recovery state
     /// @param gate the name of the [org.elasticsearch.indices.recovery.RecoveryGate] blocking the recovery,
     ///             or `null` if it is not blocked
-    public ShardRecoveryInfo(RecoveryState recoveryState, @Nullable String gate) {
+    /// @param blockedForMillis how long the recovery gate had been blocking when this information was captured
+    public ShardRecoveryInfo(RecoveryState recoveryState, @Nullable String gate, long blockedForMillis) {
         this.recoveryState = Objects.requireNonNull(recoveryState);
         this.gate = gate;
+        assert gate == null ? blockedForMillis == NOT_BLOCKED_MILLIS : blockedForMillis >= 0L
+            : "blockedForMillis must be -1 without a gate and non-negative with a gate";
+        this.blockedForMillis = blockedForMillis;
     }
 
     public ShardRecoveryInfo(StreamInput in) throws IOException {
-        this(
-            RecoveryState.readRecoveryState(in),
-            in.getTransportVersion().supports(GATE_IN_RECOVERY_RESPONSE) ? in.readOptionalString() : null
-        );
+        recoveryState = RecoveryState.readRecoveryState(in);
+        if (in.getTransportVersion().supports(GATE_IN_RECOVERY_RESPONSE)) {
+            gate = in.readOptionalString();
+            blockedForMillis = gate == null ? NOT_BLOCKED_MILLIS : in.readVLong();
+        } else {
+            gate = null;
+            blockedForMillis = NOT_BLOCKED_MILLIS;
+        }
     }
 
     public RecoveryState recoveryState() {
         return recoveryState;
     }
 
-    @Nullable
-    public String gate() {
-        return gate;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         recoveryState.writeTo(out);
         if (out.getTransportVersion().supports(GATE_IN_RECOVERY_RESPONSE)) {
-            out.writeOptionalString(gate);
+            final String blockedByGate = blockedByGate();
+            out.writeOptionalString(blockedByGate);
+            if (blockedByGate != null) {
+                out.writeVLong(blockedForMillis);
+            }
         }
+    }
+
+    /// Returns the blocking recovery gate only while the recovery is still queued in the `CREATED` stage.
+    @Nullable
+    public String blockedByGate() {
+        if (gate != null && recoveryState.getStage() == RecoveryState.Stage.CREATED) {
+            return gate;
+        }
+        return null;
+    }
+
+    long blockedForMillis() {
+        return blockedForMillis;
     }
 }

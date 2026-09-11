@@ -112,7 +112,10 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
             ).initialize(localNode.getId(), "_allocation_id", 10 * i);
 
             final RecoveryState recoveryState = new RecoveryState(shardRouting, localNode, localNode);
-            recoveryInfos.put("_index_" + i, singletonList(new ShardRecoveryInfo(recoveryState, null)));
+            recoveryInfos.put(
+                "_index_" + i,
+                singletonList(new ShardRecoveryInfo(recoveryState, null, ShardRecoveryInfo.NOT_BLOCKED_MILLIS))
+            );
         }
         final RecoveryResponse recoveryResponse = new RecoveryResponse(randomInt(), randomInt(), randomInt(), recoveryInfos, emptyList());
 

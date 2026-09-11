@@ -228,8 +228,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * pipeline: the vector search runs unfiltered, the filter is applied to the raw candidate set, and a
      * single retry round runs if the candidate pool is not filled (HNSW seeds that retry from its
      * round-0 matches; IVF just excludes the docs it already saw). Below this threshold the query stays
-     * on the pre-filter path. Applies to both HNSW and {@code bbq_disk} (IVF) fields; nested (block-join)
-     * fields always stay on the pre-filter path, see {@code DenseVectorFieldType#canPostFilter}. The default
+     * on the pre-filter path. Applies to both HNSW and {@code bbq_disk} (IVF) fields. The default
      * is {@link PostFilterKnnQuery#DEFAULT_POST_FILTERING_THRESHOLD}.
      */
     public static final Setting<Float> POST_FILTER_SELECTIVITY_THRESHOLD = new Setting<>(
@@ -3639,7 +3638,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             };
         }
 
-        private boolean canPostFilter(Query filter, BitSetProducer parentFilter) {
+        private boolean canPostFilter(Query filter) {
             return filter != null && postFilterSelectivityThreshold < 1.0f;
         }
 
@@ -3688,7 +3687,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     )
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, searchStrategy, hnswEarlyTermination);
             }
-            if (canPostFilter(filter, parentFilter) && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+            if (canPostFilter(filter) && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
                 knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (similarityThreshold != null) {
@@ -3813,7 +3812,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         hnswEarlyTermination
                     );
             }
-            if (canPostFilter(filter, parentFilter) && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+            if (canPostFilter(filter) && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
                 knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (rescore) {
@@ -3939,7 +3938,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         hnswEarlyTermination
                     );
             }
-            if (canPostFilter(filter, parentFilter) && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+            if (canPostFilter(filter) && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
                 knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (rescore) {

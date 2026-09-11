@@ -267,6 +267,8 @@ Use the following configuration fields to set up the connector:
 
         ::::
 
+`expand_site_group_members`
+:   Available when document level security is enabled. When enabled, SharePoint site group members are written individually onto each document’s access control list. For large site groups, turn this off to store compact `site_group:` tokens on documents instead. Membership is resolved during access control syncs. Default value is `True`. Changing this setting requires a full content sync and access control sync. Introduced in 9.4.7, 9.5.4, and 9.6.
 
 
 ### Deployment using Docker [es-connectors-sharepoint-online-client-docker]
@@ -520,6 +522,8 @@ POST INDEX_NAME/_update_by_query?conflicts=proceed
 Document-level security (DLS) enables you to restrict access to documents based on a user’s permissions. This feature is available by default for this connector.
 
 Refer to [configuration](#es-connectors-sharepoint-online-client-configuration) on this page for how to enable DLS for this connector.
+
+When **Expand site group members** is disabled, content documents store compact `site_group:<site_id>:<group_id>` tokens instead of every site group member. Direct user, Entra group, and site user permissions are unchanged on the document. Access control syncs enrich identity documents with site group memberships so DLS term overlap still resolves access.
 
 ::::{tip}
 Refer to [DLS in Search Applications](/reference/search-connectors/es-dls-e2e-guide.md) to learn how to ingest data from SharePoint Online with DLS enabled, when building a search application.

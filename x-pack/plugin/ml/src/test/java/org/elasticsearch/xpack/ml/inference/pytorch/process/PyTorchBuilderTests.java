@@ -53,7 +53,8 @@ public class PyTorchBuilderTests extends ESTestCase {
             processPipes,
             new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL, 0L, 0L),
             true,
-            true
+            true,
+            false
         ).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());
@@ -77,7 +78,8 @@ public class PyTorchBuilderTests extends ESTestCase {
             processPipes,
             new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ZERO, Priority.NORMAL, 0L, 0L),
             true,
-            true
+            true,
+            false
         ).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());
@@ -100,7 +102,8 @@ public class PyTorchBuilderTests extends ESTestCase {
             processPipes,
             new TaskParams("my_model", "my_deployment", 42L, 1, 1, 1024, ByteSizeValue.ofBytes(42), Priority.LOW, 0L, 0L),
             true,
-            true
+            true,
+            false
         ).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());
@@ -125,7 +128,8 @@ public class PyTorchBuilderTests extends ESTestCase {
             processPipes,
             new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL, 0L, 0L),
             false,
-            true
+            true,
+            false
         ).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());
@@ -177,6 +181,57 @@ public class PyTorchBuilderTests extends ESTestCase {
             new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL, 0L, 0L),
             true,
             false,
+            false
+        ).build();
+
+        verify(nativeController).startProcess(commandCaptor.capture());
+
+        assertThat(
+            commandCaptor.getValue(),
+            contains(
+                "./pytorch_inference",
+                "--validElasticLicenseKeyConfirmed=true",
+                "--numThreadsPerAllocation=2",
+                "--numAllocations=4",
+                "--cacheMemorylimitBytes=12",
+                PROCESS_PIPES_ARG
+            )
+        );
+    }
+
+    public void testBuildWithSandboxEnabled() throws IOException, InterruptedException {
+        new PyTorchBuilder(
+            nativeController,
+            processPipes,
+            new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL, 0L, 0L),
+            true,
+            true,
+            true
+        ).build();
+
+        verify(nativeController).startProcess(commandCaptor.capture());
+
+        assertThat(
+            commandCaptor.getValue(),
+            contains(
+                "./pytorch_inference",
+                "--validElasticLicenseKeyConfirmed=true",
+                "--numThreadsPerAllocation=2",
+                "--numAllocations=4",
+                "--cacheMemorylimitBytes=12",
+                "--requireSandbox",
+                PROCESS_PIPES_ARG
+            )
+        );
+    }
+
+    public void testBuildWithSandboxEnabledOnNonLinuxDoesNotEmitFlag() throws IOException, InterruptedException {
+        new PyTorchBuilder(
+            nativeController,
+            processPipes,
+            new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL, 0L, 0L),
+            true,
+            true,
             false
         ).build();
 

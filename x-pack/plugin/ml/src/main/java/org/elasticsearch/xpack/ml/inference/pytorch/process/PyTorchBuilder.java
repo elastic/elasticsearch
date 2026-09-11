@@ -30,6 +30,7 @@ public class PyTorchBuilder {
     private static final String LOW_PRIORITY_ARG = "--lowPriority";
     private static final String SKIP_MODEL_VALIDATION_ARG = "--skipModelValidation";
     private static final String DISABLE_SANDBOX_ARG = "--disableSandbox";
+    private static final String REQUIRE_SANDBOX_ARG = "--requireSandbox";
 
     private final NativeController nativeController;
     private final ProcessPipes processPipes;
@@ -88,8 +89,13 @@ public class PyTorchBuilder {
         if (modelGraphValidationEnabled == false) {
             command.add(SKIP_MODEL_VALIDATION_ARG);
         }
-        if (sandboxEnabled == false && isLinux) {
-            command.add(DISABLE_SANDBOX_ARG);
+        // Sandbox2 is Linux-only, so the route token is only meaningful there (see design.md
+        // Non-goals: "must never receive a Linux-only routing token" off Linux). On Linux, every
+        // launch sends exactly one of the two tokens - never neither - so the controller's own
+        // no-token default (which now always means legacy, see ml-cpp#3188) is never relied upon
+        // by Elasticsearch itself, only by direct/manual invocations of the controller.
+        if (isLinux) {
+            command.add(sandboxEnabled ? REQUIRE_SANDBOX_ARG : DISABLE_SANDBOX_ARG);
         }
 
         return command;

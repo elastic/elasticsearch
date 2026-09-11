@@ -33,20 +33,23 @@ import static org.hamcrest.Matchers.nullValue;
  *
  * <p><b>Important caveat for this test class as a whole:</b> EVERY code path exercised here is
  * blocked on the paired, not-yet-integrated ml-cpp artifact (see
- * https://github.com/elastic/ml-cpp/pull/3188), for two distinct reasons depending on the setting:
+ * https://github.com/elastic/ml-cpp/pull/3188):
  *
  * <ul>
  *   <li>{@code sandbox_enabled=false} (the default): {@code PyTorchBuilder#buildCommand} emits
- *   {@code --disableSandbox} unconditionally on Linux (see {@code DISABLE_SANDBOX_ARG}, added
- *   whenever {@code sandboxEnabled == false && isLinux}). The native controller bundled in this
- *   checkout today has no parsing for that token at all - it forwards it verbatim to
- *   {@code pytorch_inference}, which aborts on the unrecognized CLI option. This is the DEFAULT
- *   path, and it is just as blocked as the explicit-enable path below, only for a different reason.</li>
- *   <li>{@code sandbox_enabled=true}: {@code NativePyTorchProcessFactory#createProcess} additionally
- *   requests the isolated {@code $TMPDIR/ml-child-ipc/<deploymentId>/} directory (see
- *   {@code useIsolatedChildIpcDir=sandboxEnabled} there), which today's bundled controller does not
- *   create.</li>
+ *   {@code --disableSandbox} on Linux (see {@code DISABLE_SANDBOX_ARG}).</li>
+ *   <li>{@code sandbox_enabled=true}: {@code PyTorchBuilder#buildCommand} emits {@code --requireSandbox}
+ *   on Linux instead (see {@code REQUIRE_SANDBOX_ARG}) - Elasticsearch always sends exactly one of the
+ *   two tokens on Linux, never neither, per the two-token contract ml-cpp#3188 defines. It also makes
+ *   {@code NativePyTorchProcessFactory#createProcess} request the isolated
+ *   {@code $TMPDIR/ml-child-ipc/<deploymentId>/} directory (see {@code useIsolatedChildIpcDir=sandboxEnabled}
+ *   there).</li>
  * </ul>
+ *
+ * <p>The native controller bundled in this checkout, until the paired artifact lands, has no parsing
+ * for either token at all - it forwards whichever one Elasticsearch sends verbatim to
+ * {@code pytorch_inference}, which aborts on the unrecognized CLI option. Both settings values are
+ * therefore equally blocked, for the same reason.
  *
  * <p>Because {@code verifyControllerProtocolVersion} (see {@code x-pack/plugin/ml/build.gradle})
  * now hard-fails the build until a compatible ml-cpp artifact is bundled, none of the test methods
@@ -64,10 +67,8 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
      * With {@code xpack.ml.trained_models.sandbox_enabled} left at its (new, dark-launched) default of
      * {@code false}, {@code PyTorchBuilder} adds {@code --disableSandbox} to the child process command
      * line on Linux (see {@code PyTorchBuilder#buildCommand}). The native controller bundled in this
-     * checkout does not recognize that token and aborts the child process on startup - so, contrary to
-     * an earlier version of this comment, this default path is NOT unaffected by the missing ml-cpp
-     * change; it is blocked on the paired ml-cpp artifact just like the explicit-enable path is, only
-     * because of an unrecognized CLI flag rather than the missing isolated-IPC-directory support. This
+     * checkout does not recognize that token and aborts the child process on startup - this default
+     * path is blocked on the paired ml-cpp artifact just like the explicit-enable path is. This
      * asserts that, once that artifact is bundled, a deployment started under the default configuration
      * reaches a healthy state and serves inference correctly.
      */
@@ -98,9 +99,9 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
 
     /**
      * Flips {@code xpack.ml.trained_models.sandbox_enabled} to {@code true} via a dynamic cluster
-     * settings update. With the setting {@code true}, {@code PyTorchBuilder} omits
-     * {@code --disableSandbox} entirely, but flipping the setting to {@code true} also makes
-     * {@code NativePyTorchProcessFactory} request the isolated child IPC directory (see the class
+     * settings update. With the setting {@code true}, {@code PyTorchBuilder} sends
+     * {@code --requireSandbox} instead of {@code --disableSandbox}, and
+     * {@code NativePyTorchProcessFactory} requests the isolated child IPC directory (see the class
      * javadoc), which today's bundled ml-cpp controller does not create - so this test is expected to
      * fail end-to-end until the paired ml-cpp artifact lands.
      *

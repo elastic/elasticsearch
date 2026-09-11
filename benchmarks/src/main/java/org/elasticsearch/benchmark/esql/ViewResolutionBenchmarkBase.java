@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
-import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -155,11 +154,10 @@ public abstract class ViewResolutionBenchmarkBase {
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         InferenceSettings inferenceSettings = new InferenceSettings(Settings.EMPTY);
-        SettingsValidationContext validationCtx = new SettingsValidationContext(false, false);
         TransportVersion minimumVersion = TransportVersion.current();
 
         parser = new EsqlParser(new EsqlConfig(functionRegistry));
-        viewParser = (query, viewName) -> parser.parseView(query, new QueryParams(), validationCtx, inferenceSettings, viewName).plan();
+        viewParser = (query, viewName) -> parser.parseView(query, new QueryParams(), inferenceSettings, viewName).plan();
 
         LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
         for (int i = 0; i < 5; i++) {

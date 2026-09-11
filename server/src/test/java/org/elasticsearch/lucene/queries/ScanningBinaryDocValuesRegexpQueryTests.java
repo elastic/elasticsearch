@@ -24,7 +24,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -357,11 +357,11 @@ public class ScanningBinaryDocValuesRegexpQueryTests extends ESTestCase {
         boolean[] called = { false };
         query.visit(new QueryVisitor() {
             @Override
-            public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
+            public void consumeTermsMatching(Query q, String field, Supplier<ByteRunnable> automaton) {
                 called[0] = true;
                 assertSame(query, q);
                 assertEquals(fieldName, field);
-                ByteRunAutomaton a = automaton.get();
+                ByteRunnable a = automaton.get();
                 assertNotNull(a);
                 byte[] hello = "hello".getBytes(StandardCharsets.UTF_8);
                 byte[] world = "world".getBytes(StandardCharsets.UTF_8);
@@ -380,7 +380,7 @@ public class ScanningBinaryDocValuesRegexpQueryTests extends ESTestCase {
             }
 
             @Override
-            public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
+            public void consumeTermsMatching(Query q, String field, Supplier<ByteRunnable> automaton) {
                 calledForRejectedField[0] = true;
             }
         });

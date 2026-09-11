@@ -28,7 +28,7 @@ import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -313,7 +313,7 @@ public class HighlightVsDslBenchmark {
         boolean[] hasAutomata = new boolean[1];
         luceneQuery.visit(new QueryVisitor() {
             @Override
-            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunnable> automaton) {
                 hasAutomata[0] = true;
             }
 

@@ -28,7 +28,7 @@ import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.PassageScorer;
 import org.apache.lucene.search.uhighlight.UHComponents;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.core.Nullable;
@@ -328,7 +328,7 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
             }
 
             @Override
-            public void consumeTermsMatching(Query leafQuery, String field, Supplier<ByteRunAutomaton> automaton) {
+            public void consumeTermsMatching(Query leafQuery, String field, Supplier<ByteRunnable> automaton) {
                 if (leafQuery instanceof AbstractScriptFieldQuery) {
                     /**
                      * Queries on runtime fields don't support the matches API.

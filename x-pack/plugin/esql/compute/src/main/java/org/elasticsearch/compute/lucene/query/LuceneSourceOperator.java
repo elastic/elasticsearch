@@ -24,7 +24,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -280,7 +280,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 }
 
                 @Override
-                public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
+                public void consumeTermsMatching(Query q, String field, Supplier<ByteRunnable> automaton) {
                     if (isCostlyToBuildScorer(q)) {
                         found[0] = true;
                     }

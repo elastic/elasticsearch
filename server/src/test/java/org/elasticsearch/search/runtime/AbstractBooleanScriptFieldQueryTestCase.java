@@ -12,7 +12,7 @@ package org.elasticsearch.search.runtime;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 import org.elasticsearch.script.BooleanFieldScript;
 
 import java.util.ArrayList;
@@ -38,7 +38,7 @@ public abstract class AbstractBooleanScriptFieldQueryTestCase<T extends Abstract
             }
 
             @Override
-            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunnable> automaton) {
                 fail();
             }
 

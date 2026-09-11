@@ -27,7 +27,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.NumericUtils;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
@@ -198,7 +198,7 @@ final class QueryAnalyzer {
         }
 
         @Override
-        public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+        public void consumeTermsMatching(Query query, String field, Supplier<ByteRunnable> automaton) {
             if (query instanceof TermInSetQuery q) {
                 BytesRefIterator bytesRefIterator = q.getBytesRefIterator();
                 BytesRef term;

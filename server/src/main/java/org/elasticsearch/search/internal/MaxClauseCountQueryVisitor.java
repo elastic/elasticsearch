@@ -21,7 +21,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
@@ -219,7 +219,7 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
     }
 
     @Override
-    public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+    public void consumeTermsMatching(Query query, String field, Supplier<ByteRunnable> automaton) {
         if (++numClauses > maxClauseCount) {
             throw new IndexSearcher.TooManyNestedClauses();
         }

@@ -33,7 +33,7 @@ import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -192,8 +192,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         }
 
         @Override
-        public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
-            // The labelled wrapper is Lucene's only public UTF-16 view of a ByteRunAutomaton; the label goes unread here.
+        public void consumeTermsMatching(Query query, String field, Supplier<ByteRunnable> automaton) {
+            // The labelled wrapper is Lucene's only public UTF-16 view of a ByteRunnable; the label goes unread here.
             matchers.add(LabelledCharArrayMatcher.wrap("", automaton.get()));
         }
 

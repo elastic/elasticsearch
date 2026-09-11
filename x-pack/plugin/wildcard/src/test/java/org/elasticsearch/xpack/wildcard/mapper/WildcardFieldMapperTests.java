@@ -42,6 +42,7 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -781,7 +782,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             }
 
             @Override
-            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunnable> automaton) {
                 totalQueries[0]++;
             }
         });

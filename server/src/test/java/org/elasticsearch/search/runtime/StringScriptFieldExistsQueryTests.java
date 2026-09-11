@@ -12,7 +12,7 @@ package org.elasticsearch.search.runtime;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -58,7 +58,7 @@ public class StringScriptFieldExistsQueryTests extends AbstractStringScriptField
             }
 
             @Override
-            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunnable> automaton) {
                 fail();
             }
         });

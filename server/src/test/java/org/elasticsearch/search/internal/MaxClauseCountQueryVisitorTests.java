@@ -31,7 +31,7 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -122,7 +122,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
             @Override
             public void visit(QueryVisitor v) {
                 if (v.acceptField(getField())) {
-                    Supplier<ByteRunAutomaton> counting = () -> {
+                    Supplier<ByteRunnable> counting = () -> {
                         supplierInvocations.incrementAndGet();
                         return getAutomata().runAutomaton;
                     };

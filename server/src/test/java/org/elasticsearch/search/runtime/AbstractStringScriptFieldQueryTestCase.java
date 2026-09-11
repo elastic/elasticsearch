@@ -13,6 +13,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 import org.elasticsearch.script.StringFieldScript;
 
 import java.util.ArrayList;
@@ -41,10 +42,10 @@ public abstract class AbstractStringScriptFieldQueryTestCase<T extends AbstractS
             }
 
             @Override
-            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunnable> automaton) {
                 assertThat(query, sameInstance(testQuery));
                 assertThat(field, equalTo(testQuery.fieldName()));
-                automata.add(automaton.get());
+                automata.add((ByteRunAutomaton) automaton.get());
             }
         });
         assertThat(automata, hasSize(1));

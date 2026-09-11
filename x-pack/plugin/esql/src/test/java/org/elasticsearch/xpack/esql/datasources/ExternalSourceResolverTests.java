@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
-import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -704,38 +703,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
-    /**
-     * A footer file whose type the INTEGER anchor cannot represent is discarded as all-null.
-     * Widening into the anchor, and a declared coercion that licenses a per-value cast, are not.
-     */
-    public void testFooterDiscardedColumns() {
-        Map<String, DataType> integerAnchor = Map.of("x", DataType.INTEGER);
-        Map<String, DataType> longFile = Map.of("x", DataType.LONG);
-        Map<String, DataType> integerFile = Map.of("x", DataType.INTEGER);
-        Map<String, DataType> longAnchor = Map.of("x", DataType.LONG);
-
-        assertEquals(Map.of("x", DataType.LONG), ExternalSourceResolver.footerDiscardedColumns(integerAnchor, longFile, Set.of()));
-        assertEquals(Map.of(), ExternalSourceResolver.footerDiscardedColumns(longAnchor, integerFile, Set.of()));
-        assertEquals(Map.of(), ExternalSourceResolver.footerDiscardedColumns(integerAnchor, longFile, Set.of("x")));
-        assertEquals(Map.of(), ExternalSourceResolver.footerDiscardedColumns(integerAnchor, integerFile, Set.of()));
-
-        SchemaReconciliation.FileSchemaInfo agrees = new SchemaReconciliation.FileSchemaInfo(
-            new ExternalSchema(List.of(attr("x", DataType.INTEGER))),
-            null,
-            null,
-            null
-        );
-        assertEquals(Map.of(), ExternalSourceResolver.footerDiscardedColumns(agrees, Set.of()));
-
-        SchemaReconciliation.FileSchemaInfo drift = new SchemaReconciliation.FileSchemaInfo(
-            new ExternalSchema(List.of(attr("x", DataType.INTEGER))),
-            null,
-            null,
-            Map.of("x", DataType.LONG)
-        );
-        assertEquals(Map.of("x", DataType.LONG), ExternalSourceResolver.footerDiscardedColumns(drift, Set.of()));
-    }
-
     public void testFfwFooterAggregateSafeMissesDeclaredCoercibleColumn() {
         Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
             List.of(
@@ -850,26 +817,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertNull(agg.get(SourceStatisticsSerializer.columnValueCountKey("x")));
         assertNull(agg.get(SourceStatisticsSerializer.columnNullCountKey("x")));
         assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
-    }
-
-    /**
-     * The resolve-time channel is capped by exactly ONE budget, applied at emission. The resolver only collects
-     * (de-duplicated and bounded) because {@code resolveWithFactory} feeds the unconditional sink once per FILE,
-     * so budgeting there would let a wide glob spend every slot on repeated per-file bodies.
-     */
-    public void testResolveTimeWarningsAreCappedOnceAtEmissionWithUnconditionalFirst() {
-        List<String> many = new ArrayList<>();
-        for (int i = 0; i < SkipWarnings.MAX_ADDED_WARNINGS + 5; i++) {
-            many.add("unconditional warning " + i);
-        }
-        List<String> cappedAlone = new ExternalSourceResolution(Map.of(), many).budgetedWarnings();
-        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, cappedAlone.size());
-        assertThat(cappedAlone.get(cappedAlone.size() - 1), equalTo(SkipWarnings.overflowMessage()));
-        assertThat(
-            "the admitted slots are the first unconditional warnings, in order",
-            cappedAlone.subList(0, SkipWarnings.MAX_ADDED_WARNINGS),
-            equalTo(many.subList(0, SkipWarnings.MAX_ADDED_WARNINGS))
-        );
     }
 
     /**
@@ -4378,8 +4325,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * A one-column footer harvest. The source type is derived from the location's extension so a {@code .csv}
-     * fixture does not claim to be Parquet — {@code aggregateFileStatistics} reads {@code sourceType()} to pick
-     * the warning summary's file-kind prefix, so a mismatched fixture would assert against the wrong message.
+     * fixture does not claim to be Parquet: the text and footer folds differ on whether an absent per-column
+     * stat means "all rows null", so a fixture whose extension and {@code sourceType()} disagree would be
+     * asserting against a fold the file's own format never takes.
      */
     private static SourceMetadata fileWithColumn(String location, DataType type, long min, long max) {
         Map<String, Object> stats = new HashMap<>();

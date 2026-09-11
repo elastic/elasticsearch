@@ -69,6 +69,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -203,9 +204,9 @@ public class ExternalSourceResolver {
 
     /**
      * Resolve-time warning messages collected during one {@link #resolve} call: Hive-partition
-     * shadow-column notices (see {@link #warnOnShadowedColumns}), FIRST_FILE_WINS footer columns
-     * rewritten as all-null, {@code UNION_BY_NAME} schema-reconciliation notices (keyword fallback
-     * and long/double precision loss), and the factories' config-validation warnings
+     * shadow-column notices (see {@link #warnOnShadowedColumns}), {@code UNION_BY_NAME}
+     * schema-reconciliation notices (keyword fallback and long/double precision loss), and
+     * the factories' config-validation warnings
      * (see {@code ExternalSourceFactory#validateConfig(String, Map, Consumer)}). That chain
      * runs on {@link #metadataReadExecutor}, a real thread pool in production, so a direct
      * {@code HeaderWarning.addWarning} call from inside it would land on that executor thread's
@@ -215,25 +216,8 @@ public class ExternalSourceResolver {
      * {@code TransportEsqlQueryAction#toResponse} to emit on the thread that builds the client response.
      * Cleared at the start of each {@link #resolve} call; safe for concurrent per-file callbacks (see
      * {@link #metadataReadConcurrency}) since it is append-only until the single attach at completion.
-     * <p>
-     * These are UNCONDITIONAL: they describe the source, not one column, so they are emitted however the query
-     * projects.
-     * <p>
-     * Every append goes through {@link #recordPendingWarning}, which de-duplicates and bounds collection. No
-     * {@link InformationalWarningBudget} is spent here: the ONE budget for this channel is applied at emission by
-     * {@link ExternalSourceResolution#budgetedWarnings}. {@link #resolveWithFactory} feeds this sink once per
-     * FILE, so budgeting at collection would let a wide glob spend every slot on repeated per-file bodies.
-     * Bounding replaces that: de-duplication collapses the identical per-file body a glob repeats, and the cap
-     * stops at one more than the budget can admit so the "further warnings suppressed" marker is still reachable.
      */
-    private final Set<String> pendingShadowWarnings = Collections.synchronizedSet(new LinkedHashSet<>());
-
-    /**
-     * Collection cap for {@link #pendingShadowWarnings}: one MORE than the budget can admit, so that a resolve
-     * which produced more than the cap still hands the emission budget enough to trip its overflow marker,
-     * while nothing is retained that could never be emitted.
-     */
-    private static final int PENDING_WARNING_COLLECTION_CAP = SkipWarnings.MAX_ADDED_WARNINGS + 1;
+    private final List<String> pendingShadowWarnings = new CopyOnWriteArrayList<>();
 
     /**
      * The {@link #executor} decorated so that every task it runs has the query cancellation signal installed as the
@@ -455,7 +439,7 @@ public class ExternalSourceResolver {
 
         // Once per query, before the per-path recursion: one warning per column however many paths and files the
         // resource expands to, and on the strict rail, which never reaches the non-strict overlay.
-        warnOnSubstitutedDeclaredTypes(declaredMappings, this::recordPendingWarning);
+        warnOnSubstitutedDeclaredTypes(declaredMappings, pendingShadowWarnings::add);
 
         // Resolution runs on the caller-supplied executor (esql_worker in production, isolated from SEARCH so a wide
         // wildcard cannot starve regular ES searches). The initial dispatch performs the cheap synchronous prep (glob
@@ -888,10 +872,6 @@ public class ExternalSourceResolver {
                 // a subset COUNT/MIN/MAX (see foldsAbsentColumnAsImplicitNull / SourceStatisticsSerializer).
                 boolean implicitNulls = foldsAbsentColumnAsImplicitNull(base.sourceType());
                 Set<String> declaredTypeColumns = physicalDeclaredTypeColumnsOf(declaredMapping);
-                // No eager Hive-shadow reservation is needed here. Shadow notices are unconditional and
-                // ExternalSourceResolution#budgetedWarnings applies the single emission budget, so a
-                // wide glob cannot deliver an unbounded header set. finishFirstFileWins ->
-                // enrichSchemaWithPartitionColumns remains their single emission point.
                 // Prefetch the dataset-level aggregate BEFORE the per-file stats gather — see
                 // applyDatasetAggregate for why post-gather reads self-defeat under cache pressure.
                 DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(listing, config, cacheable);
@@ -1048,7 +1028,7 @@ public class ExternalSourceResolver {
             // data-only unified schema at ColumnMapping#pruneToPerFileQuery and with queryDataSchema at the
             // SchemaAdaptingIterator guard. enrichSchemaWithPartitionColumns appends the partition column and warns.
             dataOnlySchema = ExternalSchema.dataAttributesOf(physicalSchema, partitionMetadata.partitionColumns().keySet()).attributes();
-            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, this::recordPendingWarning);
+            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingShadowWarnings::add);
         }
 
         // _file.* columns are request-driven now; no auto-attach to the schema. See
@@ -1591,7 +1571,7 @@ public class ExternalSourceResolver {
                 if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
                     result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
                 } else {
-                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, this::recordPendingWarning);
+                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingShadowWarnings::add);
                 }
 
                 // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
@@ -1607,7 +1587,7 @@ public class ExternalSourceResolver {
                 // does not warn again (the no-double-warning invariant, asserted at that call). Do not reorder.
                 PartitionMetadata partitionMetadata = fileList.partitionMetadata();
                 Set<String> partitionNames = partitionMetadata != null ? partitionMetadata.partitionColumns().keySet() : Set.of();
-                result = shadowPartitionCollisions(result, partitionNames, this::recordPendingWarning);
+                result = shadowPartitionCollisions(result, partitionNames, pendingShadowWarnings::add);
 
                 List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
                 SourceMetadata firstMeta = allMetadata.get(firstFile);
@@ -1666,7 +1646,7 @@ public class ExternalSourceResolver {
                     assert metaForAssert.schema().stream().noneMatch(a -> partitionNames.contains(a.name()))
                         : "shadowPartitionCollisions must run before enrichSchemaWithPartitionColumns: a physical "
                             + "column still collides with a partition key, which would warn twice";
-                    extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, this::recordPendingWarning);
+                    extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingShadowWarnings::add);
                 }
 
                 // _file.* columns are request-driven now; no auto-attach to the schema. See
@@ -1976,21 +1956,22 @@ public class ExternalSourceResolver {
             } else {
                 List<String> rewriteColumns = null;
                 List<String> encodeColumns = null;
-                Map<String, DataType> discarded = implicitNullsForAbsentColumn
-                    ? footerDiscardedColumns(anchorTypes, fileTypes, declaredColumns)
-                    : Map.of();
                 for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
                     DataType anchorType = anchorTypes.get(entry.getKey());
                     DataType fileType = entry.getValue();
-                    if (discarded.containsKey(entry.getKey())) {
-                        if (rewriteColumns == null) {
-                            rewriteColumns = new ArrayList<>();
-                        }
-                        rewriteColumns.add(entry.getKey());
-                    } else if (unrepresentableUnderAnchor(anchorType, fileType)) {
+                    if (unrepresentableUnderAnchor(anchorType, fileType)) {
                         if (declaredCoercible(declaredColumns, entry.getKey(), fileType, anchorType)) {
+                            // The scan still coerces this column per value, so its harvest describes neither an
+                            // all-null read nor the coerced one: drop extrema and counts after the merge.
                             safeMissColumns.add(entry.getKey());
+                        } else if (implicitNullsForAbsentColumn) {
+                            // Footer readers null-fill the whole column, so the file's harvest becomes all-null.
+                            if (rewriteColumns == null) {
+                                rewriteColumns = new ArrayList<>();
+                            }
+                            rewriteColumns.add(entry.getKey());
                         } else {
+                            // Text readers decide per value under the error policy; the harvest is not all-null.
                             unrepresentableColumns.add(entry.getKey());
                         }
                     } else if (signedHarvestUnderUnsignedPlanner(anchorType, fileType)) {
@@ -2094,51 +2075,6 @@ public class ExternalSourceResolver {
             harvest = SourceStatisticsSerializer.removeColumnCounts(harvest, failedEncodes);
         }
         return harvest;
-    }
-
-    /**
-     * The columns of one FIRST_FILE_WINS file that a FOOTER read returns as all-null, with the
-     * file's own type for each: the anchor cannot represent the file type, and no declared
-     * coercion licenses a per-value cast. Same decision as the Parquet/ORC readers
-     * (plannerTypeCompatibleWithFileDerivedType + DeclaredTypeCoercions#supports).
-     * Empty for a file that agrees with or widens into the anchor.
-     */
-    public static Map<String, DataType> footerDiscardedColumns(
-        Map<String, DataType> anchorTypes,
-        Map<String, DataType> fileTypes,
-        Set<String> declaredPhysicalColumns
-    ) {
-        if (anchorTypes == null || anchorTypes.isEmpty() || fileTypes == null || fileTypes.isEmpty()) {
-            return Map.of();
-        }
-        Set<String> declared = declaredPhysicalColumns == null ? Set.of() : declaredPhysicalColumns;
-        Map<String, DataType> discarded = new LinkedHashMap<>();
-        for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
-            DataType anchorType = anchorTypes.get(entry.getKey());
-            DataType fileType = entry.getValue();
-            if (unrepresentableUnderAnchor(anchorType, fileType)
-                && declaredCoercible(declared, entry.getKey(), fileType, anchorType) == false) {
-                discarded.put(entry.getKey(), fileType);
-            }
-        }
-        return discarded.isEmpty() ? Map.of() : discarded;
-    }
-
-    /**
-     * {@link #footerDiscardedColumns(Map, Map, Set)} for one reconciled file: {@code info.fileSchema()}
-     * is the planner / pinned (anchor) schema and {@code info.inferredTypes()} is the file's own
-     * footer types. A null inferred snapshot means the file agrees with the anchor, so nothing is
-     * discarded. That snapshot is populated for every FIRST_FILE_WINS file by
-     * {@code finishFirstFileWins}.
-     */
-    public static Map<String, DataType> footerDiscardedColumns(
-        SchemaReconciliation.FileSchemaInfo info,
-        Set<String> declaredPhysicalColumns
-    ) {
-        if (info == null || info.inferredTypes() == null) {
-            return Map.of();
-        }
-        return footerDiscardedColumns(attributesToTypeMap(info.fileSchema().attributes()), info.inferredTypes(), declaredPhysicalColumns);
     }
 
     /**
@@ -2275,20 +2211,6 @@ public class ExternalSourceResolver {
     private boolean foldsAbsentColumnAsImplicitNull(String sourceType) {
         FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(sourceType);
         return reader == null || reader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
-    }
-
-    /**
-     * Collects one unconditional resolve-time warning into {@link #pendingShadowWarnings}, de-duplicated and
-     * bounded by {@link #PENDING_WARNING_COLLECTION_CAP}. Deliberately NOT budget-gated: the single budget for
-     * this channel is applied at emission ({@link ExternalSourceResolution#budgetedWarnings}). Every append
-     * site routes here, including the per-file ones, which is what makes the cap hold for a wide glob.
-     */
-    private void recordPendingWarning(String warning) {
-        synchronized (pendingShadowWarnings) {
-            if (pendingShadowWarnings.size() < PENDING_WARNING_COLLECTION_CAP) {
-                pendingShadowWarnings.add(warning);
-            }
-        }
     }
 
     /**
@@ -2518,7 +2440,7 @@ public class ExternalSourceResolver {
                 // immediately rather than being swallowed as a factory failure and retried against
                 // the next factory in the registry. Warnings are buffered, not emitted here: this
                 // runs on the metadata-read executor, whose ThreadContext never reaches the client.
-                factory.validateConfig(path, config, this::recordPendingWarning);
+                factory.validateConfig(path, config, pendingShadowWarnings::add);
                 try {
                     return factory.resolveMetadata(path, config);
                 } catch (Exception e) {
@@ -2631,7 +2553,7 @@ public class ExternalSourceResolver {
             resolveWithFactory(path, hint, config, candidates, index + 1, e, listener);
         });
         try {
-            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, this::recordPendingWarning, next);
+            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, pendingShadowWarnings::add, next);
         } catch (Exception e) {
             // A factory that throws synchronously from dispatch (before invoking the listener) must not abort the
             // whole resolve: fall through to the next candidate exactly as the async onFailure path does.
@@ -2739,11 +2661,15 @@ public class ExternalSourceResolver {
         List<Attribute> enrichedSchema = new ArrayList<>();
         // Physical columns dropped because a same-named partition key shadows them. Collected in
         // schema order (deduped) so we can emit one client-facing warning per shadowed column.
-        List<String> shadowedColumns = shadowedPhysicalColumns(originalSchema, partitionNames);
+        List<String> shadowedColumns = new ArrayList<>();
 
         for (Attribute attr : originalSchema) {
             if (partitionNames.contains(attr.name()) == false) {
                 enrichedSchema.add(attr);
+            } else if (shadowedColumns.contains(attr.name()) == false) {
+                // Partition (path-derived) value wins; the physical column is hidden (Spark/DuckDB
+                // semantics). The escape hatch to read the physical column is partition_detection: none.
+                shadowedColumns.add(attr.name());
             }
         }
 
@@ -2840,19 +2766,6 @@ public class ExternalSourceResolver {
         }
     }
 
-    private static List<String> shadowedPhysicalColumns(List<Attribute> schema, Set<String> partitionNames) {
-        List<String> shadowed = new ArrayList<>();
-        if (schema == null || partitionNames == null || partitionNames.isEmpty()) {
-            return shadowed;
-        }
-        for (Attribute attr : schema) {
-            if (partitionNames.contains(attr.name()) && shadowed.contains(attr.name()) == false) {
-                shadowed.add(attr.name());
-            }
-        }
-        return shadowed;
-    }
-
     /**
      * Emits one client-facing response-header WARN per physical column that a same-named Hive
      * partition key shadows. Shadowing follows Spark (SPARK-27356) and DuckDB: the partition
@@ -2862,7 +2775,7 @@ public class ExternalSourceResolver {
      * Delegates to {@link SkipWarnings}, which emits the summary once on the first detail. Every
      * caller reachable from {@link #resolve}'s async schema-resolution chain (which runs on
      * {@link #metadataReadExecutor}, not the originating request thread) MUST pass a non-null
-     * {@code warningSink} — e.g. {@code this::recordPendingWarning} — so the message is buffered
+     * {@code warningSink} — e.g. {@code pendingShadowWarnings::add} — so the message is buffered
      * onto {@link ExternalSourceResolution} at resolve completion (see {@link #pendingShadowWarnings})
      * and later emitted by {@code TransportEsqlQueryAction#toResponse}. Do not re-add a
      * resolve-time {@code HeaderWarning} flush: that write is discarded when
@@ -2932,26 +2845,6 @@ public class ExternalSourceResolver {
         }
         Set<String> physical = new HashSet<>(logical.size());
         for (String col : logical) {
-            physical.add(PhysicalNames.translate(col, renames));
-        }
-        return Set.copyOf(physical);
-    }
-
-    /**
-     * Declared-type columns as the physical file names a FIRST_FILE_WINS fold and the warm-gate
-     * notices see. {@link DeclaredReadSpec#declaredTypeColumns()} is logical; a {@code path} rename
-     * is applied here so membership matches the harvest.
-     */
-    public static Set<String> physicalDeclaredTypeColumnsOf(@Nullable DeclaredReadSpec spec) {
-        if (spec == null || spec.declaredTypeColumns().isEmpty()) {
-            return Set.of();
-        }
-        Map<String, String> renames = spec.renames();
-        if (renames.isEmpty()) {
-            return spec.declaredTypeColumns();
-        }
-        Set<String> physical = new HashSet<>(spec.declaredTypeColumns().size());
-        for (String col : spec.declaredTypeColumns()) {
             physical.add(PhysicalNames.translate(col, renames));
         }
         return Set.copyOf(physical);
@@ -3280,7 +3173,7 @@ public class ExternalSourceResolver {
         );
         extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
-            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, this::recordPendingWarning);
+            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingShadowWarnings::add);
         }
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = new HashMap<>();

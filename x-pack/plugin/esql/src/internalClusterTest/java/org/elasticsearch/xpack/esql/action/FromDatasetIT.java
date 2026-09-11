@@ -298,7 +298,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "employees_ndjson_absent_warn",
         "drift_pq_type_ffw",
         "widen_pq_type_ffw",
-        "warnscope_pq_ffw",
         "drift_csv_type_ffw",
         "ul_pq_type_ffw",
         "ul_pq_neg_ffw",
@@ -6320,8 +6319,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // The anchor pins x to int32, which cannot represent part-b's int64, so part-b's x is read as null: the
         // dataset the query sees holds 1, 2, null, null. Every form of every aggregate must answer over that.
-        List<String> scanWarnings = collectWarningsContaining("FROM drift_pq_type_ffw | KEEP x | SORT x", "incompatible with planner type");
-        assertThat(scanWarnings, not(empty()));
+        // The COLD path's notice is the reader's and is untouched by this fix; assert it still reaches the
+        // client so a change to the warm fold can never silently take the scan's warning with it.
+        assertThat(collectWarningsContaining("FROM drift_pq_type_ffw | KEEP x | SORT x", "incompatible with planner type"), not(empty()));
         assertThat(firstRowOf("FROM drift_pq_type_ffw | KEEP x | SORT x"), equalTo(List.of(1)));
         assertThat(firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
         assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
@@ -6340,49 +6340,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             equalTo(List.of(1, 2, 2L))
         );
         assertThat(documentsReadBy("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(0L));
-        assertThat(
-            collectWarningsContaining("FROM drift_pq_type_ffw | STATS c = COUNT(x)", "incompatible with planner type"),
-            not(empty())
-        );
-    }
-
-    /**
-     * The incompatibility notice is scoped to queries that actually read the drifting column. The resolve-time
-     * fold inspects every column of every file, so without scoping a warm {@code COUNT(*)} — which reads no
-     * column at all — would warn about a column the user never mentioned, while the same query on the cold path
-     * stays silent because the readers only warn per projected column.
-     */
-    public void testFirstFileWinsColumnWarningOnlyWhenTheColumnIsRead() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        Path dir = createTempDir();
-        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
-        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
-        putFirstFileWinsGlob("warnscope_pq_ffw", dir);
-
-        // Reading x: the notice is relevant and emitted, warm.
-        assertThat(collectWarningsContaining("FROM warnscope_pq_ffw | STATS c = COUNT(x)", "incompatible with planner type"), not(empty()));
-        assertThat(documentsReadBy("FROM warnscope_pq_ffw | STATS c = COUNT(x)"), equalTo(0L));
-
-        // COUNT(*) reads no column, so there is nothing to warn about even though the fold saw the clash.
-        assertThat(firstRowOf("FROM warnscope_pq_ffw | STATS c = COUNT(*)"), equalTo(List.of(4L)));
-        assertThat(
-            collectWarningsContaining("FROM warnscope_pq_ffw | STATS c = COUNT(*)", "incompatible with planner type"),
-            equalTo(List.of())
-        );
-
-        // KEEP leaves a Project between STATS and the relation; the gate must still serve warm and warn.
-        assertThat(documentsReadBy("FROM warnscope_pq_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(0L));
-        assertThat(
-            collectWarningsContaining("FROM warnscope_pq_ffw | KEEP x | STATS c = COUNT(x)", "incompatible with planner type"),
-            not(empty())
-        );
-
-        // A scanning shape emits the reader's notice once: warm and cold are mutually exclusive.
-        List<String> scanWarnings = collectWarningsContaining(
-            "FROM warnscope_pq_ffw | WHERE x IS NOT NULL | STATS c = COUNT(x)",
-            "Column [x]"
-        );
-        assertThat(scanWarnings, hasSize(1));
     }
 
     public void testFirstFileWinsWarmAggregateKeepsWideningFileValues() throws Exception {

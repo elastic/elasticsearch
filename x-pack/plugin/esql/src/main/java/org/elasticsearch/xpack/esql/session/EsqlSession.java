@@ -241,13 +241,12 @@ public class EsqlSession {
     private final ProjectMetadata projectMetadata;
 
     /**
-     * The external-source resolution's warning channel from the most recent {@link ExternalSourceResolver#resolve}.
+     * Hive-partition shadow-column warning bodies from the most recent {@link ExternalSourceResolver#resolve}.
      * Written when pre-analysis completes (often on the external blob-store pool) and read in
-     * {@link #attachAdditionalData} so it can be merged into {@link DriverCompletionInfo} for {@code toResponse}
-     * to emit. Snapshotted here rather than re-read off the resolver at the end because the resolver clears its
-     * buffers at the start of every {@code resolve} call. This session is one-shot per query.
+     * {@link #attachAdditionalData} so they can be merged into {@link DriverCompletionInfo} for
+     * {@code toResponse} to emit. This session is one-shot per query.
      */
-    private volatile ExternalSourceResolution externalSourceWarningSource = ExternalSourceResolution.EMPTY;
+    private volatile List<String> externalSourceWarnings = List.of();
 
     /**
      * Mutable state accumulated during EXPLAIN mode execution. All fields are written before
@@ -748,10 +747,7 @@ public class EsqlSession {
         if (completionInfo == null) {
             completionInfo = DriverCompletionInfo.EMPTY;
         }
-        completionInfo = completionInfo.withAdditionalWarnings(externalSourceWarningSource.budgetedWarnings());
-        if (result.executionInfo() != null) {
-            completionInfo = completionInfo.withAdditionalWarnings(result.executionInfo().warmDiscardNotices());
-        }
+        completionInfo = completionInfo.withAdditionalWarnings(externalSourceWarnings);
         return new Versioned<>(
             new Result(
                 result.schema(),
@@ -1701,7 +1697,7 @@ public class EsqlSession {
             .<PreAnalysisResult>andThen(
                 (l, r) -> preAnalyzeExternalSources(externalSourceResolver, parsed, preAnalysis, r, l.map(preAnalysisResult -> {
                     ExternalSourceResolution resolution = preAnalysisResult.externalSourceResolution();
-                    externalSourceWarningSource = resolution == null ? ExternalSourceResolution.EMPTY : resolution;
+                    externalSourceWarnings = resolution == null ? List.of() : resolution.warnings();
                     return preAnalysisResult;
                 }))
             )

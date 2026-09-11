@@ -115,16 +115,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private transient ProjectRoutingRequestInfo projectRoutingInfo;
     private transient boolean hasLinkedProjects;
 
-    /**
-     * Reader-identical FIRST_FILE_WINS incompatibility notices collected when the coordinator
-     * warm gate skips split discovery. Coordinator-only (not serialized): the skip gate may
-     * complete on SDK/Netty threads, so notices cannot go through HeaderWarning there.
-     * {@code EsqlSession#attachAdditionalData} merges them into DriverCompletionInfo on the
-     * response thread. The DriverCompletionInfo accumulator is not in scope at the gate
-     * (both skip sites return CollectedSplits before compute), so this list is the reachable sink.
-     */
-    private final transient List<String> warmDiscardNotices = new CopyOnWriteArrayList<>();
-
     private final EsqlQueryProfile queryProfile;
 
     /**
@@ -230,19 +220,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public EsqlQueryProfile queryProfile() {
         return queryProfile;
-    }
-
-    /** Appends notices collected by the coordinator warm gate. No-op for a null or empty list. */
-    public void addWarmDiscardNotices(List<String> notices) {
-        if (notices == null || notices.isEmpty()) {
-            return;
-        }
-        warmDiscardNotices.addAll(notices);
-    }
-
-    /** Notices recorded by {@link #addWarmDiscardNotices}; empty when the warm gate emitted none. */
-    public List<String> warmDiscardNotices() {
-        return warmDiscardNotices.isEmpty() ? List.of() : List.copyOf(warmDiscardNotices);
     }
 
     /**

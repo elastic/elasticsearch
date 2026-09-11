@@ -3362,10 +3362,24 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 && DeclaredTypeCoercions.supports(actualInFile, attr.dataType());
             if (plannerTypeCompatibleWithFileDerivedType(attr.dataType(), actualInFile) == false && declaredCoercible == false) {
                 if (skipWarnings == null) {
-                    skipWarnings = new SkipWarnings(SkipWarnings.incompatiblePlannerTypeFileSummary("parquet", fileLocation), warningSink);
+                    skipWarnings = new SkipWarnings(
+                        "Parquet file ["
+                            + fileLocation
+                            + "] has columns whose on-disk type is incompatible with the planner type; "
+                            + "they are returned as null",
+                        warningSink
+                    );
                 }
                 skipWarnings.add(
-                    SkipWarnings.incompatiblePlannerTypeColumnMessage(attr.name(), fileLocation, actualInFile, attr.dataType())
+                    "Column ["
+                        + attr.name()
+                        + "] in file ["
+                        + fileLocation
+                        + "] has type ["
+                        + actualInFile
+                        + "] incompatible with planner type ["
+                        + attr.dataType()
+                        + "]; returning nulls for this column"
                 );
                 logger.warn(
                     "Column [{}] in file [{}] has type [{}] incompatible with planner type [{}] after widening; "

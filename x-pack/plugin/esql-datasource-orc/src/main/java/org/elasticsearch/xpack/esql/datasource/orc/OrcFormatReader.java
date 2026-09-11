@@ -1529,9 +1529,25 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     || (declaredTypeColumns.contains(attr.name()) && DeclaredTypeCoercions.supports(actualInFile, planner));
                 if (compatible == false) {
                     if (skipWarnings == null) {
-                        skipWarnings = new SkipWarnings(SkipWarnings.incompatiblePlannerTypeFileSummary("orc", fileLocation), warningSink);
+                        skipWarnings = new SkipWarnings(
+                            "ORC file ["
+                                + fileLocation
+                                + "] has columns whose on-disk type is incompatible with the planner type; "
+                                + "they are returned as null",
+                            warningSink
+                        );
                     }
-                    skipWarnings.add(SkipWarnings.incompatiblePlannerTypeColumnMessage(attr.name(), fileLocation, actualInFile, planner));
+                    skipWarnings.add(
+                        "Column ["
+                            + attr.name()
+                            + "] in file ["
+                            + fileLocation
+                            + "] has type ["
+                            + actualInFile
+                            + "] incompatible with planner type ["
+                            + planner
+                            + "]; returning nulls for this column"
+                    );
                     LOGGER.warn(
                         "Column [{}] in file [{}] has type [{}] incompatible with planner type [{}]; " + "returning nulls for this column",
                         attr.name(),

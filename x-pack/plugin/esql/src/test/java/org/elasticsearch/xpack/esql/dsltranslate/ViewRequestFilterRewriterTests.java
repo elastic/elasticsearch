@@ -8,8 +8,17 @@
 package org.elasticsearch.xpack.esql.dsltranslate;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -26,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -311,5 +321,84 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
                 + "too old to evaluate the translated filter; they were read unfiltered. "
                 + "Use a WHERE clause to filter rows from views instead"
         );
+    }
+
+    /**
+     * Kibana sends an empty filter rather than omitting the field when no filtering is wanted. Such a filter would translate to a
+     * no-op and install nothing, so it must not be treated as needing view boundaries — otherwise it suppresses view compaction for
+     * nothing. Covers the shapes the translator folds to TRUE: match_all, an empty bool, and bools nesting only empty ones.
+     */
+    public void testMatchEverythingFiltersDoNotNeedViewBoundaries() {
+        assertFalse("no filter at all", ViewRequestFilterRewriter.appliesToViewOutputs(null));
+        assertFalse("match_all", ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.matchAllQuery()));
+        assertFalse("empty bool", ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.boolQuery()));
+        assertFalse(
+            "bool filtering on match_all",
+            ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.boolQuery().filter(QueryBuilders.matchAllQuery()))
+        );
+        assertFalse(
+            "bool nesting an empty bool under must",
+            ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.boolQuery().must(QueryBuilders.boolQuery()))
+        );
+        assertFalse(
+            "bool nesting an empty bool under filter",
+            ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.boolQuery().filter(QueryBuilders.boolQuery()))
+        );
+    }
+
+    /** Anything that can exclude a document needs the boundaries kept. */
+    public void testRealFiltersNeedViewBoundaries() {
+        assertTrue("term", ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.termQuery("region", "eu")));
+        assertTrue("range", ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.rangeQuery("cnt").gt(0)));
+        assertTrue(
+            "bool with a real must",
+            ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("region", "eu")))
+        );
+        // should / must_not count as filtering even in the shapes the translator would discard: narrower is the safe direction.
+        assertTrue(
+            "bool with only a should",
+            ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("region", "eu")))
+        );
+        assertTrue(
+            "bool with only a must_not",
+            ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("region", "eu")))
+        );
+        // An unsupported construct must not be mistaken for a no-op — it has to reach the fail-closed translation.
+        assertTrue("unsupported wildcard", ViewRequestFilterRewriter.appliesToViewOutputs(QueryBuilders.wildcardQuery("region", "e*")));
+    }
+
+    /**
+     * The exact payload Kibana sends when no filtering is wanted — a bool with all four clause lists present but empty. Parsed from
+     * JSON rather than hand-built, so this pins the real wire format: if a future change made the emptiness test depend on the lists
+     * being absent rather than empty, this catches it.
+     */
+    public void testKibanaEmptyFilterPayloadDoesNotNeedViewBoundaries() throws IOException {
+        QueryBuilder kibanaEmpty = parseFilter("""
+            {
+              "bool": {
+                "must": [],
+                "filter": [],
+                "should": [],
+                "must_not": []
+              }
+            }
+            """);
+        assertThat(kibanaEmpty, instanceOf(BoolQueryBuilder.class));
+        assertFalse("Kibana's empty filter must not preserve view boundaries", ViewRequestFilterRewriter.appliesToViewOutputs(kibanaEmpty));
+        // Sanity: the same bool with one real clause does need them, so the assertion above is not vacuous.
+        QueryBuilder withClause = parseFilter("""
+            { "bool": { "must": [ { "term": { "region": "eu" } } ], "filter": [], "should": [], "must_not": [] } }
+            """);
+        assertTrue(ViewRequestFilterRewriter.appliesToViewOutputs(withClause));
+    }
+
+    private static QueryBuilder parseFilter(String json) throws IOException {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
+        XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(
+            new NamedXContentRegistry(searchModule.getNamedXContents())
+        );
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(config, json)) {
+            return AbstractQueryBuilder.parseTopLevelQuery(parser);
+        }
     }
 }

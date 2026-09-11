@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.dsltranslate;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -24,6 +27,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter.ESQL_REQUEST_FILTER_ON_DATASET;
 
@@ -91,6 +95,45 @@ public final class ViewRequestFilterRewriter {
     public static final FeatureFlag REQUEST_FILTER_ON_VIEW_FEATURE_FLAG = new FeatureFlag("esql_request_filter_on_view");
 
     private ViewRequestFilterRewriter() {}
+
+    /**
+     * Whether {@code requestFilter} could actually put a {@link Filter} on a view's output — i.e. whether anything downstream needs
+     * view boundaries preserved. Callers use this to decide {@code preserveViewBoundaries}; keeping the decision here means the
+     * planner and this rewriter cannot disagree about it.
+     *
+     * <p>Returns {@code false} for a filter that matches every document. Kibana sends an empty filter rather than omitting the field
+     * when no filtering is wanted, and {@link #rewriteViewBranches} would translate such a filter to {@link Literal#TRUE} and drop it
+     * as a no-op — so without this check those requests would suppress view compaction in order to install nothing.
+     *
+     * <p>The test is syntactic, so it needs neither a {@link Configuration} nor an output schema and can run before either exists.
+     * It is deliberately <em>narrower</em> than the translator's notion of a no-op: a {@code should} group or a {@code must_not} counts
+     * as filtering even in the shapes where the translator would discard it. Erring that way costs an unnecessary wrapper; erring the
+     * other way would push the filter into the view's source scan.
+     */
+    public static boolean appliesToViewOutputs(@Nullable QueryBuilder requestFilter) {
+        if (requestFilter == null || REQUEST_FILTER_ON_VIEW_FEATURE_FLAG.isEnabled() == false) {
+            return false;
+        }
+        return matchesEveryDocument(requestFilter) == false;
+    }
+
+    /**
+     * Structurally true when {@code filter} cannot exclude any document: {@code match_all}, or a {@code bool} with no {@code should}
+     * and no {@code must_not} whose {@code must}/{@code filter} clauses (if any) all match every document too — which covers both an
+     * empty {@code bool} and one nesting only empty bools.
+     */
+    private static boolean matchesEveryDocument(QueryBuilder filter) {
+        if (filter instanceof MatchAllQueryBuilder) {
+            return true;
+        }
+        if (filter instanceof BoolQueryBuilder bool) {
+            if (bool.should().isEmpty() == false || bool.mustNot().isEmpty() == false) {
+                return false;
+            }
+            return Stream.concat(bool.must().stream(), bool.filter().stream()).allMatch(ViewRequestFilterRewriter::matchesEveryDocument);
+        }
+        return false;
+    }
 
     /**
      * Rewrites {@code analyzed} so that {@code requestFilter} is applied as an ordinary {@link Filter} above each view

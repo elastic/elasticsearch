@@ -300,6 +300,29 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * An empty filter must be indistinguishable from sending no filter. Kibana sends one rather than omitting the field when no
+     * filtering is wanted, and it would otherwise take the whole view-boundary path — suppressing view compaction — only to install a
+     * no-op {@code Filter}. Asserted on the stats view because a computed field makes any stray filtering visible.
+     */
+    public void testEmptyFilterIsEquivalentToNoFilter() {
+        String query = "FROM " + STATS_VIEW + " | KEEP region, cnt | SORT region ASC";
+        List<List<Object>> unfiltered;
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest(query))) {
+            unfiltered = getValuesList(resp);
+        }
+        for (QueryBuilder empty : List.of(
+            QueryBuilders.matchAllQuery(),
+            QueryBuilders.boolQuery(),
+            QueryBuilders.boolQuery().filter(QueryBuilders.matchAllQuery()),
+            QueryBuilders.boolQuery().must(QueryBuilders.boolQuery())
+        )) {
+            try (EsqlQueryResponse resp = run(syncEsqlQueryRequest(query).filter(empty))) {
+                assertThat("empty filter [" + empty + "] must match the unfiltered result", getValuesList(resp), equalTo(unfiltered));
+            }
+        }
+    }
+
     // ─── Views whose body already branches ───────────────────────────────────────
 
     /**

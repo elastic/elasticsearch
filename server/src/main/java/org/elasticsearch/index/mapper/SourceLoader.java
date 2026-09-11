@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -22,7 +23,6 @@ import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -230,7 +230,7 @@ public interface SourceLoader {
 
             @Override
             public Source source(LeafStoredFieldLoader storedFieldLoader, int docId) throws IOException {
-                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
+                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new BytesStreamOutput())) {
                     write(storedFieldLoader, docId, b);
                     return Source.fromBytes(BytesReference.bytes(b), b.contentType());
                 }

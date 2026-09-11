@@ -36,13 +36,13 @@ public class GlobExpanderTests extends ESTestCase {
     /** No partition settings: the default, which resolves to AUTO and behaves as Hive detection did. */
     private static final Map<String, Object> HIVE_ON = Map.of();
 
-    /** The legacy switch that turns partition detection off, now folded into Strategy.NONE. */
-    private static final Map<String, Object> HIVE_OFF = Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, "false");
+    /** Detection disabled via the canonical setting. */
+    private static final Map<String, Object> HIVE_OFF = Map.of(PartitionConfig.CONFIG_PARTITIONING_DETECTION, "none");
 
-    /** Hive off, and every exclusion off. Directory placeholder keys are still skipped regardless. */
+    /** Detection disabled, and every exclusion off. Directory placeholder keys are still skipped regardless. */
     private static final Map<String, Object> NO_EXCLUSION = Map.of(
-        PartitionConfig.CONFIG_PARTITIONING_HIVE,
-        "false",
+        PartitionConfig.CONFIG_PARTITIONING_DETECTION,
+        "none",
         ExclusionConfig.CONFIG_FILE_EXCLUSIONS,
         List.of()
     );
@@ -880,6 +880,34 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/2024/*/15/*.parquet", rewritten);
     }
 
+    public void testRewriteGlobLiteralIsPinned() {
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/junk/{month}");
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*/*.parquet", hints, config);
+        assertEquals("s3://bucket/2024/junk/*/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobSpelledLeadingLiteralStillRewrites() {
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "logs/{year}/{month}");
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/logs/*/*/*.parquet", hints, config);
+        assertEquals("s3://bucket/logs/2024/*/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobDoesNotTreatALeadingStarAsALiteral() {
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "logs/{year}/{month}");
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/logs/*/*/*.parquet", hints, config);
+        assertEquals("s3://bucket/*/logs/2024/*/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobDeclinesWhenTheBucketIsNotAPathSlot() {
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "logs/{year}/{month}");
+        String pattern = "s3://logs/*/*/*.parquet";
+        assertEquals(pattern, GlobExpander.rewriteGlobWithHints(pattern, hints, config));
+    }
+
     public void testExpandGlobWithPartitionConfig() throws IOException {
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/2024/01/file1.parquet", 100),
@@ -1645,7 +1673,7 @@ public class GlobExpanderTests extends ESTestCase {
             GlobExpander.listingCacheDiscriminator(keyed, year2025, HIVE_ON)
         );
 
-        // hive_partitioning gates the rewrite and selects the partition metadata carried by the cached listing.
+        // partition_detection:none disables the rewrite and selects the partition metadata carried by the cached listing.
         assertNotEquals(unhintedKeyed, GlobExpander.listingCacheDiscriminator(keyed, null, HIVE_OFF));
 
         var fileName = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "a.parquet"));

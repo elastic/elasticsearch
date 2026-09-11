@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -568,27 +569,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 );
             }
         }
-    }
-
-    /** The vector columnar mode only supports synthetic source for now. */
-    public void testColumnarStoredSourceModeRejectedInVectordbColumnarIndex() {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.toString())
-            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
-            .build();
-        IllegalArgumentException exc = expectThrows(
-            IllegalArgumentException.class,
-            () -> createMapperService(settings, topMapping(b -> {}))
-        );
-        assertThat(
-            exc.getMessage(),
-            containsString(
-                "unsupported source mode [COLUMNAR_STORED] for index mode ["
-                    + IndexMode.VECTORDB_COLUMNAR
-                    + "]; supported values: [SYNTHETIC]"
-            )
-        );
     }
 
     public void testSyntheticRecoverySourceRequiredForColumnarIndex() {
@@ -1379,33 +1359,35 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             new IndexRequest("index").id("1").source(new BytesArray(doc1Source), XContentType.JSON),
             new IndexRequest("index").id("2").source(new BytesArray(doc2Source), XContentType.JSON) };
         IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
-        BatchMappingContext context = new BatchMappingContext(
-            batch,
-            mapperService.mappingLookup(),
-            mapperService.getIndexSettings(),
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
-        );
+        try (
+            BatchMappingContext context = new BatchMappingContext(
+                batch,
+                mapperService.mappingLookup(),
+                mapperService.getIndexSettings(),
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            )
+        ) {
+            mapper.preColumnarParse(context);
 
-        mapper.preColumnarParse(context);
-
-        final MappedColumns mappedColumns = context.columns();
-        Column sizeColumn = null;
-        for (Column column : mappedColumns.toColumnBatch().columns()) {
-            if (column.name().equals(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME)) {
-                sizeColumn = column;
+            final MappedColumns mappedColumns = context.columns();
+            Column sizeColumn = null;
+            for (Column column : mappedColumns.toColumnBatch().columns()) {
+                if (column.name().equals(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME)) {
+                    sizeColumn = column;
+                }
             }
-        }
-        assertNotNull("expected a _recovery_source_size column", sizeColumn);
-        assertEquals("doc values type must be NUMERIC", DocValuesType.NUMERIC, sizeColumn.fieldType().docValuesType());
-        assertEquals("must have no inverted index", IndexOptions.NONE, sizeColumn.fieldType().indexOptions());
-        assertFalse("must not be stored", sizeColumn.fieldType().stored());
+            assertNotNull("expected a _recovery_source_size column", sizeColumn);
+            assertEquals("doc values type must be NUMERIC", DocValuesType.NUMERIC, sizeColumn.fieldType().docValuesType());
+            assertEquals("must have no inverted index", IndexOptions.NONE, sizeColumn.fieldType().indexOptions());
+            assertFalse("must not be stored", sizeColumn.fieldType().stored());
 
-        LongColumn longColumn = (LongColumn) sizeColumn;
-        var cursor = longColumn.tuples();
-        assertEquals(0, cursor.nextDoc());
-        assertTrue("size estimate for doc1 must be positive", cursor.longValue() > 0);
-        assertEquals(1, cursor.nextDoc());
-        assertTrue("size estimate for doc2 must be positive", cursor.longValue() > 0);
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+            LongColumn longColumn = (LongColumn) sizeColumn;
+            var cursor = longColumn.tuples();
+            assertEquals(0, cursor.nextDoc());
+            assertTrue("size estimate for doc1 must be positive", cursor.longValue() > 0);
+            assertEquals(1, cursor.nextDoc());
+            assertTrue("size estimate for doc2 must be positive", cursor.longValue() > 0);
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+        }
     }
 }

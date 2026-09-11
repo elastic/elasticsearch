@@ -31,11 +31,15 @@ import java.util.Set;
  * Extending the request filter to other source boundaries (a view, say) is a change of the target predicate here, not of
  * the mechanism. Index leaves keep their existing (pre-analysis) request-filter path and are not touched.
  *
- * <p>Translation is <em>fail-closed by default</em>: a construct outside the supported subset fails the whole query
- * with a 400 ({@link VerificationException}) listing every offending clause, rather than silently applying a widened
- * superset. With {@code allow_partial_dsl_filter=true} the translatable AND-conjuncts are applied and the rest are
- * dropped with a {@link HeaderWarning}. A filter that translates to a supported no-op ({@code match_all}) leaves the
- * relation read unfiltered.
+ * <p>A construct outside the supported subset costs the caller that clause and nothing more: the translatable
+ * AND-conjuncts are applied and the rest are dropped with a {@link HeaderWarning} naming each offending construct and
+ * the dataset it was dropped on. The drop is safe in one direction by construction — {@link FilterRewriter} returns a
+ * predicate equal to or looser than the filter — so a dropped clause can only over-return, never hide a matching row.
+ * A filter that translates to a supported no-op ({@code match_all}) leaves the relation read unfiltered.
+ *
+ * <p>The strict arm, which fails the whole query with a 400 ({@link VerificationException}) listing every offending
+ * clause, remains reachable through {@code dropUntranslatableWithWarning} so both policies stay under test. Nothing
+ * selects it in production, and no request parameter exposes it.
  *
  * <p>The rewrite is <em>feature-flagged</em>. Applying the filter to datasets changes what an existing dataset query
  * returns — a filter that used to be dropped now selects rows, and DSL outside the supported subset now fails the
@@ -72,8 +76,9 @@ public final class RequestFilterRewriter {
      * @param minimumVersion        the minimum transport version across the nodes this plan targets; below
      *                              {@link #ESQL_REQUEST_FILTER_ON_DATASET} the rewrite is skipped (see the class
      *                              javadoc).
-     * @param allowPartialDslFilter when {@code true}, unsupported DSL clauses are dropped with a warning rather than
-     *                              failing the query.
+     * @param dropUntranslatableWithWarning when {@code true}, unsupported DSL clauses are dropped with a warning rather
+     *                                      than failing the query. Production always passes {@code true}; the
+     *                                      {@code false} arm exists so the strict policy stays under test.
      */
     public static LogicalPlan rewrite(
         LogicalPlan analyzed,
@@ -81,7 +86,7 @@ public final class RequestFilterRewriter {
         boolean enabled,
         Configuration configuration,
         TransportVersion minimumVersion,
-        boolean allowPartialDslFilter
+        boolean dropUntranslatableWithWarning
     ) {
         if (requestFilter == null) {
             return analyzed;
@@ -102,7 +107,7 @@ public final class RequestFilterRewriter {
             configuration
         );
         if (result.isComplete() == false) {
-            if (allowPartialDslFilter) {
+            if (dropUntranslatableWithWarning) {
                 warnUnsupportedClauses(result.failures());
             } else {
                 List<String> messages = new ArrayList<>(result.failures().size());
@@ -117,7 +122,7 @@ public final class RequestFilterRewriter {
         return result.plan();
     }
 
-    /** Warns about unsupported clauses dropped in partial mode, naming each construct and its dataset. */
+    /** Warns about the unsupported clauses that were dropped, naming each construct and its dataset. */
     private static void warnUnsupportedClauses(List<FilterRewriter.NodeFailure> failures) {
         // Deduplicate: the same construct can fail several times on the same dataset (e.g. two wildcard clauses),
         // and repeating the pair only inflates the header. LinkedHashSet keeps the first-seen order.

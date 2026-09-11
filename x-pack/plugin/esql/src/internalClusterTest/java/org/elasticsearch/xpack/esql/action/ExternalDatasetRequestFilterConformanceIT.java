@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
@@ -361,21 +359,23 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
     }
 
     /**
-     * Fail-closed: a filter mixing a supported {@code term} with an unsupported {@code wildcard} in a required must arm
-     * fails the whole query with a 400 naming the construct — the supported clause does not rescue it.
+     * An untranslatable clause costs the caller that clause, not the query: a filter mixing a supported {@code term}
+     * with an untranslatable {@code fuzzy} in a required must arm answers, selecting exactly what the {@code term}
+     * alone selects. That equality is the loosen-only contract — dropping a conjunct can only widen the result, so the
+     * dropped clause must not remove a row the term admits, and must not add one either.
      */
-    public void testUnsupportedConstructFailsTheQuery() {
+    public void testUntranslatableConstructDropsOnlyThatClause() {
         QueryBuilder mixed = QueryBuilders.boolQuery()
             .must(QueryBuilders.termQuery("status", 300))
-            .must(QueryBuilders.wildcardQuery("tags", "t*"));
-        Exception e = expectThrows(Exception.class, () -> selectedIds(dataset, mixed));
-        Throwable cause = ExceptionsHelper.unwrapCause(e);
-        assertThat(cause.getMessage(), containsString("[wildcard]"));
-        assertThat("an unsupported construct is a 400, not a 500", ExceptionsHelper.status(cause), equalTo(RestStatus.BAD_REQUEST));
+            .must(QueryBuilders.fuzzyQuery("tags", "t"));
+        List<Object> withUntranslatable = selectedIds(dataset, mixed);
+        List<Object> supportedOnly = selectedIds(dataset, QueryBuilders.termQuery("status", 300));
+        assertThat("the fixture must select rows, or the equality below is vacuous", supportedOnly.isEmpty(), equalTo(false));
+        assertThat(withUntranslatable, equalTo(supportedOnly));
     }
 
     /**
-     * Non-required should arm with an unsupported construct must NOT fail the query in fail-closed mode: the applied
+     * Non-required should arm with an unsupported construct must NOT fail the query: the applied
      * filter is semantically complete (the must conjunct is the binding constraint; the should is optional).
      */
     public void testNonRequiredShouldUnsupportedDoesNotFailQuery() {
@@ -388,62 +388,46 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         assertThat("filter on must=300 must return rows", ids.isEmpty(), equalTo(false));
     }
 
-    // ---- REST layer tests: prove the URL param is parsed by RestEsqlQueryAction and flows through ----
+    // ---- REST layer tests: prove the policy and the withdrawn parameter through the HTTP path ----
 
     /**
-     * REST: without {@code allow_partial_dsl_filter}, an unsupported DSL construct fails the query with HTTP 400.
-     * This proves the default is fail-closed through the HTTP parsing path.
+     * REST: an untranslatable construct is dropped with a {@code Warning} response header naming it, and the query
+     * still answers. No request parameter selects this — it is the only dataset policy there is.
+     *
+     * <p>The clause is a {@code fuzzy}, deliberately: it is the one construct with no translation and none planned, so
+     * this case keeps testing the policy rather than the vocabulary as the translator learns more constructs.
      */
-    public void testRestParamDefaultFailsClosed() throws IOException {
+    public void testRestUntranslatableClauseIsDroppedWithWarning() throws IOException {
         Request request = new Request("POST", "/_query");
         request.setJsonEntity(String.format(Locale.ROOT, """
             {
               "query": "FROM %s | KEEP id",
-              "filter": { "wildcard": { "tags": { "value": "t*" } } }
-            }
-            """, dataset));
-        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("[wildcard]"));
-    }
-
-    /**
-     * REST: {@code allow_partial_dsl_filter=false} is explicit fail-closed — same as the default.
-     */
-    public void testRestParamFalseExplicit() throws IOException {
-        Request request = new Request("POST", "/_query");
-        request.addParameter("allow_partial_dsl_filter", "false");
-        request.setJsonEntity(String.format(Locale.ROOT, """
-            {
-              "query": "FROM %s | KEEP id",
-              "filter": { "wildcard": { "tags": { "value": "t*" } } }
-            }
-            """, dataset));
-        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("[wildcard]"));
-    }
-
-    /**
-     * REST: {@code allow_partial_dsl_filter=true} returns HTTP 200 with a {@code Warning} response header naming the
-     * dropped construct. This proves the URL param is parsed by {@link RestEsqlQueryAction} and flows through
-     * {@code EsqlSession} to {@code RequestFilterRewriter}.
-     */
-    public void testRestParamTrueAppliesPartially() throws IOException {
-        Request request = new Request("POST", "/_query");
-        request.addParameter("allow_partial_dsl_filter", "true");
-        request.setJsonEntity(String.format(Locale.ROOT, """
-            {
-              "query": "FROM %s | KEEP id",
-              "filter": { "wildcard": { "tags": { "value": "t*" } } }
+              "filter": { "fuzzy": { "tags": { "value": "t" } } }
             }
             """, dataset));
         Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         List<String> warnings = response.getWarnings();
         assertTrue(
-            "expected a warning about the dropped [wildcard] construct; got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("[wildcard]"))
+            "expected a warning about the dropped [fuzzy] construct; got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("[fuzzy]"))
         );
+    }
+
+    /**
+     * REST: {@code allow_partial_dsl_filter} is no longer a parameter. It never shipped in a release, so it is
+     * withdrawn rather than deprecated, and the REST layer rejects it like any other unknown parameter.
+     */
+    public void testWithdrawnPartialDslFilterParameterIsRejected() throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.addParameter("allow_partial_dsl_filter", "true");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "query": "FROM %s | KEEP id"
+            }
+            """, dataset));
+        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("allow_partial_dsl_filter"));
     }
 }

@@ -542,8 +542,8 @@ public class EsqlSession {
                     // against each source's schema. Index leaves keep their existing filter path. Version-gated:
                     // the translated predicate can contain mv_in_range / mv_greater / mv_less, which older
                     // nodes cannot deserialize.
-                    // Fail-closed by default: an unsupported construct throws VerificationException (a 400).
-                    // With allow_partial_dsl_filter=true: applies only the translatable subset, emits a warning.
+                    // An untranslatable clause costs the caller that clause, not the query: the translatable
+                    // subset is applied and the rest dropped with a warning naming each construct and its dataset.
                     // This callback runs outside the SubscribableListener chain below, so a synchronous throw here
                     // would not be routed to the listener — catch it and fail the query explicitly.
                     final LogicalPlan plan;
@@ -554,7 +554,7 @@ public class EsqlSession {
                             RequestFilterRewriter.REQUEST_FILTER_ON_DATASET_FEATURE_FLAG.isEnabled(),
                             finalConfiguration,
                             minimumVersion,
-                            Boolean.TRUE.equals(request.allowPartialDslFilter())
+                            true // drop untranslatable clauses with a warning; the strict arm is test-only
                         );
                     } catch (Exception e) {
                         listener.onFailure(e);

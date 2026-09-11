@@ -97,7 +97,11 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
         try {
             process.start(executorService);
         } catch (IOException | EsRejectedExecutionException e) {
-            String msg = "Failed to connect to pytorch process for job " + task.getDeploymentId();
+            String msg = "Failed to connect to pytorch process for job "
+                + task.getDeploymentId()
+                + " ["
+                + processPipes.describeNamedPipes()
+                + "]";
             logger.error(msg, e);
             try {
                 IOUtils.close(process);

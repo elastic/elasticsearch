@@ -2209,9 +2209,9 @@ public class FileSplitProvider implements SplitProvider {
     /**
      * Normalizes raw footer statistics (the {@code _stats.*} map) for stamping onto a split: applies the
      * declared-overlay rekey/poison when a declaration ran, unit-normalizes values to the reconciled query
-     * types, reapplies the FIRST_FILE_WINS rewrite or unsigned encode for this file's types, then copies
-     * fold-level unservability from {@code foldedSourceMetadata}. Returns {@code null} for absent/empty
-     * stats. Shared by the per-range path and the single-unit discovery skip in
+     * types, reapplies the FIRST_FILE_WINS rewrite or unsigned encode against this file's read schema,
+     * then copies fold-level unservability from {@code foldedSourceMetadata}. Returns {@code null} for
+     * absent/empty stats. Shared by the per-range path and the single-unit discovery skip in
      * {@link #tryRangeAwareSplits} so both stamp identical stats for one unit.
      */
     @Nullable
@@ -2229,9 +2229,10 @@ public class FileSplitProvider implements SplitProvider {
             return stats;
         }
         if (readSchema == null || reconciledTypes == null) {
-            Map<String, DataType> planner = reconciledTypes != null ? reconciledTypes
-                : readSchema != null ? attributesToTypeMap(readSchema)
-                : null;
+            // The rewrite compares file types to the schema the reader is pinned to, not the unified
+            // output type. UNION_BY_NAME widens DATETIME+DATE_NANOS in the output and converts after
+            // the read; treating the unified type as the planner would null-fill a valid conversion.
+            Map<String, DataType> planner = readSchema != null ? attributesToTypeMap(readSchema) : reconciledTypes;
             stats = ExternalSourceResolver.alignHarvestWithAnchorTypes(
                 stats,
                 inferredFileTypes,
@@ -2286,10 +2287,15 @@ public class FileSplitProvider implements SplitProvider {
         // files and LONG/INTEGER files reconciled to DOUBLE, not unit-blind. A non-normalizable
         // representation safe-misses via the marker.
         stats = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, statsFileTypes, reconciledTypes);
+        // FIRST_FILE_WINS pins every file to the anchor, so readSchema is the planner type the
+        // footer reader null-fills against. UNION_BY_NAME keeps the per-file footer type on
+        // readSchema and converts afterwards; comparing against reconciledTypes would treat a
+        // representable DATETIME→DATE_NANOS widen as unrepresentable and rewrite the harvest
+        // to value_count=0.
         stats = ExternalSourceResolver.alignHarvestWithAnchorTypes(
             stats,
             statsFileTypes,
-            reconciledTypes,
+            attributesToTypeMap(readSchema),
             implicitNulls,
             declaredTypeColumnsOf(declaredReadSpec)
         );
@@ -2300,17 +2306,14 @@ public class FileSplitProvider implements SplitProvider {
         return spec == null ? Set.of() : spec.declaredTypeColumns();
     }
 
+    /**
+     * Footer implicit-nulls for this file's configured reader. Resolved the same way
+     * {@link #peekCachedSplitRanges} is, so an extensionless object with an explicit
+     * {@code format} still applies the footer all-null rewrite.
+     */
     private boolean implicitNullsFor(FileTask task) {
-        if (formatRegistry == null || task.format() == null) {
-            return false;
-        }
-        try {
-            FormatReader reader = FormatNameResolver.resolveReader(task.config(), task.filePath().objectName(), formatRegistry)
-                .withConfig(task.config());
-            return implicitNullsFor(reader);
-        } catch (Exception e) {
-            return false;
-        }
+        FormatReader reader = resolveConfiguredReader(task.filePath(), task.config());
+        return reader != null && implicitNullsFor(reader);
     }
 
     private static boolean implicitNullsFor(FormatReader reader) {

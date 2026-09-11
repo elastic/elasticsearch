@@ -34,12 +34,10 @@ import static org.hamcrest.Matchers.hasSize;
  * the publication carrying the create, that node cannot see the stored secret and must not validate the
  * request as if none had ever been set.
  *
- * <p>Three master-eligible nodes keep a quorum of two when one is blocked from applying cluster
- * state, so the create still commits. Two nodes would not: blocking the non-master node leaves no
- * quorum, the publication does not commit, and the follow-up PUT then fails as if no secret had
- * ever been stored.
+ * <p>A dedicated master is the only voter, so blocking a data-only node from applying cluster state
+ * cannot steal quorum. The create still commits; the blocked node simply cannot ack.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 3, numClientNodes = 0, supportsDedicatedMasters = false)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class DataSourcePutStaleCurrentIT extends ESIntegTestCase {
 
     /** Short, so the blocked node's missing ack is not waited out for the full default. */
@@ -52,8 +50,12 @@ public class DataSourcePutStaleCurrentIT extends ESIntegTestCase {
     }
 
     public void testUpdateKeepsTheSecretOnANodeThatHasNotYetAppliedTheCreate() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        ensureStableCluster(3);
+
         final String master = internalCluster().getMasterName();
-        final String lagging = randomValueOtherThan(master, () -> randomFrom(internalCluster().getNodeNames()));
+        final String lagging = randomFrom(dataNodes);
         final String name = "cb";
 
         // From here the lagging node stops applying published cluster state, so it never sees the create.

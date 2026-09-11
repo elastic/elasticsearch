@@ -32,12 +32,10 @@ import static org.hamcrest.Matchers.hasSize;
  * carries the parent, the request must still be registered: the master re-validates authoritatively
  * and holds the only state that can decide.
  *
- * <p>Three master-eligible nodes keep a quorum of two when one is blocked from applying cluster
- * state, so the create still commits. Two nodes would not: blocking the non-master node leaves no
- * quorum, the publication does not commit, and the follow-up PUT then fails as if the parent never
- * existed.
+ * <p>A dedicated master is the only voter, so blocking a data-only node from applying cluster state
+ * cannot steal quorum. The create still commits; the blocked node simply cannot ack.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 3, numClientNodes = 0, supportsDedicatedMasters = false)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class DatasetPutStaleParentIT extends ESIntegTestCase {
 
     /** Short, so the blocked node's missing ack is not waited out for the full default. */
@@ -50,8 +48,12 @@ public class DatasetPutStaleParentIT extends ESIntegTestCase {
     }
 
     public void testDatasetRegistersOnANodeThatHasNotYetAppliedTheParent() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        ensureStableCluster(3);
+
         final String master = internalCluster().getMasterName();
-        final String lagging = randomValueOtherThan(master, () -> randomFrom(internalCluster().getNodeNames()));
+        final String lagging = randomFrom(dataNodes);
 
         // The lagging node stops applying published cluster state, so it cannot see anything created from now on.
         final BlockClusterStateProcessing blocked = new BlockClusterStateProcessing(lagging, random());

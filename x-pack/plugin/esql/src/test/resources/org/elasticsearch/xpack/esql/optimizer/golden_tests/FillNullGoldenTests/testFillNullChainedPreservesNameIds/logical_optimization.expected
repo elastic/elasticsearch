@@ -1,0 +1,4 @@
+Project[[emp_no{r}#0, gender{r}#1, hire_date{f}#2]]
+\_Eval[[COALESCE(gender{f}#3,Unknown[KEYWORD]) AS gender#1, COALESCE(emp_no{f}#4,0[INTEGER]) AS emp_no#0]]
+  \_Limit[1000[INTEGER],false,false]
+    \_EsRelation[employees][avg_worked_seconds{f}#5, birth_date{f}#6, emp_no{f}#4, first_name{f}#7, gender{f}#3, height{f}#8, height.float{f}#9, height.half_float{f}#10, height.scaled_float{f}#11, hire_date{f}#2, is_rehired{f}#12, job_positions{f}#13, languages{f}#14, languages.byte{f}#15, languages.long{f}#16, languages.short{f}#17, last_name{f}#18, salary{f}#19, salary_change{f}#20, salary_change.int{f}#21, salary_change.keyword{f}#22, salary_change.long{f}#23, still_hired{f}#24]

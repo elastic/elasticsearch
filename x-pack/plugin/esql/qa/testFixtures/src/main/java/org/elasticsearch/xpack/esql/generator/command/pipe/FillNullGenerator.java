@@ -1,0 +1,235 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.generator.command.pipe;
+
+import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
+import org.elasticsearch.xpack.esql.generator.QueryExecutor;
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
+
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomInstantBetween;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomIp;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+
+/**
+ * Generates {@code FILLNULL} in all-fields ({@code | FILLNULL <value> ON *}) and targeted
+ * ({@code | FILLNULL <value> ON f1, f2}) shapes; a targeted fill value is type-matched to the fields
+ * (incompatible targeted fills are rejected by the verifier, by design). The targeted form occasionally emits a
+ * KEEP-style prefix wildcard pattern to exercise pattern resolution, but only when it matches exactly a subset of the
+ * vetted candidate columns (so it never pulls in an incompatible-type or unsupported column). The {@link #ALL_FIELDS} /
+ * {@link #FILLED_FIELDS} context entries let {@code GenerativeRestTest#updateIndexMapped} clear the filled columns'
+ * {@code indexMapped} flag; for a pattern, {@link #FILLED_FIELDS} carries the concrete matched column names.
+ */
+public class FillNullGenerator implements CommandGenerator {
+
+    public static final String FILL_NULL = "fillnull";
+    public static final String ALL_FIELDS = "all_fields";
+    public static final String FILLED_FIELDS = "filled_fields";
+
+    public static final CommandGenerator INSTANCE = new FillNullGenerator();
+
+    private static final Set<String> NUMERIC_TYPES = Set.of("integer", "long", "double");
+    private static final Set<String> STRING_TYPES = Set.of("keyword", "text");
+    private static final Set<String> BOOLEAN_TYPES = Set.of("boolean");
+    // Types that have no dedicated literal syntax and are filled with a string literal that the language implicitly casts
+    private static final Set<String> DATE_TYPES = Set.of("date", "datetime", "date_nanos");
+    private static final Set<String> IP_TYPES = Set.of("ip");
+    private static final Set<String> VERSION_TYPES = Set.of("version");
+
+    @Override
+    public CommandDescription generate(
+        List<CommandDescription> previousCommands,
+        List<Column> previousOutput,
+        QuerySchema schema,
+        QueryExecutor executor,
+        GenerationContext context
+    ) {
+        if (EsqlCapabilities.Cap.FILLNULL.isEnabled() == false) {
+            return EMPTY_DESCRIPTION;
+        }
+
+        if (randomBoolean()) {
+            StringBuilder cmd = new StringBuilder(" | fillnull");
+            if (randomBoolean()) {
+                cmd.append(' ').append(randomFillValue());
+            } else {
+                cmd.append(" DEFAULT");
+            }
+            cmd.append(" ON *");
+            return new CommandDescription(FILL_NULL, this, cmd.toString(), Map.of(ALL_FIELDS, Boolean.TRUE));
+        }
+
+        String fillValue = null;
+        List<Column> candidates = null;
+        if (randomBoolean()) {
+            // Targeted FILLNULL <value> ON ...: restrict targets to a type family compatible with the value.
+            Set<String> family = randomFrom(NUMERIC_TYPES, STRING_TYPES, BOOLEAN_TYPES, DATE_TYPES, IP_TYPES, VERSION_TYPES);
+            candidates = previousOutput.stream().filter(EsqlQueryGenerator::fieldCanBeUsed).filter(c -> family.contains(c.type())).toList();
+            if (candidates.isEmpty() == false) {
+                fillValue = randomFillValueOfFamily(family);
+            }
+        }
+        if (candidates == null || candidates.isEmpty()) {
+            // Targeted FILLNULL with type-appropriate defaults: any usable field except unsupported (which cannot resolve).
+            fillValue = null;
+            candidates = previousOutput.stream()
+                .filter(EsqlQueryGenerator::fieldCanBeUsed)
+                .filter(c -> c.type().equals("unsupported") == false)
+                .toList();
+        }
+        if (candidates.isEmpty()) {
+            return EMPTY_DESCRIPTION;
+        }
+
+        List<String> rawNames = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        int count = randomIntBetween(1, Math.min(3, candidates.size()));
+        for (int i = 0; i < count * 2 && seen.size() < count; i++) {
+            seen.add(randomFrom(candidates).name());
+        }
+        StringBuilder cmd = new StringBuilder(" | fillnull");
+        if (fillValue != null) {
+            cmd.append(' ').append(fillValue);
+        } else {
+            cmd.append(" DEFAULT");
+        }
+        cmd.append(" ON ");
+
+        Set<String> candidateNames = new HashSet<>();
+        for (Column c : candidates) {
+            candidateNames.add(c.name());
+        }
+        PatternTarget pattern = randomBoolean() ? tryPrefixPattern(seen, previousOutput, candidateNames) : null;
+        if (pattern != null) {
+            cmd.append(pattern.patternText());
+            rawNames.addAll(pattern.matchedNames());
+        } else {
+            boolean first = true;
+            for (String name : seen) {
+                if (first == false) {
+                    cmd.append(", ");
+                }
+                first = false;
+                cmd.append(EsqlQueryGenerator.needsQuoting(name) ? EsqlQueryGenerator.quote(name) : name);
+                rawNames.add(name);
+            }
+        }
+        return new CommandDescription(FILL_NULL, this, cmd.toString(), Map.of(FILLED_FIELDS, rawNames));
+    }
+
+    /** A wildcard target: the emitted pattern text (e.g. {@code latency_*}) and the concrete column names it matches. */
+    private record PatternTarget(String patternText, List<String> matchedNames) {}
+
+    // A target name safe to turn into a bare (unquoted) KEEP-style pattern: a plain identifier, optionally dotted.
+    private static final Pattern SAFE_PATTERN_BASE = Pattern.compile("[A-Za-z_][A-Za-z0-9_.]*");
+
+    /**
+     * Builds a KEEP-style prefix pattern from a chosen target name (e.g. {@code latency_value} -> {@code latency_*}) with
+     * the exact columns it matches, or {@code null} when no safe pattern can be formed. Only accepted when every matched
+     * column is a vetted {@code candidateName}, so the wildcard never pulls in an incompatible-type or unsupported column.
+     */
+    private static PatternTarget tryPrefixPattern(Set<String> chosen, List<Column> previousOutput, Set<String> candidateNames) {
+        List<String> bases = chosen.stream().filter(n -> SAFE_PATTERN_BASE.matcher(n).matches()).toList();
+        if (bases.isEmpty()) {
+            return null;
+        }
+        String base = randomFrom(bases);
+        String prefix = base.substring(0, randomIntBetween(1, base.length()));
+        List<String> matched = previousOutput.stream().map(Column::name).filter(n -> n.startsWith(prefix)).distinct().toList();
+        if (matched.isEmpty()) {
+            return null;
+        }
+        for (String name : matched) {
+            if (candidateNames.contains(name) == false) {
+                return null;
+            }
+        }
+        return new PatternTarget(prefix + "*", matched);
+    }
+
+    @Override
+    public ValidationResult validateOutput(
+        List<CommandDescription> previousCommands,
+        CommandDescription commandDescription,
+        List<Column> previousColumns,
+        List<List<Object>> previousOutput,
+        List<Column> columns,
+        List<List<Object>> output
+    ) {
+        if (commandDescription == EMPTY_DESCRIPTION) {
+            return VALIDATION_OK;
+        }
+        return CommandGenerator.expectSameColumns(previousCommands, previousColumns, columns);
+    }
+
+    private static String randomFillValue() {
+        return switch (randomIntBetween(0, 8)) {
+            case 0 -> Integer.toString(randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE));
+            case 1 -> Long.toString(randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE));
+            case 2 -> "\"" + randomAlphaOfLength(randomIntBetween(0, 10)) + "\"";
+            case 3 -> Boolean.toString(randomBoolean());
+            case 4 -> randomIntBetween(0, 1000) + "." + randomIntBetween(0, 999);
+            case 5 -> "\"" + randomValidDateString() + "\"";
+            case 6 -> "\"" + randomValidIpString() + "\"";
+            case 7 -> "\"" + randomValidVersionString() + "\"";
+            default -> "null";
+        };
+    }
+
+    private static String randomFillValueOfFamily(Set<String> family) {
+        if (family == STRING_TYPES) {
+            return "\"" + randomAlphaOfLength(randomIntBetween(0, 10)) + "\"";
+        }
+        if (family == BOOLEAN_TYPES) {
+            return randomBoolean() ? Boolean.toString(randomBoolean()) : "\"" + randomBoolean() + "\"";
+        }
+        if (family == DATE_TYPES) {
+            return "\"" + randomValidDateString() + "\"";
+        }
+        if (family == IP_TYPES) {
+            return "\"" + randomValidIpString() + "\"";
+        }
+        if (family == VERSION_TYPES) {
+            return "\"" + randomValidVersionString() + "\"";
+        }
+        return Integer.toString(randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE));
+    }
+
+    // Kept within [1970, 2262] and truncated to millis so the same string parses for both date and date_nanos.
+    private static final Instant DATE_RANGE_START = Instant.parse("1971-01-01T00:00:00Z");
+    private static final Instant DATE_RANGE_END = Instant.parse("2261-12-31T23:59:59Z");
+
+    private static String randomValidDateString() {
+        return randomInstantBetween(DATE_RANGE_START, DATE_RANGE_END).truncatedTo(ChronoUnit.MILLIS).toString();
+    }
+
+    private static String randomValidIpString() {
+        return NetworkAddress.format(randomIp(randomBoolean()));
+    }
+
+    private static String randomValidVersionString() {
+        return randomIntBetween(0, 99) + "." + randomIntBetween(0, 99) + "." + randomIntBetween(0, 99);
+    }
+}

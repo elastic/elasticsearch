@@ -42,18 +42,13 @@ public final class BinaryDocValuesContainsTermQuery extends AbstractBinaryDocVal
         if (values == null) {
             return null;
         }
-        // A payload blob is never a bare value, so the whole-blob scan below can never apply to one — and there is no
-        // .counts companion to look up on the way to finding that out. super decodes the payload instead.
-        if (binaryFormat != BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
-            // tryContainsIterator scans the whole doc blob including the multi-valued length-prefix framing, so it is only
-            // correct for single-valued fields where no length prefixes exist.
-            final DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(fieldName + COUNT_FIELD_SUFFIX);
-            if ((countsSkipper == null || countsSkipper.maxValue() == 1)
-                && values instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
-                final DocIdSetIterator containsIter = direct.tryContainsIterator(containsTerm);
-                if (containsIter != null) {
-                    return containsIter;
-                }
+        // tryContainsIterator scans the whole doc blob including the multi-valued length-prefix framing, so it is only
+        // correct for single-valued fields where no length prefixes exist.
+        final DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(fieldName + COUNT_FIELD_SUFFIX);
+        if ((countsSkipper == null || countsSkipper.maxValue() == 1) && values instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+            final DocIdSetIterator containsIter = direct.tryContainsIterator(containsTerm);
+            if (containsIter != null) {
+                return containsIter;
             }
         }
         return super.getDocIdSetIterator(context, matchCost);

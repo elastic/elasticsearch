@@ -85,7 +85,7 @@ public interface UserRoleMapper {
             }
             var groupPredicates = groups.stream().map(group -> new DistinguishedNamePredicate(group, dnNormalizer)).toList();
 
-            model.defineField("groups", groups, fieldValue -> Predicates.any(groupPredicates).test(fieldValue));
+            model.defineField("groups", groups, Predicates.any(groupPredicates));
             metadata.keySet().forEach(k -> model.defineField("metadata." + k, metadata.get(k)));
             model.defineField("realm.name", realm.name());
             return model;

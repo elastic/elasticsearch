@@ -112,6 +112,14 @@ public enum Predicates {
         return new OnceTrue();
     }
 
+    /**
+     * Returns a predicate that tests the supplied predicates in iteration order, stopping when one returns {@code true}.
+     * An empty collection produces a predicate that always returns {@code false}.
+     *
+     * @param predicates the predicates to test
+     * @param <T> the input type
+     * @return a predicate that returns {@code true} if any supplied predicate matches
+     */
     public static <T> Predicate<T> any(Collection<? extends Predicate<T>> predicates) {
         return value -> {
             for (var p : predicates) {

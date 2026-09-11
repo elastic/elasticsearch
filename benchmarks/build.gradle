@@ -91,7 +91,6 @@ dependencies {
   implementation project(path: ':libs:simdvec')
   implementation project(path: ':libs:columnar')
   implementation (testFixtures(project(path: ':libs:simdvec')))
-  implementation project(path: ':libs:swisshash')
   implementation project(path: ':libs:exponential-histogram')
   implementation(project(':x-pack:plugin:searchable-snapshots')) {
     capabilities {

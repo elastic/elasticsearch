@@ -69,13 +69,14 @@ public record NodeHeapMetrics(String nodeId, long totalBytes, NodeHeapEstimates 
         return nodeHeapEstimates.totalHeapUsage() / (double) totalBytes;
     }
 
-    public NodeHeapMetrics updateEstimatedUsage(long indexMetadataUsageDelta, long hostedShardsUsageDelta) {
+    public NodeHeapMetrics updateEstimatedUsage(long indexOverheadUsageDelta, long hostedShardsUsageDelta) {
+        final long usageDelta = Math.addExact(indexOverheadUsageDelta, hostedShardsUsageDelta);
         return new NodeHeapMetrics(
             nodeId,
             totalBytes,
             new NodeHeapEstimates(
-                Math.addExact(Math.addExact(nodeHeapEstimates.totalHeapUsage(), indexMetadataUsageDelta), hostedShardsUsageDelta),
-                Math.addExact(nodeHeapEstimates.hostedShardsHeapUsage(), hostedShardsUsageDelta)
+                Math.addExact(nodeHeapEstimates.totalHeapUsage(), usageDelta),
+                Math.addExact(nodeHeapEstimates.hostedShardsHeapUsage(), usageDelta)
             )
         );
     }

@@ -1,7 +1,8 @@
 # Tests an allowlisted method whose allocation is estimated by a class this plugin owns.
 #
 # The generated script is loaded by Painless, not by this plugin, so it only links if Painless was told to make the
-# estimator reachable. Getting an answer back is the assertion.
+# estimator reachable. The field context is configured with a 200b limit (see build.gradle), so a call with a large
+# count trips the limit only if the estimator linked, ran, and produced a charge — proving all three.
 
 "allocation estimated by a plugin's own class":
 - do:
@@ -82,6 +83,33 @@
 
 - match: { hits.total: 1 }
 - match: { hits.hits.0.fields.repeated.0: "xxx" }
+
+---
+"plugin estimator charges allocation so a small limit trips":
+# repeat() carries an @allocates estimator; the estimator returns 32 + 2×count bytes.
+# With the field context limited to 200b, repeat(10000) charges 20032 bytes and trips.
+# If the estimator were not linked or not called, the script would return normally instead.
+- do:
+    index:
+      index: test
+      id: "1"
+      body: { "num1": 10000 }
+- do:
+    indices.refresh: {}
+
+- do:
+    catch: bad_request
+    search:
+      rest_total_hits_as_int: true
+      index: test
+      body:
+        query:
+          match_all: {}
+        script_fields:
+          repeated:
+            script:
+              source: "new ExampleWhitelistedClass(1, 2).repeat((int)doc['num1'][0])"
+              lang: painless
 
 ---
 "estimator class is not visible to scripts":

@@ -28,4 +28,7 @@ testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
   // Emits the pre-checks, so this plugin's @allocates estimator is really linked and called.
   systemProperty 'es.painless.allocation_metrics.enabled', 'true'
+  // Low enough that repeat(10000) trips (estimator returns 32 + 2×count bytes), high enough that repeat(3) and repeat(4)
+  // pass (≤40 bytes each). Proves the estimator linked, ran, and produced a charge that the limit can act on.
+  setting 'script.painless.max_allocation_bytes.context.field.limit', '200b'
 }

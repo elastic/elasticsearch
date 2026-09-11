@@ -60,10 +60,10 @@ import java.util.function.Function;
  *   <li>{@code DatasetResolver} skips the {@code FROM <dataset>} rewrite entirely, so a dataset name
  *       falls through to normal index resolution and errors as {@code Unknown index}, the same error
  *       a nonexistent index gives.</li>
- *   <li>{@code EsqlResolveFieldsAction} reports no datasets for an incoming remote field-caps request
- *       and does not ask its own remotes to resolve datasets, so {@code FROM <remote>:<name>} falls
- *       through to normal remote index resolution in both directions instead of failing with a
- *       {@code RemoteDatasetNotSupportedException} that names datasets.</li>
+ *   <li>A dataset on another cluster is unaffected, because it is invisible across a cluster boundary
+ *       whether or not federation is available here: {@code EsqlResolveFieldsAction} never asks a remote to
+ *       resolve datasets and clears the option on an incoming request, so {@code FROM <remote>:<name>}
+ *       always falls through to normal remote index resolution.</li>
  *   <li>A data node refuses an external request on arrival
  *       ({@code DataNodeComputeHandler.handleExternalSourceRequest}), before local planning runs. This closes
  *       the data-node execution path: work shipped from an enabled coordinator (in CCS/CPS, or during a

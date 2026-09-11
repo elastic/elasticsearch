@@ -465,7 +465,7 @@ public class DatasetRewriterTests extends ESTestCase {
     public void testHeterogeneousFromUnderCpsEmitsShadowForDataset() {
         // A heterogeneous FROM (local index + local dataset) under CPS must run the same
         // non-remotable-abstraction rail as a dataset-only FROM. The dataset's exact name gets a DatasetShadowRelation
-        // so a remote index of the same name reads both, a remote view of the same name fails, and a remote dataset of
+        // so a remote index of the same name reads both, a remote view of the same name is ignored, and a remote dataset of
         // the same name is invisible. Before the unification the heterogeneous path returned before the CPS rail,
         // silently skipping the dataset's remote half.
         DataSource parent = dataSource("s3_parent", Map.of());

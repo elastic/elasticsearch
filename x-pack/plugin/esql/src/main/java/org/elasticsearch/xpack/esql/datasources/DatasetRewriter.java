@@ -284,7 +284,7 @@ public final class DatasetRewriter {
         // Index branch: the concrete local non-dataset names plus, under cross-project, any preserved positive
         // wildcards — joined into one UnresolvedRelation so the resolver dedups a local index matched by both a
         // concrete name and a wildcard (no double read) and the wildcard's remote half reaches field-caps (closing
-        // #151977's dropped-remote-wildcard gap). A remote view the wildcard matches still fails there; a remote dataset
+        // #151977's dropped-remote-wildcard gap). A remote view the wildcard matches is ignored; a remote dataset
         // is not matched at all. METADATA fields ride along so _index/_id resolve on the index rows.
         List<String> indexBranch = new ArrayList<>(nonDatasetNamesList);
         if (crossProjectEnabled) {
@@ -319,7 +319,7 @@ public final class DatasetRewriter {
         }
 
         // CPS: an exact (non-wildcard) dataset name has no wildcard to re-emit, so its remote half rides a
-        // DatasetShadowRelation — a remote index of the same name federates in, a remote view of the same name fails,
+        // DatasetShadowRelation — a remote index of the same name federates in, a remote view of the same name is ignored,
         // and a remote dataset of the same name is invisible. See DatasetShadowRelation for the full lifecycle. This stays inert until
         // datasets exist: datasetNames is non-empty only once datasets are registered, which the upstream
         // esql_external_datasources feature flag controls — this method enforces no flag check of its own.

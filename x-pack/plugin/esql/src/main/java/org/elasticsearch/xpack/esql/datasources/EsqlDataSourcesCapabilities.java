@@ -29,5 +29,11 @@ public final class EsqlDataSourcesCapabilities {
      */
     public static final String DATASET_TEXT_TYPE_NOT_DECLARABLE = "dataset_text_type_not_declarable";
 
+    /**
+     * Registration rejects an {@code _id} mappings block. Gates the yaml pin on that rejection, because the suite also
+     * runs mixed-cluster, where a node without this capability parses the block and answers on the data source instead.
+     */
+    public static final String DATASET_ID_NOT_DECLARABLE = "dataset_id_not_declarable";
+
     private EsqlDataSourcesCapabilities() {}
 }

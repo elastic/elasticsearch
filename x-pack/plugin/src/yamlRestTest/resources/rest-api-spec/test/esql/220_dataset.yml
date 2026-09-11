@@ -111,17 +111,6 @@ setup:
             dynamic: "true"
             runtime: { }
 
-  # _id: refused on registration (a dataset answers METADATA _id as NULL); skipped when reading old state.
-  - do:
-      catch: /unknown mappings field \[_id\]/
-      esql.put_dataset:
-        name: ds
-        body:
-          data_source: parent
-          resource: "s3://x/*.csv"
-          mappings:
-            _id: { path: request_id }
-
   # Field parameters outside {type, path, format} are rejected (index-mapping params we don't model).
   - do:
       catch: /\[analyzer\]/
@@ -235,6 +224,31 @@ setup:
   - do:
       esql.delete_data_source:
         name: parent
+
+---
+"declared-id-is-rejected":
+  # Its own section rather than an arm of "mappings-unknown-keys-rejected", because `requires` is section-scoped:
+  # putting this capability there would skip that section's existing pins on any node lacking it. The gate matters
+  # in the mixed-cluster run, where a node without the capability parses the block and answers on the data source.
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/dataset/{name}
+          capabilities: [dataset_id_not_declarable]
+      test_runner_features: capabilities
+      reason: "_id is not a declarable dataset mappings key"
+
+  # A dataset answers METADATA _id as NULL, so there is nothing to declare and the key falls into the generic
+  # unknown-key rejection. Rejected at parse time, before any cluster interaction, so `parent` need not exist.
+  - do:
+      catch: /unknown mappings field \[_id\]/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            _id: { path: request_id }
 
 ---
 "declared-text-is-rejected":

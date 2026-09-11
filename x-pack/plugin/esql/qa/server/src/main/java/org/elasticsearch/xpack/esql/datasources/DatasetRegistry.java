@@ -180,6 +180,18 @@ public final class DatasetRegistry {
     }
 
     /**
+     * The value a {@code dataset:} directive gives the named setting, or null if it does not set it.
+     *
+     * <p>Answers from the same parse as {@link #declaresSetting}, for the callers that need to know WHICH
+     * value was pinned rather than merely that one was: two settings can be alternative spellings of the
+     * same concern, and whether they collide depends on the value, not on the key being present.
+     */
+    public static String declaredSetting(String withJson, String setting) {
+        Object value = parseUnchecked(withJson).settings().get(setting);
+        return value == null ? null : value.toString();
+    }
+
+    /**
      * {@link #parseDirectiveOptions} for the predicates above, whose callers sit in streams and lambdas. A directive
      * that cannot be parsed is a broken spec file, so it fails rather than answering either way.
      */

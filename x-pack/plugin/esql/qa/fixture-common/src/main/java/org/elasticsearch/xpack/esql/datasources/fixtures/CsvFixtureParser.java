@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasource.csv;
+package org.elasticsearch.xpack.esql.datasources.fixtures;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -21,7 +22,7 @@ import java.util.Set;
 
 /**
  * Standalone CSV parser for fixture generation. Parses CSV files with bracket-aware
- * multi-value support, matching the behavior of {@link CsvFormatReader}.
+ * multi-value support, matching the behavior of {@code org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader}.
  * <p>
  * Used by OrcFixtureGenerator, ParquetFixtureGenerator, NdJsonFixtureGenerator, and TsvFixtureGenerator to read CSV fixtures
  * with correct multi-value handling (e.g. {@code [a,b,c]} as a list, not just first element).
@@ -80,7 +81,7 @@ public final class CsvFixtureParser {
                         int colon = h.indexOf(':');
                         String name = colon >= 0 ? h.substring(0, colon).trim() : h.trim();
                         String type = colon >= 0 ? h.substring(colon + 1).trim().toLowerCase(Locale.ROOT) : "keyword";
-                        schema.add(new ColumnSpec(name, type));
+                        schema.add(new ColumnSpec(name, canonicalType(type)));
                     }
                 } else {
                     if (entries.length != schema.size()) {
@@ -109,7 +110,7 @@ public final class CsvFixtureParser {
      * RFC-4180-style: a {@code "} only opens quoting at field start (after {@code ,} or line-start, optionally
      * preceded by whitespace) and is ignored inside {@code [..]} MVC cells. Stray {@code "} chars in unquoted
      * cells are literal bytes and must not cause multi-line gluing — kept consistent with
-     * {@link CsvFormatReader} so fixture parsing matches runtime parsing.
+     * {@code org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader} so fixture parsing matches runtime parsing.
      */
     private static boolean hasUnclosedQuote(String s, char quote) {
         boolean inQuotes = false;
@@ -156,7 +157,10 @@ public final class CsvFixtureParser {
         return inQuotes;
     }
 
-    /** Same as {@link CsvFormatReader}: whitespace-only prefix still allows bracket MVC to open at {@code [}. */
+    /**
+     * Same as {@code org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader}: a whitespace-only prefix still
+     * allows bracket MVC to open at {@code [}.
+     */
     private static boolean isWhitespaceOnlyFieldPrefix(StringBuilder current) {
         for (int k = 0; k < current.length(); k++) {
             if (Character.isWhitespace(current.charAt(k)) == false) {
@@ -218,7 +222,7 @@ public final class CsvFixtureParser {
                 }
                 i++;
             } else if (bracketDepth > 0) {
-                // See {@link CsvFormatReader} for the rationale: keep accumulating after the cell closes,
+                // See CsvFormatReader in the CSV datasource plugin for the rationale: keep accumulating after the cell closes,
                 // so a field like `[37] Title` stays a single field instead of producing a phantom column.
                 current.append(c);
                 if (c == '[') {
@@ -365,9 +369,8 @@ public final class CsvFixtureParser {
             case "uint64" -> tryParseUnsignedLong(value);
             case "double", "scaled_float", "float", "half_float" -> tryParseDouble(value);
             case "boolean", "bool" -> tryParseBoolean(value);
-            case "date", "datetime", "dt" -> tryParseDatetime(value);
-            // date_nanos values are plain epoch-nanosecond longs in the fixture CSVs; parse the same way.
-            case "date_nanos" -> tryParseDatetime(value);
+            case "date" -> tryParseDatetime(value);
+            case "date_nanos" -> tryParseDateNanos(value);
             case "ip" -> value;
             case "null", "n" -> null;
             default -> value; // keyword, text, string, etc.
@@ -423,6 +426,49 @@ public final class CsvFixtureParser {
             return Boolean.FALSE;
         }
         return null;
+    }
+
+    /**
+     * Folds type aliases to one spelling so every generator's type switch only has to know one.
+     * <p>
+     * The aliases are real: a header may say {@code dt} or {@code bool}. TSV and NDJSON handled them,
+     * Parquet and ORC did not and silently wrote such a column as a string -- a whole column of the
+     * wrong type, with nothing failing. Canonicalising here fixes every generator at once, and keeps
+     * the alias a property of the source format rather than something each writer re-learns.
+     */
+    private static String canonicalType(String type) {
+        return switch (type) {
+            case "datetime", "dt" -> "date";
+            case "bool" -> "boolean";
+            default -> type;
+        };
+    }
+
+    /**
+     * Epoch NANOSECONDS for a {@code date_nanos} column.
+     * <p>
+     * A numeric cell is already epoch nanos. An ISO-8601 cell must be converted at nanosecond
+     * resolution: routing it through {@link #tryParseDatetime}, which returns epoch millis, made every
+     * ISO date_nanos value wrong by a factor of 10^6 in every generated format at once. Only
+     * machine-written fixtures use numeric cells; every hand-authored date_nanos CSV is ISO.
+     */
+    private static Long tryParseDateNanos(String value) {
+        if (looksNumeric(value)) {
+            try {
+                return Long.parseLong(value);
+            } catch (NumberFormatException e) {
+                // fall through to the ISO form
+            }
+        }
+        try {
+            // ChronoUnit.NANOS.between rather than getEpochSecond() * 1_000_000_000L: the multiplication
+            // overflows silently outside roughly 1678..2262 and yields a plausible wrong instant, which is
+            // the same failure shape as the millis-vs-nanos bug this method exists to fix. between throws
+            // ArithmeticException on overflow, and an unrepresentable value must read as absent, not wrong.
+            return ChronoUnit.NANOS.between(Instant.EPOCH, Instant.parse(value));
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static Long tryParseDatetime(String value) {

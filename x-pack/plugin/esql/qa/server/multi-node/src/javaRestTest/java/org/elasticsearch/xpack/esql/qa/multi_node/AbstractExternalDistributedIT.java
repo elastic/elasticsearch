@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
@@ -45,7 +46,13 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.addBlobToF
  */
 public abstract class AbstractExternalDistributedIT extends ESRestTestCase {
 
-    protected static final List<String> DISTRIBUTION_MODES = List.of("coordinator_only", "round_robin", "adaptive");
+    /**
+     * Read from the contract, not listed here. This copy had drifted the same way its sibling in
+     * ExternalDistributedSpecIT had -- three of the four declared modes, missing weighted_round_robin --
+     * so the stress and resilience suites, where distribution behaviour under failure matters most, had
+     * never exercised it either.
+     */
+    protected static final List<String> DISTRIBUTION_MODES = FixtureDimensions.get().values("distribution");
 
     /** Warehouse prefix used by the in-memory S3 fixture. */
     protected static final String S3_WAREHOUSE = WAREHOUSE;

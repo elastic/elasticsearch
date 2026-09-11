@@ -1463,11 +1463,11 @@ public class ExternalSourceResolver {
             if (prefetch.prefetched() == null) {
                 Object rowCount = aggregatedStats.get(SourceStatisticsSerializer.STATS_ROW_COUNT);
                 // Duplicate-path guard on the write-through: a comma-separated list can name the same file
-                // twice, and the reconciliation rail's per-file merge folds a per-path MAP (deduplicated)
-                // while the scan reads the listing MULTISET — memoizing that merge under the fingerprint would
-                // persist an undercount beyond eviction. NOTE: the per-file rail SERVING that dedup merge
-                // immediately is a pre-existing main bug tracked separately (GA issue); this guard only
-                // keeps the dataset aggregate from memoizing it.
+                // twice, so the listing is a MULTISET. The reconciliation rail's own fold is multiset-correct
+                // (aggregateFileStatistics folds by listing POSITION), so the served number is right; this
+                // guard remains because the dataset aggregate is keyed on a SET-identity fingerprint, under
+                // which two different listings over the same file set collide. Memoizing a duplicate-path
+                // total there would serve it to a listing that names each file once.
                 if (rowCount instanceof Number n && listingPathsAreDistinct(listing)) {
                     cacheService.putDatasetAggregate(datasetKey, n.longValue(), referenceMeta.sourceType(), listing.originalPattern());
                 }
@@ -2932,12 +2932,6 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Apply a non-strict declared mapping onto an already-resolved (inferred) source: retype/rename the declared
-     * columns in the user-facing schema (strict — every declared column must appear in the unified schema) and in
-     * each per-file schema (lenient — a column may be absent from one file under union-by-name), preserving the
-     * inferred stats/sourceMetadata and the per-file column mappings.
-     */
-    /**
      * Formats whose readers emit blocks in the FILE's own types (self-typed / columnar) rather than parsing text into
      * whatever type the schema requests. For these, a declared retype only works when the reader can coerce the
      * physical type into the declared one at decode time ({@link DeclaredTypeCoercions#supports}); any other pair
@@ -3110,6 +3104,12 @@ public class ExternalSourceResolver {
         return type == DataType.INTEGER || type == DataType.LONG || type == DataType.UNSIGNED_LONG || type == DataType.DOUBLE;
     }
 
+    /**
+     * Apply a non-strict declared mapping onto an already-resolved (inferred) source: retype/rename the declared
+     * columns in the user-facing schema (strict — every declared column must appear in the unified schema) and in
+     * each per-file schema (lenient — a column may be absent from one file under union-by-name), preserving the
+     * inferred stats/sourceMetadata and the per-file column mappings.
+     */
     private ExternalSourceResolution.ResolvedSource applyNonStrictOverlay(
         ExternalSourceResolution.ResolvedSource resolved,
         DatasetMapping declaredMapping

@@ -16,11 +16,10 @@ import org.elasticsearch.Build;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Parameterized integration tests for compressed NDJSON files (.ndjson.gz, .ndjson.zst, .ndjson.zstd, .ndjson.bz2, .ndjson.bz).
@@ -32,25 +31,9 @@ import java.util.Set;
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
 
-    // bzip2 is outside the GA text-format codec surface (uncompressed/gzip/zstd) and is rejected on release
-    // builds, so .ndjson.bz2/.ndjson.bz are exercised on snapshot builds only. See elastic/esql-planning#938.
-    private static final List<String> COMPRESSED_FORMATS = Build.current().isSnapshot()
-        ? List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd", "ndjson.bz2", "ndjson.bz")
-        : List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd");
-
-    /** Same SchemaAdaptingIterator limitation as the uncompressed NDJSON IT — see {@link NdJsonFormatSpecIT}. */
-    private static final Set<String> SKIPPED_TESTS = Set.of(
-        "strictCount",
-        "strictFilterAndSort",
-        "strictSalaryStats",
-        "strictAggregateByGender",
-        "ubnCount",
-        "ubnExplicitCount",
-        "readAllEmployeesMultiFile",
-        "multiFileDistinctFileCount",
-        "multiFileGroupByFile",
-        "multiFileMetadataSizePositive"
-    );
+    // Codecs come from the declaration, which also records that bzip2 is outside the GA text-format
+    // codec surface and is therefore snapshot-only. See elastic/esql-planning#938.
+    private static final List<String> COMPRESSED_FORMATS = FixtureMatrix.get().textCodecFormats("ndjson", Build.current().isSnapshot());
 
     public NdJsonCompressedFormatSpecIT(
         String fileName,
@@ -66,23 +49,14 @@ public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTest
     }
 
     @Override
-    protected void shouldSkipTest(String testName) throws IOException {
-        if (SKIPPED_TESTS.contains(testName)) {
-            assumeTrue(testName + " not supported by NDJSON multi-file path (SchemaAdaptingIterator limitation)", false);
-        }
-        super.shouldSkipTest(testName);
+    protected String exclusionSuiteToken() {
+        // This suite's format is not its declaration token, so the default would resolve to
+        // another suite's exclusions.
+        return "ndjson-compressed";
     }
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithFormats(
-            COMPRESSED_FORMATS,
-            "/external-basic.csv-spec",
-            "/external-declared-schema.csv-spec",
-            "/external-multifile.csv-spec",
-            "/external-multifile-resolution.csv-spec",
-            "/external-multivalue.csv-spec",
-            "/ndjson-declared-schema.csv-spec"
-        );
+        return readExternalSpecTestsWithFormatsForSuite(COMPRESSED_FORMATS, "ndjson-compressed");
     }
 }

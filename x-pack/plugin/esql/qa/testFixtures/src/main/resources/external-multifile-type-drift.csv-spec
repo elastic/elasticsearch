@@ -1,0 +1,68 @@
+// Cross-file type drift: the same column typed differently in each file, on every format that
+// reads the typed source pair.
+//
+//   ..._type_drift_a — [id:integer, code:integer]  rows: 1,2 / 2,9
+//   ..._type_drift_b — [id:integer, code:keyword]  rows: 3,10 / 4,11
+//
+// Under union_by_name the reconciler cannot keep both types, so it widens `code` to keyword and
+// warns. Every value then reads back as a string, and comparisons on it become lexicographic --
+// which is the property worth pinning, because a reader that quietly kept the numeric type would
+// return different extrema and look perfectly reasonable doing it.
+//
+// CSV reads a different source pair for this layout: an UNTYPED header, so its sampler has to
+// infer the drift rather than being told about it. That is a genuinely different test with
+// different expected values, and it stays in csv-union-by-name.csv-spec.
+
+typeDriftWidensToKeyword
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: type_drift_union: "{{employees_multifile_type_drift}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM type_drift_union
+| KEEP id, code
+| SORT id ASC
+;
+warningRegex:Column \[code\] widened to keyword:.*distinct types: \[integer, keyword\]
+warningRegex:Schema reconciliation widened columns to keyword due to cross-file type disagreement.*
+
+id:integer | code:keyword
+1          | 2
+2          | 9
+3          | 10
+4          | 11
+;
+
+// The widened column compares lexicographically, not numerically: MIN is "10" because '1' sorts
+// before '2', and MAX is "9". A reader that kept `code` numeric would answer 2 and 11.
+typeDriftExtremaAreLexicographic
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: type_drift_union: "{{employees_multifile_type_drift}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM type_drift_union
+| STATS lo = MIN(code), hi = MAX(code)
+;
+warningRegex:Column \[code\] widened to keyword:.*distinct types: \[integer, keyword\]
+warningRegex:Schema reconciliation widened columns to keyword due to cross-file type disagreement.*
+
+lo:keyword | hi:keyword
+10         | 9
+;
+
+// Filtering the widened column is a string comparison too: only "9" is greater than "5".
+typeDriftFilterIsStringComparison
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: type_drift_union: "{{employees_multifile_type_drift}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM type_drift_union
+| WHERE code > "5"
+| KEEP id, code
+| SORT id ASC
+;
+warningRegex:Column \[code\] widened to keyword:.*distinct types: \[integer, keyword\]
+warningRegex:Schema reconciliation widened columns to keyword due to cross-file type disagreement.*
+
+id:integer | code:keyword
+2          | 9
+;

@@ -24,8 +24,9 @@ import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
-import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
+import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser;
+import org.elasticsearch.xpack.esql.datasources.fixtures.HivePartitioner;
+import org.elasticsearch.xpack.esql.datasources.fixtures.SplitPartitioner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,10 +57,32 @@ public final class OrcFixtureGenerator {
     private OrcFixtureGenerator() {}
 
     private static final Logger logger = LoggerFactory.getLogger(OrcFixtureGenerator.class);
+    private static final String HIVE_BY_FLAG = "--hive-by";
 
     @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.err and Path.of")
     public static void main(String[] args) throws IOException {
-        if (args.length == 2) {
+        if (args.length == 5 && HIVE_BY_FLAG.equals(args[2])) {
+            java.nio.file.Path sourcePath = java.nio.file.Path.of(args[0]);
+            java.nio.file.Path outputDir = java.nio.file.Path.of(args[1]);
+            String sourceColumn = args[3];
+            String partitionColumn = args[4];
+            if (Files.exists(sourcePath) == false) {
+                throw new IOException("Source CSV not found: " + sourcePath);
+            }
+            CsvFixtureParser.CsvFixtureResult parsed = CsvFixtureParser.parseCsvFile(sourcePath);
+            String baseName = sourcePath.getFileName().toString().replaceFirst("\\.csv$", "");
+            Files.createDirectories(outputDir);
+            for (Map.Entry<String, List<Object[]>> bucket : HivePartitioner.bucketRows(parsed, sourceColumn).entrySet()) {
+                List<Object[]> bucketRows = bucket.getValue();
+                java.nio.file.Path partitionDir = outputDir.resolve(HivePartitioner.partitionDirName(partitionColumn, bucket.getKey()));
+                Files.createDirectories(partitionDir);
+                java.nio.file.Path outputPath = partitionDir.resolve(baseName + ".orc");
+                CsvFixtureParser.CsvFixtureResult bucketResult = new CsvFixtureParser.CsvFixtureResult(parsed.schema(), bucketRows);
+                Files.deleteIfExists(outputPath);
+                generateFromRows(bucketResult, 0, bucketRows.size(), outputPath);
+                logger.info("Generated ORC Hive partition: {} ({} rows)", outputPath, bucketRows.size());
+            }
+        } else if (args.length == 2) {
             java.nio.file.Path sourcePath = java.nio.file.Path.of(args[0]);
             java.nio.file.Path outputPath = java.nio.file.Path.of(args[1]);
             if (Files.exists(sourcePath) == false) {
@@ -94,6 +117,9 @@ public final class OrcFixtureGenerator {
         } else {
             System.err.println("Usage: OrcFixtureGenerator <source-csv-path> <output-orc-path>");
             System.err.println("       OrcFixtureGenerator <source-csv-path> <output-dir> <num-parts>");
+            System.err.println(
+                "       OrcFixtureGenerator <source-csv-path> <output-dir> --hive-by <source-column> <partition-column-name>"
+            );
             System.exit(1);
         }
     }
@@ -263,11 +289,24 @@ public final class OrcFixtureGenerator {
 
     private static TypeDescription orcListTypeFor(String type) {
         return switch (type) {
+            case "version" -> throw new IllegalArgumentException(
+                "declared [version] in a list: ORC has no version type, same as the scalar arm"
+            );
             case "integer", "short", "byte" -> TypeDescription.createList(TypeDescription.createInt());
             case "long" -> TypeDescription.createList(TypeDescription.createLong());
             case "double", "scaled_float", "float", "half_float" -> TypeDescription.createList(TypeDescription.createDouble());
             case "boolean" -> TypeDescription.createList(TypeDescription.createBoolean());
             case "date" -> TypeDescription.createList(TypeDescription.createTimestampInstant());
+            case "uint32", "uint16", "uint64" -> throw new IllegalArgumentException(
+                "declared ["
+                    + type
+                    + "]: ORC has no unsigned integer type -- the column would be written as a "
+                    + "signed value of the same width and read back with the wrong sign for large values"
+            );
+            case "date_nanos" -> throw new IllegalArgumentException(
+                "declared [date_nanos]: ORC cannot carry it, because OrcFormatReader maps TIMESTAMP to DATETIME "
+                    + "and has no DATE_NANOS mapping"
+            );
             case "text", "txt" -> TypeDescription.createList(TypeDescription.createString());
             default -> TypeDescription.createList(orcKeywordStringType());
         };
@@ -280,6 +319,19 @@ public final class OrcFixtureGenerator {
             case "double", "scaled_float", "float", "half_float" -> TypeDescription.createDouble();
             case "boolean" -> TypeDescription.createBoolean();
             case "date" -> TypeDescription.createTimestampInstant();
+            case "uint32", "uint16", "uint64" -> throw new IllegalArgumentException(
+                "declared ["
+                    + type
+                    + "]: ORC has no unsigned integer type -- the column would be written as a "
+                    + "signed value of the same width and read back with the wrong sign for large values"
+            );
+            case "date_nanos" -> throw new IllegalArgumentException(
+                "declared [date_nanos]: ORC cannot carry it, because OrcFormatReader maps TIMESTAMP to DATETIME "
+                    + "and has no DATE_NANOS mapping"
+            );
+            case "version" -> throw new IllegalArgumentException(
+                "declared [version]: ORC has no version type -- it would read back as a keyword"
+            );
             case "text", "txt" -> TypeDescription.createString();
             default -> orcKeywordStringType();
         };
@@ -399,7 +451,12 @@ public final class OrcFixtureGenerator {
                 default -> setString((BytesColumnVector) col, row, value.toString());
             }
         } catch (Exception e) {
-            setNull(col, row, false);
+            // Fail loudly rather than writing a null. Swallowing this turned a missing type arm into a
+            // column of nulls that no test can distinguish from genuinely absent data.
+            throw new IllegalArgumentException(
+                "cannot write column [" + spec.name() + "] declared [" + spec.type() + "] with value [" + value + "]",
+                e
+            );
         }
     }
 

@@ -21,7 +21,7 @@ import java.util.List;
  * Each csv-spec test is run against every configured storage backend.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class TsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
+public class TsvFormatSpecIT extends AbstractDelimitedTextSpecTestCase {
 
     public TsvFormatSpecIT(
         String fileName,
@@ -43,15 +43,6 @@ public class TsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
     // uses only the bracket-free employees_no_mv twin, so it parses under TSV's default too.
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests(
-            "/csv-basic.csv-spec",
-            "/csv-declared-schema.csv-spec",
-            "/external-declared-schema.csv-spec",
-            "/csv-declared-schema-multifile.csv-spec",
-            "/external-heavy-aggregates.csv-spec",
-            "/external-multifile.csv-spec",
-            "/external-multifile-resolution.csv-spec",
-            "/tsv-multivalue.csv-spec"
-        );
+        return readExternalSpecTestsForSuite("tsv");
     }
 }

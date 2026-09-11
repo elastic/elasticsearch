@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
-import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.ColumnSpec;
-import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.CsvFixtureResult;
-import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
+import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser;
+import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser.ColumnSpec;
+import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser.CsvFixtureResult;
+import org.elasticsearch.xpack.esql.datasources.fixtures.HivePartitioner;
+import org.elasticsearch.xpack.esql.datasources.fixtures.SplitPartitioner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,6 +26,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Build-time generator: converts a {@link CsvFixtureParser}-compatible CSV fixture to newline-delimited JSON (NDJSON).
@@ -55,10 +57,32 @@ public final class NdJsonFixtureGenerator {
     private NdJsonFixtureGenerator() {}
 
     private static final Logger logger = LoggerFactory.getLogger(NdJsonFixtureGenerator.class);
+    private static final String HIVE_BY_FLAG = "--hive-by";
 
     @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.err and Path.of")
     public static void main(String[] args) throws IOException {
-        if (args.length == 2) {
+        if (args.length == 5 && HIVE_BY_FLAG.equals(args[2])) {
+            Path sourcePath = Path.of(args[0]);
+            Path outputDir = Path.of(args[1]);
+            String sourceColumn = args[3];
+            String partitionColumn = args[4];
+            if (Files.exists(sourcePath) == false) {
+                throw new IOException("Source CSV not found: " + sourcePath);
+            }
+            CsvFixtureParser.CsvFixtureResult parsed = CsvFixtureParser.parseCsvFile(sourcePath);
+            String baseName = sourcePath.getFileName().toString().replaceFirst("\\.csv$", "");
+            Files.createDirectories(outputDir);
+            for (Map.Entry<String, List<Object[]>> bucket : HivePartitioner.bucketRows(parsed, sourceColumn).entrySet()) {
+                List<Object[]> bucketRows = bucket.getValue();
+                Path partitionDir = outputDir.resolve(HivePartitioner.partitionDirName(partitionColumn, bucket.getKey()));
+                Files.createDirectories(partitionDir);
+                Path outputPath = partitionDir.resolve(baseName + ".ndjson");
+                CsvFixtureParser.CsvFixtureResult bucketResult = new CsvFixtureParser.CsvFixtureResult(parsed.schema(), bucketRows);
+                byte[] bytes = generateFromRows(bucketResult, 0, bucketRows.size());
+                Files.write(outputPath, bytes);
+                logger.info("Generated NDJSON Hive partition: {} ({} rows)", outputPath, bucketRows.size());
+            }
+        } else if (args.length == 2) {
             Path sourcePath = Path.of(args[0]);
             Path outputPath = Path.of(args[1]);
             if (Files.exists(sourcePath) == false) {
@@ -93,6 +117,9 @@ public final class NdJsonFixtureGenerator {
         } else {
             System.err.println("Usage: NdJsonFixtureGenerator <source-csv-path> <output-ndjson-path>");
             System.err.println("       NdJsonFixtureGenerator <source-csv-path> <output-dir> <num-parts>");
+            System.err.println(
+                "       NdJsonFixtureGenerator <source-csv-path> <output-dir> --hive-by <source-column> <partition-column-name>"
+            );
             System.exit(1);
         }
     }
@@ -166,7 +193,17 @@ public final class NdJsonFixtureGenerator {
             case "long" -> b.field(name, asLong(v));
             case "double", "float", "half_float", "scaled_float" -> b.field(name, asDouble(v));
             case "boolean", "bool" -> b.field(name, asBoolean(v));
-            case "date", "datetime", "dt" -> b.field(name, formatDate(v));
+            case "date" -> b.field(name, formatDate(v));
+            case "date_nanos" -> b.field(name, formatDateNanos(v));
+            // Unsigned types have no JSON representation this generator can write faithfully, and the
+            // matrix declares them Parquet-only for that reason. Refuse rather than fall through to
+            // the string writer and throw a bare ClassCastException that names nothing.
+            case "uint32", "uint16", "uint64" -> throw new IllegalArgumentException(
+                "column [" + name + "] declared [" + type + "]: unsigned types are not representable in NDJSON"
+            );
+            case "version" -> throw new IllegalArgumentException(
+                "column [" + name + "] declared [version]: JSON has no version type -- it would read back as a keyword"
+            );
             case "null", "n" -> {
                 /* omit */
             }
@@ -190,8 +227,8 @@ public final class NdJsonFixtureGenerator {
             return false;
         }
         return switch (type) {
-            case "integer", "short", "byte", "long", "double", "float", "half_float", "scaled_float", "boolean", "bool", "date", "datetime",
-                "dt" -> true;
+            case "integer", "short", "byte", "long", "double", "float", "half_float", "scaled_float", "boolean", "date", "date_nanos" ->
+                true;
             case "null", "n" -> false;
             default -> ((String) element).trim().isEmpty() == false;
         };
@@ -204,10 +241,28 @@ public final class NdJsonFixtureGenerator {
             case "long" -> b.value(asLong(v));
             case "double", "float", "half_float", "scaled_float" -> b.value(asDouble(v));
             case "boolean", "bool" -> b.value(asBoolean(v));
-            case "date", "datetime", "dt" -> b.value(formatDate(v));
+            case "date" -> b.value(formatDate(v));
+            case "date_nanos" -> b.value(formatDateNanos(v));
+            case "uint32", "uint16", "uint64", "version" -> throw new IllegalArgumentException(
+                "declared [" + type + "] in a list: not representable in NDJSON, same as the scalar arm"
+            );
             case "null", "n" -> throw new IllegalStateException("Unexpected null-typed cell in list");
             default -> b.value(((String) v).trim());
         }
+    }
+
+    /**
+     * A {@code date_nanos} value as an ISO-8601 UTC string, preserving all nine fractional digits.
+     * <p>
+     * Deliberately not built from {@link #formatDate}: that goes through {@code Instant.ofEpochMilli}
+     * and would silently drop every sub-millisecond digit, which is the whole point of the type.
+     */
+    private static String formatDateNanos(Object v) {
+        if (v instanceof Number nanos) {
+            long n = nanos.longValue();
+            return Instant.ofEpochSecond(Math.floorDiv(n, 1_000_000_000L), Math.floorMod(n, 1_000_000_000L)).toString();
+        }
+        throw new IllegalArgumentException("Expected epoch nanos for date_nanos, got " + v);
     }
 
     private static String formatDate(Object v) {

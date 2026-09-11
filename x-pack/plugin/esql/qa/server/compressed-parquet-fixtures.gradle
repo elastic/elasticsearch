@@ -9,13 +9,20 @@
  *   - serverProject: reference to the esql:qa:server project
  *   - generateParquetTasks: list to which generated task providers are appended
  *   - testFixturesProject: reference to the esql:qa:testFixtures project
+ *   - fixtureMatrix: from fixture-common's fixture-matrix.gradle, which the applying
+ *     project must apply first (supplies the split-part count)
  */
 
 def compressedCodecs = [
   [name: 'snappy',  codec: 'SNAPPY'],
   [name: 'gzip',    codec: 'GZIP'],
   [name: 'zstd',    codec: 'ZSTD'],
-  [name: 'lz4raw',  codec: 'LZ4_RAW'],
+  [name: 'lz4_raw', codec: 'LZ4_RAW'],
+  // Legacy Hadoop-framed LZ4. ES|QL READS it -- PlainCompressionCodecFactory registers
+  // Lz4HadoopFramedBytesDecompressor for CompressionCodecName.LZ4 -- but deliberately refuses to WRITE
+  // it (getCompressor(LZ4) throws), so no ES|QL-side writer could ever produce this fixture. Stock
+  // parquet-java still can, which is what makes the read path testable at all.
+  [name: 'lz4_legacy', codec: 'LZ4'],
 ]
 
 def serverProj = ext.serverProject
@@ -24,6 +31,9 @@ def fixtureOutputDir = ext.parquetFixtureOutputDir
 def fixturesDataDir = ext.testFixturesDataDir
 def csvFixtures = ext.csvToParquetFixtures
 def parquetTasks = ext.generateParquetTasks
+// Captured here, not read inside the task closures: in a closure 'ext' resolves to the
+// task's extra properties rather than the project's.
+def splitParts = ext.fixtureMatrix.splitParts as String
 
 compressedCodecs.each { entry ->
   def codecName = entry.name
@@ -49,7 +59,8 @@ compressedCodecs.each { entry ->
   }
 }
 
-// Compressed multifile splits: split employees.csv into 3 parts for each codec.
+// Compressed multifile splits: split employees.csv for each codec, into as many parts
+// as layout.split.parts declares.
 // Only GZIP and ZSTD are generated (SNAPPY and LZ4_RAW are single-file-only).
 def compressedMultifileCodecs = [
   [name: 'gzip', codec: 'GZIP'],
@@ -67,7 +78,7 @@ compressedMultifileCodecs.each { entry ->
     dependsOn testFixturesProj.tasks.named('processResources')
     classpath = serverProj.configurations.parquetFixtureGenerator + serverProj.sourceSets.parquetFixtureGenerator.output
     mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
-    args = [multifileSplitCsv.path, codecMultifileDir.path, '3', codecArg]
+    args = [multifileSplitCsv.path, codecMultifileDir.path, splitParts, codecArg]
     inputs.file(multifileSplitCsv)
     outputs.dir(codecMultifileDir)
     systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'

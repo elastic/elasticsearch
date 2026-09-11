@@ -1,0 +1,148 @@
+# NIGHTLY. Registered and scheduled in catalog-info.yaml
+# (buildkite-pipeline-elasticsearch-periodic-esql-datasource-vectors), daily from main, following
+# periodic-micro-benchmarks: `trigger_mode: none` with a `schedules:` block. Those two are not in
+# tension -- trigger_mode suppresses builds from repo webhooks, and the schedule is what makes it run.
+# Reading trigger_mode as "manual only" is what first registered this in the manual pattern.
+#
+# It had no executing surface at all before this. The yml existed and no Buildkite pipeline pointed at
+# it, so the whole crossing had only ever run on a developer's laptop -- which is how a real tsv
+# failure sat unread in local results for two days, and how three defects in the test scaffolding
+# survived: a filter asking a component's tolerant read path instead of its validator, an exclusion
+# over-excluding eighteen passing cells, and a case added to a spec without the exclusion its eleven
+# siblings carry. None of them were findable by reading.
+#
+# Seasoning cells out of the PR path becomes legitimate once this runs on a cadence, which it now
+# does -- but note that the PR path does not carry a seasoned remainder. It carries a SELECTION:
+# pull-request/esql-datasource-vectors.yml runs the `ci` tier, whose every value cites the defect that
+# earned it, argued from the bug history rather than subtracted from whatever this pipeline covers.
+#
+# The full vector crossing: every routed spec case against every vector the contract makes
+# expressible, per format, at three-way strength. This is where COMPLETENESS lives -- the PR path
+# carries a declared subset, and a subset is only honest if the whole set demonstrably runs somewhere.
+#
+# WHY SHARDED. maxParallelForks is pinned to 1 in each module because every vector suite's cluster is
+# declared shared(true) (see the Clusters class of each qa module), which the test framework rejects
+# alongside parallel forks. So parallelism cannot come from inside a JVM; it comes from slicing the
+# registered cases across steps with -Dtests.vector.shard=i/S, which round-robins case rows and
+# therefore balances every shard to within one case. Widths below are sized so a shard runs about 55
+# minutes, and every per-case rate behind them is now measured rather than carried over: a full sharded
+# run of all four suites gave 139ms a case for csv+tsv, 174ms for ndjson, 154ms for orc and 81ms for
+# parquet, on a 48-vCPU box running several shards at once. The first widths were guesses and two were badly wrong in opposite directions -- orc was
+# sharded eight ways on a belief that it cost several times the text formats and ran 16 minutes a shard,
+# while parquet turned out to be the cheapest of the four. The case counts come from running each suite
+# against a deliberately impossible bound and reading the refusal: 506,192 cases across the five suites.
+#
+# The shard is a slice of the SAME crossing: vector names are unchanged by sharding, so a failure
+# reproduces locally with no shard flag at all.
+
+# ONE SHARD PER AGENT, and the agent size barely matters. Each job gets its own custom-32-98304 (32
+# vCPU, 96 GB) -- the machine type every periodic pipeline in this repo uses -- and a shard cannot use
+# it: maxParallelForks is 1, so a shard is a single test JVM against one cluster, mostly waiting on its
+# S3 fixture. Measured on a 48-vCPU box running five shards at once, load average was 4.3, about 9%
+# utilisation.
+#
+# That is the argument for this shape. A bigger box buys nothing, because the work does not parallelise
+# inside a JVM; only more boxes do. So the answer to "why 24 jobs instead of one big machine" is that
+# one big machine would run them serially at a core apiece. Per-shard wall clock is therefore the
+# single-threaded time -- 69 minutes for a csv shard's 29,924 cases -- not something that improves
+# with a larger agent.
+#
+# NO -Dbuild.snapshot=false here. The vector tasks are `enabled = buildParams.snapshotBuild`, so a
+# release build silently disables them -- the pipeline would go green having executed nothing,
+# which is the one outcome worse than red.
+#
+# The task is vectorSpecTests, NOT csvSpecTests: the vector suites were split off the `check` path so
+# a multi-hour crossing does not land on every PR. csvSpecTests keeps the legacy suites.
+steps:
+  - group: esql-datasource-vectors
+    steps:
+      # csv carries both the csv and tsv vector suites -- there is no :esql-datasource-tsv project -- so
+      # one step is two crossings run serially in one JVM: 132,439 and 103,830 cases. Shard 1 at this tree
+      # ran 29,924 cases in 69 minutes, so 139ms a case, and 236,269 cases is about nine hours
+      # single-threaded. Ten shards puts each near 55 minutes; the eight this started with ran 69.
+      - label: "esql-datasource-csv / vector crossing {{matrix.shard}}/10"
+        command: .ci/scripts/run-gradle.sh -Dtests.vector.shard={{matrix.shard}}/10 :x-pack:plugin:esql-datasource-csv:qa:vectorSpecTests
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            shard: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+
+      # 107,797 cases. The rate was carried over from an earlier run at ~148ms and is now measured: six
+      # sharded runs of 18,793 cases each took 23-30 minutes, so 81ms a case -- parquet is the CHEAPEST
+      # of the four per case, not the dearest. Six shards therefore ran 25 minutes apiece against a
+      # 55-minute target.
+      #
+      # Four, not the three the rate alone argues for. Three would register 35,932 cases in one JVM
+      # against the 40,000-case bound in fixture-vector-tasks.gradle -- 10% of headroom, so the next
+      # dimension added to the contract would not slow this step down, it would make it refuse to start.
+      # Four leaves 26,949 and runs about 36 minutes.
+      - label: "esql-datasource-parquet / vector crossing {{matrix.shard}}/4"
+        command: .ci/scripts/run-gradle.sh -Dtests.vector.shard={{matrix.shard}}/4 :x-pack:plugin:esql-datasource-parquet:qa:vectorSpecTests
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            shard: ["1", "2", "3", "4"]
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+
+      # 46,111 cases. This was sharded as heavily as csv on a belief that ORC's per-case cost is several
+      # times the text formats', taken from a run that also hit three 60s socket timeouts. Measured over
+      # eight sharded runs of 6,231 cases each: 14-17 minutes, so 154ms a case -- 1.1x the text formats,
+      # not several times. Eight shards ran 16 minutes apiece; three run about 39. Two would run 59, over
+      # the target, which is why this stops at three rather than going lower.
+      - label: "esql-datasource-orc / vector crossing {{matrix.shard}}/3"
+        command: .ci/scripts/run-gradle.sh -Dtests.vector.shard={{matrix.shard}}/3 :x-pack:plugin:esql-datasource-orc:qa:vectorSpecTests
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            shard: ["1", "2", "3"]
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+
+      # 116,015 cases, which settles a figure that was in doubt: a run had reported 4,375, about four per
+      # vector, as though only one spec were routed. Measured, it is twenty-seven times that. It came down
+      # from 124,722 in two steps -- first when datetime_format=custom x path_shape=glob was declared
+      # unconstructible, then again when pathShapeCannotCarry stopped registering glob pairs whose sources
+      # all resolve through a layout glob that ignores the shape.
+      #
+      # The dearest of the four per case: shard 1 at this tree ran 20,362 cases in 59 minutes, so 174ms.
+      # Six shards puts each near 56 minutes.
+      - label: "esql-datasource-ndjson / vector crossing {{matrix.shard}}/6"
+        command: .ci/scripts/run-gradle.sh -Dtests.vector.shard={{matrix.shard}}/6 :x-pack:plugin:esql-datasource-ndjson:qa:vectorSpecTests
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            shard: ["1", "2", "3", "4", "5", "6"]
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+
+      # The multi-node external crossing. Outside the group's shape above because it lives in a
+      # different module and runs a SECOND CLUSTER per case -- the most expensive shape we have, and
+      # the only one that exercises distribution modes against something to actually distribute to. It
+      # was on the PR path until now, inside javaRestTest; it crosses every routed case with every
+      # declared distribution mode and grows whenever a value is added to dimension.distribution.
+      #
+      # Unsharded, because its size has never been measured. It shards the same way the moment there
+      # is a number to size a width from.
+      - label: "multi-node / external distributed crossing"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:server:multi-node:distributedSpecTests
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk

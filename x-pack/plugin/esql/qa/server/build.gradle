@@ -20,6 +20,8 @@ configurations {
   ndjsonFixtureGenerator
   // TsvFixtureGenerator: CSV → TSV for external-format QA (no Hadoop).
   tsvFixtureGenerator
+  // CsvFixtureGenerator: re-lays-out CSV into partition directories (no Hadoop).
+  csvFixtureGenerator
 }
 
 sourceSets {
@@ -35,6 +37,9 @@ sourceSets {
   tsvFixtureGenerator {
     compileClasspath += configurations.tsvFixtureGenerator
   }
+  csvFixtureGenerator {
+    compileClasspath += configurations.csvFixtureGenerator
+  }
 }
 
 dependencies {
@@ -43,6 +48,8 @@ dependencies {
   // Requirement for some ESQL-specific utilities
   implementation project(':x-pack:plugin:esql')
   api project(xpackModule('esql:qa:testFixtures'))
+  // The fixture matrix: the same declaration the generation tasks read.
+  api project(xpackModule('esql:qa:fixture-common'))
   
   // S3 fixture infrastructure for external source tests (Iceberg, Parquet)
   api project(':test:fixtures:s3-fixture')
@@ -62,6 +69,11 @@ dependencies {
 
   // Compression libs for generating .gz, .zst, .bz2 fixtures on the fly
   implementation "com.github.luben:zstd-jni:${versions.zstdJni}"
+  // Writers for the lz4 and snappy fixture variants. The product READS both -- esql-datasource-lz4 and
+  // esql-datasource-snappy are shipping plugins -- so the codecs had no coverage only because nothing
+  // here could write them.
+  implementation project(':libs:lz4')
+  implementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
   implementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
 
   // OrcFixtureGenerator: ORC/Hadoop (separate from main to avoid jar hell)
@@ -75,7 +87,7 @@ dependencies {
   orcFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
   orcFixtureGenerator "org.slf4j:slf4j-nop:${versions.slf4j}"
   orcFixtureGenerator project(':libs:core')
-  orcFixtureGenerator project(xpackModule('esql-datasource-csv'))
+  orcFixtureGenerator project(xpackModule('esql:qa:fixture-common'))
 
   // ParquetFixtureGenerator: Parquet/Hadoop (separate from main to avoid jar hell)
   // hadoop-client-runtime is needed here because ParquetWriter.Builder.build() triggers
@@ -88,19 +100,30 @@ dependencies {
   parquetFixtureGenerator("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}") { exclude group: 'org.apache.logging.log4j' }
   parquetFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
   parquetFixtureGenerator "org.slf4j:slf4j-nop:${versions.slf4j}"
+  // Legacy Hadoop-framed LZ4 (CompressionCodecName.LZ4). parquet-hadoop reaches for lz4-java's
+  // LZ4Factory to write it and fails with NoClassDefFoundError without this. ES|QL reads that codec
+  // (PlainCompressionCodecFactory registers Lz4HadoopFramedBytesDecompressor for it) but refuses to
+  // write it, so stock parquet-java is the only thing that can produce the fixture.
+  parquetFixtureGenerator "at.yawk.lz4:lz4-java:1.11.1"
   parquetFixtureGenerator "org.xerial.snappy:snappy-java:${versions.snappyJava}"
   parquetFixtureGenerator "com.github.luben:zstd-jni:${versions.zstdJni}"
   parquetFixtureGenerator "io.airlift:aircompressor:${versions.aircompressor}"
   parquetFixtureGenerator project(':libs:core')
-  parquetFixtureGenerator project(xpackModule('esql-datasource-csv'))
+  parquetFixtureGenerator project(xpackModule('esql:qa:fixture-common'))
 
+  ndjsonFixtureGenerator project(':libs:core')
   ndjsonFixtureGenerator project(':libs:x-content')
-  ndjsonFixtureGenerator project(xpackModule('esql-datasource-csv'))
+  ndjsonFixtureGenerator project(xpackModule('esql:qa:fixture-common'))
   ndjsonFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
   ndjsonFixtureGenerator "org.slf4j:slf4j-nop:${versions.slf4j}"
 
   tsvFixtureGenerator project(':libs:core')
-  tsvFixtureGenerator project(xpackModule('esql-datasource-csv'))
+  tsvFixtureGenerator project(xpackModule('esql:qa:fixture-common'))
   tsvFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
   tsvFixtureGenerator "org.slf4j:slf4j-nop:${versions.slf4j}"
+
+  csvFixtureGenerator project(':libs:core')
+  csvFixtureGenerator project(xpackModule('esql:qa:fixture-common'))
+  csvFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
+  csvFixtureGenerator "org.slf4j:slf4j-nop:${versions.slf4j}"
 }

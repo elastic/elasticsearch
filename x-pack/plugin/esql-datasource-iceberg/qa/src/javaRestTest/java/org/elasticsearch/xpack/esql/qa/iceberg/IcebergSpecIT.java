@@ -46,8 +46,18 @@ public class IcebergSpecIT extends IcebergSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
+    /**
+     * This suite routes its own spec set, so its exclusions are declared under its own token.
+     * Without the override the lookup falls back to the default format and would read another suite's
+     * exclusion set, silently applying entries never written for this suite.
+     */
+    @Override
+    protected String exclusionSuiteToken() {
+        return "iceberg";
+    }
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests("/iceberg-basic.csv-spec");
+        return readExternalSpecTestsForSuite("iceberg");
     }
 }

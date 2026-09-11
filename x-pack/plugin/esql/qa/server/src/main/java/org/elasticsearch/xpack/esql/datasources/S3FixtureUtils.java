@@ -54,7 +54,23 @@ public final class S3FixtureUtils {
     // TODO: drop this S3 fixture logging
     // TODO: ... along with unsupportedOperations,
     // TODO: ...along with AbstractExternalSourceSpecTestCase#checkForUnsupportedOperations & co. -- we're not testing a S3 implementation
-    /** Thread-safe list of S3 request logs */
+    /**
+     * Whether S3 requests are recorded at all. OFF unless a suite asks for it.
+     *
+     * <p>The log is a process-lifetime accumulator on a CopyOnWriteArrayList, so every entry costs an
+     * array copy and nothing ever removes one. Two suites read it -- the Iceberg spec base, which
+     * existence-checks paths, and the interactive fixture tool -- and every other suite paid for a list
+     * it never looked at. That was affordable while suites were small. It stopped being affordable when
+     * the vector crossing began running tens of thousands of cases in one JVM: the csv and tsv crossing
+     * exhausted the heap partway through, and every case after the OutOfMemoryError failed, so a run
+     * that looked like hundreds of test failures was one leak wearing a costume.
+     *
+     * <p>Recording is therefore opt-in via {@code tests.s3.request_log}, set by the modules whose suites
+     * read the log. Bounding the list was the alternative and is worse: both readers ask whether a path
+     * was ever touched, and a silently dropped entry turns that question into a wrong answer.
+     */
+    private static final boolean RECORD_REQUESTS = Boolean.parseBoolean(System.getProperty("tests.s3.request_log", "false"));
+
     private static final CopyOnWriteArrayList<S3RequestLog> requestLogs = new CopyOnWriteArrayList<>();
 
     /** Set of unsupported operations encountered during test execution */
@@ -65,7 +81,9 @@ public final class S3FixtureUtils {
     }
 
     /**
-     * Get all recorded S3 request logs.
+     * Get all recorded S3 request logs, which is empty unless {@code tests.s3.request_log} is set --
+     * see {@link #RECORD_REQUESTS} for why recording is opt-in. A suite that asserts on this list must
+     * set the property on its test task, or it will assert against nothing and pass for the wrong reason.
      */
     public static List<S3RequestLog> getRequestLogs() {
         return Collections.unmodifiableList(new ArrayList<>(requestLogs));
@@ -94,6 +112,9 @@ public final class S3FixtureUtils {
      * Log an S3 request.
      */
     private static void logRequest(String requestType, String path, long contentLength) {
+        if (RECORD_REQUESTS == false) {
+            return;
+        }
         requestLogs.add(new S3RequestLog(requestType, path, contentLength, System.currentTimeMillis()));
     }
 

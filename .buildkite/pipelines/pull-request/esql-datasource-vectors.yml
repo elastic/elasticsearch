@@ -1,0 +1,140 @@
+# The pointed half of the external-dataset vector matrix, on every pull request.
+#
+# What it runs: the CI tier of the declared crossing -- the value combinations this project's filed
+# correctness defects actually cluster in, at pairwise strength, against the routed spec corpus.
+# 393 vectors, versus 9,378 in the nightly. The selection lives in fixture-dimensions.properties
+# under `dimension.<n>.tier.<value>`, each line citing the defect that earned it, so what runs here
+# is an argument anyone can check rather than a list someone curated.
+#
+# Why this is free. Nothing under .buildkite/pipelines/pull-request/ declares depends_on -- measured
+# across all 58 step files, parsing each and looking for the KEY rather than grepping the string,
+# which otherwise matches this very comment -- so every PR step runs concurrently and the clock is the
+# MAX over steps, not the sum. It is the FLOOR that matters, not the ceiling: a step is free only
+# while it finishes inside the SHORTEST build, and across the three latest passed builds that floor is
+# 36 minutes -- the shortest full build across the ten most recently merged pull requests. A ceiling is
+# not the relevant number and the sample for one is too small to quote: the same ten span 36 to 68.
+#
+# Measured at this tier on real CI, over the two builds that have run it: text 19.8-20.5 minutes,
+# ndjson 17.5-19.6, orc 10.8-11.2, parquet 8.3-11.0, against part-5 at 43.5 and part-2 at 41.4. Taken
+# from the commit-status transitions rather than from a stopwatch -- Buildkite posts a second `pending`
+# when a job starts, so last-pending to terminal is the step's wall.
+#
+# Ranges rather than the first build's numbers, because one draw is not a measurement of a noisy
+# quantity: parquet came in at 8.3 and then 11.0, a third apart, on identical registrations. What both
+# builds agree on is the only thing this file needs -- the longest of the four is about 20 minutes.
+#
+# Cheaper than the one earlier run on the old agent type, which gave parquet 17.3, orc 17.9, text 27.2
+# and ndjson 28.6 at the 346-vector tier. Two things moved at once -- the crossing lost 1,741 cases to
+# pathShapeCannotCarry and the agent changed to n4 with a hyperdisk -- so this is not a like-for-like
+# comparison and the split between the two causes is not measured. What it does settle is the only
+# question this file needs answered: the longest of the four is about 20 minutes against a floor of 36,
+# which is the shortest full build across the ten most recently merged pull requests.
+#
+# The EC2 numbers quoted further down are from a different machine and measure a different thing --
+# suite time on a 48-vCPU box, excluding gradle configure, cluster start and fixture generation. They
+# are NOT a floor for the step wall: against the ranges above they run 87-90% of it for text and
+# 83-93% for ndjson, but 104-107% and 87-116% for orc and parquet, which is to say that box is at or
+# slower than the n4 agent on the columnar suites. They are kept because they are what the case counts were measured from; for
+# anything about how long a step takes, use the CI numbers.
+#
+# Why four steps and not one. The JVM boundary is per format: one qa module, one cluster spec, one
+# shared @ClassRule per suite. maxParallelForks is pinned to 1 because every vector suite's cluster
+# is declared shared(true), which the test framework rejects alongside parallel forks -- so slicing
+# across steps is the only parallelism available, and it is what keeps the slowest step under the
+# window. Not a matrix: the four differ in more than a task name, and the measured per-case cost spans
+# 1.8x across them -- parquet 111ms, text 158ms, orc 167ms, ndjson 202ms -- so they are not
+# interchangeable entries. Note the ordering, because an earlier version of this comment had it
+# backwards: the text formats are in the MIDDLE. Parquet is the cheapest per case and ndjson the
+# dearest. These are the POST-filter rates, taken from the same runs as the case counts below; the
+# pre-filter figures were 98/154/155/217 and spanned 2.2x, which is a different set of cases.
+#
+# Why not on `check`. `check` is reached by checkPart1..6, which IS the critical path. Putting the
+# crossing there would add it to the longest step instead of running beside it.
+#
+# timeout_in_minutes is 45, deliberately below the 300 the other PR files carry. The premise of
+# putting this on the PR path is that it hides inside the existing wall clock; a step that would
+# extend the build has stopped being free, so it fails instead of running long and the number gets
+# revisited rather than silently absorbed.
+#
+# No allow-labels and no included-regions. This runs on every pull request, which is the point --
+# the defects it targets are reached by reader paths that a diff touching anything can move. The
+# knobs exist (docs-check.yml, example-plugins.yml) if that ever needs to change.
+#
+# NO -Dbuild.snapshot=false. The vector tasks are `enabled = buildParams.snapshotBuild`, so a
+# release build silently disables them and the step goes green having executed nothing -- the one
+# outcome worse than red.
+#
+# diskType is NOT optional next to an n4 machine type, and leaving it off is why these steps did not
+# run for seven builds. They were moved to n4-custom-32-98304 on the argument that it is what the
+# other PR steps use -- true of the machineType line, and the diskType line beside it was not copied.
+# Of the 26 files here that ask for n4-custom-32-98304, 25 pair it with hyperdisk-balanced and this
+# was the twenty-sixth. The symptom is silent: Buildkite posts one `pending` commit status per job
+# and then nothing, no second `pending` for running and no terminal state, so `gh pr checks` shows
+# `pending` indefinitely and the build finishes around the jobs. Thirteen siblings declare the disk
+# and nothing else, twelve add preemptible + spotZones; this takes the first shape, because a
+# 45-minute step is long enough to lose real work to a preemption.
+steps:
+  - group: esql-datasource-vectors
+    steps:
+      # csv and tsv share a module: there is no :esql-datasource-tsv project, so one JVM carries both
+      # formats. Most CASES of the four -- 6,761 against ndjson's 4,834 -- though not the longest step,
+      # because ndjson costs more per case. This is the step carrying the text-dialect clusters:
+      # escaped mode against a semicolon that appears inside data, plain, brackets, gzip.
+      #
+      # It also carries the reopened path_shape=glob cell: 364 cases, and lopsided 336 to 28 in tsv's
+      # favour. Not an accident of sampling -- employees_no_mv is unpadded on tsv and is the most-routed
+      # template in the corpus, while csv pads it and so takes trim_spaces, which is a format-specific
+      # key and cannot be registered under a `?` glob. On csv almost every other routed standalone
+      # template declares a format key of its own, so what is left there is small.
+      - label: "text / vector selection"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql-datasource-csv:qa:vectorSpecCiTests
+        timeout_in_minutes: 45
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced
+          buildDirectory: /dev/shm/bk
+
+      # Parquet alone. Measured, it is the CHEAPEST per case of the four at 98ms, not the dearest as
+      # this comment used to say -- but it is where the pushdown paths a glob disables are reached, and
+      # those are reached nowhere cheaper.
+      - label: "parquet / vector selection"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql-datasource-parquet:qa:vectorSpecCiTests
+        timeout_in_minutes: 45
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced
+          buildDirectory: /dev/shm/bk
+
+      # ndjson and orc get a step each rather than sharing one. They were paired on the estimate that
+      # neither would fill a step, then split on a measurement of 35.6 and 31.9 minutes that no later
+      # run reproduces: on CI these are 17.5-19.6 and 10.8-11.2, so a shared step would be about 30 and
+      # would fit inside the 45-minute bound.
+      #
+      # They stay split anyway, and not out of inertia. A shared step at 30 minutes has spent most of
+      # its margin against the 36-minute critical-path floor, so the first dimension added to the
+      # contract would push it past the point where it is free -- and the bound is there to catch
+      # exactly that. Steps are concurrent, so splitting costs one more agent and nothing in wall
+      # clock, which makes the cheap option also the one with room in it.
+      - label: "ndjson / vector selection"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql-datasource-ndjson:qa:vectorSpecCiTests
+        timeout_in_minutes: 45
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced
+          buildDirectory: /dev/shm/bk
+
+      - label: "orc / vector selection"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql-datasource-orc:qa:vectorSpecCiTests
+        timeout_in_minutes: 45
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced
+          buildDirectory: /dev/shm/bk

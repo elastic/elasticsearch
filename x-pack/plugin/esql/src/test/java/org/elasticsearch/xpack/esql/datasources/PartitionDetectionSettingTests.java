@@ -155,6 +155,19 @@ public class PartitionDetectionSettingTests extends ESTestCase {
         assertEquals("a placeholderless template must not throw, and must keep the Hive columns", Set.of("year"), columnsOf(listing));
     }
 
+    public void testTemplateLiteralSegmentAnchorsTheBinding() throws IOException {
+        List<StorageEntry> tree = List.of(entry("s3://bucket/logs/2024/junk/01/part-0.parquet"));
+        FileList listing = expandAsResolverDoes(
+            FLAT_PATTERN,
+            tree,
+            Map.of("partition_detection", "template", "partition_path", "{year}/junk/{month}")
+        );
+        PartitionMetadata md = listing.partitionMetadata();
+        assertNotNull("template detection must produce partition metadata", md);
+        Object year = md.filePartitionValues().values().iterator().next().get("year");
+        assertEquals("the literal segment [junk] must anchor, so year binds the 2024 directory", 2024, year);
+    }
+
     /**
      * A {@code partition_path} template is the only way to describe a non-Hive layout. Against {@code main} it was
      * dropped: the Hive detector found no {@code key=value} segment, so the dataset had no partition columns to

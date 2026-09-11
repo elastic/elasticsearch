@@ -35,6 +35,7 @@ import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.MMROperator;
 import org.elasticsearch.compute.operator.MetricsInfoOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
+import org.elasticsearch.compute.operator.ParallelHashAggregationOperator;
 import org.elasticsearch.compute.operator.SampleOperator;
 import org.elasticsearch.compute.operator.TsInfoOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -96,6 +97,8 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
+import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryCounters;
+import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryMetrics;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
@@ -570,6 +573,19 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             }
         };
 
+        DataSourceService dataSourceService = new DataSourceService(
+            services.clusterService(),
+            crudValidators,
+            encryptionService,
+            dataSourceModule.externalSourceMetrics()
+        );
+        DataSourceInventoryCounters inventoryCounters = new DataSourceInventoryCounters(dataSourceService, dataSourceModule);
+        DataSourceInventoryMetrics inventoryMetrics = new DataSourceInventoryMetrics(
+            services.telemetryProvider().getMeterRegistry(),
+            services.clusterService(),
+            inventoryCounters
+        );
+
         return List.of(
             new PlanExecutor(
                 new IndexResolver(services.client(), flattenedDataTypeEnabled::get),
@@ -602,8 +618,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.crossProjectModeDecider()
             ),
             new ViewService(services.clusterService(), parser),
-            new DataSourceService(services.clusterService(), crudValidators, encryptionService, dataSourceModule.externalSourceMetrics()),
+            dataSourceService,
             new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
+            inventoryCounters,
+            inventoryMetrics,
             new PluginComponentBinding<>(QueryMetricsListener.class, collector)
         );
     }
@@ -651,6 +669,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ESQL_WORKER_THREAD_POOL_SIZE,
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
+                EsqlFlags.ESQL_REMOTE_FETCH_TOPN,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
@@ -750,6 +769,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator.Status.ENTRY);
         entries.add(org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator.Status.ENTRY);
         entries.add(HashAggregationOperator.Status.ENTRY);
+        entries.add(ParallelHashAggregationOperator.PartitioningStatus.ENTRY);
         entries.add(LimitOperator.Status.ENTRY);
         entries.add(GroupedLimitOperator.Status.ENTRY);
         entries.add(GroupedTopNOperatorStatus.ENTRY);

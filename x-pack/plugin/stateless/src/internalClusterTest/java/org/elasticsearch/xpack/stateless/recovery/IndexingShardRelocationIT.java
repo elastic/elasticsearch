@@ -82,7 +82,6 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -270,16 +269,27 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
 
     public void testPrewarmAndHandoffTaskAreChildrenOfStartRelocationTask() throws Exception {
         startMasterOnlyNode();
-        final var sourceNode = startIndexNode();
+        final var nodeSettings = Settings.builder().put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false).build();
+        final var sourceNode = startIndexNode(nodeSettings);
         final var indexName = randomIdentifier();
         createIndex(indexName, 1, 0);
         ensureGreen(indexName);
-        indexDocs(indexName, randomIntBetween(1, 50));
-        if (randomBoolean()) {
-            flush(indexName);
-        }
+        indexDocs(indexName, randomIntBetween(20, 50));
+        flush(indexName);
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        final var commitService = internalCluster().getInstance(StatelessCommitService.class, sourceNode);
+        final var indexShard = internalCluster().getInstance(IndicesService.class, sourceNode)
+            .indexServiceSafe(shardId.getIndex())
+            .getShard(shardId.id());
+        final long flushedGen = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+        commitService.ensureMaxGenerationToUploadForFlush(shardId, flushedGen);
 
-        final var targetNode = startIndexNode();
+        final var uploadedGenerationListener = new PlainActionFuture<Void>();
+        commitService.addListenerForUploadedGeneration(shardId, flushedGen, uploadedGenerationListener);
+        safeGet(uploadedGenerationListener);
+        assertThat(commitService.getLatestUploadedBcc(shardId), notNullValue());
+
+        final var targetNode = startIndexNode(nodeSettings);
         final var parentTaskId = new AtomicReference<Long>();
         final var prewarm = new CountDownLatch(1);
         final var handoff = new CountDownLatch(1);

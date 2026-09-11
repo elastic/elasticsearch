@@ -91,7 +91,7 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
         this.context = Objects.requireNonNull(context);
         this.docValuesProducer = Objects.requireNonNull(docValuesProducer);
         this.fieldInfo = Objects.requireNonNull(fieldInfo);
-        this.docValuesHolder = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer);
+        this.docValuesHolder = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer, segmentInfo.maxDoc());
         this.ownsDocValuesProducer = ownsDocValuesProducer;
     }
 

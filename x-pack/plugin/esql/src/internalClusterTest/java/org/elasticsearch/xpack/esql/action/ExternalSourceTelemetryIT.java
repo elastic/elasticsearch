@@ -428,10 +428,9 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
      * PUT includes a CSV-only key ({@code header_row}) so registration fails unless
      * {@code FileDataSourceValidator} delegates extension inference to the live registry.
      *
-     * <p>APM inventory gauges, phone-home inventory keys, and the query-path format dimension land
-     * in #1866 / #1868 and are not on this branch. This test asserts the surfaces that exist:
-     * CRUD acceptance, a successful scan, {@code PARSE_ROWS_TOTAL} on scheme {@code local}, and
-     * that the coordinator registry resolves the same object as {@code csv}.
+     * <p>This test asserts CRUD acceptance, a successful scan, {@code PARSE_ROWS_TOTAL} on
+     * {@code {type=local, format=csv}}, and that the coordinator registry resolves the same object
+     * as {@code csv}.
      */
     public void testInferredCompoundExtensionDatasetIsQueryable() throws Exception {
         Path gz = createTempDir().resolve("data.csv.gz");
@@ -463,8 +462,8 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
         collectAllMeters();
         assertThat(
-            "parse.rows.total must fire for the local scheme",
-            counterTotalForScheme(ExternalSourceMetrics.PARSE_ROWS_TOTAL, "local"),
+            "parse.rows.total must fire with {type=local, format=csv}",
+            counterTotalForTypeAndFormat(ExternalSourceMetrics.PARSE_ROWS_TOTAL, "local", "csv"),
             equalTo(1L)
         );
 

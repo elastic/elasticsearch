@@ -856,9 +856,14 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            // Set up the product use case in the thread context
             String productUseCase = "test-product-use-case";
+            String productSolution = "security";
+            String productFeature = "attack_discovery";
+            String interactionId = "interaction-id";
             threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, productSolution);
+            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, productFeature);
+            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, interactionId);
 
             var model = ElasticInferenceServiceRerankModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
@@ -886,6 +891,12 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             // Check that the product use case header was set correctly
             var productUseCaseHeaders = request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
             assertThat(productUseCaseHeaders, contains(productUseCase));
+            assertThat(request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER), contains(productSolution));
+            assertThat(request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER), contains(productFeature));
+            assertThat(
+                request.getHeaders().get(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER),
+                contains(interactionId)
+            );
         }
     }
 

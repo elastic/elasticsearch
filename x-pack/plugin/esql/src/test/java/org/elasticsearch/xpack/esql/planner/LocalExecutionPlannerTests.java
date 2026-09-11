@@ -680,7 +680,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY),
             PlannerSettings.DEFAULTS.minCompetitiveTimestampOptimizationEnabled(),
             PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeBatchPages(),
-            PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeMaxPendingKeys()
+            PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeMaxPendingKeys(),
+            PlannerSettings.DEFAULTS.aggregationPartitioningCountThreshold()
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
@@ -1193,6 +1194,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             esPhysicalOperationProviders(shardContexts),
             operatorFactoryRegistry,
+            null, // RemoteFetchService - not needed for these tests
             null, // parallelWorkerExecutor - not needed for these tests
             0,    // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop()

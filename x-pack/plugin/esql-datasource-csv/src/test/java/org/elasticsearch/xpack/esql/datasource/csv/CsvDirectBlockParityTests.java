@@ -367,9 +367,9 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testKeywordWhitespacePreservedByDefault() throws IOException {
         // Default is no-trim: a string column keeps its surrounding whitespace, identically on both paths.
         // Uses a second column so the value under test is not at column 0; column-0 leading-whitespace
-        // preservation is pinned separately by testColumnZeroLeadingWhitespaceCsv / ...TsvPlain, which now
-        // agree on both the direct and house arms under no-trim (QUOTED / PLAIN). (Escaped mode is the only
-        // dialect that still eats col-0 leading whitespace — it stays on Jackson; not exercised here.)
+        // preservation is pinned separately by testColumnZeroLeadingWhitespaceCsv / ...TsvPlain, which
+        // agree on both the direct and house arms under no-trim (QUOTED / PLAIN). Escaped no-trim also
+        // preserves col-0 leading whitespace (house grammar); not exercised here.
         List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:keyword\nx,  spaced  \n");
         assertEquals(List.of(row(br("x"), br("  spaced  "))), rows);
     }
@@ -1498,7 +1498,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
-     * A custom {@code null_value} is matched by Jackson against the RAW token on both escaped arms, so projecting
+     * A custom {@code null_value} is matched against the decoded field on both escaped arms, so projecting
      * {@code _rowPosition} must not change which cells are null nor re-decode the surviving ones.
      */
     public void testRowPositionEscapedCustomNullValueUnchanged() throws IOException {
@@ -1521,10 +1521,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
-     * Non-regression pin for the OTHER arm of the same routing decision: with stripe capture on and no
-     * {@code _rowPosition}, escaped mode rides {@code newTrackedJacksonBulkIterator}, which delivers RAW values —
-     * so the batch loop must still decode. Guards against "fixing" the double-decode by suppressing the decode
-     * unconditionally, which would leave escape sequences un-decoded on both bulk arms.
+     * Stripe ALL + escaped uses the house iterator, which already decodes. Guards against running
+     * {@code decodeFieldValue} a second time (or skipping it) on that seam.
      */
     public void testEscapedTrackedBulkPathStillDecodesOnce() throws IOException {
         assertEquals(List.of(row(br("x\\ty"))), readAllScope(Map.of("mode", "escaped"), "note:keyword\nx\\\\ty\n"));
@@ -1637,9 +1635,10 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     ) throws IOException {
         CsvFormatReader configured = config.isEmpty() ? baseReader(tsv) : (CsvFormatReader) baseReader(tsv).withConfig(config);
         // Parity harness: read once with the direct-to-block path (default) and once with it forced
-        // off (Jackson), and assert the two agree row-for-row. For modes that are not eligible for the
-        // direct path (e.g. bracket multi-values or escaped mode) both arms are Jackson and the
-        // comparison is trivially true, but the golden assertEquals in each test still pins behavior.
+        // off, and assert the two agree row-for-row. For modes that are not eligible for the
+        // direct path (bracket multi-values, escaped) both arms use the same house/Jackson tokenizer
+        // and the comparison is trivially true, but the golden assertEquals in each test still pins
+        // behavior.
         // The direct arm is read first so a test using assertThrows still observes the direct path's
         // exception.
         List<List<Object>> direct = drain(configured.withDirectBlockEnabled(true), projection, batchSize, policy, content);

@@ -123,7 +123,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                     assertEquals(
                         "term [" + probe + "]",
                         expected(ordered, probe, true),
-                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                 }
             }
@@ -191,7 +191,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                     assertEquals(
                         "term [" + probe + "] after merging past segments without the field",
                         expected(values, probe, true),
-                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                 }
             }
@@ -256,7 +256,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                         assertEquals(
                             shape.name() + " term [" + probe + "]",
                             expected(values, probe, true),
-                            found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
+                            found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                         );
                     }
                 }
@@ -312,14 +312,14 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                     assertEquals(
                         "term [" + probe + "] on an index-sorted column",
                         expected(inDocOrder, probe, true),
-                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                 }
                 for (String probe : Arrays.asList("al", "alp", "b", "d", "az", "zzz", "")) {
                     assertEquals(
                         "prefix [" + probe + "] on an index-sorted column",
                         expected(inDocOrder, probe, false),
-                        found(searcher, ColumnarStringTermQuery.prefix(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.prefix(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                 }
             }
@@ -350,19 +350,19 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                     assertEquals(
                         "term [" + probe + "] through an overlay",
                         expected(values, probe, true),
-                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                     assertEquals(
                         "prefix [" + probe + "] through an overlay",
                         expected(values, probe, false),
-                        found(searcher, ColumnarStringTermQuery.prefix(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.prefix(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                 }
                 for (String probe : Arrays.asList("lph", "alpha", "a", "", "zzz")) {
                     assertEquals(
                         "contains [" + probe + "] through an overlay",
                         containing(values, probe),
-                        found(searcher, ColumnarStringTermQuery.contains(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.contains(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                 }
             }
@@ -385,8 +385,8 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
             }
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 final IndexSearcher searcher = new IndexSearcher(reader);
-                assertEquals(List.of(), found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef("alpha"))));
-                assertEquals(List.of(), found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a")));
+                assertEquals(List.of(), found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef("alpha"), ScanBudget.UNLIMITED)));
+                assertEquals(List.of(), found(searcher, ColumnarStringAutomatonQuery.forWildcard(FIELD, "al*a", ScanBudget.UNLIMITED)));
             }
         }
     }
@@ -443,14 +443,14 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                     assertEquals(
                         "term [" + probe + "]",
                         expected(values, probe, true),
-                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.term(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                 }
                 for (String probe : Arrays.asList("al", "alp", "b", "id-", "zzz")) {
                     assertEquals(
                         "prefix [" + probe + "]",
                         expected(values, probe, false),
-                        found(searcher, ColumnarStringTermQuery.prefix(FIELD, new BytesRef(probe)))
+                        found(searcher, ColumnarStringTermQuery.prefix(FIELD, new BytesRef(probe), ScanBudget.UNLIMITED))
                     );
                 }
             }

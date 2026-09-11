@@ -52,4 +52,9 @@ public interface SourceBatch extends Releasable, Accountable {
      * @throws IndexOutOfBoundsException if the range is invalid.
      */
     SourceBatch slice(int from, int to);
+
+    /**
+     * Estimates the bytes this batch contributes to the Lucene indexing buffer.
+     */
+    int estimatedBytes();
 }

@@ -204,6 +204,9 @@ final class ParquetPushedExpressions {
     private FilterPredicate toFilterPredicateInner(MessageType schema, Map<String, String> formats) {
         List<FilterPredicate> translated = new ArrayList<>();
         for (Expression expr : expressions) {
+            if (ParquetFilterPushdownSupport.canConvert(expr) == false) {
+                continue;
+            }
             FilterPredicate fp = translateExpression(expr, schema, formats);
             if (fp != null) {
                 translated.add(fp);
@@ -833,8 +836,10 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * The RAW bound to push for a {@code DATETIME} column whose query literal is epoch-millis, or {@code null} to
-     * decline. Both halves of the question are delegated: the parquet-local derivation of how decode relates raw to
+     * The RAW bound to push for a {@code DATETIME} column, or {@code null} to decline. The query literal is
+     * in the column's domain (epoch-millis) because the pushdown gate requires the literal's {@link DataType}
+     * to match the column. Both halves of the question are delegated: the parquet-local
+     * derivation of how decode relates raw to
      * decoded ({@link ParquetColumnDecoding#rawDecodeRelation}), and the shared, brute-force-verified inversion that
      * guarantees the pushed bound is never stricter than the truth ({@link DeclaredTypeCoercions#rawBoundFor}).
      *
@@ -923,7 +928,9 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * Builds a predicate for an ESQL {@code DATE_NANOS} column, whose query literal is epoch-nanoseconds. Since
+     * Builds a predicate for an ESQL {@code DATE_NANOS} column. The query literal is in the column's domain
+     * (epoch-nanoseconds) because the pushdown gate requires the literal's {@link DataType} to match the
+     * column. Since
      * {@code date_nanos} became declarable, this column can sit over any physical INT64 a declared read admits —
      * not only the inferred {@code TIMESTAMP(MICROS|NANOS)} shapes. The raw-to-decoded relation and the bound math
      * are delegated to the shared {@link DeclaredTypeCoercions.RawDecodeRelation} authority (via
@@ -1190,7 +1197,9 @@ final class ParquetPushedExpressions {
     /**
      * {@code IN} counterpart to {@link #buildDateNanosPredicate}, folded onto the same {@link #temporalInPredicate}
      * that serves the {@code DATETIME} arm ({@link #translateDatetimeIn}) so the two temporal IN paths share ONE
-     * raw-band authority. The query literals are epoch-nanoseconds; {@link #temporalInPredicate} resolves the
+     * raw-band authority. The query literals are in the column's domain (epoch-nanoseconds) because the
+     * pushdown gate requires each literal's {@link DataType} to match the column;
+     * {@link #temporalInPredicate} resolves the
      * raw-to-decoded relation from {@link ParquetColumnDecoding#rawDecodeRelation} and pushes each element's exact
      * raw equality band: an identity column (NANOS, or the un-annotated signed INT64 a declared {@code date_nanos}
      * reads as raw epoch-nanos) pushes every value exactly; a scaled column (MICROS, MILLIS, or a declared epoch

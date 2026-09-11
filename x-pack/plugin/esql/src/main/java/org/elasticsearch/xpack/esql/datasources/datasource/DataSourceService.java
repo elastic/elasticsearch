@@ -112,6 +112,12 @@ public class DataSourceService {
         return DataSourceMetadata.get(projectMetadata);
     }
 
+    /** Validator registered for {@code type}, or {@code null} when the type is unknown. */
+    @Nullable
+    public DataSourceValidator validatorFor(String type) {
+        return validatorsByType.get(type);
+    }
+
     /**
      * Validate the put-data-source request and build the domain {@link DataSource}.
      */

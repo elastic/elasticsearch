@@ -572,6 +572,50 @@ took:
   - match: { esql.datasources.config.datasets.count: 0 }
 
 ---
+"Datasource inventory marginals":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasource_inventory_marginals ]
+      reason: "Datasource inventory marginals present and dense in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  - exists: esql.datasources.config.datasources.by_type.s3
+  - exists: esql.datasources.config.datasources.by_type.unknown
+  - exists: esql.datasources.config.datasets.by_datasource_type.s3
+  - exists: esql.datasources.config.datasources.by_auth.anonymous
+  - exists: esql.datasources.config.datasources.by_auth.static_credentials
+  - exists: esql.datasources.config.datasources.by_auth.federated_identity
+  - exists: esql.datasources.config.datasources.by_auth.managed_identity
+  - exists: esql.datasources.config.datasources.by_auth.unknown
+  - exists: esql.datasources.config.datasets.by_format.parquet
+  - exists: esql.datasources.config.datasets.by_format.csv
+  - exists: esql.datasources.config.datasets.by_format.tsv
+  - exists: esql.datasources.config.datasets.by_format.ndjson
+  - exists: esql.datasources.config.datasets.by_format.orc
+  - exists: esql.datasources.config.datasets.by_format.other
+  - exists: esql.datasources.config.datasets.by_format.unresolved
+  - exists: esql.datasources.config.datasets.by_schema.inferred
+  - exists: esql.datasources.config.datasets.by_schema.declared_dynamic
+  - exists: esql.datasources.config.datasets.by_schema.declared_strict
+  - exists: esql.datasources.config.datasets.by_partitioning.auto
+  - exists: esql.datasources.config.datasets.by_partitioning.hive
+  - exists: esql.datasources.config.datasets.by_partitioning.template
+  - exists: esql.datasources.config.datasets.by_partitioning.none
+  - exists: esql.datasources.config.datasets.by_compression.gzip
+  - exists: esql.datasources.config.datasets.by_compression.snappy
+  - exists: esql.datasources.config.datasets.by_compression.zstd
+  - exists: esql.datasources.config.datasets.by_compression.brotli
+  - exists: esql.datasources.config.datasets.by_compression.lz4
+  - exists: esql.datasources.config.datasets.by_compression.bzip2
+  - exists: esql.datasources.config.datasets.by_compression.uncompressed
+  - exists: esql.datasources.config.datasets.by_compression.other
+  - exists: esql.datasources.config.datasets.by_compression.unknown
+
+---
 "Datasource parse.rows.by_format telemetry":
   - requires:
       test_runner_features: [ capabilities ]

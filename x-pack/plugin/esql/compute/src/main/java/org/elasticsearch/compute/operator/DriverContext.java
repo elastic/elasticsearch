@@ -18,6 +18,8 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -49,6 +51,19 @@ public class DriverContext {
 
     // Working set. Only the thread executing the driver will update this set.
     Set<Releasable> workingSet = Collections.newSetFromMap(new IdentityHashMap<>());
+
+    /**
+     * {@link Warnings} accumulated during the driver run and snapshotted at {@link #finish()}
+     * into {@link #warningsSnapshot}.
+     */
+    private final Set<String> warnings = Collections.synchronizedSet(new LinkedHashSet<>());
+
+    /**
+     * Immutable copy of warnings, copied at {@link #finish()}. This mostly exists out
+     * of paranoia to make sure we don't mutate the list of warnings after we've finished
+     * the driver.
+     */
+    private volatile List<String> warningsSnapshot;
 
     private final AtomicReference<Snapshot> snapshot = new AtomicReference<>();
 
@@ -148,6 +163,9 @@ public class DriverContext {
             releasableSet.add(r);
             itr.remove();
         }
+        synchronized (warnings) {
+            warningsSnapshot = List.copyOf(warnings);
+        }
         snapshot.compareAndSet(null, new Snapshot(releasableSet));
     }
 
@@ -155,6 +173,73 @@ public class DriverContext {
         if (isFinished() == false) {
             throw new IllegalStateException("not finished");
         }
+    }
+
+    /**
+     * Adds a fully-formatted warning string to this context's per-driver sink.
+     * Called mostly single-threaded from the driver loop, but also called by async
+     * operators from other threads.
+     */
+    public void addWarning(String warning) {
+        assert warningsSnapshot == null;
+        warnings.add(warning);
+    }
+
+    /**
+     * Returns the snapshot of warnings accumulated during the driver run. Must only be called after the context
+     * has been {@link #finish() finished}.
+     */
+    public List<String> warnings() {
+        ensureFinished();
+        return warningsSnapshot;
+    }
+
+    /**
+     * Create a new {@link Warnings} collector using this context's {@link #warningsMode()}. Registered warnings
+     * are written into this context's per-driver sink (see {@link #addWarning(String)}).
+     */
+    public Warnings createWarnings(int lineNumber, int columnNumber, String sourceText) {
+        return Warnings.createWarnings(this, lineNumber, columnNumber, sourceText);
+    }
+
+    /**
+     * Create a new {@link Warnings} collector using this context's {@link #warningsMode()}, which warns that
+     * it treats the result as {@code false}.
+     */
+    public Warnings createWarningsTreatedAsFalse(int lineNumber, int columnNumber, String sourceText) {
+        return Warnings.createWarningsTreatedAsFalse(this, lineNumber, columnNumber, sourceText);
+    }
+
+    /**
+     * Create a new {@link Warnings} collector using this context's {@link #warningsMode()}, which warns that
+     * evaluation resulted in warnings.
+     */
+    public Warnings createOnlyWarnings(int lineNumber, int columnNumber, String sourceText) {
+        return Warnings.createOnlyWarnings(this, lineNumber, columnNumber, sourceText);
+    }
+
+    /**
+     * Create a new {@link Warnings} collector using this context's {@link #warningsMode()}.
+     * Registered warnings are written into this context's per-driver sink.
+     */
+    public Warnings createWarnings(WarningSourceLocation source) {
+        return Warnings.createWarnings(this, source.lineNumber(), source.columnNumber(), source.text());
+    }
+
+    /**
+     * Create a new {@link Warnings} collector using this context's {@link #warningsMode()}, which warns that
+     * it treats the result as {@code false}.
+     */
+    public Warnings createWarningsTreatedAsFalse(WarningSourceLocation source) {
+        return Warnings.createWarningsTreatedAsFalse(this, source.lineNumber(), source.columnNumber(), source.text());
+    }
+
+    /**
+     * Create a new {@link Warnings} collector using this context's {@link #warningsMode()}, which warns that
+     * evaluation resulted in warnings.
+     */
+    public Warnings createOnlyWarnings(WarningSourceLocation source) {
+        return Warnings.createOnlyWarnings(this, source.lineNumber(), source.columnNumber(), source.text());
     }
 
     public void waitForAsyncActions(ActionListener<Void> listener) {

@@ -81,7 +81,8 @@ public class ComputeListenerTests extends ESTestCase {
                 0,
                 2,
                 () -> new PlanProfile(randomIdentifier(), randomIdentifier(), randomIdentifier(), randomAlphaOfLengthBetween(1, 1024))
-            )
+            ),
+            Set.of()
         );
     }
 

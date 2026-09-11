@@ -18,6 +18,7 @@ import org.elasticsearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The compute result of {@link DataNodeRequest}
@@ -43,7 +44,7 @@ final class DataNodeComputeResponse extends TransportResponse {
             return;
         }
         if (DataNodeComputeHandler.supportShardLevelRetryFailure(in.getTransportVersion())) {
-            this.completionInfo = new DriverCompletionInfo(0, 0, in.readCollectionAsImmutableList(DriverProfile::new), List.of());
+            this.completionInfo = new DriverCompletionInfo(0, 0, in.readCollectionAsImmutableList(DriverProfile::new), List.of(), Set.of());
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
             return;
         }

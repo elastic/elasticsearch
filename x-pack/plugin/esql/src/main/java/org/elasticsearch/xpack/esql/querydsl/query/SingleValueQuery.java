@@ -18,9 +18,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FilterOperator;
-import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -212,12 +212,8 @@ public class SingleValueQuery extends Query {
         protected final org.apache.lucene.search.Query simple(MappedFieldType ft, SearchExecutionContext context) throws IOException {
             SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                Warnings.createWarnings(
-                    DriverContext.WarningsMode.COLLECT,
-                    source().source().getLineNumber(),
-                    source().source().getColumnNumber(),
-                    source().text()
-                )
+                QueryWarnings.EMIT,
+                new WarningSourceLocation(source().source().getLineNumber(), source().source().getColumnNumber(), source().text())
             );
             org.apache.lucene.search.Query rewrite = singleValueQuery.rewrite(context.searcher());
             if (rewrite instanceof MatchAllDocsQuery) {
@@ -343,12 +339,8 @@ public class SingleValueQuery extends Query {
 
             org.apache.lucene.search.Query singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                Warnings.createWarnings(
-                    DriverContext.WarningsMode.COLLECT,
-                    source().source().getLineNumber(),
-                    source().source().getColumnNumber(),
-                    source().text()
-                )
+                QueryWarnings.EMIT,
+                new WarningSourceLocation(source().source().getLineNumber(), source().source().getColumnNumber(), source().text())
             );
             singleValueQuery = singleValueQuery.rewrite(context.searcher());
             if (singleValueQuery instanceof MatchAllDocsQuery == false) {

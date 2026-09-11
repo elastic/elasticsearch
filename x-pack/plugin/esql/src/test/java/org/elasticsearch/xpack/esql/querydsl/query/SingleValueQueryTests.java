@@ -20,6 +20,17 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
@@ -34,6 +45,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -182,7 +194,20 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 QueryBuilder rewritten = builder.rewrite(ctx);
                 Query query = rewritten.toQuery(ctx);
-                testCase.run(fieldValues, ctx.searcher().count(query));
+                BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256))
+                    .withCircuitBreaking();
+                CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+                DriverContext dc = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+                IdentityHashMap<Query, Warnings> warningsMap = new IdentityHashMap<>();
+                int count;
+                try (Releasable ignored = QueryWarnings.EMIT.bind(dc, warningsMap)) {
+                    count = ctx.searcher().count(query);
+                }
+                dc.finish();
+                for (String w : dc.warnings()) {
+                    HeaderWarning.addWarning(w);
+                }
+                testCase.run(fieldValues, count);
                 assertEqualsAndHashcodeStable(query, rewritten.toQuery(ctx));
             }
         }

@@ -15,12 +15,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -68,7 +68,7 @@ public class LuceneCountOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneCountOperator(driverContext.blockFactory(), sliceQueue, limit);
+            return new LuceneCountOperator(driverContext, sliceQueue, limit);
         }
 
         @Override
@@ -77,8 +77,8 @@ public class LuceneCountOperator extends LuceneOperator {
         }
     }
 
-    public LuceneCountOperator(BlockFactory blockFactory, LuceneSliceQueue sliceQueue, int limit) {
-        super(blockFactory, PAGE_SIZE, sliceQueue);
+    public LuceneCountOperator(DriverContext driverContext, LuceneSliceQueue sliceQueue, int limit) {
+        super(driverContext, PAGE_SIZE, sliceQueue, QueryWarnings.EMIT);
         this.remainingDocs = limit;
         this.leafCollector = new LeafCollector() {
             @Override

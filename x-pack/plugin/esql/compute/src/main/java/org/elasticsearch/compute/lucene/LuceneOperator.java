@@ -23,8 +23,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -34,6 +38,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -55,6 +60,15 @@ public abstract class LuceneOperator extends SourceOperator {
     public static final int SMALL_INDEX_BOUNDARY = LuceneSliceQueue.MAX_DOCS_PER_SLICE;
 
     protected final BlockFactory blockFactory;
+    protected final DriverContext driverContext;
+
+    /**
+     * Binds the per-driver {@link QueryWarnings} context to this operator's thread before scoring.
+     * Persists across multiple {@link #getOutput()} calls so that the same per-query
+     * {@link org.elasticsearch.compute.operator.Warnings} object accumulates warnings.
+     */
+    private final IdentityHashMap<Query, Warnings> queryWarningsMap = new IdentityHashMap<>();
+    private final QueryWarnings queryWarnings;
 
     /**
      * Count of the number of slices processed.
@@ -79,10 +93,12 @@ public abstract class LuceneOperator extends SourceOperator {
      */
     private long rowsEmitted;
 
-    protected LuceneOperator(BlockFactory blockFactory, int maxPageSize, LuceneSliceQueue sliceQueue) {
-        this.blockFactory = blockFactory;
+    protected LuceneOperator(DriverContext driverContext, int maxPageSize, LuceneSliceQueue sliceQueue, QueryWarnings queryWarnings) {
+        this.driverContext = driverContext;
+        this.blockFactory = driverContext.blockFactory();
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
+        this.queryWarnings = queryWarnings;
     }
 
     public abstract static class Factory implements SourceOperator.SourceOperatorFactory {
@@ -134,7 +150,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final Page getOutput() {
-        try {
+        try (Releasable ignored = queryWarnings.bind(driverContext, queryWarningsMap)) {
             Page page = getCheckedOutput();
             if (page != null) {
                 pagesEmitted++;

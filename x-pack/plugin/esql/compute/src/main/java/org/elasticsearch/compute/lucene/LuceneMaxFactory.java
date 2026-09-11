@@ -137,7 +137,7 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
 
     @Override
     public SourceOperator get(DriverContext driverContext) {
-        return new LuceneMinMaxOperator(driverContext.blockFactory(), sliceQueue, fieldName, numberType, limit, Long.MIN_VALUE);
+        return new LuceneMinMaxOperator(driverContext, sliceQueue, fieldName, numberType, limit, Long.MIN_VALUE);
     }
 
     @Override

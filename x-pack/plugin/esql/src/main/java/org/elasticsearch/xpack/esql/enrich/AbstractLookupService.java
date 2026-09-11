@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -40,7 +41,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ProjectOperator;
-import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
@@ -326,8 +326,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             }
             releasables.add(finishPages);
 
-            var warnings = Warnings.createWarnings(
-                DriverContext.WarningsMode.COLLECT,
+            var warnings = driverContext.createWarnings(
                 request.source.source().getLineNumber(),
                 request.source.source().getColumnNumber(),
                 request.source.text()
@@ -382,6 +381,12 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
+                    // Propagate any warnings accumulated in the inner driver's DriverContext to
+                    // the calling thread's response headers so that ResponseHeadersCollector in
+                    // the outer operator (EnrichLookupOperator) can pick them up.
+                    for (String w : driverContext.warnings()) {
+                        HeaderWarning.addWarning(w);
+                    }
                     List<Page> out = collectedPages;
                     if (mergePages && out.isEmpty()) {
                         out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));

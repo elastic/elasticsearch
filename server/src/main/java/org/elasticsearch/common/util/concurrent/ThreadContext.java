@@ -582,6 +582,39 @@ public final class ThreadContext implements Writeable, TraceContext {
     }
 
     /**
+     * Reads and removes the values associated with {@code key} from the current thread's response-header map, returning
+     * them as an immutable list in insertion order. Subsequent calls will return an empty list for the same key.
+     * <p>
+     *     When {@code key} is {@code "Warning"}, the {@code warningHeadersSize} counter is reset to zero so the
+     *     count/size throttle restarts.
+     * </p>
+     *
+     * @param key the response header name whose values should be removed and returned
+     * @return the values that were associated with {@code key}, preserving insertion order,
+     *         or an empty list if none were present
+     */
+    public List<String> takeResponseHeaders(String key) {
+        ThreadContextStruct current = threadLocal.get();
+        Set<String> existing = current.responseHeaders.get(key);
+        if (existing == null || existing.isEmpty()) {
+            return List.of();
+        }
+        Map<String, Set<String>> newResponseHeaders = new HashMap<>(current.responseHeaders);
+        newResponseHeaders.remove(key);
+        long newWarningHeadersSize = key.equals("Warning") ? 0L : current.warningHeadersSize;
+        threadLocal.set(
+            new ThreadContextStruct(
+                current.requestHeaders,
+                newResponseHeaders,
+                current.transientHeaders,
+                current.isSystemContext,
+                newWarningHeadersSize
+            )
+        );
+        return List.copyOf(existing);
+    }
+
+    /**
      * Copies all header key, value pairs into the current context
      */
     public void copyHeaders(Iterable<Map.Entry<String, String>> headers) {

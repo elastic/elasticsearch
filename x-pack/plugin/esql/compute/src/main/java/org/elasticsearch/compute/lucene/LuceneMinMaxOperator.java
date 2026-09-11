@@ -20,6 +20,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -65,14 +67,14 @@ final class LuceneMinMaxOperator extends LuceneOperator {
     private final String fieldName;
 
     LuceneMinMaxOperator(
-        BlockFactory blockFactory,
+        DriverContext driverContext,
         LuceneSliceQueue sliceQueue,
         String fieldName,
         NumberType numberType,
         int limit,
         long initialResult
     ) {
-        super(blockFactory, PAGE_SIZE, sliceQueue);
+        super(driverContext, PAGE_SIZE, sliceQueue, QueryWarnings.EMIT);
         this.remainingDocs = limit;
         this.numberType = numberType;
         this.fieldName = fieldName;

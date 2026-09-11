@@ -28,6 +28,7 @@ import org.elasticsearch.compute.lucene.LuceneSliceQueue.PartitioningStrategy;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -90,7 +91,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneSourceOperator(driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter, needsScore);
+            return new LuceneSourceOperator(driverContext, maxPageSize, sliceQueue, limit, limiter, needsScore);
         }
 
         public int maxPageSize() {
@@ -218,14 +219,15 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @SuppressWarnings("this-escape")
     public LuceneSourceOperator(
-        BlockFactory blockFactory,
+        DriverContext driverContext,
         int maxPageSize,
         LuceneSliceQueue sliceQueue,
         int limit,
         Limiter limiter,
         boolean needsScore
     ) {
-        super(blockFactory, maxPageSize, sliceQueue);
+        super(driverContext, maxPageSize, sliceQueue, QueryWarnings.EMIT);
+        BlockFactory blockFactory = driverContext.blockFactory();
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
         this.limiter = limiter;

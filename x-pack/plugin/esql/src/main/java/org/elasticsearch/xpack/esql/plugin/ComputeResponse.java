@@ -19,6 +19,7 @@ import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The compute result of {@link DataNodeRequest} or {@link ClusterComputeRequest}
@@ -68,7 +69,7 @@ final class ComputeResponse extends TransportResponse {
             completionInfo = DriverCompletionInfo.readFrom(in);
         } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             if (in.readBoolean()) {
-                completionInfo = new DriverCompletionInfo(0, 0, in.readCollectionAsImmutableList(DriverProfile::new), List.of());
+                completionInfo = new DriverCompletionInfo(0, 0, in.readCollectionAsImmutableList(DriverProfile::new), List.of(), Set.of());
             } else {
                 completionInfo = DriverCompletionInfo.EMPTY;
             }

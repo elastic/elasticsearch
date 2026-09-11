@@ -270,6 +270,23 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         assertThat(resolution.columnMappers()[schema.findLeaf("host", 0)], instanceOf(KeywordFieldMapper.class));
     }
 
+    public void testKeywordWithTextMultiFieldIsSupported() throws IOException {
+        MapperService ms = mapper(mapping(b -> {
+            b.startObject("host");
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("lower").field("type", "keyword").endObject();
+            b.startObject("txt").field("type", "text").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        SourceSchema schema = schemaOf("host");
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertEquals(1, resolution.columnMappers().length);
+        assertThat(resolution.columnMappers()[schema.findLeaf("host", 0)], instanceOf(KeywordFieldMapper.class));
+    }
+
     /** One sub-mapper without columnar support disqualifies the whole leaf, and therefore the whole batch. */
     public void testMultiFieldWithUnsupportedSubMapperFallsBack() throws IOException {
         MapperService ms = mapper(mapping(b -> {
@@ -277,7 +294,7 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
             b.field("type", "keyword");
             b.startObject("fields");
             b.startObject("lower").field("type", "keyword").endObject();
-            b.startObject("txt").field("type", "text").endObject();
+            b.startObject("geo").field("type", "geo_point").endObject();
             b.endObject();
             b.endObject();
         }));

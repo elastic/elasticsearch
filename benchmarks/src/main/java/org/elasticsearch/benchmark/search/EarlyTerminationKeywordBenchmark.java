@@ -69,7 +69,7 @@ import java.util.stream.Stream;
  * <p>Run all parameter combinations:
  * <pre>{@code
  * ./gradlew :benchmarks:run \
- *   --args 'KeywordSearchAfterBenchmark -f 3 -wi 5 -i 5 \
+ *   --args 'EarlyTerminationKeywordBenchmark -f 3 -wi 5 -i 5 \
  *     -rf json -rff /tmp/keyword-searchafter.json \
  *     -o /tmp/keyword-searchafter.txt'
  * }</pre>
@@ -77,7 +77,7 @@ import java.util.stream.Stream;
  * <p>Quick smoke test (single mode, small doc count):
  * <pre>{@code
  * ./gradlew :benchmarks:run \
- *   --args 'KeywordSearchAfterBenchmark -f 1 -wi 1 -i 1 \
+ *   --args 'EarlyTerminationKeywordBenchmark -f 1 -wi 1 -i 1 \
  *     -p indexMode=logsdb,logsdb_columnar \
  *     -p numDocs=10000 -p size=10'
  * }</pre>
@@ -88,7 +88,7 @@ import java.util.stream.Stream;
 @Fork(3)
 @Warmup(iterations = 5, time = 1)
 @Measurement(iterations = 5, time = 1)
-public class KeywordSearchAfterBenchmark {
+public class EarlyTerminationKeywordBenchmark {
 
     private static final String HOST_NAME = "host.name";
     private static final String TIMESTAMP = "@timestamp";
@@ -131,6 +131,13 @@ public class KeywordSearchAfterBenchmark {
     @Benchmark
     public TopDocs searchAfterPage(Blackhole bh) throws IOException {
         final TopDocs docs = fetchPage();
+        bh.consume(docs);
+        return docs;
+    }
+
+    @Benchmark
+    public TopDocs topNPage(Blackhole bh) throws IOException {
+        final TopDocs docs = searcher.search(MatchAllDocsQuery.INSTANCE, size, querySort);
         bh.consume(docs);
         return docs;
     }

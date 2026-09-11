@@ -403,6 +403,19 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
         ) {
             assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
         }
+        try (
+            var response = run(syncEsqlQueryRequest("FROM employees METADATA _id | WHERE _id IS NOT NULL | STATS c = COUNT(*)"), TIMEOUT)
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _source | WHERE _source IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
     }
 
     /** The deserialized {@code _source} value is a {@link Map}; fail loudly if a format yields otherwise. */

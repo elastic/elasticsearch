@@ -5191,6 +5191,64 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("_file.record_ref is composed per record, not missing from the file", 1, provider.discoverSplits(ctx).splits().size());
     }
 
+    public void testIdNotTreatedAsMissing() {
+        StoragePath pathA = StoragePath.of("s3://b/a.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(pathA, 100, Instant.EPOCH)), "s3://b/*.parquet");
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
+        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, null));
+        Expression idFilter = new IsNotNull(SRC, fieldAttr(ExternalMetadataColumns.ID));
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaInfo,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(idFilter),
+            new ExternalSchema(List.of(refAttr("id")))
+        );
+        assertEquals("_id is composed per record, not missing from the file", 1, provider.discoverSplits(ctx).splits().size());
+    }
+
+    public void testSourceNotTreatedAsMissing() {
+        StoragePath pathA = StoragePath.of("s3://b/a.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(pathA, 100, Instant.EPOCH)), "s3://b/*.parquet");
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
+        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, null));
+        Expression sourceFilter = new IsNotNull(SRC, fieldAttr(ExternalMetadataColumns.SOURCE));
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaInfo,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(sourceFilter),
+            new ExternalSchema(List.of(refAttr("id")))
+        );
+        assertEquals("_source is composed per record, not missing from the file", 1, provider.discoverSplits(ctx).splits().size());
+    }
+
+    public void testIdEqualsDoesNotSkipFile() {
+        StoragePath pathA = StoragePath.of("s3://b/a.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(pathA, 100, Instant.EPOCH)), "s3://b/*.parquet");
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
+        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, null));
+        Expression idEquals = new Equals(
+            SRC,
+            fieldAttr(ExternalMetadataColumns.ID),
+            new Literal(SRC, new BytesRef("row-1"), DataType.KEYWORD)
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaInfo,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(idEquals),
+            new ExternalSchema(List.of(refAttr("id")))
+        );
+        assertEquals("_id equality is per-row, so the file is kept for scan", 1, provider.discoverSplits(ctx).splits().size());
+    }
+
     public void testSkipIfFilterOnMissingColumn_inExpression() {
         Expression filter = new In(SRC, fieldAttr("status"), List.of(intLiteral(1), intLiteral(2)));
         assertTrue("IN on missing column should skip", FileSplitProvider.skipIfFilterOnMissingColumns(List.of(filter), Set.of("name")));

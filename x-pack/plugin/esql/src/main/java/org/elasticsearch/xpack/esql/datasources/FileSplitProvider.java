@@ -557,6 +557,9 @@ public class FileSplitProvider implements SplitProvider {
         int certifiedSkips = 0;
         long probedFileBytes = 0;
         List<FileTask> tasks = new ArrayList<>(fileList.fileCount());
+        // Hive / _file.* listing values already live in partitionValues. Overlay the engine
+        // per-file constants only when a hint names one of them.
+        boolean overlayPerFileConstants = filterHints.isEmpty() == false && hintsReferencePerFileConstants(filterHints);
         for (int i = 0; i < fileList.fileCount(); i++) {
             StoragePath filePath = fileList.path(i);
 
@@ -571,13 +574,9 @@ public class FileSplitProvider implements SplitProvider {
             SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
 
             if (filterHints.isEmpty() == false) {
-                Map<String, Object> filterValues = discoveryFilterValues(
-                    partitionValues,
-                    context.datasetName(),
-                    fileList,
-                    i,
-                    unifiedSchema
-                );
+                Map<String, Object> filterValues = overlayPerFileConstants
+                    ? discoveryFilterValues(partitionValues, context.datasetName(), fileList, i, unifiedSchema)
+                    : partitionValues;
                 if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
                     certifiedSkips++;
                     continue;
@@ -585,7 +584,7 @@ public class FileSplitProvider implements SplitProvider {
                 if (fileSchemaInfo != null) {
                     Set<String> fileColumnNames = new LinkedHashSet<>(fileSchemaInfo.fileSchema().names());
                     fileColumnNames.addAll(filterValues.keySet());
-                    fileColumnNames.add(FileMetadataColumns.RECORD_REF);
+                    addPerRowComposedColumnNames(fileColumnNames);
                     if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
                         certifiedSkips++;
                         continue;
@@ -2803,6 +2802,26 @@ public class FileSplitProvider implements SplitProvider {
             }
         }
         return filterValues;
+    }
+
+    private static boolean hintsReferencePerFileConstants(List<Expression> filterHints) {
+        for (Expression hint : filterHints) {
+            if (hint.references().stream().anyMatch(a -> ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(a.name()))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Per-row engine-composed names. They have no file-level value for
+     * {@link #matchesPartitionFilters} but are never absent from a file, so
+     * {@link #skipIfFilterOnMissingColumns} must not treat them as missing.
+     */
+    private static void addPerRowComposedColumnNames(Set<String> fileColumnNames) {
+        fileColumnNames.add(FileMetadataColumns.RECORD_REF);
+        fileColumnNames.add(ExternalMetadataColumns.ID);
+        fileColumnNames.add(ExternalMetadataColumns.SOURCE);
     }
 
     /**

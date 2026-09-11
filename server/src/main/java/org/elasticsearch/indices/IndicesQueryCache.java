@@ -256,8 +256,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     /** Clear all entries that belong to the given index. */
     public void clearIndex(String index) {
-        final Set<Object> coreCacheKeys = shardKeyMap.getCoreKeysForIndex(index);
-        for (Object coreKey : coreCacheKeys) {
+        final Set<IndexReader.CacheKey> coreCacheKeys = shardKeyMap.getCoreKeysForIndex(index);
+        for (IndexReader.CacheKey coreKey : coreCacheKeys) {
             cache.clearCoreCacheKey(coreKey);
         }
 

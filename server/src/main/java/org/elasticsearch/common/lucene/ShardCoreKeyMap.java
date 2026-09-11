@@ -129,7 +129,7 @@ public final class ShardCoreKeyMap {
     /**
      * Get the set of core cache keys associated with the given index.
      */
-    public synchronized Set<Object> getCoreKeysForIndex(String index) {
+    public synchronized Set<IndexReader.CacheKey> getCoreKeysForIndex(String index) {
         final Set<IndexReader.CacheKey> objects = indexToCoreKey.get(index);
         if (objects == null) {
             return Collections.emptySet();

@@ -157,7 +157,12 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 // pushdown path instead and so collapses freely even when a filter is present.
                 String survivingKey = prunedVua.namedSubqueries().keySet().iterator().next();
                 if (preserveViewBoundaries == false || prunedVua.isViewBranch(survivingKey) == false) {
-                    return prunedVua.children().getFirst();
+                    // Recurse into the exposed child rather than just returning it. Collapsing can expose another
+                    // ViewUnionAll — nested pass-through views under CPS produce exactly that — and transformDown
+                    // descends into the *children* of whatever the rule returns, so the rule would never be applied
+                    // to the newly exposed node itself, leaving its shadow branch unstripped and failing verification
+                    // with "view-shadow lookup [...] not yet resolved". Terminates because each step removes a node.
+                    return stripViewShadowRelations(prunedVua.children().getFirst(), preserveViewBoundaries);
                 }
             }
             return pruned;

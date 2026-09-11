@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryVocabulary;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
@@ -56,6 +58,28 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationU
  * only the base dataset fields are accepted, preserving backward compatibility.
  */
 public class FileDataSourceValidator implements DataSourceValidator {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FileDataSourceValidator.class);
+
+    /**
+     * Stable log key for the {@code hive_partitioning: false} deprecation warning. The value was the only one that
+     * ever did anything (disabling detection); the canonical replacement is {@code partition_detection: none}.
+     */
+    public static final String HIVE_PARTITIONING_FALSE_DEPRECATION_KEY = "esql_dataset_hive_partitioning_false_deprecated";
+
+    /** Deprecation message when {@code hive_partitioning} is {@code false}. */
+    public static final String HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE =
+        "[hive_partitioning: false] is ignored; use [partition_detection: none] to disable partition detection";
+
+    /**
+     * Stable log key for the {@code hive_partitioning: true} (or any non-false) deprecation warning. Those values
+     * were always no-ops — the key should simply be removed.
+     */
+    public static final String HIVE_PARTITIONING_NOOP_DEPRECATION_KEY = "esql_dataset_hive_partitioning_noop_deprecated";
+
+    /** Deprecation message when {@code hive_partitioning} is any value other than {@code false}. */
+    public static final String HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE =
+        "[hive_partitioning] is ignored and has never had any effect for this value; remove it";
 
     /**
      * Error shown when a data source is provisioned with federated authentication settings while the
@@ -413,10 +437,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
         // would produce at query time. Each parser reads the keys it owns from the settings map.
         // error_mode + max_errors + max_error_ratio (incl. mutual exclusion) via the owning policy parser.
         validate(() -> ErrorPolicy.fromConfig(settings, ErrorPolicy.STRICT), errors);
-        // partition_detection enum, plus the combinations in which one of the three partition settings would be
-        // silently ignored, via the owning parser. Stricter than the query path deliberately: PartitionConfig
-        // resolves stored datasets leniently so an upgrade cannot turn a working dataset into a query-time error,
-        // which means a new registration is the only place a contradiction can still be caught.
+        // partition_detection enum, plus the combinations in which one of the two active partition settings
+        // (partition_detection, partition_path) would be silently ignored, via the owning parser.
+        // (hive_partitioning is accepted but a no-op — handled below.) Stricter than the query path deliberately:
+        // PartitionConfig resolves stored datasets leniently so an upgrade cannot turn a working dataset into a
+        // query-time error, which means a new registration is the only place a contradiction can still be caught.
         validateEnum(
             settings,
             result,
@@ -426,6 +451,29 @@ public class FileDataSourceValidator implements DataSourceValidator {
             errors
         );
         validate(() -> PartitionConfig.validate(settings), errors);
+        // hive_partitioning is accepted but ignored (deprecated no-op). Two warning sites:
+        // (1) here, at CRUD time for stored datasets; (2) FileSourceFactory.validateConfig, at schema-resolution
+        // time for inline FROM "..." WITH {...} queries that have no CRUD path (fires only on schema-cache misses,
+        // not on every query). PartitionConfig.fromConfig is intentionally NOT a warning site — it runs on every
+        // query against every stored dataset. The message is value-aware: false was the only value that ever did
+        // anything (it disabled detection), so it names the replacement; any other value was always a no-op and
+        // is told to simply remove the key.
+        Object hivePartitioningValue = settings.get(PartitionConfig.CONFIG_PARTITIONING_HIVE);
+        if (hivePartitioningValue != null) {
+            if ("false".equalsIgnoreCase(hivePartitioningValue.toString())) {
+                deprecationLogger.warn(
+                    DeprecationCategory.API,
+                    HIVE_PARTITIONING_FALSE_DEPRECATION_KEY,
+                    HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE
+                );
+            } else {
+                deprecationLogger.warn(
+                    DeprecationCategory.API,
+                    HIVE_PARTITIONING_NOOP_DEPRECATION_KEY,
+                    HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE
+                );
+            }
+        }
         // file_exclusions: array-of-strings shape here, pattern compilation via the owning parser. Stricter than the query path for the
         // same reason as the partition
         // settings above: ExclusionConfig.fromConfig degrades a malformed stored value to its default so an

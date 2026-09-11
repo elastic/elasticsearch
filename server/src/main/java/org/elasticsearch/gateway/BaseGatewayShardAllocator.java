@@ -78,10 +78,26 @@ public abstract class BaseGatewayShardAllocator {
      * @param logger           the logger
      * @return an {@link AllocateUnassignedDecision} with the final decision of whether to allocate and details of the decision
      */
-    public abstract AllocateUnassignedDecision makeAllocationDecision(
+    public final AllocateUnassignedDecision makeAllocationDecision(
         ShardRouting unassignedShard,
         RoutingAllocation allocation,
         Logger logger
+    ) {
+        return makeAllocationDecision(unassignedShard, allocation, logger, true);
+    }
+
+    /**
+     * Make a decision on the allocation of an unassigned shard.
+     *
+     * @param allocate if {@code true}, this is a real allocation and new fetches may be started.
+     *                 If {@code false}, this is an explanation, only observing existing fetch state.
+     *                 Explain may run off the master service thread.
+     */
+    public abstract AllocateUnassignedDecision makeAllocationDecision(
+        ShardRouting unassignedShard,
+        RoutingAllocation allocation,
+        Logger logger,
+        boolean allocate
     );
 
     /**

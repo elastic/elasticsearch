@@ -99,7 +99,7 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         Expression timestamp,
         @Nullable Expression temporality
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp, temporality);
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), temporality);
     }
 
     public static Increase createWithImplicitTemporality(Source source, Expression field, Expression window, Expression timestamp) {
@@ -109,12 +109,12 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
     public Increase(
         Source source,
         Expression field,
+        Expression timestamp,
         Expression filter,
         Expression window,
-        Expression timestamp,
         @Nullable Expression temporality
     ) {
-        super(source, field, filter, window, temporality == null ? List.of(timestamp) : List.of(timestamp, temporality));
+        super(source, temporality == null ? List.of(field, timestamp) : List.of(field, timestamp, temporality), filter, window, List.of());
         this.timestamp = timestamp;
         this.temporality = temporality;
     }
@@ -125,7 +125,7 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         Expression filter = in.readNamedWriteable(Expression.class);
         Expression window = readWindow(in);
         List<Expression> parameters = in.readNamedWriteableCollectionAsList(Expression.class);
-        return new Increase(source, field, filter, window, parameters.getFirst(), parameters.size() > 1 ? parameters.get(1) : null);
+        return new Increase(source, field, parameters.getFirst(), filter, window, parameters.size() > 1 ? parameters.get(1) : null);
     }
 
     @Override
@@ -136,34 +136,35 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
     @Override
     protected NodeInfo<Increase> info() {
         if (temporality != null) {
-            return NodeInfo.create(this, Increase::new, field(), filter(), window(), timestamp, temporality);
+            return NodeInfo.create(this, Increase::new, field(), timestamp, filter(), window(), temporality);
         } else {
             return NodeInfo.create(
                 this,
-                (source, field, filter, window, timestamp) -> new Increase(source, field, filter, window, timestamp, null),
+                (source, field, timestamp, filter, window) -> new Increase(source, field, timestamp, filter, window, null),
                 field(),
+                timestamp,
                 filter(),
-                window(),
-                timestamp
+                window()
             );
         }
     }
 
     @Override
     public Increase replaceChildren(List<Expression> newChildren) {
-        return new Increase(
-            source(),
-            newChildren.get(0),
-            newChildren.get(1),
-            newChildren.get(2),
-            newChildren.get(3),
-            newChildren.size() > 4 ? newChildren.get(4) : null
-        );
+        // children layout: field, timestamp, [temporality], filter, window
+        boolean hasTemporality = newChildren.size() > 4;
+        int i = 0;
+        Expression field = newChildren.get(i++);
+        Expression timestamp = newChildren.get(i++);
+        Expression temporality = hasTemporality ? newChildren.get(i++) : null;
+        Expression filter = newChildren.get(i++);
+        Expression window = newChildren.get(i);
+        return new Increase(source(), field, timestamp, filter, window, temporality);
     }
 
     @Override
     public Increase withFilter(Expression filter) {
-        return new Increase(source(), field(), filter, window(), timestamp, temporality);
+        return new Increase(source(), field(), timestamp, filter, window(), temporality);
     }
 
     @Override
@@ -211,7 +212,7 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
 
     @Override
     public Increase withTemporality(Expression newTemporality) {
-        return new Increase(source(), field(), filter(), window(), timestamp, newTemporality);
+        return new Increase(source(), field(), timestamp, filter(), window(), newTemporality);
     }
 
     @Override

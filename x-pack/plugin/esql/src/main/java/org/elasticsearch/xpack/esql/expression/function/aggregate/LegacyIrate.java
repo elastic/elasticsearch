@@ -49,12 +49,12 @@ public class LegacyIrate extends TimeSeriesAggregateFunction implements Optional
     public LegacyIrate(
         Source source,
         Expression field,
+        Expression timestamp,
         Expression filter,
         Expression window,
-        Expression timestamp,
         @Nullable Expression temporality
     ) {
-        super(source, field, filter, window, temporality == null ? List.of(timestamp) : List.of(timestamp, temporality));
+        super(source, temporality == null ? List.of(field, timestamp) : List.of(field, timestamp, temporality), filter, window, List.of());
         this.timestamp = timestamp;
         this.temporality = temporality;
     }
@@ -65,7 +65,7 @@ public class LegacyIrate extends TimeSeriesAggregateFunction implements Optional
         Expression filter = in.readNamedWriteable(Expression.class);
         Expression window = readWindow(in);
         List<Expression> parameters = in.readNamedWriteableCollectionAsList(Expression.class);
-        return new LegacyIrate(source, field, filter, window, parameters.getFirst(), parameters.size() > 1 ? parameters.get(1) : null);
+        return new LegacyIrate(source, field, parameters.getFirst(), filter, window, parameters.size() > 1 ? parameters.get(1) : null);
     }
 
     @Override
@@ -76,34 +76,35 @@ public class LegacyIrate extends TimeSeriesAggregateFunction implements Optional
     @Override
     protected NodeInfo<LegacyIrate> info() {
         if (temporality != null) {
-            return NodeInfo.create(this, LegacyIrate::new, field(), filter(), window(), timestamp, temporality);
+            return NodeInfo.create(this, LegacyIrate::new, field(), timestamp, filter(), window(), temporality);
         } else {
             return NodeInfo.create(
                 this,
-                (source, field, filter, window, timestamp) -> new LegacyIrate(source, field, filter, window, timestamp, null),
+                (source, field, timestamp, filter, window) -> new LegacyIrate(source, field, timestamp, filter, window, null),
                 field(),
+                timestamp,
                 filter(),
-                window(),
-                timestamp
+                window()
             );
         }
     }
 
     @Override
     public LegacyIrate replaceChildren(List<Expression> newChildren) {
-        return new LegacyIrate(
-            source(),
-            newChildren.get(0),
-            newChildren.get(1),
-            newChildren.get(2),
-            newChildren.get(3),
-            newChildren.size() > 4 ? newChildren.get(4) : null
-        );
+        // children layout: field, timestamp, [temporality], filter, window
+        boolean hasTemporality = newChildren.size() > 4;
+        int i = 0;
+        Expression field = newChildren.get(i++);
+        Expression timestamp = newChildren.get(i++);
+        Expression temporality = hasTemporality ? newChildren.get(i++) : null;
+        Expression filter = newChildren.get(i++);
+        Expression window = newChildren.get(i);
+        return new LegacyIrate(source(), field, timestamp, filter, window, temporality);
     }
 
     @Override
     public LegacyIrate withFilter(Expression filter) {
-        return new LegacyIrate(source(), field(), filter, window(), timestamp, temporality);
+        return new LegacyIrate(source(), field(), timestamp, filter, window(), temporality);
     }
 
     @Override
@@ -151,6 +152,6 @@ public class LegacyIrate extends TimeSeriesAggregateFunction implements Optional
 
     @Override
     public LegacyIrate withTemporality(Expression newTemporality) {
-        return new LegacyIrate(source(), field(), filter(), window(), timestamp, newTemporality);
+        return new LegacyIrate(source(), field(), timestamp, filter(), window(), newTemporality);
     }
 }

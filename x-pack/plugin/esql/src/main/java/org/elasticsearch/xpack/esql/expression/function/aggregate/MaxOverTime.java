@@ -94,11 +94,11 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
         ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public MaxOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+    public MaxOverTime(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
         this.timestamp = timestamp;
     }
 
@@ -109,12 +109,12 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
 
     @Override
     public MaxOverTime withFilter(Expression filter) {
-        return new MaxOverTime(source(), field(), filter, window(), timestamp);
+        return new MaxOverTime(source(), field(), timestamp, filter, window());
     }
 
     @Override
     protected NodeInfo<MaxOverTime> info() {
-        return NodeInfo.create(this, MaxOverTime::new, field(), filter(), window(), timestamp);
+        return NodeInfo.create(this, MaxOverTime::new, field(), timestamp, filter(), window());
     }
 
     @Override
@@ -140,7 +140,7 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
     @Override
     public Expression surrogate() {
         if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
-            var mergeOverTime = new HistogramMergeOverTime(source(), field(), filter(), window(), timestamp);
+            var mergeOverTime = new HistogramMergeOverTime(source(), field(), timestamp, filter(), window());
             return ExtractHistogramComponent.create(source(), mergeOverTime, Component.MAX);
         }
         return null;

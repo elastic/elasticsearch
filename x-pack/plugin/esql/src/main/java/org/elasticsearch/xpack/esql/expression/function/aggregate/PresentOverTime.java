@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -39,7 +40,7 @@ public class PresentOverTime extends TimeSeriesAggregateFunction implements Aggr
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "PresentOverTime",
-        PresentOverTime::new
+        PresentOverTime::readFrom
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(PresentOverTime.class)
         .binary(PresentOverTime::new)
@@ -107,11 +108,16 @@ public class PresentOverTime extends TimeSeriesAggregateFunction implements Aggr
     }
 
     public PresentOverTime(Source source, Expression field, Expression filter, Expression window) {
-        super(source, field, filter, window, emptyList());
+        super(source, List.of(field), filter, window, emptyList());
     }
 
-    private PresentOverTime(StreamInput in) throws IOException {
-        super(in);
+    private static PresentOverTime readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        in.readNamedWriteableCollectionAsList(Expression.class); // no parameters
+        return new PresentOverTime(source, field, filter, window);
     }
 
     @Override

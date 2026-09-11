@@ -48,7 +48,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "FirstOverTime",
-        FirstOverTime::new
+        FirstOverTime::readFrom
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FirstOverTime.class)
         .ternary(FirstOverTime::new)
@@ -115,22 +115,21 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
         ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public FirstOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+    public FirstOverTime(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
         this.timestamp = timestamp;
     }
 
-    public FirstOverTime(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
-        );
+    private static FirstOverTime readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        Expression timestamp = in.readNamedWriteableCollectionAsList(Expression.class).getFirst();
+        return new FirstOverTime(source, field, timestamp, filter, window);
     }
 
     @Override
@@ -140,7 +139,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
 
     @Override
     protected NodeInfo<FirstOverTime> info() {
-        return NodeInfo.create(this, FirstOverTime::new, field(), filter(), window(), timestamp);
+        return NodeInfo.create(this, FirstOverTime::new, field(), timestamp, filter(), window());
     }
 
     @Override
@@ -150,7 +149,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
 
     @Override
     public FirstOverTime withFilter(Expression filter) {
-        return new FirstOverTime(source(), field(), filter, window(), timestamp);
+        return new FirstOverTime(source(), field(), timestamp, filter, window());
     }
 
     @Override

@@ -75,22 +75,22 @@ public class HistogramMergeOverTime extends TimeSeriesAggregateFunction
         @Param(name = "window", type = "time_duration", optional = true) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp, null);
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), null);
     }
 
-    public HistogramMergeOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        this(source, field, filter, window, timestamp, null);
+    public HistogramMergeOverTime(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        this(source, field, timestamp, filter, window, null);
     }
 
     public HistogramMergeOverTime(
         Source source,
         Expression field,
+        Expression timestamp,
         Expression filter,
         Expression window,
-        Expression timestamp,
         @Nullable Expression temporality
     ) {
-        super(source, field, filter, window, temporality == null ? List.of(timestamp) : List.of(timestamp, temporality));
+        super(source, temporality == null ? List.of(field, timestamp) : List.of(field, timestamp, temporality), filter, window, List.of());
         this.timestamp = timestamp;
         this.temporality = temporality;
     }
@@ -104,9 +104,9 @@ public class HistogramMergeOverTime extends TimeSeriesAggregateFunction
         return new HistogramMergeOverTime(
             source,
             field,
+            parameters.getFirst(),
             filter,
             window,
-            parameters.getFirst(),
             parameters.size() > 1 ? parameters.get(1) : null
         );
     }
@@ -136,34 +136,35 @@ public class HistogramMergeOverTime extends TimeSeriesAggregateFunction
     @Override
     protected NodeInfo<HistogramMergeOverTime> info() {
         if (temporality != null) {
-            return NodeInfo.create(this, HistogramMergeOverTime::new, field(), filter(), window(), timestamp(), temporality);
+            return NodeInfo.create(this, HistogramMergeOverTime::new, field(), timestamp(), filter(), window(), temporality);
         } else {
             return NodeInfo.create(
                 this,
-                (source, field, filter, window, timestamp) -> new HistogramMergeOverTime(source, field, filter, window, timestamp, null),
+                (source, field, timestamp, filter, window) -> new HistogramMergeOverTime(source, field, timestamp, filter, window, null),
                 field(),
+                timestamp(),
                 filter(),
-                window(),
-                timestamp()
+                window()
             );
         }
     }
 
     @Override
     public HistogramMergeOverTime replaceChildren(List<Expression> newChildren) {
-        return new HistogramMergeOverTime(
-            source(),
-            newChildren.get(0),
-            newChildren.get(1),
-            newChildren.get(2),
-            newChildren.get(3),
-            newChildren.size() > 4 ? newChildren.get(4) : null
-        );
+        // children layout: field, timestamp, [temporality], filter, window
+        boolean hasTemporality = newChildren.size() > 4;
+        int i = 0;
+        Expression field = newChildren.get(i++);
+        Expression timestamp = newChildren.get(i++);
+        Expression temporality = hasTemporality ? newChildren.get(i++) : null;
+        Expression filter = newChildren.get(i++);
+        Expression window = newChildren.get(i);
+        return new HistogramMergeOverTime(source(), field, timestamp, filter, window, temporality);
     }
 
     @Override
     public HistogramMergeOverTime withFilter(Expression filter) {
-        return new HistogramMergeOverTime(source(), field(), filter, window(), timestamp, temporality);
+        return new HistogramMergeOverTime(source(), field(), timestamp, filter, window(), temporality);
     }
 
     @Override
@@ -200,7 +201,7 @@ public class HistogramMergeOverTime extends TimeSeriesAggregateFunction
 
     @Override
     public HistogramMergeOverTime withTemporality(Expression newTemporality) {
-        return new HistogramMergeOverTime(source(), field(), filter(), window(), timestamp(), newTemporality);
+        return new HistogramMergeOverTime(source(), field(), timestamp(), filter(), window(), newTemporality);
     }
 
     @Override

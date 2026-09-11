@@ -120,7 +120,7 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                         first.sort(),
                         timestamp,
                         changed,
-                        new FirstOverTime(first.field().source(), first.field(), Literal.TRUE, AggregateFunction.NO_WINDOW, timestamp),
+                        new FirstOverTime(first.field().source(), first.field(), timestamp, Literal.TRUE, AggregateFunction.NO_WINDOW),
                         MinOverTime::new,
                         FirstOverTime::new
                     )
@@ -172,8 +172,8 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
     ) {
         changed.set(true);
         var newSort = sort.semanticEquals(timestamp)
-            ? onTimestampSort.apply(sort.source(), sort, Literal.TRUE, AggregateFunction.NO_WINDOW, timestamp)
-            : onOtherSort.apply(sort.source(), sort, Literal.TRUE, AggregateFunction.NO_WINDOW, timestamp);
+            ? onTimestampSort.apply(sort.source(), sort, timestamp, Literal.TRUE, AggregateFunction.NO_WINDOW)
+            : onOtherSort.apply(sort.source(), sort, timestamp, Literal.TRUE, AggregateFunction.NO_WINDOW);
         return agg.withFields(List.of(newField, newSort));
     }
 }

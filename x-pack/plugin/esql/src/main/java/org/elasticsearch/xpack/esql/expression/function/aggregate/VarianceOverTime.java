@@ -70,7 +70,7 @@ public class VarianceOverTime extends TimeSeriesAggregateFunction implements ToA
     }
 
     public VarianceOverTime(Source source, Expression field, Expression filter, Expression window) {
-        super(source, field, filter, window, emptyList());
+        super(source, List.of(field), filter, window, emptyList());
     }
 
     @Override

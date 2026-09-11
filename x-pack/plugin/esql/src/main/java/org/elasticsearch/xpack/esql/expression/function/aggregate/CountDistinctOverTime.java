@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -35,7 +36,7 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DistinctOverTime",
-        CountDistinctOverTime::new
+        CountDistinctOverTime::readFrom
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountDistinctOverTime.class)
         .binary(CountDistinctOverTime::new)
@@ -89,13 +90,17 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
     }
 
     public CountDistinctOverTime(Source source, Expression field, Expression filter, Expression window, Expression precision) {
-        super(source, field, filter, window, precision == null ? List.of() : List.of(precision));
+        super(source, List.of(field), filter, window, precision == null ? List.of() : List.of(precision));
         this.precision = precision;
     }
 
-    private CountDistinctOverTime(StreamInput in) throws IOException {
-        super(in);
-        this.precision = parameters().isEmpty() ? null : parameters().getFirst();
+    private static CountDistinctOverTime readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        List<Expression> parameters = in.readNamedWriteableCollectionAsList(Expression.class);
+        return new CountDistinctOverTime(source, field, filter, window, parameters.isEmpty() ? null : parameters.getFirst());
     }
 
     @Override

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,7 +36,7 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "AbsentOverTime",
-        AbsentOverTime::new
+        AbsentOverTime::readFrom
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(AbsentOverTime.class)
         .binary(AbsentOverTime::new)
@@ -105,11 +106,16 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
     }
 
     public AbsentOverTime(Source source, Expression field, Expression filter, Expression window) {
-        super(source, field, filter, window, List.of());
+        super(source, List.of(field), filter, window, List.of());
     }
 
-    private AbsentOverTime(StreamInput in) throws IOException {
-        super(in);
+    private static AbsentOverTime readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        in.readNamedWriteableCollectionAsList(Expression.class); // no parameters
+        return new AbsentOverTime(source, field, filter, window);
     }
 
     @Override

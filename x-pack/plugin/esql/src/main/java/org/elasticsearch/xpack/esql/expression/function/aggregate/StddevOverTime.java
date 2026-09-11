@@ -70,7 +70,7 @@ public class StddevOverTime extends TimeSeriesAggregateFunction implements ToAgg
     }
 
     public StddevOverTime(Source source, Expression field, Expression filter, Expression window) {
-        super(source, field, filter, window, emptyList());
+        super(source, List.of(field), filter, window, emptyList());
     }
 
     @Override

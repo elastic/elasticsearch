@@ -29,18 +29,18 @@ public class DefaultTimeSeriesAggregateFunction extends TimeSeriesAggregateFunct
     private final Expression timestamp;
 
     public DefaultTimeSeriesAggregateFunction(Expression field, Expression timestamp) {
-        this(field.source(), field, Literal.TRUE, AggregateFunction.NO_WINDOW, timestamp);
+        this(field.source(), field, timestamp, Literal.TRUE, AggregateFunction.NO_WINDOW);
     }
 
-    public DefaultTimeSeriesAggregateFunction(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+    public DefaultTimeSeriesAggregateFunction(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
         this.timestamp = timestamp;
         // the delegate is not propagated as a parameter, making the delegate a child expression
         // otherwise our resolveType would not be called as child expressions are resolved first
         if (field.typeResolved().resolved() && field.dataType().isHistogram()) {
-            this.delegate = new HistogramMergeOverTime(source, field, filter, window, timestamp);
+            this.delegate = new HistogramMergeOverTime(source, field, timestamp, filter, window);
         } else {
-            this.delegate = new LastOverTime(source, field, filter, window, timestamp);
+            this.delegate = new LastOverTime(source, field, timestamp, filter, window);
         }
     }
 
@@ -54,7 +54,7 @@ public class DefaultTimeSeriesAggregateFunction extends TimeSeriesAggregateFunct
         if (filter == filter()) {
             return this;
         }
-        return new DefaultTimeSeriesAggregateFunction(source(), field(), filter, window(), timestamp);
+        return new DefaultTimeSeriesAggregateFunction(source(), field(), timestamp, filter, window());
     }
 
     @Override
@@ -75,7 +75,7 @@ public class DefaultTimeSeriesAggregateFunction extends TimeSeriesAggregateFunct
 
     @Override
     protected NodeInfo<DefaultTimeSeriesAggregateFunction> info() {
-        return NodeInfo.create(this, DefaultTimeSeriesAggregateFunction::new, field(), filter(), window(), timestamp);
+        return NodeInfo.create(this, DefaultTimeSeriesAggregateFunction::new, field(), timestamp, filter(), window());
     }
 
     @Override

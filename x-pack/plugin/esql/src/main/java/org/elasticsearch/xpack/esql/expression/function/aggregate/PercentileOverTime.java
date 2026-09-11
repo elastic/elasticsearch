@@ -79,22 +79,22 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
         ) Expression percentile,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, percentile, timestamp);
+        this(source, field, timestamp, Literal.TRUE, NO_WINDOW, percentile);
     }
 
     public PercentileOverTime(Source source, Expression field, Expression percentile, Expression window, Expression timestamp) {
-        this(source, field, Literal.TRUE, window, percentile, timestamp);
+        this(source, field, timestamp, Literal.TRUE, window, percentile);
     }
 
     public PercentileOverTime(
         Source source,
         Expression field,
+        Expression timestamp,
         Expression filter,
         Expression window,
-        Expression percentile,
-        Expression timestamp
+        Expression percentile
     ) {
-        super(source, field, filter, window, List.of(percentile, timestamp));
+        super(source, List.of(field, timestamp), filter, window, List.of(percentile));
         this.timestamp = timestamp;
     }
 
@@ -117,7 +117,7 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
 
     @Override
     protected NodeInfo<PercentileOverTime> info() {
-        return NodeInfo.create(this, PercentileOverTime::new, field(), filter(), window(), percentile(), timestamp);
+        return NodeInfo.create(this, PercentileOverTime::new, field(), timestamp, filter(), window(), percentile());
     }
 
     @Override
@@ -134,7 +134,7 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
 
     @Override
     public PercentileOverTime withFilter(Expression filter) {
-        return new PercentileOverTime(source(), field(), filter, window(), percentile(), timestamp);
+        return new PercentileOverTime(source(), field(), timestamp, filter, window(), percentile());
     }
 
     @Override
@@ -145,7 +145,7 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
     @Override
     public Expression surrogate() {
         if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
-            var mergeOverTime = new HistogramMergeOverTime(source(), field(), filter(), window(), timestamp);
+            var mergeOverTime = new HistogramMergeOverTime(source(), field(), timestamp, filter(), window());
             return new HistogramPercentile(source(), mergeOverTime, percentile());
         }
         return null;

@@ -92,7 +92,7 @@ public class DeltaOnlyHistogramMergeOverTime extends TimeSeriesAggregateFunction
         Expression window,
         @Nullable Expression temporality
     ) {
-        super(source, field, filter, window, temporality == null ? emptyList() : List.of(temporality));
+        super(source, temporality == null ? List.of(field) : List.of(field, temporality), filter, window, emptyList());
         this.temporality = temporality;
     }
 
@@ -144,13 +144,14 @@ public class DeltaOnlyHistogramMergeOverTime extends TimeSeriesAggregateFunction
 
     @Override
     public DeltaOnlyHistogramMergeOverTime replaceChildren(List<Expression> newChildren) {
-        return new DeltaOnlyHistogramMergeOverTime(
-            source(),
-            newChildren.get(0),
-            newChildren.get(1),
-            newChildren.get(2),
-            newChildren.size() > 3 ? newChildren.get(3) : null
-        );
+        // children layout: field, [temporality], filter, window
+        boolean hasTemporality = newChildren.size() > 3;
+        int i = 0;
+        Expression field = newChildren.get(i++);
+        Expression temporality = hasTemporality ? newChildren.get(i++) : null;
+        Expression filter = newChildren.get(i++);
+        Expression window = newChildren.get(i);
+        return new DeltaOnlyHistogramMergeOverTime(source(), field, filter, window, temporality);
     }
 
     @Override

@@ -41,7 +41,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 
 public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Idelta", Idelta::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Idelta", Idelta::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Idelta.class).ternary(Idelta::new).name("idelta");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeries(Idelta::new)
@@ -80,22 +80,21 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
         ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public Idelta(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+    public Idelta(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
         this.timestamp = timestamp;
     }
 
-    public Idelta(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
-        );
+    private static Idelta readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        Expression timestamp = in.readNamedWriteableCollectionAsList(Expression.class).getFirst();
+        return new Idelta(source, field, timestamp, filter, window);
     }
 
     @Override
@@ -105,7 +104,7 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
 
     @Override
     protected NodeInfo<Idelta> info() {
-        return NodeInfo.create(this, Idelta::new, field(), filter(), window(), timestamp);
+        return NodeInfo.create(this, Idelta::new, field(), timestamp, filter(), window());
     }
 
     @Override
@@ -115,7 +114,7 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
 
     @Override
     public Idelta withFilter(Expression filter) {
-        return new Idelta(source(), field(), filter, window(), timestamp);
+        return new Idelta(source(), field(), timestamp, filter, window());
     }
 
     @Override

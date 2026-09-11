@@ -39,6 +39,15 @@ public class FormatReaderRegistry {
      */
     public static final Set<String> GA_TEXT_CODECS = Set.of("gzip", "zstd");
 
+    /**
+     * Format readers available on release builds. {@link DataSourceModule} rejects any format a plugin
+     * attempts to register on a release build that is absent from this set, so adding a format here is
+     * a hard prerequisite for shipping it. On snapshot builds the gate is bypassed and any registered
+     * format resolves. Add a format here only after it has been benchmarked and its
+     * {@code read_cpu_nanos} coverage added to {@code EsqlQueryMetricsCollectorIT}.
+     */
+    public static final Set<String> GA_FORMAT_READERS = Set.of("csv", "tsv", "ndjson", "parquet");
+
     private final Map<String, Supplier<FormatReader>> byName = new ConcurrentHashMap<>();
     private final Map<String, Supplier<FormatReader>> byExtension = new ConcurrentHashMap<>();
     private final DecompressionCodecRegistry codecRegistry;

@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -35,11 +35,11 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -105,6 +105,14 @@ public class Highlight extends UnaryPlan
      * True when ON was omitted or is {@code *}. Set at parse time and kept after the field list is filled in.
      */
     private final boolean derivedFields;
+    /**
+     * True when {@link org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlight} synthesized the {@code analyzer}
+     * option from the borrowed WHERE, rather than the user writing it in {@code WITH}. Analysis-only provenance read by
+     * {@link #postAnalysisVerification(AnalysisRegistry, Failures)} to decide whether an unresolved analyzer keeps its
+     * raw failure (user typed it) or gets the borrowed-from-WHERE framing (we derived it). It is deliberately not
+     * serialized and not part of {@link #equals}: it never affects execution, only the coordinator-side error message.
+     */
+    private final boolean analyzerDerived;
     private final List<NamedExpression> fields;
     private final MapExpression options;
     /**
@@ -121,6 +129,7 @@ public class Highlight extends UnaryPlan
         Expression query,
         boolean implicitQuery,
         boolean derivedFields,
+        boolean analyzerDerived,
         List<NamedExpression> fields,
         MapExpression options,
         List<Attribute> generatedFields
@@ -130,6 +139,7 @@ public class Highlight extends UnaryPlan
         this.query = query;
         this.implicitQuery = implicitQuery;
         this.derivedFields = derivedFields;
+        this.analyzerDerived = analyzerDerived;
         this.fields = fields;
         this.options = options;
         this.generatedFields = generatedFields;
@@ -143,6 +153,8 @@ public class Highlight extends UnaryPlan
             in.readOptionalNamedWriteable(Expression.class),
             in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) ? in.readBoolean() : false,
             in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) ? in.readBoolean() : false,
+            // analyzerDerived is analysis-only provenance, not carried on the wire: peers do not re-verify.
+            false,
             in.readNamedWriteableCollectionAsList(NamedExpression.class),
             // MapExpression is registered under the Expression category, not its own, so read it as an Expression.
             (MapExpression) in.readOptionalNamedWriteable(Expression.class),
@@ -195,6 +207,10 @@ public class Highlight extends UnaryPlan
         return derivedFields;
     }
 
+    public boolean analyzerDerived() {
+        return analyzerDerived;
+    }
+
     public List<NamedExpression> fields() {
         return fields;
     }
@@ -224,7 +240,18 @@ public class Highlight extends UnaryPlan
         MapExpression options,
         List<Attribute> generatedFields
     ) {
-        return new Highlight(source(), child, prefix, query, implicitQuery, derivedFields, fields, options, generatedFields);
+        return new Highlight(
+            source(),
+            child,
+            prefix,
+            query,
+            implicitQuery,
+            derivedFields,
+            analyzerDerived,
+            fields,
+            options,
+            generatedFields
+        );
     }
 
     public Highlight withOptions(MapExpression newOptions) {
@@ -242,10 +269,23 @@ public class Highlight extends UnaryPlan
     public Highlight withResolved(
         Expression newQuery,
         boolean newImplicitQuery,
+        boolean newAnalyzerDerived,
         List<NamedExpression> newFields,
-        List<Attribute> newGeneratedFields
+        List<Attribute> newGeneratedFields,
+        MapExpression newOptions
     ) {
-        return new Highlight(source(), child(), prefix, newQuery, newImplicitQuery, derivedFields, newFields, options, newGeneratedFields);
+        return new Highlight(
+            source(),
+            child(),
+            prefix,
+            newQuery,
+            newImplicitQuery,
+            derivedFields,
+            newAnalyzerDerived,
+            newFields,
+            newOptions,
+            newGeneratedFields
+        );
     }
 
     /**
@@ -274,6 +314,7 @@ public class Highlight extends UnaryPlan
             query,
             implicitQuery,
             derivedFields,
+            analyzerDerived,
             fields,
             options,
             generatedFields
@@ -352,48 +393,101 @@ public class Highlight extends UnaryPlan
     @Override
     public void postAnalysisVerification(AnalysisRegistry analysisRegistry, Failures failures) {
         postAnalysisVerification(failures);
-        Analyzer analyzer;
-        try {
-            analyzer = resolveAnalyzer(analysisRegistry);
-        } catch (InvalidArgumentException e) {
-            // The analyzer name is a valid string but doesn't resolve.
-            failures.add(fail(this, "{}", e.getMessage()));
-            return;
-        } catch (IllegalArgumentException e) {
-            // The analyzer value isn't a string. Type errors have already been reported by verifyValue, but still
-            // validate the query with the default analyzer so query errors are surfaced too.
-            verifyQuery(defaultAnalyzer(analysisRegistry), failures);
-            return;
-        }
-        verifyQuery(analyzer, failures);
-    }
-
-    private Analyzer resolveAnalyzer(AnalysisRegistry analysisRegistry) {
-        Expression value = options == null ? null : foldableOption(ANALYZER);
-        if (value == null) {
-            return defaultAnalyzer(analysisRegistry);
-        }
-        String name = HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
-        return PlannerUtils.resolveAnalyzer(name, analysisRegistry);
-    }
-
-    private static Analyzer defaultAnalyzer(AnalysisRegistry analysisRegistry) {
-        return PlannerUtils.resolveAnalyzer(HighlightQueryBuilders.DEFAULT_ANALYZER_NAME, analysisRegistry);
-    }
-
-    private void verifyQuery(Analyzer analyzer, Failures failures) {
         if (query == null || query.resolved() == false || fields.isEmpty()) {
             return;
         }
+        String commandAnalyzerName;
+        try {
+            commandAnalyzerName = analyzerOptionName();
+        } catch (IllegalArgumentException e) {
+            // The analyzer value isn't a string. Type errors have already been reported by verifyValue, but still
+            // validate the query with the default per-field analyzers so query errors are surfaced too.
+            commandAnalyzerName = null;
+        }
         List<String> fieldNames = fields.stream().map(NamedExpression::name).toList();
+        Map<String, String> fieldAnalyzerNames;
+        try {
+            fieldAnalyzerNames = HighlightSupport.fieldAnalyzers(query, commandAnalyzerName, fieldNames);
+        } catch (IllegalArgumentException e) {
+            failures.add(fail(this, "{}", e.getMessage()));
+            return;
+        }
+        verifyQuery(fieldAnalyzerNames, commandAnalyzerName, failures, analysisRegistry);
+    }
+
+    /** The user-set {@code WITH {"analyzer": ...}} name, or {@code null} when absent. */
+    private String analyzerOptionName() {
+        Expression value = options == null ? null : foldableOption(ANALYZER);
+        return value == null ? null : HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
+    }
+
+    /**
+     * Message when a borrowed WHERE analyzer is not a registered analyzer. Covers ON-field primaries, off-ON leaf
+     * analyzers, and {@code quote_analyzer}. A name the user typed in {@code WITH} keeps the raw failure: this is why we
+     * track {@link #analyzerDerived}. Without it a user-written {@code WITH {"analyzer": "x"}} whose name also labels a
+     * borrowed leaf would be wrongly framed as coming from WHERE, when the user typed it themselves.
+     * {@code commandAnalyzerName} is the effective {@code WITH} analyzer (user-written or synthesized), or
+     * {@code null} when absent or not a string.
+     */
+    private String unresolvedAnalyzerMessage(String fallback, String commandAnalyzerName) {
+        if (implicitQuery == false || isUserWrittenAnalyzerFailure(fallback, commandAnalyzerName)) {
+            return fallback;
+        }
+        for (String name : HighlightSupport.leafAnalyzerNamesOf(query)) {
+            if (isUnregisteredAnalyzer(fallback, name)) {
+                return borrowedUnresolvedAnalyzerMessage(name);
+            }
+        }
+        return fallback;
+    }
+
+    private boolean isUserWrittenAnalyzerFailure(String fallback, String commandAnalyzerName) {
+        return analyzerDerived == false && commandAnalyzerName != null && isUnregisteredAnalyzer(fallback, commandAnalyzerName);
+    }
+
+    private static boolean isUnregisteredAnalyzer(String message, String name) {
+        return message.contains("[" + name + "] is not a registered analyzer");
+    }
+
+    private static String borrowedUnresolvedAnalyzerMessage(String name) {
+        // WITH cannot rescue this: it sets the field's highlight analyzer, but the borrowed leaf's own analyzer option
+        // is still resolved to translate the query (see HighlightQueryBuilders#runtimeContext). Only replacing the
+        // borrowed query with an explicit one that omits the custom analyzer avoids the lookup.
+        return "HIGHLIGHT derived its query from a preceding WHERE, but that query refers to analyzer ["
+            + name
+            + "], which is not a registered analyzer. Per-index custom analyzers cannot be used in HIGHLIGHT. "
+            + "Provide an explicit HIGHLIGHT query that does not use analyzer ["
+            + name
+            + "]; WITH analyzer does not override it.";
+    }
+
+    private void verifyQuery(
+        Map<String, String> fieldAnalyzerNames,
+        String commandAnalyzerName,
+        Failures failures,
+        AnalysisRegistry analysisRegistry
+    ) {
+        Map<String, NamedAnalyzer> fieldAnalyzers;
+        try {
+            fieldAnalyzers = HighlightQueryBuilders.resolveFieldAnalyzers(fieldAnalyzerNames, analysisRegistry);
+        } catch (InvalidArgumentException e) {
+            failures.add(fail(this, "{}", unresolvedAnalyzerMessage(e.getMessage(), commandAnalyzerName)));
+            return;
+        }
         try {
             // ON membership is enforced only when the user wrote both the query and the field list. A borrowed
             // query translates leniently so a predicate naming a non-ON field becomes match-none rather than failing.
-            HighlightQueryBuilders.verify(query, fieldNames, analyzer, implicitQuery == false && derivedFields == false, implicitQuery);
+            HighlightQueryBuilders.verify(
+                query,
+                fieldAnalyzers,
+                implicitQuery == false && derivedFields == false,
+                implicitQuery,
+                analysisRegistry
+            );
         } catch (IllegalArgumentException e) {
             // Attach to the query node, not this Highlight node: failures dedupe by node, so pinning it here would let a
             // co-located option/analyzer failure on this node swallow the query error (see VerifierTests#testHighlightAnalyzerOption).
-            failures.add(fail(query, "{}", e.getMessage()));
+            failures.add(fail(query, "{}", unresolvedAnalyzerMessage(e.getMessage(), commandAnalyzerName)));
         }
     }
 
@@ -450,6 +544,7 @@ public class Highlight extends UnaryPlan
             return false;
         }
         Highlight other = (Highlight) o;
+        // analyzerDerived is intentionally excluded: it is analysis-only provenance for error messages, not identity.
         return Objects.equals(prefix, other.prefix)
             && Objects.equals(query, other.query)
             && implicitQuery == other.implicitQuery

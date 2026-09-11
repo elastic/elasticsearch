@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -6578,35 +6579,99 @@ public class AnalyzerTests extends ESTestCase {
         assertTrue(highlight.implicitQuery());
     }
 
-    /** Analyzer options reject borrowable predicates but do not affect predicates HIGHLIGHT ignores. */
-    public void testHighlightHandlesAnalyzerOnWherePredicates() {
+    public void testHighlightBorrowsAnalyzerMatchingDefault() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        var analyzerNotSupported = allOf(
-            containsString("cannot borrow a WHERE condition that sets analyzer"),
-            not(containsString("analyzer not found"))
+        Highlight highlight = soleHighlight(
+            supportsHighlight(basic()).query(
+                "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"standard\"}) | HIGHLIGHT ON first_name"
+            )
         );
-        supportsHighlight(basic()).error(
-            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"standard\"}) | HIGHLIGHT ON first_name",
-            analyzerNotSupported
-        );
-        supportsHighlight(basic()).error(
-            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"standard\"}) AND MATCH(last_name, \"y\") | HIGHLIGHT",
-            analyzerNotSupported
-        );
-        supportsHighlight(basic()).error("""
-            FROM test
-            | WHERE MATCH(first_name, "x")
-            | WHERE MATCH(last_name, "y", {"analyzer": "standard"})
-            | HIGHLIGHT ON first_name
-            """, analyzerNotSupported);
+        assertThat(highlight.query(), instanceOf(Match.class));
+        assertTrue(highlight.implicitQuery());
+        assertNull(highlight.options());
+    }
 
+    public void testHighlightSynthesizesSharedNonDefaultAnalyzerIntoOptions() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        // "whitespace" is a core PreBuiltAnalyzer (registered without any plugin), unlike e.g. "english"; see
+        // EsqlTestUtils#TEST_ANALYSIS_REGISTRY.
+        Highlight singleLeaf = soleHighlight(
+            supportsHighlight(basic()).query(
+                "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT ON first_name"
+            )
+        );
+        assertThat(optionValue(singleLeaf, Highlight.ANALYZER), equalTo("whitespace"));
+
+        Highlight twoAgreeingLeaves = soleHighlight(
+            supportsHighlight(basic()).query(
+                "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"}) AND MATCH(last_name, \"y\", {\"analyzer\": "
+                    + "\"whitespace\"}) | HIGHLIGHT"
+            )
+        );
+        assertThat(optionValue(twoAgreeingLeaves, Highlight.ANALYZER), equalTo("whitespace"));
+
+        Highlight acrossWhereCommands = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x", {"analyzer": "whitespace"})
+            | WHERE MATCH(last_name, "y", {"analyzer": "whitespace"})
+            | HIGHLIGHT ON first_name
+            """));
+        assertThat(optionValue(acrossWhereCommands, Highlight.ANALYZER), equalTo("whitespace"));
+    }
+
+    public void testHighlightBorrowsMixedAnalyzersAcrossDifferentFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight oneLabeledOneDefault = soleHighlight(
+            supportsHighlight(basic()).query(
+                "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"}) AND MATCH(last_name, \"y\") | HIGHLIGHT"
+            )
+        );
+        assertTrue(oneLabeledOneDefault.implicitQuery());
+        assertNull(oneLabeledOneDefault.options());
+
+        Highlight twoDisagreeingLeaves = soleHighlight(
+            supportsHighlight(basic()).query(
+                "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"}) AND MATCH(last_name, \"y\", "
+                    + "{\"analyzer\": \"simple\"}) | HIGHLIGHT"
+            )
+        );
+        assertTrue(twoDisagreeingLeaves.implicitQuery());
+        assertNull(twoDisagreeingLeaves.options());
+
+        Highlight acrossWhereCommands = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x", {"analyzer": "whitespace"})
+            | WHERE MATCH(last_name, "y", {"analyzer": "simple"})
+            | HIGHLIGHT ON first_name
+            """));
+        assertTrue(acrossWhereCommands.implicitQuery());
+        assertNull(acrossWhereCommands.options());
+    }
+
+    public void testHighlightRejectsSameFieldTwoAnalyzersFromWhere() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"}) OR MATCH(first_name, \"y\", "
+                + "{\"analyzer\": \"simple\"}) | HIGHLIGHT",
+            containsString("would be highlighted with different analyzers")
+        );
+    }
+
+    public void testHighlightAnalyzerOnUnsupportedShapeDoesNotBorrow() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
         Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
             FROM test
-            | WHERE MATCH(first_name, "x") AND NOT MATCH(last_name, "y", {"analyzer": "standard"})
+            | WHERE MATCH(first_name, "x") AND NOT MATCH(last_name, "y", {"analyzer": "whitespace"})
             | HIGHLIGHT ON first_name
             """));
         assertThat(highlight.query(), instanceOf(Match.class));
         assertTrue(highlight.implicitQuery());
+        assertNull(highlight.options());
+    }
+
+    private static String optionValue(Highlight highlight, String name) {
+        Expression value = highlight.options().get(name);
+        return BytesRefs.toString(value.fold(FoldContext.small()));
     }
 
     public void testHighlightImplicitQueryPassesDocPreservingCommands() {

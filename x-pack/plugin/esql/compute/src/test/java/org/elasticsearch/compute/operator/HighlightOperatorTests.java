@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
@@ -47,6 +48,7 @@ import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.IntStream;
@@ -76,7 +78,11 @@ public class HighlightOperatorTests extends OperatorTestCase {
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
         Analyzer analyzer = new StandardAnalyzer();
-        HighlightConfig config = config("fox", 5, 0, 0).withExecutionContext(analyzer, contentTerm("fox"), CONTENT);
+        HighlightConfig config = config("fox", 5, 0, 0).withExecutionContext(
+            namedAnalyzers(analyzer, CONTENT.size()),
+            contentTerm("fox"),
+            CONTENT
+        );
         return new HighlightOperator.Factory(config, List.of(new LoadFromPageEvaluator.Factory(0)));
     }
 
@@ -84,7 +90,8 @@ public class HighlightOperatorTests extends OperatorTestCase {
     protected Matcher<String> expectedDescriptionOfSimple() {
         return equalTo(
             "HighlightOperator[query=fox, pre_tag=<em>, post_tag=</em>, encoder=default, number_of_fragments=5, fragment_size=0, "
-                + "no_match_size=0, word_boundary=false, locale=, order_by_score=false, analyzer=null, max_analyzed_offset=-1, fields=1]"
+                + "no_match_size=0, word_boundary=false, locale=, order_by_score=false, analyzer=StandardAnalyzer, "
+                + "max_analyzed_offset=-1, fields=1]"
         );
     }
 
@@ -92,7 +99,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo(
             "HighlightOperator[query=content:fox, query=fox, pre_tag=<em>, post_tag=</em>, encoder=default, number_of_fragments=5, "
-                + "fragment_size=0, no_match_size=0, word_boundary=false, locale=, order_by_score=false, analyzer=null, "
+                + "fragment_size=0, no_match_size=0, word_boundary=false, locale=, order_by_score=false, analyzer=StandardAnalyzer, "
                 + "max_analyzed_offset=-1, fields=[Attribute[channel=0]]]"
         );
     }
@@ -391,7 +398,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
         try (
             HighlightOperator operator = new HighlightOperator(
                 blockFactory(),
-                config("fox", 5, 0, 0).withExecutionContext(analyzer, contentTerm("fox"), CONTENT),
+                config("fox", 5, 0, 0).withExecutionContext(namedAnalyzers(analyzer, CONTENT.size()), contentTerm("fox"), CONTENT),
                 new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) }
             )
         ) {
@@ -427,6 +434,27 @@ public class HighlightOperatorTests extends OperatorTestCase {
             BytesRefBlock highlightTitle = result.getBlock(2);
             BytesRefBlock highlightBody = result.getBlock(3);
             assertThat(value(highlightTitle, 0), equalTo("the quick <em>fox</em>"));
+            assertThat(highlightBody.isNull(0), equalTo(true));
+        } finally {
+            result.releaseBlocks();
+        }
+    }
+
+    public void testPerFieldAnalyzersStemOnlyTheFieldTheyAreAssignedTo() {
+        Query query = new BooleanQuery.Builder().add(termQuery("title", "run"), BooleanClause.Occur.SHOULD)
+            .add(termQuery("body", "run"), BooleanClause.Occur.SHOULD)
+            .build();
+        BytesRefBlock title = bytesRefs(List.of(List.of("she runs fast")));
+        BytesRefBlock body = bytesRefs(List.of(List.of("she runs fast")));
+        List<NamedAnalyzer> fieldAnalyzers = List.of(
+            new NamedAnalyzer("english", AnalyzerScope.GLOBAL, new EnglishAnalyzer()),
+            new NamedAnalyzer("keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer())
+        );
+        Page result = highlightFields(config("run", 5, 0, 0), query, TITLE_BODY, fieldAnalyzers, title, body);
+        try {
+            BytesRefBlock highlightTitle = result.getBlock(2);
+            BytesRefBlock highlightBody = result.getBlock(3);
+            assertThat(value(highlightTitle, 0), equalTo("she <em>runs</em> fast"));
             assertThat(highlightBody.isNull(0), equalTo(true));
         } finally {
             result.releaseBlocks();
@@ -747,7 +775,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
         try (
             HighlightOperator operator = new HighlightOperator(
                 blockFactory(),
-                config.withExecutionContext(analyzer, query, CONTENT),
+                config.withExecutionContext(namedAnalyzers(analyzer, CONTENT.size()), query, CONTENT),
                 new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) }
             )
         ) {
@@ -759,20 +787,36 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
-    // Runs the operator with one input block per ON field.
     private Page highlightFields(HighlightConfig config, Query query, List<String> fieldNames, BytesRefBlock... fields) {
+        return highlightFields(config, query, fieldNames, namedAnalyzers(new StandardAnalyzer(), fieldNames.size()), fields);
+    }
+
+    private Page highlightFields(
+        HighlightConfig config,
+        Query query,
+        List<String> fieldNames,
+        List<NamedAnalyzer> fieldAnalyzers,
+        BytesRefBlock... fields
+    ) {
         ExpressionEvaluator[] evaluators = IntStream.range(0, fields.length)
             .mapToObj(LoadFromPageEvaluator::new)
             .toArray(ExpressionEvaluator[]::new);
         try (
             HighlightOperator operator = new HighlightOperator(
                 blockFactory(),
-                config.withExecutionContext(new StandardAnalyzer(), query, fieldNames),
+                config.withExecutionContext(fieldAnalyzers, query, fieldNames),
                 evaluators
             )
         ) {
             return operator.process(new Page(fields));
         }
+    }
+
+    private static List<NamedAnalyzer> namedAnalyzers(Analyzer analyzer, int count) {
+        NamedAnalyzer named = analyzer instanceof NamedAnalyzer na
+            ? na
+            : new NamedAnalyzer(analyzer.getClass().getSimpleName(), AnalyzerScope.GLOBAL, analyzer);
+        return Collections.nCopies(count, named);
     }
 
     private static String value(BytesRefBlock block, int position) {

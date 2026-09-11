@@ -16,19 +16,26 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 /**
  * Unit + differential coverage for {@link CsvFormatReader#splitRecordFields}, the house record tokenizer
- * that replaces Jackson on the no-trim, non-escaped-mode ({@code QUOTED} / {@code PLAIN}) record paths.
+ * used on the no-trim {@code QUOTED} / {@code PLAIN} record paths and for the escaped-mode protect-only
+ * split (raw emit; C-style decode is a later pass).
  *
- * <p>The no-trim cases pin the exact grammar the direct-to-block walkers implement (leading-whitespace
- * preservation at column 0, outer-whitespace skip before a quote, padded-quoted column counts). The
- * trim=true block is a Jackson-equivalence differential: it confirms the splitter agrees with Jackson's
- * own tokenization under {@code TRIM_SPACES}, so widening {@link CsvFormatReader#jacksonGrammarApplies()}
- * to route trim=true through the splitter would stay behavior-preserving.
+ * <p>The no-trim QUOTED / PLAIN cases pin the exact grammar the direct-to-block walkers implement
+ * (leading-whitespace preservation at column 0, outer-whitespace skip before a quote, padded-quoted
+ * column counts). The trim=true block is a Jackson-equivalence differential: it confirms the splitter
+ * agrees with Jackson's own tokenization under {@code TRIM_SPACES}, so widening
+ * {@link CsvFormatReader#jacksonGrammarApplies()} to route trim=true through the splitter would stay
+ * behavior-preserving.
+ *
+ * <p>Escaped-mode cases pin the protect-only contract: {@code escape + delimiter} is one field and
+ * the backslash is left in the token, the cap governs raw length, trailing empties are kept, and
+ * {@code trim_spaces} still does not treat an escaped delimiter as a boundary.
  */
 public class CsvRecordTokenizerTests extends ESTestCase {
 
@@ -140,6 +147,47 @@ public class CsvRecordTokenizerTests extends ESTestCase {
 
     public void testUnclosedQuoteThrows() {
         expectThrows(MalformedRowException.class, () -> CsvFormatReader.splitRecordFields("\"unterminated,x", csv(), NO_CAP));
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Escaped mode: protect-only (raw emit; decode is a later pass)
+    // ---------------------------------------------------------------------------------------------
+
+    public void testEscapedProtectsDelimiterAndEmitsRaw() {
+        assertTokens(escaped(), "a\\,b,c", "a\\,b", "c");
+    }
+
+    public void testEscapedCapGovernsRawLength() {
+        MalformedRowException e = expectThrows(
+            MalformedRowException.class,
+            () -> CsvFormatReader.splitRecordFields("aaaa\\,bb", escaped(), 7)
+        );
+        assertEquals(CsvFormatReader.fieldSizeExceededDetail(8, 7), e.getMessage());
+    }
+
+    public void testEscapedTrailingEmptyFieldsKept() {
+        assertTokens(escaped(), "a,b,", "a", "b", "");
+        assertTokens(escaped(), "a\\,b,", "a\\,b", "");
+    }
+
+    public void testEscapedTrimDoesNotSplitOnEscapedDelim() {
+        assertTokens(escapedTrim(), "  a\\,b  ,c", "a\\,b", "c");
+    }
+
+    public void testEscapedTrimKeepsEscapedTrailingWhitespace() {
+        assertTokens(escapedTrim(), "foo\\ ,bar", "foo\\ ", "bar");
+    }
+
+    public void testEscapedTrimDropsUnescapedWhitespaceAfterEscapeRun() {
+        assertTokens(escapedTrim(), "foo\\\\  ,bar", "foo\\\\", "bar");
+        assertTokens(escapedTrim(), "hello\\\\\t,ok", "hello\\\\", "ok");
+    }
+
+    public void testEscapedTrimKeepsLeadingWhitespaceEscape() {
+        assertTokens(escapedSpaceTrim(), " n,x", " n", "x");
+        // Space-as-escape + comma: an odd run before the delimiter swallows it (esc+next). Three
+        // spaces as the last field is one pair plus a trailing lone introducer.
+        assertTokens(escapedSpaceTrim(), "x,   ", "x", "  ");
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -271,6 +319,39 @@ public class CsvRecordTokenizerTests extends ESTestCase {
 
     private static CsvFormatOptions tsv() {
         return CsvFormatOptions.TSV;
+    }
+
+    /** Quoting off, escaping on: the house protect-only split. */
+    private static CsvFormatOptions escaped() {
+        return escaped('\\', false);
+    }
+
+    private static CsvFormatOptions escapedTrim() {
+        return escaped('\\', true);
+    }
+
+    /** Whitespace escape char (legal in {@link CsvFormatOptions}) under {@code trim_spaces}. */
+    private static CsvFormatOptions escapedSpaceTrim() {
+        return escaped(' ', true);
+    }
+
+    private static CsvFormatOptions escaped(char esc, boolean trim) {
+        return new CsvFormatOptions(
+            ',',
+            '"',
+            esc,
+            "//",
+            "",
+            StandardCharsets.UTF_8,
+            null,
+            CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
+            CsvFormatOptions.MultiValueSyntax.NONE,
+            true,
+            CsvFormatOptions.DEFAULT_COLUMN_PREFIX,
+            false,
+            true,
+            trim
+        );
     }
 
     private static CsvFormatOptions csvTrim() {

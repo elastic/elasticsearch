@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSuppor
 
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 
@@ -28,20 +27,6 @@ public class Clusters {
     static final String LOCAL_CLUSTER_NAME = "local_cluster";
 
     static ElasticsearchCluster remoteCluster(Path csvDataPath, Map<String, String> additionalSettings, boolean shared) {
-        return remoteCluster(csvDataPath, additionalSettings, shared, null);
-    }
-
-    /**
-     * @param federationEnabled supplier for the ES|QL federation setting, re-read on every (re)start so a test can
-     *        create federation state while enabled and then bounce the remote with federation off. {@code null}
-     *        enables federation, which the dataset-bearing suites need.
-     */
-    static ElasticsearchCluster remoteCluster(
-        Path csvDataPath,
-        Map<String, String> additionalSettings,
-        boolean shared,
-        Supplier<String> federationEnabled
-    ) {
         Version version = distributionVersion("tests.version.remote_cluster");
         var cluster = ElasticsearchCluster.local()
             .name(REMOTE_CLUSTER_NAME)
@@ -70,7 +55,7 @@ public class Clusters {
         // before the flag existed (9.5.0).
         cluster.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL);
         if (knowsFederationSetting(remoteClusterVersion())) {
-            cluster.setting(Federation.FEDERATION_ENABLED.getKey(), federationEnabled == null ? () -> "true" : federationEnabled);
+            cluster.setting(Federation.FEDERATION_ENABLED.getKey(), "true");
         }
         if (remoteClusterSupportsInferenceTestService()) {
             cluster.plugin("inference-service-test");
@@ -90,15 +75,6 @@ public class Clusters {
 
     public static ElasticsearchCluster remoteCluster() {
         return remoteCluster(emptyMap());
-    }
-
-    /**
-     * A remote cluster whose ES|QL federation setting is driven by {@code federationEnabled}, re-read on every
-     * (re)start. Used by the federation gate tests to create dataset state while enabled and then bounce the remote
-     * with federation off.
-     */
-    public static ElasticsearchCluster remoteCluster(Supplier<String> federationEnabled) {
-        return remoteCluster(CsvTestUtils.createCsvDataDirectory(), emptyMap(), false, federationEnabled);
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster) {
@@ -137,22 +113,6 @@ public class Clusters {
         Map<String, String> additionalSettings,
         boolean shared
     ) {
-        return localCluster(csvDataPath, remoteCluster, skipUnavailable, additionalSettings, shared, "true");
-    }
-
-    /**
-     * @param federationEnabled value for the ES|QL federation setting. It is only written on a version that has the
-     *        setting, so a suite that depends on the value it passes has to skip when the cluster does not report the
-     *        {@code FEDERATION_ENABLED_SETTING} capability.
-     */
-    public static ElasticsearchCluster localCluster(
-        Path csvDataPath,
-        ElasticsearchCluster remoteCluster,
-        Boolean skipUnavailable,
-        Map<String, String> additionalSettings,
-        boolean shared,
-        String federationEnabled
-    ) {
         Version version = distributionVersion("tests.version.local_cluster");
         var cluster = ElasticsearchCluster.local()
             .name(LOCAL_CLUSTER_NAME)
@@ -181,7 +141,7 @@ public class Clusters {
         // unconditionally is also safe for older BWC nodes.
         cluster.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL);
         if (knowsFederationSetting(localClusterVersion())) {
-            cluster.setting(Federation.FEDERATION_ENABLED.getKey(), federationEnabled);
+            cluster.setting(Federation.FEDERATION_ENABLED.getKey(), "true");
         }
         if (localClusterSupportsInferenceTestService()) {
             cluster.plugin("inference-service-test");
@@ -195,41 +155,6 @@ public class Clusters {
         }
         if (shared) {
             cluster.shared(true);
-        }
-        return cluster.build();
-    }
-
-    /**
-     * A single-node local cluster with the {@code remote_cluster_client} role but <em>no</em> {@code cluster.remote.*}
-     * settings in its config: the remote connection is configured by the test through the cluster settings API. This
-     * is required when the remote is restarted mid-test on new ports, because a seed pinned in {@code elasticsearch.yml}
-     * cannot be updated through the API, whereas an API-managed seed can be re-pointed after the bounce.
-     */
-    public static ElasticsearchCluster localClusterForDynamicRemote(Path csvDataPath) {
-        Version version = distributionVersion("tests.version.local_cluster");
-        var cluster = ElasticsearchCluster.local()
-            .name(LOCAL_CLUSTER_NAME)
-            .distribution(DistributionType.DEFAULT)
-            .version(version)
-            .nodes(1)
-            .setting("xpack.security.enabled", "false")
-            .setting("xpack.license.self_generated.type", "trial")
-            .setting("node.roles", "[data,ingest,master,remote_cluster_client]")
-            .setting("path.repo", csvDataPath::toString)
-            .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
-            .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
-            .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
-            .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"));
-        if (supportRetryOnShardFailures(version) == false) {
-            cluster.setting("cluster.routing.rebalance.enable", "none");
-        }
-        if (localClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
-            cluster.setting(localAllowedPathsSetting(localClusterVersion()), csvDataPath.toString());
-        }
-        cluster.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL);
-        if (knowsFederationSetting(localClusterVersion())) {
-            // The local coordinator only asks its remotes to resolve datasets when federation is available here.
-            cluster.setting(Federation.FEDERATION_ENABLED.getKey(), "true");
         }
         return cluster.build();
     }
@@ -256,8 +181,7 @@ public class Clusters {
     /**
      * Whether a cluster of this version accepts the ES|QL federation setting, which exists as of 9.5.0. A node that
      * predates it rejects an unknown setting and never starts, and it has federation registered unconditionally, so
-     * leaving the setting off matches how it behaves in production. Suites that depend on driving the setting skip
-     * against such a cluster on the {@code FEDERATION_ENABLED_SETTING} capability.
+     * leaving the setting off matches how it behaves in production.
      */
     private static boolean knowsFederationSetting(org.elasticsearch.Version version) {
         return version.onOrAfter(org.elasticsearch.Version.V_9_5_0);

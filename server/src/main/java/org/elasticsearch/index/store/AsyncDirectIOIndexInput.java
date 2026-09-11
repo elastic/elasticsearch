@@ -159,7 +159,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
      *               prefetches to be issued, depending on the buffer size.
      */
     @Override
-    public void prefetch(long pos, long length) throws IOException {
+    public boolean prefetch(long pos, long length) throws IOException {
         if (pos < 0 || length < 0 || pos + length > this.length) {
             throw new IllegalArgumentException("Invalid prefetch range: pos=" + pos + ", length=" + length + ", fileLength=" + this.length);
         }
@@ -178,8 +178,10 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             // Add to the total length the bytes added by the alignment
             length += absPos - alignedPos;
         }
-        // do the prefetch
-        prefetcher.prefetch(alignedPos, length);
+        if (length <= 0) {
+            return false;
+        }
+        return prefetcher.prefetch(alignedPos, length);
     }
 
     @Override
@@ -446,8 +448,9 @@ public class AsyncDirectIOIndexInput extends IndexInput {
          * @param pos the position to prefetch from, must be non-negative and within file length
          * @param length the length to prefetch, must be non-negative.
          */
-        void prefetch(long pos, long length) {
+        boolean prefetch(long pos, long length) {
             assert pos % blockSize == 0 : "prefetch pos [" + pos + "] must be aligned to block size [" + blockSize + "]";
+            boolean prefetched = false;
             // first determine how many slots we need given the length
             while (length > 0) {
                 Map.Entry<Long, Integer> floor = this.posToSlot.floorEntry(pos);
@@ -460,7 +463,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
                         if (prefetchThreads.get(oldestSlot).isDone() == false) {
                             // cannot reuse oldest slot. We are over-prefetching
                             LOGGER.debug("could not prefetch pos [{}] with length [{}]", pos, length);
-                            return;
+                            return prefetched;
                         }
                         LOGGER.debug("prefetch on reused slot with pos [{}] with length [{}]", pos, length);
                         clearSlot(oldestSlot);
@@ -470,6 +473,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
                     posToSlot.put(pos, slot);
                     prefetchPos[slot] = pos;
                     startPrefetch(pos, slot);
+                    prefetched = true;
                     length -= prefetchBytesSize;
                     pos += prefetchBytesSize;
                 } else {
@@ -477,6 +481,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
                     pos = floor.getKey() + prefetchBytesSize;
                 }
             }
+            return prefetched;
         }
 
         /**

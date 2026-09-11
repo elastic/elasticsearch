@@ -813,9 +813,9 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         private FilterIndexInput wrap(IndexInput delegate) {
             return new FilterIndexInput("prefetch-counting(" + delegate + ")", delegate) {
                 @Override
-                public void prefetch(long offset, long length) throws IOException {
+                public boolean prefetch(long offset, long length) throws IOException {
                     count.incrementAndGet();
-                    super.prefetch(offset, length);
+                    return super.prefetch(offset, length);
                 }
 
                 @Override

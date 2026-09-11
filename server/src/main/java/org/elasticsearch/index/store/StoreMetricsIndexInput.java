@@ -90,8 +90,8 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
     }
 
     @Override
-    public void prefetch(long offset, long length) throws IOException {
-        in.prefetch(offset, length);
+    public boolean prefetch(long offset, long length) throws IOException {
+        return in.prefetch(offset, length);
     }
 
     @Override
@@ -358,6 +358,11 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
         public void readBytes(long pos, byte[] bytes, int offset, int length) throws IOException {
             delegate.readBytes(pos, bytes, offset, length);
             metricHolder.instance().addBytesRead(length);
+        }
+
+        @Override
+        public boolean prefetch(long offset, long length) throws IOException {
+            return delegate.prefetch(offset, length);
         }
     }
 }

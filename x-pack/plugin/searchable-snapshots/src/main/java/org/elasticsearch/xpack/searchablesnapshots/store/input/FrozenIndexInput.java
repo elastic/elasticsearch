@@ -245,8 +245,8 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput implements
     }
 
     @Override
-    public void prefetch(long offset, long length) throws IOException {
-        cacheFile.tryPrefetch(offset + this.offset, length);
+    public boolean prefetch(long offset, long length) throws IOException {
+        return cacheFile.tryPrefetch(offset + this.offset, length);
     }
 
     @Override

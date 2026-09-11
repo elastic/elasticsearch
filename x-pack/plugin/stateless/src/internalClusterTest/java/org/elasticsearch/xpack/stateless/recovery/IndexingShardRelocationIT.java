@@ -1264,11 +1264,11 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             }
 
             @Override
-            public void prefetch(long offset, long length) throws IOException {
+            public boolean prefetch(long offset, long length) throws IOException {
                 if (countPrefetch) {
                     timFilePrefetchCount.increment();
                 }
-                in.prefetch(offset, length);
+                return in.prefetch(offset, length);
             }
 
             @Override

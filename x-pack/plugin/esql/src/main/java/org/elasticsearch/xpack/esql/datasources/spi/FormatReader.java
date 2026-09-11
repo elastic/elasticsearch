@@ -161,8 +161,9 @@ public interface FormatReader extends Closeable {
      * <p>
      * The default wraps the synchronous {@link #read(StorageObject, FormatReadContext)} in the
      * provided executor and records off-thread CPU in {@code readCounters}. Formats with native
-     * async support should override this and call {@code readCounters.record(-1L, startCpuNanos)}
-     * on their async thread after the read completes but before calling {@code listener.onResponse()}.
+     * async support should override this and call {@code readCounters.meteredCpu()}
+     * on their async thread wrapping the read but before calling {@code listener.onResponse()}, or
+     * use {@code readCounters.add()} to account for the CPU time spent in the async read off-thread.
      */
     default void readAsync(
         StorageObject object,

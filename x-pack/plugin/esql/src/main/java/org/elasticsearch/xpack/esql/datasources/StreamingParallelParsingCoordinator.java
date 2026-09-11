@@ -576,7 +576,19 @@ public final class StreamingParallelParsingCoordinator {
             // a thread will remain free for its parser tasks; a rejection is surfaced through the firstError /
             // signalReady path. Tests that run on an isolated, generously-sized pool pass an unbounded controller,
             // which dispatches immediately (see StreamingSegmentatorAdmission#unbounded).
-            Runnable segmentatorTask = () -> readCounters.meteredCpu(() -> runSegmentator(this.decompressedStream, this.chunkSize), false);
+            Runnable segmentatorTask = () -> {
+                try {
+                    readCounters.meteredCpu(() -> runSegmentator(this.decompressedStream, this.chunkSize), false);
+                } finally {
+                    // No POISON-to-parkers fan-out anymore: parser tasks are one-shot (one per chunk)
+                    // and exit on their own after processing. Segmentator's done; decrement and signal
+                    // so the consumer wakes if it's the last task standing (EOF condition is
+                    // currentChunk >= chunksDispatched && tasksOutstanding == 0).
+                    if (tasksOutstanding.decrementAndGet() == 0) {
+                        signalReady();
+                    }
+                }
+            };
             admission.submit(segmentatorTask, executor, this::onSegmentatorLaunchRejected);
         }
 
@@ -842,13 +854,6 @@ public final class StreamingParallelParsingCoordinator {
                 signalReady();
             } finally {
                 closeStream();
-                // No POISON-to-parkers fan-out anymore: parser tasks are one-shot (one per chunk)
-                // and exit on their own after processing. Segmentator's done; decrement and signal
-                // so the consumer wakes if it's the last task standing (EOF condition is
-                // currentChunk >= chunksDispatched && tasksOutstanding == 0).
-                if (tasksOutstanding.decrementAndGet() == 0) {
-                    signalReady();
-                }
             }
         }
 

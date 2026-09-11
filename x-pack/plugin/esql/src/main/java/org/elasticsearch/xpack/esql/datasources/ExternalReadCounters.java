@@ -17,10 +17,18 @@ import java.util.concurrent.atomic.AtomicLong;
  * Accumulates wall-clock and CPU time for external data-source reads at the operator level.
  *
  */
-public final class ExternalReadCounters {
+public class ExternalReadCounters {
 
-    /** A shared instance whose accumulated values are never read. Use where no counters are needed (tests, benchmarks). */
-    public static final ExternalReadCounters NOOP = new ExternalReadCounters();
+    /** A shared instance which does not do any counting. Use where no counters are needed (tests, benchmarks). */
+    public static final ExternalReadCounters NOOP = new ExternalReadCounters() {
+        @Override
+        public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work, boolean measureWallTime) throws E {
+            return work.get();
+        }
+
+        @Override
+        void add(long readNanos, long readCpuNanos) {}
+    };
 
     private final AtomicLong readNanosAcc = new AtomicLong();
     private final AtomicLong readCpuNanosAcc = new AtomicLong();

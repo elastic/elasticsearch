@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -170,7 +171,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     public void close() {
         try {
             emitPendingWarnings();
-            recordParseAndSplits();
+            driverContext.waitForAsyncActions(ActionListener.running(this::recordParseAndSplits));
             finish();
         } finally {
             onOperatorClose.close();

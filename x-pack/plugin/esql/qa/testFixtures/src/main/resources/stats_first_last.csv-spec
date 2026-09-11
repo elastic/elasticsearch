@@ -886,3 +886,19 @@ FROM flattened_many
 last_flat:flattened
 "{""k"":""v1""}"
 ;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test identical input fields for FIRST and LAST aggregations
+required_capability: fix_aggs_multiple_input_fields
+
+FROM employees
+| STATS f1 = FIRST(emp_no,  emp_no),
+        f2 = FIRST(emp_no, -emp_no),
+        l1 = LAST (emp_no,  emp_no),
+        l2 = LAST (emp_no, -emp_no)
+;
+
+f1:integer | f2:integer | l1:integer | l2:integer
+10001      | 10100      | 10100      | 10001
+;

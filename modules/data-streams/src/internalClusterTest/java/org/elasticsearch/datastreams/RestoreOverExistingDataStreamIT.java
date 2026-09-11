@@ -266,6 +266,83 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
     }
 
     /**
+     * A {@code restore_over_existing} restore covering more than one existing data stream is all-or-nothing. A conflict on any one
+     * destination (here, an active snapshot of one stream) must leave every destination unchanged, not just the conflicting one. This is
+     * the data-stream counterpart of {@code RestoreOverOpenIndexIT#testRestoreOverMultipleOpenIndicesIsAllOrNothing}.
+     */
+    public void testRestoreOverMultipleExistingDataStreamsIsAllOrNothing() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+
+        final String otherDataStream = DATA_STREAM_NAME + "-2";
+        createRepository(REPOSITORY_NAME, "mock");
+        final ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(DATA_STREAM_NAME, otherDataStream))
+            .template(new Template(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0).build(), null, null))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
+        assertAcked(
+            client().execute(
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request(TEMPLATE_ID).indexTemplate(template)
+            ).get()
+        );
+        for (String name : List.of(DATA_STREAM_NAME, otherDataStream)) {
+            assertAcked(
+                client().execute(
+                    CreateDataStreamAction.INSTANCE,
+                    new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name)
+                ).get()
+            );
+            prepareIndex(name).setOpType(DocWriteRequest.OpType.CREATE)
+                .setSource("@timestamp", "2020-01-01T00:00:00Z", "field", "value")
+                .get();
+        }
+        refresh(DATA_STREAM_NAME, otherDataStream);
+        ensureGreen(DATA_STREAM_NAME, otherDataStream);
+        createFullSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
+
+        final Index backingIndex = currentDataStream(DATA_STREAM_NAME).getIndices().get(0);
+        final Index otherBackingIndex = currentDataStream(otherDataStream).getIndices().get(0);
+
+        // Only otherDataStream conflicts (its backing index is mid-snapshot); DATA_STREAM_NAME would restore cleanly on its own, so leaving
+        // it unchanged too demonstrates the restore is genuinely all-or-nothing rather than skipping just the conflicting target.
+        blockNodeOnAnyFiles(REPOSITORY_NAME, dataNode);
+        final ActionFuture<CreateSnapshotResponse> blockingSnapshot = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            REPOSITORY_NAME,
+            "blocking-snap"
+        ).setIndices(otherDataStream).setWaitForCompletion(true).execute();
+        waitForBlock(dataNode, REPOSITORY_NAME);
+        try {
+            final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+            restoreService().restoreSnapshot(
+                ProjectId.DEFAULT,
+                new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(DATA_STREAM_NAME, otherDataStream)
+                    .restoreOverExisting(true),
+                future
+            );
+            expectThrows(SnapshotInProgressException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        } finally {
+            unblockAllDataNodes(REPOSITORY_NAME);
+            blockingSnapshot.actionGet(TEST_REQUEST_TIMEOUT);
+        }
+
+        // A successful restore-over would have replaced each backing index with a new identity, so unchanged identities prove neither
+        // destination was touched.
+        assertThat(
+            "the target unrelated to the conflict must be left unchanged",
+            currentDataStream(DATA_STREAM_NAME).getIndices().get(0),
+            equalTo(backingIndex)
+        );
+        assertThat(
+            "the conflicting target must be left unchanged",
+            currentDataStream(otherDataStream).getIndices().get(0),
+            equalTo(otherBackingIndex)
+        );
+    }
+
+    /**
      * Deleting the destination data stream strips it from every existing data-stream alias that referenced it, so the synthetic snapshot
      * metadata built for a restore over an existing data stream must carry the snapshot's own data-stream aliases explicitly; there is no
      * other path by which a restored data stream can regain its aliases.
@@ -716,8 +793,12 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
     }
 
     private DataStream currentDataStream() {
+        return currentDataStream(DATA_STREAM_NAME);
+    }
+
+    private DataStream currentDataStream(String name) {
         final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        return state.metadata().getProject(ProjectId.DEFAULT).dataStreams().get(DATA_STREAM_NAME);
+        return state.metadata().getProject(ProjectId.DEFAULT).dataStreams().get(name);
     }
 
     private Index currentIndex(String indexName) {

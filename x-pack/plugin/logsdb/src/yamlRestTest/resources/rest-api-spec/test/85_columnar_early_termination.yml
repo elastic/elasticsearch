@@ -109,3 +109,18 @@ teardown:
 
   - length: { hits.hits: 1 }
   - match: { hits.hits.0.fields.host\.name.0: "echo" }
+
+---
+"top-N returns sorted results from logsdb_columnar keyword sort":
+  - do:
+      search:
+        index: "logs-cl-sa-test"
+        body:
+          size: 3
+          sort:
+            - host.name: asc
+
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0.fields.host\.name.0: "alpha" }
+  - match: { hits.hits.1.fields.host\.name.0: "bravo" }
+  - match: { hits.hits.2.fields.host\.name.0: "charlie" }

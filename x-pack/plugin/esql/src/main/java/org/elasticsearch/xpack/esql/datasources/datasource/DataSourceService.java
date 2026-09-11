@@ -196,7 +196,7 @@ public class DataSourceService {
         taskQueue.submitTask("update-esql-data-source-metadata-[" + request.name() + "]", task, task.timeout());
     }
 
-    /** Records a pre-submit or transport pre-check refusal. Used by PUT transport {@code doExecute}. */
+    /** Records a pre-submit refusal (unknown type, validation failure, and similar). */
     public void recordRejected(String type, Exception e) {
         ConfigChangeTelemetry.recordRejected(metrics, ConfigChangeTelemetry.KIND_DATASOURCE, type, e);
     }

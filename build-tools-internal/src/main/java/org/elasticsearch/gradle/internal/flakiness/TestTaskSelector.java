@@ -104,6 +104,23 @@ public final class TestTaskSelector {
     /**
      * Select the tasks that re-run a target.
      *
+     * <h2>Known limitation: per-task class filters are not consulted</h2>
+     * Selection is based on {@code testClassesDirs} overlap, which answers "could this task run classes from
+     * that source set" but not "would it run <em>this</em> class". A {@code Test} task can also carry
+     * {@code PatternFilterable} include/exclude patterns, and those are invisible here, so a class that the
+     * chosen task excludes yields a command matching zero tests. Because
+     * {@code MutedTestPlugin} sets {@code failOnNoMatchingTests(ci == false)}, that command <em>passes</em> on
+     * CI having run nothing, and the batch is scored as a zero-test run - the false positive this selector
+     * exists to prevent.
+     *
+     * <p>The shape that triggers it is a class excluded from the conventional task and included in a sibling
+     * task pointed at the same output, which is how third-party and performance suites are kept out of the
+     * normal run. Six classes across five projects have it today, among them
+     * {@code S3RegisterCASLinearizabilityTests} ({@code :x-pack:plugin:stateless}) and
+     * {@code AutomatonPatternsTests} ({@code :x-pack:plugin:core}); none are currently muted. Closing it
+     * means snapshotting each task's pattern set into {@link TestTaskInfo} and rejecting tasks whose patterns
+     * do not admit the requested class. Tracked as separate follow-up work.
+     *
      * @param bareTaskName the conventional task name for the target's kind - which is always the source-set
      *                     name ({@code test}/{@code internalClusterTest}/{@code javaRestTest}/{@code yamlRestTest})
      * @param outputDir    the compiled-output directory of the owning source set

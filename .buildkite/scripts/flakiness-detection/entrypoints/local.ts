@@ -75,7 +75,12 @@ export async function run(): Promise<void> {
     process.exit(1);
   }
 
-  for (const u of plan.unresolved ?? []) {
+  // Every ref in this flow is `explicit` - the developer typed the class on the command line - so an
+  // unresolved one is a typo, and the run must not report success for it. The batches still run: a request
+  // naming five classes, one misspelt, should re-run the four rather than refuse the lot. So the failure is
+  // recorded here and folded into the exit code at the end, matching what generate.ts does on CI.
+  const unresolved = plan.unresolved ?? [];
+  for (const u of unresolved) {
     console.error(`Unresolved (${u.reason}): ${u.ref.spec ?? u.ref.className ?? u.ref.path}`);
   }
 
@@ -103,6 +108,10 @@ export async function run(): Promise<void> {
   const exitCode = runLocally(runnable, PROJECT_ROOT);
   const report = await analyzeReports([PROJECT_ROOT], startMs);
   console.log("\n" + renderMarkdown(report));
+  if (exitCode === 0 && unresolved.length > 0) {
+    console.error(`\n${unresolved.length} requested class(es) could not be resolved; see above.`);
+    process.exit(1);
+  }
   process.exit(exitCode);
 }
 

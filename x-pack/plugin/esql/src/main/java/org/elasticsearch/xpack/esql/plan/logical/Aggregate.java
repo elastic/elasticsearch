@@ -331,12 +331,10 @@ public class Aggregate extends UnaryPlan
     }
 
     private void checkMultipleScoreAggregations(Failures failures) {
-        Holder<Boolean> hasScoringAggs = new Holder<>();
         forEachExpression(FilteredExpression.class, fe -> {
             if (fe.delegate() instanceof AggregateFunction aggregateFunction) {
-                // TODO(jan): fix
-                if (aggregateFunction.fields().getFirst() instanceof MetadataAttribute metadataAttribute) {
-                    if (MetadataAttribute.SCORE.equals(metadataAttribute.name())) {
+                for (Expression field : aggregateFunction.fields()) {
+                    if (field instanceof MetadataAttribute metadataAttribute && MetadataAttribute.SCORE.equals(metadataAttribute.name())) {
                         if (fe.filter().anyMatch(e -> e instanceof FullTextFunction)) {
                             failures.add(fail(fe, "cannot use _score aggregations with a WHERE filter in a STATS command"));
                         }

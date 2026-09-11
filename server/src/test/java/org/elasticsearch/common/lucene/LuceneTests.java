@@ -37,6 +37,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -64,6 +65,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorS
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.HalfFloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.test.ESTestCase;
@@ -802,6 +804,58 @@ public class LuceneTests extends ESTestCase {
         public void visit(QueryVisitor visitor) {
             delegate.visit(visitor);
         }
+    }
+
+    public void testCanEarlyTerminateColumnarKeywordIndexSortRoundTrip() throws IOException {
+        // NOTE: The sort field is deserialized via MultiValuedBinaryDocValuesSortField.Provider
+        // when read from a real segment; equality between query-sort and index-sort must survive
+        // that round-trip.
+        Sort indexSort = new Sort(
+            new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false),
+            new SortedNumericSortField("ts", SortField.Type.LONG, true)
+        );
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig config = new IndexWriterConfig().setIndexSort(indexSort);
+            try (IndexWriter writer = new IndexWriter(dir, config)) {
+                Document doc = new Document();
+                doc.add(new org.apache.lucene.document.BinaryDocValuesField("kw", new BytesRef("a")));
+                doc.add(new org.apache.lucene.document.SortedNumericDocValuesField("ts", 1L));
+                writer.addDocument(doc);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                Sort segmentSort = reader.leaves().get(0).reader().getMetaData().sort();
+                assertNotNull("segment sort must be present after index sort is set", segmentSort);
+                Sort querySort = new Sort(new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false));
+                assertTrue(
+                    "canEarlyTerminate must return true after round-trip through segment codec",
+                    Lucene.canEarlyTerminate(querySort, segmentSort)
+                );
+            }
+        }
+    }
+
+    public void testCanEarlyTerminateColumnarKeywordIndexSort() {
+        SortField indexField = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        SortField queryFieldAsc = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+
+        assertTrue(Lucene.canEarlyTerminate(new Sort(queryFieldAsc), new Sort(indexField)));
+
+        SortField queryFieldDesc = new MultiValuedBinaryDocValuesSortField("kw", true, SortField.STRING_FIRST, false);
+        assertFalse(Lucene.canEarlyTerminate(new Sort(queryFieldDesc), new Sort(indexField)));
+
+        SortField queryFieldWrongName = new MultiValuedBinaryDocValuesSortField("other", false, SortField.STRING_LAST, false);
+        assertFalse(Lucene.canEarlyTerminate(new Sort(queryFieldWrongName), new Sort(indexField)));
+
+        SortField indexFieldMissingFirst = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_FIRST, false);
+        assertFalse(Lucene.canEarlyTerminate(new Sort(queryFieldAsc), new Sort(indexFieldMissingFirst)));
+
+        SortField sortedSetField = new SortedSetSortField("kw", false);
+        assertTrue(Lucene.canEarlyTerminate(new Sort(sortedSetField), new Sort(sortedSetField)));
+
+        SortField secondField = new MultiValuedBinaryDocValuesSortField("ts", false, SortField.STRING_LAST, false);
+        SortField queryTs = new MultiValuedBinaryDocValuesSortField("ts", false, SortField.STRING_LAST, false);
+        assertTrue(Lucene.canEarlyTerminate(new Sort(queryFieldAsc), new Sort(indexField, secondField)));
+        assertFalse(Lucene.canEarlyTerminate(new Sort(queryFieldAsc, queryTs), new Sort(indexField)));
     }
 
     private static Object randomMissingValue(SortField.Type type) {

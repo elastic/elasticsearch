@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Derives implicit HIGHLIGHT query and ON fields so generated columns exist for KEEP.
@@ -42,10 +44,23 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
 
         Expression query = highlight.query();
         boolean implicit = highlight.implicitQuery();
+        boolean analyzerDerived = highlight.analyzerDerived();
+        MapExpression options = highlight.options();
+        String derivedAnalyzer = null;
         if (query == null) {
-            query = HighlightSupport.collectImplicitQuery(highlight.child(), highlight.source()).query();
+            HighlightSupport.ImplicitQuery borrowed = HighlightSupport.collectImplicitQuery(highlight.child(), highlight.source());
+            query = borrowed.query();
             implicit = query != null;
+            derivedAnalyzer = borrowed.analyzerName();
+        } else if (implicit == false) {
+            // Implicit queries already synthesized an analyzer on the pass that derived them.
+            derivedAnalyzer = HighlightSupport.uniformAnalyzerOf(query);
         }
+        MapExpression withAnalyzer = withDerivedAnalyzer(highlight.source(), options, derivedAnalyzer);
+        // withDerivedAnalyzer returns the same instance when it adds nothing (user already set one), so a new
+        // instance means we synthesized the analyzer from WHERE. Track that so verification frames its errors right.
+        analyzerDerived |= withAnalyzer != options;
+        options = withAnalyzer;
 
         List<NamedExpression> fields = highlight.fields();
         List<Attribute> generated = highlight.generatedAttributes();
@@ -79,31 +94,32 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
             }
         }
 
-        MapExpression options = withUniformAnalyzer(highlight.options(), query, highlight.source());
-        if (query == highlight.query() && fields == highlight.fields() && options == highlight.options()) {
+        if (query == highlight.query()
+            && fields == highlight.fields()
+            && Objects.equals(options, highlight.options())
+            && analyzerDerived == highlight.analyzerDerived()) {
             return highlight;
         }
-        Highlight updated = highlight.withResolved(query, implicit, fields, generated);
-        return options == highlight.options() ? updated : updated.withOptions(options);
+        return highlight.withResolved(query, implicit, analyzerDerived, fields, generated, options);
     }
 
     /**
-     * Copies a uniform leaf analyzer into WITH when unset. Disagreement is left for verification.
+     * Adds a derived analyzer unless the user already set one. Returns {@code options} unchanged when there is
+     * nothing to add, so the caller's convergence check sees no change.
      */
-    private static MapExpression withUniformAnalyzer(MapExpression options, Expression query, Source source) {
-        if (query == null || query.resolved() == false || (options != null && options.get(Highlight.ANALYZER) != null)) {
-            return options;
-        }
-        String uniform = HighlightSupport.uniformAnalyzerOf(query);
-        if (uniform == null) {
+    private static MapExpression withDerivedAnalyzer(Source source, MapExpression options, String derivedAnalyzer) {
+        if (derivedAnalyzer == null || (options != null && options.containsKey(Highlight.ANALYZER))) {
             return options;
         }
         List<Expression> entries = new ArrayList<>();
         if (options != null) {
-            entries.addAll(options.children());
+            for (EntryExpression entry : options.entryExpressions()) {
+                entries.add(entry.key());
+                entries.add(entry.value());
+            }
         }
         entries.add(Literal.keyword(source, Highlight.ANALYZER));
-        entries.add(Literal.keyword(source, uniform));
-        return new MapExpression(options != null ? options.source() : source, entries);
+        entries.add(Literal.keyword(source, derivedAnalyzer));
+        return new MapExpression(source, entries);
     }
 }

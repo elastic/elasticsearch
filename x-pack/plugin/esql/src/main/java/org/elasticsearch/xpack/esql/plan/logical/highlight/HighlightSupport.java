@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical.highlight;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -45,13 +47,19 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.QUOTE_ANALYZER_FIELD;
 
 /** Analysis-time helpers for implicit HIGHLIGHT query and field lists. */
 public final class HighlightSupport {
 
     private HighlightSupport() {}
 
-    /** Positive MATCH, MATCH_PHRASE, QSTR, KQL, and AND/OR of those. Not NOT or mixed predicates. */
+    /**
+     * Returns whether a {@code WHERE} conjunct can be borrowed for highlighting. Positive full-text predicates and
+     * boolean combinations of them are supported; negative and mixed full-text/non-full-text predicates are not.
+     * Every accepted expression must also be supported by
+     * {@link org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders#build}.
+     */
     public static boolean isSupportedImplicitPredicate(Expression expr) {
         if (expr instanceof BinaryLogic binary) {
             return isSupportedImplicitPredicate(binary.left()) && isSupportedImplicitPredicate(binary.right());
@@ -68,10 +76,19 @@ public final class HighlightSupport {
         Expression options = switch (fullTextLeaf) {
             case SingleFieldFullTextFunction single -> single.options();
             case QueryString queryString -> queryString.options();
-            case Kql kql -> kql.options();
-            default -> null;
+            case Kql kql -> null;
+            default -> throw new IllegalStateException(
+                "analyzerNameOf: unexpected full-text leaf [" + fullTextLeaf.getClass().getSimpleName() + "]"
+            );
         };
         return foldedOption(options, ANALYZER_FIELD.getPreferredName());
+    }
+
+    private static String quoteAnalyzerNameOf(Expression fullTextLeaf) {
+        if (fullTextLeaf instanceof QueryString queryString) {
+            return foldedOption(queryString.options(), QUOTE_ANALYZER_FIELD.getPreferredName());
+        }
+        return null;
     }
 
     /** The folded string value of option {@code name} in {@code options}, or {@code null} if absent or not a foldable constant. */
@@ -86,66 +103,149 @@ public final class HighlightSupport {
     }
 
     /**
-     * Analyzer every named full-text leaf agrees on, or {@code null} if none name one or they disagree.
-     * Unlabeled leaves do not constrain the result. Disagreement is reported by {@link #requireUniformAnalyzer}.
+     * The one non-default analyzer every full-text leaf agrees on, or {@code null} if they disagree, name none, or
+     * all use {@code standard}. An unlabeled leaf counts as {@code standard}, so it disagrees with a labeled sibling
+     * instead of inheriting that sibling's analyzer.
      */
-    public static @Nullable String uniformAnalyzerOf(Expression query) {
-        Set<String> named = namedLeafAnalyzers(query);
-        return named.size() == 1 ? named.iterator().next() : null;
-    }
-
-    /**
-     * Named leaf analyzers must equal {@code commandAnalyzerName} when set, or all share one name when it is not.
-     *
-     * @throws IllegalArgumentException when they disagree
-     */
-    public static void requireUniformAnalyzer(Expression query, @Nullable String commandAnalyzerName) {
-        Set<String> named = namedLeafAnalyzers(query);
-        if (commandAnalyzerName != null) {
-            for (String leaf : named) {
-                if (leaf.equals(commandAnalyzerName) == false) {
-                    throw new IllegalArgumentException(
-                        "HIGHLIGHT WITH analyzer ["
-                            + commandAnalyzerName
-                            + "] does not match analyzer ["
-                            + leaf
-                            + "] specified by the query; they must be the same"
-                    );
-                }
-            }
-            return;
-        }
-        if (named.size() > 1) {
-            // Do not suggest WITH { "analyzer": ... } here: a single WITH value can never equal two distinct leaf analyzers, so
-            // that advice contradicts the WITH branch above. Point at the only remedy that works instead.
-            throw new IllegalArgumentException(
-                "HIGHLIGHT full-text functions use different analyzers "
-                    + named
-                    + "; use the same analyzer for every clause, or write an explicit HIGHLIGHT query using a single analyzer"
-            );
-        }
-    }
-
-    private static Set<String> namedLeafAnalyzers(Expression query) {
+    public static String uniformAnalyzerOf(Expression query) {
         Set<String> names = new LinkedHashSet<>();
         query.forEachDown(FullTextFunction.class, leaf -> {
             String analyzer = analyzerNameOf(leaf);
-            if (analyzer != null) {
-                names.add(analyzer);
-            }
+            names.add(analyzer == null ? HighlightQueryBuilders.DEFAULT_ANALYZER_NAME : analyzer);
+        });
+        if (names.size() != 1) {
+            return null;
+        }
+        String only = names.iterator().next();
+        return only.equals(HighlightQueryBuilders.DEFAULT_ANALYZER_NAME) ? null : only;
+    }
+
+    /**
+     * Analyzer names a full-text leaf asks the runtime context to resolve: each leaf's {@code analyzer} option and
+     * any {@code QSTR} {@code quote_analyzer}. Includes names on leaves outside ON, because query builders validate
+     * the option before the (lenient) field lookup.
+     */
+    public static Set<String> leafAnalyzerNamesOf(Expression query) {
+        Set<String> names = new LinkedHashSet<>();
+        query.forEachDown(FullTextFunction.class, leaf -> {
+            addIfPresent(names, analyzerNameOf(leaf));
+            addIfPresent(names, quoteAnalyzerNameOf(leaf));
         });
         return names;
+    }
+
+    private static void addIfPresent(Set<String> names, String name) {
+        if (name != null) {
+            names.add(name);
+        }
+    }
+
+    /**
+     * Analyzer used to highlight each ON field. Non-null {@code commandAnalyzerName} applies to every field.
+     * Otherwise a leaf's effective analyzer applies to the field it names ({@code QSTR}/{@code KQL}: every ON
+     * field); see {@link #effectiveFieldAnalyzerName}. Leaves with no effective analyzer are skipped; fields no
+     * leaf labels default to {@code standard}.
+     *
+     * @throws IllegalArgumentException if two leaves name different analyzers for one field
+     */
+    public static Map<String, String> fieldAnalyzers(Expression query, @Nullable String commandAnalyzerName, List<String> onFields) {
+        Map<String, String> result = new LinkedHashMap<>();
+        if (commandAnalyzerName != null) {
+            for (String field : onFields) {
+                result.put(field, commandAnalyzerName);
+            }
+            return result;
+        }
+        Map<String, Set<String>> assignedByField = new LinkedHashMap<>();
+        for (String field : onFields) {
+            assignedByField.put(field, new LinkedHashSet<>());
+        }
+        query.forEachDown(FullTextFunction.class, leaf -> assignLeafAnalyzer(assignedByField, leaf));
+        for (String field : onFields) {
+            result.put(field, uniqueAnalyzer(field, assignedByField.get(field)));
+        }
+        return result;
+    }
+
+    private static void assignLeafAnalyzer(Map<String, Set<String>> assignedByField, Expression leaf) {
+        String analyzer = effectiveFieldAnalyzerName(leaf);
+        if (analyzer == null) {
+            return;
+        }
+        String single = leafFieldName(leaf);
+        if (single != null) {
+            Set<String> names = assignedByField.get(single);
+            if (names != null) {
+                names.add(analyzer);
+            }
+            return;
+        }
+        for (Set<String> names : assignedByField.values()) {
+            names.add(analyzer);
+        }
+    }
+
+    private static String uniqueAnalyzer(String field, Set<String> names) {
+        if (names.size() > 1) {
+            throw new IllegalArgumentException(
+                "HIGHLIGHT field ["
+                    + field
+                    + "] would be highlighted with different analyzers "
+                    + names
+                    + " by different clauses of the query; use the same analyzer for every clause on that field"
+            );
+        }
+        return names.isEmpty() ? HighlightQueryBuilders.DEFAULT_ANALYZER_NAME : names.iterator().next();
+    }
+
+    private static String leafFieldName(Expression fullTextLeaf) {
+        Expression field = leafField(fullTextLeaf);
+        return field == null ? null : Expressions.name(field);
+    }
+
+    /** The field a single-field leaf ({@code MATCH}/{@code MATCH_PHRASE}) queries, or {@code null} for {@code QSTR}/{@code KQL}. */
+    private static Expression leafField(Expression fullTextLeaf) {
+        return switch (fullTextLeaf) {
+            case Match match -> match.field();
+            case MatchPhrase matchPhrase -> matchPhrase.field();
+            case QueryString queryString -> null;
+            case Kql kql -> null;
+            default -> throw new IllegalStateException(
+                "leafField: unexpected full-text leaf [" + fullTextLeaf.getClass().getSimpleName() + "]"
+            );
+        };
+    }
+
+    /**
+     * The analyzer that highlights a leaf's field: its explicit {@code analyzer} option, or - for a
+     * {@code MATCH}/{@code MATCH_PHRASE} leaf without one - the field's declared values analyzer. A {@code TO_TEXT}
+     * column defaults its query analyzer to the values analyzer (see {@code SingleFieldFullTextFunction}), so the
+     * borrowed match ran with that analyzer; highlighting must reproduce it or the snippet comes back empty.
+     * {@code null} when the leaf names neither.
+     */
+    private static String effectiveFieldAnalyzerName(Expression fullTextLeaf) {
+        String option = analyzerNameOf(fullTextLeaf);
+        if (option != null) {
+            return option;
+        }
+        Expression field = leafField(fullTextLeaf);
+        return field == null ? null : AnalyzedTextExpression.valuesAnalyzerOf(field);
     }
 
     /**
      * Implicit query from an upstream WHERE, or {@code reasonIfMissing} when none was borrowed.
      *
-     * @param query           OR of borrowable conjuncts, or {@code null}
-     * @param reasonIfMissing user-facing explanation when {@code query} is {@code null}
+     * @param query             the borrowed query (an {@code OR} of the qualifying conjuncts), or {@code null} when
+     *                          none was found
+     * @param reasonIfMissing   when {@code query} is {@code null}, a user-facing explanation of why nothing was
+     *                          borrowed for HIGHLIGHT's post-analysis verification to report; {@code null} when a
+     *                          query was found
+     * @param analyzerName      shared non-default analyzer of the borrowed leaves, or {@code null}
      */
-    public record ImplicitQuery(@Nullable Expression query, @Nullable String reasonIfMissing) {
+    public record ImplicitQuery(@Nullable Expression query, @Nullable String reasonIfMissing, @Nullable String analyzerName) {
         public ImplicitQuery {
             assert (query == null) == (reasonIfMissing != null);
+            assert query != null || analyzerName == null;
         }
     }
 
@@ -184,9 +284,10 @@ public final class HighlightSupport {
         LogicalPlan blockedBy = current.children().isEmpty() ? null : current;
 
         if (predicates.isEmpty() == false) {
-            return new ImplicitQuery(Predicates.combineOrWithSource(predicates, source), null);
+            Expression combined = Predicates.combineOrWithSource(predicates, source);
+            return new ImplicitQuery(combined, null, uniformAnalyzerOf(combined));
         }
-        return new ImplicitQuery(null, missingQueryReason(sawUnborrowableFullText, redefinedFields, blockedBy));
+        return new ImplicitQuery(null, missingQueryReason(sawUnborrowableFullText, redefinedFields, blockedBy), null);
     }
 
     /** Maps a {@code RENAME} or {@code MV_EXPAND} column to the attribute that now holds its data. */

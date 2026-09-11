@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -27,6 +28,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -74,6 +76,15 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         return List.of(CsvDataSourcePlugin.class);
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        // unsigned_long is a mapper plugin type, and the index half of the differential needs it to mirror the
+        // dataset's declared unsigned_long column.
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(UnsignedLongMapperPlugin.class);
+        return plugins;
+    }
+
     /** {@code id}, {@code status}, {@code bytes} at row i cycle so filters carve non-trivial, predictable subsets. */
     private static int status(int i) {
         return 200 + (i % 3) * 100; // 200, 300, 400
@@ -96,6 +107,19 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         return new String[] { "Alpha", "BETA", "gamma", "DeLtA" }[i % 4];
     }
 
+    /** Values land exactly on the bounds the range cases use, so an inclusive and an exclusive bound select different rows. */
+    private static double score(int i) {
+        return i * 1.5;
+    }
+
+    private static String clientIp(int i) {
+        return "10.0.0." + i;
+    }
+
+    private static long quota(int i) {
+        return i * 100L;
+    }
+
     @Before
     public void loadBothSources() throws Exception {
         // The index: one shard so the result order is trivial to reason about; ESQL sorts explicitly anyway.
@@ -116,18 +140,45 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
                     "ts",
                     "type=date",
                     "label",
-                    "type=keyword"
+                    "type=keyword",
+                    "score",
+                    "type=double",
+                    "client_ip",
+                    "type=ip",
+                    "quota",
+                    "type=unsigned_long"
                 )
         );
         for (int i = 0; i < ROWS; i++) {
             client().prepareIndex(INDEX)
-                .setSource("id", i, "status", status(i), "tags", tag(i), "bytes", bytes(i), "ts", ts(i), "label", label(i))
+                .setSource(
+                    "id",
+                    i,
+                    "status",
+                    status(i),
+                    "tags",
+                    tag(i),
+                    "bytes",
+                    bytes(i),
+                    "ts",
+                    ts(i),
+                    "label",
+                    label(i),
+                    "score",
+                    score(i),
+                    "client_ip",
+                    clientIp(i),
+                    "quota",
+                    quota(i)
+                )
                 .get();
         }
         client().admin().indices().prepareRefresh(INDEX).get();
 
         // The dataset: identical rows as a strict declared-schema CSV, types matching the index mapping exactly.
-        StringBuilder csv = new StringBuilder("id:integer,status:integer,tags:keyword,bytes:long,ts:date,label:keyword\n");
+        StringBuilder csv = new StringBuilder(
+            "id:integer,status:integer,tags:keyword,bytes:long,ts:date,label:keyword,score:double,client_ip:ip,quota:unsigned_long\n"
+        );
         for (int i = 0; i < ROWS; i++) {
             csv.append(i)
                 .append(',')
@@ -140,6 +191,12 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
                 .append(ts(i))
                 .append(',')
                 .append(label(i))
+                .append(',')
+                .append(score(i))
+                .append(',')
+                .append(clientIp(i))
+                .append(',')
+                .append(quota(i))
                 .append('\n');
         }
         Path csvFile = createTempDir().resolve("conformance.csv");
@@ -155,6 +212,9 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         properties.put("bytes", new DatasetFieldMapping("long", null));
         properties.put("ts", new DatasetFieldMapping("date", null));
         properties.put("label", new DatasetFieldMapping("keyword", null));
+        properties.put("score", new DatasetFieldMapping("double", null));
+        properties.put("client_ip", new DatasetFieldMapping("ip", null));
+        properties.put("quota", new DatasetFieldMapping("unsigned_long", null));
         return properties;
     }
 
@@ -239,6 +299,38 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         assertSelectsSameRows(QueryBuilders.rangeQuery("ts").lte("now")); // all 2020 rows precede now
         assertSelectsSameRows(QueryBuilders.rangeQuery("ts").gte("now")); // none do
         assertSelectsSameRows(QueryBuilders.rangeQuery("ts").gte("now-9000d")); // ~1995 — all rows
+    }
+
+    /**
+     * A type with no predecessor or successor cannot have an exclusive bound rewritten onto its neighbour, so the
+     * translation carries the inclusivity itself. Each bound here is a stored value, which is what makes the inclusive
+     * and exclusive forms select different rows rather than agreeing by accident.
+     */
+    public void testExclusiveRangeOnDouble() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("score").gt(1.5).lt(9.0));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("score").gte(1.5).lt(9.0));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("score").gt(1.5).lte(9.0));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("score").gte(1.5).lte(9.0));
+    }
+
+    /** Same, on keyword — byte order, and the bounds are stored tag values. */
+    public void testExclusiveRangeOnKeyword() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("tags").gt("t0").lt("t3"));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("tags").gte("t0").lte("t3"));
+    }
+
+    /** An ip literal is compared in its encoded form, so "10.0.0.20" must order above "10.0.0.5" on both paths. */
+    public void testIpTermAndExclusiveRange() {
+        assertSelectsSameRows(QueryBuilders.termQuery("client_ip", "10.0.0.7"));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("client_ip").gt("10.0.0.5").lt("10.0.0.20"));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("client_ip").gte("10.0.0.5").lte("10.0.0.20"));
+    }
+
+    /** An unsigned_long literal arrives as a JSON number and must encode to the field's internal representation. */
+    public void testUnsignedLongTermAndExclusiveRange() {
+        assertSelectsSameRows(QueryBuilders.termQuery("quota", 700));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("quota").gt(500).lt(2000));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("quota").gte(500).lte(2000));
     }
 
     public void testExists() {

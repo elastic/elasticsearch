@@ -13,12 +13,15 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -263,11 +266,6 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(59, ((Literal) ((MvInRange) mixed).upper()).value());
     }
 
-    /** There is no predecessor for a double, so an exclusive two-bound range over one cannot be expressed exactly. */
-    public void testExclusiveTwoBoundRangeOnDoubleIsUnsupported() {
-        assertFalse(translateResult(QueryBuilders.rangeQuery("score").gt(1.5).lt(9.5)).isComplete());
-    }
-
     /**
      * The rewrite runs after the analyzer, so no implicit cast fixes a literal typed from the JSON value. A date string
      * against a date column must become a datetime literal here, or the evaluator is handed a BytesRef block.
@@ -316,8 +314,8 @@ public class QueryDslTranslatorTests extends ESTestCase {
 
     /**
      * A two-bound range on a KEYWORD field is a supported combination per the behavior table, and it takes the generic
-     * both-bounds path rather than the integral or date one. An exclusive bound there has no exact predecessor to
-     * normalize against (keyword is not whole-numbered), so it fails closed instead of silently shifting the interval.
+     * both-bounds path rather than the integral or date one. A closed interval emits no options map, because inclusive
+     * on both ends is what mv_in_range already means.
      */
     public void testTwoBoundRangeOnKeyword() {
         Expression e = translate(QueryBuilders.rangeQuery("tags").gte("t1").lte("t3"));
@@ -326,9 +324,43 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, ((Literal) r.lower()).dataType());
         assertEquals(new BytesRef("t1"), ((Literal) r.lower()).value());
         assertEquals(new BytesRef("t3"), ((Literal) r.upper()).value());
+        assertEquals(3, r.children().size()); // no options map: the closed interval is the default
+    }
 
-        // An exclusive bound on a non-whole-numbered type cannot be normalized to an inclusive one -> collected.
-        assertFalse(translateResult(QueryBuilders.rangeQuery("tags").gt("t1").lte("t3")).isComplete());
+    /**
+     * A type with no exact predecessor or successor — double, keyword, ip, version — still takes an exclusive bound:
+     * mv_in_range carries the inclusivity in its options rather than needing the bound shifted onto its neighbour.
+     * These used to be collected as untranslatable, which dropped a clause the index path answers exactly.
+     */
+    public void testExclusiveBoundsOnNonWholeTypesTranslate() {
+        Map<String, RangeQueryBuilder> byField = Map.of(
+            "score",
+            QueryBuilders.rangeQuery("score").gt(1.5).lt(9.5),
+            "tags",
+            QueryBuilders.rangeQuery("tags").gt("t1").lt("t3"),
+            "client_ip",
+            QueryBuilders.rangeQuery("client_ip").gt("10.0.0.1").lt("10.0.0.9"),
+            "release",
+            QueryBuilders.rangeQuery("release").gt("1.0.0").lt("2.0.0"),
+            "quota",
+            QueryBuilders.rangeQuery("quota").gt("1").lt("9")
+        );
+        for (var entry : byField.entrySet()) {
+            Expression e = translate(entry.getValue());
+            assertThat(entry.getKey(), e, instanceOf(MvInRange.class));
+            assertEquals(entry.getKey(), Map.of("include_lower", false, "include_upper", false), optionsOf((MvInRange) e));
+        }
+    }
+
+    /** One exclusive end spells out only that end; the other keeps mv_in_range's inclusive default. */
+    public void testOneExclusiveBoundSpellsOutOnlyThatBound() {
+        assertEquals(Map.of("include_lower", false), optionsOf((MvInRange) translate(QueryBuilders.rangeQuery("score").gt(1.5).lte(9.5))));
+        assertEquals(Map.of("include_upper", false), optionsOf((MvInRange) translate(QueryBuilders.rangeQuery("score").gte(1.5).lt(9.5))));
+    }
+
+    /** The literal keys and values of an emitted mv_in_range options map. */
+    private static Map<String, Object> optionsOf(MvInRange range) {
+        return ((MapExpression) range.children().get(3)).toFoldedMap(FoldContext.small());
     }
 
     /** A terms-lookup has no values to translate (and values() is null — it used to NPE). */

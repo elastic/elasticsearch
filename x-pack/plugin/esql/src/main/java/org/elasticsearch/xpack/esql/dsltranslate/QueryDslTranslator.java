@@ -635,32 +635,19 @@ public final class QueryDslTranslator {
             // Both bounds: this must be ONE any-value range test. Splitting it into two independent existentials
             // (mv_max >= lo AND mv_min <= hi) is an ENVELOPE test, which is wrong on multivalue fields: [0,100]
             // would satisfy (40,60) even though no single value lies inside it. mv_in_range is the exact predicate,
-            // but it is closed/inclusive on both ends — so an exclusive bound is first normalized to the equivalent
-            // inclusive one, which is only exact on whole-number types (there is no predecessor for a double).
+            // and it carries each bound's inclusivity in its options — so an exclusive bound is passed through as
+            // itself rather than rewritten to the neighbouring inclusive one, which no non-whole type has.
             Object lower = coerce(field, range.from());
             Object upper = coerce(field, range.to());
-            // The exclusive→inclusive normalization only matters for a PRESENT field. A missing field is null-bound and
-            // the leaf folds to false regardless of the bounds, so skip it — otherwise an exclusive bound over a missing
-            // field would wrongly degrade (unfiltered) where the index path's unmapped-field range matches nothing.
-            if (isPresent(field) && (range.includeLower() == false || range.includeUpper() == false)) {
-                if (isWholeNumbered(type) == false) {
-                    throw new TranslationUnsupportedException("range[exclusive bound on " + type.typeName() + "]");
-                }
-                try {
-                    if (range.includeLower() == false) {
-                        lower = increment(lower, type, +1);
-                    }
-                    if (range.includeUpper() == false) {
-                        upper = increment(upper, type, -1);
-                    }
-                } catch (ArithmeticException overflow) {
-                    // The bound sits at the type's limit, so the open interval beyond it is empty.
-                    return Literal.FALSE;
-                }
-            }
             return checkedLeaf(
                 field,
-                new MvInRange(Source.EMPTY, field, new Literal(Source.EMPTY, lower, type), new Literal(Source.EMPTY, upper, type))
+                new MvInRange(
+                    Source.EMPTY,
+                    field,
+                    new Literal(Source.EMPTY, lower, type),
+                    new Literal(Source.EMPTY, upper, type),
+                    inRangeBoundOptions(range.includeLower(), range.includeUpper())
+                )
             );
         }
 
@@ -827,6 +814,27 @@ public final class QueryDslTranslator {
 
     /**
     /** Inclusive DSL bound → {@code include_bound: true}; exclusive omits options (default). */
+    /**
+     * The {@code mv_in_range} options carrying each bound's inclusivity, or {@code null} for the closed interval the
+     * function already defaults to. Only a bound that deviates from that default is spelled out, so the common closed
+     * range emits no options map at all.
+     */
+    private static Expression inRangeBoundOptions(boolean includeLower, boolean includeUpper) {
+        if (includeLower && includeUpper) {
+            return null;
+        }
+        List<Expression> entries = new ArrayList<>(4);
+        if (includeLower == false) {
+            entries.add(Literal.keyword(Source.EMPTY, MvInRange.INCLUDE_LOWER));
+            entries.add(new Literal(Source.EMPTY, false, DataType.BOOLEAN));
+        }
+        if (includeUpper == false) {
+            entries.add(Literal.keyword(Source.EMPTY, MvInRange.INCLUDE_UPPER));
+            entries.add(new Literal(Source.EMPTY, false, DataType.BOOLEAN));
+        }
+        return new MapExpression(Source.EMPTY, entries);
+    }
+
     private static Expression includeBoundOptions(boolean includeBound) {
         if (includeBound == false) {
             return null;
@@ -891,18 +899,6 @@ public final class QueryDslTranslator {
         }
         // Box each branch to Number separately — a bare int/long ternary would promote the int to long.
         return type == DataType.INTEGER ? (Number) number.intValueExact() : (Number) number.longValueExact();
-    }
-
-    /** Whole-number types have an exact predecessor/successor, so an exclusive bound can be rewritten as inclusive. */
-    private static boolean isWholeNumbered(DataType type) {
-        return type == DataType.INTEGER || type == DataType.LONG || type == DataType.DATETIME || type == DataType.DATE_NANOS;
-    }
-
-    private static Object increment(Object value, DataType type, long delta) {
-        if (type == DataType.INTEGER) {
-            return Math.toIntExact(Math.addExact(((Number) value).longValue(), delta));
-        }
-        return Math.addExact(((Number) value).longValue(), delta);
     }
 
     private Literal literalFor(Expression field, Object value) {

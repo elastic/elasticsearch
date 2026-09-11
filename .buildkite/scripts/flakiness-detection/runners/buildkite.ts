@@ -145,7 +145,8 @@ function orchestrationEnv(): Record<string, string> {
  */
 function generateCommand(): string {
   return [
-    `buildkite-agent artifact download "${FLAKINESS_PLAN_ARTIFACT}" . || true`,
+    // The plan is NOT downloaded here: generate.ts removes any local copy and downloads it itself, so that
+    // a stale file on a reused workspace can never win. Doing it twice would only mask that.
     `buildkite-agent artifact download "${FLAKINESS_PRECOMPILE_ARTIFACT}" . || true`,
     GENERATE_ENTRYPOINT,
   ].join("\n");

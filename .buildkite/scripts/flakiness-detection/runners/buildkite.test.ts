@@ -366,11 +366,13 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
     });
   });
 
-  test("generate step: no agents pin, depends_on orchestration allow_failure, downloads plan, uploads outputs", () => {
+  test("generate step: no agents pin, depends_on orchestration allow_failure, leaves the plan to generate.ts", () => {
     // No `agents:` pin so it uses the DEFAULT node-capable image (the gradle image lacks node).
     expect(generate.agents).toBeUndefined();
     expect(generate.depends_on).toEqual([{ step: "flakiness-orchestration:run", allow_failure: true }]);
-    expect(generate.command).toContain('buildkite-agent artifact download "flakiness-plan.json" . || true');
+    // The plan is downloaded by generate.ts itself, which removes any local copy first so a stale file on a
+    // reused workspace cannot win. Downloading it here as well would only mask that.
+    expect(generate.command).not.toContain('artifact download "flakiness-plan.json"');
     expect(generate.command).toContain('buildkite-agent artifact download "flakiness-precompile.json" . || true');
     expect(generate.command).toContain("node .buildkite/scripts/flakiness-detection/entrypoints/generate.ts");
     // Uploads the skipped/precompile/plan artifacts the analyze step consumes.

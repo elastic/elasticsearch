@@ -4,7 +4,8 @@ import type { FlakinessRef } from "../domain.ts";
  * Turn developer-supplied specs (from `FLAKINESS_CLASSES` or the local CLI) into `explicit`
  * {@link FlakinessRef}s. A spec is one of:
  *   - `org.foo.BarTests`                 - whole class
- *   - `org.foo.BarTests.methodName`      - specific method
+ *   - `org.foo.BarTests.methodName`      - accepted, but the method is currently dropped for java kinds
+ *                                          (the whole class is re-run); only a yaml descriptor survives
  *   - `org.foo.YamlIT.test {yaml=...}`   - specific yaml case
  *
  * Parsing the spec into (class, method) and mapping it to a source set is now the Java resolver's job

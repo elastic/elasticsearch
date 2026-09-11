@@ -18,7 +18,7 @@ export function planEntryToSkippedTest(e: PlanEntry): SkippedTest {
 
 // The gradle-binary tokens. Java emits the neutral `__GRADLE__` placeholder; TS substitutes the
 // target-appropriate binary here.
-//   - buildkite: `.ci/scripts/run-gradle.sh` — the BK-agent wrapper that copies init.gradle, computes
+//   - buildkite: `.ci/scripts/run-gradle.sh` - the BK-agent wrapper that copies init.gradle, computes
 //     MAX_WORKERS, reads the ldd version, etc. (Linux-only, expects $WORKSPACE / $GRADLEW).
 //   - local: `./gradlew` directly, suitable for a developer laptop.
 // The `runners/repeat-rest-test.sh` wrapper is portable bash and works for both targets; Java bakes the

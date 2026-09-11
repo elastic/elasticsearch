@@ -55,8 +55,8 @@ import java.util.List;
  *       unions them into the repo-wide set it ASM-scans (see {@link FlakinessTargets#classDirs}).</li>
  * </ul>
  *
- * <p>There is no longer a {@code <project>.compile-tasks.txt}: the compile phase invokes the
- * {@code compile<Ss>Java} lifecycle tasks unqualified, so it needs nothing from resolve.
+ * <p>Resolve publishes no compile-task list: the compile phase invokes the {@code compile<Ss>Java} lifecycle
+ * tasks unqualified, so it needs nothing from resolve.
  *
  * <p>Note the resolver is deliberately run one ref at a time: {@link RefResolver} reports a class ref it
  * cannot find as {@code unresolved}, but "not in <em>this</em> project" is not "not anywhere", so per-project

@@ -42,9 +42,10 @@ import java.util.List;
  * {@code srcDirs}, so exactly one of them claims a given test file.
  *
  * <h2>Why every project captures its full model</h2>
- * An earlier version short-circuited here: a project that owned no ref skipped realizing its {@code Test}
- * tasks and emitted an empty model. That shortcut is gone, because <em>owning no ref does not make a project
- * irrelevant</em>. Expanding an abstract test base is a repo-wide bytecode question, and its answers - the
+ * Every project captures its model in full, including one that owns no ref, because <em>owning no ref does
+ * not make a project irrelevant</em>. The tempting shortcut - a project that owns nothing skips realizing its
+ * {@code Test} tasks and emits an empty model - is wrong for this reason: expanding an abstract test base is a
+ * repo-wide bytecode question, and its answers - the
  * concrete subclasses - routinely live in projects no ref pointed at. Running one of those subclasses needs
  * its own source set's {@code Test} tasks, so every project now reports a {@link SourceSetDisposition} per
  * candidate test source set and the scan step joins them by compiled-output directory.
@@ -127,8 +128,8 @@ public class FlakinessProjectResolvePlugin implements Plugin<Project> {
 
     /**
      * Snapshot this project's flakiness model in full. It takes no refs: the model describes the project, not
-     * the request, and nothing in it depends on which refs a run happens to carry (that was only true while
-     * the ownership probe gated the capture - see "Why every project captures its full model" above).
+     * the request, so nothing in it depends on which refs a run happens to carry (see "Why every project
+     * captures its full model" above).
      *
      * <p>Invoked from the provider above, i.e. at configuration-cache store time, which is what makes the
      * {@code Test}-task facts post-mutation correct. Reuses {@link FlakinessProjectModel}'s existing

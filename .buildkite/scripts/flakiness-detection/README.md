@@ -125,9 +125,9 @@ Each plan entry carries `disposition:"run"|"skip"` (skip → `not_applicable` do
 
 `commands.ts` is a thin adapter over the Java-produced plan:
 
-1. `planEntryToSkippedTest` — maps a skipped plan entry (with its `reason`) to the `SkippedTest` record written to `flakiness-skipped.json` for the analyze path.
-2. `withGradleBinary` — replaces every `__GRADLE__` token with `.ci/scripts/run-gradle.sh` (buildkite) or `./gradlew` (local).
-3. `planCommandsToRunnable` — maps the plan's `commands` (`PlanCommand[]`) to `RunnableCommand[]`, applying `withGradleBinary` for the chosen target.
+1. `planEntryToSkippedTest` - maps a skipped plan entry (with its `reason`) to the `SkippedTest` record written to `flakiness-skipped.json` for the analyze path.
+2. `withGradleBinary` - replaces every `__GRADLE__` token with `.ci/scripts/run-gradle.sh` (buildkite) or `./gradlew` (local).
+3. `planCommandsToRunnable` - maps the plan's `commands` (`PlanCommand[]`) to `RunnableCommand[]`, applying `withGradleBinary` for the chosen target.
 
 The output is a sequence of `RunnableCommand { kind, label, key, command }`. The `command` is a shell-ready string; the rest is metadata the runner uses to shape its output (BK step keys, log banners, etc.).
 

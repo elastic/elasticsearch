@@ -6,10 +6,11 @@
 #                       to run with flakiness detection.
 #
 # Optional build env vars:
-#   FLAKINESS_ITERS   — positive integer overriding the iteration count for
+#   FLAKINESS_ITERS   - positive integer overriding the iteration count for
 #                       unit tests (-Dtests.iters), internalClusterTest
 #                       (-Dtests.iters), and REST batches (repeat-rest-test.sh
-#                       loop). Read by the generate step (carried in the build env).
+#                       loop). Read by flakinessScan in the orchestration step,
+#                       which bakes the counts into the plan's batch commands.
 #
 # See .buildkite/scripts/flakiness-detection/entrypoints/manual.ts for behavior. manual.ts writes
 # flakiness-refs.json and uploads TWO steps: an orchestration step (resolve → compile → scan on a single

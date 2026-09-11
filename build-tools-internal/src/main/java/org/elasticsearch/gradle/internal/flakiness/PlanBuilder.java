@@ -74,9 +74,10 @@ import java.util.function.Function;
  * abstract bases have a descendant in a {@code main} output.
  *
  * <p>That argument is about {@code main} and nothing else, so it is only sound while the disposition set and
- * the scan set agree. It did not hold before: {@code yamlRestTest} outputs were scanned but disposition-less,
- * and a ref on {@code AbstractXPackRestTest} - whose subclasses are all yaml runners - produced five of these
- * skips and no runnable work at all.
+ * the scan set agree, and it is load-bearing: a source set that is scanned without reporting a disposition
+ * makes every subclass found there unattributable. {@code yamlRestTest} is the worked example - leave it out
+ * of the disposition set and a ref on {@code AbstractXPackRestTest}, whose subclasses are all yaml runners,
+ * yields five of these skips and no runnable work at all.
  *
  * <p>The comparison is on the compiled-output directory rather than the Gradle project path on purpose: a base
  * in {@code :p}'s {@code test} source set and a subclass in {@code :p}'s {@code internalClusterTest} source set

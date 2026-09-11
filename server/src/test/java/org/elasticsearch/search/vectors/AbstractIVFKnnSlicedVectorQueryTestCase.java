@@ -147,7 +147,9 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
         iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
         // Retain soft-deleted tombstones through merges, as Elasticsearch does. Otherwise a randomized merge policy
         // can expunge every tombstone before the reader opens and no leaf remains sparse.
-        iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, () -> Queries.ALL_DOCS_INSTANCE, iwc.getMergePolicy()));
+        iwc.setMergePolicy(
+            new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, () -> Queries.ALL_DOCS_INSTANCE, iwc.getMergePolicy())
+        );
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         // Keep segments small enough to exercise both single- and multi-segment readers. Tombstones are interleaved
         // with routed documents below, so at least one segment contains both kinds of documents.

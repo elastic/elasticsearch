@@ -16,7 +16,7 @@ dependencies {
   javaRestTestImplementation('org.apache.arrow:arrow-memory-core:18.3.0')
   javaRestTestImplementation('org.checkerframework:checker-qual:3.42.0')
   javaRestTestImplementation('com.google.flatbuffers:flatbuffers-java:23.5.26')
-  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}")
   javaRestTestImplementation("com.fasterxml.jackson.core:jackson-core:${versions.jackson}")
   javaRestTestImplementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
   javaRestTestImplementation("org.slf4j:slf4j-api:${versions.slf4j}")

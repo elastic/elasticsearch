@@ -22,6 +22,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.tasks.CancellableTask;
@@ -49,6 +50,8 @@ public class MockSearchService extends SearchService {
     private Consumer<SearchContext> onCreateSearchContext = context -> {};
 
     private Function<CancellableTask, CancellableTask> onCheckCancelled = Function.identity();
+
+    private Consumer<ShardSearchContextId> onFreeReaderContext = context -> {};
 
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
     public static void assertNoInFlightContext() {
@@ -167,5 +170,15 @@ public class MockSearchService extends SearchService {
     @Override
     protected void checkCancelled(CancellableTask task) {
         super.checkCancelled(onCheckCancelled.apply(task));
+    }
+
+    public void setOnFreeReaderContext(Consumer<ShardSearchContextId> onFreeReaderContext) {
+        this.onFreeReaderContext = onFreeReaderContext;
+    }
+
+    @Override
+    public boolean freeReaderContext(ShardSearchContextId contextId) {
+        onFreeReaderContext.accept(contextId);
+        return super.freeReaderContext(contextId);
     }
 }

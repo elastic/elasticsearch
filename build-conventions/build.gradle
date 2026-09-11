@@ -43,6 +43,10 @@ gradlePlugin {
       id = 'elasticsearch.publish'
       implementationClass = 'org.elasticsearch.gradle.internal.conventions.PublishPlugin'
     }
+    draMavenAggregation {
+      id = 'elasticsearch.dra-maven-aggregation'
+      implementationClass = 'org.elasticsearch.gradle.internal.conventions.DraMavenAggregationPlugin'
+    }
     licensing {
       id = 'elasticsearch.licensing'
       implementationClass = 'org.elasticsearch.gradle.internal.conventions.LicensingPlugin'

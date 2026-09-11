@@ -60,12 +60,6 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Explain data frame analytics}
   issue: https://github.com/elastic/elasticsearch/issues/157943
-- class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
-  method: testSnapshotUpgrader {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/158091
-- class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
-  method: testSnapshotUpgrader {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/158092
 - class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
   issue: https://github.com/elastic/elasticsearch/issues/158094
 - class: org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests
@@ -95,12 +89,6 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=upgraded_cluster/90_ml_data_frame_analytics_crud/Get mixed cluster outlier_detection job}
   issue: https://github.com/elastic/elasticsearch/issues/158137
-- class: org.elasticsearch.smoketest.MlWithSecurityIT
-  method: test {yaml=ml/preview_datafeed/Test preview aggregation datafeed with doc_count}
-  issue: https://github.com/elastic/elasticsearch/issues/158138
-- class: org.elasticsearch.smoketest.MlWithSecurityIT
-  method: test {yaml=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
-  issue: https://github.com/elastic/elasticsearch/issues/158139
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testExchangeSourceContinueOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/157535
@@ -109,6 +97,12 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.PyTorchModelIT
   method: testUpdateDeployment_GivenAllocationsAreIncreasedOverResources_AndScalingIsPossible
   issue: https://github.com/elastic/elasticsearch/issues/158438
+- class: org.elasticsearch.script.mustache.MultiSearchTemplateIT
+  method: testLargeMsearchTemplateDoesNotOom
+  issue: https://github.com/elastic/elasticsearch/issues/158428
+- class: org.elasticsearch.xpack.security.authc.esnative.ReservedRealmIntegTests
+  method: testChangingPassword
+  issue: https://github.com/elastic/elasticsearch/issues/159018
 
 # Examples:
 #

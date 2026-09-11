@@ -10,7 +10,7 @@
 package org.elasticsearch.gradle.internal.info
 
 import groovy.json.JsonOutput
-import spock.lang.Specification
+import org.elasticsearch.gradle.fixtures.AbstractProjectBuilderPluginSpec
 import spock.lang.TempDir
 
 import org.elasticsearch.gradle.Version
@@ -18,11 +18,15 @@ import org.elasticsearch.gradle.internal.BwcVersions
 import org.gradle.api.Project
 import org.gradle.api.provider.Provider
 import org.gradle.api.provider.ProviderFactory
-import org.gradle.testfixtures.ProjectBuilder
 
 import java.nio.file.Path
 
-class GlobalBuildInfoPluginSpec extends Specification {
+class GlobalBuildInfoPluginSpec extends AbstractProjectBuilderPluginSpec {
+
+    @Override
+    Class<GlobalBuildInfoPlugin> getPluginClassUnderTest() {
+        return GlobalBuildInfoPlugin
+    }
 
     @TempDir
     File projectRoot
@@ -30,45 +34,11 @@ class GlobalBuildInfoPluginSpec extends Specification {
     Project project
 
     def setup() {
-        project = ProjectBuilder.builder()
-            .withProjectDir(projectRoot)
-            .withName("bwcTestProject")
-            .build()
+        project = buildProject("bwcTestProject", null, projectRoot)
         project = Spy(project)
         project.getRootProject() >> project
 
-        File buildToolsInternalDir = new File(projectRoot, "build-tools-internal")
-        buildToolsInternalDir.mkdirs()
-        new File(buildToolsInternalDir, "version.properties").text = """
-            elasticsearch     = 9.1.0
-            lucene            = 10.2.2
-
-            bundled_jdk_vendor = openjdk
-            bundled_jdk = 24+36@1f9ff9062db4449d8ca828c504ffae90
-            minimumJdkVersion = 21
-            minimumRuntimeJava = 21
-            minimumCompilerJava = 21
-        """
-        File versionFileDir = new File(projectRoot, "server/src/main/java/org/elasticsearch")
-        versionFileDir.mkdirs()
-        new File(versionFileDir, "Version.java").text = """
-            package org.elasticsearch;
-            public class Version {
-                public static final Version V_8_17_8 = new Version(8_17_08_99);
-                public static final Version V_8_18_0 = new Version(8_18_00_99);
-                public static final Version V_8_18_1 = new Version(8_18_01_99);
-                public static final Version V_8_18_2 = new Version(8_18_02_99);
-                public static final Version V_8_18_3 = new Version(8_18_03_99);
-                public static final Version V_8_19_0 = new Version(8_19_00_99);
-                public static final Version V_9_0_0 = new Version(9_00_00_99);
-                public static final Version V_9_0_1 = new Version(9_00_01_99);
-                public static final Version V_9_0_2 = new Version(9_00_02_99);
-                public static final Version V_9_0_3 = new Version(9_00_03_99);
-                public static final Version V_9_1_0 = new Version(9_01_00_99);
-                public static final Version CURRENT = V_9_1_0;
-
-            }
-        """
+        writeMinimalElasticsearchRepoLayout(projectRoot)
     }
 
     def "resolve unreleased versions from branches file set by Gradle property"() {
@@ -88,13 +58,59 @@ class GlobalBuildInfoPluginSpec extends Specification {
         )
 
         when:
-        project.objects.newInstance(GlobalBuildInfoPlugin).apply(project)
+        project.objects.newInstance(getPluginClassUnderTest()).apply(project)
         BuildParameterExtension ext = project.extensions.getByType(BuildParameterExtension)
         BwcVersions bwcVersions = ext.bwcVersions
 
         then:
         bwcVersions != null
         bwcVersions.unreleased.toSet() == ["9.1.0", "9.0.3", "8.19.1", "8.18.2"].collect { Version.fromString(it) }.toSet()
+    }
+
+    def "offline mode still uses configured http(s) branches location when a workspace branches.json exists"() {
+        given:
+        project.getGradle().getStartParameter().setOffline(true)
+
+        ProviderFactory providerFactorySpy = Spy(project.getProviders())
+        Provider<String> gradleBranchesLocationProvider = project.providers.provider { return "https://example.invalid/branches.json" }
+        providerFactorySpy.gradleProperty("org.elasticsearch.build.branches-file-location") >> gradleBranchesLocationProvider
+        project.getProviders() >> providerFactorySpy
+
+        Path workspaceBranchesJsonPath = projectRoot.toPath().resolve("branches.json")
+        workspaceBranchesJsonPath.text = branchesJson(
+            [
+                new DevelopmentBranch("main", Version.fromString("9.1.0")),
+                new DevelopmentBranch("9.0", Version.fromString("9.0.3")),
+            ]
+        )
+
+        when:
+        project.objects.newInstance(getPluginClassUnderTest()).apply(project)
+        project.extensions.getByType(BuildParameterExtension).bwcVersions
+
+        then:
+        def ex = thrown(UncheckedIOException)
+        ex.message == "Failed to download branches.json from: https://example.invalid/branches.json"
+        ex.cause instanceof java.net.UnknownHostException
+    }
+
+    def "offline mode reports download failure when configured location is an http(s) URL and workspace branches.json is missing"() {
+        given:
+        project.getGradle().getStartParameter().setOffline(true)
+
+        ProviderFactory providerFactorySpy = Spy(project.getProviders())
+        Provider<String> gradleBranchesLocationProvider = project.providers.provider { return "https://example.invalid/branches.json" }
+        providerFactorySpy.gradleProperty("org.elasticsearch.build.branches-file-location") >> gradleBranchesLocationProvider
+        project.getProviders() >> providerFactorySpy
+
+        when:
+        project.objects.newInstance(getPluginClassUnderTest()).apply(project)
+        project.extensions.getByType(BuildParameterExtension).bwcVersions
+
+        then:
+        def ex = thrown(UncheckedIOException)
+        ex.message == "Failed to download branches.json from: https://example.invalid/branches.json"
+        ex.cause instanceof java.net.UnknownHostException
     }
 
     String branchesJson(List<DevelopmentBranch> branches) {

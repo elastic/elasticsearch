@@ -171,6 +171,8 @@ public class HashAggregationOperator implements Operator {
     // TODO: Push down LIMIT only
     public record TopAggregation(int aggregatorIndex, boolean asc, int limit) {}
 
+    public record LimitAggregation(int limit) {}
+
     public record ParallelConfig(Executor executor, int numWorkers, int pagesPerWorker, int partitionKeysThreshold) {}
 
     /**
@@ -188,6 +190,8 @@ public class HashAggregationOperator implements Operator {
         private int aggregationBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
         private AnalysisRegistry analysisRegistry;
         private TopAggregation topAggregation;
+        private LimitAggregation limitAggregation;
+        private boolean allowPartitionedOutput;
         private ParallelConfig parallelConfig;
 
         public Builder groups(List<BlockHash.GroupSpec> groups) {
@@ -236,6 +240,16 @@ public class HashAggregationOperator implements Operator {
             return this;
         }
 
+        public Builder limitAggregation(LimitAggregation limitAggregation) {
+            this.limitAggregation = limitAggregation;
+            return this;
+        }
+
+        public Builder allowPartitionedOutput(boolean allowPartitionedOutput) {
+            this.allowPartitionedOutput = allowPartitionedOutput;
+            return this;
+        }
+
         public Factory build() {
             return new Factory(this);
         }
@@ -251,7 +265,9 @@ public class HashAggregationOperator implements Operator {
         private final int aggregationBatchSize;
         private final AnalysisRegistry analysisRegistry;
         private final TopAggregation topAggregation;
+        private final LimitAggregation limitAggregation;
         private final ParallelConfig parallelConfig;
+        private final boolean allowPartitionedOutput;
 
         protected Factory(Builder builder) {
             this.groups = requireNonNull(builder.groups, "groups");
@@ -263,7 +279,9 @@ public class HashAggregationOperator implements Operator {
             this.aggregationBatchSize = builder.aggregationBatchSize;
             this.analysisRegistry = builder.analysisRegistry;
             this.topAggregation = builder.topAggregation;
+            this.limitAggregation = builder.limitAggregation;
             this.parallelConfig = builder.parallelConfig;
+            this.allowPartitionedOutput = builder.allowPartitionedOutput;
         }
 
         @Override
@@ -280,8 +298,10 @@ public class HashAggregationOperator implements Operator {
                     1.0,
                     Integer.MAX_VALUE, // disable splitting aggs pages for CATEGORIZE. it doesn't support it.
                     topAggregation,
+                    limitAggregation,
                     driverContext,
-                    parallelConfig
+                    parallelConfig,
+                    allowPartitionedOutput
                 );
             }
             return new HashAggregationOperator(
@@ -292,8 +312,10 @@ public class HashAggregationOperator implements Operator {
                 partialEmitUniquenessThreshold,
                 maxPageSize,
                 topAggregation,
+                limitAggregation,
                 driverContext,
-                parallelConfig
+                parallelConfig,
+                allowPartitionedOutput
             );
         }
 
@@ -362,6 +384,8 @@ public class HashAggregationOperator implements Operator {
     protected long emitCount;
 
     private final TopAggregation topAggregation;
+    private final LimitAggregation limitAggregation;
+    private final boolean partitionedPartialOutput;
 
     protected long rowsAddedInCurrentBatch;
 
@@ -378,8 +402,10 @@ public class HashAggregationOperator implements Operator {
         double partialEmitUniquenessThreshold,
         int maxPageSize,
         TopAggregation topAggregation,
+        LimitAggregation limitAggregation,
         DriverContext driverContext,
-        ParallelConfig parallelConfig
+        ParallelConfig parallelConfig,
+        boolean allowPartitionedOutput
     ) {
         if (partialEmitKeysThreshold <= 0) {
             throw new IllegalArgumentException("partialEmitKeysThreshold must be greater than 0; got " + partialEmitKeysThreshold);
@@ -393,6 +419,7 @@ public class HashAggregationOperator implements Operator {
         this.blockHashSupplier = blockHashSupplier;
         this.aggregators = new ArrayList<>();
         this.topAggregation = topAggregation;
+        this.limitAggregation = limitAggregation;
         this.parallelConfig = parallelConfig;
         this.partitioningRowThreshold = parallelConfig != null ? parallelConfig.partitionKeysThreshold : Integer.MAX_VALUE;
         boolean success = false;
@@ -404,9 +431,12 @@ public class HashAggregationOperator implements Operator {
                 this.aggregators.add(groupingAggregator);
             }
             this.supportPartitioning = parallelConfig != null
+                // can't safely partition aggregations with limit so disable it for now.
+                && (limitAggregation == null || limitAggregation.limit == Integer.MAX_VALUE)
                 && blockHash instanceof PartitionedBlockHash
                 && PartitionedBlockHash.supportPartitioning()
-                && aggregators.isEmpty();
+                && aggregators.stream().allMatch(a -> a.aggregatorFunction().supportPartitioning());
+            this.partitionedPartialOutput = this.supportPartitioning && allowPartitionedOutput && aggregatorMode.isOutputPartial();
             success = true;
         } finally {
             if (success == false) {
@@ -434,8 +464,10 @@ public class HashAggregationOperator implements Operator {
                 partialEmitUniquenessThreshold,
                 maxPageSize,
                 topAggregation,
+                null,
                 workerDriverContext,
-                parallelConfig
+                parallelConfig,
+                false
             ) {
                 @Override
                 public void close() {
@@ -533,9 +565,13 @@ public class HashAggregationOperator implements Operator {
                         prepared.add(p);
                     }
                 }
-
                 // TODO we can skip the page *entirely* if we know we don't need "empty" results.
-                blockHash.add(page, add);
+                // Allow one extra key because some block hashes reserve group 0 for null.
+                if (limitAggregation != null && blockHash.numKeys() > limitAggregation.limit) {
+                    blockHash.addAfterLimitReached(page, add);
+                } else {
+                    blockHash.add(page, add);
+                }
                 hashNanos += System.nanoTime() - add.hashStart;
             }
             rowsAddedInCurrentBatch += page.getPositionCount();

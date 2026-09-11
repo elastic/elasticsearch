@@ -54,6 +54,15 @@ import java.util.concurrent.locks.ReentrantLock;
  * which causes unnecessary yields and reschedules. Increasing {@link #pagesPerWorker} mitigates
  * this at the cost of buffering more memory. The emit phase now can dump the entire partition
  * to the exchange instead checking the capacity for every emit.
+ *
+ * <p>The same partitioning can support spilling large aggregations to disk without sorting keys,
+ * reusing the two-phase flow above. In the first phase, once the registry exceeds the memory budget,
+ * split partitions are written to disk instead of being kept in memory. In the second phase, a worker
+ * claiming a partition loads its spilled slices, merges them with the in-memory ones, and emits as
+ * usual. Only the slices of the partitions being merged need to be in memory, so peak memory is
+ * bounded by those partitions rather than by the whole aggregation. Spilled slices are append-only
+ * writes and sequential reads, and only the partitioned keys and aggregation states need
+ * serializing; the split and combine steps stay the same.
  */
 public final class ParallelHashAggregationOperator implements Operator {
     public static final int PAGE_PER_WORKER = 10;
@@ -438,8 +447,14 @@ public final class ParallelHashAggregationOperator implements Operator {
 
         void processOnePage(Page page) {
             if (initialized == false) {
-                initialized = true;
-                op.blockHash.ensureCapacity(partitionKeysThreshold);
+                try {
+                    op.blockHash.ensureCapacity(partitionKeysThreshold);
+                    initialized = true;
+                } finally {
+                    if (initialized == false) {
+                        Releasables.close(page);
+                    }
+                }
             }
             op.addInput(page);
             if (op.blockHash.numKeys() >= partitionKeysThreshold) {

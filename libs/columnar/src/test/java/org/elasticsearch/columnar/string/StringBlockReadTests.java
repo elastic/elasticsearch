@@ -18,6 +18,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Reading a page of values for a consumer that groups over them. Whichever shape the page comes back in,
@@ -66,6 +69,122 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
             docValues[d] = new BytesRef(terms[d % terms.length]);
         }
         assertPages(docValues, DictionaryPolicy.NONE, Shape.ORDINALS);
+    }
+
+    /**
+     * The budget a page's storage is charged against. It is charged before the storage grows, so a budget with
+     * no room refuses the page rather than discovering it afterwards, and the storage is reused, so a page no
+     * larger than one already served costs nothing.
+     */
+    public void testPageStorageIsChargedBeforeItGrows() throws IOException {
+        final BytesRef[] docValues = new BytesRef[600];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef("term-" + (d % 7));
+        }
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            final int[] docs = new int[docValues.length];
+            for (int d = 0; d < docs.length; d++) {
+                docs[d] = d;
+            }
+            final long[] charged = { 0 };
+            final PageBudget counting = bytes -> {
+                assertThat("a charge is for something", bytes, greaterThan(0L));
+                charged[0] += bytes;
+            };
+
+            final Rebuilt first = new Rebuilt();
+            assertTrue(reader.readBlock(docs, 0, 256, first, counting));
+            final long afterFirst = charged[0];
+            assertThat("the first page is charged for its storage", afterFirst, greaterThan(0L));
+
+            // A page no larger reuses what the first one grew, so nothing more is charged.
+            final Rebuilt second = new Rebuilt();
+            assertTrue(reader.readBlock(docs, 0, 256, second, counting));
+            assertEquals("a page that fits is charged nothing", afterFirst, charged[0]);
+
+            // A larger page grows the storage again, and only the difference is charged.
+            final Rebuilt third = new Rebuilt();
+            assertTrue(reader.readBlock(docs, 0, docs.length, third, counting));
+            assertThat("a larger page is charged the difference", charged[0], greaterThan(afterFirst));
+            if (metadata instanceof StringColumnMetadata.Dictionary) {
+                // The ordinals a page touches are held one per value, so widening the page from 256 values to
+                // all of them cannot be charged less than that array grew by.
+                assertThat(
+                    "the ordinals a page touches are charged too",
+                    charged[0] - afterFirst,
+                    greaterThanOrEqualTo((long) (docs.length - 256) * Integer.BYTES)
+                );
+            }
+        });
+    }
+
+    /** A budget with no room refuses the page, and it does so before the storage is taken. */
+    public void testAPageWithNoBudgetIsRefused() throws IOException {
+        final BytesRef[] docValues = new BytesRef[600];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef("term-" + (d % 7));
+        }
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            final int[] docs = new int[docValues.length];
+            for (int d = 0; d < docs.length; d++) {
+                docs[d] = d;
+            }
+            final PageBudget refuses = bytes -> { throw new IllegalStateException("no room for " + bytes + " bytes"); };
+            expectThrows(IllegalStateException.class, () -> reader.readBlock(docs, 0, docs.length, new Rebuilt(), refuses));
+        });
+    }
+
+    /**
+     * A reader's page storage outlives the call that grew it, so the charge for it has to land on one budget.
+     * Handing the same reader a second budget would leave the first holding storage it can no longer give back.
+     */
+    public void testAReaderAnswersToOneBudgetForItsLife() throws IOException {
+        assumeTrue("the guard is an assertion", org.elasticsearch.core.Assertions.ENABLED);
+        final BytesRef[] docValues = new BytesRef[600];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef("term-" + (d % 7));
+        }
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            final int[] docs = new int[docValues.length];
+            for (int d = 0; d < docs.length; d++) {
+                docs[d] = d;
+            }
+            final PageBudget first = bytes -> {};
+            final PageBudget second = bytes -> {};
+            assertTrue(reader.readBlock(docs, 0, 256, new Rebuilt(), first));
+            assertTrue("the same budget again is how a reader is meant to be used", reader.readBlock(docs, 0, 256, new Rebuilt(), first));
+            expectThrows(AssertionError.class, () -> reader.readBlock(docs, 0, docs.length, new Rebuilt(), second));
+        });
+    }
+
+    /**
+     * What the column tells a page about naming its values. The survey counts the runs it walks, so a column whose
+     * every value differs from the one before it has nothing for a page to collapse and is read without hashing
+     * anything, while one whose equal values arrive together is named as before. A column written under no policy
+     * was never surveyed and leaves the page to decide.
+     */
+    public void testAColumnSaysWhetherNamingItsValuesPays() throws IOException {
+        final BytesRef[] distinct = new BytesRef[between(500, 2000)];
+        for (int d = 0; d < distinct.length; d++) {
+            distinct[d] = new BytesRef("id-" + d);
+        }
+        assertNaming(distinct, ROOMY, false);
+        assertNaming(distinct, DictionaryPolicy.NONE, true);
+
+        // Too many terms for a dictionary to cover, but each of them in a run, which is what an index sort on the
+        // field produces and the shape a page names most profitably.
+        final BytesRef[] clustered = new BytesRef[distinct.length * 2];
+        for (int d = 0; d < clustered.length; d++) {
+            clustered[d] = distinct[d / 2];
+        }
+        assertNaming(clustered, ROOMY, true);
+    }
+
+    private void assertNaming(BytesRef[] docValues, DictionaryPolicy policy, boolean worthNaming) throws IOException {
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+            assertThat(metadata, instanceOf(StringColumnMetadata.Plain.class));
+            assertEquals("worth naming", worthNaming, ((StringColumnMetadata.Plain) metadata).valuesWorthNaming());
+        });
     }
 
     /**
@@ -143,7 +262,14 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
             final boolean[] sawOrdinals = { false };
             assertTrue(label + " page", reader.readBlock(docs, 0, docs.length, new StringBlockSink() {
                 @Override
-                public void appendOrdinals(int[] ordinals, int count, BytesRef[] dictionary, int dictionarySize) {
+                public void appendOrdinals(
+                    int[] ordinals,
+                    int count,
+                    int[] valueCounts,
+                    int docCount,
+                    BytesRef[] dictionary,
+                    int dictionarySize
+                ) {
                     sawOrdinals[0] = true;
                     final Map<String, Integer> slotOf = new HashMap<>();
                     for (int i = 0; i < dictionarySize; i++) {
@@ -158,7 +284,7 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
                 }
 
                 @Override
-                public void appendValues(BytesRef[] values, int count) {
+                public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
                     for (int i = 0; i < count; i++) {
                         assertEquals(label + " doc " + docs[i], docValues[docs[i]].utf8ToString(), values[i].utf8ToString());
                     }
@@ -276,10 +402,17 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
                     "a page covering documents with no value cannot be served",
                     reader.readBlock(all, 0, all.length, new StringBlockSink() {
                         @Override
-                        public void appendOrdinals(int[] ords, int n, BytesRef[] dictionary, int dictionarySize) {}
+                        public void appendOrdinals(
+                            int[] ords,
+                            int n,
+                            int[] valueCounts,
+                            int docCount,
+                            BytesRef[] dictionary,
+                            int dictionarySize
+                        ) {}
 
                         @Override
-                        public void appendValues(BytesRef[] values, int n) {}
+                        public void appendValues(BytesRef[] values, int n, int[] valueCounts, int docCount) {}
                     })
                 );
                 if (reader.hasDictionary()) {
@@ -298,14 +431,21 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
                     "a page of documents that all have a value is served",
                     reader.readBlock(dense, 0, dense.length, new StringBlockSink() {
                         @Override
-                        public void appendOrdinals(int[] ords, int n, BytesRef[] dictionary, int dictionarySize) {
+                        public void appendOrdinals(
+                            int[] ords,
+                            int n,
+                            int[] valueCounts,
+                            int docCount,
+                            BytesRef[] dictionary,
+                            int dictionarySize
+                        ) {
                             for (int i = 0; i < n; i++) {
                                 seen.add(dictionary[ords[i]].utf8ToString());
                             }
                         }
 
                         @Override
-                        public void appendValues(BytesRef[] values, int n) {
+                        public void appendValues(BytesRef[] values, int n, int[] valueCounts, int docCount) {
                             for (int i = 0; i < n; i++) {
                                 seen.add(values[i].utf8ToString());
                             }
@@ -387,7 +527,7 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
         private boolean wasOrdinals;
 
         @Override
-        public void appendOrdinals(int[] ordinals, int count, BytesRef[] dictionary, int dictionarySize) {
+        public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int dictionarySize) {
             wasOrdinals = true;
             for (int i = 0; i < count; i++) {
                 assertTrue("ordinal in range", ordinals[i] >= 0 && ordinals[i] < dictionarySize);
@@ -396,7 +536,7 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
         }
 
         @Override
-        public void appendValues(BytesRef[] pageValues, int count) {
+        public void appendValues(BytesRef[] pageValues, int count, int[] valueCounts, int docCount) {
             for (int i = 0; i < count; i++) {
                 values.add(BytesRef.deepCopyOf(pageValues[i]));
             }

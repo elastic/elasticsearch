@@ -36,26 +36,22 @@ import static org.mockito.Mockito.mock;
 public class NodeUsageStatsForThreadPoolsCollectorTests extends ESTestCase {
 
     /**
-     * Verifies that the collector converts each shard's write-thread-pool utilization into thread time by
-     * multiplying by the reporting node's total write thread pool thread count (see
-     * {@link org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator#calculateUtilizationForWriteLoad}).
+     * Verifies that the collector merges the per-node shard write loads into a single map, passing the values through unchanged.
      */
-    public void testShardWriteLoadConversionFromUtilizationToThreadTime() {
+    public void testShardWriteLoadsAreMergedAcrossNodes() {
         final DiscoveryNode node1 = DiscoveryNodeUtils.create("node-1");
         final DiscoveryNode node2 = DiscoveryNodeUtils.create("node-2");
         final ClusterState clusterState = createClusterStateWithNodes(node1, node2);
 
         final ShardId shard1 = new ShardId("index", "uuid", 0);
         final ShardId shard2 = new ShardId("index", "uuid", 1);
-        final int node1WriteThreads = 8;
-        final int node2WriteThreads = 20;
-        final double shard1Utilization = 0.5;
-        final double shard2Utilization = 0.25;
+        final double shard1WriteLoad = 4.0;
+        final double shard2WriteLoad = 5.0;
 
         final NodeUsageStatsForThreadPoolsAction.Response response = createSuccessfulResponse(
             List.of(
-                nodeResponseWithRandomThreadPoolUsage(node1, node1WriteThreads, Map.of(shard1, shard1Utilization)),
-                nodeResponseWithRandomThreadPoolUsage(node2, node2WriteThreads, Map.of(shard2, shard2Utilization))
+                nodeResponseWithRandomThreadPoolUsage(node1, 8, Map.of(shard1, shard1WriteLoad)),
+                nodeResponseWithRandomThreadPoolUsage(node2, 20, Map.of(shard2, shard2WriteLoad))
             )
         );
 
@@ -64,10 +60,7 @@ public class NodeUsageStatsForThreadPoolsCollectorTests extends ESTestCase {
 
         final CollectedUsageStats collected = safeAwait(l -> collector.collectUsageStats(client, clusterState, l));
 
-        assertThat(
-            collected.shardWriteLoadUtilizations(),
-            equalTo(Map.of(shard1, shard1Utilization * node1WriteThreads, shard2, shard2Utilization * node2WriteThreads))
-        );
+        assertThat(collected.shardWriteLoads(), equalTo(Map.of(shard1, shard1WriteLoad, shard2, shard2WriteLoad)));
     }
 
     /**
@@ -83,17 +76,17 @@ public class NodeUsageStatsForThreadPoolsCollectorTests extends ESTestCase {
         final ShardId shard2 = new ShardId("index", "uuid", 1);
         final int node1NumWriteThreads = 8;
         final int node2NumWriteThreads = 20;
-        final double shard1UtilizationFirstPoll = 0.5;
-        final double shard2UtilizationFirstPoll = 0.25;
-        final double shard1UtilizationSecondPoll = 0.75;
+        final double shard1WriteLoadFirstPoll = 4.0;
+        final double shard2WriteLoadFirstPoll = 5.0;
+        final double shard1WriteLoadSecondPoll = 6.0;
 
         final NodeUsageStatsForThreadPoolsCollector collector = new NodeUsageStatsForThreadPoolsCollector();
 
         // First poll: both nodes respond successfully.
         final NodeUsageStatsForThreadPoolsAction.Response firstFullResponse = createSuccessfulResponse(
             List.of(
-                nodeResponseWithRandomThreadPoolUsage(node1, node1NumWriteThreads, Map.of(shard1, shard1UtilizationFirstPoll)),
-                nodeResponseWithRandomThreadPoolUsage(node2, node2NumWriteThreads, Map.of(shard2, shard2UtilizationFirstPoll))
+                nodeResponseWithRandomThreadPoolUsage(node1, node1NumWriteThreads, Map.of(shard1, shard1WriteLoadFirstPoll)),
+                nodeResponseWithRandomThreadPoolUsage(node2, node2NumWriteThreads, Map.of(shard2, shard2WriteLoadFirstPoll))
             )
         );
         final CollectedUsageStats firstCollectedStats = safeAwait(
@@ -101,16 +94,14 @@ public class NodeUsageStatsForThreadPoolsCollectorTests extends ESTestCase {
         );
         assertThat(firstCollectedStats.nodeUsageStats().keySet(), equalTo(Set.of(node1.getId(), node2.getId())));
         assertThat(
-            firstCollectedStats.shardWriteLoadUtilizations(),
-            equalTo(
-                Map.of(shard1, shard1UtilizationFirstPoll * node1NumWriteThreads, shard2, shard2UtilizationFirstPoll * node2NumWriteThreads)
-            )
+            firstCollectedStats.shardWriteLoads(),
+            equalTo(Map.of(shard1, shard1WriteLoadFirstPoll, shard2, shard2WriteLoadFirstPoll))
         );
 
         // Second poll: node-2 fails to respond; node-1 reports updated values.
         final NodeUsageStatsForThreadPoolsAction.Response secondPartialResponse = new NodeUsageStatsForThreadPoolsAction.Response(
             ClusterName.DEFAULT,
-            List.of(nodeResponseWithRandomThreadPoolUsage(node1, node1NumWriteThreads, Map.of(shard1, shard1UtilizationSecondPoll))),
+            List.of(nodeResponseWithRandomThreadPoolUsage(node1, node1NumWriteThreads, Map.of(shard1, shard1WriteLoadSecondPoll))),
             List.of(new FailedNodeException(node2.getId(), "simulated failure", new RuntimeException("boom")))
         );
         final CollectedUsageStats secondCollectedStats = safeAwait(
@@ -128,10 +119,7 @@ public class NodeUsageStatsForThreadPoolsCollectorTests extends ESTestCase {
             secondCollectedStats.nodeUsageStats().get(node1.getId()),
             equalTo(secondCollectedStats.nodeUsageStats().get(node1.getId()))
         );
-        assertThat(
-            secondCollectedStats.shardWriteLoadUtilizations().get(shard1),
-            equalTo(shard1UtilizationSecondPoll * node1NumWriteThreads)
-        );
+        assertThat(secondCollectedStats.shardWriteLoads().get(shard1), equalTo(shard1WriteLoadSecondPoll));
 
         // node-2's last known stats and shard load were returned.
         assertThat(
@@ -142,10 +130,7 @@ public class NodeUsageStatsForThreadPoolsCollectorTests extends ESTestCase {
             secondCollectedStats.nodeUsageStats().get(node2.getId()),
             equalTo(firstCollectedStats.nodeUsageStats().get(node2.getId()))
         );
-        assertThat(
-            secondCollectedStats.shardWriteLoadUtilizations().get(shard2),
-            equalTo(shard2UtilizationFirstPoll * node2NumWriteThreads)
-        );
+        assertThat(secondCollectedStats.shardWriteLoads().get(shard2), equalTo(shard2WriteLoadFirstPoll));
     }
 
     private static ClusterState createClusterStateWithNodes(DiscoveryNode... nodes) {

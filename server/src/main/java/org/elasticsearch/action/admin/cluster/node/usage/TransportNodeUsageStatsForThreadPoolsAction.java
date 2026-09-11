@@ -35,7 +35,7 @@ import java.util.Map;
 
 /**
  * Collects thread pool stats from each data node for purposes of shard allocation balancing. The specific node-level stats are defined in
- * {@link NodeUsageStatsForThreadPools}. Also collects Shard-level thread pool stats per node in {@link #getShardWriteLoads()}.
+ * {@link NodeUsageStatsForThreadPools}. Also collects Shard-level thread pool stats per node in {@link #getShardWriteLoads(int)}.
  */
 public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesAction<
     NodeUsageStatsForThreadPoolsAction.Request,
@@ -110,8 +110,9 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
             trackingForWriteExecutor.peekMaxQueueLatencyInQueueMillis()
         );
         maxQueueLatencyMillisGauge.set(maxQueueLatencyMillis);
+        final int numWriteThreads = trackingForWriteExecutor.getMaximumPoolSize();
         ThreadPoolUsageStats threadPoolUsageStats = new ThreadPoolUsageStats(
-            trackingForWriteExecutor.getMaximumPoolSize(),
+            numWriteThreads,
             (float) trackingForWriteExecutor.pollUtilization(
                 TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose.ALLOCATION
             ),
@@ -122,20 +123,23 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
             localNode,
             new NodeUsageStatsForThreadPools(localNode.getId(), Map.of(ThreadPool.Names.WRITE, threadPoolUsageStats)),
             clusterService.state().getMinTransportVersion().supports(NodeUsageStatsForThreadPoolsAction.NodeResponse.ADD_SHARD_WRITE_LOADS)
-                ? getShardWriteLoads()
+                ? getShardWriteLoads(numWriteThreads)
                 : Map.of()
         );
     }
 
     /**
-     * Returns the write thread pool utilization (as a value between 0 and 1) per shard since the last polling.
+     * Returns the write load per shard since the last polling, expressed as the number of write threads the shard kept busy on average.
+     * Each shard tracks its write load as a fraction (0 to 1) of the write thread pool's total capacity during the last polling period, but
+     * the balancer code expects thread time, so the fraction is multiplied by the pool's thread count here: see
+     * {@link org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator#calculateUtilizationForWriteLoad} for details.
      */
-    private Map<ShardId, Double> getShardWriteLoads() {
+    private Map<ShardId, Double> getShardWriteLoads(int numWriteThreads) {
         final var result = new HashMap<ShardId, Double>();
         for (var indexService : indicesService) {
             for (var indexShard : indexService) {
                 if (indexShard.routingEntry().active()) {
-                    result.put(indexShard.shardId(), indexShard.pollWriteLoadUtilization());
+                    result.put(indexShard.shardId(), indexShard.pollWriteLoadUtilization() * numWriteThreads);
                 }
             }
         }

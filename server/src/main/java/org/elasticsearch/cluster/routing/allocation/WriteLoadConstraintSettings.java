@@ -75,7 +75,8 @@ public class WriteLoadConstraintSettings {
          * Parses the stats for the desired write load type.
          */
         public double getWriteLoad(IndexingStats indexingStats) {
-            assert this != AVERAGE : "Unexpectedly found AVERAGE value setting in this path: should not reach this code when that value is set";
+            assert this != AVERAGE
+                : "Unexpectedly found AVERAGE value setting in this path: should not reach this code when that value is set";
             return this == PEAK ? indexingStats.getTotal().getPeakWriteLoad() : indexingStats.getTotal().getRecentWriteLoad();
         }
 

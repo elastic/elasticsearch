@@ -311,7 +311,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         @Override
                         public void onResponse(NodeUsageStatsForThreadPoolsCollector.CollectedUsageStats stats) {
                             nodeThreadPoolUsageStatsPerNode = stats.nodeUsageStats();
-                            averageShardWriteLoads = stats.shardWriteLoadUtilizations();
+                            averageShardWriteLoads = stats.shardWriteLoads();
                         }
 
                         @Override

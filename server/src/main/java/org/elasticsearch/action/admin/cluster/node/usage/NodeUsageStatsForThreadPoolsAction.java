@@ -90,7 +90,7 @@ public class NodeUsageStatsForThreadPoolsAction {
         /**
          * Returns the shard write loads (by node ID) from each node that responded, for use in aggregation by callers.
          */
-        public Map<String, Map<ShardId, Double>> getAllShardWriteLoadUtilizationsPerNode() {
+        public Map<String, Map<ShardId, Double>> getAllShardWriteLoadsPerNode() {
             Map<String, Map<ShardId, Double>> result = new HashMap<>();
             for (NodeUsageStatsForThreadPoolsAction.NodeResponse nodeResponse : getNodes()) {
                 result.put(nodeResponse.getNode().getId(), nodeResponse.getShardWriteLoads());

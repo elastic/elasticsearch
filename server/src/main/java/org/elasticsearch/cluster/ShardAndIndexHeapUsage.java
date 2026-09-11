@@ -57,13 +57,12 @@ public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsa
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(EXPLICIT_HEAP_ESTIMATE_COMPONENTS)) {
             out.writeLong(this.shardHeapUsageBytes);
+            out.writeLong(this.indexHeapUsageBytes);
+            out.writeLong(this.shardPostingsHeapUsageBytes);
         } else {
             // Legacy readers do not have a separate postings field, so keep their effective shard heap unchanged.
             out.writeLong(Math.addExact(this.shardHeapUsageBytes, this.shardPostingsHeapUsageBytes));
-        }
-        out.writeLong(this.indexHeapUsageBytes);
-        if (out.getTransportVersion().supports(EXPLICIT_HEAP_ESTIMATE_COMPONENTS)) {
-            out.writeLong(this.shardPostingsHeapUsageBytes);
+            out.writeLong(this.indexHeapUsageBytes);
         }
     }
 

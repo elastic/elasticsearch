@@ -1389,20 +1389,25 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private final Map<ProjectId, Map<String, SnapshotDeletionStartBatcher>> snapshotDeletionStartBatchers = new HashMap<>();
 
     /**
-     * Applied to every {@link SnapshotDeletionStartBatcher} as it is created. Defaults to {@link RestoreSourceProtection#NOOP}, so an
-     * ordinary restore's source snapshot is protected by its {@link org.elasticsearch.cluster.RestoreInProgress} entry alone.
+     * Consulted by every {@link SnapshotDeletionStartBatcher} on each batch of deletions it resolves. Defaults to
+     * {@link RestoreSourceProtection#NOOP}, so an ordinary restore's source snapshot is protected by its
+     * {@link org.elasticsearch.cluster.RestoreInProgress} entry alone.
      */
     private volatile RestoreSourceProtection restoreSourceProtection = RestoreSourceProtection.NOOP;
 
     /**
-     * Registers the {@link RestoreSourceProtection} consulted when resolving snapshot deletions. Must be called before any deletion runs,
-     * i.e. during node startup, so that every batcher observes it.
+     * Registers the {@link RestoreSourceProtection} consulted when resolving snapshot deletions. Takes effect for every batch resolved
+     * after this call, including by batchers that already exist.
      */
     public void setRestoreSourceProtection(RestoreSourceProtection restoreSourceProtection) {
         if (this.restoreSourceProtection != RestoreSourceProtection.NOOP) {
             throw new IllegalStateException("Restore source protection already set. Cannot change restore source protection");
         }
         this.restoreSourceProtection = Objects.requireNonNull(restoreSourceProtection);
+    }
+
+    private Map<SnapshotId, String> protectedRestoreSources(ClusterState state, ProjectId projectId, String repositoryName) {
+        return restoreSourceProtection.protectedSnapshots(state, projectId, repositoryName);
     }
 
     /**
@@ -1432,7 +1437,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         this::endSnapshot,
                         this::completeOrAddDeleteListener,
                         this::enterRepoLoopAndDeleteSnapshots,
-                        restoreSourceProtection
+                        this::protectedRestoreSources
                     )
                 );
         }

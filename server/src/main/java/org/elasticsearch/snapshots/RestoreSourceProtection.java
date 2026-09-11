@@ -30,10 +30,8 @@ public interface RestoreSourceProtection {
      * @param repositoryName repository whose deletions are being resolved
      * @return the protected snapshots, each mapped to the UUID of the restore that protects it so that a rejected deletion can name it.
      */
-    default Map<SnapshotId, String> protectedSnapshots(ClusterState state, ProjectId projectId, String repositoryName) {
-        return Map.of();
-    }
+    Map<SnapshotId, String> protectedSnapshots(ClusterState state, ProjectId projectId, String repositoryName);
 
-    /** No-op implementation used as the default before any protection is registered. */
-    RestoreSourceProtection NOOP = new RestoreSourceProtection() {};
+    /** Protects nothing beyond {@link RestoreInProgress}; the default before any protection is registered. */
+    RestoreSourceProtection NOOP = (state, projectId, repositoryName) -> Map.of();
 }

@@ -671,12 +671,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/158608
 - class: org.elasticsearch.xpack.sql.qa.security.CliSecurityIT
   issue: https://github.com/elastic/elasticsearch/issues/158631
-- class: org.elasticsearch.xpack.stateless.recovery.StatelessPreFlushRelocationIT
-  method: testPreFlushRelocationOngoingFlush
-  issue: https://github.com/elastic/elasticsearch/issues/158723
-- class: org.elasticsearch.xpack.stateless.recovery.StatelessPreFlushRelocationIT
-  method: testPreFlushRelocationCombined
-  issue: https://github.com/elastic/elasticsearch/issues/158726
 - class: org.elasticsearch.simdjson.internal.parsers.StringParserTests
   issue: https://github.com/elastic/elasticsearch/issues/158799
 - class: org.elasticsearch.xpack.esql.datasource.parquet.ParquetFormatReaderTests

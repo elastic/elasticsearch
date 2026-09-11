@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
-import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ExecutorService;
@@ -26,7 +25,6 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.allocatedProc
 public class TextStructExecutor {
     private final ThrottledTaskRunner analysisRunner;
 
-    @Inject
     public TextStructExecutor(ThreadPool threadPool, Settings settings) {
         this.analysisRunner = new ThrottledTaskRunner("find_structure", maxConcurrentAnalyses(settings), threadPool.generic());
     }

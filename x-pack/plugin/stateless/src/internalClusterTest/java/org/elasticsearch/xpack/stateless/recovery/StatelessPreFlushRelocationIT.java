@@ -134,7 +134,13 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         indicesAdmin().prepareFlush(indexName).execute();
         safeAwait(firstUploadStarted);
 
+        final var preFlushDurabilityWaitRegistered = new CountDownLatch(1);
+        TestStatelessPlugin.waitingForCommitDurabilityLatch = preFlushDurabilityWaitRegistered;
         final PlainActionFuture<Void> relocationCompletedOnSource = triggerRelocationAndTrackCompletionOnSource(sourceNode, indexName);
+
+        // Wait for preFlush to call addListenerForUploadedGeneration
+        safeAwait(preFlushDurabilityWaitRegistered);
+        TestStatelessPlugin.resetAllLatches();
 
         if (hasUncommittedDataDuringPreFlush) {
             indexDocs(indexName, randomIntBetween(10, 20));
@@ -394,6 +400,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
     public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
         static volatile CountDownLatch commitStartedLatch;
         static volatile CountDownLatch unblockCommitLatch;
+        static volatile CountDownLatch waitingForCommitDurabilityLatch;
         static volatile FlushInterceptor flushInterceptor;
 
         private final String nodeName;
@@ -406,6 +413,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         public static void resetAllLatches() {
             commitStartedLatch = null;
             unblockCommitLatch = null;
+            waitingForCommitDurabilityLatch = null;
         }
 
         public static void resetFlushInterceptor() {
@@ -442,6 +450,15 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
                 indexEngineDynamicSettings,
                 statelessCommitService.getShardLocalCommitsTracker(engineConfig.getShardId()).shardLocalReadersTracker()
             ) {
+                @Override
+                public void waitForCurrentCommitDurability(ActionListener<Void> listener) {
+                    super.waitForCurrentCommitDurability(listener);
+                    final var latch = waitingForCommitDurabilityLatch;
+                    if (latch != null) {
+                        latch.countDown();
+                    }
+                }
+
                 @Override
                 protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
                     CountDownLatch block = unblockCommitLatch;

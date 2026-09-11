@@ -355,6 +355,95 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * A view that shifts {@code @timestamp}, over sources whose raw timestamps differ. The filter belongs on the view's output, so it
+     * must not also be used to prune the view's sources during index resolution.
+     *
+     * <p>The request filter is handed to field-caps as an {@code index_filter}, which drops any index whose shards cannot match it.
+     * {@code vrf_dp_b} holds only a January document, so a {@code range @timestamp >= March} prunes it — even though the view moves
+     * that document 100 days forward, past the cutoff, and the filter should keep it. Because {@code vrf_dp_a} survives, the prune is
+     * partial: no error, no retry, and the pruned index's row is simply missing from the result.
+     *
+     * <p>This is the realistic shape: Kibana's time picker is a {@code range} on {@code @timestamp}, and dates are the one field type
+     * field-caps prunes by value ({@code DateFieldMapper} is the only override of {@code isFieldWithinQuery}; everything else reports
+     * {@code INTERSECTS} and is never pruned). A {@code term}, or a {@code range} on a numeric field, would not show this.
+     */
+    public void testRequestFilterDoesNotPruneViewSources() {
+        String a = "vrf_dp_a";
+        String b = "vrf_dp_b";
+        for (String index : List.of(a, b)) {
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareCreate(index)
+                    .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                    .setMapping("id", "type=integer", "@timestamp", "type=date")
+            );
+        }
+        client().prepareIndex(a).setSource("id", 1, "@timestamp", "2024-01-01T00:00:00Z").get();
+        client().prepareIndex(a).setSource("id", 2, "@timestamp", "2024-06-01T00:00:00Z").get();
+        client().prepareIndex(b).setSource("id", 3, "@timestamp", "2024-01-01T00:00:00Z").get();
+        client().admin().indices().prepareRefresh(a, b).get();
+
+        createView("vrf_dp_view", "FROM " + a + "," + b + " | EVAL @timestamp = @timestamp + 100 day | KEEP id, @timestamp");
+
+        EsqlQueryRequest req = syncEsqlQueryRequest("FROM vrf_dp_view | KEEP id | SORT id ASC").filter(
+            QueryBuilders.rangeQuery("@timestamp").gte("2024-03-01")
+        );
+        try (EsqlQueryResponse resp = run(req)) {
+            assertThat(
+                "every row's shifted timestamp is past the cutoff, including the one whose source the filter would have pruned",
+                getValuesList(resp).stream().map(r -> r.get(0)).toList(),
+                equalTo(List.of(1, 2, 3))
+            );
+        }
+    }
+
+    // ─── Views ending in KEEP ────────────────────────────────────────────────────
+
+    /**
+     * A view whose body ends in {@code KEEP} — the most ordinary view shape there is. Preserving its boundary for the filter used to
+     * leave everything above the {@code ViewUnionAll} unresolved: the analyzer's merge alignment saw a branch that was already a
+     * {@code Project} over exactly the merge columns, rewrote nothing, and returned the merge with the empty output view resolution
+     * gave it. The filter rewriter then marked the tree analyzed, so the optimizer hit {@code UnresolvedException: Invalid call to
+     * dataType on an unresolved object ?id} instead of verification reporting anything.
+     */
+    public void testFilterOnViewEndingInKeep() {
+        String view = "vrf_keep";
+        createView(view, "FROM " + INDEX + " | EVAL region_upper = TO_UPPER(region) | KEEP id, region_upper");
+
+        EsqlQueryRequest req = syncEsqlQueryRequest("FROM " + view + " | KEEP id, region_upper | SORT id ASC").filter(
+            QueryBuilders.termQuery("region_upper", "EU")
+        );
+        try (EsqlQueryResponse resp = run(req)) {
+            List<Object> expectedIds = java.util.stream.IntStream.range(0, ROWS)
+                .filter(i -> region(i).equals("eu"))
+                .boxed()
+                .map(i -> (Object) i)
+                .toList();
+            assertThat(getValuesList(resp).stream().map(r -> r.get(0)).toList(), equalTo(expectedIds));
+        }
+    }
+
+    /**
+     * Two views that both end in {@code KEEP} over the same columns. Every branch is already an aligned {@code Project}, so the
+     * merge alignment rewrites nothing — the same path as {@link #testFilterOnViewEndingInKeep}, but with a multi-branch
+     * {@code ViewUnionAll} that existed before boundaries were ever preserved.
+     */
+    public void testFilterOnTwoViewsBothEndingInKeep() {
+        createView("vrf_keep_a", "FROM " + INDEX + " | KEEP id, status");
+        createView("vrf_keep_b", "FROM " + INDEX + " | KEEP id, status");
+
+        QueryBuilder filter = QueryBuilders.termQuery("status", 300);
+        List<Object> fromOne = ids(INDEX, filter);
+        EsqlQueryRequest req = syncEsqlQueryRequest("FROM vrf_keep_a, vrf_keep_b | KEEP id | SORT id ASC").filter(filter);
+        try (EsqlQueryResponse resp = run(req)) {
+            List<Object> actual = getValuesList(resp).stream().map(r -> r.get(0)).toList();
+            // Each view is a separate branch over the same index, so every matching id appears once per view.
+            assertThat(actual, containsInAnyOrder(java.util.stream.Stream.concat(fromOne.stream(), fromOne.stream()).toArray()));
+        }
+    }
+
     // ─── Views whose body already branches ───────────────────────────────────────
 
     /**

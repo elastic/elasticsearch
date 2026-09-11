@@ -1695,7 +1695,16 @@ public class EsqlSession {
         boolean trackedUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
         boolean nullify = parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
         SubscribableListener.<PreAnalysisResult>newForked(
-            l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, trackedUnmappedFieldIndices, result, requestFilter, l)
+            l -> preAnalyzeMainIndices(
+                preAnalysis,
+                configuration,
+                executionInfo,
+                trackedUnmappedFieldIndices,
+                result,
+                requestFilter,
+                viewInternalIndexPatterns(parsed),
+                l
+            )
         ).andThenApply(r -> {
             if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
                 && executionInfo.isCrossClusterSearch()
@@ -2255,6 +2264,34 @@ public class EsqlSession {
     }
 
     /**
+     * The index patterns that are only reachable inside a view branch, and so must not have the request filter applied when their
+     * mappings are resolved.
+     *
+     * <p>The filter is handed to field-caps as an {@code index_filter}, which prunes indices whose shards cannot match it. That is a
+     * sound optimization for a pattern the user named directly — correctness there comes from the Lucene filter on the fragment, not
+     * from this pruning. It is <em>not</em> sound for a view's own sources, because the filter belongs on the view's
+     * <em>output</em>: a view that computes or overwrites the filtered field produces output values that differ from the raw indexed
+     * ones, so pruning on the raw values discards sources whose rows the filter should have kept. When that prunes every source the
+     * query fails and {@code analyzeWithRetry} recovers by retrying unfiltered; when it prunes only some, nothing fails and the plan
+     * is left referencing a pruned index, surfacing as an {@code UnresolvedException} during canonicalization.
+     *
+     * <p>Patterns are compared by pattern string ({@link IndexPattern#equals}), which is also how {@code PreAnalyzer} keys them. A
+     * pattern used both inside a view and directly by the query therefore counts as view-internal: it loses the pruning
+     * optimization, which is the safe direction.
+     */
+    private static Set<IndexPattern> viewInternalIndexPatterns(LogicalPlan plan) {
+        Set<IndexPattern> patterns = new HashSet<>();
+        plan.forEachDown(ViewUnionAll.class, vua -> {
+            for (Map.Entry<String, LogicalPlan> branch : vua.namedSubqueries().entrySet()) {
+                if (vua.isViewBranch(branch.getKey())) {
+                    branch.getValue().forEachDown(UnresolvedRelation.class, ur -> patterns.add(ur.indexPattern()));
+                }
+            }
+        });
+        return patterns;
+    }
+
+    /**
      * Perform a field caps request for each index pattern and determine the minimum transport version of all clusters with matching
      * indices.
      */
@@ -2265,6 +2302,7 @@ public class EsqlSession {
         boolean trackUnmappedFieldIndices,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
+        Set<IndexPattern> viewInternalPatterns,
         ActionListener<PreAnalysisResult> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -2294,7 +2332,8 @@ public class EsqlSession {
                     executionInfo,
                     trackUnmappedFieldIndices,
                     r,
-                    requestFilter,
+                    // A pattern reachable only inside a view branch must not be pruned by the request filter.
+                    viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
                     l
                 ),
                 listener
@@ -2316,7 +2355,8 @@ public class EsqlSession {
                     executionInfo,
                     trackUnmappedFieldIndices,
                     r,
-                    requestFilter,
+                    // A pattern reachable only inside a view branch must not be pruned by the request filter.
+                    viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
                     routingInfoCapture,
                     l
                 ),

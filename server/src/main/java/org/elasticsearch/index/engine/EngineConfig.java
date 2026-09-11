@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.EngineResetLock;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardMetrics;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
@@ -159,7 +160,7 @@ public final class EngineConfig {
 
     private final EngineResetLock engineResetLock;
 
-    private final MergeMetrics mergeMetrics;
+    private final ShardMetrics shardMetrics;
 
     /**
      * Allows to pass an {@link ElasticsearchIndexDeletionPolicy} wrapper to egine implementations.
@@ -196,7 +197,7 @@ public final class EngineConfig {
         boolean promotableToPrimary,
         MapperService mapperService,
         EngineResetLock engineResetLock,
-        MergeMetrics mergeMetrics,
+        ShardMetrics shardMetrics,
         Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper
     ) {
         this.shardId = shardId;
@@ -246,7 +247,7 @@ public final class EngineConfig {
         // always use compound on flush - reduces # of file-handles on refresh
         this.useCompoundFile = indexSettings.getSettings().getAsBoolean(USE_COMPOUND_FILE, true);
         this.engineResetLock = engineResetLock;
-        this.mergeMetrics = mergeMetrics;
+        this.shardMetrics = shardMetrics;
         this.indexDeletionPolicyWrapper = indexDeletionPolicyWrapper;
     }
 
@@ -497,8 +498,8 @@ public final class EngineConfig {
         return engineResetLock;
     }
 
-    public MergeMetrics getMergeMetrics() {
-        return mergeMetrics;
+    public ShardMetrics getShardMetrics() {
+        return shardMetrics;
     }
 
     /**
@@ -538,7 +539,7 @@ public final class EngineConfig {
         private boolean promotableToPrimary;
         private MapperService mapperService;
         private EngineResetLock engineResetLock;
-        private MergeMetrics mergeMetrics;
+        private ShardMetrics shardMetrics;
         private Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper;
 
         Builder() {}
@@ -573,7 +574,7 @@ public final class EngineConfig {
             this.promotableToPrimary = config.promotableToPrimary;
             this.mapperService = config.mapperService;
             this.engineResetLock = config.engineResetLock;
-            this.mergeMetrics = config.mergeMetrics;
+            this.shardMetrics = config.shardMetrics;
             this.indexDeletionPolicyWrapper = config.indexDeletionPolicyWrapper;
         }
 
@@ -722,8 +723,8 @@ public final class EngineConfig {
             return this;
         }
 
-        public Builder mergeMetrics(MergeMetrics mergeMetrics) {
-            this.mergeMetrics = mergeMetrics;
+        public Builder shardMetrics(ShardMetrics shardMetrics) {
+            this.shardMetrics = shardMetrics;
             return this;
         }
 
@@ -765,7 +766,7 @@ public final class EngineConfig {
                 promotableToPrimary,
                 mapperService,
                 engineResetLock,
-                mergeMetrics,
+                shardMetrics,
                 indexDeletionPolicyWrapper
             );
         }

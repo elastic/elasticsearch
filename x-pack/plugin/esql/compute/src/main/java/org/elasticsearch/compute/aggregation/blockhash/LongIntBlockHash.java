@@ -567,10 +567,27 @@ public final class LongIntBlockHash extends PartitionedBlockHash {
         hash.clear();
     }
 
+    private record PartitionedHashKeysWithSeenBlocks(PartitionedHashKeys delegate, boolean seenBlocks) implements PartitionedHashKeys {
+        @Override
+        public int keysInPartition(int partition) {
+            return delegate.keysInPartition(partition);
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            delegate.releasePartition(breaker, partition);
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            delegate.releaseAll(breaker);
+        }
+    }
+
     @Override
     public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
         if (hash instanceof LongLongSwissHash swiss) {
-            return swiss.splitPartition(breaker, partitionSplitter);
+            return new PartitionedHashKeysWithSeenBlocks(swiss.splitPartition(breaker, partitionSplitter), seenBlocks);
         }
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
     }
@@ -578,7 +595,9 @@ public final class LongIntBlockHash extends PartitionedBlockHash {
     @Override
     public boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
         if (hash instanceof LongLongSwissHash swiss) {
-            return swiss.combinePartition(keys, partitionIndex, resultIds);
+            PartitionedHashKeysWithSeenBlocks withSeenBlocks = (PartitionedHashKeysWithSeenBlocks) keys;
+            seenBlocks |= withSeenBlocks.seenBlocks;
+            return swiss.combinePartition(withSeenBlocks.delegate, partitionIndex, resultIds);
         }
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
     }

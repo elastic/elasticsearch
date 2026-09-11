@@ -47,7 +47,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
@@ -1039,6 +1038,7 @@ public class ComputeService {
             foldContext,
             mainExchangeSource::createExchangeSource,
             null,
+            false,
             false
         );
 
@@ -1391,6 +1391,7 @@ public class ComputeService {
                 foldContext,
                 null,
                 exchangeSinkSupplier,
+                false,
                 false
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
@@ -1511,6 +1512,7 @@ public class ComputeService {
                             foldContext,
                             exchangeSource::createExchangeSource,
                             exchangeSinkSupplier,
+                            false,
                             false
                         ),
                         coordinatorPlan,
@@ -1652,6 +1654,7 @@ public class ComputeService {
                     foldContext,
                     exchangeSource::createExchangeSource,
                     exchangeSinkSupplier,
+                    false,
                     false
                 ),
                 coordinatorPlan,
@@ -1886,7 +1889,14 @@ public class ComputeService {
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            var localExecutionPlan = planner.plan(context.description(), context.foldCtx(), plannerSettings, planToExecute, shardContexts);
+            var localExecutionPlan = planner.plan(
+                context.description(),
+                context.foldCtx(),
+                plannerSettings,
+                planToExecute,
+                shardContexts,
+                context.singleNodeOptimizations()
+            );
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }
@@ -2015,13 +2025,9 @@ public class ComputeService {
 
     /**
      * Supplier for per-thread store directory bytes used by Lucene operators and planner-time accounting.
-     * Returns zero when the {@code directory_metrics} feature flag is disabled.
      */
     static LongSupplier directoryBytesReadSupplier(IndicesService indicesService) {
-        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
-            return indicesService::currentStoreBytesRead;
-        }
-        return () -> 0L;
+        return indicesService::currentStoreBytesRead;
     }
 
     /**

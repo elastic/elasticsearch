@@ -9,36 +9,41 @@
 
 package org.elasticsearch.gradle.internal
 
+import org.elasticsearch.gradle.fixtures.AbstractProjectBuilderPluginSpec
 import org.elasticsearch.gradle.internal.info.BuildParameterService
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 import org.gradle.api.Project
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.tasks.JavaExec
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.testing.Test
-import org.gradle.testfixtures.ProjectBuilder
-import spock.lang.Specification
 
-class JmhPluginSpec extends Specification {
+class JmhPluginSpec extends AbstractProjectBuilderPluginSpec {
+
+    @Override
+    Class<JmhPlugin> getPluginClassUnderTest() {
+        return JmhPlugin
+    }
 
     Project consumer
 
     def setup() {
         // Sibling projects match JmhPlugin's findProject paths so the guarded wiring is exercised.
-        def rootProject = ProjectBuilder.builder().withName("root").build()
-        def benchmarks = ProjectBuilder.builder().withParent(rootProject).withName("benchmarks").build()
-        ProjectBuilder.builder().withParent(benchmarks).withName("common").build()
-        ProjectBuilder.builder().withParent(benchmarks).withName("processor").build()
-        def testGroup = ProjectBuilder.builder().withParent(rootProject).withName("test").build()
-        ProjectBuilder.builder().withParent(testGroup).withName("framework").build()
+        def rootProject = buildProject("root")
+        def benchmarks = buildProject("benchmarks", rootProject)
+        buildProject("common", benchmarks)
+        buildProject("processor", benchmarks)
+        def testGroup = buildProject("test", rootProject)
+        buildProject("framework", testGroup)
 
-        consumer = ProjectBuilder.builder().withParent(rootProject).withName("consumer").build()
+        consumer = buildProject("consumer", rootProject)
 
         // Empty stub for the buildParams shared service; the launcher chain is lazy, so an unset
         // extension is fine as long as we don't execute the task.
         consumer.gradle.sharedServices.registerIfAbsent("buildParams", BuildParameterService) { spec -> }
 
-        consumer.pluginManager.apply(JmhPlugin)
+        applyPluginUnderTest(consumer)
     }
 
     def "applies the java plugin"() {
@@ -139,5 +144,26 @@ class JmhPluginSpec extends Specification {
 
         then:
         impl.any { it instanceof ProjectDependency && ((ProjectDependency) it).path == ":test:framework" }
+    }
+
+    def "excludes JMH-generated classes from #taskName"() {
+        given:
+        // Stands in for the task ForbiddenApisPrecommitPlugin registers per source set, so the
+        // exclusion is asserted without pulling in the whole precommit chain.
+        def task = consumer.tasks.register(taskName, CheckForbiddenApisTask).get()
+
+        expect:
+        task.excludes.contains("**/jmh_generated/**")
+
+        where:
+        taskName << ["forbiddenApisBenchmark", "forbiddenApisBenchmarkTest"]
+    }
+
+    def "leaves forbidden-apis tasks for other source sets untouched"() {
+        given:
+        def task = consumer.tasks.register("forbiddenApisMain", CheckForbiddenApisTask).get()
+
+        expect:
+        task.excludes.isEmpty()
     }
 }

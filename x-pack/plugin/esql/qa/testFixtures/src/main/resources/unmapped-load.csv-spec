@@ -4245,6 +4245,7 @@ b-1            | HELLO
 // (UnmappedKeywordValues drops it) so the geo_point converter is handed null, and unlike the d case below that is silent.
 unmappedObjectSourceValueIsSilentlyNotReconstructed
 required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM source_representation, source_representation_unmapped METADATA _index
@@ -4261,6 +4262,7 @@ source_representation_unmapped | null                         | POINT (-71.34000
 // _source value. This one at least warns.
 unmappedCustomFormattedDateSourceValueWarnsAndNulls
 required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM source_representation, source_representation_unmapped METADATA _index

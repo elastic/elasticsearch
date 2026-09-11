@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 158005
+summary: Tune object-store-related thread pools
+type: enhancement

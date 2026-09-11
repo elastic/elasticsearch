@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.ResolvedIndexExpression;
-import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
@@ -19,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -61,7 +58,7 @@ import java.util.Set;
  * relation also targets non-dataset abstractions. {@link #rewrite}/{@link #rewriteOne} then consume that
  * {@link DatasetResolution} to build the plan — they no longer resolve, expand, or gate on authorization.
  *
- * <p>Whether a wildcard may resolve to a dataset is governed by the {@code wildcard_datasets} query setting, resolved
+ * <p>Whether a wildcard may resolve to a dataset is governed by the {@code dataset_wildcards} query setting, resolved
  * on the coordinator and threaded in by the caller: when it is off (the default) a dataset is reachable only by an
  * exact name, so a wildcard resolves to indices exactly as it did before datasets existed. Index expressions are
  * otherwise untouched.
@@ -90,7 +87,7 @@ public final class DatasetRewriter {
      * surfaces as {@code Unknown index} (400), the same error a missing index gives, so an unauthorized dataset
      * can't be told apart from a missing name.
      *
-     * @param wildcardDatasets the resolved {@code wildcard_datasets} query setting. When {@code false} (the default)
+     * @param datasetWildcards the resolved {@code dataset_wildcards} query setting. When {@code false} (the default)
      *                         a dataset is kept only if it was named exactly; a wildcard that also matched it drops it,
      *                         so the wildcard resolves to indices only.
      */
@@ -99,7 +96,7 @@ public final class DatasetRewriter {
         String[] rawPatterns,
         ProjectMetadata projectMetadata,
         IndexNameExpressionResolver iner,
-        boolean wildcardDatasets
+        boolean datasetWildcards
     ) {
         // (a) resolved external datasets: request.indices(), which the security filter already narrowed to the
         // read-privileged subset on a secured cluster (and equals rawPatterns without security). Empty short-circuits,
@@ -150,9 +147,12 @@ public final class DatasetRewriter {
 
         Set<String> result = new LinkedHashSet<>(rawDatasetNames);
         result.retainAll(resolvedExternalDatasets);
-        // The local rail's raw patterns are preserved by the security filter (it replaces indices() but keeps
-        // rawPatterns), so the exact names computed above are the explicit set directly.
-        keepOnlyExplicitlyNamed(result, exact, wildcardDatasets);
+        // Enforce the one thing dataset_wildcards controls: with it off, a dataset survives only if it was named
+        // exactly. The security filter replaces indices() but keeps rawPatterns, so the exact names computed above are
+        // the user's explicit set even on a secured cluster where wildcards were already expanded to concrete names.
+        if (datasetWildcards == false) {
+            result.retainAll(exact);
+        }
         return new DatasetResolution(result, nonDatasetNames, explicitUnauthorized);
     }
 
@@ -181,7 +181,7 @@ public final class DatasetRewriter {
         LogicalPlan parsed,
         ProjectMetadata projectMetadata,
         IndexNameExpressionResolver iner,
-        boolean wildcardDatasets
+        boolean datasetWildcards
     ) {
         if (projectMetadata == null) {
             return parsed;
@@ -196,13 +196,13 @@ public final class DatasetRewriter {
                 return;
             }
             List<String> patterns = patternsOf(r);
-            if (hasRemotePattern(patterns) || anyPatternCouldMatchDataset(patterns, datasetNames, wildcardDatasets) == false) {
+            if (hasRemotePattern(patterns) || anyPatternCouldMatchDataset(patterns, datasetNames, datasetWildcards) == false) {
                 return;
             }
             // Unsecured: the (un-narrowed) raw patterns are the authorized indices — every registered dataset matched
             // by the pattern is authorized, so resolve() returns it.
             String[] raw = patterns.toArray(String[]::new);
-            resolutions.put(r, resolve(raw, raw, projectMetadata, iner, wildcardDatasets));
+            resolutions.put(r, resolve(raw, raw, projectMetadata, iner, datasetWildcards));
         });
         // Unsecured/test path runs without CPS (single local project): never preserve a wildcard for remote resolution.
         return rewrite(parsed, projectMetadata, resolutions, false);
@@ -360,11 +360,11 @@ public final class DatasetRewriter {
      * name. False positives are fine (slow path runs); false negatives would miss datasets, so this
      * must be at least as permissive as the full resolver.
      */
-    static boolean anyPatternCouldMatchDataset(List<String> patterns, Set<String> datasetNames, boolean wildcardDatasets) {
+    static boolean anyPatternCouldMatchDataset(List<String> patterns, Set<String> datasetNames, boolean datasetWildcards) {
         if (datasetNames.isEmpty()) {
             return false;
         }
-        if (wildcardDatasets == false) {
+        if (datasetWildcards == false) {
             // Datasets match only exact names — reuse the same exact-name notion resolve() applies (single source of
             // truth), so the pre-check and the real resolution can't drift.
             for (String name : exactNames(patterns)) {
@@ -389,33 +389,6 @@ public final class DatasetRewriter {
             }
         }
         return false;
-    }
-
-    /**
-     * Enforces the one thing {@code wildcard_datasets} controls — wildcard discoverability of datasets. When
-     * {@code wildcardDatasets} is off, drops every dataset not in {@code explicitlyNamed}, so a wildcard-discovered
-     * dataset disappears while an explicitly-named one is kept. A no-op when on. Applied by the local resolve rail
-     * ({@link #resolve}); a dataset on another cluster is not resolved there at all, so there is no remote rail to
-     * keep in step.
-     */
-    public static void keepOnlyExplicitlyNamed(Set<String> datasets, Set<String> explicitlyNamed, boolean wildcardDatasets) {
-        if (wildcardDatasets == false) {
-            datasets.retainAll(explicitlyNamed);
-        }
-    }
-
-    /**
-     * The explicitly-named (non-wildcard) names for the remote field-caps rail, robust to the security layer having
-     * already replaced the request's wildcards with concrete names before this runs: each {@link ResolvedIndexExpression}
-     * still carries its user {@code original()}, so the exact originals are the explicit set. Falls back to {@code indices}
-     * when no resolution is attached (unsecured, where they are still the user's originals). Mirrors how the views rail
-     * reads {@link ResolvedIndexExpressions}.
-     */
-    public static Set<String> explicitlyNamed(String[] indices, @Nullable ResolvedIndexExpressions resolved) {
-        if (resolved == null) {
-            return exactNames(Arrays.asList(indices));
-        }
-        return exactNames(resolved.expressions().stream().map(ResolvedIndexExpression::original).toList());
     }
 
     /** The exact (non-wildcard, non-exclusion) names in {@code patterns}, with date math evaluated. */

@@ -29,11 +29,12 @@ import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * End-to-end REST coverage for the {@code wildcard_datasets} query setting, against the scenario reported on a 9.5.2
+ * End-to-end REST coverage for the {@code dataset_wildcards} query setting, against the scenario reported on a 9.5.2
  * cluster in elastic/elasticsearch#158472: enough registered datasets make every {@code FROM *} fail, because a
  * wildcard sweeps them all in and each becomes its own plan branch.
  *
@@ -46,7 +47,7 @@ import static org.hamcrest.Matchers.hasSize;
  * the {@code x-pack:plugin:esql} unit suites.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class WildcardDatasetSettingRestIT extends ESRestTestCase {
+public class DatasetWildcardsRestIT extends ESRestTestCase {
 
     /** One past {@code MergePlan.MAX_BRANCHES} once the matching index contributes its own branch. */
     private static final int DATASET_COUNT = 8;
@@ -91,16 +92,23 @@ public class WildcardDatasetSettingRestIT extends ESRestTestCase {
         assertThat(values.get(0), equalTo(List.of("hello")));
     }
 
-    public void testWildcardDiscoversDatasetsWhenSettingIsOn() throws IOException {
-        // Opting the query into wildcard discovery restores the reported behavior: eight datasets plus the index is
-        // nine branches, one past the cap. The point is that the setting decides it, not that the cap is right.
-        ResponseException ex = expectThrows(
-            ResponseException.class,
-            () -> query("SET wildcard_datasets = true; FROM * | KEEP message | LIMIT 10")
-        );
+    public void testWildcardReachesDatasetOnlyWhenSettingIsOn() throws IOException {
+        // lake_1* matches exactly one dataset and no index, so this pins REACH itself rather than any downstream
+        // threshold: the branch cap is nowhere near, and elastic/esql-planning#1732 raising that cap cannot affect it.
+
+        // Off (the default): the wildcard matches nothing at all, so the query succeeds with no rows. The dataset was
+        // never reached -- had it been, resolving its object-storage resource would have failed the query.
+        Map<String, Object> off = query("FROM lake_1* | LIMIT 1");
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) off.get("values");
+        assertThat(values, empty());
+
+        // On: the same wildcard now reaches the dataset and the query fails trying to read its resource. That failure
+        // IS the proof of reach -- the bucket does not exist, which is exactly why it is unambiguous.
+        ResponseException ex = expectThrows(ResponseException.class, () -> query("SET dataset_wildcards = true; FROM lake_1* | LIMIT 1"));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         String body = EntityUtils.toString(ex.getResponse().getEntity());
-        assertThat(body, containsString("exceeding the current limit of"));
+        assertThat(body, containsString("Failed to resolve external source [s3://bucket/1/*.csv]"));
     }
 
     private static Map<String, Object> query(String esql) throws IOException {

@@ -1723,7 +1723,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
             TEST_PARSER.parseQuery(query),
             projectMetadata,
             TestIndexNameExpressionResolver.newInstance(),
-            // These cases reach a dataset through a wildcard, so resolve with wildcard_datasets on.
+            // These cases reach a dataset through a wildcard, so resolve with dataset_wildcards on.
             true
         );
         ExternalSourceResolution resolution = new ExternalSourceResolution(

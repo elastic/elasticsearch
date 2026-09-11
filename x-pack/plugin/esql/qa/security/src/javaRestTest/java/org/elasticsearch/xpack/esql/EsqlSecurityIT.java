@@ -2873,7 +2873,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         final String authorized = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
         final String denied = createSecurityItDatasetAsAdmin("security_it_ds_drop_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
         try {
-            // security_it_ds_keep_* matches only the authorized dataset; the explicit denied one must still error.
+            // With dataset_wildcards off (the default) security_it_ds_keep_* reaches no dataset at all; the
+            // explicitly-named denied one is unaffected by the setting and must still error.
             ResponseException ex = expectThrows(
                 ResponseException.class,
                 () -> runESQLCommand("ds_dataset_query_partial", "FROM security_it_ds_keep_*," + denied + " | STATS COUNT(*)")
@@ -2883,6 +2884,42 @@ public class EsqlSecurityIT extends ESRestTestCase {
         } finally {
             deleteDatasetAsAdmin(authorized);
             deleteDatasetAsAdmin(denied);
+        }
+    }
+
+    /**
+     * The gate must hold on a secured cluster, where {@code IndicesAndAliasesResolver} has already replaced the
+     * request's wildcards with concrete dataset names before the rewrite runs. It holds because the security filter
+     * replaces {@code indices()} but leaves {@code rawPatterns} alone, so the explicit set is still derived from what
+     * the user typed. Every other test of this seam constructs that narrowing by hand; this one drives the real filter.
+     *
+     * <p>The dataset here is authorized, so authorization cannot be what hides it -- only the setting can. Its resource
+     * points at a bucket that does not exist, which is what makes the two outcomes unambiguous: reaching the dataset
+     * fails the query, so an empty success proves it was never reached.
+     */
+    public void testFromDatasetWildcardUnderSecurityRespectsDatasetWildcardsSetting() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String authorized = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        try {
+            // Off (the default): the wildcard reaches no dataset, so the query succeeds with nothing.
+            Response off = runESQLCommand("ds_dataset_query_partial", "FROM security_it_ds_keep_* | STATS COUNT(*)");
+            assertOK(off);
+            Map<String, Object> offMap = entityAsMap(off);
+            assertThat(offMap.get("values"), anyOf(equalTo(List.of()), equalTo(List.of(List.of(0)))));
+
+            // On: the same wildcard, the same principal, now reaches the dataset and fails reading its resource.
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand(
+                    "ds_dataset_query_partial",
+                    "SET dataset_wildcards = true; FROM security_it_ds_keep_* | STATS COUNT(*)"
+                )
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("security-it-denied-bucket"));
+        } finally {
+            deleteDatasetAsAdmin(authorized);
         }
     }
 

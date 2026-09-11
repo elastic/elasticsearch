@@ -70,14 +70,14 @@ public class DatasetResolver {
      * untouched, so a {@code FROM <dataset>} name flows into normal index resolution and errors as {@code Unknown index},
      * exactly as a nonexistent index would. No dataset lookup and no {@link EsqlResolveDatasetAction} dispatch happen.
      *
-     * @param wildcardDatasets the resolved {@code wildcard_datasets} query setting, carried from the coordinator's
+     * @param datasetWildcards the resolved {@code dataset_wildcards} query setting, carried from the coordinator's
      *                         {@code Configuration} and applied to this coordinator's own dataset expansion. It reaches
      *                         no other cluster: a dataset registered elsewhere is not resolved there at all.
      */
     public void replaceDatasets(
         LogicalPlan parsed,
         ProjectMetadata projectMetadata,
-        boolean wildcardDatasets,
+        boolean datasetWildcards,
         ActionListener<LogicalPlan> listener
     ) {
         // Federation not available: do not attempt any dataset resolution, so the feature is indistinguishable from one
@@ -101,7 +101,7 @@ public class DatasetResolver {
         parsed.forEachUp(UnresolvedRelation.class, r -> {
             List<String> patterns = DatasetRewriter.patternsOf(r);
             if (DatasetRewriter.hasRemotePattern(patterns)
-                || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames, wildcardDatasets) == false) {
+                || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames, datasetWildcards) == false) {
                 return;
             }
             relations.add(r);
@@ -125,7 +125,7 @@ public class DatasetResolver {
                 var request = new EsqlResolveDatasetAction.Request(
                     REST_MASTER_TIMEOUT_DEFAULT,
                     DatasetRewriter.patternsOf(relation).toArray(String[]::new),
-                    wildcardDatasets
+                    datasetWildcards
                 );
                 client.execute(
                     EsqlResolveDatasetAction.TYPE,

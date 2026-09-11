@@ -183,18 +183,18 @@ public final class QuerySettings {
         .build();
 
     @Param(
-        name = "wildcard_datasets",
+        name = "dataset_wildcards",
         type = { "boolean" },
         since = "9.6.0",
         description = "When enabled, a wildcard in `FROM` also matches registered datasets."
             + " Defaults to `false`, so a wildcard does not match a dataset and a dataset is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
             + "The default itself is configurable. If a query does not specify a value, the "
-            + "`esql.query.settings.wildcard_datasets` cluster setting supplies it. If that cluster setting is not "
+            + "`esql.query.settings.dataset_wildcards` cluster setting supplies it. If that cluster setting is not "
             + "configured either, the value is `false`. "
             + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
     )
-    public static final QuerySettingDef<Boolean> WILDCARD_DATASETS = QuerySettingDef.bool("wildcard_datasets")
+    public static final QuerySettingDef<Boolean> DATASET_WILDCARDS = QuerySettingDef.bool("dataset_wildcards")
         .withDefault(Boolean.FALSE)
         .withClusterDefault()
         .withPreview()
@@ -252,10 +252,10 @@ public final class QuerySettings {
     public static final List<QuerySettingDef<?>> ALL = List.of(
         APPROXIMATION,
         COLUMN_METADATA,
+        DATASET_WILDCARDS,
         PROJECT_ROUTING,
         TIME_ZONE,
-        UNMAPPED_FIELDS,
-        WILDCARD_DATASETS
+        UNMAPPED_FIELDS
     );
 
     private static final Map<String, QuerySettingDef<?>> BY_NAME = byName(ALL);

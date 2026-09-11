@@ -1571,7 +1571,7 @@ public class EsqlSession {
         datasetResolver.replaceDatasets(
             parsed,
             projectMetadata,
-            QuerySettings.WILDCARD_DATASETS.get(configuration.resolvedSettings()),
+            QuerySettings.DATASET_WILDCARDS.get(configuration.resolvedSettings()),
             logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
                 datasetResolutionProfile.stop();
                 analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);

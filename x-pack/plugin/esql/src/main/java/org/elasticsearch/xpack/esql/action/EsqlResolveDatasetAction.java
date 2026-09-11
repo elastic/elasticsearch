@@ -94,7 +94,7 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
             request.rawPatterns(),
             project.metadata(),
             indexNameExpressionResolver,
-            request.wildcardDatasets()
+            request.datasetWildcards()
         );
         listener.onResponse(
             new Response(resolution.resolvedExternalDatasets(), resolution.nonDatasetNames(), resolution.explicitUnauthorized())
@@ -113,19 +113,19 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
         // un-narrowed patterns to classify whether the relation also targets non-dataset abstractions.
         private final String[] rawPatterns;
         private ResolvedIndexExpressions resolvedIndexExpressions;
-        // The coordinator's resolved wildcard_datasets query setting. This is a LocalClusterStateRequest, whose writeTo
+        // The coordinator's resolved dataset_wildcards query setting. This is a LocalClusterStateRequest, whose writeTo
         // is the local-only stub, so carrying it serializes nothing and costs no transport version.
-        private final boolean wildcardDatasets;
+        private final boolean datasetWildcards;
 
         /**
          * @param rawPatterns one relation's raw FROM patterns (split on comma, not pre-expanded)
-         * @param wildcardDatasets the coordinator's resolved {@code wildcard_datasets} query setting
+         * @param datasetWildcards the coordinator's resolved {@code dataset_wildcards} query setting
          */
-        public Request(TimeValue masterTimeout, String[] rawPatterns, boolean wildcardDatasets) {
+        public Request(TimeValue masterTimeout, String[] rawPatterns, boolean datasetWildcards) {
             super(masterTimeout);
             this.indices = rawPatterns;
             this.rawPatterns = rawPatterns;
-            this.wildcardDatasets = wildcardDatasets;
+            this.datasetWildcards = datasetWildcards;
         }
 
         @Override
@@ -143,9 +143,9 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
             return rawPatterns;
         }
 
-        /** The coordinator's resolved {@code wildcard_datasets} query setting; see {@link DatasetRewriter#resolve}. */
-        public boolean wildcardDatasets() {
-            return wildcardDatasets;
+        /** The coordinator's resolved {@code dataset_wildcards} query setting; see {@link DatasetRewriter#resolve}. */
+        public boolean datasetWildcards() {
+            return datasetWildcards;
         }
 
         @Override

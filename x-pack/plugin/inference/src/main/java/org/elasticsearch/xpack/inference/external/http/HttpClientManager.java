@@ -160,10 +160,8 @@ public class HttpClientManager implements Closeable {
         this.addSettingsUpdateConsumers(clusterService);
     }
 
-    // TODO (httpclient5 migration): the connect timeout moved from the 4.x RequestConfig to the connection manager's
-    // ConnectionConfig (the 5.x RequestConfig variant is deprecated), and the EIS TLS strategy now comes from
-    // SslProfile.clientTlsStrategy() instead of ioSessionStrategy(). Verify the EIS mTLS path (including reloadable certs and
-    // verification_mode) against a real EIS endpoint before merging.
+    // The connect timeout moved from the 4.x RequestConfig to the connection manager's ConnectionConfig (the 5.x RequestConfig
+    // variant is deprecated), and the EIS TLS strategy now comes from SslProfile.clientTlsStrategy() instead of ioSessionStrategy().
     private static PoolingAsyncClientConnectionManager createConnectionManager(
         @Nullable TlsStrategy tlsStrategy,
         @Nullable TimeValue connectionTtl,

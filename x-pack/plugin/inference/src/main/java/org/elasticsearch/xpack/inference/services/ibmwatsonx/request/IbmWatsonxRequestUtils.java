@@ -44,9 +44,8 @@ public final class IbmWatsonxRequestUtils {
         String bearerTokenGenUrl = "https://iam.cloud.ibm.com/identity/token";
         String bearerToken = "";
 
-        // TODO (httpclient5 migration): this synchronous IAM token fetch moved from the 4.x classic client to the 5.x classic
-        // client, using execute(request, responseHandler) which also releases the connection deterministically. Verify against a
-        // live watsonx IAM endpoint (token parsing + non-2xx handling) before merging.
+        // This synchronous IAM token fetch moved from the 4.x classic client to the 5.x classic client, using
+        // execute(request, responseHandler) which also releases the connection deterministically.
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             HttpPost httpPostForBearerToken = new HttpPost(bearerTokenGenUrl);
 

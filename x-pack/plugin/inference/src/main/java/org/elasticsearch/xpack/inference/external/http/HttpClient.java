@@ -193,8 +193,6 @@ public class HttpClient implements Closeable {
         return new IllegalStateException("Http client is not running, please retry the request", exception);
     }
 
-    // TODO (httpclient5 migration): verify streaming end-to-end (internalClusterTest, yamlRestTest, and a live SSE smoke test)
-    // before merging.
     public void stream(HttpRequest request, HttpClientContext context, ActionListener<StreamingHttpResult> listener) {
         var notifyOnceListener = ActionListener.notifyOnce(listener);
 

@@ -25,8 +25,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -60,8 +58,6 @@ import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocat
 import static org.hamcrest.Matchers.is;
 
 public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegTestCase {
-
-    private static final Logger logger = LogManager.getLogger(StatelessPreFlushRelocationIT.class);
 
     @Before
     public void resetPlugin() {
@@ -362,8 +358,6 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
             if (nodeName.equals(node) == false || indexName.equals(index) == false) {
                 return listener;
             }
-            logger.info("intercepted flush on node [{}], index [{}], waitIfOngoing [{}]", node, index, waitIfOngoing);
-            logger.info("intercepted flush stack trace", new Exception("intercepted flush"));
             observer.waitIfOngoing().onResponse(waitIfOngoing);
             return Engine.FlushResultListener.wrap(ActionListener.wrap(r -> {
                 observer.result().onResponse(r);

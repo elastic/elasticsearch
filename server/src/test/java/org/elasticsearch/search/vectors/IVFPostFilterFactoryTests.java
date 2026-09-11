@@ -15,10 +15,14 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -40,6 +44,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -311,6 +316,16 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
         }
     }
 
+    /** The negative of the completeness test above: a subtype with no switch arm must fail loudly via the default arm. */
+    public void testCloneWithParamsRejectsAnUnknownSubtype() {
+        FooIVFQuery unknown = new FooIVFQuery();
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> unknown.clone(unknown.filter, unknown.k(), unknown.numCands(), unknown.postFilterDelegate)
+        );
+        assertThat(e.getMessage(), containsString(FooIVFQuery.class.getName()));
+    }
+
     /** The delegate flag changes results, so it must take part in equality. */
     public void testPostFilterDelegateFlagParticipatesInEquality() {
         IVFKnnFloatVectorQuery original = floatPlain();
@@ -424,5 +439,41 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
             }
         }
         return subtypes;
+    }
+
+    /**
+     * A concrete {@link AbstractIVFKnnVectorQuery} with no {@link IVFKnnQueryFactory} switch arm - a stand-in for a
+     * subtype added without wiring up reconstruction. Search methods are stubbed; these tests only drive cloneWithParams.
+     */
+    private static class FooIVFQuery extends AbstractIVFKnnVectorQuery {
+        FooIVFQuery() {
+            super(FIELD, VISIT_RATIO, K, NUM_CANDS, filter(), RESOLVER);
+        }
+
+        @Override
+        public int countTotalVectors(List<LeafReaderContext> leaves) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        TopDocs getLeafResults(
+            LeafReaderContext ctx,
+            Weight filterWeight,
+            AbstractIVFKnnVectorQuery.IVFCollectorManager knnCollectorManager,
+            float visitRatio,
+            boolean usePrecondition
+        ) {
+            return NO_RESULTS;
+        }
+
+        @Override
+        Query getAutoRescoreQuery(IndexSearcher indexSearcher, Query approxTopN, int finalK, int rescoreK) {
+            return null;
+        }
+
+        @Override
+        public String toString(String field) {
+            return "UnknownIVFQuery";
+        }
     }
 }

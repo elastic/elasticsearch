@@ -170,6 +170,16 @@ public class CsvColumnarIT extends CsvIT {
         "unmapped_array_data",
         "unmapped_object_data",
         "synthetic_source_partial_mapping",
+        // unmapped_source_* family: dynamic:false with only id mapped; everything else lives in
+        // _source / _ignored_source, which strict columnar drops at ingest. unmapped_source_disabled
+        // additionally sets _source: {enabled: false}, which columnar index modes do not permit at all.
+        "unmapped_source_stored",
+        "unmapped_source_synthetic",
+        "unmapped_source_synth_keep_arrays",
+        "unmapped_source_disabled",
+        "unmapped_source_excludes",
+        "unmapped_source_includes",
+        "unmapped_source_subobjects_false",
         // no_mapping_sample_data has no explicit mapping; all its fields are unmapped. When
         // combined with other indices in a multi-index query and LOAD is used to load the
         // unmapped fields, columnar mode returns null for them (synthetic _source cannot

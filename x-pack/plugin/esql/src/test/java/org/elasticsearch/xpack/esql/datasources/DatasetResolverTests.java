@@ -47,9 +47,9 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Covers {@link DatasetResolver#replaceDatasets}: the local read-authorization dispatch and rewrite of {@code FROM <dataset>}.
- * Cross-project remote-dataset detection no longer lives here — it rides the field-caps remote-detect rail (see
- * {@code EsqlResolveFieldsAction} + {@code RemoteDatasetNotSupportedException}); this resolver only performs the local rewrite
- * and, under CPS, preserves a wildcard sibling so the remote half reaches field-caps (exercised in {@code DatasetRewriterTests}).
+ * A dataset on another cluster is invisible rather than detected (see {@code EsqlResolveFieldsAction}); this resolver
+ * only performs the local rewrite and, under CPS, preserves a wildcard sibling so the remote half reaches field-caps
+ * (exercised in {@code DatasetRewriterTests}), which is how a remote index of the same name still federates in.
  */
 public class DatasetResolverTests extends ESTestCase {
 

@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.vector.quantization;
 
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
+import org.elasticsearch.benchmark.vector.VectorizationInfo;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
@@ -40,6 +41,7 @@ public class MatrixMultiplyBenchmark {
 
     static {
         BenchmarkLogging.configure();
+        VectorizationInfo.printOnce();
     }
 
     @Param({ "SCALAR", "PANAMA" })

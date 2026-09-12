@@ -34,6 +34,7 @@ import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -2473,6 +2474,97 @@ public class BatchBulkIT extends ESIntegTestCase {
             for (int i = 0; i < numDocs; i++) {
                 assertThat("name mismatch at doc " + i, hits[i].getSourceAsMap().get("name"), equalTo("name-" + i));
             }
+        });
+    }
+
+    /**
+     * Verifies that documents with empty-object fields left by an ingest pipeline do not disable batch indexing.
+     * The ShardBatchMapper must not emit "batch indexing disabled: unmapped leaf [{}] under dynamic=TRUE parent"
+     * for columns where every present row is an empty object.
+     */
+    public void testEmptyObjectColumnDoesNotDisableBatchIndexing() throws IOException {
+        final String index = "test-batch-empty-object-column";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = randomIntBetween(10, 30);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            // "pipeline_artifact" simulates a field left empty by an ingest pipeline.
+            bulkRequest.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .source("{\"host\":\"srv-" + i + "\",\"pipeline_artifact\":{}}", XContentType.JSON)
+                    .opType(DocWriteRequest.OpType.CREATE)
+            );
+        }
+
+        final Logger mapperLogger = LogManager.getLogger(ShardBatchMapper.class);
+        final Logger indexerLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origMapperLevel = mapperLogger.getLevel();
+        final Level origIndexerLevel = indexerLogger.getLevel();
+        Loggers.setLevel(mapperLogger, Level.DEBUG);
+        Loggers.setLevel(indexerLogger, Level.TRACE);
+        try (var mapperLog = MockLog.capture(ShardBatchMapper.class); var indexerLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mapperLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no empty-object disable",
+                    ShardBatchMapper.class.getName(),
+                    Level.DEBUG,
+                    "batch indexing disabled"
+                )
+            );
+            indexerLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+            mapperLog.assertAllExpectationsMatched();
+            indexerLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(mapperLogger, origMapperLevel);
+            Loggers.setLevel(indexerLogger, origIndexerLevel);
+        }
+
+        refresh(index);
+
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
         });
     }
 

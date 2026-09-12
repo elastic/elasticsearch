@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -1263,16 +1262,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             return false;
         }
         if (twoPhase != null) {
-            long startNanos = System.nanoTime();
-            long startCpuNanos = ThreadCpuTimer.currentNanos();
-            try {
-                drainEmptyTwoPhaseBatches();
-            } finally {
-                if (startCpuNanos >= 0) {
-                    counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
-                }
-                counters.addTotalReadNanos(System.nanoTime() - startNanos);
-            }
+            drainEmptyTwoPhaseBatches();
             if (twoPhase != null && twoPhase.hasMoreBatches() == false) {
                 rowsRemainingInGroup = 0;
             }
@@ -1322,160 +1312,151 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * the row group after that.
      */
     private boolean advanceRowGroup() throws IOException {
-        long startNanos = System.nanoTime();
-        long startCpuNanos = ThreadCpuTimer.currentNanos();
-        try {
-            closeTwoPhaseState();
-            if (rowGroup != null) {
-                rowsBeforeCurrentGroup += currentGroupRowsForBudget;
-                currentGroupRowsForBudget = 0;
-                rowGroup.close();
-                rowGroup = null;
+        closeTwoPhaseState();
+        if (rowGroup != null) {
+            rowsBeforeCurrentGroup += currentGroupRowsForBudget;
+            currentGroupRowsForBudget = 0;
+            rowGroup.close();
+            rowGroup = null;
+        }
+
+        // Loop is for the two-phase "all rows filtered out" case, where the current row group
+        // contributes zero rows and we must immediately attempt the next surviving ordinal.
+        // Single-phase always returns within the first iteration via the standard return below.
+        // No cache wipe needed here: dictionaryBitmapsForCurrentRowGroup() self-invalidates on
+        // a row-group ordinal mismatch, so any retry through this loop with a different
+        // rowGroupOrdinal will see a fresh map at the next evaluateFilter call.
+        while (true) {
+            int nextOrdinal = nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1);
+            if (nextOrdinal >= reader.getRowGroups().size()) {
+                exhausted = true;
+                releaseHeldIo();
+                logIteratorDiagnostics();
+                return false;
             }
+            rowGroupOrdinal = nextOrdinal;
+            pageBatchIndexInRowGroup = 0;
 
-            // Loop is for the two-phase "all rows filtered out" case, where the current row group
-            // contributes zero rows and we must immediately attempt the next surviving ordinal.
-            // Single-phase always returns within the first iteration via the standard return below.
-            // No cache wipe needed here: dictionaryBitmapsForCurrentRowGroup() self-invalidates on
-            // a row-group ordinal mismatch, so any retry through this loop with a different
-            // rowGroupOrdinal will see a fresh map at the next evaluateFilter call.
-            while (true) {
-                int nextOrdinal = nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1);
-                if (nextOrdinal >= reader.getRowGroups().size()) {
-                    exhausted = true;
-                    releaseHeldIo();
-                    logIteratorDiagnostics();
-                    return false;
+            BlockMetaData block = reader.getRowGroups().get(rowGroupOrdinal);
+            if (rowGroupDominatedByThreshold(block)) {
+                continue;
+            }
+            // Per-row-group trivially-passes check: when stats prove every row matches the
+            // filter, the late-materialization machinery (decode predicate columns → evaluate
+            // filter → compact survivors) is pure overhead. Switching to the standard path
+            // eliminates filter evaluation. Note: when the trivially-passes case applies we
+            // also force the single-phase code path even if useTwoPhase is enabled, since
+            // there are no survivors-only pages to skip in Phase 2.
+            currentRowGroupTriviallyPasses = triviallyPassesPredicate != null
+                && TriviallyPassesChecker.check(triviallyPassesPredicate, block);
+            if (currentRowGroupTriviallyPasses) {
+                rowGroupsWithTrivialFilter++;
+            }
+            try (PendingPrefetchSelection prefetch = takePendingPrefetch(rowGroupOrdinal)) {
+                NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = prefetch.chunks();
+                boolean syncFallback = chunks == null;
+                if (syncFallback == false) {
+                    // The expected result is usable, so skipped entries no longer need to be
+                    // held for a possible fallback barrier.
+                    prefetch.close();
+                } else if (useTwoPhase) {
+                    // Cancellation is not a release barrier: wait for all speculative reads and
+                    // release their results before reserving the synchronous fallback buffers.
+                    prefetch.drainForFallback(detachPendingPrefetches());
+                    ColumnChunkPrefetcher.PrefetchedChunks fetched = ColumnChunkPrefetcher.fetchSync(
+                        storageObjectForFallback(),
+                        block,
+                        predicateColumnPaths,
+                        breaker,
+                        formatReader.ioWatermark()
+                    );
+                    currentChunksReleasable = fetched.release();
+                    chunks = fetched.chunks();
                 }
-                rowGroupOrdinal = nextOrdinal;
-                pageBatchIndexInRowGroup = 0;
-
-                BlockMetaData block = reader.getRowGroups().get(rowGroupOrdinal);
-                if (rowGroupDominatedByThreshold(block)) {
-                    continue;
-                }
-                // Per-row-group trivially-passes check: when stats prove every row matches the
-                // filter, the late-materialization machinery (decode predicate columns → evaluate
-                // filter → compact survivors) is pure overhead. Switching to the standard path
-                // eliminates filter evaluation. Note: when the trivially-passes case applies we
-                // also force the single-phase code path even if useTwoPhase is enabled, since
-                // there are no survivors-only pages to skip in Phase 2.
-                currentRowGroupTriviallyPasses = triviallyPassesPredicate != null
-                    && TriviallyPassesChecker.check(triviallyPassesPredicate, block);
-                if (currentRowGroupTriviallyPasses) {
-                    rowGroupsWithTrivialFilter++;
-                }
-                try (PendingPrefetchSelection prefetch = takePendingPrefetch(rowGroupOrdinal)) {
-                    NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = prefetch.chunks();
-                    boolean syncFallback = chunks == null;
-                    if (syncFallback == false) {
-                        // The expected result is usable, so skipped entries no longer need to be
-                        // held for a possible fallback barrier.
-                        prefetch.close();
-                    } else if (useTwoPhase) {
-                        // Cancellation is not a release barrier: wait for all speculative reads and
-                        // release their results before reserving the synchronous fallback buffers.
-                        prefetch.drainForFallback(detachPendingPrefetches());
-                        ColumnChunkPrefetcher.PrefetchedChunks fetched = ColumnChunkPrefetcher.fetchSync(
-                            storageObjectForFallback(),
-                            block,
-                            predicateColumnPaths,
-                            breaker,
-                            formatReader.ioWatermark()
-                        );
-                        currentChunksReleasable = fetched.release();
-                        chunks = fetched.chunks();
-                    }
-                    if (useTwoPhase) {
-                        if (currentRowGroupTriviallyPasses) {
-                            // Phase-1 chunks contain only predicate columns; the trivially-passes path
-                            // bypasses late-mat entirely and decodes every projected column through
-                            // {@link #nextStandard}. Synchronously fetch the projection columns now so
-                            // the standard read path sees a complete row-group store.
-                            prepareTwoPhaseTriviallyPassesRowGroup(block, chunks);
-                            triggerNextRowGroupPrefetch();
-                            return rowsRemainingInGroup > 0;
-                        }
-                        // Two-phase decode: pre-decode predicate columns from chunks, accumulate the
-                        // global survivor mask, fetch projection columns for surviving pages only, and
-                        // emit per-batch results in nextTwoPhaseBatch. When all rows are filtered out
-                        // we drop the row group entirely and continue with the next survivor.
-                        boolean prepared = prepareTwoPhaseRowGroup(block, chunks);
-                        if (prepared == false) {
-                            // All rows filtered out; loop and try the next surviving row group.
-                            triggerNextRowGroupPrefetch();
-                            continue;
-                        }
+                if (useTwoPhase) {
+                    if (currentRowGroupTriviallyPasses) {
+                        // Phase-1 chunks contain only predicate columns; the trivially-passes path
+                        // bypasses late-mat entirely and decodes every projected column through
+                        // {@link #nextStandard}. Synchronously fetch the projection columns now so
+                        // the standard read path sees a complete row-group store.
+                        prepareTwoPhaseTriviallyPassesRowGroup(block, chunks);
                         triggerNextRowGroupPrefetch();
                         return rowsRemainingInGroup > 0;
                     }
-
-                    RowRanges currentRowRanges = resolveCurrentRowRanges(block);
-                    if (currentRowRanges != null && currentRowRanges.isEmpty()) {
-                        // Close before refilling: try-with-resources would otherwise keep skipped
-                        // reservations live while triggerNextRowGroupPrefetch allocates replacements.
-                        prefetch.close();
-                        releaseCurrentReservation();
+                    // Two-phase decode: pre-decode predicate columns from chunks, accumulate the
+                    // global survivor mask, fetch projection columns for surviving pages only, and
+                    // emit per-batch results in nextTwoPhaseBatch. When all rows are filtered out
+                    // we drop the row group entirely and continue with the next survivor.
+                    boolean prepared = prepareTwoPhaseRowGroup(block, chunks);
+                    if (prepared == false) {
+                        // All rows filtered out; loop and try the next surviving row group.
                         triggerNextRowGroupPrefetch();
                         continue;
                     }
-                    // When late materialization is active, skip ColumnIndex page filtering — late-mat
-                    // handles row-level filtering itself via the survivor mask. Applying both
-                    // ColumnIndex RowRanges AND late-mat evaluation causes double-filtering that
-                    // drops rows incorrectly. The trivially-passes case is handled the same way:
-                    // we already know all rows match, so leaving page filtering off is consistent and
-                    // safe (RowRanges would be all() anyway).
-                    RowRanges buildRowRanges = lateMaterialization ? null : currentRowRanges;
-                    if (buildRowRanges != null && canSynchronizeListRows(rowGroupOrdinal) == false) {
-                        buildRowRanges = null;
-                    }
-                    if (syncFallback) {
-                        // Delay the barrier until after the empty-range branch above. An empty
-                        // row group needs no fallback and later queued prefetches remain useful.
-                        prefetch.drainForFallback(detachPendingPrefetches());
-                        ColumnChunkPrefetcher.PrefetchedChunks fetched = ColumnChunkPrefetcher.fetchSync(
-                            storageObjectForFallback(),
-                            block,
-                            projectedColumnPaths,
-                            buildRowRanges,
-                            preloadedMetadata,
-                            rowGroupOrdinal,
-                            block.getRowCount(),
-                            breaker,
-                            formatReader.ioWatermark()
-                        );
-                        currentChunksReleasable = fetched.release();
-                        chunks = fetched.chunks();
-                    }
-                    rowGroup = PrefetchedRowGroupBuilder.build(
+                    triggerNextRowGroupPrefetch();
+                    return rowsRemainingInGroup > 0;
+                }
+
+                RowRanges currentRowRanges = resolveCurrentRowRanges(block);
+                if (currentRowRanges != null && currentRowRanges.isEmpty()) {
+                    // Close before refilling: try-with-resources would otherwise keep skipped
+                    // reservations live while triggerNextRowGroupPrefetch allocates replacements.
+                    prefetch.close();
+                    releaseCurrentReservation();
+                    triggerNextRowGroupPrefetch();
+                    continue;
+                }
+                // When late materialization is active, skip ColumnIndex page filtering — late-mat
+                // handles row-level filtering itself via the survivor mask. Applying both
+                // ColumnIndex RowRanges AND late-mat evaluation causes double-filtering that
+                // drops rows incorrectly. The trivially-passes case is handled the same way:
+                // we already know all rows match, so leaving page filtering off is consistent and
+                // safe (RowRanges would be all() anyway).
+                RowRanges buildRowRanges = lateMaterialization ? null : currentRowRanges;
+                if (buildRowRanges != null && canSynchronizeListRows(rowGroupOrdinal) == false) {
+                    buildRowRanges = null;
+                }
+                if (syncFallback) {
+                    // Delay the barrier until after the empty-range branch above. An empty
+                    // row group needs no fallback and later queued prefetches remain useful.
+                    prefetch.drainForFallback(detachPendingPrefetches());
+                    ColumnChunkPrefetcher.PrefetchedChunks fetched = ColumnChunkPrefetcher.fetchSync(
+                        storageObjectForFallback(),
                         block,
-                        rowGroupOrdinal,
-                        projectedSchema,
                         projectedColumnPaths,
                         buildRowRanges,
                         preloadedMetadata,
-                        chunks,
-                        codecFactory,
-                        breaker
+                        rowGroupOrdinal,
+                        block.getRowCount(),
+                        breaker,
+                        formatReader.ioWatermark()
                     );
-                    rowsRemainingInGroup = buildRowRanges != null ? buildRowRanges.selectedRowCount() : rowGroup.getRowCount();
-                    currentGroupRowsForBudget = rowsRemainingInGroup;
-                    triggerNextRowGroupPrefetch();
-                    initColumnReaders(buildRowRanges);
-                    if (rowsRemainingInGroup == 0 && validateListExhaustion) {
-                        validateListColumnsExhausted();
-                    }
-                    return rowsRemainingInGroup > 0;
-                } catch (Throwable e) {
-                    releaseCurrentReservation();
-                    throw e;
+                    currentChunksReleasable = fetched.release();
+                    chunks = fetched.chunks();
                 }
+                rowGroup = PrefetchedRowGroupBuilder.build(
+                    block,
+                    rowGroupOrdinal,
+                    projectedSchema,
+                    projectedColumnPaths,
+                    buildRowRanges,
+                    preloadedMetadata,
+                    chunks,
+                    codecFactory,
+                    breaker
+                );
+                rowsRemainingInGroup = buildRowRanges != null ? buildRowRanges.selectedRowCount() : rowGroup.getRowCount();
+                currentGroupRowsForBudget = rowsRemainingInGroup;
+                triggerNextRowGroupPrefetch();
+                initColumnReaders(buildRowRanges);
+                if (rowsRemainingInGroup == 0 && validateListExhaustion) {
+                    validateListColumnsExhausted();
+                }
+                return rowsRemainingInGroup > 0;
+            } catch (Throwable e) {
+                releaseCurrentReservation();
+                throw e;
             }
-        } finally {
-            if (startCpuNanos >= 0) {
-                counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
-            }
-            counters.addTotalReadNanos(System.nanoTime() - startNanos);
         }
     }
 
@@ -2531,60 +2512,51 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 throw new NoSuchElementException("Parquet iterator exhausted");
             }
         }
-        long startNanos = System.nanoTime();
-        long startCpuNanos = ThreadCpuTimer.currentNanos();
-        try {
-            if (twoPhase != null) {
-                // Captured before nextTwoPhaseBatch decrements rowsRemainingInGroup: the in-block index
-                // of the first source row this batch is about to emit. Same shape as the standard /
-                // late-mat paths, just computed in the two-phase branch where the source-row delta is
-                // queried from {@link TwoPhaseRowGroup#currentSourceRows} rather than {@link #batchSize}.
-                int firstRowOfBatchInRG = (int) (reader.getRowGroups().get(rowGroupOrdinal).getRowCount() - rowsRemainingInGroup);
-                return nextTwoPhaseBatch(firstRowOfBatchInRG);
-            }
-            int effectiveBatch = batchSize;
-            if (rowBudget != FormatReader.NO_LIMIT) {
-                effectiveBatch = Math.min(effectiveBatch, rowBudget);
-            }
-            int rowsToRead = (int) Math.min(effectiveBatch, rowsRemainingInGroup);
-            // Captured before the row counts are subtracted: the in-block index of the first row this
-            // batch is about to emit. The row-position injector uses it to compute file-global ids.
+        if (twoPhase != null) {
+            // Captured before nextTwoPhaseBatch decrements rowsRemainingInGroup: the in-block index
+            // of the first source row this batch is about to emit. Same shape as the standard /
+            // late-mat paths, just computed in the two-phase branch where the source-row delta is
+            // queried from {@link TwoPhaseRowGroup#currentSourceRows} rather than {@link #batchSize}.
             int firstRowOfBatchInRG = (int) (reader.getRowGroups().get(rowGroupOrdinal).getRowCount() - rowsRemainingInGroup);
+            return nextTwoPhaseBatch(firstRowOfBatchInRG);
+        }
+        int effectiveBatch = batchSize;
+        if (rowBudget != FormatReader.NO_LIMIT) {
+            effectiveBatch = Math.min(effectiveBatch, rowBudget);
+        }
+        int rowsToRead = (int) Math.min(effectiveBatch, rowsRemainingInGroup);
+        // Captured before the row counts are subtracted: the in-block index of the first row this
+        // batch is about to emit. The row-position injector uses it to compute file-global ids.
+        int firstRowOfBatchInRG = (int) (reader.getRowGroups().get(rowGroupOrdinal).getRowCount() - rowsRemainingInGroup);
 
-            boolean useLateMaterialization = lateMaterialization && currentRowGroupTriviallyPasses == false;
-            Page result = useLateMaterialization
-                ? nextWithLateMaterialization(rowsToRead, firstRowOfBatchInRG)
-                : nextStandard(rowsToRead, firstRowOfBatchInRG);
-            int droppedRows = useLateMaterialization == false && rowDropHelper != null ? rowDropHelper.failedCount() : 0;
+        boolean useLateMaterialization = lateMaterialization && currentRowGroupTriviallyPasses == false;
+        Page result = useLateMaterialization
+            ? nextWithLateMaterialization(rowsToRead, firstRowOfBatchInRG)
+            : nextStandard(rowsToRead, firstRowOfBatchInRG);
+        int droppedRows = useLateMaterialization == false && rowDropHelper != null ? rowDropHelper.failedCount() : 0;
+        try {
+            listCorruptionHandler.completeBatch(rowsToRead, droppedRows, droppedRows > 0 ? coercionWarnings() : null);
+        } catch (RuntimeException e) {
+            result.releaseBlocks();
+            throw e;
+        }
+
+        pageBatchIndexInRowGroup++;
+        rowsRemainingInGroup -= rowsToRead;
+        if (rowsRemainingInGroup == 0 && validateListExhaustion) {
             try {
-                listCorruptionHandler.completeBatch(rowsToRead, droppedRows, droppedRows > 0 ? coercionWarnings() : null);
+                validateListColumnsExhausted();
             } catch (RuntimeException e) {
                 result.releaseBlocks();
                 throw e;
             }
-
-            pageBatchIndexInRowGroup++;
-            rowsRemainingInGroup -= rowsToRead;
-            if (rowsRemainingInGroup == 0 && validateListExhaustion) {
-                try {
-                    validateListColumnsExhausted();
-                } catch (RuntimeException e) {
-                    result.releaseBlocks();
-                    throw e;
-                }
-            }
-            if (rowBudget != FormatReader.NO_LIMIT) {
-                // Decrement by emitted (post-drop) rows so that skip_row failures on the standard
-                // path don't eat from the LIMIT budget — the downstream sees only surviving rows.
-                rowBudget -= result.getPositionCount();
-            }
-            return result;
-        } finally {
-            if (startCpuNanos >= 0) {
-                counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
-            }
-            counters.addTotalReadNanos(System.nanoTime() - startNanos);
         }
+        if (rowBudget != FormatReader.NO_LIMIT) {
+            // Decrement by emitted (post-drop) rows so that skip_row failures on the standard
+            // path don't eat from the LIMIT budget — the downstream sees only surviving rows.
+            rowBudget -= result.getPositionCount();
+        }
+        return result;
     }
 
     /**

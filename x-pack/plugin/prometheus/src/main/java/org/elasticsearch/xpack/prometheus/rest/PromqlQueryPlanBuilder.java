@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryResponseListener.Q
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -133,12 +132,12 @@ class PromqlQueryPlanBuilder {
 
         // Wrap in TimeSeriesCollapse so PrometheusQueryResponseListener reads one MV row per series.
         // Bounds (start/end/stepMillis) are populated by the lowering rule from the PromqlCommand.
+        // Dimensions are derived from the child output at use time (TimeSeriesCollapse#dimensions()).
         TimeSeriesCollapse collapse = new TimeSeriesCollapse(
             Source.EMPTY,
             promqlCommand,
             promqlCommand.valueAttribute(),
-            promqlCommand.stepAttribute(),
-            new ArrayList<>(promqlPlan.output())
+            promqlCommand.stepAttribute()
         );
 
         // TO_LONG converts the collapsed MV step datetime column to epoch millis so the response listener reads Long values directly.

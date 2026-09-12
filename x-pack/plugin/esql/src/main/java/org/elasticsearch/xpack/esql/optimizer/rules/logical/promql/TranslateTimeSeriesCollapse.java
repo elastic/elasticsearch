@@ -17,14 +17,23 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import static org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse.isZeroLimit;
 
 /**
- * Populates a {@link TimeSeriesCollapse} that wraps a {@link PromqlCommand} with the dimensions and
- * bounds extracted from the inner PromqlCommand. The PromqlCommand itself stays in place as the
- * child and is translated to ESQL nodes by {@link TranslatePromqlToEsqlPlan} on a subsequent pass
- * in the same batch.
+ * Populates a {@link TimeSeriesCollapse} that wraps a {@link PromqlCommand} with the bounds
+ * extracted from the inner PromqlCommand. The PromqlCommand itself stays in place as the child and
+ * is translated to ESQL nodes by {@link TranslatePromqlToEsqlPlan} on a subsequent pass in the
+ * same batch.
  * <p>
- * {@link TimeSeriesCollapse} is only valid with a {@link PromqlCommand} child: parse rules enforce that
- * for ES|QL text, but callers that build plans by hand must stack collapse the same way or optimization
- * fails fast here instead of later with unresolved bounds.
+ * The bounds ({@code start}, {@code end}, {@code stepBucketSize}) are {@code null} at parse time
+ * and are copied from the {@link PromqlCommand} here rather than resolved independently to avoid
+ * divergence from the PROMQL evaluation. This is why the rule must run before
+ * {@link TranslatePromqlToEsqlPlan}: it requires the collapse's child to still be a
+ * {@link PromqlCommand} and throws otherwise.
+ * <p>
+ * The grouping columns ({@code dimensions}) are derived from the child's output at use time by
+ * {@link TimeSeriesCollapse#dimensions()} and are no longer copied here.
+ * <p>
+ * {@link TimeSeriesCollapse} is only valid with a {@link PromqlCommand} child: parse rules enforce
+ * that for ES|QL text, but callers that build plans by hand must stack the collapse the same way or
+ * optimization fails fast here instead of later with unresolved bounds.
  */
 public final class TranslateTimeSeriesCollapse extends AnalyzerRules.ParameterizedAnalyzerRule<TimeSeriesCollapse, AnalyzerContext> {
 
@@ -40,16 +49,13 @@ public final class TranslateTimeSeriesCollapse extends AnalyzerRules.Parameteriz
             return collapse.child();
         }
         if (collapse.child() instanceof PromqlCommand pc) {
-            // pc.promqlPlan().output() is the dimension list by construction: PromqlCommand.output() is
-            // [value, step] ++ promqlPlan.output(). ResolvePromqlFunctions has reshaped promqlPlan during
-            // analysis, so by the time this optimizer rule runs the output is representative.
             // Bounds expressions flow straight through; the Mapper folds them when building TimeSeriesCollapseExec.
+            // Dimensions are derived from the child output at use time (TimeSeriesCollapse#dimensions()).
             return new TimeSeriesCollapse(
                 collapse.source(),
                 pc,
                 collapse.value(),
                 collapse.step(),
-                pc.promqlPlan().output(),
                 pc.start(),
                 pc.end(),
                 pc.resolveTimeBucketSize()

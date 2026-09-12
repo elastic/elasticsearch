@@ -490,3 +490,5 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
   method: testPopulateCacheWithSharedSourceInputStreamFactory
   issue: https://github.com/elastic/elasticsearch/issues/159129
+- class: org.elasticsearch.repositories.s3.S3RepositoryThirdPartyTests
+  issue: https://github.com/elastic/elasticsearch/issues/159130

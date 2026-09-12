@@ -487,3 +487,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/158953
 - class: org.elasticsearch.repositories.s3.RepositoryS3MinioBasicCredentialsRestIT
   issue: https://github.com/elastic/elasticsearch/issues/159128
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
+  method: testPopulateCacheWithSharedSourceInputStreamFactory
+  issue: https://github.com/elastic/elasticsearch/issues/159129

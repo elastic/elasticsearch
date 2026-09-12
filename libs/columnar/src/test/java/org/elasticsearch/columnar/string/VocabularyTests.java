@@ -150,7 +150,7 @@ public class VocabularyTests extends ColumnarStringTestCase {
             escape[1] = (byte) ((i >> 8) & 0xff);
             values.add(new BytesRef(escape));
         }
-        // 1000 covered values × 5 bytes = 5000 covered bytes out of 55000 total (≈9%).
+        // 1000 covered values x 5 bytes = 5000 covered bytes out of 55000 total (~9%).
         // By value count the ratio is 50%, which would pass minCoverage=0.5 and accept the dictionary
         // even though 91% of column bytes are in the escape stream and gain nothing from it.
         final Vocabulary.Terms surveyed = survey(values, ROOMY);
@@ -195,8 +195,8 @@ public class VocabularyTests extends ColumnarStringTestCase {
             escape[1] = (byte) ((i >> 8) & 0xff);
             values.add(new BytesRef(escape));
         }
-        // By value count: 1000/2000 = 50% — same as the regression case.
-        // By bytes: 50000/55000 ≈ 91% — the dictionary is well worth keeping.
+        // By value count: 1000/2000 = 50%, same as the regression case.
+        // By bytes: 50000/55000 ~= 91%; the dictionary is well worth keeping.
         final Vocabulary.Terms surveyed = survey(values, ROOMY);
         assertNotNull(surveyed);
         assertEquals(5, surveyed.size());

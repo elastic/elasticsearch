@@ -115,3 +115,23 @@ id:long | langs:long
 10002   | 5
 10003   | 4
 ;
+
+// A blank cell on a DECLARED keyword column stays the empty string. This is the whole of what the declaration
+// buys here, and it is discriminating: the undeclared read of these same bytes nulls those 10 cells instead
+// (csv-nullability.csv-spec, filterInferredBlankKeywordIsNull). Declaring a column a string states that its
+// domain includes "", so a blank in it is a value; with no declaration there is nothing to say that, and a
+// blank must not become one merely because the column's OTHER rows happened to sample as strings.
+strictDeclaredKeywordKeepsBlankAsEmptyString
+required_capability: dataset_in_from_command
+required_capability: external_csv_blank_cell_null_unless_declared
+dataset: employees_declared_gender: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "gender": {"type": "keyword", "path": "gender"}}}}
+
+FROM employees_declared_gender
+| STATS count = COUNT(*) BY gender
+| SORT gender;
+
+count:long | gender:keyword
+10         | ""
+33         | "F"
+57         | "M"
+;

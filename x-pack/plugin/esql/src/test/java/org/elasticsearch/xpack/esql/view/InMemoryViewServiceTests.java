@@ -1299,7 +1299,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             InMemoryViewResolver customViewResolver = customViewService.getViewResolver();
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view2"), null, this::parse, future);
+                customViewResolver.replaceViews(query("FROM view2"), null, this::parse, false, future);
                 // FROM view2 should fail
                 Exception e = expectThrows(VerificationException.class, future::actionGet);
                 assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 1 has been exceeded"));
@@ -1307,7 +1307,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             // But FROM view1 should work
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view1"), null, this::parse, future);
+                customViewResolver.replaceViews(query("FROM view1"), null, this::parse, false, future);
                 // Run the same compaction (and ViewShadowRelation strip) the production pipeline does.
                 LogicalPlan rewritten = COMPACTION.apply(future.actionGet().plan());
                 assertThat(rewritten, matchesPlan(query("FROM emp")));
@@ -2396,7 +2396,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("v_b", "FROM emp2");
         LogicalPlan resolved = replaceViewsWithoutCompactionNonCps(query("FROM v_*"));
         // Non-CPS: the wildcard fully resolves into the matched view bodies; per-level merge folds
-        // them into one bare UnresolvedRelation. No shadows.
+        // both bare-UR view bodies into one merged UR. Since no request filter is present,
+        // viewBranchKeys is empty and the single-entry plan collapses to the merged UR directly
+        // (consistent with the pre-filter behavior).
         assertThat(resolved, instanceOf(UnresolvedRelation.class));
         UnresolvedRelation strict = (UnresolvedRelation) resolved;
         assertThat(List.of(strict.indexPattern().indexPattern().split(",")), containsInAnyOrder("emp1", "emp2"));
@@ -2559,19 +2561,17 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             .orElseThrow();
         assertThat(innerSubquery.child(), instanceOf(ViewUnionAll.class));
 
-        // Stage 2: preIndexResolution. The Subquery's child is a ViewUnionAll (not a NamedSubquery)
-        // so rewrite has nothing to unwrap; the outer UnionAll has [UR, Subquery] children with no
-        // direct NamedSubquery sibling, so it stays as a plain UnionAll. Shadows untouched.
+        // Stage 2: preIndexResolution. The rewrite now handles Subquery(ViewUnionAll) → ViewUnionAll,
+        // and then inlines the ViewUnionAll's entries into the parent UnionAll (converting it to a
+        // ViewUnionAll). The shadow is preserved in the inlined entries.
         LogicalPlan preIndicesResolved = ViewCompaction.preIndexResolution(resolved);
-        assertThat(preIndicesResolved, instanceOf(UnionAll.class));
-        assertThat(preIndicesResolved, not(instanceOf(ViewUnionAll.class)));
+        assertThat(preIndicesResolved, instanceOf(ViewUnionAll.class));
         assertThat(collectShadowNames(preIndicesResolved), contains("my_view"));
 
-        // Stage 3: postIndexResolution. Strip removes the shadow, collapsing the inner ViewUnionAll
-        // to its NamedSubquery child; the re-run rewrite then unwraps Subquery(NamedSubquery) and
-        // converts the outer UnionAll to ViewUnionAll; the unwrap step at the end strips the
-        // remaining NamedSubquery wrapper, leaving the bare view body alongside the sibling.
-        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved);
+        // Stage 3: postIndexResolution. Strip removes the shadow; the remaining view body and the
+        // sibling UR are left as two entries in the ViewUnionAll. The NamedSubquery wrapper around
+        // the view body is unwrapped, leaving the bare view body alongside the sibling.
+        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved, false);
         assertThat(postIndicesResolved, instanceOf(ViewUnionAll.class));
         assertThat(collectShadowNames(postIndicesResolved), empty());
         assertThat(
@@ -2618,7 +2618,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
         // Stage 3: postIndexResolution. Strip is a no-op (no shadows). The final NamedSubquery
         // unwrap leaves a clean ViewUnionAll over the resolved bodies.
-        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved);
+        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved, false);
         assertThat(postIndicesResolved, instanceOf(ViewUnionAll.class));
         assertThat(collectShadowNames(postIndicesResolved), empty());
         assertThat(
@@ -2655,7 +2655,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(collectShadowNames(preIndicesResolved), containsInAnyOrder("v_a", "v_b"));
 
         // Stage 3: postIndexResolution strips both shadows; the merged strict UR is the sole survivor.
-        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved);
+        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved, false);
         assertThat(collectShadowNames(postIndicesResolved), empty());
         assertThat(postIndicesResolved, matchesPlan(query("FROM emp1,emp2")));
     }
@@ -2681,7 +2681,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // Stage 2 + 3: both compaction phases see only a bare UR — nothing to compact.
         LogicalPlan preIndicesResolved = ViewCompaction.preIndexResolution(resolved);
         assertThat(preIndicesResolved, sameInstance(resolved));
-        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved);
+        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved, false);
         assertThat(postIndicesResolved, sameInstance(preIndicesResolved));
         assertThat(postIndicesResolved, matchesPlan(query("FROM emp1,emp2")));
     }
@@ -2713,7 +2713,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // Stage 3: postIndexResolution strips both shadows and flattens the nested structure. The
         // non-compactable Limits prevent UR-merging, so we end up with a single ViewUnionAll
         // whose children are the resolved view bodies.
-        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved);
+        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved, false);
         assertThat(collectShadowNames(postIndicesResolved), empty());
         assertFalse(
             "Expected no nested ViewUnionAll after postIndexResolution, got: " + postIndicesResolved,
@@ -2751,7 +2751,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
         // Stage 3: postIndexResolution unwraps the outer NamedSubquery and flattens the nested
         // ViewUnionAll. Strip is a no-op (no shadows). Final plan has no nested ViewUnionAlls.
-        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved);
+        LogicalPlan postIndicesResolved = ViewCompaction.postIndexResolution(preIndicesResolved, false);
         assertThat(collectShadowNames(postIndicesResolved), empty());
         assertFalse(
             "Expected no nested ViewUnionAll after postIndexResolution, got: " + postIndicesResolved,
@@ -2800,7 +2800,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private LogicalPlan replaceViewsWithoutCompaction(LogicalPlan plan, ViewResolver resolver) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        resolver.replaceViews(plan, null, this::parse, future);
+        resolver.replaceViews(plan, null, this::parse, false, future);
         return future.actionGet().plan();
     }
 

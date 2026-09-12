@@ -49,11 +49,6 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
         return new UnionAll(source(), subPlans, output);
     }
 
-    @Override
-    public UnionAll refreshOutput() {
-        return new UnionAll(source(), children(), refreshedOutput());
-    }
-
     /**
      * Override of {@link MergePlan#pruneEmptyBranches(Predicate)} that returns a {@link UnionAll}
      * (rather than letting the base implementation produce whatever {@link #replaceChildren}

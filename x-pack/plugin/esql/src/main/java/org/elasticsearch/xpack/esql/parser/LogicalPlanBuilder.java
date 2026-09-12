@@ -1500,7 +1500,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         boolean derivedFields = fields.isEmpty() || fields.getFirst() instanceof UnresolvedStar;
         List<Attribute> generatedFields = derivedFields ? List.of() : Highlight.generatedAttributesFor(source, prefix, fields);
         return p -> applyHighlightOptions(
-            new Highlight(source, p, prefix, query, false, derivedFields, fields, null, generatedFields),
+            // NOT_DERIVED at parse time. ResolveHighlight sets DERIVED_FROM_WHERE if it synthesizes the analyzer from WHERE.
+            new Highlight(
+                source,
+                p,
+                prefix,
+                query,
+                false,
+                derivedFields,
+                Highlight.AnalyzerProvenance.NOT_DERIVED,
+                fields,
+                null,
+                generatedFields
+            ),
             ctx.commandNamedParameters()
         );
     }

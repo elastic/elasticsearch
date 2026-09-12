@@ -43,6 +43,8 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
             randomQuery(),
             implicitQuery,
             derivedFields,
+            // Analyzer provenance is analysis-only, not serialized, and excluded from equals, so this stays fixed.
+            Highlight.AnalyzerProvenance.NOT_DERIVED,
             fields,
             randomNonNullOptions(),
             generatedFor(prefix, fields)
@@ -75,6 +77,7 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
             query,
             implicitQuery,
             derivedFields,
+            instance.analyzerProvenance(),
             fields,
             options,
             generatedFor(prefix, fields)
@@ -119,6 +122,7 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
             Literal.keyword(Source.EMPTY, randomIdentifier()),
             implicitQuery,
             derivedFields,
+            Highlight.AnalyzerProvenance.NOT_DERIVED,
             fields,
             null,
             generatedFor(prefix, fields)

@@ -9,15 +9,21 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Fills implicit HIGHLIGHT query and ON fields during analysis so generated columns exist for later KEEP. This has to
@@ -43,10 +49,25 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
 
         Expression query = highlight.query();
         boolean implicit = highlight.implicitQuery();
+        Highlight.AnalyzerProvenance analyzerProvenance = highlight.analyzerProvenance();
+        MapExpression options = highlight.options();
+        String derivedAnalyzer = null;
         if (query == null) {
-            query = HighlightSupport.collectImplicitQuery(highlight.child(), highlight.source()).query();
+            HighlightSupport.ImplicitQuery borrowed = HighlightSupport.collectImplicitQuery(highlight.child(), highlight.source());
+            query = borrowed.query();
             implicit = query != null;
+            derivedAnalyzer = borrowed.analyzerName();
+        } else if (implicit == false) {
+            // Implicit queries already synthesized an analyzer on the pass that derived them.
+            derivedAnalyzer = HighlightSupport.uniformAnalyzerOf(query);
         }
+        MapExpression withAnalyzer = withDerivedAnalyzer(highlight.source(), options, derivedAnalyzer);
+        // withDerivedAnalyzer returns the same instance when it adds nothing because the user already set one.
+        // A new instance means we synthesized the analyzer from WHERE. Track that so verification uses the right error.
+        if (withAnalyzer != options) {
+            analyzerProvenance = Highlight.AnalyzerProvenance.DERIVED_FROM_WHERE;
+        }
+        options = withAnalyzer;
 
         List<NamedExpression> fields = highlight.fields();
         List<Attribute> generated = highlight.generatedAttributes();
@@ -88,9 +109,32 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
             }
         }
 
-        if (query == highlight.query() && fields == highlight.fields()) {
+        if (query == highlight.query()
+            && fields == highlight.fields()
+            && Objects.equals(options, highlight.options())
+            && analyzerProvenance == highlight.analyzerProvenance()) {
             return highlight;
         }
-        return highlight.withResolved(query, implicit, fields, generated);
+        return highlight.withResolved(query, implicit, analyzerProvenance, fields, generated, options);
+    }
+
+    /**
+     * Adds a derived analyzer unless the user already set one. Returns {@code options} unchanged when there is
+     * nothing to add, so the caller's convergence check sees no change.
+     */
+    private static MapExpression withDerivedAnalyzer(Source source, MapExpression options, String derivedAnalyzer) {
+        if (derivedAnalyzer == null || (options != null && options.containsKey(Highlight.ANALYZER))) {
+            return options;
+        }
+        List<Expression> entries = new ArrayList<>();
+        if (options != null) {
+            for (EntryExpression entry : options.entryExpressions()) {
+                entries.add(entry.key());
+                entries.add(entry.value());
+            }
+        }
+        entries.add(Literal.keyword(source, Highlight.ANALYZER));
+        entries.add(Literal.keyword(source, derivedAnalyzer));
+        return new MapExpression(source, entries);
     }
 }

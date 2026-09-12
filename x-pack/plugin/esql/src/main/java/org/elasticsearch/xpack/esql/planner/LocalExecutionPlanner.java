@@ -93,6 +93,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -165,6 +166,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
@@ -1609,8 +1611,8 @@ public class LocalExecutionPlanner {
         );
     }
 
-    // TODO: when highlighting can run directly against shard data, use real index offsets and per-field analyzers
-    // instead of re-analyzing each row in a MemoryIndex.
+    // TODO: when highlighting can run directly against shard data, use real index offsets and per-field mapped
+    // analyzers instead of re-analyzing each row in a MemoryIndex.
     private PhysicalOperation planHighlight(HighlightExec highlight, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(highlight.child(), context);
 
@@ -1623,12 +1625,13 @@ public class LocalExecutionPlanner {
         List<String> fieldNames = highlight.fields().stream().map(NamedExpression::name).toList();
         String analyzerName = options.analyzerName();
 
+        Map<String, String> fieldAnalyzerNames = HighlightSupport.fieldAnalyzers(queryExpr, analyzerName, fieldNames);
         HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
             queryExpr,
-            fieldNames,
-            analyzerName,
+            fieldAnalyzerNames,
             context.analysisRegistry()
         );
+        List<NamedAnalyzer> fieldAnalyzers = fieldNames.stream().map(translated.fieldAnalyzers()::get).toList();
         HighlightConfig config = new HighlightConfig(
             translated.queryText(),
             options.preTag(),
@@ -1642,8 +1645,8 @@ public class LocalExecutionPlanner {
             HighlightOptions.ORDER_SCORE.equals(options.order()),
             analyzerName,
             options.maxAnalyzedOffset()
-            // The query and MemoryIndex must use the same analyzer.
-        ).withExecutionContext(translated.analyzer(), translated.query(), fieldNames);
+            // The query and MemoryIndex must use the same per-field analyzers.
+        ).withExecutionContext(fieldAnalyzers, translated.query(), fieldNames);
 
         List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()
             .stream()

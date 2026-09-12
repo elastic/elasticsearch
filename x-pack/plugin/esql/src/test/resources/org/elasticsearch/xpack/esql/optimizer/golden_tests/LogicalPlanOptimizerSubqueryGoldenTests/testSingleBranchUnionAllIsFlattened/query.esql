@@ -1,0 +1,2 @@
+FROM employees, (FROM languages)
+| WHERE emp_no > 10000

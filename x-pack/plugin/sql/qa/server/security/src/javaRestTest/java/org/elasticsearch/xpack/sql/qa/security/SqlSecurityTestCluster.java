@@ -56,8 +56,8 @@ public final class SqlSecurityTestCluster {
             if ("file".equals(keystoreUrl.getProtocol())) {
                 return PathUtils.get(keystoreUrl.toURI()).toAbsolutePath().toString();
             }
-            // The shared test classes are loaded from a JAR, so the resource may not
-            // be a filesystem path. REST/JDBC/CLI clients need a real file.
+            // The resource may be loaded from a JAR rather than a filesystem path.
+            // REST/JDBC/CLI clients need a real file, so copy it out.
             Path keyStore = Files.createTempFile("test-node", ".jks");
             keyStore.toFile().deleteOnExit();
             try (InputStream in = keystoreUrl.openStream()) {

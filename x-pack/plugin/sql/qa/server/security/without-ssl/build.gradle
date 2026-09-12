@@ -1,4 +1,0 @@
-tasks.named("javaRestTest").configure {
-  usesDefaultDistribution("SQL Security tests require security module")
-  systemProperty 'tests.ssl.enabled', 'false'
-}

@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
+import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.RerankRequestChunker;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
@@ -134,6 +135,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.assertArg;
@@ -1582,6 +1584,27 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         }
     }
 
+    public void testChunkInfer_SeparatorRegexReadLimitFailsTheListener() throws IOException {
+        var model = new MultilingualE5SmallModel(
+            "foo",
+            TaskType.TEXT_EMBEDDING,
+            "e5",
+            new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform", null),
+            new RecursiveChunkingSettings(10, List.of("(a+)+b"))
+        );
+        // (a+)+b has to backtrack over every partition of a run of 'a's before it can reject a run that is not followed by a 'b'
+        var input = new ChunkInferenceInput(("a".repeat(20) + " ").repeat(11));
+
+        try (var service = createService(mock(Client.class))) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            // the chunker throws while the batches are built, the failure must reach the listener rather than the caller
+            service.chunkedInfer(model, List.of(input), Map.of(), InputType.SEARCH, null, listener);
+
+            var exception = expectThrows(IllegalArgumentException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(exception.getMessage(), startsWith("Chunk separator regex [(a+)+b] has exceeded the character read limit"));
+        }
+    }
+
     public void testParsePersistedConfig_Rerank() {
         // with task settings
         {
@@ -2508,7 +2531,8 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             Set.of(
                 MachineLearningField.MAX_LAZY_ML_NODES,
                 MachineLearningField.MODEL_PLATFORM_ARCHITECTURES,
-                InferencePlugin.INFERENCE_QUERY_TIMEOUT
+                InferencePlugin.INFERENCE_QUERY_TIMEOUT,
+                RecursiveChunkingSettings.REGEX_READ_LIMIT_FACTOR_SETTING
             )
         );
         when(cs.getClusterSettings()).thenReturn(cSettings);

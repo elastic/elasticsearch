@@ -1,0 +1,6 @@
+area: Indices APIs
+issues:
+ - 154337
+pr: 155064
+summary: Avoid waiting for allocation reroute when creating an index with `wait_for_active_shards=NONE`
+type: bug

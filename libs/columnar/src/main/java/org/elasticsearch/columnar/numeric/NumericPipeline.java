@@ -38,9 +38,29 @@ public final class NumericPipeline {
     /** The default chain: delta, offset, GCD, then FOR bit-packing. */
     public static NumericPipeline defaultPipeline(int blockSize) {
         return new NumericPipeline(
-            // Transforms are stateless, so the shared singletons are reused; the terminal owns scratch
-            // buffers and must stay per-pipeline.
             new BlockTransform[] { DeltaTransform.INSTANCE, OffsetTransform.INSTANCE, GcdTransform.INSTANCE },
+            new ForTerminal(blockSize),
+            blockSize
+        );
+    }
+
+    /**
+     * Pipeline for a dictionary column's ordinals: the standard chain with {@link RunTransform} and
+     * {@link PatchedTransform} around it. An ordinal stream has both the shapes those stages look for,
+     * which a field's own values do not, and a field would pay to look for them on every block it decodes.
+     *
+     * <p>Run comes first, since a run is a property of the values as they arrive and delta would leave
+     * nothing of it; Patched comes last, so it narrows what the terminal is about to pack. Stateless
+     * transforms are shared singletons; the terminal, Run and Patched own scratch and stay per-pipeline.
+     */
+    public static NumericPipeline ordinalPipeline(int blockSize) {
+        return new NumericPipeline(
+            new BlockTransform[] {
+                new RunTransform(blockSize),
+                DeltaTransform.INSTANCE,
+                OffsetTransform.INSTANCE,
+                GcdTransform.INSTANCE,
+                new PatchedTransform() },
             new ForTerminal(blockSize),
             blockSize
         );
@@ -139,6 +159,8 @@ public final class NumericPipeline {
                 case GcdTransform.ID -> GcdTransform.INSTANCE;
                 case SplitDeltaTransform.ID -> new SplitDeltaTransform();
                 case AlpDoubleTransform.ID -> new AlpDoubleTransform(blockSize);
+                case RunTransform.ID -> new RunTransform(blockSize);
+                case PatchedTransform.ID -> new PatchedTransform();
                 default -> throw new IllegalArgumentException("unknown block transform id [" + id + "]");
             };
         }

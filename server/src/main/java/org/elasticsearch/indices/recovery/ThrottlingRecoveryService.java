@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 
@@ -182,8 +183,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         }
         if (pendingRecovery == null) {
             if (serviceClosed) {
-                logger.debug("service is closed, aborting recovery: {}", recoveryState);
-                RecoveryListener.wrapPreservingContext(recoveryListener, context).onRecoveryAborted();
+                logger.debug("service is closed, aborting recovery: " + recoveryState);
+                RecoveryListener.wrapPreservingContext(recoveryListener, context)
+                    .onRecoveryFailure(new RecoveryFailedException(recoveryState, "service is closed", null), ABORT);
             } else {
                 logger.debug("recovery cancelled at enqueue time: {}", recoveryState);
                 final RecoverySource.Type recoveryType = recoveryState.getRecoverySource().getType();
@@ -328,8 +330,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             }
         }
         for (PendingRecovery pending : recoveriesToAbort) {
-            logger.trace("service closing, aborting recovery: {}", pending.recoveryState());
-            RecoveryListener.wrapPreservingContext(pending.listener, pending.context).onRecoveryAborted();
+            logger.trace("service closing, aborting recovery: " + pending.recoveryState());
+            RecoveryListener.wrapPreservingContext(pending.listener, pending.context)
+                .onRecoveryFailure(new RecoveryFailedException(pending.recoveryState(), "service closing", null), ABORT);
             schedulingListener.onQueuedRecoveryDiscardedOnTarget(
                 pending.recoveryState().getRecoverySource().getType(),
                 pending.priorityGroup()

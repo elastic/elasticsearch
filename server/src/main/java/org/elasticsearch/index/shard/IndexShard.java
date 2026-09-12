@@ -154,6 +154,7 @@ import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.recovery.FailureStrategy;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
@@ -2886,13 +2887,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     void recoverFromLocalShards(
         BiConsumer<MappingMetadata, ActionListener<Void>> mappingUpdateConsumer,
         List<IndexShard> localShards,
-        ActionListener<Boolean> listener
+        ActionListener<Void> listener
     ) throws IOException {
         assert shardRouting.primary() : "recover from local shards only makes sense if the shard is a primary shard";
         assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
             : "invalid recovery type: " + recoveryState.getRecoverySource();
         final List<LocalShardSnapshot> snapshots = new ArrayList<>();
-        final ActionListener<Boolean> recoveryListener = ActionListener.runBefore(listener, () -> IOUtils.close(snapshots));
+        final ActionListener<Void> recoveryListener = ActionListener.runBefore(listener, () -> IOUtils.close(snapshots));
         boolean success = false;
         try {
             for (IndexShard shard : localShards) {
@@ -2911,7 +2912,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public void recoverFromStore(ActionListener<Boolean> listener) {
+    public void recoverFromStore(ActionListener<Void> listener) {
         // we are the first primary, recover from the gateway
         // if its post api allocation, the index should exists
         assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
@@ -2920,7 +2921,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         storeRecovery.recoverFromStore(this, listener);
     }
 
-    public void restoreFromRepository(Repository repository, ActionListener<Boolean> listener) {
+    public void restoreFromRepository(Repository repository, ActionListener<Void> listener) {
         try {
             assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
@@ -3970,18 +3971,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         String reason,
         RecoveryState recoveryState,
         RecoveryListener recoveryListener,
-        CheckedConsumer<ActionListener<Boolean>, Exception> action
+        CheckedConsumer<ActionListener<Void>, Exception> action
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         markAsRecovering(reason); // mark the shard as recovering on the cluster state thread
-        ActionListener<Boolean> actionListener = ActionListener.wrap(recoveryDone -> {
-            if (recoveryDone) {
-                recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange());
-            } else {
-                recoveryListener.onRecoveryAborted();
-            }
-        }, e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), FAIL_SEND));
+        ActionListener<Void> actionListener = ActionListener.wrap(
+            ignored -> recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange()),
+            e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), failureStrategy(e))
+        );
         ActionListener.run(actionListener, action);
+    }
+
+    private FailureStrategy failureStrategy(Exception e) {
+        if (ExceptionsHelper.unwrap(e, IndexShardClosedException.class) != null) {
+            return FailureStrategy.ABORT;
+        }
+        return FAIL_SEND;
     }
 
     /**

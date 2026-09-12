@@ -68,6 +68,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 import static org.elasticsearch.indices.recovery.RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING;
@@ -157,11 +158,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId2.id()));
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                fail("recovery aborted");
             }
         };
 
@@ -678,14 +674,15 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(1));
 
         final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.ABORTED);
+        RecoveryState recoveryState = newRecoveryState(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY); // high priority
         service.enqueue(
             ProjectId.DEFAULT,
             listener1,
-            newRecoveryState(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY), // high priority
+            recoveryState,
             newIndexMetadata(),
             UUIDs.randomBase64UUID(),
             stats,
-            RecoveryListener::onRecoveryAborted
+            l -> l.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, null), ABORT)
         );
         final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
         service.enqueue(
@@ -1056,11 +1053,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 completed.incrementAndGet();
             }
-
-            @Override
-            public void onRecoveryAborted() {
-                completed.incrementAndGet();
-            }
         };
 
         for (int iteration = 0; iteration < 20; iteration++) {
@@ -1107,18 +1099,14 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                                 if (randomBoolean()) {
                                     schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
                                 } else {
-                                    if (randomBoolean()) {
-                                        schedulingListener.onRecoveryAborted();
-                                    } else {
-                                        schedulingListener.onRecoveryFailure(
-                                            new RecoveryFailedException(
-                                                recoveryState,
-                                                null,
-                                                new RuntimeException("test recovery task injected failure")
-                                            ),
-                                            FAIL_SILENT
-                                        );
-                                    }
+                                    schedulingListener.onRecoveryFailure(
+                                        new RecoveryFailedException(
+                                            recoveryState,
+                                            null,
+                                            new RuntimeException("test recovery task injected failure")
+                                        ),
+                                        randomBoolean() ? FAIL_SILENT : ABORT
+                                    );
                                 }
                             });
                         }
@@ -1182,13 +1170,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
-                runningOrPending.decrementAndGet();
-                tasksCompleted.incrementAndGet();
-                refCounted.decRef();
-            }
-
-            @Override
-            public void onRecoveryAborted() {
                 runningOrPending.decrementAndGet();
                 tasksCompleted.incrementAndGet();
                 refCounted.decRef();
@@ -1264,14 +1245,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             if (randomBoolean()) {
                 schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
             } else {
-                if (randomBoolean()) {
-                    schedulingListener.onRecoveryAborted();
-                } else {
-                    schedulingListener.onRecoveryFailure(
-                        new RecoveryFailedException(recoveryState, null, new RuntimeException("test recovery task injected failure")),
-                        randomBoolean() ? FAIL_SEND : FAIL_SILENT
-                    );
-                }
+                schedulingListener.onRecoveryFailure(
+                    new RecoveryFailedException(recoveryState, null, new RuntimeException("test recovery task injected failure")),
+                    randomFrom(FailureStrategy.values())
+                );
             }
         });
     }
@@ -1315,7 +1292,20 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
             assert super.isDone() == false;
             switch (expectedOutcome) {
-                case FAILED -> super.onResponse(null);
+                case FAILED -> {
+                    if (failureStrategy != ABORT) {
+                        super.onResponse(null);
+                    } else {
+                        fail(new AssertionError("unexpected recovery abortion, expected outcome: " + expectedOutcome, e));
+                    }
+                }
+                case ABORTED -> {
+                    if (failureStrategy == ABORT) {
+                        super.onResponse(null);
+                    } else {
+                        fail(new AssertionError("unexpected recovery failure, expected outcome: " + expectedOutcome, e));
+                    }
+                }
                 case CANCELLED_IN_QUEUE, CANCELLED_STARTED -> {
                     assert expectedOutcome == ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE || failureStrategy.notifyMaster()
                         : "should notify the master solely when cancelling started recoveries";
@@ -1324,20 +1314,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     }
                     super.onResponse(null);
                 }
-                case ABORTED, COMPLETED -> fail(
-                    new AssertionError("unexpected recovery cancellation, expected outcome: " + expectedOutcome, e)
-                );
-            }
-        }
-
-        @Override
-        public void onRecoveryAborted() {
-            assert super.isDone() == false;
-            switch (expectedOutcome) {
-                case ABORTED -> super.onResponse(null);
-                case COMPLETED, CANCELLED_IN_QUEUE, CANCELLED_STARTED, FAILED -> fail(
-                    "unexpected recovery abortion, expected outcome: " + expectedOutcome
-                );
+                case COMPLETED -> fail(new AssertionError("unexpected recovery cancellation, expected outcome: " + expectedOutcome, e));
             }
         }
 
@@ -1783,11 +1760,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 fail(e, "unexpected recovery failure");
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                fail("unexpected recovery abort");
             }
         };
     }

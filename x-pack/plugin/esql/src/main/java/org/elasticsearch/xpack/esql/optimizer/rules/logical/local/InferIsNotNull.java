@@ -15,10 +15,13 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -51,7 +54,13 @@ public class InferIsNotNull extends Rule<LogicalPlan, LogicalPlan> {
 
     private LogicalPlan inspectPlan(LogicalPlan plan, AttributeMap.Builder<Expression> aliasesBuilder) {
         plan.forEachExpression(Alias.class, a -> aliasesBuilder.put(a.toAttribute(), a.child()));
-        return plan.transformExpressionsOnlyUp(IsNotNull.class, inn -> inferNotNullable(inn, aliasesBuilder.build(), plan.inputSet()));
+        Set<IsNotNull> negatedIsNotNulls = Collections.newSetFromMap(new IdentityHashMap<>());
+        plan.forEachExpression(Not.class, not -> not.forEachDown(IsNotNull.class, negatedIsNotNulls::add));
+        AttributeMap<Expression> aliases = aliasesBuilder.build();
+        return plan.transformExpressionsOnlyUp(
+            IsNotNull.class,
+            inn -> negatedIsNotNulls.contains(inn) ? inn : inferNotNullable(inn, aliases, plan.inputSet())
+        );
     }
 
     private static Expression inferNotNullable(IsNotNull inn, AttributeMap<Expression> aliases, AttributeSet inputSet) {

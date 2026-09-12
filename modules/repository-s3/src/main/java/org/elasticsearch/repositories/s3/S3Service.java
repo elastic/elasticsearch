@@ -197,7 +197,7 @@ class S3Service extends AbstractLifecycleComponent {
             s3clientBuilder.forcePathStyle(true);
         }
 
-        final var clientRegion = getClientRegion(clientSettings);
+        final var clientRegion = getClientRegion(clientSettings, LOG_ON_DEPRECATED_LENIENCY);
         if (clientRegion == null) {
             // If no region or endpoint is specified then (for BwC with SDKv1) default to us-east-1 and enable cross-region access:
             s3clientBuilder.region(Region.US_EAST_1);
@@ -206,26 +206,9 @@ class S3Service extends AbstractLifecycleComponent {
             s3clientBuilder.region(clientRegion);
         }
 
-        if (Strings.hasLength(clientSettings.endpoint)) {
-            String endpoint = clientSettings.endpoint;
-            if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
-                // The SDK does not know how to interpret endpoints without a scheme prefix and will error. Therefore, when the scheme is
-                // absent, we'll look at the deprecated .protocol setting
-                // See https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/client-configuration.html#client-config-other-diffs
-                endpoint = switch (clientSettings.protocol) {
-                    case HTTP -> "http://" + endpoint;
-                    case HTTPS -> "https://" + endpoint;
-                };
-                LOGGER.warn(
-                    """
-                        found S3 client with endpoint [{}] that is missing a scheme, guessing it should be [{}]; \
-                        to suppress this warning, add a scheme prefix to the [{}] setting on this node""",
-                    clientSettings.endpoint,
-                    endpoint,
-                    S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
-                );
-            }
-            s3clientBuilder.endpointOverride(URI.create(endpoint));
+        final var endpoint = getClientEndpoint(clientSettings, LOG_ON_DEPRECATED_LENIENCY);
+        if (endpoint != null) {
+            s3clientBuilder.endpointOverride(endpoint);
         }
 
         if (clientSettings.alwaysSignRequests) {
@@ -236,7 +219,7 @@ class S3Service extends AbstractLifecycleComponent {
     }
 
     @Nullable // if the region is wholly unknown (falls back to us-east-1 and enables cross-region access)
-    Region getClientRegion(S3ClientSettings clientSettings) {
+    Region getClientRegion(S3ClientSettings clientSettings, S3DeprecatedLeniencyHandler deprecatedLeniencyHandler) {
         if (Strings.hasLength(clientSettings.region)) {
             return Region.of(clientSettings.region);
         }
@@ -245,20 +228,14 @@ class S3Service extends AbstractLifecycleComponent {
         if (hasEndpoint) {
             final var guessedRegion = RegionFromEndpointGuesser.guessRegion(clientSettings.endpoint);
             if (guessedRegion != null) {
-                LOGGER.warn(
-                    """
-                        found S3 client with endpoint [{}] but no configured region, guessing it should use [{}]; \
-                        to suppress this warning, configure the [{}] setting on this node""",
-                    clientSettings.endpoint,
-                    guessedRegion,
-                    S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
-                );
+                deprecatedLeniencyHandler.regionGuessedFromEndpoint(clientSettings.endpoint, guessedRegion);
                 return Region.of(guessedRegion);
             }
             endpointDescription = "configured endpoint [" + clientSettings.endpoint + "]";
         } else {
             endpointDescription = "no configured endpoint";
         }
+
         final var defaultRegion = defaultRegionHolder.getDefaultRegion();
         if (defaultRegion != null) {
             LOGGER.debug("""
@@ -266,18 +243,88 @@ class S3Service extends AbstractLifecycleComponent {
             return defaultRegion;
         }
 
-        LOGGER.warn(
-            """
-                found S3 client with no configured region and {}, falling back to [{}]{}; \
-                to suppress this warning, configure the [{}] setting on this node""",
-            endpointDescription,
-            Region.US_EAST_1,
-            hasEndpoint ? "" : " and enabling cross-region access",
-            S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
-        );
-
-        return hasEndpoint ? Region.US_EAST_1 : null;
+        if (hasEndpoint) {
+            // hasEndpoint implies we shouldn't use cross-region access to determine the endpoint; in this case SDKv1 would have chosen
+            // `us-east-1`, so that's all we can try here:
+            deprecatedLeniencyHandler.regionGuessedAsUsEast1(endpointDescription);
+            return Region.US_EAST_1;
+        } else {
+            // no endpoint or region means we're completely in the dark; our only remaining option is to enable cross-region access and
+            // ask the `us-east-1` endpoint for the location of the target bucket:
+            deprecatedLeniencyHandler.regionFellBackToCrossRegionAccess(endpointDescription);
+            return null;
+        }
     }
+
+    @Nullable // if the SDK default endpoint should be used
+    URI getClientEndpoint(S3ClientSettings clientSettings, S3DeprecatedLeniencyHandler deprecatedLeniencyHandler) {
+        if (Strings.hasLength(clientSettings.endpoint)) {
+            String endpoint = clientSettings.endpoint;
+            if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
+                // The SDK does not know how to interpret endpoints without a scheme prefix and will error. Therefore, when the scheme is
+                // absent, we'll look at the deprecated .protocol setting
+                // See https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/client-configuration.html#client-config-other-diffs
+                endpoint = switch (clientSettings.protocol) {
+                    case HTTP -> "http://" + endpoint;
+                    case HTTPS -> "https://" + endpoint;
+                };
+                deprecatedLeniencyHandler.missingEndpointScheme(clientSettings.endpoint, endpoint);
+            }
+            return URI.create(endpoint);
+        } else {
+            return null;
+        }
+    }
+
+    static final S3DeprecatedLeniencyHandler LOG_ON_DEPRECATED_LENIENCY = new S3DeprecatedLeniencyHandler() {
+        @Override
+        public void missingEndpointScheme(String configuredEndpoint, String endpointOverride) {
+            LOGGER.warn(
+                """
+                    found S3 client with endpoint [{}] that is missing a scheme, guessing it should be [{}]; \
+                    to suppress this warning, add a scheme prefix to the [{}] setting on this node""",
+                configuredEndpoint,
+                endpointOverride,
+                S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
+            );
+        }
+
+        @Override
+        public void regionGuessedFromEndpoint(String configuredEndpoint, String guessedRegionId) {
+            LOGGER.warn(
+                """
+                    found S3 client with endpoint [{}] but no configured region, guessing it should use [{}]; \
+                    to suppress this warning, configure the [{}] setting on this node""",
+                configuredEndpoint,
+                guessedRegionId,
+                S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
+            );
+        }
+
+        @Override
+        public void regionGuessedAsUsEast1(String endpointDescription) {
+            LOGGER.warn(
+                """
+                    found S3 client with no configured region and {}, falling back to [{}]; \
+                    to suppress this warning, configure the [{}] setting on this node""",
+                endpointDescription,
+                Region.US_EAST_1,
+                S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
+            );
+        }
+
+        @Override
+        public void regionFellBackToCrossRegionAccess(String endpointDescription) {
+            LOGGER.warn(
+                """
+                    found S3 client with no configured region and {}, falling back to [{}] and enabling cross-region access; \
+                    to suppress this warning, configure the [{}] setting on this node""",
+                endpointDescription,
+                Region.US_EAST_1,
+                S3ClientSettings.REGION.getConcreteSettingForNamespace("CLIENT_NAME").getKey()
+            );
+        }
+    };
 
     @Nullable // in production, but exposed for tests to override
     DnsResolver getCustomDnsResolver() {

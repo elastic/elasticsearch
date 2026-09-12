@@ -504,7 +504,7 @@ public class S3StorageProvider implements StorageProvider {
             if (unavailable != null) {
                 throw unavailable;
             }
-            throw new IOException("Failed to check existence of " + path + ": " + S3FailureDetail.of(e) + credentialHint(), e);
+            throw new IOException("Failed to check existence of " + S3FailureDetail.redactPath(path) + ": " + S3FailureDetail.of(e) + credentialHint(), e);
         }
     }
 
@@ -523,7 +523,7 @@ public class S3StorageProvider implements StorageProvider {
             }
             throw new IOException(
                 "Failed to check existence of "
-                    + path
+                    + S3FailureDetail.redactPath(path)
                     + " (HEAD denied, range GET also failed): "
                     + S3FailureDetail.of(e)
                     + credentialHint(),
@@ -704,11 +704,11 @@ public class S3StorageProvider implements StorageProvider {
                     ? "Access denied listing objects in bucket ["
                         + bucket
                         + "] with prefix ["
-                        + prefix
+                        + S3FailureDetail.redactPrefix(prefix)
                         + "]. "
                         + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
                         + "or use exact file paths instead of glob patterns."
-                    : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
+                    : "Failed to list objects in bucket [" + bucket + "] with prefix [" + S3FailureDetail.redactPrefix(prefix) + "]";
                 throw new UncheckedIOException(new IOException(msg + ": " + S3FailureDetail.of(e), e));
             }
         }

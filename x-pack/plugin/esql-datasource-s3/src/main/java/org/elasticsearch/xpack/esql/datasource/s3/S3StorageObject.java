@@ -209,7 +209,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             // against an authenticated bucket with the same 403 -- so it names both remedies.
             return new IOException(
                 "Access denied reading ["
-                    + path
+                    + S3FailureDetail.redactPath(path)
                     + "] ("
                     + S3FailureDetail.of(denied)
                     + "). Verify the access_key and secret_key configured on the data source, "
@@ -218,24 +218,24 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             );
         }
         if (cause instanceof NoSuchKeyException) {
-            return new IOException("Object not found: " + path, cause);
+            return new IOException("Object not found: " + S3FailureDetail.redactPath(path), cause);
         }
         if (isClosedClient(cause)) {
             return new ExternalUnavailableException(
                 false,
                 cause,
                 "S3 client unavailable reading [{}]: {}",
-                path,
+                S3FailureDetail.redactPath(path),
                 S3FailureDetail.of(cause)
             );
         }
         if (isSdkClientTransportFailure(cause)) {
-            return new ExternalUnavailableException(false, cause, "S3 store unavailable reading [{}]: {}", path, S3FailureDetail.of(cause));
+            return new ExternalUnavailableException(false, cause, "S3 store unavailable reading [{}]: {}", S3FailureDetail.redactPath(path), S3FailureDetail.of(cause));
         }
         if (cause instanceof IllegalStateException ise) {
             return ise;
         }
-        return new IOException(context + " " + path + ": " + S3FailureDetail.of(cause), cause);
+        return new IOException(context + " " + S3FailureDetail.redactPath(path) + ": " + S3FailureDetail.of(cause), cause);
     }
 
     /**

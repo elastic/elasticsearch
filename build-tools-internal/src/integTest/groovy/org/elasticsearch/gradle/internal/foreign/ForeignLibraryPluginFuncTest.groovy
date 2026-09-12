@@ -84,16 +84,40 @@ class ForeignLibraryPluginFuncTest extends AbstractGradleInternalPluginFuncTest 
 
         // Consumer module: applies the plugin, annotates a class with @fake.Marker, and substitutes
         // the dummy processor for the plugin's default :libs:foreign-library:processor dep.
+        file('src/main/java/test/MainHelper.java') << """
+            package test;
+            public abstract class MainHelper {
+                public static String message() {
+                    return "helper";
+                }
+            }
+        """.stripIndent()
+
         file('src/main/java/test/Lib.java') << """
             package test;
             @fake.Marker
-            public class Lib {}
+            public class Lib extends MainHelper {}
         """.stripIndent()
 
         file('src/testFixtures/java/test/FixtureLib.java') << """
             package test;
             @fake.Marker
             public class FixtureLib {}
+        """.stripIndent()
+
+        file('src/test/java/test/TestHelper.java') << """
+            package test;
+            public class TestHelper {
+                public static String message() {
+                    return "helper";
+                }
+            }
+        """.stripIndent()
+
+        file('src/test/java/test/MarkedTest.java') << """
+            package test;
+            @fake.Marker
+            public class MarkedTest extends TestHelper {}
         """.stripIndent()
 
         buildFile << """
@@ -119,6 +143,7 @@ class ForeignLibraryPluginFuncTest extends AbstractGradleInternalPluginFuncTest 
             dependencies {
                 // compileOnly so the @Marker annotation (SOURCE retention) is visible during compile
                 compileOnly project(':fakeprocessor')
+                testCompileOnly project(':fakeprocessor')
                 testFixturesCompileOnly project(':fakeprocessor')
                 foreignLibraryProcessor project(':fakeprocessor')
             }
@@ -147,5 +172,29 @@ class ForeignLibraryPluginFuncTest extends AbstractGradleInternalPluginFuncTest 
         // Its own output dir, a sibling of main's rather than nested inside it.
         file("build/generated-foreign-library-classes-testFixtures/fake-marker.txt").text == "processor ran"
         file("build/generated-foreign-library-classes/fake-marker.txt").exists() == false
+    }
+
+    def "processForeignAnnotations reruns after a main source change"() {
+        when:
+        gradleRunner('compileJava', 'processForeignAnnotations').build()
+        // Trigger a processForeignAnnotations to re-run, by modifying a main source file
+        file('src/main/java/test/Lib.java').append('\n')
+        def result = gradleRunner('processForeignAnnotations').build()
+
+        then:
+        result.task(":processForeignAnnotations").outcome in [TaskOutcome.SUCCESS, TaskOutcome.FROM_CACHE]
+        file("build/generated-foreign-library-classes/fake-marker.txt").text == "processor ran"
+    }
+
+    def "processTestForeignAnnotations reruns after a test source change"() {
+        when:
+        gradleRunner('compileTestJava', 'processTestForeignAnnotations').build()
+        // Trigger a processForeignAnnotations to re-run, by modifying a test source file
+        file('src/test/java/test/MarkedTest.java').append('\n')
+        def result = gradleRunner('processTestForeignAnnotations').build()
+
+        then:
+        result.task(":processTestForeignAnnotations").outcome in [TaskOutcome.SUCCESS, TaskOutcome.FROM_CACHE]
+        file("build/generated-foreign-library-classes-test/fake-marker.txt").text == "processor ran"
     }
 }

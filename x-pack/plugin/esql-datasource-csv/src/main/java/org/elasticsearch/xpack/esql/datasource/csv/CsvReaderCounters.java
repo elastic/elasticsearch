@@ -21,8 +21,6 @@ public final class CsvReaderCounters {
     private final LongAdder rowsEmitted = new LongAdder();
     private final LongAdder parseErrors = new LongAdder();
     private volatile boolean headerDetected = false;
-    private final LongAdder totalReadNanos = new LongAdder();
-    private final LongAdder totalReadCpuNanos = new LongAdder();
 
     public CsvReaderCounters(String format) {
         this.format = format;
@@ -44,26 +42,7 @@ public final class CsvReaderCounters {
         headerDetected = true;
     }
 
-    public void addReadNanos(long nanos) {
-        if (nanos > 0) {
-            totalReadNanos.add(nanos);
-        }
-    }
-
-    public void addReadCpuNanos(long nanos) {
-        if (nanos > 0) {
-            totalReadCpuNanos.add(nanos);
-        }
-    }
-
     public CsvReaderStatus snapshot() {
-        return new CsvReaderStatus(
-            format,
-            rowsEmitted.sum(),
-            parseErrors.sum(),
-            headerDetected,
-            totalReadNanos.sum(),
-            totalReadCpuNanos.sum()
-        );
+        return new CsvReaderStatus(format, rowsEmitted.sum(), parseErrors.sum(), headerDetected);
     }
 }

@@ -49,7 +49,7 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
 
         Expression query = highlight.query();
         boolean implicit = highlight.implicitQuery();
-        boolean analyzerDerived = highlight.analyzerDerived();
+        Highlight.AnalyzerProvenance analyzerProvenance = highlight.analyzerProvenance();
         MapExpression options = highlight.options();
         String derivedAnalyzer = null;
         if (query == null) {
@@ -62,9 +62,11 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
             derivedAnalyzer = HighlightSupport.uniformAnalyzerOf(query);
         }
         MapExpression withAnalyzer = withDerivedAnalyzer(highlight.source(), options, derivedAnalyzer);
-        // withDerivedAnalyzer returns the same instance when it adds nothing (user already set one), so a new
-        // instance means we synthesized the analyzer from WHERE. Track that so verification frames its errors right.
-        analyzerDerived |= withAnalyzer != options;
+        // withDerivedAnalyzer returns the same instance when it adds nothing because the user already set one.
+        // A new instance means we synthesized the analyzer from WHERE. Track that so verification uses the right error.
+        if (withAnalyzer != options) {
+            analyzerProvenance = Highlight.AnalyzerProvenance.DERIVED_FROM_WHERE;
+        }
         options = withAnalyzer;
 
         List<NamedExpression> fields = highlight.fields();
@@ -110,10 +112,10 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
         if (query == highlight.query()
             && fields == highlight.fields()
             && Objects.equals(options, highlight.options())
-            && analyzerDerived == highlight.analyzerDerived()) {
+            && analyzerProvenance == highlight.analyzerProvenance()) {
             return highlight;
         }
-        return highlight.withResolved(query, implicit, analyzerDerived, fields, generated, options);
+        return highlight.withResolved(query, implicit, analyzerProvenance, fields, generated, options);
     }
 
     /**

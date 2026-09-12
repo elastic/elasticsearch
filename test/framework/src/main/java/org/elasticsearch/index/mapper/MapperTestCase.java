@@ -204,7 +204,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * Most field types expose no embeddings, so they must throw for every requested vector type. Field types that can produce
      * embeddings override this test.
      */
-    public void testEmbeddingsFieldAndFormat() throws IOException {
+    public void testEmbeddingsField() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertUnsupportedEmbeddings(fieldType, null);
@@ -219,7 +219,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * {@link MappedFieldType#unsupportedEmbeddings} builds.
      */
     protected static void assertUnsupportedEmbeddings(MappedFieldType fieldType, @Nullable VectorType vectorType) {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fieldType.embeddingsFieldAndFormat(vectorType));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fieldType.embeddingsField(vectorType));
         assertThat(
             e.getMessage(),
             equalTo(

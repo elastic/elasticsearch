@@ -53,8 +53,8 @@ public class SemanticTextFieldEmbeddingsFieldIT extends AbstractInferenceFieldEm
     }
 
     @Override
-    XContentBuilder generateMapping(Map<String, String> fieldNameToInferenceIdMap) throws IOException {
-        return IntegrationTestUtils.generateSemanticTextMapping(fieldNameToInferenceIdMap);
+    void addInferenceFieldsToMapping(XContentBuilder builder, Map<String, String> fieldNameToInferenceIdMap) throws IOException {
+        IntegrationTestUtils.addSemanticTextFieldsToMapping(builder, fieldNameToInferenceIdMap);
     }
 
     @Override

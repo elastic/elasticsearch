@@ -331,7 +331,11 @@ public class MetadataRolloverService {
             if (systemDataStreamDescriptor == null) {
                 throw new IllegalArgumentException("no system data stream descriptor found for data stream [" + dataStreamName + "]");
             }
-            templateV2 = systemDataStreamDescriptor.getComposableIndexTemplate();
+            // When the descriptor owns its template, use it directly. When it was registered without one (ownsTemplate() == false),
+            // fall back to the matching template in cluster state — typically applied by the owning plugin at its own startup.
+            templateV2 = systemDataStreamDescriptor.ownsTemplate()
+                ? systemDataStreamDescriptor.getComposableIndexTemplate()
+                : dataStream.getEffectiveIndexTemplate(projectState.metadata());
         }
 
         final DataStream.DataStreamIndices dataStreamIndices = dataStream.getDataStreamIndices(isFailureStoreRollover);

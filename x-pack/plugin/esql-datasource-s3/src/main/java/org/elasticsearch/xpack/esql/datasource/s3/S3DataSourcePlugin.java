@@ -83,11 +83,22 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
         // (esql.external.max_concurrent_requests), so the SDK pool matches the per-scheme permit ceiling.
         // services.settings() is the node Settings threaded through the SPI — the path that reaches the client build.
         int maxConnections = ExternalSourceSettings.blobStoreConcurrency(services.settings());
-        StorageProviderFactory s3Factory = StorageProviderFactory.of(
+        StorageProviderFactory s3Base = StorageProviderFactory.of(
             () -> new S3StorageProvider(null, provider, maxConnections),
             S3Configuration::fromQueryConfig,
             cfg -> new S3StorageProvider(cfg, provider, maxConnections)
         );
+        StorageProviderFactory s3Factory = StorageProviderFactory.withTestConnection(s3Base, config -> {
+            S3Configuration cfg = S3Configuration.fromQueryConfig(config).value();
+            S3StorageProvider p = new S3StorageProvider(cfg, provider, maxConnections);
+            try {
+                p.testConnection();
+            } finally {
+                try {
+                    p.close();
+                } catch (IOException | RuntimeException ignored) {}
+            }
+        });
         return Map.of("s3", s3Factory, "s3a", s3Factory, "s3n", s3Factory);
     }
 

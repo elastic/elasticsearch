@@ -1,0 +1,32 @@
+{
+  "esql.test_data_source_connection": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-test-connection",
+      "description": "Tests whether the supplied data source configuration can establish a live connection. The data source does not need to exist in cluster state — this endpoint is intended for validating a new configuration before saving it."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query/data_source/_test_connection",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The data source type and settings to test.",
+      "required": true
+    }
+  }
+}

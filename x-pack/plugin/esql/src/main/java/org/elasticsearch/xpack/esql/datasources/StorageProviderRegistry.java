@@ -188,6 +188,18 @@ public class StorageProviderRegistry implements Closeable {
     }
 
     /**
+     * Returns the {@link StorageProviderFactory} registered for {@code scheme}, or {@code null} if none is registered.
+     * Intended for use by {@code DataSourceModule.testConnection}.
+     */
+    @Nullable
+    public StorageProviderFactory getFactory(String scheme) {
+        if (Strings.isNullOrEmpty(scheme)) {
+            return null;
+        }
+        return factories.get(scheme.toLowerCase(Locale.ROOT));
+    }
+
+    /**
      * Framework-level WITH keys that are consumed by {@link FileSourceFactory} / format readers
      * and must not be forwarded to storage provider configurations. References the canonical
      * constants so adding/renaming a framework option in one place updates the filter here too.

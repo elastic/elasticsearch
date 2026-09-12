@@ -149,6 +149,18 @@ public class GcsStorageProvider implements StorageProvider {
     }
 
     /**
+     * Tests connectivity by listing at most one bucket with the configured credentials.
+     * Requires {@code storage.buckets.list} at the project level. A bucket-scoped probe
+     * (e.g. {@code storage().get(bucketName)}) is not possible here because the data source
+     * settings carry only credentials and project metadata — the bucket name lives in the
+     * data source URI, not in {@link GcsConfiguration}.
+     * Called from the factory's {@code testConnection} on a GENERIC thread — blocking I/O is expected.
+     */
+    public void testConnection() {
+        storage().list(Storage.BucketListOption.pageSize(1));
+    }
+
+    /**
      * Builds the static Google credential for {@code STATIC_CREDENTIALS}: a service-account JSON key
      * ({@link ServiceAccountCredentials}) when present, otherwise a short-lived {@code access_token}. Validation
      * guarantees one of the two static forms is set for this mode, so this always yields a credential.

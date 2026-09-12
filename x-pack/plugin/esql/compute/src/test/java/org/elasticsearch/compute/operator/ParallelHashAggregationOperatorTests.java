@@ -154,7 +154,7 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
         assertThat(partitioningStatus.partitionedBlocksReceived(), greaterThan(0));
     }
 
-    record Key(long longValue, int intValue) {}
+    record Key(Long longValue, Integer intValue) {}
 
     record Row(Key key, int[] sums) {}
 
@@ -167,13 +167,17 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
         HashAggregationOperator.ParallelConfig parallelConfig
     ) {
         int aggregations = between(0, 4);
+        boolean nullKeys = randomBoolean();
         List<Row> inputRows = new ArrayList<>(numValues);
         for (int i = 0; i < numValues; i++) {
             int[] sums = new int[aggregations];
             for (int v = 0; v < aggregations; v++) {
                 sums[v] = randomIntBetween(0, Integer.MAX_VALUE);
             }
-            Key key = new Key(randomLongBetween(0, numValues * 2L), randomIntBetween(0, numValues * 2));
+            Key key = new Key(
+                nullKeys && randomInt(100) < 20 ? null : randomLongBetween(0, numValues * 2L),
+                nullKeys && randomInt(100) < 20 ? null : randomIntBetween(0, numValues * 2)
+            );
             inputRows.add(new Row(key, sums));
         }
         Map<Key, long[]> expected = expected(inputRows, aggregations);
@@ -218,7 +222,8 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
                     for (int a = 0; a < aggregations; a++) {
                         counts[a] = ((LongBlock) page.getBlock(2 + a)).getLong(i);
                     }
-                    assertNull(actual.put(new Key(longBlock.getLong(i), intBlock.getInt(i)), counts));
+                    Key key = new Key(longBlock.isNull(i) ? null : longBlock.getLong(i), intBlock.isNull(i) ? null : intBlock.getInt(i));
+                    assertNull(actual.put(key, counts));
                 }
             }
             assertThat(actual.keySet(), equalTo(expected.keySet()));
@@ -390,8 +395,16 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
                 sumBuilders.add(blockFactory.newIntBlockBuilder(rows.size()));
             }
             for (Row row : rows) {
-                longKeys.appendLong(row.key.longValue);
-                intKeys.appendInt(row.key.intValue);
+                if (row.key.longValue == null) {
+                    longKeys.appendNull();
+                } else {
+                    longKeys.appendLong(row.key.longValue);
+                }
+                if (row.key.intValue == null) {
+                    intKeys.appendNull();
+                } else {
+                    intKeys.appendInt(row.key.intValue);
+                }
                 for (int a = 0; a < sumAggregations; a++) {
                     sumBuilders.get(a).appendInt(row.sums[a]);
                 }

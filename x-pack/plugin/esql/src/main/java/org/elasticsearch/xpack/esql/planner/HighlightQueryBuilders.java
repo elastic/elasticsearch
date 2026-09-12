@@ -84,7 +84,8 @@ public final class HighlightQueryBuilders {
                 verifyQueryStructure(binary.right(), onFields);
             }
             case Not not -> verifyQueryStructure(not.field(), onFields);
-            // KQL resolves fields while rewriting its query builder. Unknown fields become match-none.
+            // KQL resolves fields while rewriting its query builder; against a lenient context an unknown field
+            // resolves to nothing and the clause becomes match-none, so nothing is checked here.
             case Kql kql -> {
             }
             // String literals use query_string semantics over the ON fields.
@@ -101,8 +102,13 @@ public final class HighlightQueryBuilders {
     /**
      * Verifies that a HIGHLIGHT query uses supported full-text forms, references its {@code fields} (only when
      * {@code enforceOnFields} is true), and translates with the {@code analyzer} that execution will use.
+     * <p>
+     * {@code implicit} marks a query derived from an upstream WHERE. Such a query may name fields HIGHLIGHT does not
+     * target, so it is translated against a lenient context where those names become match-none clauses instead of
+     * failing verification. Failures for an implicit query are framed as derived from WHERE rather than quoting the
+     * WHERE fragment as if the user wrote it on HIGHLIGHT.
      */
-    public static void verify(Expression queryExpr, List<String> fields, Analyzer analyzer, boolean enforceOnFields) {
+    public static void verify(Expression queryExpr, List<String> fields, Analyzer analyzer, boolean enforceOnFields, boolean implicit) {
         String literal = queryTextIfLiteral(queryExpr);
         // Pushdown accepts more expressions than the runtime context, so check the query shape first.
         if (literal == null) {
@@ -110,12 +116,12 @@ public final class HighlightQueryBuilders {
         }
         // Translate before planning to catch invalid options, syntax, and fields outside ON.
         try {
-            translate(queryExpr, fields, runtimeContext(fields, analyzer));
+            translate(queryExpr, fields, runtimeContext(fields, analyzer, implicit));
         } catch (RuntimeException e) {
-            throw new IllegalArgumentException(
-                "Invalid query [" + (literal != null ? literal : queryExpr.sourceText()) + "] in HIGHLIGHT: " + e.getMessage(),
-                e
-            );
+            String prefix = implicit
+                ? "Invalid query derived from WHERE for HIGHLIGHT: "
+                : "Invalid query [" + (literal != null ? literal : queryExpr.sourceText()) + "] in HIGHLIGHT: ";
+            throw new IllegalArgumentException(prefix + e.getMessage(), e);
         }
     }
 
@@ -140,9 +146,9 @@ public final class HighlightQueryBuilders {
         return build(queryExpr);
     }
 
-    // This switch, verifyQueryStructure above, and HighlightSupport#deriveFields all walk the same full-text
-    // expression hierarchy and must stay in sync as new forms are added. This one is the most important to keep
-    // current: a missing case here throws IllegalStateException at runtime, not at verification.
+    // This switch, verifyQueryStructure above, and HighlightSupport#isSupportedImplicitPredicate/deriveFields all walk
+    // the same full-text expression hierarchy and must stay in sync as new forms are added. This one is the most
+    // important to keep current: a missing case here throws IllegalStateException at runtime, not at verification.
     private static QueryBuilder build(Expression expr) {
         return switch (expr) {
             case And and -> QueryBuilders.boolQuery().must(build(and.left())).must(build(and.right()));
@@ -169,11 +175,11 @@ public final class HighlightQueryBuilders {
         return context.toQuery(builder).query();
     }
 
-    private static RuntimeSearchExecutionContext runtimeContext(List<String> fieldNames, Analyzer analyzer) {
+    private static RuntimeSearchExecutionContext runtimeContext(List<String> fieldNames, Analyzer analyzer, boolean lenientFields) {
         NamedAnalyzer namedAnalyzer = analyzer instanceof NamedAnalyzer na
             ? na
             : new NamedAnalyzer("_override", AnalyzerScope.GLOBAL, analyzer);
-        return RuntimeSearchExecutionContext.create(fieldNames, namedAnalyzer);
+        return RuntimeSearchExecutionContext.create(fieldNames, namedAnalyzer, lenientFields);
     }
 
     private static TranslatedQuery translate(Expression queryExpr, List<String> fieldNames, RuntimeSearchExecutionContext context) {
@@ -185,9 +191,14 @@ public final class HighlightQueryBuilders {
 
     /**
      * Builds the runtime query with the analyzer used to index each row's text.
+     * <p>
+     * The context is always lenient about fields outside {@code fieldNames}: verification has already rejected any
+     * explicit query naming such a field (it uses a strict context), so leniency changes nothing for explicit queries
+     * and reproduces the match-none an implicit query relies on for a borrowed predicate that targets a non-ON field.
+     * This keeps verification and execution in agreement.
      */
     private static TranslatedQuery translate(Expression queryExpr, List<String> fieldNames, Analyzer analyzer) {
-        return translate(queryExpr, fieldNames, runtimeContext(fieldNames, analyzer));
+        return translate(queryExpr, fieldNames, runtimeContext(fieldNames, analyzer, true));
     }
 
     /**
@@ -201,7 +212,8 @@ public final class HighlightQueryBuilders {
         @Nullable AnalysisRegistry analysisRegistry
     ) {
         String name = analyzerName != null ? analyzerName : DEFAULT_ANALYZER_NAME;
-        return translate(queryExpr, fieldNames, PlannerUtils.resolveAnalyzer(name, analysisRegistry));
+        Analyzer analyzer = PlannerUtils.resolveAnalyzer(name, analysisRegistry);
+        return translate(queryExpr, fieldNames, runtimeContext(fieldNames, analyzer, true));
     }
 
     /** Runtime query state produced by {@link #translate}. */

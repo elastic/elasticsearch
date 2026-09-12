@@ -4832,7 +4832,7 @@ public class VerifierTests extends ESTestCase {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         supportsHighlightImplicit(defaultAnalyzer()).error(
             "FROM test | HIGHLIGHT",
-            allOf(containsString("HIGHLIGHT requires a query"), not(containsString("preceding full-text WHERE")))
+            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE")
         );
     }
 
@@ -4865,6 +4865,8 @@ public class VerifierTests extends ESTestCase {
                 not(containsString("found no text or keyword fields to highlight"))
             )
         );
+        // Derived from an upstream WHERE the same query is accepted: id is left out of the derived ON list.
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE MATCH(title, \"fox\") AND MATCH(id, 1) | HIGHLIGHT");
     }
 
     public void testNotUnsupportedQueryReportsStructuralErrorNotEmptyOn() {
@@ -4893,6 +4895,32 @@ public class VerifierTests extends ESTestCase {
         supportsHighlightImplicit(fullText()).query("FROM test | HIGHLIGHT MATCH(title, \"fox\") AND NOT QSTR(\"body:bar\")");
     }
 
+    public void testHighlightImplicitQueryMustTargetOnField() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE MATCH(title, \"x\") | HIGHLIGHT ON body",
+            allOf(containsString("derived its query from a preceding WHERE"), containsString("title"), containsString("body"))
+        );
+    }
+
+    public void testHighlightImplicitQstrAndKqlOutsideOnAreLenient() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE QSTR(\"body:bar\") AND MATCH(title, \"fox\") | HIGHLIGHT ON title");
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE KQL(\"body: bar\") AND MATCH(title, \"fox\") | HIGHLIGHT ON title");
+        supportsHighlightImplicit(fullText()).query(
+            "FROM test | WHERE QSTR(\"fox\", {\"default_field\": \"body\"}) AND MATCH(title, \"fox\") | HIGHLIGHT ON title"
+        );
+    }
+
+    public void testHighlightImplicitDerivedQueryFailureIsFramedAsDerived() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        // A borrowed query that fails translation is framed as derived from WHERE, not quoted as HIGHLIGHT source text.
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE KQL(\"title: (fox\") | HIGHLIGHT ON title",
+            allOf(containsString("Invalid query derived from WHERE for HIGHLIGHT:"), not(containsString("Invalid query [")))
+        );
+    }
+
     public void testHighlightImplicitRejectedOnOlderTransportVersion() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         defaultAnalyzer().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT)
@@ -4900,6 +4928,14 @@ public class VerifierTests extends ESTestCase {
                 "FROM test | HIGHLIGHT \"search\"",
                 containsString("HIGHLIGHT with a derived query or field list is not supported on every participating node")
             );
+        // derivedFields is false here; rejection depends on ResolveHighlight setting implicitQuery.
+        fullText().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT)
+            .error(
+                "FROM test | WHERE MATCH(title, \"fox\") | HIGHLIGHT ON title",
+                containsString("HIGHLIGHT with a derived query or field list is not supported on every participating node")
+            );
+        supportsHighlight(fullText()).query("FROM test | HIGHLIGHT \"fox\" ON title");
+        supportsHighlight(defaultAnalyzer()).query("FROM test | HIGHLIGHT \"search\" ON first_name");
     }
 
     public void testHighlightRejectsInvalidOptionEnums() {

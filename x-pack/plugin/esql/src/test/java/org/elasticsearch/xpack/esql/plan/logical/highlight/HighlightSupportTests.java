@@ -15,9 +15,11 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +40,10 @@ public class HighlightSupportTests extends ESTestCase {
         return new Match(EMPTY, getFieldAttribute(field, KEYWORD), of(text), options);
     }
 
+    private static MatchPhrase matchPhrase(String field, String text, MapExpression options) {
+        return new MatchPhrase(EMPTY, getFieldAttribute(field, KEYWORD), of(text), options);
+    }
+
     private static QueryString queryString(String text, MapExpression options) {
         return new QueryString(EMPTY, of(text), options, TEST_CFG);
     }
@@ -50,31 +56,54 @@ public class HighlightSupportTests extends ESTestCase {
         return new MapExpression(EMPTY, entries);
     }
 
+    public void testSupportedImplicitPredicateShapes() {
+        Match match = match("title", "fox", null);
+        MatchPhrase phrase = matchPhrase("body", "quick fox", null);
+        QueryString qstr = queryString("fox", null);
+        Kql kql = new Kql(EMPTY, of("title: fox"), null, TEST_CFG);
+
+        for (Expression supported : List.of(
+            match,
+            phrase,
+            qstr,
+            kql,
+            new And(EMPTY, match, phrase),
+            new Or(EMPTY, qstr, kql),
+            match("title", "fox", options("fuzziness", "AUTO"))
+        )) {
+            assertTrue(supported.toString(), HighlightSupport.isSupportedImplicitPredicate(supported));
+        }
+
+        for (Expression unsupported : List.of(
+            new Not(EMPTY, match),
+            of("fox"),
+            new And(EMPTY, match, new Not(EMPTY, phrase)),
+            new Or(EMPTY, match, new Not(EMPTY, phrase)),
+            new Or(EMPTY, match, of("fox")),
+            match("title", "fox", options("analyzer", "english")),
+            matchPhrase("body", "quick fox", options("analyzer", "english")),
+            queryString("fox", options("analyzer", "english")),
+            queryString("fox", options("quote_analyzer", "english")),
+            new Kql(EMPTY, of("title: fox"), options("analyzer", "english"), TEST_CFG),
+            new And(EMPTY, match, match("body", "fox", options("analyzer", "english")))
+        )) {
+            assertFalse(unsupported.toString(), HighlightSupport.isSupportedImplicitPredicate(unsupported));
+        }
+    }
+
     public void testAllHighlightableFieldsFiltersAndDeduplicates() {
         Attribute firstDuplicate = getFieldAttribute("duplicate", KEYWORD);
         Attribute integer = getFieldAttribute("count", INTEGER);
         Attribute metadata = new MetadataAttribute(EMPTY, MetadataAttribute.INDEX, KEYWORD, true);
-        Attribute lastDuplicate = getFieldAttribute("duplicate", TEXT);
+        // Keeping body before the replacement duplicate verifies that putLast moves the duplicate to the end.
         Attribute body = getFieldAttribute("body", TEXT);
+        Attribute lastDuplicate = getFieldAttribute("duplicate", TEXT);
 
         List<NamedExpression> fields = HighlightSupport.allHighlightableFields(
-            List.of(firstDuplicate, integer, metadata, lastDuplicate, body)
+            List.of(firstDuplicate, integer, metadata, body, lastDuplicate)
         );
 
-        assertThat(fields, equalTo(List.of(lastDuplicate, body)));
-    }
-
-    public void testAllHighlightableFieldsMovesDuplicatesToEnd() {
-        // Unlike the fixture above, `body` sits BETWEEN the two colliding `duplicate` attributes, so this input can
-        // actually distinguish "relocate to end" (putLast) from "overwrite in place" (plain put).
-        Attribute firstDuplicate = getFieldAttribute("duplicate", KEYWORD);
-        Attribute body = getFieldAttribute("body", TEXT);
-        Attribute lastDuplicate = getFieldAttribute("duplicate", TEXT);
-
-        assertThat(
-            HighlightSupport.allHighlightableFields(List.of(firstDuplicate, body, lastDuplicate)),
-            equalTo(List.of(body, lastDuplicate))
-        );
+        assertThat(fields, equalTo(List.of(body, lastDuplicate)));
     }
 
     public void testDeriveFieldsFromPositiveQueryReferences() {

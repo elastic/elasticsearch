@@ -3,10 +3,17 @@ import { mkdirSync } from "fs";
 import { readdir, readFile, writeFile } from "fs/promises";
 import { join, resolve } from "path";
 
-import { analyzeReports } from "../analyzer/analyze.ts";
+import { analyzeReports } from "../analyzer/junit-reports-analyzer.ts";
 import { deriveOutcome } from "../analyzer/outcome.ts";
 import { renderMarkdown, severity } from "../analyzer/render.ts";
-import { DEFAULT_AGENT_CONFIG, KIND_KEYS, type ClassifiedTest, type TestKind } from "../domain.ts";
+import {
+  DEFAULT_AGENT_CONFIG,
+  KIND_KEYS,
+  type SkippedTest,
+  STATUS_DIR_NAME,
+  TASK_STATUS_FILE_PREFIX,
+  type TestKind,
+} from "../domain.ts";
 import { NEVER_FAIL_GRACE_MINUTES } from "../runners/buildkite.ts";
 
 const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
@@ -19,7 +26,7 @@ const INNER_TIMEOUT_SEC = (DEFAULT_AGENT_CONFIG.timeoutInMinutes - NEVER_FAIL_GR
 
 // Per-job status files (rc + duration) the batch wrappers uploaded; downloaded
 // flat into this dir by the analyze step command before this script runs.
-const STATUS_DIR = join(PROJECT_ROOT, "flakiness-status");
+const STATUS_DIR = join(PROJECT_ROOT, STATUS_DIR_NAME);
 
 // Per-job JUnit XML is downloaded under here, one subdir per job id, so the
 // analyzer can attribute results to a single job (a flat download would mix
@@ -37,13 +44,13 @@ const MAX_FAILING_CLASSES = 50;
 // Keep this filename in sync with FLAKINESS_OUTCOMES_ARTIFACT in runners/buildkite.ts.
 const OUTCOMES_ARTIFACT_FILE = "flakiness-outcomes.json";
 
-// Written by the bootstrap step (entrypoints/pr.ts): tests that could not be
-// re-run (BWC projects). Downloaded next to this script and folded into the
-// outcomes as `not_applicable`. Keep in sync with FLAKINESS_SKIPPED_ARTIFACT in
-// runners/buildkite.ts and entrypoints/pr.ts.
+// Written by the generate step: targets the resolver could not re-run, each with
+// its reason (e.g. "requires-packaging-host"). Downloaded next to this script and
+// folded into the outcomes as `not_applicable`. Keep in sync with SKIPPED_FILE in entrypoints/generate.ts,
+// which writes it, and FLAKINESS_SKIPPED_ARTIFACT in runners/buildkite.ts, which uploads it.
 const SKIPPED_FILE = "flakiness-skipped.json";
 
-// Written by the pre-flight compile step only when compilation fails; folded in
+// Written by the compile phase of the orchestration step only when compilation fails; folded in
 // as a single `build_failed` outcome (the skipped batches produce none). Keep in
 // sync with FLAKINESS_PRECOMPILE_ARTIFACT in runners/buildkite.ts.
 const PRECOMPILE_FILE = "flakiness-precompile.json";
@@ -57,11 +64,41 @@ interface JobStatus {
   durationSec: number;
 }
 
+interface TaskStatusEntry {
+  path: string;
+  outcome: string;
+}
+
+/**
+ * Whether EVERY task this batch asked for came back SKIPPED.
+ *
+ * Gradle reports a task rejected by `onlyIf` - bwc's `bwc_tests_enabled`, the distro architecture check - and
+ * one with no source as SKIPPED: zero tests, exit 0, which from rc alone is indistinguishable from a hang.
+ * Verified against Gradle 9: both `onlyIf { false }` and NO-SOURCE surface as `SKIPPED` in task-status.json
+ * (gradle-runner discards the skip message, so the two collapse into one outcome - which is what we want,
+ * since neither means "the PR is flaky").
+ *
+ * Scoped to the batch's own task paths on purpose: a healthy build contains unrelated SKIPPED entries (a
+ * `processResources` with no resources), so an unscoped check would mislabel the muted-tests case - task ran,
+ * filter matched nothing - as not_applicable.
+ *
+ * Requires ALL of them rather than ANY: if even one requested task really ran, a zero-test outcome is not
+ * explained by `onlyIf` and should stay a hang.
+ */
+export function allTargetTasksSkipped(taskPaths: string[], entries: TaskStatusEntry[]): boolean {
+  if (taskPaths.length === 0 || entries.length === 0) {
+    // No paths carried (a plan predating taskPaths) or no report - do not invent a verdict.
+    return false;
+  }
+  const skipped = new Set(entries.filter((e) => e.outcome === "SKIPPED").map((e) => e.path));
+  return taskPaths.every((p) => skipped.has(p));
+}
+
 // A JobStatus plus the raw signals the wrapper reports that are inputs to
 // classification but are not themselves payload fields (the payload's
 // `infraSubtype` comes from deriveOutcome, not the wrapper). Kept separate so it
 // is not spread into the payload.
-type JobStatusWithSignals = JobStatus & { oomDetected: boolean };
+type JobStatusWithSignals = JobStatus & { oomDetected: boolean; taskSkipped: boolean };
 
 // One element of the `data-flakiness` annotation array.
 interface FlakinessPayload extends JobStatus {
@@ -72,8 +109,9 @@ interface FlakinessPayload extends JobStatus {
   timedOut: boolean;
   infraSubtype?: string;
   failingClasses: string[];
-  // Set only on `not_applicable` records: why the test could not be re-run
-  // (currently always "bwc").
+  // Set only on `not_applicable` records: why the test could not be re-run, as
+  // decided by the Java resolver (e.g. "no-runnable-task",
+  // "requires-packaging-host"). See PlanEntry.reason in domain.ts.
   reason?: string;
 }
 
@@ -89,6 +127,10 @@ async function readJobStatuses(): Promise<JobStatusWithSignals[]> {
     if (!e.isFile() || !e.name.endsWith(".json")) continue;
     try {
       const parsed = JSON.parse(await readFile(join(STATUS_DIR, e.name), "utf8"));
+      // Discriminated on shape, not filename, so the `tasks-<jobId>.json` copies that share this directory
+      // are skipped: they are gradle-runner task reports and carry no jobId. That is why the wrapper's
+      // `status-` prefix is not a contract - only TASK_STATUS_FILE_PREFIX is, since that one is rebuilt
+      // from a jobId below.
       if (parsed && typeof parsed.jobId === "string") {
         statuses.push({
           jobId: parsed.jobId,
@@ -99,6 +141,12 @@ async function readJobStatuses(): Promise<JobStatusWithSignals[]> {
           // The wrapper reports `infraSubtype: "oom"` when a heap dump was found;
           // it is a classification input, not a payload field.
           oomDetected: parsed.infraSubtype === "oom",
+          // Same idea for the skipped-task verdict: the wrapper copies gradle-runner's report verbatim and
+          // carries the task paths it asked for; the matching happens here, where JSON is parsed properly.
+          taskSkipped: allTargetTasksSkipped(
+            Array.isArray(parsed.taskPaths) ? parsed.taskPaths : [],
+            await readTaskStatusEntries(String(parsed.jobId))
+          ),
         });
       }
     } catch (err) {
@@ -106,6 +154,18 @@ async function readJobStatuses(): Promise<JobStatusWithSignals[]> {
     }
   }
   return statuses;
+}
+
+// Read the per-job copy of gradle-runner's task-status.json. Absent/unreadable -> no entries, which
+// allTargetTasksSkipped treats as "no verdict" rather than as "not skipped by onlyIf".
+async function readTaskStatusEntries(jobId: string): Promise<TaskStatusEntry[]> {
+  try {
+    const raw = await readFile(join(STATUS_DIR, `${TASK_STATUS_FILE_PREFIX}${jobId}.json`), "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed?.tasks) ? parsed.tasks : [];
+  } catch {
+    return [];
+  }
 }
 
 // Download one job's JUnit XML into its own dir. Returns the dir, which may be
@@ -138,7 +198,7 @@ function downloadJobReports(jobId: string): string {
 async function buildPayload(statusWithSignals: JobStatusWithSignals): Promise<FlakinessPayload> {
   // Split the classification-only signals from the fields that belong in the
   // payload (spread below).
-  const { oomDetected, ...status } = statusWithSignals;
+  const { oomDetected, taskSkipped, ...status } = statusWithSignals;
   let realFailures = 0;
   let suiteTimeouts = 0;
   let totalCases = 0;
@@ -153,7 +213,15 @@ async function buildPayload(statusWithSignals: JobStatusWithSignals): Promise<Fl
   } catch (err) {
     console.error(`Failed to analyze reports for job ${status.jobId}; classifying from rc/duration only:`, err);
   }
-  const derived = deriveOutcome({ rc: status.rc, durationSec: status.durationSec, realFailures, totalCases, timeoutThresholdSec: INNER_TIMEOUT_SEC, oomDetected });
+  const derived = deriveOutcome({
+    rc: status.rc,
+    durationSec: status.durationSec,
+    realFailures,
+    totalCases,
+    timeoutThresholdSec: INNER_TIMEOUT_SEC,
+    oomDetected,
+    taskSkipped,
+  });
   const payload: FlakinessPayload = {
     ...status,
     realFailures,
@@ -166,11 +234,16 @@ async function buildPayload(statusWithSignals: JobStatusWithSignals): Promise<Fl
   if (derived.infraSubtype) {
     payload.infraSubtype = derived.infraSubtype;
   }
+  // Give the reason the same shape the resolver's own not_applicable records use, so downstream can group
+  // "could not be re-run" by cause regardless of whether the resolver or Gradle itself decided it.
+  if (derived.outcome === "not_applicable" && taskSkipped) {
+    payload.reason = "task-skipped";
+  }
   return payload;
 }
 
-// Read the BWC skip list the bootstrap step wrote. Absent = nothing skipped.
-async function readSkippedTests(): Promise<ClassifiedTest[]> {
+// Read the skip list the generate step wrote. Empty or absent = nothing skipped.
+async function readSkippedTests(): Promise<SkippedTest[]> {
   try {
     const parsed = JSON.parse(await readFile(join(PROJECT_ROOT, SKIPPED_FILE), "utf8"));
     return Array.isArray(parsed) ? parsed : [];
@@ -179,10 +252,12 @@ async function readSkippedTests(): Promise<ClassifiedTest[]> {
   }
 }
 
-// A skipped BWC test never ran as a job, so it has no rc/duration/XML. It is
+// A skipped test never ran as a job, so it has no rc/duration/XML. It is
 // recorded as a `not_applicable` payload with zeroed counts and a synthetic
-// jobId so downstream keyed on jobId stays well-formed.
-export function notApplicablePayload(t: ClassifiedTest): FlakinessPayload {
+// jobId so downstream keyed on jobId stays well-formed. The resolver's reason is
+// carried verbatim; `not-runnable` is only a fallback for a legacy artifact that
+// predates the reason field.
+export function notApplicablePayload(t: SkippedTest): FlakinessPayload {
   const target = t.yamlTest ? `${t.fqcn}.${t.yamlTest}` : (t.fqcn ?? t.suitePath ?? "");
   return {
     jobId: `not-applicable:${t.kind}:${t.gradleProject}:${target}`,
@@ -196,11 +271,11 @@ export function notApplicablePayload(t: ClassifiedTest): FlakinessPayload {
     outcome: "not_applicable",
     timedOut: false,
     failingClasses: [],
-    reason: "bwc",
+    reason: t.reason ?? "not-runnable",
   };
 }
 
-// Pure: does the pre-flight compile step's marker signal a build failure?
+// Pure: does the compile phase's marker signal a build failure?
 // `markerText` is the marker file's contents, or `null` when the file is absent.
 // Absent, unreadable, malformed, or any non-`build_failed` outcome all mean "no".
 export function isPrecompileFailure(markerText: string | null): boolean {
@@ -215,7 +290,7 @@ export function isPrecompileFailure(markerText: string | null): boolean {
   }
 }
 
-// True when the pre-flight compile step left a failure marker. A missing file
+// True when the compile phase left a failure marker. A missing file
 // (the gate passed or never ran) reads as `null` -> not failed.
 async function precompileFailed(): Promise<boolean> {
   let markerText: string | null = null;
@@ -228,14 +303,17 @@ async function precompileFailed(): Promise<boolean> {
 }
 
 // A single record standing in for the batches that were skipped because the
-// pre-flight compile gate failed. `reason` names the gate, not a specific cause:
-// the gate exits non-zero on a genuine compile error but also on an infra failure
+// compile orchestration step failed. `reason` names the gate, not a specific cause:
+// the step exits non-zero on a genuine compile error but also on an infra failure
 // within it (dependency download, build-scan upload, OOM), and it does not read
-// its own log to tell them apart.
+// its own log to tell them apart. The stepKey is deliberately under the
+// `flakiness-orchestration:` prefix so the external batch-job metric predicate
+// (which matches `flakiness-detection:` step keys) does not treat this synthetic
+// build_failed record as a test batch.
 export function buildFailedPayload(): FlakinessPayload {
   return {
     jobId: "build-failed:precompile",
-    stepKey: "flakiness-detection:precompile",
+    stepKey: "flakiness-orchestration:compile",
     kind: "",
     rc: 1,
     durationSec: 0,
@@ -276,17 +354,18 @@ async function run(): Promise<void> {
     }
   }
 
-  // Fold in the tests the bootstrap step could not re-run (BWC): recorded as
+  // Fold in the targets the resolver could not re-run: recorded as
   // `not_applicable` so they are counted separately from `hang`/`infra_fail`.
   const skipped = await readSkippedTests();
   for (const t of skipped) {
     payloads.push(notApplicablePayload(t));
   }
   if (skipped.length > 0) {
-    console.log(`Recorded ${skipped.length} not_applicable (BWC, not re-runnable via the bare task).`);
+    const reasons = [...new Set(skipped.map((t) => t.reason ?? "not-runnable"))].join(", ");
+    console.log(`Recorded ${skipped.length} not_applicable (${reasons}).`);
   }
 
-  // If the pre-flight compile gate failed, the batches were skipped and produced
+  // If the compile phase failed, the batches were skipped and produced
   // no statuses; record a single `build_failed` so a non-compiling PR does not
   // read as zero problems.
   const buildFailed = await precompileFailed();

@@ -773,16 +773,21 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             builder.sizeInBytes(((Number) sb).longValue());
         }
 
-        // Group column keys by column name. Parsed by SourceStatisticsSerializer so this and the two
-        // serializer-side readers cannot disagree about where a dotted column name ends.
+        // Group column keys by column name
         Map<String, Map<String, Object>> columnKeys = new LinkedHashMap<>();
+        String prefix = "_stats.columns.";
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             String key = entry.getKey();
-            String colName = SourceStatisticsSerializer.columnNameOfStatKey(key);
-            if (colName == null) {
+            if (key.startsWith(prefix) == false) {
                 continue;
             }
-            String suffix = SourceStatisticsSerializer.statSuffixOf(key, colName);
+            String rest = key.substring(prefix.length());
+            int dotIdx = rest.lastIndexOf('.');
+            if (dotIdx <= 0) {
+                continue;
+            }
+            String colName = rest.substring(0, dotIdx);
+            String suffix = rest.substring(dotIdx);
             columnKeys.computeIfAbsent(colName, k -> new HashMap<>()).put(suffix, entry.getValue());
         }
 

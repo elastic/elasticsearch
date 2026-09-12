@@ -1906,24 +1906,12 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * FFW path. FIRST_FILE_WINS reads every file with the anchor's schema and does not adapt a file that
-     * disagrees. A column the anchor cannot represent is whole-column null-filled by footer readers
-     * (Parquet, ORC), so that file's harvest is rewritten to the all-null contract before the merge:
-     * {@code value_count = 0}, {@code null_count = row_count}, no extrema. The remaining files' harvests
-     * fold normally and the aggregate stays warm. A declared column the scan would still coerce is not
-     * rewritten: extrema and counts are dropped after the merge so COUNT/MIN/MAX scan. Text readers
-     * decide per value under the error policy, so an unrepresentable column's extrema and counts are
-     * dropped after the merge and {@code COUNT} / {@code MIN} / {@code MAX} scan. A representable
-     * footer file whose harvest extrema are not in the planner type's in-memory domain
-     * ({@code UNSIGNED_LONG} vs a signed integer) has those extrema encoded into the planner domain
-     * before the merge so MIN/MAX stay warm; an encode failure drops merged counts so COUNT also
-     * scans. Encoded unsigned extrema under a non-unsigned planner type are poisoned so MIN/MAX
-     * scan while COUNT stays warm. Split discovery stamps raw harvests; {@link
-     * #alignHarvestWithAnchorTypes} reapplies this file's rewrite or unsigned encode so a
-     * warm fold cannot be undone by split merge, and {@link
-     * SourceStatisticsSerializer#alignHarvestWithFold} copies this fold's unservability onto
-     * those harvests so a miss cannot be undone either. {@code allMetadata.get(0)} is
-     * the anchor ({@link #gatherPerFile} emits listing order).
+     * FIRST_FILE_WINS fold. Footer files rewrite an unrepresentable column to the all-null contract;
+     * text, declared-coercion, encode-failure, and unsigned-domain mismatch drop or poison merged
+     * extrema so MIN/MAX scan. Counts that would describe a different read stay unknown rather than
+     * becoming implicit zeros. Split stamps are raw harvests; {@link #alignHarvestWithAnchorTypes}
+     * and {@link SourceStatisticsSerializer#alignHarvestWithFold} reapply this file's rewrite and
+     * the fold's unservability. {@code allMetadata.get(0)} is the anchor.
      */
     @Nullable
     static Map<String, Object> aggregateFileStatistics(List<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
@@ -1938,10 +1926,7 @@ public class ExternalSourceResolver {
     ) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
         Map<String, DataType> anchorTypes = null;
-        Set<String> unrepresentableColumns = new HashSet<>();
-        Set<String> extremaIncompatibleColumns = new HashSet<>();
-        Set<String> safeMissColumns = new HashSet<>();
-        Set<String> failedEncodeColumns = new HashSet<>();
+        Set<String> invalidCountColumns = new HashSet<>();
         Set<String> unsignedForeignDomainColumns = new HashSet<>();
         Set<String> declaredColumns = declaredTypeColumns == null ? Set.of() : declaredTypeColumns;
         for (SourceMetadata meta : allMetadata) {
@@ -1963,7 +1948,7 @@ public class ExternalSourceResolver {
                         if (declaredCoercible(declaredColumns, entry.getKey(), fileType, anchorType)) {
                             // The scan still coerces this column per value, so its harvest describes neither an
                             // all-null read nor the coerced one: drop extrema and counts after the merge.
-                            safeMissColumns.add(entry.getKey());
+                            invalidCountColumns.add(entry.getKey());
                         } else if (implicitNullsForAbsentColumn) {
                             // Footer readers null-fill the whole column, so the file's harvest becomes all-null.
                             if (rewriteColumns == null) {
@@ -1972,7 +1957,7 @@ public class ExternalSourceResolver {
                             rewriteColumns.add(entry.getKey());
                         } else {
                             // Text readers decide per value under the error policy; the harvest is not all-null.
-                            unrepresentableColumns.add(entry.getKey());
+                            invalidCountColumns.add(entry.getKey());
                         }
                     } else if (signedHarvestUnderUnsignedPlanner(anchorType, fileType)) {
                         if (implicitNullsForAbsentColumn) {
@@ -1981,7 +1966,7 @@ public class ExternalSourceResolver {
                             }
                             encodeColumns.add(entry.getKey());
                         } else {
-                            extremaIncompatibleColumns.add(entry.getKey());
+                            invalidCountColumns.add(entry.getKey());
                         }
                     } else if (unsignedExtremaUnderNonUnsignedPlanner(anchorType, fileType)) {
                         unsignedForeignDomainColumns.add(entry.getKey());
@@ -1991,23 +1976,15 @@ public class ExternalSourceResolver {
                     flat = SourceStatisticsSerializer.rewriteColumnsAsAllNull(flat, rewriteColumns);
                 }
                 if (encodeColumns != null) {
-                    flat = SourceStatisticsSerializer.encodeColumnExtremaAsUnsignedLong(flat, encodeColumns, failedEncodeColumns);
+                    flat = SourceStatisticsSerializer.encodeColumnExtremaAsUnsignedLong(flat, encodeColumns, invalidCountColumns);
                 }
             }
             perFileFlatStats.add(flat);
         }
         Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
-        if (merged != null
-            && (unrepresentableColumns.isEmpty() == false
-                || extremaIncompatibleColumns.isEmpty() == false
-                || safeMissColumns.isEmpty() == false
-                || failedEncodeColumns.isEmpty() == false
-                || unsignedForeignDomainColumns.isEmpty() == false)) {
+        if (merged != null && (invalidCountColumns.isEmpty() == false || unsignedForeignDomainColumns.isEmpty() == false)) {
             merged = new HashMap<>(merged);
-            dropColumnCounts(merged, unrepresentableColumns, true);
-            dropColumnCounts(merged, extremaIncompatibleColumns, true);
-            dropColumnCounts(merged, safeMissColumns, true);
-            dropColumnCounts(merged, failedEncodeColumns, true);
+            dropColumnCounts(merged, invalidCountColumns, true);
             dropColumnCounts(merged, unsignedForeignDomainColumns, false);
         }
         return merged;
@@ -2064,12 +2041,8 @@ public class ExternalSourceResolver {
             harvest = SourceStatisticsSerializer.rewriteColumnsAsAllNull(harvest, rewriteColumns);
         }
         if (encodeColumns != null) {
-            // Mirror the fold's failed-encode handling. An extremum that cannot be moved into the planner's
-            // domain also invalidates this file's COUNTS: the scan nulls the offending cells while the harvest
-            // counted them, so summing the raw counts across splits would over-count (a negative under a
-            // UNSIGNED_LONG anchor reads as null, yet value_count still says the cell had a value). Poisoning
-            // only the extrema would leave COUNT(col) warm and wrong -- the exact divergence this class exists
-            // to close -- so the failures come back and their counts are dropped too.
+            // An extremum that cannot move into the planner domain also invalidates this file's
+            // counts: the scan nulls those cells, so summing the harvest would over-count.
             Set<String> failedEncodes = new HashSet<>();
             harvest = SourceStatisticsSerializer.encodeColumnExtremaAsUnsignedLong(harvest, encodeColumns, failedEncodes);
             harvest = SourceStatisticsSerializer.removeColumnCounts(harvest, failedEncodes);
@@ -2109,12 +2082,10 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Whether a signed-integer harvest needs encoding into the planner's {@code UNSIGNED_LONG} in-memory domain.
-     * Directional on purpose: only an {@code UNSIGNED_LONG} planner over a signed file reaches here. The mirror
-     * case (a signed planner over an {@code UNSIGNED_LONG} file) is never representable — {@code commonType} of
-     * any whole number with {@code UNSIGNED_LONG} is {@code UNSIGNED_LONG}, so a {@code LONG}/{@code INTEGER}
-     * anchor fails {@link #unrepresentableUnderAnchor} and is handled before this test runs. Writing it
-     * symmetrically would imply coverage that cannot be exercised from either call site.
+     * Signed harvest extrema under an {@code UNSIGNED_LONG} planner, which use a different in-memory
+     * representation. The reverse pairing is unrepresentable ({@code commonType} with
+     * {@code UNSIGNED_LONG} is always {@code UNSIGNED_LONG}) and is handled by
+     * {@link #unrepresentableUnderAnchor}.
      */
     private static boolean signedHarvestUnderUnsignedPlanner(DataType plannerType, DataType fileType) {
         return plannerType == DataType.UNSIGNED_LONG && (fileType == DataType.LONG || fileType == DataType.INTEGER);
@@ -2152,19 +2123,9 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * The columns this file is READ at a different type than its own stats were harvested at, i.e. the columns whose
-     * read-time type differs from the type their cached stats describe. Derived as {@code inferredTypes != fileSchema}:
-     * {@link SchemaReconciliation.FileSchemaInfo#inferredTypes()} snapshots the pre-retype types, so a null snapshot
-     * (nothing retyped) or a type-equal entry yields the empty set.
-     * <p>
-     * Two rails reach here. A {@code UNION_BY_NAME} pin retypes a column above its inferred type for a widening read.
-     * FIRST_FILE_WINS pins every file to the ANCHOR's schema, so any file whose footer type differs from the anchor's
-     * -- whether it widens into the anchor (read and coerced) or the anchor cannot represent it (read as null) -- is
-     * equally "read at a type its harvest does not describe". Both must be treated as pinned by the commit-side
-     * stripping in {@code EsqlSession#collectPinnedReads}: the per-file cache identity is read-schema-blind, so an
-     * anchor-pinned read's {@code value_count}/extrema would otherwise pollute the entry a solo read of that same
-     * file serves. A FIRST_FILE_WINS file that agrees with the anchor retypes nothing and yields the empty set, so
-     * uniform globs are unaffected.
+     * Columns this file is read at a different type than its harvest: a {@code UNION_BY_NAME} pin or a
+     * FIRST_FILE_WINS file whose footer type differs from the anchor. The cache identity is
+     * read-schema-blind, so those columns must be stripped at commit.
      */
     public static Set<String> pinnedColumnsOf(SchemaReconciliation.FileSchemaInfo info) {
         Map<String, DataType> inferred = info.inferredTypes();

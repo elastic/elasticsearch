@@ -185,10 +185,16 @@ public final class SourceStatisticsSerializer {
             public Optional<Map<String, ColumnStatistics>> columnStatistics() {
                 Map<String, ColumnStatistics> cols = new HashMap<>();
                 for (String key : sourceMetadata.keySet()) {
-                    String colName = columnNameOfStatKey(key);
-                    if (colName != null) {
-                        cols.computeIfAbsent(colName, n -> new DeserializedColumnStatistics(sourceMetadata, n));
+                    if (key.startsWith(STATS_COL_PREFIX) == false) {
+                        continue;
                     }
+                    String rest = key.substring(STATS_COL_PREFIX.length());
+                    int dotIdx = rest.lastIndexOf('.');
+                    if (dotIdx <= 0) {
+                        continue;
+                    }
+                    String colName = rest.substring(0, dotIdx);
+                    cols.computeIfAbsent(colName, n -> new DeserializedColumnStatistics(sourceMetadata, n));
                 }
                 return cols.isEmpty() ? Optional.empty() : Optional.of(cols);
             }
@@ -333,25 +339,18 @@ public final class SourceStatisticsSerializer {
     }
 
     /**
-     * The column name a flat {@code _stats.columns.<name>.<suffix>} key belongs to, or {@code null} when
-     * {@code key} is not a per-column stat key. Splits on the LAST dot, so a dotted column name
-     * ({@code _stats.columns.a.b.min} -> {@code a.b}) survives; the suffix is always dot-prefixed and
-     * dot-free. The one parser for this key shape — {@link #extractStatistics}, {@link #columnNamesIn} and
-     * {@code SplitStats#of} all route through it so the three cannot drift apart on a name like {@code a.b}.
+     * The column name a flat {@code _stats.columns.<name>.<suffix>} key belongs to, or {@code null}
+     * when {@code key} is not a per-column stat key. Splits on the last dot so a dotted column name
+     * ({@code _stats.columns.a.b.min} -> {@code a.b}) survives.
      */
     @Nullable
-    static String columnNameOfStatKey(String key) {
+    private static String columnNameOfStatKey(String key) {
         if (key.startsWith(STATS_COL_PREFIX) == false) {
             return null;
         }
         String rest = key.substring(STATS_COL_PREFIX.length());
         int dotIdx = rest.lastIndexOf('.');
         return dotIdx <= 0 ? null : rest.substring(0, dotIdx);
-    }
-
-    /** The per-column stat suffix (dot-prefixed, e.g. {@code .min}) of a key {@link #columnNameOfStatKey} accepted. */
-    static String statSuffixOf(String key, String columnName) {
-        return key.substring(STATS_COL_PREFIX.length() + columnName.length());
     }
 
     /** Every column name mentioned by a per-column stat key in {@code statsMap}. */
@@ -367,18 +366,11 @@ public final class SourceStatisticsSerializer {
     }
 
     /**
-     * Rewrites one column to the all-null contract {@link SplitStats} already skips without poisoning
-     * siblings: {@code value_count = 0}, {@code null_count = row_count}, no min/max, no unservable
-     * markers. Used when a footer read discards the column (the planner type cannot represent the file
-     * type). Returns a new map; {@code statsMap} is not mutated. {@code row_count} is unchanged.
-     */
-    public static Map<String, Object> rewriteColumnAsAllNull(Map<String, Object> statsMap, String columnName) {
-        return rewriteColumnsAsAllNull(statsMap, List.of(columnName));
-    }
-
-    /**
-     * Same contract as {@link #rewriteColumnAsAllNull(Map, String)} for every name in {@code columnNames},
-     * with one map copy.
+     * Rewrites each named column to the all-null contract {@link SplitStats} already skips without
+     * poisoning siblings: {@code value_count = 0}, {@code null_count = row_count}, no min/max, no
+     * unservable markers. Used when a footer read discards the column (the planner type cannot
+     * represent the file type). Returns a new map; {@code statsMap} is not mutated. {@code row_count}
+     * is unchanged.
      */
     public static Map<String, Object> rewriteColumnsAsAllNull(Map<String, Object> statsMap, Collection<String> columnNames) {
         if (statsMap == null || statsMap.isEmpty() || columnNames == null || columnNames.isEmpty()) {
@@ -421,18 +413,15 @@ public final class SourceStatisticsSerializer {
     /**
      * Rewrites each named column's min/max from a raw signed harvest into the {@code UNSIGNED_LONG}
      * in-memory domain ({@link DeclaredTypeCoercions#coerceToUnsignedLong}). A value that cannot be
-     * coerced poisons that column's extrema so MIN/MAX scan. One map copy. {@code statsMap} is not
-     * mutated. Counts stay on the per-file map so a footer merge does not treat the file as
-     * all-null; the caller drops merged counts for any column named in {@code failedColumns}.
+     * coerced poisons that column's extrema so MIN/MAX scan and is added to {@code failedColumns}.
+     * One map copy. {@code statsMap} is not mutated. Counts stay on the per-file map so a footer
+     * merge does not treat the file as all-null; the caller drops merged counts for any column
+     * named in {@code failedColumns}.
      */
-    public static Map<String, Object> encodeColumnExtremaAsUnsignedLong(Map<String, Object> statsMap, Collection<String> columnNames) {
-        return encodeColumnExtremaAsUnsignedLong(statsMap, columnNames, null);
-    }
-
     static Map<String, Object> encodeColumnExtremaAsUnsignedLong(
         Map<String, Object> statsMap,
         Collection<String> columnNames,
-        @Nullable Set<String> failedColumns
+        Set<String> failedColumns
     ) {
         if (statsMap == null || statsMap.isEmpty() || columnNames == null || columnNames.isEmpty()) {
             return statsMap;
@@ -450,9 +439,7 @@ public final class SourceStatisticsSerializer {
                 }
             } catch (IllegalArgumentException e) {
                 poisonColumnExtrema(out, columnName);
-                if (failedColumns != null) {
-                    failedColumns.add(columnName);
-                }
+                failedColumns.add(columnName);
             }
         }
         return out;

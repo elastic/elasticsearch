@@ -941,12 +941,10 @@ public class EsqlSession {
     }
 
     /**
-     * A file's columns read at a type its own harvest does not describe — a {@code union_by_name} widening pin, or a
-     * {@code first_file_wins} file whose footer type differs from the anchor the read is pinned to — plus whether that
-     * read's error policy drops whole rows ({@code skip_row}). Collected from the executed plan's
-     * {@link ExternalRelation} nodes and used to strip such a read's polluting stat deltas off the captured
-     * contributions before commit. See {@link SourceStatisticsSerializer#removeColumnStatFamilies} and
-     * {@link ExternalSourceResolver#pinnedColumnsOf} for which reads qualify.
+     * A file's columns read at a type its harvest does not describe (a {@code union_by_name} widening
+     * pin or a {@code first_file_wins} anchor pin), plus whether that read's error policy drops whole
+     * rows. See {@link SourceStatisticsSerializer#removeColumnStatFamilies} and
+     * {@link ExternalSourceResolver#pinnedColumnsOf}.
      */
     private record PinnedColumns(Set<String> columns, boolean dropRowCount) {
         PinnedColumns mergedWith(PinnedColumns other) {
@@ -957,12 +955,9 @@ public class EsqlSession {
     }
 
     /**
-     * Collects the pinned reads in {@code plan} — {@code union_by_name} widening pins and {@code first_file_wins}
-     * anchor pins alike — keyed by the file path string the data-node capture uses ({@code StoragePath#toString()}),
-     * merging into {@code into}. A pinned read of a file harvests {@code value_count}/{@code null_count}/extrema the
-     * same file's solo unpinned read never produces, so those deltas must not commit into the read-schema-blind shared
-     * cache entry. Accumulates across every executed plan (each subplan and the final main plan) because a file may be
-     * read pinned inside a subquery.
+     * Collects pinned reads in {@code plan} ({@code union_by_name} widening and {@code first_file_wins}
+     * anchor pins), keyed by the file path the data-node capture uses. Those harvests must not commit
+     * into the read-schema-blind shared cache.
      */
     private void collectPinnedReads(LogicalPlan plan, Map<String, PinnedColumns> into) {
         plan.forEachDown(ExternalRelation.class, relation -> {

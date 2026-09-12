@@ -6317,10 +6317,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
         putFirstFileWinsGlob("drift_pq_type_ffw", dir);
 
-        // The anchor pins x to int32, which cannot represent part-b's int64, so part-b's x is read as null: the
-        // dataset the query sees holds 1, 2, null, null. Every form of every aggregate must answer over that.
-        // The COLD path's notice is the reader's and is untouched by this fix; assert it still reaches the
-        // client so a change to the warm fold can never silently take the scan's warning with it.
+        // The INTEGER anchor cannot represent part-b's LONG, so that file's x is read as null.
         assertThat(collectWarningsContaining("FROM drift_pq_type_ffw | KEEP x | SORT x", "incompatible with planner type"), not(empty()));
         assertThat(firstRowOf("FROM drift_pq_type_ffw | KEEP x | SORT x"), equalTo(List.of(1)));
         assertThat(firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
@@ -6349,8 +6346,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         writeParquet(dir.resolve("part-b.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
         putFirstFileWinsGlob("widen_pq_type_ffw", dir);
 
-        // The anchor pins x to int64, which part-b's int32 widens into, so nothing is discarded and both forms
-        // answer over all four values.
         assertThat(firstRowOf("FROM widen_pq_type_ffw | KEEP x | SORT x"), equalTo(List.of(-10L)));
         assertThat(
             firstRowOf("FROM widen_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
@@ -6369,9 +6364,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Files.writeString(dir.resolve("part-b.csv"), "x\n3000000000\n4000000000\n");
         putFirstFileWinsGlob("drift_csv_type_ffw", dir, "csv", Map.of("error_mode", "null_field"));
 
-        // File B infers LONG from values outside the integer range. The INTEGER anchor cannot represent
-        // that type, so null_field nulls those cells: the scan sees 1, 2, null, null. Text harvests
-        // describe each file's own schema, so COUNT cannot fold and must scan; the answer is still 2.
+        // Text harvests describe each file's own schema, so COUNT cannot fold and must scan.
         assertThat(firstRowOf("FROM drift_csv_type_ffw | KEEP x | SORT x"), equalTo(List.of(1)));
         assertThat(firstRowOf("FROM drift_csv_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
         try (var response = run(syncEsqlQueryRequest("FROM drift_csv_type_ffw | STATS c = COUNT(x)"), TIMEOUT)) {
@@ -6387,8 +6380,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         writeInt64Parquet(dir.resolve("part-b.parquet"), false, 0L, 200L);
         putFirstFileWinsGlob("ul_pq_type_ffw", dir);
 
-        // The UINT_64 anchor keeps part-b and coerces in-range INT64 cells to unsigned_long. Warm MIN/MAX
-        // must answer over that coerced domain, not mix encoded uint64 footer extrema with raw signed harvests.
+        // Unsigned extrema use a different representation than a signed harvest; MIN/MAX must
+        // answer over the coerced domain, not mix the two.
         List<Object> scan = firstRowOf("FROM ul_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)");
         assertThat(firstRowOf("FROM ul_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(scan));
         assertThat(documentsReadBy("FROM ul_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
@@ -6406,8 +6399,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // be no scan answer to compare the warm one against.
         putFirstFileWinsGlob("ul_pq_neg_ffw", dir, "parquet", Map.of("error_mode", "null_field"));
 
-        // -10 is out of the unsigned_long domain, so the scan nulls that cell: 1, 2, null, 200.
-        // The fold cannot encode that file's extrema and must not let split merge serve the raw harvest.
+        // -10 is out of the unsigned_long domain, so the fold cannot encode that file's extrema.
         List<Object> scan = firstRowOf("FROM ul_pq_neg_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)");
         assertThat(firstRowOf("FROM ul_pq_neg_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(scan));
         assertThat(firstRowOf("FROM ul_pq_neg_ffw | STATS c = COUNT(x)"), equalTo(List.of(3L)));
@@ -6424,9 +6416,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
         putFirstFileWinsGlob("drift_pq_declared_ffw", dir, "parquet", Map.of(), mapping);
 
-        // A mapping that restates the int32 anchor licenses per-value coerce of the later int64 file.
-        // The fold cannot rewrite those extrema into the planner domain, so COUNT/MIN/MAX scan
-        // over 1, 2, -10, 20 instead of all-nulling the later file.
+        // A declared integer licenses per-value coerce, so COUNT/MIN/MAX scan instead of all-nulling.
         assertThat(firstRowOf("FROM drift_pq_declared_ffw | KEEP x | SORT x"), equalTo(List.of(-10)));
         assertThat(firstRowOf("FROM drift_pq_declared_ffw | STATS c = COUNT(x)"), equalTo(List.of(4L)));
         assertThat(firstRowOf("FROM drift_pq_declared_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(-10, 20, 4L)));

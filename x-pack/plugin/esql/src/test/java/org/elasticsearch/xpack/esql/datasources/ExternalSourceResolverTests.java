@@ -442,11 +442,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
-    /**
-     * Footer FIRST_FILE_WINS: a DATETIME anchor cannot represent DATE_NANOS, so that file's {@code ts} is
-     * all-null in the scan. The fold rewrites that harvest and keeps the DATETIME file's extrema. {@code id}
-     * is uniformly LONG and folds normally.
-     */
     public void testFfwFooterAggregateRewritesUnrepresentableDatetimeColumn() {
         Map<String, Object> f1 = new HashMap<>();
         f1.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
@@ -495,11 +490,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(9L, agg.get(SourceStatisticsSerializer.columnMaxKey("id")));
     }
 
-    /**
-     * Footer FIRST_FILE_WINS: an INTEGER anchor cannot represent LONG, so that file is all-null and the
-     * fold serves the remaining file. A LONG anchor can represent INTEGER, so a widening file stays in
-     * the fold.
-     */
     public void testFfwFooterAggregateRewritesUnrepresentableColumnAndKeepsWidening() {
         Map<String, Object> drift = ExternalSourceResolver.aggregateFileStatistics(
             List.of(
@@ -581,10 +571,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A split-level harvest whose extremum cannot be encoded into the {@code UNSIGNED_LONG} planner domain must
-     * lose its COUNTS too, not just its extrema. The scan nulls the offending cell while the harvest still counted
-     * it, so leaving {@code value_count} behind lets split merge sum a value the scan never produces and serve
-     * {@code COUNT(col)} warm and too high. Mirrors the fold's failed-encode handling.
+     * A failed unsigned encode invalidates counts as well as extrema: the scan nulls the
+     * offending cell, so leaving {@code value_count} would over-count.
      */
     public void testAlignHarvestWithAnchorTypesDropsCountsWhenUnsignedEncodeFails() {
         Map<String, Object> harvest = new HashMap<>();
@@ -654,9 +642,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * Text FIRST_FILE_WINS does not whole-column null-fill, so an unrepresentable column's extrema are
-     * poisoned and its counts are dropped. The harvest describes a read under each file's own schema,
-     * which the pinned scan does not produce.
+     * Text FIRST_FILE_WINS does not whole-column null-fill, so an unrepresentable column's
+     * extrema are poisoned and its counts stay unknown.
      */
     public void testFfwTextAggregateSafeMissesUnrepresentableColumn() {
         Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
@@ -677,9 +664,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * Footer FIRST_FILE_WINS keeps a signed integer file under an UNSIGNED_LONG anchor (the scan
-     * coerces in-range values). The uint64 file's footer extrema are already sign-flip-encoded; the
-     * signed harvest is encoded into that domain before the merge so MIN/MAX stay warm.
+     * Unsigned extrema use a different in-memory representation than a signed harvest; encode
+     * the signed file into the planner domain before the merge so MIN/MAX stay warm.
      */
     public void testFfwFooterAggregateEncodesUnsignedLongVersusSignedExtrema() {
         long encoded0 = DeclaredTypeCoercions.coerceToUnsignedLong(0L);
@@ -945,13 +931,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(Map.of("val", DataType.LONG), ExternalSourceResolver.statsFileTypesOf(nothingRetyped));
     }
 
-    /**
-     * A FIRST_FILE_WINS file is read at the ANCHOR's type, so any column whose footer type differs from the
-     * anchor is "read at a type its own harvest does not describe" — exactly what a UNION_BY_NAME pin is — and
-     * must be classified as pinned so {@code EsqlSession#collectPinnedReads} strips it off the read-schema-blind
-     * cache commit. Both directions qualify: a column the anchor cannot represent (read as null) and one that
-     * widens into the anchor (read and coerced). A file that agrees with the anchor retypes nothing.
-     */
     public void testPinnedColumnsOfTreatsFirstFileWinsAnchorPinAsPinned() {
         ExternalSchema anchorPinned = new ExternalSchema(List.of(attr("x", DataType.INTEGER), attr("keep", DataType.KEYWORD)));
 
@@ -983,12 +962,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(Set.of(), ExternalSourceResolver.pinnedColumnsOf(agrees));
     }
 
-    /**
-     * The resolve-level half of {@link #testPinnedColumnsOfTreatsFirstFileWinsAnchorPinAsPinned}: an eager
-     * FIRST_FILE_WINS resolve must snapshot each file's OWN footer types onto {@code FileSchemaInfo.inferredTypes},
-     * not the anchor schema it pins every file to. Without that snapshot the split-level stats boundary cannot tell
-     * a drifting file from an agreeing one, and the commit-side stripping sees nothing to strip.
-     */
     public void testFirstFileWinsPopulatesPerFileInferredTypes() throws Exception {
         String anchorPath = "s3://bucket/data/a.parquet";
         String driftPath = "s3://bucket/data/b.parquet";

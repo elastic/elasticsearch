@@ -774,7 +774,7 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         stats.put(SourceStatisticsSerializer.columnMinKey("id"), 1L);
         Map<String, Object> frozen = Map.copyOf(stats);
 
-        Map<String, Object> out = SourceStatisticsSerializer.rewriteColumnAsAllNull(frozen, "x");
+        Map<String, Object> out = SourceStatisticsSerializer.rewriteColumnsAsAllNull(frozen, List.of("x"));
 
         assertNotSame(frozen, out);
         assertEquals(2L, out.get(SourceStatisticsSerializer.STATS_ROW_COUNT));

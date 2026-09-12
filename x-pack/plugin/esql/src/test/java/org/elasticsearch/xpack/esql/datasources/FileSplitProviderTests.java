@@ -4318,42 +4318,21 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * UNION_BY_NAME reads a DATETIME file at DATETIME and converts afterwards. The harvest extrema
-     * are rescaled to DATE_NANOS; counts stay. Comparing against the unified DATE_NANOS type would
-     * treat the file as unrepresentable and rewrite the column to {@code value_count = 0}.
+     * UNION_BY_NAME reads DATETIME and converts afterwards. Aligning against the unified
+     * DATE_NANOS type would treat the file as unrepresentable and rewrite {@code value_count = 0}.
      */
     public void testRangeAwareSplitsKeepUnionByNameTemporalWideningStats() {
-        Map<String, Object> rawStats = new HashMap<>();
-        rawStats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
-        rawStats.put(SourceStatisticsSerializer.columnMinKey("ts"), 1000L);
-        rawStats.put(SourceStatisticsSerializer.columnMaxKey("ts"), 5000L);
-        rawStats.put(SourceStatisticsSerializer.columnValueCountKey("ts"), 2L);
-        rawStats.put(SourceStatisticsSerializer.columnNullCountKey("ts"), 0L);
-
+        Map<String, Object> rawStats = harvestStats("ts", 1000L, 5000L);
         RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
         FileSplitProvider splitter = splitterFor(mockReader);
-        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/part-a.parquet"), 2000, Instant.EPOCH);
-        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
-
         List<Attribute> fileSchema = List.of(new ReferenceAttribute(SRC, "ts", DataType.DATETIME));
-        List<Attribute> unifiedAttrs = List.of(new ReferenceAttribute(SRC, "ts", DataType.DATE_NANOS));
-        ExternalSchema unified = new ExternalSchema(unifiedAttrs);
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
-            entry.path(),
-            new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(fileSchema), null, null, Map.of("ts", DataType.DATETIME))
-        );
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
-            null,
-            fileList,
-            schemaMap,
-            Map.of(),
-            PartitionMetadata.EMPTY,
-            List.of(),
+        ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "ts", DataType.DATE_NANOS)));
+        SplitDiscoveryContext ctx = singleFileStatsContext(
+            "s3://b/part-a.parquet",
+            "s3://b/*.parquet",
+            new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(fileSchema), null, null, Map.of("ts", DataType.DATETIME)),
             unified,
-            unified,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false,
-            DeclaredReadSpec.NONE
+            Map.of()
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4366,41 +4345,17 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
-    /**
-     * FIRST_FILE_WINS pins the INTEGER read schema, so a LONG footer column is whole-column null
-     * and the harvest is rewritten to the all-null contract.
-     */
     public void testRangeAwareSplitsRewriteFirstFileWinsUnrepresentableFooterColumn() {
-        Map<String, Object> rawStats = new HashMap<>();
-        rawStats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
-        rawStats.put(SourceStatisticsSerializer.columnMinKey("x"), -10L);
-        rawStats.put(SourceStatisticsSerializer.columnMaxKey("x"), 20L);
-        rawStats.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
-        rawStats.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
-
+        Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
         RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
         FileSplitProvider splitter = splitterFor(mockReader);
-        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/part-b.parquet"), 2000, Instant.EPOCH);
-        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
-
-        List<Attribute> anchor = List.of(new ReferenceAttribute(SRC, "x", DataType.INTEGER));
-        ExternalSchema unified = new ExternalSchema(anchor);
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
-            entry.path(),
-            new SchemaReconciliation.FileSchemaInfo(unified, null, null, Map.of("x", DataType.LONG))
-        );
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
-            null,
-            fileList,
-            schemaMap,
-            Map.of(),
-            PartitionMetadata.EMPTY,
-            List.of(),
+        ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.INTEGER)));
+        SplitDiscoveryContext ctx = singleFileStatsContext(
+            "s3://b/part-b.parquet",
+            "s3://b/*.parquet",
+            new SchemaReconciliation.FileSchemaInfo(unified, null, null, Map.of("x", DataType.LONG)),
             unified,
-            unified,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false,
-            DeclaredReadSpec.NONE
+            Map.of()
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4414,41 +4369,20 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * An extensionless object with {@code format: parquet} still applies the footer FIRST_FILE_WINS
-     * rewrite. {@code task.format()} is the filename extension (null here); implicit-nulls come from
-     * the configured reader.
+     * An extensionless object with {@code format: parquet} still applies the footer rewrite;
+     * implicit-nulls come from the configured reader, not the filename extension.
      */
     public void testCachedExtensionlessSplitsRewriteUnrepresentableFooterColumn() throws Exception {
-        Map<String, Object> rawStats = new HashMap<>();
-        rawStats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
-        rawStats.put(SourceStatisticsSerializer.columnMinKey("x"), -10L);
-        rawStats.put(SourceStatisticsSerializer.columnMaxKey("x"), 20L);
-        rawStats.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
-        rawStats.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
-
+        Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
         RangeAwareFormatReader mockReader = createCachedRangeReader(List.of(new SplitRange(0, 2000, rawStats)));
         FileSplitProvider splitter = rangeAwareProvider(mockReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/part-b"), 2000, Instant.EPOCH);
-        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/part-b");
-
-        List<Attribute> anchor = List.of(new ReferenceAttribute(SRC, "x", DataType.INTEGER));
-        ExternalSchema unified = new ExternalSchema(anchor);
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
-            entry.path(),
-            new SchemaReconciliation.FileSchemaInfo(unified, null, null, Map.of("x", DataType.LONG))
-        );
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
-            null,
-            fileList,
-            schemaMap,
-            Map.of(FormatNameResolver.CONFIG_FORMAT, "parquet"),
-            PartitionMetadata.EMPTY,
-            List.of(),
+        ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.INTEGER)));
+        SplitDiscoveryContext ctx = singleFileStatsContext(
+            "s3://b/part-b",
+            "s3://b/part-b",
+            new SchemaReconciliation.FileSchemaInfo(unified, null, null, Map.of("x", DataType.LONG)),
             unified,
-            unified,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false,
-            DeclaredReadSpec.NONE
+            Map.of(FormatNameResolver.CONFIG_FORMAT, "parquet")
         );
 
         PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
@@ -4461,6 +4395,39 @@ public class FileSplitProviderTests extends ESTestCase {
         assertNull(stats.get(SourceStatisticsSerializer.columnMinKey("x")));
         assertNull(stats.get(SourceStatisticsSerializer.columnMaxKey("x")));
         assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+    }
+
+    private static Map<String, Object> harvestStats(String column, long min, long max) {
+        Map<String, Object> rawStats = new HashMap<>();
+        rawStats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        rawStats.put(SourceStatisticsSerializer.columnMinKey(column), min);
+        rawStats.put(SourceStatisticsSerializer.columnMaxKey(column), max);
+        rawStats.put(SourceStatisticsSerializer.columnValueCountKey(column), 2L);
+        rawStats.put(SourceStatisticsSerializer.columnNullCountKey(column), 0L);
+        return rawStats;
+    }
+
+    private static SplitDiscoveryContext singleFileStatsContext(
+        String path,
+        String glob,
+        SchemaReconciliation.FileSchemaInfo info,
+        ExternalSchema unified,
+        Map<String, Object> config
+    ) {
+        StorageEntry entry = new StorageEntry(StoragePath.of(path), 2000, Instant.EPOCH);
+        return new SplitDiscoveryContext(
+            null,
+            GlobExpander.fileListOf(List.of(entry), glob),
+            Map.of(entry.path(), info),
+            config,
+            PartitionMetadata.EMPTY,
+            List.of(),
+            unified,
+            unified,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            DeclaredReadSpec.NONE
+        );
     }
 
     private static FileSplitProvider splitterFor(RangeAwareFormatReader reader) {

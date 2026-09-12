@@ -73,6 +73,7 @@ import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
@@ -112,6 +113,8 @@ import java.util.concurrent.TimeUnit;
  * }</pre>
  */
 public class SearchableSnapshotDirectoryFactory {
+
+    private static final BlobCacheMetrics NOOP_BLOB_CACHE_METRICS = AbstractSearchableSnapshotsTestCase.NOOP_BLOB_CACHE_METRICS;
 
     /**
      * Returns a {@link Directory} that buffers {@link IndexOutput} writes, then materializes a
@@ -622,7 +625,7 @@ public class SearchableSnapshotDirectoryFactory {
             buildEnvSettings(Settings.EMPTY, path, dataLength),
             threadPool,
             threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
-            BlobCacheMetrics.NOOP
+            NOOP_BLOB_CACHE_METRICS
         );
     }
 

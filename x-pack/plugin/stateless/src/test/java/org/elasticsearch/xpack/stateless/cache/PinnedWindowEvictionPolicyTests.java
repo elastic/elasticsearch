@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
-import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.CacheRegion;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
@@ -197,7 +196,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                BlobCacheMetrics.NOOP,
+                TestUtils.NOOP_BLOB_CACHE_METRICS,
                 cacheClusterService,
                 mockIndicesService(cacheClusterService, oldShard, newShard),
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)

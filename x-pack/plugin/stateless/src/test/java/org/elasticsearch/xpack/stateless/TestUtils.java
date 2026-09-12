@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.NodeEnvironment;
@@ -20,6 +22,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -44,6 +47,15 @@ import static org.mockito.Mockito.when;
 public class TestUtils {
 
     private TestUtils() {}
+
+    /** A {@link TimeProvider} with all methods returning {@code 0L}, for use in tests that do not exercise time-based bucketing. */
+    public static final TimeProvider NOOP_TIMER = SharedBlobCacheServiceTestUtils.NOOP_TIME_PROVIDER;
+
+    /** A no-op {@link BlobCacheMetrics} for tests that do not exercise cache metrics. */
+    public static final BlobCacheMetrics NOOP_BLOB_CACHE_METRICS = new BlobCacheMetrics(
+        TelemetryProvider.NOOP.getMeterRegistry(),
+        NOOP_TIMER
+    );
 
     /**
      * A {@link FillCacheMemoryPressure} using {@code settings} (default: heap-relative) and no telemetry, for tests that do not
@@ -124,7 +136,7 @@ public class TestUtils {
             nodeEnvironment,
             settings,
             threadPool,
-            meterRegistry == null ? new BlobCacheMetrics(MeterRegistry.NOOP) : new BlobCacheMetrics(meterRegistry),
+            meterRegistry == null ? NOOP_BLOB_CACHE_METRICS : new BlobCacheMetrics(meterRegistry, NOOP_TIMER),
             clusterService,
             mockIndicesService(clusterService),
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)

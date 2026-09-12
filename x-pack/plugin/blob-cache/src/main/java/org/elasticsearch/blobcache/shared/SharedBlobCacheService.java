@@ -1493,7 +1493,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                     + '-'
                                     + rangeToRead.start()
                                     + ']';
-                            blobCacheService.blobCacheMetrics.recordRead();
+                            blobCacheService.blobCacheMetrics.recordRead(this.timestampMillis());
                             l.onResponse(read);
                         })
                     ).map(SparseFileTracker.Gaps::claim).orElse(List.of());
@@ -1624,6 +1624,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return cacheKey;
         }
 
+        public long timestampMillis() {
+            return timestampMillis;
+        }
+
         public boolean tryPrefetch(long offset, long length) throws IOException {
             assert assertOffsetsWithinFileLength(offset, length, this.length);
             final int startRegion = getRegion(offset);
@@ -1682,7 +1686,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             boolean res = region.tryRead(buf, offset, advice);
             lastAccessedRegion = res ? fileRegion : null;
             if (res && incrementReads) {
-                blobCacheMetrics.recordRead();
+                blobCacheMetrics.recordRead(region.timestampMillis());
                 // todo: should we add to readBytes? readBytes.add(end - offset);
             }
             return res;
@@ -1939,7 +1943,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 mapSubRangeToRegion(rangeToWrite, region),
                 regionRangeToRead,
                 readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
-                metricRecordingWriter(writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))),
+                metricRecordingWriter(
+                    writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
+                    fileRegion
+                ),
                 ioExecutor,
                 listener
             );
@@ -1974,7 +1981,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                             subRangeToRead,
                             readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
                             metricRecordingWriter(
-                                writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))
+                                writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
+                                fileRegion
                             ),
                             ioExecutor,
                             regionListener
@@ -2064,11 +2072,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return adjustedWriter;
         }
 
-        private RangeMissingHandler metricRecordingWriter(RangeMissingHandler writer) {
+        private RangeMissingHandler metricRecordingWriter(RangeMissingHandler writer, CacheFileRegion<KeyType> fileRegion) {
             return new DelegatingRangeMissingHandler(writer) {
                 @Override
                 public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
-                    blobCacheMetrics.recordMiss();
+                    blobCacheMetrics.recordMiss(fileRegion.timestampMillis());
                     return super.sharedInputStreamFactory(gaps);
                 }
             };

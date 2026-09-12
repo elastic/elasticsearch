@@ -462,7 +462,14 @@ public final class DatasetRewriter {
      * <p>
      * {@link RemovedParquetDatasetSettings} keys are dropped from the dataset map so a stored
      * document from before those kill-switches were removed still plans; PUT and WITH reject them.
-     * The parent {@code _datasource} map is left untouched.
+     * {@code region} is stripped from the {@code _datasource} sub-map before merging — it is a
+     * dataset-level key and must not be inherited from the parent data source. The strip is
+     * hardcoded here rather than driven by {@code FileDataSourceValidator.additionalDatasetKeys}
+     * because {@code DatasetRewriter} has no access to plugin validators; making it plugin-driven
+     * would require either threading a {@code Function<type, nonInheritedKeys>} through the static
+     * call chain or storing the keys on {@code DataSource} in cluster state. {@code region} is
+     * the only such key today, and retiring it from the data-source vocabulary entirely is not
+     * planned, so the hardcoded strip is intentional.
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();
@@ -473,6 +480,8 @@ public final class DatasetRewriter {
             for (Map.Entry<String, DataSourceSetting> e : parent.settings()) {
                 dsSettings.put(e.getKey(), e.getValue().secret() ? e.getValue().rawValue() : e.getValue().nonSecretValue());
             }
+            // region is a dataset-level key; a data-source-level value is never inherited.
+            dsSettings.remove("region");
             merged.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsSettings);
         }
         return merged;

@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
-
 import org.junit.After;
 
 import java.io.IOException;

@@ -307,6 +307,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 nodeUsageStatsForThreadPoolsCollector.collectUsageStats(
                     client,
                     clusterStateSupplier.get(),
+                    // Per-shard write loads from this action are only needed when the write loads are not fetched via the indices stats.
+                    writeLoadDeciderShardWriteLoadType.useIndicesStats() == false,
                     ActionListener.releaseAfter(new ActionListener<>() {
                         @Override
                         public void onResponse(NodeUsageStatsForThreadPoolsCollector.CollectedUsageStats stats) {
@@ -575,6 +577,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
         }
 
+        public boolean needIndicesStatsForShardWriteLoads() {
+            return writeLoadConstraintEnabled.atLeastLowThresholdEnabled() && writeLoadDeciderShardWriteLoadType.useIndicesStats();
+        }
+
         private ClusterInfo updateAndGetCurrentClusterInfo() {
             final Map<String, NodeHeapMetrics> nodeHeapMetrics = new HashMap<>(maxHeapPerNode.size());
             maxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
@@ -629,10 +635,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             });
             return nodeIdsWriteLoadHotspotting;
         }
-    }
-
-    public boolean needIndicesStatsForShardWriteLoads() {
-        return writeLoadConstraintEnabled.atLeastLowThresholdEnabled() && writeLoadDeciderShardWriteLoadType.useIndicesStats();
     }
 
     private void onRefreshComplete(AsyncRefresh completedRefresh) {
@@ -762,7 +764,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     reservedSpaceBuilder.add(shardRouting.shardId(), reserved);
                 }
             }
-            if (needIndicesStatsForShardWriteLoads()) {
+            if (shardWriteLoadType.useIndicesStats()) {
                 final IndexingStats indexingStats = s.getStats().getIndexing();
                 if (indexingStats != null) {
                     final double shardWriteLoad = shardWriteLoadType.getWriteLoad(indexingStats);

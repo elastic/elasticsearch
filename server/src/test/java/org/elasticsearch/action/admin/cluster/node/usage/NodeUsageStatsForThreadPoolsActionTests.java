@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.cluster.node.usage;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.cluster.node.usage.NodeUsageStatsForThreadPoolsAction.NodeRequest;
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsageStatsForThreadPoolsAction.NodeResponse;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools.ThreadPoolUsageStats;
@@ -28,8 +29,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Wire (de)serialization tests for {@link NodeResponse}, including backwards-compatibility coverage for
- * the per-shard write load map that was only added starting at {@link NodeResponse#ADD_SHARD_WRITE_LOADS}.
+ * Wire (de)serialization tests for {@link NodeResponse} and {@link NodeRequest}, including backwards-compatibility coverage for
+ * the per-shard write load map and the flag requesting it, both only added starting at {@link NodeResponse#ADD_SHARD_WRITE_LOADS}.
  */
 public class NodeUsageStatsForThreadPoolsActionTests extends AbstractWireSerializingTestCase<NodeResponse> {
 
@@ -97,6 +98,26 @@ public class NodeUsageStatsForThreadPoolsActionTests extends AbstractWireSeriali
 
         assertThat(deserialized.getNodeUsageStatsForThreadPools(), equalTo(original.getNodeUsageStatsForThreadPools()));
         assertThat(deserialized.getShardWriteLoads(), equalTo(Map.of()));
+    }
+
+    public void testNodeRequestFetchShardWriteLoadsRoundTripOnVersionsSupportingIt() throws IOException {
+        final TransportVersion version = TransportVersionUtils.randomVersionSupporting(NodeResponse.ADD_SHARD_WRITE_LOADS);
+        final boolean fetchShardWriteLoads = randomBoolean();
+        final NodeRequest original = new NodeRequest(fetchShardWriteLoads);
+
+        final NodeRequest deserialized = copyWriteable(original, getNamedWriteableRegistry(), NodeRequest::new, version);
+
+        assertThat(deserialized.fetchShardWriteLoads(), equalTo(fetchShardWriteLoads));
+    }
+
+    public void testNodeRequestFetchShardWriteLoadsIsFalseOnVersionsNotSupportingIt() throws IOException {
+        final TransportVersion version = TransportVersionUtils.randomVersionNotSupporting(NodeResponse.ADD_SHARD_WRITE_LOADS);
+        final NodeRequest original = new NodeRequest(true);
+
+        final NodeRequest deserialized = copyWriteable(original, getNamedWriteableRegistry(), NodeRequest::new, version);
+
+        // Older versions never ask for shard write loads, so the flag is not on the wire and comes back unset.
+        assertThat(deserialized.fetchShardWriteLoads(), equalTo(false));
     }
 
     private static NodeResponse randomNodeResponse() {

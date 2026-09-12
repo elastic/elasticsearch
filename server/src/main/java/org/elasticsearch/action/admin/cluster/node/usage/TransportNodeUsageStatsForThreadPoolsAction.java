@@ -87,7 +87,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
 
     @Override
     protected NodeUsageStatsForThreadPoolsAction.NodeRequest newNodeRequest(NodeUsageStatsForThreadPoolsAction.Request request) {
-        return new NodeUsageStatsForThreadPoolsAction.NodeRequest();
+        return new NodeUsageStatsForThreadPoolsAction.NodeRequest(request.fetchShardWriteLoads());
     }
 
     @Override
@@ -122,9 +122,8 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
         return new NodeUsageStatsForThreadPoolsAction.NodeResponse(
             localNode,
             new NodeUsageStatsForThreadPools(localNode.getId(), Map.of(ThreadPool.Names.WRITE, threadPoolUsageStats)),
-            clusterService.state().getMinTransportVersion().supports(NodeUsageStatsForThreadPoolsAction.NodeResponse.ADD_SHARD_WRITE_LOADS)
-                ? getShardWriteLoads(numWriteThreads)
-                : Map.of()
+            // A request from a node too old to know about shard write loads deserializes with the flag set to false.
+            request.fetchShardWriteLoads() ? getShardWriteLoads(numWriteThreads) : Map.of()
         );
     }
 

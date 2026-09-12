@@ -36,24 +36,54 @@ public class NodeUsageStatsForThreadPoolsAction {
      * The sender request type that will be resolved to send individual {@link NodeRequest} requests to every node in the cluster.
      */
     public static class Request extends BaseNodesRequest {
+        private final boolean fetchShardWriteLoads;
+
         /**
          * @param nodeIds The list of nodes to which to send individual requests and collect responses from. If the list is null, all nodes
          *                in the cluster will be sent a request.
+         * @param fetchShardWriteLoads Whether each node should also report its per-shard write loads, which is comparatively expensive
+         *                             as it iterates every shard on the node.
          */
-        public Request(String[] nodeIds) {
+        public Request(String[] nodeIds, boolean fetchShardWriteLoads) {
             super(nodeIds);
+            this.fetchShardWriteLoads = fetchShardWriteLoads;
+        }
+
+        public boolean fetchShardWriteLoads() {
+            return fetchShardWriteLoads;
         }
     }
 
     /**
-     * Request sent to and received by a cluster node. There are no parameters needed in the node-specific request.
+     * Request sent to and received by a cluster node.
      */
     public static class NodeRequest extends AbstractTransportRequest {
+        private final boolean fetchShardWriteLoads;
+
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
+            if (in.getTransportVersion().supports(NodeResponse.ADD_SHARD_WRITE_LOADS)) {
+                this.fetchShardWriteLoads = in.readBoolean();
+            } else {
+                this.fetchShardWriteLoads = false;
+            }
         }
 
-        public NodeRequest() {}
+        public NodeRequest(boolean fetchShardWriteLoads) {
+            this.fetchShardWriteLoads = fetchShardWriteLoads;
+        }
+
+        public boolean fetchShardWriteLoads() {
+            return fetchShardWriteLoads;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            if (out.getTransportVersion().supports(NodeResponse.ADD_SHARD_WRITE_LOADS)) {
+                out.writeBoolean(fetchShardWriteLoads);
+            }
+        }
     }
 
     /**

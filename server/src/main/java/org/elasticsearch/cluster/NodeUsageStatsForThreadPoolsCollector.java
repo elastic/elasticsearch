@@ -41,7 +41,12 @@ public class NodeUsageStatsForThreadPoolsCollector {
     }
 
     public static final NodeUsageStatsForThreadPoolsCollector EMPTY = new NodeUsageStatsForThreadPoolsCollector() {
-        public void collectUsageStats(Client client, ClusterState clusterState, ActionListener<CollectedUsageStats> listener) {
+        public void collectUsageStats(
+            Client client,
+            ClusterState clusterState,
+            boolean fetchShardWriteLoads,
+            ActionListener<CollectedUsageStats> listener
+        ) {
             listener.onResponse(CollectedUsageStats.EMPTY);
         }
     };
@@ -58,26 +63,38 @@ public class NodeUsageStatsForThreadPoolsCollector {
     private final Map<String, Map<ShardId, Double>> lastShardWriteLoadsPerNode = new ConcurrentHashMap<>();
 
     /**
-     * Collects the thread pool usage stats ({@link NodeUsageStatsForThreadPools}) and per-shard write loads for each node in the cluster.
+     * Collects the thread pool usage stats ({@link NodeUsageStatsForThreadPools}) and, optionally, per-shard write loads for each node in
+     * the cluster.
      *
+     * @param fetchShardWriteLoads Whether to also collect per-shard write loads. When false, the returned shard write loads are empty and
+     *                             any previously cached per-node shard write loads are discarded.
      * @param listener The listener to receive the collected results.
      */
-    public void collectUsageStats(Client client, ClusterState clusterState, ActionListener<CollectedUsageStats> listener) {
+    public void collectUsageStats(
+        Client client,
+        ClusterState clusterState,
+        boolean fetchShardWriteLoads,
+        ActionListener<CollectedUsageStats> listener
+    ) {
         var dataNodeIds = clusterState.nodes().getDataNodes().values().stream().map(DiscoveryNode::getId).toArray(String[]::new);
         // Discard last-seen values for any nodes no longer present in the cluster state
         lastNodeUsageStatsPerNode.keySet().retainAll(Arrays.asList(dataNodeIds));
         lastShardWriteLoadsPerNode.keySet().retainAll(Arrays.asList(dataNodeIds));
+        if (fetchShardWriteLoads == false) {
+            lastShardWriteLoadsPerNode.clear();
+        }
+
         if (clusterState.getMinTransportVersion().supports(TRANSPORT_NODE_USAGE_STATS_FOR_THREAD_POOLS_ACTION)) {
             client.execute(
                 TransportNodeUsageStatsForThreadPoolsAction.TYPE,
-                new NodeUsageStatsForThreadPoolsAction.Request(dataNodeIds),
+                new NodeUsageStatsForThreadPoolsAction.Request(dataNodeIds, fetchShardWriteLoads),
                 listener.map(response -> {
                     // Update last seen stats (failed nodes retain their previously cached values)
                     lastNodeUsageStatsPerNode.putAll(response.getAllNodeUsageStatsForThreadPools());
                     lastShardWriteLoadsPerNode.putAll(response.getAllShardWriteLoadsPerNode());
                     if (response.failures().isEmpty() == false) {
                         logger.warn(
-                            "Got no usage stats from nodes [{}], using last known stats for them",
+                            "Received no usage stats from data nodes [{}], using last known stats for them",
                             response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(", "))
                         );
                     }

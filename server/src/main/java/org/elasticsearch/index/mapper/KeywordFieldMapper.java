@@ -355,11 +355,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this.normalizerSkipStoreOriginalValue.getValue();
         }
 
-        // Returns true when an effective ignore_above limit applies (field-level or index-level), so the doc values omit longer values.
-        public boolean hasIgnoreAbove() {
-            return this.ignoreAbove.getValue() != Integer.MAX_VALUE;
-        }
-
         // Returns true when a null_value is configured, so the doc values substitute it for nulls rather than mirroring the raw values.
         public boolean hasNullValue() {
             return this.nullValue.getValue() != null;
@@ -1545,6 +1540,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final String offsetsFieldName;
 
     private final IndexVersion indexCreatedVersion;
+    // True when the value targets an inverted-index term or SORTED_SET doc values (MAX_TERM_LENGTH applies).
+    private final boolean writesIndexableField;
 
     private KeywordFieldMapper(
         String simpleName,
@@ -1580,6 +1577,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.offsetsFieldName = offsetsFieldName;
         this.indexCreatedVersion = builder.indexCreatedVersion;
         sourceKeepMode = builder.sourceKeepMode.orElse(indexSettings.sourceKeepMode());
+        this.writesIndexableField = fieldType.indexOptions() != IndexOptions.NONE
+            || fieldType.docValuesType() != DocValuesType.NONE
+            || fieldType.stored();
     }
 
     @Override
@@ -1687,7 +1687,10 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored();
-        final boolean emitFallback = storeIgnoredValuesForSyntheticSource();
+        // emitTerms omits docValuesType != NONE deliberately: supportsColumnarParse requires usesBinaryDocValues(),
+        // so a SORTED_SET keyword (which Lucene does enforce MAX_TERM_LENGTH on) can never reach mapColumnBatch.
+        final boolean checkIgnoreAbove = fieldType().ignoreAbove().valuesPotentiallyIgnored();
+        final boolean emitFallback = storeIgnoredValuesForSyntheticSource() && checkIgnoreAbove;
         final boolean emitDvs = fieldType().hasDocValues();
         if (emitTerms == false && emitDvs == false && emitFallback == false) {
             return;
@@ -1704,9 +1707,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         // strings. This is possible as an eventual user option.
 
         if (fieldType().storesArrayOrderInline()) {
-            mapColumnBatchArrayOrder(ctx, source, emitTerms, emitDvs, emitFallback);
+            mapColumnBatchArrayOrder(ctx, source, emitTerms, emitDvs, emitFallback, checkIgnoreAbove);
         } else {
-            mapColumnBatchSingleValue(ctx, source, emitTerms, emitDvs, emitFallback);
+            mapColumnBatchSingleValue(ctx, source, emitTerms, emitDvs, emitFallback, checkIgnoreAbove);
         }
     }
 
@@ -1715,7 +1718,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         EscfColumn source,
         boolean emitTerms,
         boolean emitDvs,
-        boolean emitFallback
+        boolean emitFallback,
+        boolean checkIgnoreAbove
     ) {
         final int docCount = ctx.docCount();
 
@@ -1804,8 +1808,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                 }
 
-                // ignore_above: record _ignored once per doc; defer the synthetic-source value fallback.
-                if (fieldType().ignoreAbove().isIgnored(binaryValue)) {
+                // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older indices.
+                if (checkIgnoreAbove && fieldType().ignoreAbove().isIgnored(binaryValue)) {
                     if (ignoredThisDoc == false) {
                         ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
                         if (fallback != null) {
@@ -1827,7 +1831,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     continue;
                 }
 
-                if (binaryValue.length > MAX_TERM_LENGTH) {
+                if (emitTerms && binaryValue.length > MAX_TERM_LENGTH) {
                     throw largeTermException(binaryValue);
                 }
 
@@ -1875,7 +1879,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         EscfColumn source,
         boolean emitTerms,
         boolean emitDvs,
-        boolean emitFallback
+        boolean emitFallback,
+        boolean checkIgnoreAbove
     ) {
         final int docCount = ctx.docCount();
         boolean valuesProduced = false;
@@ -1929,7 +1934,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
                 valueSeenThisDoc = true;
 
-                if (fieldType().ignoreAbove().isIgnored(binaryValue)) {
+                // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older indices.
+                if (checkIgnoreAbove && fieldType().ignoreAbove().isIgnored(binaryValue)) {
                     ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
                     // Deoptimize: we were planning to zero-copy the source column, but now we must
                     // exclude this doc's value from the output. Lazily create the builder and backfill
@@ -1943,7 +1949,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                     continue;
                 }
-                if (binaryValue.length > MAX_TERM_LENGTH) {
+                if (emitTerms && binaryValue.length > MAX_TERM_LENGTH) {
                     throw largeTermException(binaryValue);
                 }
 
@@ -2120,7 +2126,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // roll back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an
         // append-only workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC
         // instead of MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
-        if (binaryValue.length > MAX_TERM_LENGTH) {
+        if (writesIndexableField && binaryValue.length > MAX_TERM_LENGTH) {
             throw largeTermException(binaryValue);
         }
 
@@ -2168,7 +2174,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // If we're using binary doc values, then the values are stored in a separate MultiValuedBinaryDocValuesField (see above)
         // and this fieldType has docValuesType=NONE. Then, when there is no index defined and the field is not stored, this field
         // is a no-op and we can skip adding it to the document.
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.docValuesType() != DocValuesType.NONE || fieldType.stored()) {
+        if (writesIndexableField) {
             Field field = buildKeywordField(binaryValue);
             context.doc().add(field);
         }

@@ -148,10 +148,10 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
     }
 
     /**
-     * Verifies that a keyword value exceeding {@code ignore_above} does not crash the columnar path
-     * and causes the field name to appear in the {@code _ignored} column.
+     * Verifies that {@code ignore_above} is a no-op in strictly columnar index modes. Values exceeding the limit
+     * must be present in the binary doc-values column and must NOT appear in {@code _ignored}.
      */
-    public void testIgnoreAboveOnKeywordDoesNotFail() throws IOException {
+    public void testIgnoreAboveIsNoOpOnKeywordInColumnar() throws IOException {
         final String mapping = """
             {
               "dynamic": "strict",
@@ -163,10 +163,9 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
         try {
             final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
-            // "toolong" is 7 chars, exceeds ignore_above=5.
             try (SourceBatch batch = EscfEncoder.encode(List.of(doc("f", "toolong")), XContentType.JSON)) {
                 EngineBatch result = mapBatch(shard, items, batch);
-                assertNotNull("expected columnar path to succeed with ignore_above exceeded", result);
+                assertNotNull("expected columnar path to succeed", result);
 
                 final MappedColumns mc = result.columns();
                 mc.fillPrimaryTerm(1L);
@@ -178,15 +177,14 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 final List<IndexableField> fields = cursor.fields();
 
                 // LuceneBinaryColumn stores field names as BytesRef, so check binaryValue(), not stringValue().
-                final BytesRef fRef = new BytesRef("f");
+                final BytesRef expected = new BytesRef("toolong");
                 assertTrue(
-                    "_ignored should contain field name f",
-                    fields.stream().anyMatch(fld -> "_ignored".equals(fld.name()) && fRef.equals(fld.binaryValue()))
+                    "f binary DV should contain the value when ignore_above is a no-op",
+                    fields.stream().anyMatch(fld -> "f".equals(fld.name()) && expected.equals(fld.binaryValue()))
                 );
-                // The ignored value should not land in the binary doc-values column.
                 assertFalse(
-                    "f binary DV should be absent when value exceeds ignore_above",
-                    fields.stream().anyMatch(fld -> "f".equals(fld.name()) && fld.binaryValue() != null)
+                    "_ignored should be absent when ignore_above is a no-op",
+                    fields.stream().anyMatch(fld -> "_ignored".equals(fld.name()))
                 );
             }
         } finally {

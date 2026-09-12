@@ -13,7 +13,6 @@ import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.OrdinalMap;
@@ -1707,7 +1706,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             mappedFieldType.name() + KEYED_IGNORED_VALUES_FIELD_SUFFIX,
             mappedFieldType,
             builder.depthLimit.get(),
-            builder.ignoreAbove.get(),
+            ((RootFlattenedFieldType) mappedFieldType).ignoreAbove().limit(),
             builder.nullValue.get(),
             builder.usesBinaryDocValues,
             builder.hasRootDocValues(),
@@ -1716,7 +1715,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             builder.preserveLeafArrays.get(),
             builder.indexSettings.getIndexVersionCreated(),
             this.writeDimensionRouting,
-            ((RootFlattenedFieldType) mappedFieldType).usesArrayOrderBinaryDocValues()
+            ((RootFlattenedFieldType) mappedFieldType).usesArrayOrderBinaryDocValues(),
+            builder.indexSettings.getMode().isStrictColumnar()
         );
         this.preserveLeafArrays = builder.preserveLeafArrays.get();
     }
@@ -1955,6 +1955,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             // ~1.25x headroom for documents a little wider than the first.
             docBlob.grow(seedEstimate + (seedEstimate >> 2));
 
+            final boolean checkIgnoreAbove = fieldType().ignoreAbove().valuesPotentiallyIgnored();
+
             for (int doc = 0; doc < docCount; doc++) {
                 int slotCount = 0;
                 int pos = 0;
@@ -1969,7 +1971,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                             value = nullValueBytes;
                         }
                         if (value != null) {
-                            if (fieldType().ignoreAbove().isIgnored(value)) {
+                            // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older indices.
+                            if (checkIgnoreAbove && fieldType().ignoreAbove().isIgnored(value)) {
                                 throw new UnsupportedOperationException(
                                     "mapColumnGroupBatch: value for key ["
                                         + relativeKeys[k]
@@ -1979,9 +1982,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                                         + doc
                                         + "] exceeds ignore_above; the ignored-values channel is not yet supported"
                                 );
-                            }
-                            if (keyPrefix.length + value.length > IndexWriter.MAX_TERM_LENGTH) {
-                                throw immenseKeyedValueException(relativeKeys[k], value.length);
                             }
                         }
 
@@ -2035,24 +2035,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             }
         }
         return count;
-    }
-
-    /** Mirrors the row path's immense-keyed-value error in {@link FlattenedFieldParser}. */
-    private IllegalArgumentException immenseKeyedValueException(String key, int valueLength) {
-        return new IllegalArgumentException(
-            "Flattened field ["
-                + fieldType().name()
-                + "] contains one immense field"
-                + " whose keyed encoding is longer than the allowed max length of "
-                + IndexWriter.MAX_TERM_LENGTH
-                + " bytes. Key length: "
-                + key.length()
-                + ", value length: "
-                + valueLength
-                + " for key starting with ["
-                + key.substring(0, Math.min(key.length(), 50))
-                + "]"
-        );
     }
 
     /**

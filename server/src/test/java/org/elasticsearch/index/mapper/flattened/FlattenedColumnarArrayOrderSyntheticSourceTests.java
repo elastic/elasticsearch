@@ -166,10 +166,9 @@ public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServi
 
     // --- ignore_above ---
 
-    public void testIgnoreAboveValuesTailAppended() throws IOException {
-        // Values within ignore_above are stored as ordered slots; values exceeding it are stored separately and
-        // tail-appended by ArrayOrderKeyedValueProducer. This test verifies that slot ordering is preserved
-        // (cc before bb, not alphabetically sorted) and that the ignored value is appended after all slot values.
+    public void testIgnoreAboveIsNoOpValuesStayInDocumentOrder() throws IOException {
+        // ignore_above is a no-op in strictly columnar index modes for current-version indices.
+        // All values are stored in their original document order, regardless of length.
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(
             settings,
@@ -183,11 +182,10 @@ public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServi
         ).documentMapper();
         assertEquals(
             """
-                {"field":{"k":["cc","bb","aaaa"]}}""",
+                {"field":{"k":["cc","aaaa","bb"]}}""",
             syntheticSource(
                 mapper,
-                // "cc" and "bb" are within ignore_above (3); "aaaa" (4 chars) exceeds it.
-                // Slot values [cc, bb] preserved in document order; ignored value [aaaa] tail-appended.
+                // ignore_above: 3 is a no-op; "aaaa" (4 chars) is indexed in its original document position.
                 b -> b.startObject("field").startArray("k").value("cc").value("aaaa").value("bb").endArray().endObject()
             )
         );

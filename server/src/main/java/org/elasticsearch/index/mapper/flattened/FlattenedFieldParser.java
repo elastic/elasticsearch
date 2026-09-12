@@ -56,6 +56,9 @@ class FlattenedFieldParser {
     private final FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays;
 
     private final boolean writeDimensionRouting;
+    // True when the output includes an inverted-index term or SORTED_SET doc values (MAX_TERM_LENGTH applies);
+    // always false in strictly columnar mode, where only binary doc values are written.
+    private final boolean checkTermLength;
 
     FlattenedFieldParser(
         String rootFieldFullPath,
@@ -72,7 +75,8 @@ class FlattenedFieldParser {
         FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays,
         IndexVersion indexVersion,
         boolean writeDimensionRouting,
-        boolean usesArrayOrderBinaryDocValues
+        boolean usesArrayOrderBinaryDocValues,
+        boolean strictColumnar
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
@@ -89,6 +93,8 @@ class FlattenedFieldParser {
         this.preserveLeafArrays = preserveLeafArrays;
         this.indexVersion = indexVersion;
         this.writeDimensionRouting = writeDimensionRouting;
+        this.checkTermLength = strictColumnar == false
+            && (fieldType.indexType().hasTerms() || (fieldType.hasDocValues() && usesBinaryDocValues == false));
     }
 
     public void parse(final DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext) throws IOException {
@@ -198,9 +204,8 @@ class FlattenedFieldParser {
             return;
         }
 
-        // check the keyed value doesn't exceed the IndexWriter.MAX_TERM_LENGTH limit enforced by Lucene at index time
-        // in that case we can already throw a more user friendly exception here which includes the offending fields key and value lengths
-        if (bytesKeyedValue.length > IndexWriter.MAX_TERM_LENGTH) {
+        // Skipped when only binary DV is written (no MAX_TERM_LENGTH limit applies there).
+        if (checkTermLength && bytesKeyedValue.length > IndexWriter.MAX_TERM_LENGTH) {
             String msg = "Flattened field ["
                 + rootFieldFullPath
                 + "] contains one immense field"

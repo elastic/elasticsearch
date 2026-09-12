@@ -34,7 +34,8 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
     public static Object expectedValue(Map<String, Object> fieldMapping, Object value, Params params, TestContext testContext) {
         var nullValue = (String) fieldMapping.get("null_value");
 
-        var ignoreAbove = fieldMapping.get("ignore_above") == null
+        // ignore_above is a no-op in strictly columnar index modes for current-version indices.
+        var ignoreAbove = (fieldMapping.get("ignore_above") == null || params.indexMode().isStrictColumnar())
             ? Integer.MAX_VALUE
             : ((Number) fieldMapping.get("ignore_above")).intValue();
 

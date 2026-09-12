@@ -34,8 +34,13 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
      * <p>Half a megabyte holds the whole vocabulary of a column like host names. Beyond it the bound starts
      * admitting the tails of larger ones, where terms seen once cover almost nothing and widen the ordinal
      * every value pays for.
+     *
+     * <p>{@code minCoverage} is set to 0.25, which is 1.25x the theoretical break-even of
+     * {@code maxShareOfColumn} (0.2): at break-even the ordinal savings on covered bytes exactly offset
+     * the dictionary overhead. The margin ensures the dictionary produces a meaningful net saving rather
+     * than barely justifying itself.
      */
-    public static final DictionaryPolicy DEFAULT_DICTIONARY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
+    public static final DictionaryPolicy DEFAULT_DICTIONARY = new DictionaryPolicy(512 * 1024, 0.25, 0.2);
 
     /**
      * How much a chunk holds before it is closed on the dictionary path, when a field names nothing of its own.

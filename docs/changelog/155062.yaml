@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 152740
+pr: 155062
+summary: Align project routing validation with SQL and EQL
+type: bug

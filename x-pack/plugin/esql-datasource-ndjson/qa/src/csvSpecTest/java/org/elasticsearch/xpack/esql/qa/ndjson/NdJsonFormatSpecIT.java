@@ -13,6 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy.BwcTestId;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,6 +26,11 @@ import java.util.Set;
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
+
+    private static final BwcMatrixPolicy BWC_MATRIX_POLICY = BwcMatrixPolicy.uncompressed(
+        StorageBackend.S3,
+        new BwcTestId("external-basic.csv-spec", "readAllEmployees")
+    );
 
     /**
      * STRICT multi-file NDJSON tests still muted: the fixture's per-file schemas intentionally
@@ -53,6 +60,11 @@ public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
     }
 
     @Override
+    protected BwcMatrixPolicy bwcMatrixPolicy() {
+        return BWC_MATRIX_POLICY;
+    }
+
+    @Override
     protected void shouldSkipTest(String testName) throws IOException {
         if (SKIPPED_TESTS.contains(testName)) {
             assumeTrue(testName + " not supported by NDJSON multi-file path (SchemaAdaptingIterator limitation)", false);
@@ -63,13 +75,14 @@ public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
         return readExternalSpecTests(
-            "/external-basic.csv-spec",
+            BWC_MATRIX_POLICY,
+            "/datasources/external-basic.csv-spec",
             "/ndjson-declared-schema.csv-spec",
-            "/external-declared-schema.csv-spec",
-            "/external-heavy-aggregates.csv-spec",
-            "/external-multifile.csv-spec",
-            "/external-multifile-resolution.csv-spec",
-            "/external-multivalue.csv-spec"
+            "/datasources/external-declared-schema.csv-spec",
+            "/datasources/external-heavy-aggregates.csv-spec",
+            "/datasources/external-multifile.csv-spec",
+            "/datasources/external-multifile-resolution.csv-spec",
+            "/datasources/external-multivalue.csv-spec"
         );
     }
 }

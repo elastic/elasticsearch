@@ -13,6 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy.BwcTestId;
 
 import java.util.List;
 
@@ -22,6 +24,11 @@ import java.util.List;
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class ParquetFormatSpecIT extends AbstractParquetExternalSpecTestCase {
+
+    private static final BwcMatrixPolicy BWC_MATRIX_POLICY = BwcMatrixPolicy.uncompressed(
+        StorageBackend.S3,
+        new BwcTestId("external-basic.csv-spec", "readAllEmployees")
+    );
 
     public ParquetFormatSpecIT(
         String fileName,
@@ -35,6 +42,11 @@ public class ParquetFormatSpecIT extends AbstractParquetExternalSpecTestCase {
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend);
     }
 
+    @Override
+    protected BwcMatrixPolicy bwcMatrixPolicy() {
+        return BWC_MATRIX_POLICY;
+    }
+
     // Migrated specs run via FROM <dataset> on S3 and via the rebuilt EXTERNAL query on the other backends.
     // The reader: "java" this IT injects is redundant with the .parquet extension default (FormatNameResolver
     // maps a .parquet resource to the Java reader with no reader key), so FROM-on-S3 still uses the Java reader;
@@ -42,6 +54,6 @@ public class ParquetFormatSpecIT extends AbstractParquetExternalSpecTestCase {
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests("/external-*.csv-spec", "/parquet-*.csv-spec");
+        return readExternalSpecTests(BWC_MATRIX_POLICY, "/datasources/external-*.csv-spec", "/parquet-*.csv-spec");
     }
 }

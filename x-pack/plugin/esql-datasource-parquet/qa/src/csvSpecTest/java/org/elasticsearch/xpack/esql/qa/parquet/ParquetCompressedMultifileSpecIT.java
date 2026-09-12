@@ -13,6 +13,9 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy.BwcTestId;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceCodecEligibility;
 
 import java.util.List;
 
@@ -24,7 +27,12 @@ import java.util.List;
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class ParquetCompressedMultifileSpecIT extends AbstractParquetExternalSpecTestCase {
 
-    private static final List<String> CODECS = List.of("gzip", "zstd");
+    private static final BwcMatrixPolicy BWC_MATRIX_POLICY = BwcMatrixPolicy.compressed(
+        StorageBackend.S3,
+        "gzip",
+        new BwcTestId("external-multifile.csv-spec", "readAllEmployeesMultiFile")
+    );
+    private static final List<String> CODECS = EsqlDataSourceCodecEligibility.parquetCodecs("gzip", "zstd");
 
     private final String codecName;
 
@@ -47,12 +55,27 @@ public class ParquetCompressedMultifileSpecIT extends AbstractParquetExternalSpe
         return "multifile_split-" + codecName;
     }
 
+    @Override
+    protected String guardCodecIdentity() {
+        return EsqlDataSourceCodecEligibility.normalizeCodecToken(codecName);
+    }
+
+    @Override
+    protected BwcMatrixPolicy bwcMatrixPolicy() {
+        return BWC_MATRIX_POLICY;
+    }
+
     // Migrated specs run via FROM <dataset> on S3 and via the rebuilt EXTERNAL query on the other backends.
     // The reader: "java" this IT injects is redundant with the .parquet extension default (the codec lives
     // inside the .parquet file, so the extension is unchanged), so FROM-on-S3 still uses the Java reader.
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithCodecs(CODECS, "/external-multifile.csv-spec", "/external-multifile-resolution.csv-spec");
+        return readExternalSpecTestsWithCodecs(
+            BWC_MATRIX_POLICY,
+            CODECS,
+            "/datasources/external-multifile.csv-spec",
+            "/datasources/external-multifile-resolution.csv-spec"
+        );
     }
 }

@@ -15,6 +15,22 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 // Don't add default distro dependency for these projects, they're special
 def integTestDistroProjects = [':x-pack:plugin:sql:qa:jdbc']
 
+// Defaults preserve the long-standing behavior. Specialized conventions may set these
+// extra properties before applying this plugin when their current-version tasks and
+// source-set isolation must remain intact.
+def disableBaseTestTaskProperty = project.findProperty('bwcTestDisableBaseTestTask')
+def disableBaseJavaRestTestTaskProperty = project.findProperty('bwcTestDisableBaseJavaRestTestTask')
+def useJavaRestTestSourceSetProperty = project.findProperty('bwcTestUseJavaRestTestSourceSet')
+def applyDefaultDistributionProperty = project.findProperty('bwcTestApplyDefaultDistribution')
+def disableBaseTestTask = disableBaseTestTaskProperty == null ? true : disableBaseTestTaskProperty.toString().toBoolean()
+def disableBaseJavaRestTestTask = disableBaseJavaRestTestTaskProperty == null
+  ? true
+  : disableBaseJavaRestTestTaskProperty.toString().toBoolean()
+def useJavaRestTestSourceSet = useJavaRestTestSourceSetProperty == null ? true : useJavaRestTestSourceSetProperty.toString().toBoolean()
+def applyDefaultDistribution = applyDefaultDistributionProperty == null
+  ? true
+  : applyDefaultDistributionProperty.toString().toBoolean()
+
 ext.bwcTaskName = { Version version ->
   return "v${version}#bwcTest"
 }
@@ -43,18 +59,28 @@ plugins.withType(ElasticsearchTestBasePlugin) {
 }
 
 plugins.withType(InternalJavaRestTestPlugin) {
-  tasks.named("javaRestTest") {
-    enabled = false
+  if (disableBaseJavaRestTestTask) {
+    tasks.named("javaRestTest") {
+      enabled = false
+    }
   }
 
   tasks.withType(StandaloneRestIntegTestTask).configureEach {
-    testClassesDirs = sourceSets.javaRestTest.output.classesDirs
-    classpath = sourceSets.javaRestTest.runtimeClasspath
-    if (integTestDistroProjects.contains(project.path) == false) {
+    if (useJavaRestTestSourceSet) {
+      testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+      classpath = sourceSets.javaRestTest.runtimeClasspath
+    }
+    // Blanket application is safe only where every standalone REST task in the project belongs to
+    // this plugin. A project that also owns current-version tasks which already call
+    // usesDefaultDistribution themselves would register the default_distro inputs twice and fail
+    // the build, so such a convention opts out here and applies it to its own tasks instead.
+    if (applyDefaultDistribution && integTestDistroProjects.contains(project.path) == false) {
       usesDefaultDistribution("BWC tests require full distribution for now")
     }
   }
 }
 
 tasks.matching { it.name.equals("check") }.configureEach { dependsOn(bwcTestSnapshots) }
-tasks.matching { it.name.equals("test") }.configureEach { enabled = false }
+if (disableBaseTestTask) {
+  tasks.matching { it.name.equals("test") }.configureEach { enabled = false }
+}

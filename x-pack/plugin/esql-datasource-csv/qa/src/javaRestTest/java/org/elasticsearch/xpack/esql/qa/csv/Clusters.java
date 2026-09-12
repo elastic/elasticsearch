@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.esql.qa.csv;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 
 import java.util.function.Supplier;
 
@@ -84,6 +86,33 @@ public class Clusters {
 
     public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
         return testCluster(s3EndpointSupplier, config -> {});
+    }
+
+    /**
+     * Mixed old/current variant used only by the reusable data-source BWC tasks.
+     */
+    public static ElasticsearchCluster bwcTestCluster(Supplier<String> s3EndpointSupplier) {
+        String fixturesPath = FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class);
+        return EsqlDataSourceMixedClusterTestSupport.mixedCluster(
+            () -> fixturesPath,
+            builder -> builder.module("repository-s3")
+                .module("repository-gcs")
+                .setting("xpack.security.enabled", "false")
+                .setting("xpack.license.self_generated.type", "trial")
+                .setting("xpack.ml.enabled", "false")
+                .setting("path.repo", fixturesPath)
+                .setting("s3.client.default.endpoint", s3EndpointSupplier)
+                .keystore("s3.client.default.access_key", ACCESS_KEY)
+                .keystore("s3.client.default.secret_key", SECRET_KEY)
+                .setting("s3.client.default.protocol", "http")
+                .environment("AWS_CONFIG_FILE", "/dev/null/aws/config")
+                .environment("AWS_SHARED_CREDENTIALS_FILE", "/dev/null/aws/credentials")
+                .feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL)
+                .feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_HTTP)
+                .feature(FeatureFlag.ESQL_EXTERNAL_GCS)
+                .feature(FeatureFlag.ESQL_EXTERNAL_AZURE),
+            (node, version, current) -> {}
+        );
     }
 
     /**

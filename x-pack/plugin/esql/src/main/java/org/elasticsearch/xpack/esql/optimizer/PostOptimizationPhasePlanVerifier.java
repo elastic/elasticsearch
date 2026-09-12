@@ -12,11 +12,13 @@ import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.IndexMode.LOOKUP;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -89,11 +91,21 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                     .subList(expectedOutputAttributes.size(), optimizedPlan.output().size())
                     .stream()
                     .allMatch(a -> ApproximationPlan.isApproximationColumn(a.name()));
+            // TranslateTimeSeriesAggregate maps TEXT fields to KEYWORD (via Values.dataType().noText()), and
+            // CombineProjections may surface that change in the final output. This is expected and harmless.
+            List<Attribute> actualOutput = optimizedPlan.output();
+            boolean hasOnlyTextToKeywordChanges = expectedOutputAttributes.size() == actualOutput.size()
+                && IntStream.range(0, expectedOutputAttributes.size()).allMatch(i -> {
+                    DataType exp = expectedOutputAttributes.get(i).dataType();
+                    DataType act = actualOutput.get(i).dataType();
+                    return exp == act || (exp == DataType.TEXT && act == DataType.KEYWORD);
+                });
 
             boolean ignoreError = hasProjectAwayColumns
                 || hasLookupJoinExec
                 || hasTimeSeriesReplacingTsId
-                || hasQueryApproximationAddingColumns;
+                || hasQueryApproximationAddingColumns
+                || hasOnlyTextToKeywordChanges;
             if (ignoreError == false) {
                 failures.add(fail(optimizedPlan, "{}", buildOutputDiffMessage(expectedOutputAttributes, optimizedPlan.output())));
             }

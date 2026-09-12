@@ -17,12 +17,6 @@ tests:
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test {feature:METRICS}
-  issue: https://github.com/elastic/elasticsearch/issues/155496
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test {feature:METRICS}
-  issue: https://github.com/elastic/elasticsearch/issues/155496
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecUnmappedLoadIT
   method: test {csv-spec:unmapped-load.loadUnmappedFieldsMultiIndexForkWithMvExpand}
   issue: https://github.com/elastic/elasticsearch/issues/155505
@@ -604,9 +598,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testUploadedCommitPrefetchNeverHitsIndexingNode
   issue: https://github.com/elastic/elasticsearch/issues/157813
-- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
-  method: testBinaryWithDifferentSelectors {historical}
-  issue: https://github.com/elastic/elasticsearch/issues/157827
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexTests
   method: testEvaluateInManyThreads {TestCase=geo_shape with literal precision and bounds}
   issue: https://github.com/elastic/elasticsearch/issues/157840
@@ -616,9 +607,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDenseVectorIT
   method: test {csv-spec:dense_vector.limitByDenseVectorN2}
   issue: https://github.com/elastic/elasticsearch/issues/157875
-- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
-  method: testBinaryWithDifferentSelectors {current}
-  issue: https://github.com/elastic/elasticsearch/issues/157912
 - class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceTests
   method: testRegistryInstalledTemplateIsFalseForNonManagedTemplate
   issue: https://github.com/elastic/elasticsearch/issues/157930

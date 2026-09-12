@@ -42,6 +42,7 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
@@ -60,17 +61,33 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
     }
 
     private final List<Column> columns;
+    private final int[] blockMapping;
     private Iterator<ResponseSegment> segments;
     private ResponseSegment currentSegment;
 
     public ArrowResponse(List<Column> columns, List<Page> pages) {
+        this(columns, pages, IntStream.range(0, columns.size()).toArray());
+    }
+
+    /**
+     * Creates an Arrow response whose columns can expose a projected view of each page.
+     *
+     * @param columns the columns to expose in the Arrow schema
+     * @param pages the pages containing the response data
+     * @param blockMapping the source block index for each exposed column
+     */
+    public ArrowResponse(List<Column> columns, List<Page> pages, int[] blockMapping) {
+        if (columns.size() != blockMapping.length) {
+            throw new IllegalArgumentException("columns and block mapping must have the same size");
+        }
         this.columns = columns;
+        this.blockMapping = blockMapping.clone();
 
         // Find multivalued columns
         int colSize = columns.size();
         for (int col = 0; col < colSize; col++) {
             for (Page page : pages) {
-                if (page.getBlock(col).mayHaveMultivaluedFields()) {
+                if (page.getBlock(this.blockMapping[col]).mayHaveMultivaluedFields()) {
                     columns.get(col).multivalued = true;
                     break;
                 }
@@ -267,15 +284,15 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             // See https://arrow.apache.org/docs/format/Columnar.html#recordbatch-message
 
             // Field metadata
-            List<ArrowFieldNode> nodes = new ArrayList<>(page.getBlockCount());
+            List<ArrowFieldNode> nodes = new ArrayList<>(response.columns.size());
 
             // Buffers added to the record batch. They're used to track data size so that Arrow can compute offsets
             // but contain no data. Actual writing will be done by the bufWriters. This avoids having to deal with
             // Arrow's memory management, and in the future will allow direct write from ESQL block vectors.
-            List<ArrowBuf> bufs = new ArrayList<>(page.getBlockCount() * 2);
+            List<ArrowBuf> bufs = new ArrayList<>(response.columns.size() * 2);
 
             // Closures that will actually write a Block's data. Maps 1:1 to `bufs`.
-            List<BlockArrowFormatter.BufWriter> bufWriters = new ArrayList<>(page.getBlockCount() * 2);
+            List<BlockArrowFormatter.BufWriter> bufWriters = new ArrayList<>(response.columns.size() * 2);
 
             // Give Arrow a WriteChannel that will iterate on `bufWriters` when requested to write a buffer.
             WriteChannel arrowOut = new WriteChannel(arrowOut(out)) {
@@ -310,11 +327,11 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             };
 
             // Create Arrow buffers for each of the blocks in this page
-            for (int b = 0; b < page.getBlockCount(); b++) {
+            for (int b = 0; b < response.columns.size(); b++) {
                 var column = response.columns.get(b);
                 var converter = column.converter;
 
-                Block block = page.getBlock(b);
+                Block block = page.getBlock(response.blockMapping[b]);
                 converter.addFieldNodes(block, column.multivalued, nodes);
                 converter.convert(block, column.multivalued, bufs, bufWriters);
             }

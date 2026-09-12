@@ -35,6 +35,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
@@ -140,10 +141,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                     releasable
                 );
             } else if (mediaType == ArrowFormat.INSTANCE) {
-                ArrowResponse arrowResponse = new ArrowResponse(
-                    esqlResponse.columns().stream().map(c -> new ArrowResponse.Column(c.type(), c.name())).toList(),
-                    esqlResponse.pages()
-                );
+                ArrowResponse arrowResponse = buildArrowResponse(esqlResponse);
                 restResponse = RestResponse.chunked(RestStatus.OK, arrowResponse, Releasables.wrap(arrowResponse, releasable));
             } else {
                 restResponse = RestResponse.chunked(
@@ -160,6 +158,21 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                 releasable.close();
             }
         }
+    }
+
+    private ArrowResponse buildArrowResponse(EsqlQueryResponse esqlResponse) {
+        boolean[] nullColumns = restRequest.paramAsBoolean(EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, false)
+            ? esqlResponse.nullColumns()
+            : new boolean[esqlResponse.columns().size()];
+        int[] blockMapping = IntStream.range(0, nullColumns.length).filter(column -> nullColumns[column] == false).toArray();
+        return new ArrowResponse(
+            IntStream.of(blockMapping)
+                .mapToObj(column -> esqlResponse.columns().get(column))
+                .map(c -> new ArrowResponse.Column(c.type(), c.name()))
+                .toList(),
+            esqlResponse.pages(),
+            blockMapping
+        );
     }
 
     /**

@@ -78,8 +78,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_COUNT_OF_EVICTED_USED_REGIONS_TOTAL;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCANNED_ENTRIES;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCAN_TIME;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_LOCK_ACQUIRE_TIME;
@@ -167,13 +167,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertTrue(tryEvict(region1));
             }
             assertEquals(3, cacheService.freeRegionCount());
-            // one eviction should be reflected in the telemetry for total count of evicted regions
-            assertThat(
-                recordingMeterRegistry.getRecorder()
-                    .getMeasurements(InstrumentType.LONG_COUNTER, BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL)
-                    .size(),
-                is(1)
-            );
+            assertThat(region1.maxReachedFreq(), is(1));
+            // one eviction should be reflected in the telemetry for evicted regions' max freq
+            var evictedMaxFreq = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ);
+            assertThat(evictedMaxFreq, hasSize(1));
+            assertThat(evictedMaxFreq.getFirst().getLong(), is(1L));
             synchronized (cacheService) {
                 assertFalse(tryEvict(region1));
             }
@@ -205,13 +204,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertTrue(tryEvict(region2));
             }
             assertEquals(5, cacheService.freeRegionCount());
-            // another 2 evictions should bump our total evictions telemetry at 3
-            assertThat(
-                recordingMeterRegistry.getRecorder()
-                    .getMeasurements(InstrumentType.LONG_COUNTER, BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL)
-                    .size(),
-                is(3)
-            );
+            // another 2 evictions should bump our evicted-regions histogram to 3 recordings, all at the initial freq
+            evictedMaxFreq = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ);
+            assertThat(evictedMaxFreq, hasSize(3));
+            assertThat(evictedMaxFreq.stream().map(Measurement::getLong).toList(), equalTo(List.of(1L, 1L, 1L)));
+            assertThat(region0.maxReachedFreq(), is(1));
+            assertThat(region2.maxReachedFreq(), is(1));
 
             assertTrue(bytesReadFuture.isDone());
             assertEquals(Integer.valueOf(1), bytesReadFuture.actionGet());
@@ -744,6 +743,16 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final List<Measurement> measurements = recordingMeterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.LONG_COUNTER, BLOB_CACHE_COUNT_OF_EVICTED_USED_REGIONS_TOTAL);
             assertEquals(expectedPressureEvictions, measurements.stream().mapToLong(Measurement::getLong).sum());
+
+            // One eviction per loop iteration (force or LFU-pressure). The max-freq histogram
+            // must count both kinds.
+            final List<Measurement> maxFreqMeasurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ);
+            assertThat(maxFreqMeasurements, hasSize(operationCount));
+            assertTrue(
+                "never-promoted regions record the insertion frequency",
+                maxFreqMeasurements.stream().allMatch(m -> m.getLong() == 1L)
+            );
         }
     }
 
@@ -1188,6 +1197,85 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertEquals(0, cacheService.getFreq(region0));
             assertEquals(0, cacheService.getFreq(region1));
             assertEquals(0, cacheService.getFreq(region2));
+        }
+    }
+
+    /**
+     * Eviction records the lifetime peak frequency, not the current (possibly decayed) frequency,
+     * then resets the peak back to the insertion frequency of 1.
+     */
+    public void testEvictedRegionRecordsPeakFreqThenResets() throws IOException {
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(400)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                metrics
+            )
+        ) {
+            cacheService.get(generateCacheKey(), size(250), 0, irrelevantTimestamp());
+            final var cacheKey1 = generateCacheKey();
+            final var cacheKey2 = generateCacheKey();
+            final var cacheKey3 = generateCacheKey();
+            final var region0 = cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
+            cacheService.get(cacheKey2, size(250), 1, irrelevantTimestamp());
+            cacheService.get(cacheKey3, size(250), 1, irrelevantTimestamp());
+            assertEquals(0, cacheService.freeRegionCount());
+            assertThat(region0.maxReachedFreq(), is(1));
+
+            AtomicLong expectedEpoch = new AtomicLong();
+            Runnable triggerDecay = () -> {
+                assertThat(taskQueue.hasRunnableTasks(), is(false));
+                cacheService.get(generateCacheKey(), size(250), 0, irrelevantTimestamp());
+                assertThat(taskQueue.hasRunnableTasks(), is(true));
+                taskQueue.runAllRunnableTasks();
+                assertThat(cacheService.epoch(), equalTo(expectedEpoch.incrementAndGet()));
+            };
+
+            // decay freq 1 → 0, then access to promote to 2, decay, access to promote to 3, decay, access to peak 4
+            triggerDecay.run();
+            cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
+            cacheService.get(cacheKey2, size(250), 1, irrelevantTimestamp());
+            cacheService.get(cacheKey3, size(250), 1, irrelevantTimestamp());
+            triggerDecay.run();
+            cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
+            assertEquals(3, cacheService.getFreq(region0));
+            triggerDecay.run();
+            cacheService.get(cacheKey1, size(250), 0, irrelevantTimestamp());
+            assertEquals(4, cacheService.getFreq(region0));
+            assertThat(region0.maxReachedFreq(), is(4));
+
+            // keep freq0 empty so further decays run, then decay current freq below the peak
+            cacheService.get(cacheKey2, size(250), 1, irrelevantTimestamp());
+            cacheService.get(cacheKey3, size(250), 1, irrelevantTimestamp());
+            triggerDecay.run();
+            triggerDecay.run();
+            assertEquals(2, cacheService.getFreq(region0));
+            assertThat("decay must not lower the lifetime peak", region0.maxReachedFreq(), is(4));
+
+            final int measurementsBefore = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ)
+                .size();
+            synchronized (cacheService) {
+                assertTrue(tryEvict(region0));
+            }
+            var evictedMaxFreq = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ);
+            assertThat(evictedMaxFreq, hasSize(measurementsBefore + 1));
+            assertThat(evictedMaxFreq.getLast().getLong(), is(4L));
+            assertThat(region0.maxReachedFreq(), is(1));
         }
     }
 

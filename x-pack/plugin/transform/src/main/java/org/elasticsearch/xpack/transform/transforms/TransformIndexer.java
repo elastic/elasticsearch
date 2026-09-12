@@ -267,6 +267,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected void createCheckpoint(ActionListener<TransformCheckpoint> listener) {
         checkpointProvider.createNextCheckpoint(
             getLastCheckpoint(),
+            CheckpointProvider.getIndexCheckpointsTimeout(context.getFailureCount()),
             ActionListener.wrap(
                 checkpoint -> transformsConfigManager.putTransformCheckpoint(
                     checkpoint,

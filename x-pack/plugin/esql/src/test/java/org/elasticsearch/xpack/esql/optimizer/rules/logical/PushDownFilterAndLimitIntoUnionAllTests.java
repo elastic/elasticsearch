@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.junit.Before;
 
 import java.time.ZoneOffset;
 import java.util.List;
@@ -69,19 +68,6 @@ import static org.hamcrest.Matchers.instanceOf;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlanOptimizerTests {
-
-    @Before
-    public void checkSubqueryInFromCommandSupport() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue(
-            "Requires subquery in FROM command support",
-            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
-        );
-    }
-
-    private static void checkSubqueryWithTSCommand() {
-        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
-    }
 
     private static void checkExternalDatasetSupport() {
         assumeTrue("Requires external dataset in FROM command support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
@@ -619,16 +605,14 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     *Limit[1000[INTEGER],false,false]
-     * \_UnionAll[[_meta_field{r}#36, emp_no{r}#37, first_name{r}#38, gender{r}#39, hire_date{r}#40, job{r}#41, job.raw{r}#42,
-     *                    languages{r}#43, last_name{r}#44, long_noidx{r}#45, salary{r}#46, x{r}#47, y{r}#48]]
-     *   \_Project[[_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, gender{f}#25, hire_date{f}#30, job{f}#31, job.raw{f}#32,
-     *                           languages{f}#26, last_name{f}#27, long_noidx{f}#33, salary{f}#28, x{r}#5, y{r}#8]]
-     *     \_Subquery[]
-     *       \_Filter[y{r}#8 > 0[INTEGER]]
-     *         \_Eval[[1[INTEGER] AS x#5, emp_no{f}#23 + 1[INTEGER] AS y#8]]
-     *           \_Filter[salary{f}#28 < 100000[INTEGER] AND emp_no{f}#23 > 0[INTEGER]]
-     *             \_EsRelation[test][_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, ..]
+     * Project[[_meta_field{f}#101 AS _meta_field#108, emp_no{f}#95 AS emp_no#109, first_name{f}#96 AS first_name#110,
+     *          ..., x{r}#77 AS x#119, y{r}#80 AS y#120]]
+     * \_Subquery[]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_Filter[y{r}#80 > 0[INTEGER]]
+     *       \_Eval[[1[INTEGER] AS x#77, emp_no{f}#95 + 1[INTEGER] AS y#80]]
+     *         \_Filter[salary{f}#100 < 100000[INTEGER] AND emp_no{f}#95 > 0[INTEGER]]
+     *           \_EsRelation[test][_meta_field{f}#101, emp_no{f}#95, first_name{f}#96, ..]
      */
     public void testPushDownFilterOnReferenceAttributesAndFieldAttributesPastUnionAll() {
         var plan = planSubquery("""
@@ -636,14 +620,12 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE x is not null and y > 0 and emp_no > 0
             """);
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        // the first child is pruned, since it becomes an empty LocalRelation since the filter cannot be applied
-        assertEquals(1, unionAll.children().size());
-
-        Project child2 = as(unionAll.children().get(0), Project.class);
+        // The first child is pruned because its filter cannot be applied. The singleton UnionAll is flattened,
+        // leaving a Project that preserves the output attributes expected above it.
+        Project child2 = as(plan, Project.class);
         Subquery subquery = as(child2.child(), Subquery.class);
-        Filter childFilter = as(subquery.child(), Filter.class);
+        Limit limit = as(subquery.child(), Limit.class);
+        Filter childFilter = as(limit.child(), Filter.class);
         GreaterThan greaterThan = as(childFilter.condition(), GreaterThan.class);
         ReferenceAttribute y = as(greaterThan.left(), ReferenceAttribute.class);
         assertEquals("y", y.name());
@@ -1063,19 +1045,16 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE match(language_name, "text")
             """);
 
-        // Limit[1000[INTEGER],false,false]
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        // First child is pruned: LocalRelation with EMPTY data since filter on language_name can't be applied to test index
-        assertEquals(1, unionAll.children().size());
-        // Second child: languages subquery with MATCH filter pushed down
-        Project child2 = as(unionAll.children().getFirst(), Project.class);
+        // The first child is pruned because the filter on language_name cannot be applied to the test index. The
+        // singleton UnionAll is flattened, leaving the languages branch and a Project that preserves its output attributes.
+        Project child2 = as(plan, Project.class);
         Eval eval2 = as(child2.child(), Eval.class);
         List<Alias> aliases = eval2.fields();
         assertEquals(11, aliases.size());
 
         Subquery subquery = as(eval2.child(), Subquery.class);
-        Filter filter = as(subquery.child(), Filter.class);
+        Limit limit = as(subquery.child(), Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
         Match match = as(filter.condition(), Match.class);
         FieldAttribute languageName = as(match.field(), FieldAttribute.class);
         assertEquals("language_name", languageName.name());
@@ -1091,16 +1070,12 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *  knn validation will fail, or it may return wrong results. If a knn function is found in a subquery,
      * a limit is appended to the subquery to make sure the implicitK is preserved.
      *
-     * EsqlProject[[color{r}#27, rgb_vector{r}#32, language_name{r}#35]]
-     * \_TopN[[Order[_score{r}#33,DESC,FIRST], Order[color{r}#27,ASC,LAST]],10[INTEGER],false]
-     *   \_UnionAll[[color{r}#27, hex_code{r}#28, id{r}#29, primary{r}#30, rgb_byte_vector{r}#31, rgb_vector{r}#32, _score{r}#33,
-     *                      language_code{r}#34, language_name{r}#35]]
-     *     |_EsqlProject[[color{f}#11, hex_code{f}#12, id{f}#10, primary{f}#13, rgb_byte_vector{f}#15, rgb_vector{f}#14, _score{m}#3,
-     *                             language_code{r}#18, language_name{r}#19]]
-     *     | \_Eval[[null[INTEGER] AS language_code#18, null[KEYWORD] AS language_name#19]]
-     *     |   \_Limit[10[INTEGER],false,false]
-     *     |     \_Filter[KNN(rgb_vector{f}#14,[0.0, 120.0, 0.0][DENSE_VECTOR])]
-     *     |       \_EsRelation[colors][color{f}#11, hex_code{f}#12, id{f}#10, primary{f}#1..]
+     * Project[[color{f}#285 AS color#301, rgb_vector{f}#288 AS rgb_vector#306, language_name{r}#293 AS language_name#309]]
+     * \_TopN[[Order[_score{m}#277,DESC,FIRST], Order[color{f}#285,ASC,LAST]],10[INTEGER],false]
+     *   \_Eval[[null[KEYWORD] AS language_name#293]]
+     *     \_Limit[10000[INTEGER],false,false]
+     *       \_Filter[KNN(rgb_vector{f}#288,[0.0, 120.0, 0.0][DENSE_VECTOR])]
+     *         \_EsRelation[colors][color{f}#285, hex_code{f}#286, id{f}#284, primary{f..]
      */
     public void testPushDownKnnPastUnionAll() {
         var plan = planSubquery("""
@@ -1113,15 +1088,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
 
         Project project = as(plan, Project.class);
         TopN topN = as(project.child(), TopN.class);
-        UnionAll unionAll = as(topN.child(), UnionAll.class);
-
-        // the last child is pruned, since it becomes an empty LocalRelation since the filter cannot be applied
-        assertEquals(1, unionAll.children().size());
-
-        Project esqlProject = as(unionAll.children().get(0), Project.class);
-        Eval eval = as(esqlProject.child(), Eval.class);
+        // The languages branch is pruned because its filter cannot be applied, and the singleton UnionAll is flattened.
+        Eval eval = as(topN.child(), Eval.class);
         List<Alias> aliases = eval.fields();
-        assertEquals(2, aliases.size());
+        assertEquals(1, aliases.size());
         Limit limit = as(eval.child(), Limit.class);
         Filter filter = as(limit.child(), Filter.class);
         Knn knn = as(filter.condition(), Knn.class);
@@ -1240,13 +1210,11 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * Limit[1000[INTEGER],false,false]
-     * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34,
-     *             languages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38]]
-     *   \_Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17,
-     *              languages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
-     *     \_Filter[emp_no{f}#8 > 10[INTEGER]]
-     *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * Project[[_meta_field{f}#14 AS _meta_field#28, emp_no{f}#8 AS emp_no#29, first_name{f}#9 AS first_name#30, gender{f}#10 AS gender#31,
+     *          ..., long_noidx{f}#18 AS long_noidx#37, salary{f}#13 AS salary#38]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[emp_no{f}#8 > 10[INTEGER]]
+     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
      */
     public void testPushDownSimpleFilterPrunesRowBranch() {
         assumeTrue("Requires subquery with row as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
@@ -1255,12 +1223,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE emp_no > 10
             """);
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        assertEquals(1, unionAll.children().size());
-
-        Project child1 = as(unionAll.children().get(0), Project.class);
-        Filter indexFilter = as(child1.child(), Filter.class);
+        // The ROW branch is pruned and the singleton UnionAll is flattened.
+        Project child1 = as(plan, Project.class);
+        Limit limit = as(child1.child(), Limit.class);
+        Filter indexFilter = as(limit.child(), Filter.class);
         GreaterThan indexGt = as(indexFilter.condition(), GreaterThan.class);
         FieldAttribute indexEmpNo = as(indexGt.left(), FieldAttribute.class);
         assertEquals("emp_no", indexEmpNo.name());
@@ -1304,13 +1270,11 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * Limit[1000[INTEGER],false,false]
-     * \_UnionAll[[_meta_field{r}#27, emp_no{r}#28, first_name{r}#29, gender{r}#30, hire_date{r}#31, job{r}#32, job.raw{r}#33,
-     *             languages{r}#34, last_name{r}#35, long_noidx{r}#36, salary{r}#37]]
-     *   \_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15,
-     *              languages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
-     *     \_Filter[first_name{f}#7 == Bob[KEYWORD]]
-     *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * Project[[_meta_field{f}#319 AS _meta_field#334, emp_no{f}#313 AS emp_no#335, first_name{f}#314 AS first_name#336,
+     *          ..., long_noidx{f}#323 AS long_noidx#343, salary{f}#318 AS salary#344]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[first_name{f}#314 == Bob[KEYWORD]]
+     *     \_EsRelation[test][_meta_field{f}#319, emp_no{f}#313, first_name{f}#31..]
      */
     public void testPushDownFilterPrunesRowBranchWithoutTheField() {
         assumeTrue("Requires subquery with row as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
@@ -1319,24 +1283,19 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE first_name == "Bob"
             """);
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
         // The ROW leg is pruned because its first_name is null and `null == "Bob"` is false.
-        assertEquals(1, unionAll.children().size());
-
-        Project child1 = as(unionAll.children().get(0), Project.class);
-        Filter filter = as(child1.child(), Filter.class);
+        Project child1 = as(plan, Project.class);
+        Limit limit = as(child1.child(), Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
         as(filter.child(), EsRelation.class);
     }
 
     /*
-     * Limit[1000[INTEGER],false,false]
-     * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34,
-     *             languages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38]]
-     *   \_Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17,
-     *              languages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
-     *     \_Filter[:(first_name{f}#9,Bob[KEYWORD])]
-     *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * Project[[_meta_field{f}#435 AS _meta_field#449, emp_no{f}#429 AS emp_no#450, first_name{f}#430 AS first_name#451,
+     *          ..., long_noidx{f}#439 AS long_noidx#458, salary{f}#434 AS salary#459]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[:(first_name{f}#430,Bob[KEYWORD])]
+     *     \_EsRelation[test][_meta_field{f}#435, emp_no{f}#429, first_name{f}#43..]
      */
     public void testPushDownFullTextMatchOperatorPastUnionAllWithRowSubquery() {
         assumeTrue("Requires subquery with row as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
@@ -1345,13 +1304,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE first_name:"Bob"
             """);
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
         // ROW leg is pruned — first_name is null in the ROW so the pushed-down match folds to false.
-        assertEquals(1, unionAll.children().size());
-
-        Project child1 = as(unionAll.children().get(0), Project.class);
-        Filter indexFilter = as(child1.child(), Filter.class);
+        Project child1 = as(plan, Project.class);
+        Limit limit = as(child1.child(), Limit.class);
+        Filter indexFilter = as(limit.child(), Filter.class);
         MatchOperator indexMatch = as(indexFilter.condition(), MatchOperator.class);
         FieldAttribute indexFirstName = as(indexMatch.field(), FieldAttribute.class);
         assertEquals("first_name", indexFirstName.name());
@@ -1409,13 +1365,11 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * Limit[1000[INTEGER],false,false]
-     * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34,
-     *             languages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38]]
-     *   \_Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
-     *              languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
-     *     \_Filter[:(first_name{f}#8,first[KEYWORD]) OR MatchPhrase(last_name{f}#11,last[KEYWORD])]
-     *       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     * Project[[_meta_field{f}#49 AS _meta_field#64, emp_no{f}#43 AS emp_no#65, first_name{f}#44 AS first_name#66,
+     *          ..., long_noidx{f}#53 AS long_noidx#73, salary{f}#48 AS salary#74]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[:(first_name{f}#44,first[KEYWORD]) OR MatchPhrase(last_name{f}#47,last[KEYWORD])]
+     *     \_EsRelation[test][_meta_field{f}#49, emp_no{f}#43, first_name{f}#44, ..]
      */
     public void testPushDownDisjunctiveFullTextFunctionPastUnionAllWithRowSubquery() {
         assumeTrue("Requires subquery with row as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
@@ -1424,13 +1378,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE first_name:"first" OR match_phrase(last_name, "last")
             """);
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
         // ROW leg is pruned — every disjunct matches against a null and folds to false.
-        assertEquals(1, unionAll.children().size());
-
-        Project child1 = as(unionAll.children().get(0), Project.class);
-        Filter indexFilter = as(child1.child(), Filter.class);
+        Project child1 = as(plan, Project.class);
+        Limit limit = as(child1.child(), Limit.class);
+        Filter indexFilter = as(limit.child(), Filter.class);
         Or or = as(indexFilter.condition(), Or.class);
         MatchOperator matchOperator = as(or.left(), MatchOperator.class);
         assertEquals("first_name", as(matchOperator.field(), FieldAttribute.class).name());
@@ -1442,13 +1393,11 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * Limit[1000[INTEGER],false,false]
-     * \_UnionAll[[_meta_field{r}#29, emp_no{r}#30, first_name{r}#31, gender{r}#32, hire_date{r}#33, job{r}#34, job.raw{r}#35,
-     *             languages{r}#36, last_name{r}#37, long_noidx{r}#38, salary{r}#39]]
-     *   \_Project[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18,
-     *              languages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14]]
-     *     \_Filter[:(first_name{f}#10,Bob[KEYWORD]) AND emp_no{f}#9 > 10[INTEGER]]
-     *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     * Project[[_meta_field{f}#212 AS _meta_field#226, emp_no{f}#206 AS emp_no#227, first_name{f}#207 AS first_name#228,
+     *          ..., long_noidx{f}#216 AS long_noidx#235, salary{f}#211 AS salary#236]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[:(first_name{f}#207,Bob[KEYWORD]) AND emp_no{f}#206 > 10[INTEGER]]
+     *     \_EsRelation[test][_meta_field{f}#212, emp_no{f}#206, first_name{f}#20..]
      */
     public void testPushDownMixedFullTextAndComparisonPastUnionAllWithRowSubquery() {
         assumeTrue("Requires subquery with row as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
@@ -1457,13 +1406,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | WHERE first_name:"Bob" AND emp_no > 10
             """);
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
         // ROW leg pruned — `first_name:"Bob"` evaluates to false on the null-filled first_name.
-        assertEquals(1, unionAll.children().size());
-
-        Project child1 = as(unionAll.children().get(0), Project.class);
-        Filter indexFilter = as(child1.child(), Filter.class);
+        Project child1 = as(plan, Project.class);
+        Limit limit = as(child1.child(), Limit.class);
+        Filter indexFilter = as(limit.child(), Filter.class);
         And and = as(indexFilter.condition(), And.class);
         MatchOperator matchOperator = as(and.left(), MatchOperator.class);
         assertEquals("first_name", as(matchOperator.field(), FieldAttribute.class).name());
@@ -1524,7 +1470,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *           \_EsRelation[k8s][@timestamp{f}#88, client.ip{f}#92, cluster{f}#89, e..]
      */
     public void testPushDownSimpleFilterPastUnionAllWithTsSubquery() {
-        checkSubqueryWithTSCommand();
         var plan = planSubquery("""
             FROM sample_data, (TS k8s | WHERE @timestamp > "2025-10-07")
             | WHERE @timestamp > "2024-01-01"
@@ -1587,7 +1532,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *           \_EsRelation[k8s][@timestamp{f}#326, client.ip{f}#330, cluster{f}#327, ..]
      */
     public void testPushDownConjunctiveFilterPastUnionAllWithTsSubquery() {
-        checkSubqueryWithTSCommand();
         var plan = planSubquery("""
             FROM sample_data, (TS k8s | WHERE @timestamp > "2025-10-07")
             | WHERE @timestamp > "2024-01-01" AND @timestamp < "2025-12-31"
@@ -1661,7 +1605,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *           \_EsRelation[k8s][@timestamp{f}#406, client.ip{f}#410, cluster{f}#407, ..]
      */
     public void testPushDownDisjunctiveFilterPastUnionAllWithTsSubquery() {
-        checkSubqueryWithTSCommand();
         var plan = planSubquery("""
             FROM sample_data, (TS k8s | WHERE @timestamp > "2025-10-07")
             | WHERE @timestamp > "2024-01-01" OR @timestamp < "2020-01-01"
@@ -1720,30 +1663,24 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      * The TS branch is pruned (its `message` reference is null and cannot be matched),
      * leaving the single sample_data leg with the MatchOperator pushed onto the EsRelation.
      *
-     * Limit[1000[INTEGER],false,false]
-     * \_UnionAll[[@timestamp{r}#56, client_ip{r}#57, event_duration{r}#58, message{r}#59, client.ip{r}#60,
-     *                    cluster{r}#61, event{r}#62, ..., network.total_bytes_in{r}#77, network.total_cost{r}#78, pod{r}#79]]
-     *   \_Project[[@timestamp{f}#5, client_ip{f}#6, event_duration{f}#7, message{f}#8, client.ip{r}#33, cluster{r}#34,
-     *                            event{r}#35, ..., network.total_bytes_in{r}#50, network.total_cost{r}#51, pod{r}#52]]
-     *     \_Eval[[null[IP] AS client.ip#33, null[KEYWORD] AS cluster#34, null[KEYWORD] AS event#35, ...,
-     *                  null[LONG] AS network.total_bytes_in#50, null[DOUBLE] AS network.total_cost#51, null[KEYWORD] AS pod#52]]
-     *       \_Filter[:(message{f}#8,connect[KEYWORD])]
-     *         \_EsRelation[sample_data][@timestamp{f}#5, client_ip{f}#6, event_duration{f}#..]
+     * Project[[@timestamp{f}#123 AS @timestamp#174, client_ip{f}#124 AS client_ip#175, event_duration{f}#125 AS event_duration#176,
+     *          ..., network.total_cost{r}#169 AS network.total_cost#196, pod{r}#170 AS pod#197]]
+     * \_Eval[[null[IP] AS client.ip#151, null[KEYWORD] AS cluster#152, null[KEYWORD] AS event#153, null[GEO_POINT] AS event_city#154,
+     *         ..., null[DOUBLE] AS network.total_cost#169, null[KEYWORD] AS pod#170]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_Filter[:(message{f}#126,connect[KEYWORD])]
+     *       \_EsRelation[sample_data][@timestamp{f}#123, client_ip{f}#124, event_duration..]
      */
     public void testPushDownFullTextFunctionPastUnionAllWithTsSubqueryPrunesTsBranch() {
-        checkSubqueryWithTSCommand();
         var plan = planSubquery("""
             FROM sample_data, (TS k8s | WHERE @timestamp > "2025-10-07")
             | WHERE message:"connect"
             """);
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        assertEquals(1, unionAll.children().size());
-
-        Project sampleProject = as(unionAll.children().get(0), Project.class);
+        Project sampleProject = as(plan, Project.class);
         Eval sampleEval = as(sampleProject.child(), Eval.class);
-        Filter sampleFilter = as(sampleEval.child(), Filter.class);
+        Limit limit = as(sampleEval.child(), Limit.class);
+        Filter sampleFilter = as(limit.child(), Filter.class);
         MatchOperator match = as(sampleFilter.condition(), MatchOperator.class);
         FieldAttribute messageField = as(match.field(), FieldAttribute.class);
         assertEquals("message", messageField.name());
@@ -1759,30 +1696,24 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      * UnionAll. The TS k8s branch has no `message` field, so it cannot satisfy either match function and is
      * pruned, leaving only the sample_data leg with the combined filter above the EsRelation.
      *
-     * Limit[1000[INTEGER],false,false]
-     * \_UnionAll[[@timestamp{r}#214, client_ip{r}#215, event_duration{r}#216, message{r}#217, client.ip{r}#218,
-     *                    cluster{r}#219, event{r}#220, ..., network.total_bytes_in{r}#235, network.total_cost{r}#236, pod{r}#237]]
-     *   \_Project[[@timestamp{f}#163, client_ip{f}#164, event_duration{f}#165, message{f}#166, client.ip{r}#191,
-     *                            cluster{r}#192, event{r}#193, ..., network.total_bytes_in{r}#208, network.total_cost{r}#209, pod{r}#210]]
-     *     \_Eval[[null[IP] AS client.ip#191, null[KEYWORD] AS cluster#192, null[KEYWORD] AS event#193, ...,
-     *                  null[LONG] AS network.total_bytes_in#208, null[DOUBLE] AS network.total_cost#209, null[KEYWORD] AS pod#210]]
-     *       \_Filter[:(message{f}#166,connect[KEYWORD]) AND QSTR(message:disconnect[KEYWORD])]
-     *         \_EsRelation[sample_data][@timestamp{f}#163, client_ip{f}#164, event_duration..]
+     * Project[[@timestamp{f}#347 AS @timestamp#398, client_ip{f}#348 AS client_ip#399, event_duration{f}#349 AS event_duration#400,
+     *          ..., network.total_cost{r}#393 AS network.total_cost#420, pod{r}#394 AS pod#421]]
+     * \_Eval[[null[IP] AS client.ip#375, null[KEYWORD] AS cluster#376, null[KEYWORD] AS event#377, null[GEO_POINT] AS event_city#378,
+     *         ..., null[DOUBLE] AS network.total_cost#393, null[KEYWORD] AS pod#394]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_Filter[:(message{f}#350,connect[KEYWORD]) AND QSTR(message:disconnect[KEYWORD])]
+     *       \_EsRelation[sample_data][@timestamp{f}#347, client_ip{f}#348, event_duration..]
      */
     public void testPushDownConjunctiveFullTextFunctionPastUnionAllWithTsSubquery() {
-        checkSubqueryWithTSCommand();
         var plan = planSubquery("""
             FROM sample_data, (TS k8s | WHERE @timestamp > "2025-10-07")
             | WHERE message:"connect" AND qstr("message:disconnect")
             """);
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        assertEquals(1, unionAll.children().size());
-
-        Project sampleProject = as(unionAll.children().get(0), Project.class);
+        Project sampleProject = as(plan, Project.class);
         Eval sampleEval = as(sampleProject.child(), Eval.class);
-        Filter sampleFilter = as(sampleEval.child(), Filter.class);
+        Limit limit = as(sampleEval.child(), Limit.class);
+        Filter sampleFilter = as(limit.child(), Filter.class);
         And and = as(sampleFilter.condition(), And.class);
         MatchOperator match = as(and.left(), MatchOperator.class);
         FieldAttribute messageField = as(match.field(), FieldAttribute.class);
@@ -1822,7 +1753,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *           \_EsRelation[k8s][@timestamp{f}#246, client.ip{f}#250, cluster{f}#247, ..]
      */
     public void testPushDownMixedFilterAndFullTextFunctionPastUnionAllWithTsSubquery() {
-        checkSubqueryWithTSCommand();
         var plan = planSubquery("""
             FROM sample_data, (TS k8s | WHERE @timestamp > "2025-10-07")
             | WHERE @timestamp > "2024-01-01" AND qstr("message:disconnect")
@@ -1898,8 +1828,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *         \_LocalRelation[[@timestamp{r}#...], Page[...]]
      */
     public void testPushDownSimpleFilterPastUnionAllWithMixedTsRowAndFromSubqueries() {
-        checkSubqueryWithTSCommand();
-        assumeTrue("Requires subquery with row as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
         var plan = planSubquery("""
             FROM sample_data,
                  (TS k8s | WHERE @timestamp > "2025-10-07"),

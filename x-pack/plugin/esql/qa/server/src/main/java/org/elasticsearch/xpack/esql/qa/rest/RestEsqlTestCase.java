@@ -1355,8 +1355,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testTopLevelFilterWithSubqueriesInFromCommand() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
 
         String query = format(null, "FROM {} , (FROM {} | WHERE integer < 8) | STATS count(*)", testIndexName(), testIndexName());
@@ -1374,32 +1372,23 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testNestedSubqueries() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
-
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
-                requestObjectBuilder().query(
-                    format(
-                        null,
-                        "from {}, (from {}, (from {} | where integer > 1) | where integer < 8) | stats count(*)",
-                        testIndexName(),
-                        testIndexName(),
-                        testIndexName()
-                    )
+        // subquery1: 10(0-9) rows, subquery2: 8(0-7) rows, subquery3: 6(2-7) rows, total 24 rows
+        Map<String, Object> result = runEsql(
+            requestObjectBuilder().query(
+                format(
+                    null,
+                    "from {}, (from {}, (from {} | where integer > 1) | where integer < 8) | stats count(*)",
+                    testIndexName(),
+                    testIndexName(),
+                    testIndexName()
                 )
             )
         );
-        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("Nested subqueries are not supported"));
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(24)));
     }
 
     public void testSubqueryWithFork() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
 
         ResponseException re = expectThrows(

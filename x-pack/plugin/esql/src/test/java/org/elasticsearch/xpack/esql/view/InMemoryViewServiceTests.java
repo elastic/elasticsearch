@@ -2061,8 +2061,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      * Expected outcomes:
      * <ul>
      *   <li>nesting &gt; max view depth (10): view depth exceeded error (takes priority)</li>
-     *   <li>branching &gt; {@link MergePlan#MAX_BRANCHES}: FORK branching error at the first level with too many branches</li>
-     *   <li>branching &le; {@link MergePlan#MAX_BRANCHES}: resolution succeeds, producing nested {@link ViewUnionAll}
+     *   <li>resolution succeeds, producing nested {@link ViewUnionAll}
      *       structures for nesting &ge; 2 with branching &ge; 2</li>
      * </ul>
      */
@@ -2085,32 +2084,52 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                             e.getMessage(),
                             startsWith("The maximum allowed view depth of " + maxViewDepth + " has been exceeded")
                         );
-                    } else if (branching > MergePlan.MAX_BRANCHES) {
-                        // Branch-count enforcement now lives in MergePlan's post-analysis verification rather than
-                        // its constructor, so view resolution succeeds with a wide ViewUnionAll and the failure
-                        // surfaces only when the verifier walks the plan.
-                        LogicalPlan result = replaceViews(query(queryStr), matrixResolver);
-                        Failures unionFailures = new Failures();
-                        result.forEachUp(p -> {
-                            if (p instanceof MergePlan mergePlan) {
-                                mergePlan.postAnalysisPlanVerification().accept(mergePlan, unionFailures);
-                            }
-                        });
-                        assertTrue(
-                            "Expected FORK branch failures for nesting=" + nesting + ", branching=" + branching + " in plan: " + result,
-                            unionFailures.hasFailures()
-                        );
-                        assertThat(
-                            "nesting=" + nesting + ", branching=" + branching,
-                            unionFailures.failures().toString(),
-                            containsString("FORK supports up to " + MergePlan.MAX_BRANCHES + " branches")
-                        );
                     } else {
                         LogicalPlan result = replaceViews(query(queryStr), matrixResolver);
                         assertNotNull(
                             "Non-compactable resolution should succeed for nesting=" + nesting + ", branching=" + branching,
                             result
                         );
+
+                        // Validate max_query_branches limit
+                        Failures maxBranchFailures = new Failures();
+                        int maxQueryBranches = org.elasticsearch.xpack.esql.plugin.QueryPragmas.MAX_QUERY_BRANCHES.getDefault(
+                            Settings.EMPTY
+                        );
+                        UnionAll.checkNestedSubqueryLimits(result, maxQueryBranches, Integer.MAX_VALUE, maxBranchFailures);
+
+                        int expectedLeaves = nesting * (branching - 1) + 1;
+                        if (expectedLeaves > maxQueryBranches) {
+                            assertTrue(
+                                "Expected branch failures for nesting="
+                                    + nesting
+                                    + ", branching="
+                                    + branching
+                                    + " ("
+                                    + expectedLeaves
+                                    + " leaves)",
+                                maxBranchFailures.hasFailures()
+                            );
+                            assertThat(
+                                "nesting=" + nesting + ", branching=" + branching,
+                                maxBranchFailures.failures().toString(),
+                                containsString(
+                                    "exceeding the limit of " + maxQueryBranches + " set by the [max_query_branches] query pragma"
+                                )
+                            );
+                        } else {
+                            assertFalse(
+                                "No branch failures expected for nesting="
+                                    + nesting
+                                    + ", branching="
+                                    + branching
+                                    + " ("
+                                    + expectedLeaves
+                                    + " leaves)",
+                                maxBranchFailures.hasFailures()
+                            );
+                        }
+
                         if (branching >= 2) {
                             Failures failures = new Failures();
                             Failures depFailures = new Failures();

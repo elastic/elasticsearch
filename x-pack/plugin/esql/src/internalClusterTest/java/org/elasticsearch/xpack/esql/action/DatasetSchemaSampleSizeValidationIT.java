@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
@@ -95,7 +95,7 @@ public class DatasetSchemaSampleSizeValidationIT extends AbstractExternalDataSou
 
     public void testPutRejectsSchemaSampleSizeWhenExtensionResolvesToParquet() throws Exception {
         registerLocalDataSource("ssz_ext_ds");
-        ValidationException e = expectPutDatasetValidationFailure(
+        IllegalArgumentException e = expectPutDatasetValidationFailure(
             "ssz_ext",
             "ssz_ext_ds",
             "file:///data/events.parquet",
@@ -106,7 +106,7 @@ public class DatasetSchemaSampleSizeValidationIT extends AbstractExternalDataSou
 
     public void testPutRejectsSchemaSampleSizeWhenExplicitFormatIsParquet() throws Exception {
         registerLocalDataSource("ssz_fmt_ds");
-        ValidationException e = expectPutDatasetValidationFailure(
+        IllegalArgumentException e = expectPutDatasetValidationFailure(
             "ssz_fmt",
             "ssz_fmt_ds",
             "file:///data/events",
@@ -118,7 +118,12 @@ public class DatasetSchemaSampleSizeValidationIT extends AbstractExternalDataSou
     public void testPutRejectsSchemaSampleSizeWhenFormatCannotBeDetermined() throws Exception {
         registerLocalDataSource("ssz_ambig_ds");
         String resource = "file:///data/events";
-        ValidationException e = expectPutDatasetValidationFailure("ssz_ambig", "ssz_ambig_ds", resource, Map.of("schema_sample_size", 100));
+        IllegalArgumentException e = expectPutDatasetValidationFailure(
+            "ssz_ambig",
+            "ssz_ambig_ds",
+            resource,
+            Map.of("schema_sample_size", 100)
+        );
         assertThat(
             e.getMessage(),
             containsString(FileDataSourceValidator.cannotDetermineFormatError(resource, Set.of("schema_sample_size")))
@@ -232,7 +237,7 @@ public class DatasetSchemaSampleSizeValidationIT extends AbstractExternalDataSou
         rawDataSources.add(name);
     }
 
-    private ValidationException expectPutDatasetValidationFailure(
+    private IllegalArgumentException expectPutDatasetValidationFailure(
         String name,
         String dataSource,
         String resource,
@@ -245,7 +250,11 @@ public class DatasetSchemaSampleSizeValidationIT extends AbstractExternalDataSou
                 new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, dataSource, resource, null, new HashMap<>(settings))
             ).get()
         );
-        assertThat(err.getCause(), instanceOf(ValidationException.class));
-        return (ValidationException) err.getCause();
+        // PUT is decided on the elected master. A coordinator other than that node wraps the
+        // failure in RemoteTransportException, and ValidationException is not Writeable so the
+        // client sees a plain IllegalArgumentException with the same message.
+        Throwable cause = ExceptionsHelper.unwrapCause(err.getCause());
+        assertThat(cause, instanceOf(IllegalArgumentException.class));
+        return (IllegalArgumentException) cause;
     }
 }

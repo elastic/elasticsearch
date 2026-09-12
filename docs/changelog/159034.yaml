@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159034
+summary: "ESQL:DS: Decide PUT dataset and data source on the master"
+type: bug

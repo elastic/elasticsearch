@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
@@ -148,20 +149,29 @@ public class DataSourceService {
      * also re-validates against that same fresh state, so a concurrent change to a secret this request relies
      * on carrying forward fails the PUT instead of silently persisting an incomplete data source. Every other
      * field is a full replace, matching the pre-existing PUT semantics.
+     *
+     * <p>Pre-submit validation reads {@link ClusterService#state()}, which is applied state. The master
+     * applies a publication only after every node has applied -- or {@code cluster.publish.timeout} fires --
+     * so a committed create can be missing from that snapshot. A {@link ValidationException} against a
+     * missing current entry is therefore not failed here: the CAS task re-validates against MasterService
+     * state, which already includes the committed create. Newly-supplied secrets are then encrypted on the
+     * CAS thread, only on that rare lag path.
      */
     public void putDataSource(ProjectId projectId, PutDataSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        final DataSource validated;
-        final DataSourceSettings encryptedNew;
+        final ProjectMetadata projectSnapshot = clusterService.state().metadata().getProject(projectId);
+        DataSourceSettings preEncrypted = null;
         try {
-            final ProjectMetadata projectSnapshot = clusterService.state().metadata().getProject(projectId);
-            validated = validatePutDataSource(projectSnapshot, request);
-            encryptedNew = applyEncryption(validated.name(), validated.settings());
+            final DataSource validated = validatePutDataSource(projectSnapshot, request);
+            preEncrypted = applyEncryption(validated.name(), validated.settings());
         } catch (Exception e) {
-            recordRejected(request.type(), e);
-            listener.onFailure(e);
-            return;
+            if (getMetadata(projectSnapshot).get(request.name()) != null || e instanceof ValidationException == false) {
+                recordRejected(request.type(), e);
+                listener.onFailure(e);
+                return;
+            }
         }
-        logger.debug("submitting put data source [{}] of type [{}]", validated.name(), validated.type());
+        final DataSourceSettings encryptedNew = preEncrypted;
+        logger.debug("submitting put data source [{}] of type [{}]", request.name(), request.type());
         final AtomicReference<String> pendingOp = new AtomicReference<>();
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(
             request,
@@ -171,20 +181,23 @@ public class DataSourceService {
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
                 final DataSourceMetadata metadata = getMetadata(project);
-                final DataSource current = metadata.get(validated.name());
+                final DataSource current = metadata.get(request.name());
                 if (current == null && metadata.dataSources().size() >= maxDataSourcesCount) {
-                    logger.warn("rejected put for data source [{}]: maximum count [{}] reached", validated.name(), maxDataSourcesCount);
+                    logger.warn("rejected put for data source [{}]: maximum count [{}] reached", request.name(), maxDataSourcesCount);
                     throw new MaxDataSourcesCountException(maxDataSourcesCount);
                 }
                 // Re-validate here, against the state just read, not the pre-encryption snapshot above: a
                 // concurrent operation could have cleared or removed a secret this request relies on carrying
                 // forward between that snapshot and this task running. Cheap (no I/O); throwing here fails the
                 // whole PUT instead of silently persisting a data source with incomplete credentials.
-                validatePutDataSource(project, request);
-                final DataSourceSettings merged = mergeCarriedForwardSecrets(current, validated.type(), encryptedNew, request);
-                final DataSource encrypted = new DataSource(validated.name(), validated.type(), validated.description(), merged);
+                final DataSource validated = validatePutDataSource(project, request);
+                final DataSourceSettings encrypted = encryptedNew != null
+                    ? encryptedNew
+                    : applyEncryption(validated.name(), validated.settings());
+                final DataSourceSettings merged = mergeCarriedForwardSecrets(current, validated.type(), encrypted, request);
+                final DataSource stored = new DataSource(validated.name(), validated.type(), validated.description(), merged);
                 final Map<String, DataSource> updated = new HashMap<>(metadata.dataSources());
-                updated.put(encrypted.name(), encrypted);
+                updated.put(stored.name(), stored);
                 pendingOp.set(current == null ? ConfigChangeTelemetry.OP_CREATED : ConfigChangeTelemetry.OP_UPDATED);
                 return ClusterState.builder(currentState)
                     .putProjectMetadata(
@@ -196,7 +209,7 @@ public class DataSourceService {
         taskQueue.submitTask("update-esql-data-source-metadata-[" + request.name() + "]", task, task.timeout());
     }
 
-    /** Records a pre-submit or transport pre-check refusal. Used by PUT transport {@code doExecute}. */
+    /** Records a pre-submit refusal (unknown type, validation failure, and similar). */
     public void recordRejected(String type, Exception e) {
         ConfigChangeTelemetry.recordRejected(metrics, ConfigChangeTelemetry.KIND_DATASOURCE, type, e);
     }

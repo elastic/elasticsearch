@@ -44,9 +44,32 @@ public final class MapperMergeContext {
         boolean isStrictColumnar,
         boolean isSourceColumnarStored
     ) {
+        return root(
+            isSourceSynthetic,
+            isDataStream,
+            mergeReason,
+            NewFieldsBudget.dropping(newFieldsBudget),
+            isStrictColumnar,
+            isSourceColumnarStored
+        );
+    }
+
+    /**
+     * The root context for merging a tree of mappers with an explicit {@link NewFieldsBudget}.
+     * Use {@link NewFieldsBudget#unlimited()}, {@link NewFieldsBudget#dropping(long)}, or
+     * {@link NewFieldsBudget#throwing(long, long)} to control how budget exhaustion is handled.
+     */
+    public static MapperMergeContext root(
+        boolean isSourceSynthetic,
+        boolean isDataStream,
+        MergeReason mergeReason,
+        NewFieldsBudget budget,
+        boolean isStrictColumnar,
+        boolean isSourceColumnarStored
+    ) {
         return new MapperMergeContext(
             MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason, isStrictColumnar, isSourceColumnarStored),
-            NewFieldsBudget.of(newFieldsBudget)
+            budget
         );
     }
 
@@ -57,7 +80,7 @@ public final class MapperMergeContext {
      * @return a new {@link MapperMergeContext}, wrapping the provided {@link MapperBuilderContext}
      */
     public static MapperMergeContext from(MapperBuilderContext mapperBuilderContext, long newFieldsBudget) {
-        return new MapperMergeContext(mapperBuilderContext, NewFieldsBudget.of(newFieldsBudget));
+        return new MapperMergeContext(mapperBuilderContext, NewFieldsBudget.dropping(newFieldsBudget));
     }
 
     /**
@@ -86,54 +109,5 @@ public final class MapperMergeContext {
 
     boolean decrementFieldBudgetIfPossible(int fieldSize) {
         return newFieldsBudget.decrementIfPossible(fieldSize);
-    }
-
-    /**
-     * Keeps track of how many new fields can be added during mapper merge.
-     * The field budget is shared across instances of {@link MapperMergeContext} that are created via
-     * {@link MapperMergeContext#createChildContext}.
-     * This ensures that fields that are consumed by one child object mapper also decrement the budget for another child object.
-     * Not thread safe.The same instance may not be modified by multiple threads.
-     */
-    private interface NewFieldsBudget {
-
-        static NewFieldsBudget of(long fieldsBudget) {
-            if (fieldsBudget == Long.MAX_VALUE) {
-                return Unlimited.INSTANCE;
-            }
-            return new Limited(fieldsBudget);
-        }
-
-        boolean decrementIfPossible(long fieldSize);
-
-        final class Unlimited implements NewFieldsBudget {
-
-            private static final Unlimited INSTANCE = new Unlimited();
-
-            private Unlimited() {}
-
-            @Override
-            public boolean decrementIfPossible(long fieldSize) {
-                return true;
-            }
-        }
-
-        final class Limited implements NewFieldsBudget {
-
-            private long fieldsBudget;
-
-            Limited(long fieldsBudget) {
-                this.fieldsBudget = fieldsBudget;
-            }
-
-            @Override
-            public boolean decrementIfPossible(long fieldSize) {
-                if (fieldsBudget >= fieldSize) {
-                    fieldsBudget -= fieldSize;
-                    return true;
-                }
-                return false;
-            }
-        }
     }
 }

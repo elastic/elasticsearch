@@ -176,6 +176,7 @@ public class TypeParsers {
                 }
 
                 FieldMapper.TypeParser fieldTypeParser = (FieldMapper.TypeParser) typeParser;
+                parserContext.checkFieldNameLength(multiFieldName);
                 multiFieldsBuilder.accept(fieldTypeParser.parse(multiFieldName, multiFieldNodes, parserContext));
                 multiFieldNodes.remove("type");
                 MappingParser.checkNoRemainingFields(propName, multiFieldNodes);

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-import org.apache.http.HttpResponse;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.rest.RestStatus;
@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public record StreamingHttpResult(HttpResponse response, Flow.Publisher<byte[]> body) {
     public boolean isSuccessfulResponse() {
-        return RestStatus.isSuccessful(response.getStatusLine().getStatusCode());
+        return RestStatus.isSuccessful(response.getCode());
     }
 
     public Flow.Publisher<HttpResult> toHttpResult() {

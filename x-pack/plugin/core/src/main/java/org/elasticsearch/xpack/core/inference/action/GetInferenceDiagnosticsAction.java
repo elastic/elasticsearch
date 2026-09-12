@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.apache.http.pool.PoolStats;
+import org.apache.hc.core5.pool.PoolStats;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
@@ -249,6 +249,8 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             private static final String MAX_CONNECTIONS = "max_connections";
             private static final ConnectionPoolStats EMPTY = new ConnectionPoolStats(0, 0, 0, 0);
 
+            // TODO (httpclient5 migration): PoolStats switched from org.apache.http.pool (4.x) to org.apache.hc.core5.pool (5.x);
+            // the accessors and the serialized VInt wire fields are identical, so there is no transport-version impact.
             static ConnectionPoolStats of(PoolStats poolStats) {
                 return new ConnectionPoolStats(poolStats.getLeased(), poolStats.getPending(), poolStats.getAvailable(), poolStats.getMax());
             }

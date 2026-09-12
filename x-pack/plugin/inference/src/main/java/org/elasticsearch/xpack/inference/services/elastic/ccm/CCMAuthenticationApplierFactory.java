@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.ccm;
 
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -39,7 +39,7 @@ public class CCMAuthenticationApplierFactory implements AuthenticationFactory {
         this.ccmService = Objects.requireNonNull(ccmService);
     }
 
-    public interface AuthApplier extends Function<HttpRequestBase, HttpRequestBase> {}
+    public interface AuthApplier extends Function<SimpleHttpRequest, SimpleHttpRequest> {}
 
     @Override
     public void getAuthenticationApplier(ActionListener<AuthApplier> listener) {
@@ -92,7 +92,7 @@ public class CCMAuthenticationApplierFactory implements AuthenticationFactory {
         }
 
         @Override
-        public HttpRequestBase apply(HttpRequestBase request) {
+        public SimpleHttpRequest apply(SimpleHttpRequest request) {
             request.setHeader(createAuthApiKeyHeader(apiKey));
             return request;
         }
@@ -103,7 +103,7 @@ public class CCMAuthenticationApplierFactory implements AuthenticationFactory {
      */
     public record NoopApplier() implements AuthApplier {
         @Override
-        public HttpRequestBase apply(HttpRequestBase request) {
+        public SimpleHttpRequest apply(SimpleHttpRequest request) {
             return request;
         }
     }

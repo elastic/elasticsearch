@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.inference.telemetry;
 
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.tasks.Task;
 
 public record TraceContextHandler(TraceContext traceContext) {
 
-    public void propagateTraceContext(HttpRequestBase httpRequest) {
+    public void propagateTraceContext(SimpleHttpRequest httpRequest) {
         if (traceContext == null) {
             return;
         }

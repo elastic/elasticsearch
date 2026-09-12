@@ -11,8 +11,8 @@ import com.azure.core.credential.TokenRequestContext;
 import com.azure.identity.ClientSecretCredential;
 import com.azure.identity.ClientSecretCredentialBuilder;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -59,7 +59,7 @@ public record AzureOpenAiOAuth2Applier(
     }
 
     @Override
-    public void applyTo(HttpRequestBase request, ActionListener<HttpRequestBase> listener) {
+    public void applyTo(SimpleHttpRequest request, ActionListener<SimpleHttpRequest> listener) {
         try {
             clientSecretCredential.getToken(tokenRequestContext).subscribe(token -> {
                 request.setHeader(HttpHeaders.AUTHORIZATION, bearerToken(token.getToken()));
@@ -70,7 +70,7 @@ public record AzureOpenAiOAuth2Applier(
         }
     }
 
-    private void onFailure(ActionListener<HttpRequestBase> listener, Throwable e) {
+    private void onFailure(ActionListener<SimpleHttpRequest> listener, Throwable e) {
         listener.onFailure(
             new ElasticsearchException(
                 Strings.format("Failed attempting to retrieve access token for Azure OpenAI request for inference id: [%s]", inferenceId),

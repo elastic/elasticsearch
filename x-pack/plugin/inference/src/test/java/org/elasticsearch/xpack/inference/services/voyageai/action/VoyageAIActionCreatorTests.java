@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai.action;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -18,7 +18,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -136,7 +135,7 @@ public class VoyageAIActionCreatorTests extends ESTestCase {
             assertNull(webServer.requests().getFirst().getUri().getQuery());
             MatcherAssert.assertThat(
                 webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
-                is(XContentType.JSON.mediaType())
+                is("application/json; charset=UTF-8")
             );
             MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is("Bearer " + TEST_API_KEY));
 

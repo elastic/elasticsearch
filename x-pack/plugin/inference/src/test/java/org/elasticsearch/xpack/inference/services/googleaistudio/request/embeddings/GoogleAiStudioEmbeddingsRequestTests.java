@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.googleaistudio.request.embeddings;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
@@ -22,6 +19,7 @@ import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.Goog
 import org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioEmbeddingsRequest;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
@@ -29,12 +27,11 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioEmbeddingsRequestEntity.convertToString;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
 
-    public void testCreateRequest_WithoutDimensionsSet() throws IOException {
+    public void testCreateRequest_WithoutDimensionsSet() throws IOException, URISyntaxException {
         var model = "model";
         var apiKey = "api_key";
         var input = "input";
@@ -43,13 +40,12 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
         var request = createRequest(model, apiKey, input, null, null, inputType);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), endsWith(Strings.format("%s=%s", "key", apiKey)));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), endsWith(Strings.format("%s=%s", "key", apiKey)));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(1));
 
         if (InputType.isSpecified(inputType)) {
@@ -87,7 +83,7 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
 
     }
 
-    public void testCreateRequest_WithDimensionsSet() throws IOException {
+    public void testCreateRequest_WithDimensionsSet() throws IOException, URISyntaxException {
         var model = "model";
         var apiKey = "api_key";
         var input = "input";
@@ -97,13 +93,12 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
         var request = createRequest(model, apiKey, input, null, dimensions, inputType);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), endsWith(Strings.format("%s=%s", "key", apiKey)));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), endsWith(Strings.format("%s=%s", "key", apiKey)));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(1));
         if (InputType.isSpecified(inputType)) {
             var convertedInputType = convertToString(inputType);
@@ -144,7 +139,7 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
 
     }
 
-    public void testTruncate_ReducesInputTextSizeByHalf() throws IOException {
+    public void testTruncate_ReducesInputTextSizeByHalf() throws IOException, URISyntaxException {
         var model = "model";
         var apiKey = "api_key";
         var input = "abcd";
@@ -155,13 +150,12 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
         var truncatedRequest = request.truncate();
         var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), endsWith(Strings.format("%s=%s", "key", apiKey)));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), endsWith(Strings.format("%s=%s", "key", apiKey)));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(1));
 
         if (InputType.isSpecified(inputType)) {

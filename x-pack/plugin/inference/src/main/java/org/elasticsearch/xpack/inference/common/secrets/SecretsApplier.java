@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.common.secrets;
 
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.action.ActionListener;
 
 /**
@@ -16,7 +16,7 @@ import org.elasticsearch.action.ActionListener;
  * (e.g. OAuth2 client-credentials token fetch).
  */
 public interface SecretsApplier {
-    void applyTo(HttpRequestBase request, ActionListener<HttpRequestBase> listener);
+    void applyTo(SimpleHttpRequest request, ActionListener<SimpleHttpRequest> listener);
 
     /**
      * Called when the remote service responds with a 401. Implementations that cache

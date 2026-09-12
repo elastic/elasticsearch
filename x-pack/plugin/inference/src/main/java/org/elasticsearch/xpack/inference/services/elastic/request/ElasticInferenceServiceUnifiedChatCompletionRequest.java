@@ -7,14 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.message.BasicHeader;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
@@ -51,17 +48,15 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest extends Elastic
     }
 
     @Override
-    public HttpRequestBase createHttpRequestBase() {
-        var httpPost = new HttpPost(model.uri());
+    public SimpleHttpRequest createSimpleHttpRequest() {
+        var httpPost = SimpleRequestBuilder.post(model.uri()).build();
         var requestEntity = Strings.toString(
             new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId())
         );
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
-        httpPost.setEntity(byteEntity);
+        httpPost.setBody(requestEntity.getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
 
         traceContextHandler.propagateTraceContext(httpPost);
-        httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
 
         return httpPost;
     }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.common.secrets;
 
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.action.ActionListener;
 
 /**
@@ -21,7 +21,7 @@ public final class NoopSecretsApplier implements SecretsApplier {
     private NoopSecretsApplier() {}
 
     @Override
-    public void applyTo(HttpRequestBase request, ActionListener<HttpRequestBase> listener) {
+    public void applyTo(SimpleHttpRequest request, ActionListener<SimpleHttpRequest> listener) {
         listener.onResponse(request);
     }
 }

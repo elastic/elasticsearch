@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
@@ -33,14 +31,13 @@ public class HuggingFaceEmbeddingsRequestTests extends ESTestCase {
         var huggingFaceRequest = createRequest("www.google.com", "secret", "abc");
         var httpRequest = RequestTests.getHttpRequestSync(huggingFaceRequest);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), is("www.google.com"));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
+        assertThat(httpPost.getUri().toString(), is("www.google.com"));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap.size(), is(1));
         assertThat(requestMap.get("inputs"), instanceOf(List.class));
         var inputList = (List<String>) requestMap.get("inputs");
@@ -53,10 +50,9 @@ public class HuggingFaceEmbeddingsRequestTests extends ESTestCase {
         assertThat(truncatedRequest.getURI().toString(), is(new URI("www.google.com").toString()));
 
         var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap.get("inputs"), instanceOf(List.class));
         assertThat(requestMap.get("inputs"), is(List.of("ab")));
     }

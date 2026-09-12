@@ -7,14 +7,21 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request;
 
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
 
 /**
  * Needed for compatibility with RequestSender
  */
-public class NoOpHttpRequest extends HttpRequestBase {
-    @Override
-    public String getMethod() {
-        return "NOOP";
+public final class NoOpHttpRequest {
+
+    /**
+     * Creates a do-nothing request; Amazon Bedrock uses the AWS SDK rather than Apache HTTP requests,
+     * so this request is never executed.
+     */
+    public static SimpleHttpRequest createNoOpRequest() {
+        return SimpleRequestBuilder.create("NOOP").build();
     }
+
+    private NoOpHttpRequest() {}
 }

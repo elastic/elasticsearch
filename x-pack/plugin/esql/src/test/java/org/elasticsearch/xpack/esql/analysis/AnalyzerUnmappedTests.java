@@ -445,12 +445,12 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             """), containsString("Only a single FORK command is supported, but found multiple"));
     }
 
-    public void testLoadModeRejectsSubqueryUnionForkWithDroppedUnmappedField() {
+    public void testLoadModeAllowsSubqueryUnionForkWithDroppedUnmappedField() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        partialMappingTest().statementError(setUnmappedLoad("""
+        partialMappingTest().statement(setUnmappedLoad("""
             FROM (FROM partial_mapping_sample_data),(FROM partial_mapping_sample_data)
             | FORK (DROP unmapped_message) (WHERE true)
-            """), containsString("FORK after subquery is not supported"));
+            """));
     }
 
     public void testNullifyLookupJoinExpressionWithNullifiedFields() {
@@ -707,8 +707,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statement(setUnmappedLoad("FROM (FROM test),(FROM test),(FROM test)"));
     }
 
-    // Nested subqueries are rejected by checkNestedUnionAlls, which runs at post-optimization (not during analysis), so the
-    // analyzer no longer fails this statement once the subquery+load restriction is lifted (#142033).
+    // Nested subqueries and their optional fields are resolved bottom-up.
     public void testLoadModeAllowsNestedSubqueriesAtAnalysis() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         test().addLanguages()
@@ -734,35 +733,18 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statement(setUnmappedLoad("FROM (FROM test) | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"));
     }
 
-    // The subquery+load restriction is lifted (#142033), but FORK after a subquery is still rejected (checkFork, post-analysis).
-    public void testLoadModeDisallowsMultipleSubqueriesPlusFork() {
+    public void testLoadModeAllowsMultipleSubqueriesPlusFork() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        test().statementError(
-            setUnmappedLoad("FROM (FROM test),(FROM test) | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"),
-            allOf(
-                containsString("Found 2 problems"),
-                // error below appears twice
-                containsString("line 1:34: FORK after subquery is not supported")
-            )
-        );
+        test().statement(setUnmappedLoad("FROM (FROM test),(FROM test) | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"));
     }
 
-    // The subquery+load restriction is lifted (#142033), but FORK after a subquery is still rejected (checkFork, post-analysis).
-    public void testLoadModeDisallowsSubqueryAndFork() {
+    public void testLoadModeAllowsSubqueryAndFork() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var query = setUnmappedLoad("""
             FROM test, (FROM languages | WHERE language_code > 1)
             | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
             """);
-        test().addLanguages()
-            .statementError(
-                query,
-                allOf(
-                    containsString("Found 2 problems"),
-                    // error below appears twice
-                    containsString("line 1:34: FORK after subquery is not supported")
-                )
-            );
+        test().addLanguages().statement(query);
     }
 
     public void testLoadModeAllowsNonBranchingViewEquivalent() {

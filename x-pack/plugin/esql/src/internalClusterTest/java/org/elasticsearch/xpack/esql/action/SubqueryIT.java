@@ -9,15 +9,25 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Tests for subquery batch execution in ComputeService.
@@ -25,11 +35,6 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
  * produces correct results across different batch sizes and query shapes.
  */
 public class SubqueryIT extends AbstractEsqlIntegTestCase {
-
-    @Before
-    public void checkSubqueryInFromCommandSupport() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-    }
 
     @Before
     public void checkPragma() {
@@ -384,6 +389,357 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             );
             assertValues(resp.values(), expectedValues);
         }
+    }
+
+    public void testThreeLevelNestedSubqueriesAtDifferentParallelDegrees() {
+        var query = """
+            FROM
+               ( FROM test | WHERE id == 1 ),
+               ( FROM
+                    ( FROM test | WHERE id == 2 ),
+                    ( FROM
+                         ( FROM test | WHERE id == 3 ),
+                         ( FROM test | WHERE id == 4 )
+                    )
+               ),
+               ( FROM test | WHERE id == 5 )
+            | KEEP id
+            | SORT id
+            """;
+        for (int degree : List.of(1, 2, 8)) {
+            try (var resp = run(syncEsqlQueryRequest(query).pragmas(branchPragmas(degree)))) {
+                assertColumnNames(resp.columns(), List.of("id"));
+                assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(3), List.of(4), List.of(5)));
+            }
+        }
+    }
+
+    public void testNestedSubqueryProfileUsesHierarchicalNames() {
+        var query = """
+            FROM
+               ( FROM test | WHERE id == 1 ),
+               ( FROM
+                    ( FROM test | WHERE id == 2 ),
+                    ( FROM
+                         ( FROM test | WHERE id == 3 ),
+                         ( FROM test | WHERE id == 4 )
+                    )
+               )
+            | SORT id
+            | KEEP id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(branchPragmas(1)).profile(true))) {
+            assertNotNull(resp.profile());
+            Set<String> descriptions = resp.profile().drivers().stream().map(DriverProfile::description).collect(Collectors.toSet());
+            assertTrue(descriptions.contains("main.final"));
+            assertTrue(descriptions.contains("subplan-0.final"));
+            assertTrue(descriptions.contains("subplan-1.merge"));
+            assertTrue(descriptions.contains("subplan-1.subplan-0.final"));
+            assertTrue(descriptions.contains("subplan-1.subplan-1.merge"));
+            assertTrue(descriptions.contains("subplan-1.subplan-1.subplan-0.final"));
+            assertTrue(descriptions.contains("subplan-1.subplan-1.subplan-1.final"));
+        }
+    }
+
+    public void testNestedSubqueryOuterLimitWithQueuedLeaves() {
+        var query = """
+            FROM
+               ( FROM test ),
+               ( FROM
+                    ( FROM test ),
+                    ( FROM
+                         ( FROM test ),
+                         ( FROM test )
+                    )
+               )
+            | LIMIT 1
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(branchPragmas(1)))) {
+            var values = resp.values();
+            assertTrue(values.hasNext());
+            values.next();
+            assertFalse(values.hasNext());
+        }
+    }
+
+    /**
+     * The main {@code FROM} pattern {@code airports*} matches both the {@code airports_view} view and the {@code airports} index, so it
+     * expands to a view union. The sibling {@code (FROM employees)} adds an enclosing subquery union.
+     */
+    public void testViewAndIndexInMainQueryWithSubquery() {
+        setupWildcardMatchingViewAndIndices();
+        try {
+            assertAirportViewAndEmployeeRows("FROM airports*, (FROM employees)");
+        } finally {
+            deleteViews("airports_view");
+        }
+    }
+
+    /** A wildcard view union inside a subquery can be nested below the top-level source union. */
+    public void testViewAndIndexInsideSubquery() {
+        setupWildcardMatchingViewAndIndices();
+        try {
+            assertAirportViewAndEmployeeRows("FROM employees, (FROM airports*)");
+        } finally {
+            deleteViews("airports_view");
+        }
+    }
+
+    /** A wildcard view union can also occur inside one of several sibling subqueries. */
+    public void testViewAndIndexInOneOfMultipleSubqueries() {
+        setupWildcardMatchingViewAndIndices();
+        try {
+            assertAirportViewAndEmployeeRows("FROM (FROM airports*), (FROM employees)");
+        } finally {
+            deleteViews("airports_view");
+        }
+    }
+
+    public void testUnionAllWithForkInsideSubqueries() {
+        var query = """
+            FROM (FROM test | FORK (WHERE id > 4) (WHERE id <= 4)),
+                 (FROM test | FORK (WHERE id > 2) (WHERE id <= 2))
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query))) {
+            List<List<Object>> rows = getValuesList(resp);
+            // fork1: id 3, 4, 5, 5, 6, 6
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(3));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(4));
+            assertThat(rows.get(2).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(2).get(1), equalTo(5));
+            assertThat(rows.get(3).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(3).get(1), equalTo(5));
+            assertThat(rows.get(4).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(4).get(1), equalTo(6));
+            assertThat(rows.get(5).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(5).get(1), equalTo(6));
+
+            // fork2: id 1, 1, 2, 2, 3, 4
+            assertThat(rows.get(6).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(6).get(1), equalTo(1));
+            assertThat(rows.get(7).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(7).get(1), equalTo(1));
+            assertThat(rows.get(8).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(8).get(1), equalTo(2));
+            assertThat(rows.get(9).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(9).get(1), equalTo(2));
+            assertThat(rows.get(10).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(10).get(1), equalTo(3));
+            assertThat(rows.get(11).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(11).get(1), equalTo(4));
+        }
+    }
+
+    public void testForkAfterUnionAllSubqueries() {
+        var query = """
+            FROM (FROM test | WHERE id > 4),
+                 (FROM test | WHERE id <= 2)
+            | FORK (WHERE id > 3) (WHERE id <= 3)
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query))) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(4));
+            // fork1: id 5, 6
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(5));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(6));
+
+            // fork2: id 1, 2
+            assertThat(rows.get(2).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(2).get(1), equalTo(1));
+            assertThat(rows.get(3).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(3).get(1), equalTo(2));
+        }
+    }
+
+    public void testForkInsideAndAfterUnionAllSubqueries() {
+        var query = """
+            FROM (FROM test | FORK (WHERE id > 4) (WHERE id <= 4)),
+                 (FROM test | WHERE id <= 2 | EVAL _fork = "fork1")
+            | FORK (WHERE id > 3) (WHERE id <= 3)
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query))) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(8));
+
+            // fork1: id 4, 5, 6
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(4));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(5));
+            assertThat(rows.get(2).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(2).get(1), equalTo(6));
+
+            // fork2: id 1, 1, 2, 2, 3
+            assertThat(rows.get(3).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(3).get(1), equalTo(1));
+            assertThat(rows.get(4).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(4).get(1), equalTo(1));
+            assertThat(rows.get(5).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(5).get(1), equalTo(2));
+            assertThat(rows.get(6).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(6).get(1), equalTo(2));
+            assertThat(rows.get(7).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(7).get(1), equalTo(3));
+        }
+    }
+
+    public void testUnionAllOfForkingViewAndSubquery() {
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    new View("fork_view", "FROM test | FORK (WHERE id > 4) (WHERE id <= 4)")
+                )
+            )
+        );
+        try {
+            var query = """
+                FROM (FROM fork_view),
+                     (FROM test | WHERE id <= 2 | EVAL _fork = "fork1")
+                | KEEP _fork, id
+                | SORT _fork, id
+                """;
+            try (var resp = run(syncEsqlQueryRequest(query))) {
+                List<List<Object>> rows = getValuesList(resp);
+                assertThat(rows, hasSize(8));
+
+                // fork1: id 1, 2, 5, 6
+                assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+                assertThat(rows.get(0).get(1), equalTo(1));
+                assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+                assertThat(rows.get(1).get(1), equalTo(2));
+                assertThat(rows.get(2).get(0).toString(), equalTo("fork1"));
+                assertThat(rows.get(2).get(1), equalTo(5));
+                assertThat(rows.get(3).get(0).toString(), equalTo("fork1"));
+                assertThat(rows.get(3).get(1), equalTo(6));
+
+                // fork2: id 1, 2, 3, 4
+                assertThat(rows.get(4).get(0).toString(), equalTo("fork2"));
+                assertThat(rows.get(4).get(1), equalTo(1));
+                assertThat(rows.get(5).get(0).toString(), equalTo("fork2"));
+                assertThat(rows.get(5).get(1), equalTo(2));
+                assertThat(rows.get(6).get(0).toString(), equalTo("fork2"));
+                assertThat(rows.get(6).get(1), equalTo(3));
+                assertThat(rows.get(7).get(0).toString(), equalTo("fork2"));
+                assertThat(rows.get(7).get(1), equalTo(4));
+            }
+        } finally {
+            deleteViews("fork_view");
+        }
+    }
+
+    public void testUnionAllOfForkingViewAndForkingSubquery() {
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    new View("fork_view", "FROM test | FORK (WHERE id > 4) (WHERE id <= 4)")
+                )
+            )
+        );
+        try {
+            var query = """
+                FROM (FROM fork_view),
+                     (FROM test | FORK (WHERE id > 2) (WHERE id <= 2))
+                | KEEP _fork, id
+                | SORT _fork, id
+                """;
+            try (var resp = run(syncEsqlQueryRequest(query))) {
+                List<List<Object>> rows = getValuesList(resp);
+                assertThat(rows, hasSize(12));
+
+                // fork1: id 3, 4, 5, 5, 6, 6
+                assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+                assertThat(rows.get(0).get(1), equalTo(3));
+                assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+                assertThat(rows.get(1).get(1), equalTo(4));
+                assertThat(rows.get(2).get(0).toString(), equalTo("fork1"));
+                assertThat(rows.get(2).get(1), equalTo(5));
+                assertThat(rows.get(3).get(0).toString(), equalTo("fork1"));
+                assertThat(rows.get(3).get(1), equalTo(5));
+                assertThat(rows.get(4).get(0).toString(), equalTo("fork1"));
+                assertThat(rows.get(4).get(1), equalTo(6));
+                assertThat(rows.get(5).get(0).toString(), equalTo("fork1"));
+                assertThat(rows.get(5).get(1), equalTo(6));
+
+                // fork2: id 1, 1, 2, 2, 3, 4
+                assertThat(rows.get(6).get(0).toString(), equalTo("fork2"));
+                assertThat(rows.get(6).get(1), equalTo(1));
+                assertThat(rows.get(7).get(0).toString(), equalTo("fork2"));
+                assertThat(rows.get(7).get(1), equalTo(1));
+                assertThat(rows.get(8).get(0).toString(), equalTo("fork2"));
+                assertThat(rows.get(8).get(1), equalTo(2));
+                assertThat(rows.get(9).get(0).toString(), equalTo("fork2"));
+                assertThat(rows.get(9).get(1), equalTo(2));
+                assertThat(rows.get(10).get(0).toString(), equalTo("fork2"));
+                assertThat(rows.get(10).get(1), equalTo(3));
+                assertThat(rows.get(11).get(0).toString(), equalTo("fork2"));
+                assertThat(rows.get(11).get(1), equalTo(4));
+            }
+        } finally {
+            deleteViews("fork_view");
+        }
+    }
+
+    private void assertAirportViewAndEmployeeRows(String query) {
+        try (var resp = run(query + " | KEEP id, name | SORT name")) {
+            assertColumnNames(resp.columns(), List.of("id", "name"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            // The concrete airport index and airports_view each return the airport row; the employee subquery returns the employee row.
+            assertValues(resp.values(), List.of(List.of(1, "a"), List.of(1, "a"), List.of(1, "e")));
+        }
+    }
+
+    /** Creates a wildcard match containing one concrete index and one non-compactable view, plus a sibling index. */
+    private void setupWildcardMatchingViewAndIndices() {
+        client().admin().indices().prepareCreate("airports").setMapping("id", "type=integer", "name", "type=keyword").get();
+        client().prepareBulk()
+            .add(new IndexRequest("airports").id("1").source("id", 1, "name", "a"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        client().admin().indices().prepareCreate("employees").setMapping("id", "type=integer", "name", "type=keyword").get();
+        client().prepareBulk()
+            .add(new IndexRequest("employees").id("1").source("id", 1, "name", "e"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        ensureYellow("airports", "employees");
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View("airports_view", "FROM airports | LIMIT 10"))
+            )
+        );
+    }
+
+    private static void deleteViews(String... names) {
+        for (String name : names) {
+            assertAcked(
+                client().execute(
+                    DeleteViewAction.INSTANCE,
+                    new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
+                )
+            );
+        }
+    }
+
+    private static QueryPragmas branchPragmas(int degree) {
+        return new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), degree).build());
     }
 
     private void createAndPopulateIndex() {

@@ -118,7 +118,7 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     /** Names every view {@code testXxx} bodies PUT, dropped after each method so the SUITE cluster stays clean. */
-    private static final Set<String> CREATED_VIEWS = Set.of("emp_meta_view");
+    private static final Set<String> CREATED_VIEWS = Set.of("emp_meta_view", "employees_union_view", "employees_fork_view");
 
     /**
      * Datasets and the {@code local_ds} data source are registered through the base
@@ -349,16 +349,37 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testIndexInMainMultipleDatasetInSubqueryRejected() {
+    /**
+     * A subquery whose own FROM references multiple datasets produces a {@code UnionAll} nested inside the outer
+     * {@code UnionAll}'s branch (outer: real_employees + subquery; inner: employees + employees_alt). Nested
+     * subqueries are supported: the result is the same flat union as spelling each dataset as its own subquery,
+     * see {@link #testIndexInMainDatasetInSubquery}.
+     */
+    public void testIndexInMainMultipleDatasetInSubquery() {
         createRealEmployees();
         registerEmployees();
         registerEmployeesAlt();
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM real_employees, (FROM employees, employees_alt)"), TIMEOUT)
-        );
-        assertCauseMessageContains(ex, "Nested subqueries are not supported");
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM real_employees, (FROM employees, employees_alt) | SORT emp_no, first_name"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(10)); // 5 from real_employees + 3 from employees + 2 from employees_alt
+
+            // same union as testIndexInMainDatasetInSubquery, spot-check the overlap rows and branch provenance
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(rows.get(1).get(0), equalTo(1));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Alice-real"));
+            assertNull(rows.get(1).get(2)); // real_employees has no last_name
+            assertThat(rows.get(5).get(0), equalTo(10));
+            assertThat(rows.get(5).get(1).toString(), equalTo("Diana"));
+            assertThat(rows.get(9).get(0), equalTo(101));
+            assertThat(rows.get(9).get(1).toString(), equalTo("Grace"));
+        }
     }
 
     // With basic(WHERE/STATS/KEEP/EVAL) processing command in subqueries or main query
@@ -1588,6 +1609,133 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             .setSource("@timestamp", "2025-01-01T00:01:00Z", "department", "Marketing", "requests", 170L)
             .get();
         client().admin().indices().prepareRefresh("ts_counters").get();
+    }
+
+    public void testUnionAllSubqueriesReferencingMultipleDatasetsInEach() {
+        registerEmployees();
+        registerEmployeesAlt();
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees, employees_alt | WHERE salary > 50000),
+                 (FROM employees_alt, employees | WHERE salary <= 50000)
+            | SORT emp_no, salary
+            """), TIMEOUT)) {
+            validateOutput(response, 5);
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.get(0).get(0), equalTo(1)); // Alice
+            assertThat(rows.get(1).get(0), equalTo(2)); // Bob
+            assertThat(rows.get(2).get(0), equalTo(3)); // Carol
+            assertThat(rows.get(3).get(0), equalTo(10)); // Diana
+            assertThat(rows.get(4).get(0), equalTo(11)); // Eve
+        }
+    }
+
+    public void testUnionAllSubqueriesReferencingViewsOnMultipleDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("employees_union_view", "FROM employees, employees_alt");
+        try (var response = run(syncEsqlQueryRequest("""
+             FROM (FROM employees_union_view | WHERE salary > 50000),
+                  (FROM employees_union_view | WHERE salary <= 50000)
+            | SORT emp_no"""), TIMEOUT)) {
+            validateOutput(response, 5);
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.get(0).get(0), equalTo(1)); // Alice
+            assertThat(rows.get(1).get(0), equalTo(2)); // Bob
+            assertThat(rows.get(2).get(0), equalTo(3)); // Carol
+            assertThat(rows.get(3).get(0), equalTo(10)); // Diana
+            assertThat(rows.get(4).get(0), equalTo(11)); // Eve
+        }
+    }
+
+    public void testUnionAllOfForkingViewAndDatasetSubquery() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("employees_fork_view", "FROM employees | FORK (WHERE emp_no > 1) (WHERE emp_no <= 1)");
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM (FROM employees_fork_view), "
+                        + "(FROM employees_alt | WHERE emp_no > 10 | EVAL _fork = \"fork1\") "
+                        + "| KEEP _fork, emp_no, first_name "
+                        + "| SORT _fork, emp_no"
+                ),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(4));
+            // fork1: Bob (2), Carol (3), Eve (11)
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(2));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(3));
+            assertThat(rows.get(2).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(2).get(1), equalTo(11));
+
+            // fork2: Alice (1)
+            assertThat(rows.get(3).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(3).get(1), equalTo(1));
+        }
+    }
+
+    public void testComplexCombinationOfNestedUnionsViewsForksAndInSubqueries() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("employees_union_view", "FROM employees, employees_alt");
+
+        String query = """
+            FROM
+              (FROM employees, employees_alt | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)),
+              (FROM employees_union_view | EVAL _fork = "fork1"),
+              (FROM employees, employees_alt | WHERE emp_no IN (FROM (FROM employees, employees_alt | KEEP emp_no),
+                                                                     (FROM employees_union_view | KEEP emp_no))
+                                             | EVAL _fork = "fork1")
+            | FORK (WHERE emp_no > 2) (WHERE emp_no <= 2)
+            | KEEP _fork, emp_no, first_name
+            | SORT _fork, emp_no""";
+
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            // We expect exactly 15 rows total (9 under outer fork1 and 6 under outer fork2)
+            assertThat(rows, hasSize(15));
+
+            // outer fork1 (emp_no > 2): emp_no 3, 3, 3, 10, 10, 10, 11, 11, 11
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(3));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(1), equalTo(3));
+            assertThat(rows.get(2).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(2).get(1), equalTo(3));
+
+            assertThat(rows.get(3).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(3).get(1), equalTo(10));
+            assertThat(rows.get(4).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(4).get(1), equalTo(10));
+            assertThat(rows.get(5).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(5).get(1), equalTo(10));
+
+            assertThat(rows.get(6).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(6).get(1), equalTo(11));
+            assertThat(rows.get(7).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(7).get(1), equalTo(11));
+            assertThat(rows.get(8).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(8).get(1), equalTo(11));
+
+            // outer fork2 (emp_no <= 2): emp_no 1, 1, 1, 2, 2, 2
+            assertThat(rows.get(9).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(9).get(1), equalTo(1));
+            assertThat(rows.get(10).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(10).get(1), equalTo(1));
+            assertThat(rows.get(11).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(11).get(1), equalTo(1));
+
+            assertThat(rows.get(12).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(12).get(1), equalTo(2));
+            assertThat(rows.get(13).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(13).get(1), equalTo(2));
+            assertThat(rows.get(14).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(14).get(1), equalTo(2));
+        }
     }
 
     private void registerEmployees() {

@@ -59,16 +59,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
 
     @Before
     public void checkSubqueryInFromCommandSupport() throws IOException {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         setupClusters(3);
-    }
-
-    private static void checkSubqueryWithRowSupport() {
-        assumeTrue("Requires subquery with ROW as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
-    }
-
-    private static void checkSubqueryWithTSSupport() {
-        assumeTrue("Requires subquery with TS as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
     }
 
     public void testSubquery() {
@@ -810,37 +801,48 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testNestedSubqueries() {
-        // nested subqueries are not supported yet
-        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+        try (EsqlQueryResponse resp = runQuery("""
             FROM logs-*,(FROM c*:logs-*, (FROM r*:logs-*))
-            """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("Nested subqueries are not supported"));
+            | STATS c = count(*), s = sum(v) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            // local logs-1 has 10 rows with v in [0,9] (sum 45); each remote logs-2 has 10 rows with v = i*i (sum 285)
+            assertThat(values, hasSize(2));
+            assertThat(values.get(0), equalTo(List.of(10L, 45L, "local")));
+            assertThat(values.get(1), equalTo(List.of(20L, 570L, "remote")));
+        }
     }
 
     public void testSubqueryWithFork() {
-        // fork after subqueries is not supported yet
-        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+        // The local source and the two remote subqueries each return 10 rows. FORK therefore sees 30 rows.
+        // For the local values 0-9, v > 5 returns 4 rows and v < 3 returns 3 rows. Each remote source
+        // contains the squared values 0, 1, 4, 9, ..., 81, so its fork branches return 7 and 2 rows.
+        // The two fork branches contain (4 + 7 + 7) = 18 and (3 + 2 + 2) = 7 rows, totaling 25.
+        try (EsqlQueryResponse resp = runQuery("""
             FROM logs-*,(FROM c*:logs-*), (FROM r*:logs-*)
             | FORK
               (WHERE v > 5)
               (WHERE v < 3)
-            """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("FORK after subquery is not supported"));
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), hasSize(25));
+        }
 
-        // fork inside subquery is not supported yet
-        ex = expectThrows(VerificationException.class, () -> runQuery("""
+        // The local source and cluster-a subquery each contribute all 10 rows. Only the remote-b
+        // subquery contains a FORK: its v > 5 and v < 3 branches return 7 and 2 rows, respectively.
+        // The outer union therefore returns 10 + 10 + 7 + 2 = 29 rows.
+        try (EsqlQueryResponse resp = runQuery("""
             FROM
                 logs-*,
                 (FROM c*:logs-*),
                 (FROM r*:logs-*
                  | FORK (WHERE v > 5) (WHERE v < 3))
-            """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("FORK inside subquery is not supported"));
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), hasSize(29));
+        }
     }
 
     public void testSubqueryWithRow() {
-        checkSubqueryWithRowSupport();
-
         try (EsqlQueryResponse resp = runQuery("""
             FROM
                 (FROM logs-* | STATS c = count(*) | EVAL cluster = "local"),
@@ -887,7 +889,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testSubqueryWithRowAndLookupJoin() {
-        checkSubqueryWithRowSupport();
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
@@ -919,7 +920,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
 
     // Same limitation as testSubqueryWithLookupJoinInMainQuery
     public void testSubqueryWithRowAndLookupJoinInMainQuery() {
-        checkSubqueryWithRowSupport();
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 1);
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 1);
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 1);
@@ -942,7 +942,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testSubqueryWithRowAndLookupIndicesExistOnClustersReferencedBySubquery() {
-        checkSubqueryWithRowSupport();
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup_remote", 10);
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup_remote", 10);
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup_local", 10);
@@ -973,8 +972,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testSubqueryWithRowAndLookupIndicesMissingOnClustersReferencedBySubquery() {
-        checkSubqueryWithRowSupport();
-
         VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
             FROM
                 cluster-a:logs-*,
@@ -994,7 +991,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testSubqueryWithTS() {
-        checkSubqueryWithTSSupport();
         populateTimeSeriesIndex(LOCAL_CLUSTER, "metrics");
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
         populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
@@ -1039,7 +1035,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testSubqueryWithTSAndLookupJoin() {
-        checkSubqueryWithTSSupport();
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
         populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
@@ -1080,7 +1075,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
 
     // Same limitation as testSubqueryWithLookupJoinInMainQuery
     public void testSubqueryWithTSAndLookupJoinInMainQuery() {
-        checkSubqueryWithTSSupport();
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
         populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 1);
@@ -1102,7 +1096,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testSubqueryWithTSAndLookupIndicesExistOnClustersReferencedBySubquery() {
-        checkSubqueryWithTSSupport();
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
         populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup_1", 10);
@@ -1180,7 +1173,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testSubqueryWithTSAndLookupIndexMissingOnClustersReferencedBySubquery() {
-        checkSubqueryWithTSSupport();
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
         populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
 
@@ -1218,8 +1210,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testSubqueryWithMixedSources() {
-        checkSubqueryWithRowSupport();
-        checkSubqueryWithTSSupport();
         populateTimeSeriesIndex(LOCAL_CLUSTER, "metrics");
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
         populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
@@ -1253,8 +1243,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testSubqueryWithMixedSourcesWithoutAgg() {
-        checkSubqueryWithRowSupport();
-        checkSubqueryWithTSSupport();
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
 
         try (EsqlQueryResponse resp = runQuery("""
@@ -1290,8 +1278,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testSubqueryWithMixedSourcesAndLookupJoin() {
-        checkSubqueryWithRowSupport();
-        checkSubqueryWithTSSupport();
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
@@ -1337,8 +1323,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
      * rejects the lookup that follows the STATS in the cross-cluster branch.
      */
     public void testSubqueryWithMixedSourcesAndLookupJoinAfterStats() {
-        checkSubqueryWithRowSupport();
-        checkSubqueryWithTSSupport();
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
         populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 20);
@@ -1676,6 +1660,73 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich_1");
             deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_2");
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        }
+    }
+
+    // -- nested UnionAll with different source command combinations --
+
+    public void testNestedSubqueriesWithTsAndRow() {
+        populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM logs-*,
+                 (FROM (TS r*:metrics
+                        | STATS max_cpu = max(cpu), cnt = count(cpu) BY host
+                        | EVAL tag = CASE(max_cpu > 5, "ts-high", "ts-low"), v = cnt),
+                       (ROW tag = "row", v = TO_LONG(9), max_cpu = 99.0, cnt = TO_LONG(1))
+                 )
+            | EVAL max_cpu = COALESCE(max_cpu, 0.0)
+            | STATS total = count(*), max_of_max = TO_LONG(max(max_cpu)), sum_v = sum(v) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(4));
+            // local logs-1: 10 docs, max_cpu filled to 0.0 by COALESCE, sum_v = 0+1+…+9 = 45
+            assertThat(values.get(0), equalTo(List.of(10L, 0L, 45L, "local")));
+            // ROW: 1 doc, max_cpu = 99.0 → TO_LONG = 99, v = 9
+            assertThat(values.get(1), equalTo(List.of(1L, 99L, 9L, "row")));
+            // TS h2: max_cpu = 6.0 > 5 → tag = "ts-high"; count(cpu)=1 per TSID, so sum_v=1
+            assertThat(values.get(2), equalTo(List.of(1L, 6L, 1L, "ts-high")));
+            // TS h1: max_cpu = 3.0 ≤ 5 → tag = "ts-low"; count(cpu)=1 per TSID, so sum_v=1
+            assertThat(values.get(3), equalTo(List.of(1L, 3L, 1L, "ts-low")));
+            assertCCSExecutionInfoDetails(resp.getExecutionInfo());
+        }
+    }
+
+    public void testNestedSubqueriesWithAllSourceTypes() {
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
+        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
+        populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
+        populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM
+                (FROM logs-*
+                 | STATS c = count(*), s = sum(v), m = max(v)
+                 | EVAL src = "from-local"),
+                (FROM
+                     (FROM *:logs-*
+                      | WHERE v >= 1 AND v <= 9
+                      | LOOKUP JOIN values_lookup ON v == lookup_key
+                      | STATS c = count(*), s = sum(v), m = max(v)
+                      | EVAL src = "from-remote"),
+                      (TS *:metrics
+                       | WHERE cpu > 3
+                       | STATS c = count(cpu), s = TO_LONG(sum(cpu)), m = TO_LONG(max(cpu))
+                       | EVAL src = "ts-high-cpu"),
+                       (ROW c = TO_LONG(3), s = TO_LONG(42), m = TO_LONG(21), src = "row")
+                )
+            | STATS total_c = sum(c), total_s = sum(s), overall_max = max(m) BY src
+            | SORT src
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(4));
+            // local logs-1: 10 docs, sum = 45, max_v = 9
+            assertThat(values.get(0), equalTo(List.of(10L, 45L, 9L, "from-local")));
+            // both remotes, v in {1,4,9} (all match lookup keys 0-9): 6 docs, sum = 28, max = 9
+            assertThat(values.get(1), equalTo(List.of(6L, 28L, 9L, "from-remote")));
+            assertThat(values.get(2), equalTo(List.of(3L, 42L, 21L, "row")));
+            // TS *:metrics last-value per TSID: h2 last_cpu=6 passes WHERE cpu>3; count=1 TSID, sum=6, max=6
+            assertThat(values.get(3), equalTo(List.of(1L, 6L, 6L, "ts-high-cpu")));
+            assertCCSExecutionInfoDetails(resp.getExecutionInfo());
         }
     }
 

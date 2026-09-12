@@ -83,8 +83,8 @@ public class DLMFrozenTransitionPluginTests extends ESTestCase {
     public void testCloseShutsDownAllManagedServices() throws IOException {
         var transitionService = new DLMFrozenTransitionService(
             clusterService,
-            (indexName, pid) -> new DLMFrozenTransitionServiceTests.TestDLMFrozenTransitionRunnable(
-                indexName,
+            (index, pid) -> new DLMFrozenTransitionServiceTests.TestDLMFrozenTransitionRunnable(
+                index.getName(),
                 pid,
                 new java.util.concurrent.CountDownLatch(0)
             ),

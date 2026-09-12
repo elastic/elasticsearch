@@ -527,11 +527,11 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
         indexDocs(dataStreamName, 1);
 
-        String writeIndexName = backingIndices.get(1);
+        String firstWriteIndexName = backingIndices.get(1);
+        Index firstWriteIndex = getIndexFromName(firstWriteIndexName);
         assertBusy(() -> {
             DataStreamLifecycleService lifecycleService = internalCluster().getCurrentMasterNodeInstance(DataStreamLifecycleService.class);
-
-            ErrorEntry writeIndexRolloverError = lifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, writeIndexName);
+            ErrorEntry writeIndexRolloverError = lifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, firstWriteIndex);
             assertThat(writeIndexRolloverError, is(notNullValue()));
             assertThat(writeIndexRolloverError.error(), containsString("maximum normal shards open"));
 
@@ -565,7 +565,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(dslHealthInfoOnHealthNode.dslErrorsInfo().size(), is(1));
             DslErrorInfo errorInfo = dslHealthInfoOnHealthNode.dslErrorsInfo().get(0);
 
-            assertThat(errorInfo.indexName(), is(writeIndexName));
+            assertThat(errorInfo.indexName(), is(firstWriteIndexName));
             assertThat(errorInfo.retryCount(), greaterThanOrEqualTo(3));
         });
 
@@ -587,7 +587,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
             Diagnosis diagnosis = dslIndicator.diagnosisList().get(0);
             assertThat(diagnosis.definition(), is(STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF));
-            assertThat(diagnosis.affectedResources().get(0).getValues(), containsInAnyOrder(writeIndexName));
+            assertThat(diagnosis.affectedResources().get(0).getValues(), containsInAnyOrder(firstWriteIndexName));
         }
 
         // let's reset the cluster max shards per node limit to allow rollover to proceed and check the error store is empty
@@ -596,15 +596,15 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         assertBusy(() -> {
             List<String> currentBackingIndices = getDataStreamBackingIndexNames(dataStreamName);
             assertThat(currentBackingIndices.size(), equalTo(3));
-            String writeIndex = currentBackingIndices.get(2);
+            String nextWriteIndexName = currentBackingIndices.get(2);
+            Index nextWriteIndex = getIndexFromName(nextWriteIndexName);
             // rollover was successful and we got to generation 3
-            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 3));
+            assertThat(nextWriteIndexName, backingIndexEqualTo(dataStreamName, 3));
 
             // we recorded the error against the previous write index (generation 2)
             // let's check there's no error recorded against it anymore
-            String previousWriteInddex = currentBackingIndices.get(1);
             DataStreamLifecycleService lifecycleService = internalCluster().getCurrentMasterNodeInstance(DataStreamLifecycleService.class);
-            assertThat(lifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, previousWriteInddex), nullValue());
+            assertThat(lifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, firstWriteIndex), nullValue());
         });
 
         // the error has been fixed so the health information shouldn't be reported anymore
@@ -657,11 +657,11 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
         // let's allow one rollover to go through
         List<String> dsBackingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
-        String firstGenerationIndex = dsBackingIndices.get(0);
+        String firstGenIndexName = dsBackingIndices.get(0);
         String secondGenerationIndex = dsBackingIndices.get(1);
 
         // mark the first generation index as read-only so deletion fails when we enable the retention configuration
-        updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), true), firstGenerationIndex);
+        updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), true), firstGenIndexName);
         try {
             updateLifecycle(dataStreamName, TimeValue.timeValueSeconds(1));
 
@@ -674,8 +674,9 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                     DataStreamLifecycleService.class
                 );
 
+                Index firstGenIndex = getIndexFromName(firstGenIndexName);
                 ErrorEntry recordedRetentionExecutionError = lifecycleService.getErrorStore()
-                    .getError(Metadata.DEFAULT_PROJECT_ID, firstGenerationIndex);
+                    .getError(Metadata.DEFAULT_PROJECT_ID, firstGenIndex);
                 assertThat(recordedRetentionExecutionError, is(notNullValue()));
                 assertThat(recordedRetentionExecutionError.retryCount(), greaterThanOrEqualTo(3));
                 assertThat(recordedRetentionExecutionError.error(), containsString("blocked by: [FORBIDDEN/5/index read-only (api)"));
@@ -692,7 +693,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 assertThat(dslHealthInfoOnHealthNode.dslErrorsInfo().size(), is(1));
                 DslErrorInfo errorInfo = dslHealthInfoOnHealthNode.dslErrorsInfo().get(0);
                 assertThat(errorInfo.retryCount(), greaterThanOrEqualTo(3));
-                assertThat(errorInfo.indexName(), equalTo(firstGenerationIndex));
+                assertThat(errorInfo.indexName(), equalTo(firstGenIndexName));
             });
 
             GetHealthAction.Response healthResponse = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000))
@@ -713,11 +714,11 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
                 Diagnosis diagnosis = dslIndicator.diagnosisList().get(0);
                 assertThat(diagnosis.definition(), is(STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF));
-                assertThat(diagnosis.affectedResources().get(0).getValues(), contains(firstGenerationIndex));
+                assertThat(diagnosis.affectedResources().get(0).getValues(), contains(firstGenIndexName));
             }
 
             // let's mark the index as writeable and make sure it's deleted and the error store is empty
-            updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), false), firstGenerationIndex);
+            updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), false), firstGenIndexName);
 
             assertBusy(() -> {
                 List<String> backingIndices = getDataStreamBackingIndexNames(dataStreamName);
@@ -728,7 +729,13 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 DataStreamLifecycleService lifecycleService = internalCluster().getCurrentMasterNodeInstance(
                     DataStreamLifecycleService.class
                 );
-                assertThat(lifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, firstGenerationIndex), nullValue());
+                assertThat(
+                    lifecycleService.getErrorStore()
+                        .getAllIndices(Metadata.DEFAULT_PROJECT_ID)
+                        .stream()
+                        .noneMatch(idx -> idx.getName().equals(firstGenIndexName)),
+                    is(true)
+                );
             });
 
             // health info for DSL should be EMPTY as everything's healthy
@@ -758,7 +765,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             // when the test executes successfully this will not be needed however, otherwise we need to make sure the index is
             // "delete-able" for test cleanup
             try {
-                updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), false), firstGenerationIndex);
+                updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), false), firstGenIndexName);
             } catch (Exception e) {
                 // index would be deleted if the test is successful
             }
@@ -1171,6 +1178,11 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             new DataStreamFailureStore(enabled, DataStreamLifecycle.failuresLifecycleBuilder().dataRetention(retention).build())
         );
         assertAcked(client().execute(PutDataStreamOptionsAction.INSTANCE, putDataOptionsRequest));
+    }
+
+    private Index getIndexFromName(String indexName) {
+        ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        return clusterState.projectState(Metadata.DEFAULT_PROJECT_ID).metadata().index(indexName).getIndex();
     }
 
     /*

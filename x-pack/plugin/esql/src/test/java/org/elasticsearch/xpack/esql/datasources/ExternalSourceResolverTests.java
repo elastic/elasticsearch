@@ -570,6 +570,41 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(2L, ((Number) aligned.get(SourceStatisticsSerializer.columnValueCountKey("x"))).longValue());
     }
 
+    public void testAlignHarvestWithAnchorTypesPoisonsUnsignedExtremaUnderDouble() {
+        long encoded1 = DeclaredTypeCoercions.coerceToUnsignedLong(1L);
+        long encoded2 = DeclaredTypeCoercions.coerceToUnsignedLong(2L);
+        Map<String, Object> harvest = Map.of(
+            SourceStatisticsSerializer.STATS_ROW_COUNT,
+            2L,
+            SourceStatisticsSerializer.columnMinKey("x"),
+            encoded1,
+            SourceStatisticsSerializer.columnMaxKey("x"),
+            encoded2,
+            SourceStatisticsSerializer.columnValueCountKey("x"),
+            2L,
+            SourceStatisticsSerializer.columnNullCountKey("x"),
+            0L
+        );
+        for (boolean implicitNulls : List.of(false, true)) {
+            Map<String, Object> aligned = ExternalSourceResolver.alignHarvestWithAnchorTypes(
+                harvest,
+                Map.of("x", DataType.UNSIGNED_LONG),
+                Map.of("x", DataType.DOUBLE),
+                implicitNulls,
+                Set.of()
+            );
+            assertNull(aligned.get(SourceStatisticsSerializer.columnMinKey("x")));
+            assertNull(aligned.get(SourceStatisticsSerializer.columnMaxKey("x")));
+            assertEquals(Boolean.TRUE, aligned.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+            assertEquals(Boolean.TRUE, aligned.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+            assertEquals(2L, aligned.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            assertEquals(2L, aligned.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+            assertEquals(0L, aligned.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        }
+        assertEquals(encoded1, harvest.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertEquals(encoded2, harvest.get(SourceStatisticsSerializer.columnMaxKey("x")));
+    }
+
     /**
      * A failed unsigned encode invalidates counts as well as extrema: the scan nulls the
      * offending cell, so leaving {@code value_count} would over-count.

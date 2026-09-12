@@ -1994,7 +1994,8 @@ public class ExternalSourceResolver {
      * Reapplies the FIRST_FILE_WINS per-file rewrite or unsigned encode onto a raw harvest so
      * split merge cannot serve values the scan discards. A footer column the planner cannot
      * represent becomes the all-null contract. A signed harvest under an {@code UNSIGNED_LONG}
-     * planner has its extrema encoded. Declared-coercible columns and text ({@code implicitNulls}
+     * planner has its extrema encoded. Unsigned extrema under a non-unsigned planner are poisoned
+     * without changing counts. Declared-coercible columns and text ({@code implicitNulls}
      * false) are left for {@link SourceStatisticsSerializer#alignHarvestWithFold}. Returns
      * {@code harvest} when nothing changes.
      */
@@ -2017,6 +2018,7 @@ public class ExternalSourceResolver {
         Set<String> declaredColumns = declaredTypeColumns == null ? Set.of() : declaredTypeColumns;
         List<String> rewriteColumns = null;
         List<String> encodeColumns = null;
+        List<String> poisonColumns = null;
         for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
             DataType plannerType = plannerTypes.get(entry.getKey());
             DataType fileType = entry.getValue();
@@ -2035,6 +2037,11 @@ public class ExternalSourceResolver {
                     encodeColumns = new ArrayList<>();
                 }
                 encodeColumns.add(entry.getKey());
+            } else if (unsignedExtremaUnderNonUnsignedPlanner(plannerType, fileType)) {
+                if (poisonColumns == null) {
+                    poisonColumns = new ArrayList<>();
+                }
+                poisonColumns.add(entry.getKey());
             }
         }
         if (rewriteColumns != null) {
@@ -2046,6 +2053,12 @@ public class ExternalSourceResolver {
             Set<String> failedEncodes = new HashSet<>();
             harvest = SourceStatisticsSerializer.encodeColumnExtremaAsUnsignedLong(harvest, encodeColumns, failedEncodes);
             harvest = SourceStatisticsSerializer.removeColumnCounts(harvest, failedEncodes);
+        }
+        if (poisonColumns != null) {
+            harvest = new HashMap<>(harvest);
+            for (String column : poisonColumns) {
+                SourceStatisticsSerializer.poisonColumnExtrema(harvest, column);
+            }
         }
         return harvest;
     }

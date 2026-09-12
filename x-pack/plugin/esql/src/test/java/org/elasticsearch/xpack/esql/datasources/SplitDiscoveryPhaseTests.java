@@ -672,6 +672,58 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertEquals(((ExternalSourceExec) sync.plan()).fileList(), ((ExternalSourceExec) async.plan()).fileList());
     }
 
+    public void testSyncDiscoveryPreservesFoldedStatistics() {
+        assertDiscoveryPreservesFoldedStatistics(false);
+    }
+
+    public void testAsyncDiscoveryPreservesFoldedStatistics() {
+        assertDiscoveryPreservesFoldedStatistics(true);
+    }
+
+    private void assertDiscoveryPreservesFoldedStatistics(boolean async) {
+        Map<String, Object> folded = Map.of(
+            SourceStatisticsSerializer.STATS_ROW_COUNT,
+            4L,
+            SourceStatisticsSerializer.columnValueCountKey("x"),
+            2L,
+            SourceStatisticsSerializer.columnNullCountKey("x"),
+            2L,
+            SourceStatisticsSerializer.columnMinUnservableKey("x"),
+            true,
+            SourceStatisticsSerializer.columnMaxUnservableKey("x"),
+            true
+        );
+        ExternalSourceExec exec = new ExternalSourceExec(
+            SRC,
+            "s3://bucket/data/*.parquet",
+            "parquet",
+            List.of(fieldAttr("x", DataType.DOUBLE)),
+            Map.of(),
+            folded,
+            null,
+            null
+        ).withFileList(createFileList(2));
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+        if (async) {
+            PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+            SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+                exec,
+                factories,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                List.of(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                future
+            );
+            future.actionGet(30, TimeUnit.SECONDS);
+        } else {
+            SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+        }
+        assertNotNull(recorder.lastContext.metadata());
+        assertEquals(folded, recorder.lastContext.metadata().sourceMetadata());
+    }
+
     /**
      * Async {@link SplitDiscoveryPhase.Result} must keep {@code cpuNanos} from the provider.
      * The 4-arg Result constructor defaults CPU to 0 and would drop it from the query profile.

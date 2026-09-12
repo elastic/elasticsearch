@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -418,7 +419,15 @@ public final class SplitDiscoveryPhase {
         List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.output());
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
-            null,
+            new SimpleSourceMetadata(
+                queryDataAttributes,
+                exec.sourceType(),
+                exec.sourcePath(),
+                null,
+                null,
+                exec.sourceMetadata(),
+                exec.config()
+            ),
             fileList != null ? fileList : FileList.UNRESOLVED,
             exec.schemaMap(),
             exec.config(),
@@ -466,7 +475,15 @@ public final class SplitDiscoveryPhase {
         List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.output());
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
-            null,
+            new SimpleSourceMetadata(
+                queryDataAttributes,
+                exec.sourceType(),
+                exec.sourcePath(),
+                null,
+                null,
+                exec.sourceMetadata(),
+                exec.config()
+            ),
             fileList != null ? fileList : FileList.UNRESOLVED,
             exec.schemaMap(),
             exec.config(),

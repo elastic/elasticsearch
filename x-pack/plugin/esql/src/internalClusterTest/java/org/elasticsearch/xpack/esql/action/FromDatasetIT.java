@@ -300,6 +300,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "widen_pq_type_ffw",
         "drift_csv_type_ffw",
         "ul_pq_type_ffw",
+        "double_ul_ffw",
         "ul_pq_neg_ffw",
         "drift_pq_declared_ffw",
         "mixed_ts_inferred",
@@ -6329,8 +6330,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
         assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(1, 2, 2L)));
         assertThat(documentsReadBy("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
-        // KEEP leaves a Project between STATS and the relation, so skip-discovery fails and split
-        // merge must stamp the rewritten harvest, not the later file's raw extrema.
         assertThat(firstRowOf("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(List.of(2L)));
         assertThat(
             firstRowOf("FROM drift_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
@@ -6387,6 +6386,22 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(documentsReadBy("FROM ul_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
         assertThat(firstRowOf("FROM ul_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(scan));
         assertThat(documentsReadBy("FROM ul_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+    }
+
+    public void testFirstFileWinsMinMaxWithAllNullDoubleAnchorAndUnsignedLongFile() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { optional double x; }", 2, 1024, (g, i) -> {});
+        writeInt64Parquet(dir.resolve("part-b.parquet"), true, 1L, 2L);
+        putFirstFileWinsGlob("double_ul_ffw", dir);
+
+        String aggregates = "STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)";
+        List<Object> expected = List.of(1.0, 2.0, 2L);
+        assertThat(firstRowOf("FROM double_ul_ffw | WHERE x IS NOT NULL | " + aggregates), equalTo(expected));
+        assertThat(firstRowOf("FROM double_ul_ffw | " + aggregates), equalTo(expected));
+        assertThat(firstRowOf("FROM double_ul_ffw | " + aggregates), equalTo(expected));
+        assertThat(firstRowOf("FROM double_ul_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(documentsReadBy("FROM double_ul_ffw | STATS c = COUNT(x)"), equalTo(0L));
     }
 
     public void testFirstFileWinsUnsignedEncodeFailureScansToMatchTheScan() throws Exception {

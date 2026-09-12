@@ -24,6 +24,7 @@ import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
 import software.amazon.awssdk.identity.spi.IdentityProvider;
 import software.amazon.awssdk.profiles.ProfileFile;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -101,6 +102,13 @@ public class S3StorageProvider implements StorageProvider {
 
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
+    /**
+     * Drives retries for {@code S3StorageObject#readBytesAsync} (AWS Standard semantics). One shared
+     * instance per provider so the retry-quota token bucket spans all async reads through this
+     * provider, mirroring the client-wide scope the strategy had when it lived inside the SDK client.
+     * SDK-level retries are disabled on {@link #s3AsyncClient} — see {@link #buildS3AsyncClient}.
+     */
+    private final RetryStrategy asyncReadRetryStrategy = AwsRetryStrategy.standardRetryStrategy();
     private final S3Configuration config;
     // Owned only on the federated (keyless) workload-identity path; null otherwise. Closed by close().
     private final StsAsyncClient stsAsyncClient;
@@ -215,7 +223,7 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     private static S3Client buildS3Client(S3Configuration config, IdentityProvider<? extends AwsCredentialsIdentity> credentials) {
-        return configureCommon(S3Client.builder(), config, credentials).build();
+        return configureCommon(S3Client.builder(), config, credentials, AwsRetryStrategy.standardRetryStrategy()).build();
     }
 
     private static S3AsyncClient buildS3AsyncClient(
@@ -240,7 +248,15 @@ public class S3StorageProvider implements StorageProvider {
         // key-prefix request rate, not per per-machine connection count, and pushes back with 503/backoff when it
         // actually needs to. connectionAcquisitionTimeout is generous so brief pool contention queues rather than
         // failing the read.
-        return configureCommon(S3AsyncClient.builder(), config, credentials).httpClientBuilder(
+        //
+        // SDK-level retries are DISABLED on the async client: it exists solely for
+        // S3StorageObject#readBytesAsync, which drives Standard-strategy retries itself so that each
+        // attempt gets a fresh KnownLengthAsyncResponseTransformer. The SDK reuses one transformer
+        // across its internal retries, and a stale exceptionOccurred from a finished attempt cannot
+        // be attributed to an attempt — it could spuriously fail a healthy retry and free its buffer.
+        // See KnownLengthAsyncResponseTransformer's javadoc; do not re-enable retries here without
+        // removing the single-use contract there.
+        return configureCommon(S3AsyncClient.builder(), config, credentials, AwsRetryStrategy.doNotRetry()).httpClientBuilder(
             NettyNioAsyncHttpClient.builder()
                 .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
                 .maxConcurrency(maxConnections)
@@ -248,12 +264,18 @@ public class S3StorageProvider implements StorageProvider {
         ).build();
     }
 
+    /**
+     * Applies credentials, region, endpoint, and profile settings common to both the sync and async S3 clients.
+     * The retry strategy is caller-supplied: Standard for the sync client, doNotRetry for the async client
+     * (whose retries are owned by {@code S3StorageObject#readBytesAsync} — see {@link #buildS3AsyncClient}).
+     */
     private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(
         B builder,
         S3Configuration config,
-        IdentityProvider<? extends AwsCredentialsIdentity> credentials
+        IdentityProvider<? extends AwsCredentialsIdentity> credentials,
+        RetryStrategy retryStrategy
     ) {
-        return configureCommon(builder, config, credentials, List.of());
+        return configureCommon(builder, config, credentials, retryStrategy, List.of());
     }
 
     /**
@@ -266,17 +288,27 @@ public class S3StorageProvider implements StorageProvider {
         IdentityProvider<? extends AwsCredentialsIdentity> credentials,
         List<ExecutionInterceptor> interceptors
     ) {
+        return configureCommon(builder, config, credentials, AwsRetryStrategy.standardRetryStrategy(), interceptors);
+    }
+
+    private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(
+        B builder,
+        S3Configuration config,
+        IdentityProvider<? extends AwsCredentialsIdentity> credentials,
+        RetryStrategy retryStrategy,
+        List<ExecutionInterceptor> interceptors
+    ) {
         // Disable profile file loading to prevent the AWS SDK from reading ~/.aws/config
         // or the path set via AWS_CONFIG_FILE, which would be blocked by the entitlement system.
         ProfileFile emptyProfileFile = ProfileFile.aggregator().build();
         builder.overrideConfiguration(c -> {
             c.defaultProfileFile(emptyProfileFile);
             c.defaultProfileFileSupplier(() -> emptyProfileFile);
-            // Pin the SDK retry strategy to Standard (deterministic: 3 attempts, jittered exponential backoff,
-            // a retry-quota token bucket) instead of leaving it to resolve from the environment (which defaults
-            // to Legacy / 4 attempts, or whatever AWS_RETRY_MODE/AWS_MAX_ATTEMPTS happen to be). This is the
-            // per-backend, connection-aware retry layer beneath our provider-agnostic RetryPolicy.
-            c.retryStrategy(AwsRetryStrategy.standardRetryStrategy());
+            // Pin the SDK retry strategy explicitly (Standard is deterministic: 3 attempts, jittered exponential
+            // backoff, a retry-quota token bucket) instead of leaving it to resolve from the environment (which
+            // defaults to Legacy / 4 attempts, or whatever AWS_RETRY_MODE/AWS_MAX_ATTEMPTS happen to be). This is
+            // the per-backend, connection-aware retry layer beneath our provider-agnostic RetryPolicy.
+            c.retryStrategy(retryStrategy);
             interceptors.forEach(c::addExecutionInterceptor);
         });
 
@@ -450,7 +482,7 @@ public class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        return new S3StorageObject(s3Client, s3AsyncClient, bucket, key, path);
+        return new S3StorageObject(s3Client, s3AsyncClient, asyncReadRetryStrategy, bucket, key, path);
     }
 
     @Override
@@ -458,7 +490,7 @@ public class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        return new S3StorageObject(s3Client, s3AsyncClient, bucket, key, path, length);
+        return new S3StorageObject(s3Client, s3AsyncClient, asyncReadRetryStrategy, bucket, key, path, length);
     }
 
     @Override
@@ -466,7 +498,7 @@ public class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        return new S3StorageObject(s3Client, s3AsyncClient, bucket, key, path, length, lastModified);
+        return new S3StorageObject(s3Client, s3AsyncClient, asyncReadRetryStrategy, bucket, key, path, length, lastModified);
     }
 
     @Override

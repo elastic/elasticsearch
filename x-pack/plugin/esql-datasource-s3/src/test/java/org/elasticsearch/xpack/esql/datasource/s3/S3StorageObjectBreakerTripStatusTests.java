@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -82,7 +84,8 @@ public class S3StorageObjectBreakerTripStatusTests extends ESTestCase {
             invocation -> driveLikeTheSdk(invocation.getArgument(1))
         );
 
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, BUCKET, KEY, PATH);
+        RetryStrategy retryStrategy = AwsRetryStrategy.doNotRetry();
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, retryStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();

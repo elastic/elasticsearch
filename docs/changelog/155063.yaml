@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 154815
+pr: 155063
+summary: Return null when quantile aggregations receive non-finite values
+type: bug

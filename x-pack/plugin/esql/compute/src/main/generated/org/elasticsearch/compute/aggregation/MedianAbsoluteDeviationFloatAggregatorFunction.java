@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
@@ -11,6 +12,7 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -22,6 +24,7 @@ import org.elasticsearch.compute.data.FloatVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.arrow.FloatArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MedianAbsoluteDeviationFloatAggregator}.
@@ -29,7 +32,10 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class MedianAbsoluteDeviationFloatAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("quart", ElementType.BYTES_REF)  );
+      new IntermediateStateDesc("quart", ElementType.BYTES_REF),
+      new IntermediateStateDesc("failed", ElementType.BOOLEAN)  );
+
+  private final Warnings warnings;
 
   private final DriverContext driverContext;
 
@@ -37,8 +43,9 @@ public final class MedianAbsoluteDeviationFloatAggregatorFunction implements Agg
 
   private final List<Integer> channels;
 
-  MedianAbsoluteDeviationFloatAggregatorFunction(DriverContext driverContext,
+  MedianAbsoluteDeviationFloatAggregatorFunction(Warnings warnings, DriverContext driverContext,
       List<Integer> channels) {
+    this.warnings = warnings;
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = MedianAbsoluteDeviationFloatAggregator.initSingle(driverContext);
@@ -113,7 +120,13 @@ public final class MedianAbsoluteDeviationFloatAggregatorFunction implements Agg
       FloatArrayVector specialized = (FloatArrayVector) vVector;
       for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
         float vValue = specialized.getFloat(valuesPosition);
-        MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+        try {
+          MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          state.failed(true);
+          return;
+        }
       }
       return;
     }
@@ -121,7 +134,13 @@ public final class MedianAbsoluteDeviationFloatAggregatorFunction implements Agg
       FloatArrowBufVector specialized = (FloatArrowBufVector) vVector;
       for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
         float vValue = specialized.getFloat(valuesPosition);
-        MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+        try {
+          MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          state.failed(true);
+          return;
+        }
       }
       return;
     }
@@ -129,13 +148,25 @@ public final class MedianAbsoluteDeviationFloatAggregatorFunction implements Agg
       ConstantFloatVector specialized = (ConstantFloatVector) vVector;
       for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
         float vValue = specialized.getFloat(valuesPosition);
-        MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+        try {
+          MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          state.failed(true);
+          return;
+        }
       }
       return;
     }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       float vValue = vVector.getFloat(valuesPosition);
-      MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+      try {
+        MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+      } catch (IllegalArgumentException e) {
+        warnings.registerException(e);
+        state.failed(true);
+        return;
+      }
     }
   }
 
@@ -147,7 +178,13 @@ public final class MedianAbsoluteDeviationFloatAggregatorFunction implements Agg
           continue;
         }
         float vValue = specialized.getFloat(valuesPosition);
-        MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+        try {
+          MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          state.failed(true);
+          return;
+        }
       }
       return;
     }
@@ -158,7 +195,13 @@ public final class MedianAbsoluteDeviationFloatAggregatorFunction implements Agg
           continue;
         }
         float vValue = specialized.getFloat(valuesPosition);
-        MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+        try {
+          MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          state.failed(true);
+          return;
+        }
       }
       return;
     }
@@ -169,7 +212,13 @@ public final class MedianAbsoluteDeviationFloatAggregatorFunction implements Agg
           continue;
         }
         float vValue = specialized.getFloat(valuesPosition);
-        MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+        try {
+          MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          state.failed(true);
+          return;
+        }
       }
       return;
     }
@@ -178,7 +227,13 @@ public final class MedianAbsoluteDeviationFloatAggregatorFunction implements Agg
         continue;
       }
       float vValue = vVector.getFloat(valuesPosition);
-      MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+      try {
+        MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+      } catch (IllegalArgumentException e) {
+        warnings.registerException(e);
+        state.failed(true);
+        return;
+      }
     }
   }
 
@@ -192,7 +247,13 @@ public final class MedianAbsoluteDeviationFloatAggregatorFunction implements Agg
       int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         float vValue = vBlock.getFloat(vOffset);
-        MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+        try {
+          MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          state.failed(true);
+          return;
+        }
       }
     }
   }
@@ -210,7 +271,13 @@ public final class MedianAbsoluteDeviationFloatAggregatorFunction implements Agg
       int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         float vValue = vBlock.getFloat(vOffset);
-        MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+        try {
+          MedianAbsoluteDeviationFloatAggregator.combine(state, vValue);
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          state.failed(true);
+          return;
+        }
       }
     }
   }
@@ -234,8 +301,23 @@ public final class MedianAbsoluteDeviationFloatAggregatorFunction implements Agg
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     assert quart.getPositionCount() == 1;
+    Block failedUncast = page.getBlock(channels.get(1));
+    if (failedUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
+    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
+    assert failed.getPositionCount() == 1;
     BytesRef quartScratch = new BytesRef();
-    MedianAbsoluteDeviationFloatAggregator.combineIntermediate(state, quart.getBytesRef(0, quartScratch));
+    MedianAbsoluteDeviationFloatAggregator.combineIntermediate(state, quart.getBytesRef(0, quartScratch), failed.getBoolean(0));
   }
 
   @Override

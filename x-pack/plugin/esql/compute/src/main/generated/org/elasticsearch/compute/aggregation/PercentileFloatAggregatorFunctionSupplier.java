@@ -9,15 +9,21 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link PercentileFloatAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class PercentileFloatAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  WarningSourceLocation warningsSource;
+
   private final double percentile;
 
-  public PercentileFloatAggregatorFunctionSupplier(double percentile) {
+  public PercentileFloatAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
+      double percentile) {
+    this.warningsSource = warningsSource;
     this.percentile = percentile;
   }
 
@@ -34,13 +40,15 @@ public final class PercentileFloatAggregatorFunctionSupplier implements Aggregat
   @Override
   public PercentileFloatAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new PercentileFloatAggregatorFunction(driverContext, channels, percentile);
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    return new PercentileFloatAggregatorFunction(warnings, driverContext, channels, percentile);
   }
 
   @Override
   public PercentileFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new PercentileFloatGroupingAggregatorFunction(channels, driverContext, percentile);
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    return new PercentileFloatGroupingAggregatorFunction(warnings, channels, driverContext, percentile);
   }
 
   @Override

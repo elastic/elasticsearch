@@ -270,46 +270,71 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public boolean foldable() {
-        for (Condition condition : conditions) {
-            if (condition.condition.foldable() == false) {
-                return false;
-            }
-            /* Given the current condition is foldable,
-                if we have already folded the condition into a Literal
-                    If True, Case is foldable if the value is foldable
-                    If False, Case is foldable if the rest of the conditions are foldable
-                Otherwise
-                    if the value is foldable and the rest of the conditions are foldable, Case is foldable
-             */
-            if (condition.condition instanceof Literal literal) {
-                if (Boolean.TRUE.equals(literal.value())) {
-                    // The condition is literally TRUE, so only the matching value needs to be foldable.
-                    return condition.value.foldable();
-                } else {
-                    continue;
+        Expression remaining = this;
+        while (remaining instanceof Case current) {
+            Expression next = null;
+            for (Condition condition : current.conditions) {
+                if (condition.condition.foldable() == false) {
+                    return false;
+                }
+                /* Given the current condition is foldable,
+                    if we have already folded the condition into a Literal
+                        If True, Case is foldable if the value is foldable
+                        If False, Case is foldable if the rest of the conditions are foldable
+                    Otherwise
+                        if the value is foldable and the rest of the conditions are foldable, Case is foldable
+                 */
+                if (condition.condition instanceof Literal literal) {
+                    if (Boolean.TRUE.equals(literal.value())) {
+                        // The condition is literally TRUE, so only the matching value needs to be foldable.
+                        next = condition.value;
+                        break;
+                    } else {
+                        continue;
+                    }
+                }
+                if (condition.value.foldable() == false) {
+                    return false;
                 }
             }
-            if (condition.value.foldable() == false) {
-                return false;
+            if (next == null) {
+                next = current.elseValue;
             }
+            remaining = next;
         }
-        return elseValue.foldable();
+        return remaining.foldable();
     }
 
     @Override
     public Object fold(FoldContext ctx) {
-        DataType type = dataType();
-        if (type == DataType.DATE_PERIOD || type == DataType.TIME_DURATION) {
-            // These can't be managed by evaluators, we have to fold them manually.
-            // TODO manage warnings for MV condition (evaluators take care of that, here we don't have the components)
-            for (Condition condition : conditions) {
-                if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
-                    return condition.value.fold(ctx);
-                }
-            }
-            return elseValue.fold(ctx);
+        if (isTemporal(this) == false) {
+            return super.fold(ctx);
         }
-        return super.fold(ctx);
+        // Temporal types can't be managed by evaluators, we have to fold them manually.
+        // TODO manage warnings for MV condition (evaluators take care of that, here we don't have the components)
+        // Walk nested CASE along the taken branch iteratively so a chain of
+        // CASE(true, CASE(true, ...), ...) cannot overflow the stack.
+        Case current = this;
+        Expression taken = takenBranch(ctx, current);
+        while (taken instanceof Case nested && isTemporal(nested)) {
+            current = nested;
+            taken = takenBranch(ctx, current);
+        }
+        return taken.fold(ctx);
+    }
+
+    private static boolean isTemporal(Expression expression) {
+        DataType type = expression.dataType();
+        return type == DataType.DATE_PERIOD || type == DataType.TIME_DURATION;
+    }
+
+    private static Expression takenBranch(FoldContext ctx, Case current) {
+        for (Condition condition : current.conditions) {
+            if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
+                return condition.value;
+            }
+        }
+        return current.elseValue;
     }
 
     /**

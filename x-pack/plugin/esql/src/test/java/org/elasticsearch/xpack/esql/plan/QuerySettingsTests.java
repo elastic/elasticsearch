@@ -683,7 +683,8 @@ public class QuerySettingsTests extends ESTestCase {
                     "esql.query.settings.time_zone",
                     "esql.query.settings.unmapped_fields",
                     "esql.query.settings.column_metadata",
-                    "esql.query.settings.approximation"
+                    "esql.query.settings.approximation",
+                    "esql.query.settings.dataset_wildcards"
                 )
             )
         );
@@ -895,6 +896,59 @@ public class QuerySettingsTests extends ESTestCase {
                 .get(QuerySettings.COLUMN_METADATA),
             equalTo(Boolean.FALSE)
         );
+    }
+
+    public void testDatasetWildcardsDefaultsToFalse() {
+        // Nothing supplied it anywhere (no cluster setting, no body, no SET) — a wildcard matches indices only,
+        // which is the behavior a FROM pattern had before datasets existed.
+        ResolvedSettings resolved = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.DATASET_WILDCARDS), equalTo(Boolean.FALSE));
+    }
+
+    public void testDatasetWildcardsClusterDefaultApplies() {
+        // The operator's cluster-wide default supplies the value when the query says nothing.
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.DATASET_WILDCARDS, "true"),
+            Settings.EMPTY,
+            Map.of(),
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.DATASET_WILDCARDS), equalTo(Boolean.TRUE));
+    }
+
+    public void testDatasetWildcardsRequestBodyOverridesClusterDefault() {
+        // The operator turned it on cluster-wide; this calling application wants the index-only meaning back.
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.DATASET_WILDCARDS, Boolean.FALSE);
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.DATASET_WILDCARDS, "true"),
+            Settings.EMPTY,
+            requestParams,
+            null,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.DATASET_WILDCARDS), equalTo(Boolean.FALSE));
+    }
+
+    public void testDatasetWildcardsQuerySetOverridesClusterDefaultAndBody() {
+        // The full chain: the operator leaves it off, the calling application leaves it off, and the query author
+        // opts this one query into wildcard discovery. The narrowest scope of authority wins.
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.DATASET_WILDCARDS, Boolean.FALSE);
+        QuerySetting set = new QuerySetting(
+            Source.EMPTY,
+            new Alias(Source.EMPTY, "dataset_wildcards", new Literal(Source.EMPTY, true, DataType.BOOLEAN))
+        );
+        EsqlStatement statement = new EsqlStatement(null, List.of(set));
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.DATASET_WILDCARDS, "false"),
+            Settings.EMPTY,
+            requestParams,
+            statement,
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(resolved.get(QuerySettings.DATASET_WILDCARDS), equalTo(Boolean.TRUE));
     }
 
     public void testDerivedClusterSettingIsDynamicAndNodeScoped() {

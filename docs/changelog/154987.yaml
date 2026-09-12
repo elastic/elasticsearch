@@ -1,0 +1,6 @@
+pr: 154987
+summary: Resolve a `FROM` wildcard to indices only unless `dataset_wildcards` is set
+area: ES|QL
+type: bug
+issues:
+  - 158472

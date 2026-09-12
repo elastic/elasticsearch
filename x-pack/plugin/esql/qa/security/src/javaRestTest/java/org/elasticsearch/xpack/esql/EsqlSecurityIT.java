@@ -2873,7 +2873,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         final String authorized = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
         final String denied = createSecurityItDatasetAsAdmin("security_it_ds_drop_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
         try {
-            // security_it_ds_keep_* matches only the authorized dataset; the explicit denied one must still error.
+            // With dataset_wildcards off (the default) security_it_ds_keep_* reaches no dataset at all; the
+            // explicitly-named denied one is unaffected by the setting and must still error.
             ResponseException ex = expectThrows(
                 ResponseException.class,
                 () -> runESQLCommand("ds_dataset_query_partial", "FROM security_it_ds_keep_*," + denied + " | STATS COUNT(*)")
@@ -2883,6 +2884,42 @@ public class EsqlSecurityIT extends ESRestTestCase {
         } finally {
             deleteDatasetAsAdmin(authorized);
             deleteDatasetAsAdmin(denied);
+        }
+    }
+
+    /**
+     * The gate must hold on a secured cluster, where {@code IndicesAndAliasesResolver} has already replaced the
+     * request's wildcards with concrete dataset names before the rewrite runs. It holds because the security filter
+     * replaces {@code indices()} but leaves {@code rawPatterns} alone, so the explicit set is still derived from what
+     * the user typed. Other tests here already drive the real filter; this is the first to drive the setting through it.
+     *
+     * <p>The dataset here is authorized, so authorization cannot be what hides it -- only the setting can. Its resource
+     * points at a bucket that does not exist, which is what makes the two outcomes unambiguous: reaching the dataset
+     * fails the query, so an empty success proves it was never reached.
+     */
+    public void testFromDatasetWildcardUnderSecurityRespectsDatasetWildcardsSetting() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String authorized = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        try {
+            // Off (the default): the wildcard reaches no dataset, so the query succeeds with nothing.
+            Response off = runESQLCommand("ds_dataset_query_partial", "FROM security_it_ds_keep_* | STATS COUNT(*)");
+            assertOK(off);
+            Map<String, Object> offMap = entityAsMap(off);
+            assertThat(offMap.get("values"), anyOf(equalTo(List.of()), equalTo(List.of(List.of(0)))));
+
+            // On: the same wildcard, the same principal, now reaches the dataset and fails reading its resource.
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand(
+                    "ds_dataset_query_partial",
+                    "SET dataset_wildcards = true; FROM security_it_ds_keep_* | STATS COUNT(*)"
+                )
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("security-it-denied-bucket"));
+        } finally {
+            deleteDatasetAsAdmin(authorized);
         }
     }
 
@@ -2904,6 +2941,45 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
     }
 
+    /**
+     * Narrowing to the exactly-named datasets must not narrow to nothing: with {@code dataset_wildcards} off, a
+     * dataset the user named exactly still reaches, even when a wildcard sits beside it in the same {@code FROM} and
+     * authorization has already expanded that wildcard into concrete names. Both datasets are authorized for the
+     * principal, so authorization is not what decides the outcome here - only the setting is.
+     * <p>
+     * What this does not pin is where "named exactly" is computed from; that is
+     * {@link #testFromDatasetWildcardPartialWithExplicitUnauthorized}, which goes red when the exact set is taken
+     * from the post-filter {@code indices()} instead of from {@code rawPatterns}. Each dataset carries its own
+     * resource so the failure names the dataset the query reached rather than a string both share.
+     */
+    public void testDatasetWildcardsOffKeepsExactlyNamedDatasetUnderSecurity() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String suffix = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        final String namedExactly = createSecurityItDatasetAsAdmin(
+            "security_it_ds_keep_exact_" + suffix,
+            "s3://security-it-denied-bucket/exact-" + suffix + "/*.parquet"
+        );
+        final String wildcardOnly = createSecurityItDatasetAsAdmin(
+            "security_it_ds_keep_wild_" + suffix,
+            "s3://security-it-denied-bucket/wild-" + suffix + "/*.parquet"
+        );
+        try {
+            // One exact name, plus a wildcard authorization expands to both datasets. Off (the default), the exact
+            // name survives the narrowing: the query reaches that dataset and fails on its resource rather than
+            // returning an empty result, which is what a narrowing that dropped everything would produce.
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_partial", "FROM " + namedExactly + ",security_it_ds_keep_* | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("exact-" + suffix));
+        } finally {
+            deleteDatasetAsAdmin(namedExactly);
+            deleteDatasetAsAdmin(wildcardOnly);
+        }
+    }
+
     /** Registers a randomly-named dataset under {@link #SECURITY_IT_SHARED_DATASOURCE} as test-admin; returns its name. */
     private String createSecurityItDatasetAsAdmin() throws IOException {
         return createSecurityItDatasetAsAdmin("security_it_ds_authz_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT));
@@ -2911,11 +2987,19 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     /** Registers a dataset with the given name under {@link #SECURITY_IT_SHARED_DATASOURCE} as test-admin. */
     private String createSecurityItDatasetAsAdmin(String name) throws IOException {
+        return createSecurityItDatasetAsAdmin(name, "s3://security-it-denied-bucket/denied/*.parquet");
+    }
+
+    /**
+     * Registers a dataset with the given name and resource. A caller that needs to tell which of several datasets a
+     * query actually reached gives each its own resource, since the resource is what the resolution failure names.
+     */
+    private String createSecurityItDatasetAsAdmin(String name, String resource) throws IOException {
         Request put = new Request("PUT", "/_query/dataset/" + name);
         XContentBuilder body = JsonXContent.contentBuilder();
         body.startObject();
         body.field("data_source", SECURITY_IT_SHARED_DATASOURCE);
-        body.field("resource", "s3://security-it-denied-bucket/denied/*.parquet");
+        body.field("resource", resource);
         body.endObject();
         put.setJsonEntity(Strings.toString(body));
         setUser(put, "test-admin");

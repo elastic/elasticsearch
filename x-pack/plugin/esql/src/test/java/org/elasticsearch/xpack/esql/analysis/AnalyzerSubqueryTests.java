@@ -1722,7 +1722,9 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
             TEST_PARSER.parseQuery(query),
             projectMetadata,
-            TestIndexNameExpressionResolver.newInstance()
+            TestIndexNameExpressionResolver.newInstance(),
+            // These cases reach a dataset through a wildcard, so resolve with dataset_wildcards on.
+            true
         );
         ExternalSourceResolution resolution = new ExternalSourceResolution(
             Map.of(

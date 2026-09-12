@@ -183,6 +183,25 @@ public final class QuerySettings {
         .build();
 
     @Param(
+        name = "dataset_wildcards",
+        type = { "boolean" },
+        since = "9.6.0",
+        description = "When enabled, a wildcard in `FROM` also matches registered datasets."
+            + " Defaults to `false`, so a wildcard does not match a dataset and a dataset is reached by its"
+            + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
+            + "The default itself is configurable. If a query does not specify a value, the "
+            + "`esql.query.settings.dataset_wildcards` cluster setting supplies it. If that cluster setting is not "
+            + "configured either, the value is `false`. "
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
+    )
+    public static final QuerySettingDef<Boolean> DATASET_WILDCARDS = QuerySettingDef.bool("dataset_wildcards")
+        .withDefault(Boolean.FALSE)
+        .withClusterDefault()
+        .withPreview()
+        .withRequestBody()
+        .build();
+
+    @Param(
         name = "approximation",
         type = { "boolean", "map_param" },
         since = "9.5+, preview =9.4",
@@ -230,7 +249,14 @@ public final class QuerySettings {
      * request parser, the resolver, and telemetry all iterate this list. Add a new setting's constant here when
      * you declare it. Referencing this field initializes the class, so there is no load-order hazard.
      */
-    public static final List<QuerySettingDef<?>> ALL = List.of(APPROXIMATION, COLUMN_METADATA, PROJECT_ROUTING, TIME_ZONE, UNMAPPED_FIELDS);
+    public static final List<QuerySettingDef<?>> ALL = List.of(
+        APPROXIMATION,
+        COLUMN_METADATA,
+        DATASET_WILDCARDS,
+        PROJECT_ROUTING,
+        TIME_ZONE,
+        UNMAPPED_FIELDS
+    );
 
     private static final Map<String, QuerySettingDef<?>> BY_NAME = byName(ALL);
 

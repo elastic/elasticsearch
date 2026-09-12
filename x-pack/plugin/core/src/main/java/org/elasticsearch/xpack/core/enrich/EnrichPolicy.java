@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.core.enrich;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -108,6 +110,9 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private final List<String> indices;
     private final String matchField;
     private final List<String> enrichFields;
+    // Lazily-computed serialized size. This class is immutable, so the size is stable once computed. Memoized because the size is summed
+    // across all policies on every policy creation, and recomputing it (which walks every field) on each request would burden the master.
+    private volatile long serializedSize = -1;
 
     public EnrichPolicy(StreamInput in) throws IOException {
         this.type = in.readString();
@@ -163,6 +168,72 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     public List<String> getEnrichFields() {
         return enrichFields;
+    }
+
+    /**
+     * Validates that this policy is small enough to be safely stored in the cluster state. Enrich policies are held in heap on every node
+     * and serialized on every cluster state update, so an oversized policy can destabilize the cluster. Both checks below are safety
+     * limits intended only to reject abusive policies, not to constrain legitimate use.
+     *
+     * @param maxFieldNameLength the maximum allowed length, in characters, of the match field and of each enrich field name
+     * @param maxPolicySize      the maximum allowed serialized size of the whole policy
+     * @throws IllegalArgumentException if the policy exceeds either limit
+     */
+    public void validate(int maxFieldNameLength, ByteSizeValue maxPolicySize) {
+        if (matchField != null && matchField.length() > maxFieldNameLength) {
+            throw new IllegalArgumentException(
+                "match_field ["
+                    + matchField.length()
+                    + " characters] exceeds the maximum allowed length of ["
+                    + maxFieldNameLength
+                    + "] characters; this limit is controlled by the ["
+                    + "enrich.max_field_name_length"
+                    + "] setting"
+            );
+        }
+        for (String enrichField : enrichFields) {
+            if (enrichField != null && enrichField.length() > maxFieldNameLength) {
+                throw new IllegalArgumentException(
+                    "an enrich_fields entry ["
+                        + enrichField.length()
+                        + " characters] exceeds the maximum allowed length of ["
+                        + maxFieldNameLength
+                        + "] characters; this limit is controlled by the ["
+                        + "enrich.max_field_name_length"
+                        + "] setting"
+                );
+            }
+        }
+        final long policySize = serializedSizeInBytes();
+        if (policySize > maxPolicySize.getBytes()) {
+            throw new IllegalArgumentException(
+                "the enrich policy ["
+                    + ByteSizeValue.ofBytes(policySize)
+                    + "] exceeds the maximum allowed size of ["
+                    + maxPolicySize
+                    + "]; this limit is controlled by the [enrich.max_policy_size] setting"
+            );
+        }
+    }
+
+    /**
+     * Returns the number of bytes this policy occupies when serialized. The size is measured without materializing the serialized form,
+     * so that even an oversized policy does not cause a large allocation here. The result is memoized (this class is immutable) so that
+     * summing the size across all policies on every policy creation does not repeatedly walk every field on the master. Used to bound both
+     * a single policy and the aggregate size of all stored policies.
+     */
+    public long serializedSizeInBytes() {
+        long size = serializedSize;
+        if (size == -1) {
+            try (CountingStreamOutput out = new CountingStreamOutput()) {
+                writeTo(out);
+                size = out.position();
+            } catch (IOException e) {
+                throw new IllegalStateException("unable to compute the size of enrich policy", e);
+            }
+            serializedSize = size;
+        }
+        return size;
     }
 
     public static String getBaseName(String policyName) {

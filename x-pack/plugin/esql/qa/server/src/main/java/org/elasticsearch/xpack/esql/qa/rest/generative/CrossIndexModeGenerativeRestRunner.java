@@ -147,21 +147,9 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         // Long-running queries on very large synthetic result sets may time out on the cand side
         // while completing on the ref side. Known performance difference, not a correctness bug.
         "milliseconds timeout on connection",
-        // Columnar mode can throw a query_shard_exception when a WHERE clause tries to match a
-        // string literal against a numeric field (Lucene NumberFormatException: "For input string:
-        // \"hello\""). Standard mode silently returns no rows; query-execution path difference.
-        "For input string:",
         // semantic_text fields reject full-text match queries (qstr/MATCH) in columnar mode with
         // "does not support match queries", while standard mode handles them. Known mode difference.
         "does not support match queries",
-        // Columnar mode has no inverted index for date fields, so a qstr/MATCH query that searches
-        // a date field with a non-date string fails with a date-parse error surfaced as unexpected
-        // partial results. Standard mode handles this gracefully. Known mode-level difference.
-        "failed to parse date field",
-        // Columnar mode throws when a qstr/MATCH query is applied to an IP-range field and the
-        // search string is not a valid IP literal (e.g. "ring"). Standard mode silently returns
-        // no results. Same root cause as "For input string:" for numeric fields.
-        "is not an IP string literal",
         // DateExtract.resolveType incorrectly handles null field types (server-side bug). Produces
         // a 500 error on any shard that encounters a null-typed unmapped field in a date_extract()
         // expression. Affects both modes equally but can surface as partial results on one side

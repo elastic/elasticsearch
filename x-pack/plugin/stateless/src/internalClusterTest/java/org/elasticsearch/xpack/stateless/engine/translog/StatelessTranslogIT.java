@@ -621,7 +621,7 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
                 induceFailures(settings, indexName, failureTypes);
             }
 
-            safeAwait(allReqLatch);
+            safeAwait(allReqLatch, TimeValue.timeValueSeconds(60));
 
             refresh(indexName);
 

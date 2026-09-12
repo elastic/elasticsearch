@@ -315,7 +315,7 @@ final class SvdUtil {
      * @param n   number of columns
      * @param k   number of top singular vectors to extract
      * @param seed random seed for initialization
-     * @return top-k right singular vectors as rows, row-major (k x n)
+     * @return top-k right singular vectors as columns, row-major (n x k)
      */
     public static float[] topKRightSingularVectors(float[] a, int m, int n, int k, long seed) {
         // Compute C = A^T A (n x n) -- this is symmetric positive semi-definite
@@ -335,18 +335,21 @@ final class SvdUtil {
         // This is O(iterations * m * n * k) total -- much faster than deflation for large k.
         int iters = 20; // sufficient for PCA init that gets refined by Procrustes
 
+        // Pre-transpose A so that A^T @ W can use sequential memory access via matrixMultiply(aT, w)
+        // instead of strided access via matrixMultiplyTA(a, w).
+        float[] aT = transposeMatrix(a, m, n);
+
         float[] v = randomGaussians(new Random(seed), n * k);
         qrOrthogonalize(v, n, k);
 
         for (int iter = 0; iter < iters; iter++) {
-            float[] w = ESVectorUtil.matrixMultiply(a, v, m, n, k);          // W = A @ V (m x k)
-            float[] vNew = ESVectorUtil.matrixMultiplyTA(a, w, m, n, k); // V_new = A^T @ W (n x k)
+            float[] w = ESVectorUtil.matrixMultiply(a, v, m, n, k);      // W = A @ V (m x k)
+            float[] vNew = ESVectorUtil.matrixMultiply(aT, w, n, m, k);  // V_new = A^T @ W (n x k)
             qrOrthogonalize(vNew, n, k);
             v = vNew;
         }
 
-        // Convert columns of V to rows for return format (k x n)
-        return transposeMatrix(v, n, k);
+        return v;
     }
 
     private static float[] topKEigenvectorsGramTranspose(float[] a, int m, int n, int k, long seed) {
@@ -355,22 +358,26 @@ final class SvdUtil {
         // After convergence, recover right singular vectors: V = A^T U, normalize columns.
         int iters = 20;
 
+        // Pre-transpose A so that A^T @ U can use sequential memory access via matrixMultiply(aT, u)
+        // instead of strided access via matrixMultiplyTA(a, u).
+        float[] aT = transposeMatrix(a, m, n);
+
         float[] u = randomGaussians(new Random(seed), m * k);
         qrOrthogonalize(u, m, k);
 
         for (int iter = 0; iter < iters; iter++) {
-            float[] w = ESVectorUtil.matrixMultiplyTA(a, u, m, n, k);   // W = A^T @ U (n x k)
+            float[] w = ESVectorUtil.matrixMultiply(aT, u, n, m, k);    // W = A^T @ U (n x k)
             float[] uNew = ESVectorUtil.matrixMultiply(a, w, m, n, k);  // U_new = A @ W (m x k)
             qrOrthogonalize(uNew, m, k);
             u = uNew;
         }
 
         // Recover right singular vectors: V = A^T U (n x k), normalize each column
-        float[] v = ESVectorUtil.matrixMultiplyTA(a, u, m, n, k);
+        float[] v = ESVectorUtil.matrixMultiply(aT, u, n, m, k);
         for (int j = 0; j < k; j++) {
             normalizeColumn(v, j, k, n);
         }
-        return transposeMatrix(v, n, k);
+        return v;
     }
 
     /**

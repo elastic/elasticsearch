@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -91,14 +92,10 @@ public final class TemplatePartitionDetector implements PartitionDetector {
     }
 
     @Override
-    public PartitionMetadata detect(List<StorageEntry> files) {
+    public PartitionMetadata detect(List<StorageEntry> files, Consumer<String> warningSink) {
         if (files == null || files.isEmpty()) {
             return PartitionMetadata.EMPTY;
         }
-        // Warn at detection time (not construction) so the header lands on the resolving request's
-        // thread context, mirroring the Hive detector.
-        ReservedPartitionNames.warnRenamed(renamedColumns);
-
         int columnCount = columnNames.size();
 
         // Every file must sit at the same directory depth. The template binds the last N directories before the
@@ -147,6 +144,9 @@ public final class TemplatePartitionDetector implements PartitionDetector {
             filePartitionValues.put(files.get(i).path(), typed);
         }
 
+        // Only now is the rename true: the bail-outs above surface no partition column at all, and a notice raised
+        // before them would ride the cached listing into every later run.
+        ReservedPartitionNames.warnRenamed(renamedColumns, warningSink);
         return new PartitionMetadata(partitionColumns, filePartitionValues);
     }
 

@@ -331,24 +331,11 @@ public final class SchemaReconciliation {
      * both spellings of one name to one column and take no position on a name that only prefixes others.
      *
      * @param fileMetadata ordered map of file path → metadata (insertion order = file sort order)
+     * @param warningSink where the widening notices (keyword fallback, long/double precision loss) go. Reconciliation
+     *                    runs on the resolver's executor, off the request thread, so the resolver passes its buffered sink.
      * @return reconciliation result with unified schema and per-file mappings
      */
-    public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata) {
-        return reconcileUnionByName(fileMetadata, null);
-    }
-
-    /**
-     * Same as {@link #reconcileUnionByName(Map)}, routing warning text through {@code warningSink}
-     * instead of writing {@link org.elasticsearch.common.logging.HeaderWarning} on this thread.
-     * Multi-file resolve runs on the metadata-read executor, so a direct header write would land
-     * on that pool's {@code ThreadContext} and never reach the client. Callers that are not on the
-     * request thread pass {@code ExternalSourceResolution}'s warning buffer so {@code EsqlSession}
-     * can merge the messages into {@code DriverCompletionInfo} for emit on the response thread.
-     *
-     * @param warningSink destination for summary and per-column detail lines; {@code null} writes
-     *                    {@link org.elasticsearch.common.logging.HeaderWarning} on the current thread
-     */
-    public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata, @Nullable Consumer<String> warningSink) {
+    public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata, Consumer<String> warningSink) {
         LinkedHashMap<String, MergeEntry> unified = new LinkedHashMap<>();
         // Per-column accumulator. We record *every* file's inferred type for every column up
         // front (it's cheap and gives the warning emitters a complete contributor list), then
@@ -587,7 +574,7 @@ public final class SchemaReconciliation {
     private static void emitKeywordFallbackWarnings(
         LinkedHashMap<String, MergeEntry> unified,
         LinkedHashMap<String, ColumnContributions> contributions,
-        @Nullable Consumer<String> warningSink
+        Consumer<String> warningSink
     ) {
         // Column unified to KEYWORD and at least one contributing file inferred a non-string type.
         // A column that was KEYWORD in every file (and stayed KEYWORD) is not a degradation: the
@@ -605,8 +592,7 @@ public final class SchemaReconciliation {
         if (warned.isEmpty()) {
             return;
         }
-        // SkipWarnings emits through warningSink when one is provided, otherwise HeaderWarning
-        // on this thread. The local is not stored; the side effect is the emit.
+        // The local is not stored anywhere; the side effect of add() is the emit.
         SkipWarnings warnings = new SkipWarnings(
             "Schema reconciliation widened columns to keyword due to cross-file type disagreement;"
                 + " values are returned as strings. Hint: use schema_resolution = \"strict\" to fail instead.",
@@ -620,7 +606,7 @@ public final class SchemaReconciliation {
     private static void emitPrecisionLossWarnings(
         LinkedHashMap<String, MergeEntry> unified,
         LinkedHashMap<String, ColumnContributions> contributions,
-        @Nullable Consumer<String> warningSink
+        Consumer<String> warningSink
     ) {
         // Unified DOUBLE and both LONG and DOUBLE contributed. INTEGER + DOUBLE is a lossless
         // promotion and stays silent. LONG + DOUBLE + KEYWORD unifies to KEYWORD, so this gate

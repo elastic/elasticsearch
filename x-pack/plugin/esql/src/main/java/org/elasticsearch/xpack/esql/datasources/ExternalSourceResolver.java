@@ -69,7 +69,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -203,21 +202,92 @@ public class ExternalSourceResolver {
     private final Supplier<ThreadContext.StoredContext> restorableContext;
 
     /**
-     * Resolve-time warning messages collected during one {@link #resolve} call: Hive-partition
-     * shadow-column notices (see {@link #warnOnShadowedColumns}), {@code UNION_BY_NAME}
-     * schema-reconciliation notices (keyword fallback and long/double precision loss), and
-     * the factories' config-validation warnings
-     * (see {@code ExternalSourceFactory#validateConfig(String, Map, Consumer)}). That chain
-     * runs on {@link #metadataReadExecutor}, a real thread pool in production, so a direct
-     * {@code HeaderWarning.addWarning} call from inside it would land on that executor thread's
-     * {@link ThreadContext} rather than the originating request's, and never reach the client.
-     * Messages are instead buffered here and attached to the {@link ExternalSourceResolution} completed by
-     * {@link #resolveNextPath}, so {@code EsqlSession} can merge them into {@code DriverCompletionInfo} for
-     * {@code TransportEsqlQueryAction#toResponse} to emit on the thread that builds the client response.
-     * Cleared at the start of each {@link #resolve} call; safe for concurrent per-file callbacks (see
-     * {@link #metadataReadConcurrency}) since it is append-only until the single attach at completion.
+     * Notices about the resolved schema, raised during one {@link #resolve} call: Hive-partition shadowing and
+     * reconciliation widening (keyword fallback, long/double precision loss). The resolution chain runs on
+     * {@link #metadataReadExecutor}, whose threads have no path to the response, so a direct
+     * {@code HeaderWarning.addWarning} from inside it would land on the wrong {@link ThreadContext} and never reach the
+     * client. Every channel below is buffered instead and attached to the {@link ExternalSourceResolution} completed by
+     * {@link #resolveNextPath} (see {@link #bufferedWarnings}), so {@code EsqlSession} can merge them into
+     * {@code DriverCompletionInfo} for {@code TransportEsqlQueryAction#toResponse} to emit on the thread that builds the
+     * client response. Cleared at the start of each {@link #resolve} call; append-only in between.
+     * <p>
+     * These notices tell the user their values changed type. They get a channel of their own, bounded by the column
+     * count, so the listing channel below can never crowd them out. The factories' config-validation warnings
+     * ({@code ExternalSourceFactory#validateConfig(String, Map, Consumer)}) are about the dataset's options, not its
+     * schema, and go to {@link #pendingMetadataWarnings} with the other per-path notices.
      */
-    private final List<String> pendingShadowWarnings = new CopyOnWriteArrayList<>();
+    private final NoticeBuffer pendingSchemaWarnings = new NoticeBuffer();
+
+    /**
+     * Notices raised while listing, carried on {@link FileList#listingWarnings()}: {@code file_exclusions} drops and
+     * reserved partition-name renames. A comma list raises one exclusion notice per segment, each naming its own
+     * prefix, so this channel is capped rather than trusting the listing to stay short.
+     */
+    private final NoticeBuffer pendingListingWarnings = new NoticeBuffer();
+
+    /**
+     * A resolved source's {@link SourceMetadata#warnings()}, and the once-per-path {@link FormatReader#configWarnings()},
+     * counted separately: a wide glob resolves one metadata per file, and a per-file notice must not multiply into
+     * hundreds of headers, nor spend the other channels' room. Filled on both the cold and the cache-hit path so the same
+     * query warns identically on every run.
+     */
+    private final NoticeBuffer pendingMetadataWarnings = new NoticeBuffer();
+
+    /**
+     * One resolve-time notice channel: deduplicated by exact text and capped at {@link SkipWarnings#MAX_ADDED_WARNINGS},
+     * remembering that it overflowed so {@link ExternalSourceResolver#bufferedWarnings} can append a single overflow
+     * marker after everything else. Synchronized because per-file callbacks run concurrently (see
+     * {@link ExternalSourceResolver#metadataReadConcurrency}).
+     */
+    private static final class NoticeBuffer {
+        private final Set<String> notices = new LinkedHashSet<>();
+        private boolean overflowed;
+
+        synchronized void add(String notice) {
+            if (notices.contains(notice)) {
+                return;
+            }
+            if (notices.size() >= SkipWarnings.MAX_ADDED_WARNINGS) {
+                overflowed = true;
+                return;
+            }
+            notices.add(notice);
+        }
+
+        synchronized void addAll(List<String> all) {
+            for (String notice : all) {
+                add(notice);
+            }
+        }
+
+        synchronized void clear() {
+            notices.clear();
+            overflowed = false;
+        }
+
+        /** Appends this channel's notices to {@code out}; returns whether the cap dropped any. */
+        synchronized boolean drainTo(List<String> out) {
+            out.addAll(notices);
+            return overflowed;
+        }
+    }
+
+    /**
+     * Every notice buffered during the current {@link #resolve} call, in emission order, for the
+     * {@link ExternalSourceResolution} completed by {@link #resolveNextPath}. Not written to {@code HeaderWarning}
+     * here: a resolve-time write is discarded when {@code ContextPreservingActionListener} closes
+     * (elastic/elasticsearch#153780).
+     */
+    private List<String> bufferedWarnings() {
+        List<String> warnings = new ArrayList<>();
+        boolean overflowed = pendingSchemaWarnings.drainTo(warnings);
+        overflowed |= pendingListingWarnings.drainTo(warnings);
+        overflowed |= pendingMetadataWarnings.drainTo(warnings);
+        if (overflowed) {
+            warnings.add(SkipWarnings.overflowMessage());
+        }
+        return warnings;
+    }
 
     /**
      * The {@link #executor} decorated so that every task it runs has the query cancellation signal installed as the
@@ -435,11 +505,13 @@ public class ExternalSourceResolver {
         // Fresh per-call: resolve() is the single entry point for one query's external-source resolution, so
         // clearing here (rather than after the previous call's attach) also covers a resolver instance reused
         // across resolve() calls in tests.
-        pendingShadowWarnings.clear();
+        pendingSchemaWarnings.clear();
+        pendingListingWarnings.clear();
+        pendingMetadataWarnings.clear();
 
         // Once per query, before the per-path recursion: one warning per column however many paths and files the
         // resource expands to, and on the strict rail, which never reaches the non-strict overlay.
-        warnOnSubstitutedDeclaredTypes(declaredMappings, pendingShadowWarnings::add);
+        warnOnSubstitutedDeclaredTypes(declaredMappings, pendingSchemaWarnings::add);
 
         // Resolution runs on the caller-supplied executor (esql_worker in production, isolated from SEARCH so a wide
         // wildcard cannot starve regular ES searches). The initial dispatch performs the cheap synchronous prep (glob
@@ -453,7 +525,7 @@ public class ExternalSourceResolver {
         // aborts its glob-expansion and anchor/single-file read backoff promptly, matching the per-read wrapping the
         // async fan-out already gets.
         //
-        // Hive-partition shadow-column warnings stay on the ExternalSourceResolution (see pendingShadowWarnings)
+        // Hive-partition shadow-column warnings stay on the ExternalSourceResolution (see pendingSchemaWarnings)
         // rather than being flushed to HeaderWarning here: ContextPreservingActionListener restores a copy of the
         // request context that close() then discards, so a resolve-time HeaderWarning write is racy
         // (elastic/elasticsearch#153780).
@@ -486,7 +558,7 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (index == paths.size()) {
-            listener.onResponse(new ExternalSourceResolution(resolved, List.copyOf(pendingShadowWarnings)));
+            listener.onResponse(new ExternalSourceResolution(resolved, bufferedWarnings()));
             return;
         }
         String path = paths.get(index);
@@ -513,6 +585,37 @@ public class ExternalSourceResolver {
             resolveNextPath(paths, index + 1, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, resolved, listener);
         }, e -> listener.onFailure(mapResolveFailure(path, e))));
     }
+
+    /**
+     * Configure-time notices ({@link FormatReader#configWarnings()}) describe the dataset's options, not a file, so they
+     * are raised once per path here, where every rail passes. Per-file metadata cannot carry them: the strict
+     * declared-schema rail reads no file. The lookup is a registry lookup plus option parsing, no I/O. A path no
+     * format claims yet (a bare glob without {@code format}) is skipped; the rail that resolves it from a listed file
+     * fails with its own message if it cannot. Runs inside {@link #resolveSource}'s try so a setting the reader rejects
+     * takes the same listener path, and status mapping, as a rejection from {@code FileSourceFactory.validateConfig}.
+     */
+    private void bufferConfigWarnings(String path, Map<String, Object> config) {
+        currentPathConfigWarnings = List.of();
+        // The one comma decomposition every rail shares: splitting on the first comma would tear a brace group.
+        List<String> segments = GlobExpander.commaSegments(path);
+        String anchor = segments.isEmpty() ? path : segments.get(0);
+        FormatReader reader;
+        try {
+            reader = FormatNameResolver.resolveReader(config, StoragePath.of(anchor).objectName(), dataSourceModule.formatReaderRegistry());
+        } catch (IllegalArgumentException e) {
+            LOGGER.trace(() -> "no format claims [" + anchor + "] before listing; configure-time notices are skipped", e);
+            return;
+        }
+        currentPathConfigWarnings = reader.withConfig(config).configWarnings();
+        pendingMetadataWarnings.addAll(currentPathConfigWarnings);
+    }
+
+    /**
+     * The current path's {@link FormatReader#configWarnings()}, kept so a failure can carry them: a failed resolve delivers
+     * no buffered notices, and the option conflict this notice describes is often the cause of the very error that would
+     * otherwise hide it. Paths resolve one at a time (see {@link #resolveNextPath}), so one field suffices.
+     */
+    private List<String> currentPathConfigWarnings = List.of();
 
     /**
      * Maps a resolution failure to the exception the caller should propagate. Applies the same policy as
@@ -636,6 +739,7 @@ public class ExternalSourceResolver {
     ) {
         LOGGER.debug("Resolving external source: path=[{}]", path);
         try {
+            bufferConfigWarnings(path, config);
             resolveSourceInner(path, config, hints, declaredMapping, requiresStats, listener);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -708,12 +812,14 @@ public class ExternalSourceResolver {
                     computedStatistics[0] = metadata.statistics().orElse(null);
                     return stampInferredReadConfig(SchemaCacheEntry.from(metadata));
                 });
+                pendingMetadataWarnings.addAll(schemaEntry.warnings());
                 harvestedStatistics = computedStatistics[0];
                 List<Attribute> schema = schemaEntry.toAttributes();
                 extMetadata = buildMetadataFromCache(schemaEntry, schema, config, harvestedStatistics);
                 storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
             } else {
                 SourceMetadata metadata = resolveSingleSource(path, config);
+                pendingMetadataWarnings.addAll(metadata.warnings());
                 // Read the statistics off the reader's metadata before wrapping: wrapAsExternalSourceMetadata folds
                 // them into sourceMetadata() but does not override statistics(), so they are unreachable afterwards.
                 harvestedStatistics = metadata.statistics().orElse(null);
@@ -780,7 +886,7 @@ public class ExternalSourceResolver {
 
             FileList listing = listAndRecord(path, storagePath, provider, hints, config, cacheable);
             if (listing.fileCount() == 0) {
-                throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+                throw noFilesMatched(path, listing);
             }
             if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
                 resolveMultiFileWithReconciliation(listing, config, schemaResolution, cacheable, listener);
@@ -998,7 +1104,7 @@ public class ExternalSourceResolver {
             // data-only unified schema at ColumnMapping#pruneToPerFileQuery and with queryDataSchema at the
             // SchemaAdaptingIterator guard. enrichSchemaWithPartitionColumns appends the partition column and warns.
             dataOnlySchema = ExternalSchema.dataAttributesOf(physicalSchema, partitionMetadata.partitionColumns().keySet()).attributes();
-            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingShadowWarnings::add);
+            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
         }
 
         // _file.* columns are request-driven now; no auto-attach to the schema. See
@@ -1101,9 +1207,25 @@ public class ExternalSourceResolver {
         FileList listing = cacheable
             ? cachedListing(path, storagePath, provider, hints, config)
             : expandAndCompact(path, provider, hints, config, storagePath);
-        GlobExpander.replayExclusionWarnings(listing);
+        pendingListingWarnings.addAll(listing.listingWarnings());
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
         return listing;
+    }
+
+    /**
+     * A failed resolve delivers no notices, and "matched no files" over a prefix that visibly holds objects is the
+     * least actionable error this path produces; the exclusion notice is what makes it actionable, so it goes into
+     * the message, along with the path's configure-time notices (see {@link #currentPathConfigWarnings}).
+     */
+    private IllegalArgumentException noFilesMatched(String path, FileList listing) {
+        StringBuilder message = new StringBuilder("Glob pattern matched no files: ").append(path);
+        for (String notice : listing.listingWarnings()) {
+            message.append(". ").append(notice);
+        }
+        for (String notice : currentPathConfigWarnings) {
+            message.append(". ").append(notice);
+        }
+        return new IllegalArgumentException(message.toString());
     }
 
     private FileList expandAndCompact(
@@ -1539,7 +1661,7 @@ public class ExternalSourceResolver {
                 if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
                     result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
                 } else {
-                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingShadowWarnings::add);
+                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingSchemaWarnings::add);
                 }
 
                 // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
@@ -1555,7 +1677,7 @@ public class ExternalSourceResolver {
                 // does not warn again (the no-double-warning invariant, asserted at that call). Do not reorder.
                 PartitionMetadata partitionMetadata = fileList.partitionMetadata();
                 Set<String> partitionNames = partitionMetadata != null ? partitionMetadata.partitionColumns().keySet() : Set.of();
-                result = shadowPartitionCollisions(result, partitionNames, pendingShadowWarnings::add);
+                result = shadowPartitionCollisions(result, partitionNames, pendingSchemaWarnings::add);
 
                 List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
                 SourceMetadata firstMeta = allMetadata.get(firstFile);
@@ -1614,7 +1736,7 @@ public class ExternalSourceResolver {
                     assert metaForAssert.schema().stream().noneMatch(a -> partitionNames.contains(a.name()))
                         : "shadowPartitionCollisions must run before enrichSchemaWithPartitionColumns: a physical "
                             + "column still collides with a partition key, which would warn twice";
-                    extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingShadowWarnings::add);
+                    extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
                 }
 
                 // _file.* columns are request-driven now; no auto-attach to the schema. See
@@ -1785,6 +1907,7 @@ public class ExternalSourceResolver {
         SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), hint.lastModifiedMillis(), formatType, storageConfig(config));
         SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
         if (cached != null) {
+            pendingMetadataWarnings.addAll(cached.warnings());
             listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), config));
             return;
         }
@@ -2214,7 +2337,7 @@ public class ExternalSourceResolver {
                 // immediately rather than being swallowed as a factory failure and retried against
                 // the next factory in the registry. Warnings are buffered, not emitted here: this
                 // runs on the metadata-read executor, whose ThreadContext never reaches the client.
-                factory.validateConfig(path, config, pendingShadowWarnings::add);
+                factory.validateConfig(path, config, pendingMetadataWarnings::add);
                 try {
                     return factory.resolveMetadata(path, config);
                 } catch (Exception e) {
@@ -2295,7 +2418,12 @@ public class ExternalSourceResolver {
                 candidates.add(factory);
             }
         }
-        resolveWithFactory(path, hint, config, candidates, 0, null, listener);
+        // Buffer the metadata's notices here, where every fresh async resolve passes, so a non-cacheable source (or a
+        // node with the cache disabled) delivers them exactly like a cacheable one.
+        resolveWithFactory(path, hint, config, candidates, 0, null, listener.map(meta -> {
+            pendingMetadataWarnings.addAll(meta.warnings());
+            return meta;
+        }));
     }
 
     /**
@@ -2327,7 +2455,7 @@ public class ExternalSourceResolver {
             resolveWithFactory(path, hint, config, candidates, index + 1, e, listener);
         });
         try {
-            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, pendingShadowWarnings::add, next);
+            factory.resolveMetadataAsync(path, hint, config, metadataReadExecutor, pendingMetadataWarnings::add, next);
         } catch (Exception e) {
             // A factory that throws synchronously from dispatch (before invoking the listener) must not abort the
             // whole resolve: fall through to the next candidate exactly as the async onFailure path does.
@@ -2490,7 +2618,7 @@ public class ExternalSourceResolver {
      * scoring one reorders results in silence and the options one needs the query edited, so all three are named.
      * <p>
      * {@code warningSink} rather than {@code HeaderWarning}: buffered onto {@link ExternalSourceResolution} (see
-     * {@link #pendingShadowWarnings}) the message reaches the client through
+     * {@link #pendingSchemaWarnings}) the message reaches the client through
      * {@code TransportEsqlQueryAction#toResponse} whatever thread {@code resolve} ran on, which is the one route
      * every warning here takes. This one runs synchronously above the {@link #metadataReadExecutor} dispatch, so
      * the racy-context constraint on {@link #warnOnShadowedColumns} does not bind it.
@@ -2549,8 +2677,8 @@ public class ExternalSourceResolver {
      * Delegates to {@link SkipWarnings}, which emits the summary once on the first detail. Every
      * caller reachable from {@link #resolve}'s async schema-resolution chain (which runs on
      * {@link #metadataReadExecutor}, not the originating request thread) MUST pass a non-null
-     * {@code warningSink} — e.g. {@code pendingShadowWarnings::add} — so the message is buffered
-     * onto {@link ExternalSourceResolution} at resolve completion (see {@link #pendingShadowWarnings})
+     * {@code warningSink} — e.g. {@code pendingSchemaWarnings::add} — so the message is buffered
+     * onto {@link ExternalSourceResolution} at resolve completion (see {@link #pendingSchemaWarnings})
      * and later emitted by {@code TransportEsqlQueryAction#toResponse}. Do not re-add a
      * resolve-time {@code HeaderWarning} flush: that write is discarded when
      * {@code ContextPreservingActionListener} closes (elastic/elasticsearch#153780). A
@@ -2874,14 +3002,13 @@ public class ExternalSourceResolver {
             listing = GlobExpander.expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
         } else if (isCacheable(provider)) {
             listing = cachedListing(path, storagePath, provider, hints, config);
-            GlobExpander.replayExclusionWarnings(listing);
         } else {
             listing = expandAndCompact(path, provider, hints, config, storagePath);
-            GlobExpander.replayExclusionWarnings(listing);
         }
+        pendingListingWarnings.addAll(listing.listingWarnings());
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
         if (listing.fileCount() == 0) {
-            throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+            throw noFilesMatched(path, listing);
         }
 
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
@@ -2920,7 +3047,7 @@ public class ExternalSourceResolver {
         );
         extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
-            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingShadowWarnings::add);
+            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
         }
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = new HashMap<>();

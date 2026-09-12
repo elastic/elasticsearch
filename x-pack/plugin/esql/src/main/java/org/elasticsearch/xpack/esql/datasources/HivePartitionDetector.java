@@ -22,6 +22,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Detects Hive-style partition columns from file paths (e.g., {@code /year=2024/month=06/file.parquet}).
@@ -61,7 +62,7 @@ public final class HivePartitionDetector implements PartitionDetector {
     }
 
     @Override
-    public PartitionMetadata detect(List<StorageEntry> files) {
+    public PartitionMetadata detect(List<StorageEntry> files, Consumer<String> warningSink) {
         if (files == null || files.isEmpty()) {
             return PartitionMetadata.EMPTY;
         }
@@ -89,7 +90,7 @@ public final class HivePartitionDetector implements PartitionDetector {
             return PartitionMetadata.EMPTY;
         }
 
-        Map<String, String> surfacedNames = surfacedNames(referenceKeys);
+        Map<String, String> surfacedNames = surfacedNames(referenceKeys, warningSink);
         if (surfacedNames == null) {
             return PartitionMetadata.EMPTY;
         }
@@ -133,7 +134,7 @@ public final class HivePartitionDetector implements PartitionDetector {
      * can currently equal a {@code _partition.}-prefixed name; the guard keeps the invariant
      * explicit should the segment grammar ever relax.
      */
-    private static Map<String, String> surfacedNames(Set<String> referenceKeys) {
+    private static Map<String, String> surfacedNames(Set<String> referenceKeys, Consumer<String> warningSink) {
         Map<String, String> surfaced = Maps.newLinkedHashMapWithExpectedSize(referenceKeys.size());
         List<String> renamed = new ArrayList<>(0);
         for (String key : referenceKeys) {
@@ -146,7 +147,7 @@ public final class HivePartitionDetector implements PartitionDetector {
             }
             surfaced.put(key, surface);
         }
-        ReservedPartitionNames.warnRenamed(renamed);
+        ReservedPartitionNames.warnRenamed(renamed, warningSink);
         return surfaced;
     }
 

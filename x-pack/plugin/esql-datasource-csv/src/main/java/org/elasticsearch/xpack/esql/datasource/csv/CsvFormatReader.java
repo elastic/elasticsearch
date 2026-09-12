@@ -449,6 +449,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
     // shared across the parallel {@link CsvBatchIterator} segments spawned by {@link #read}.
     private final CsvReaderCounters counters;
     /**
+     * Notices this reader can raise about its own {@code WITH} options (today one: {@code mode: escaped} with a
+     * {@code quote} override, which switches the escaped decode off). They are known when the options are parsed, but
+     * parsing runs on the resolver's executor and again on every data node, and neither can reach the client. So they
+     * are kept here and handed out through {@link SourceMetadata#warnings()} by {@link #metadata}, which the resolver
+     * delivers and caches with the schema. Empty when the options raise nothing.
+     */
+    private final List<String> configWarnings;
+    /**
      * ErrorPolicy used by the planning-time {@link #metadata} call (which has no per-query
      * {@link FormatReadContext}). Resolved from the {@code WITH} options in {@link #withConfig}
      * so a dataset configured with {@code error_mode=skip_row} also applies it to schema
@@ -512,7 +520,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             "",
             true,
             Map.of(),
-            false
+            false,
+            List.of()
         );
     }
 
@@ -529,7 +538,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             "",
             true,
             Map.of(),
-            false
+            false,
+            List.of()
         );
     }
 
@@ -546,7 +556,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             "",
             true,
             Map.of(),
-            false
+            false,
+            List.of()
         );
     }
 
@@ -562,7 +573,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         String readConfig,
         boolean directBlockEnabled,
         Map<String, String> declaredDateFormats,
-        boolean declaredProvenanceBinding
+        boolean declaredProvenanceBinding,
+        List<String> configWarnings
     ) {
         this(
             blockFactory,
@@ -577,7 +589,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
-            null
+            null,
+            configWarnings
         );
     }
 
@@ -599,7 +612,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean directBlockEnabled,
         Map<String, String> declaredDateFormats,
         boolean declaredProvenanceBinding,
-        CsvReaderCounters sharedCounters
+        CsvReaderCounters sharedCounters,
+        List<String> configWarnings
     ) {
         this.blockFactory = blockFactory;
         this.options = options;
@@ -614,6 +628,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
         this.declaredProvenanceBinding = declaredProvenanceBinding;
         this.counters = sharedCounters != null ? sharedCounters : new CsvReaderCounters(format);
+        this.configWarnings = List.copyOf(configWarnings);
         this.sharedCsvMapper = createMapper(options);
     }
 
@@ -637,7 +652,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             readConfig,
             enabled,
             declaredDateFormats,
-            declaredProvenanceBinding
+            declaredProvenanceBinding,
+            configWarnings
         );
     }
 
@@ -684,11 +700,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * What a dataset's {@code WITH} options resolve to: the parsed {@link CsvFormatOptions} ({@code null} when nothing
+     * differs from the baseline) and any notices about those options worth telling the user.
+     */
+    private record ParsedOptions(@Nullable CsvFormatOptions options, List<String> configWarnings) {}
+
+    /**
      * Merge {@code WITH} options into {@code baseline} (the reader's current {@link CsvFormatOptions}).
      * Absent keys keep baseline values so e.g. TSV's tab delimiter is preserved when only {@code header_row}
      * is overridden.
      */
-    private static CsvFormatOptions parseOptionsFromConfig(Map<String, Object> config, CsvFormatOptions baseline) {
+    private static ParsedOptions parseOptionsFromConfig(Map<String, Object> config, CsvFormatOptions baseline) {
+        List<String> configWarnings = new ArrayList<>();
         // `mode` is a named preset over the (quoting, escaping) pair; explicit quote/escape keys then
         // override whatever the preset (or the extension baseline) chose. Overrides always win — we no
         // longer reject an "incoherent" combination, so a resulting silent misread is the user's to own.
@@ -749,12 +772,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             );
         }
         if (parsedMode == CsvFormatOptions.Mode.ESCAPED && quoting) {
-            // The user named the C-style decode (mode: escaped) but a quote override turned quoting on,
-            // which resolves to (true, true) and hands the escape char to Jackson — so \N/\t are no
-            // longer C-style-decoded. The data-driven null-marker warning can't catch this (Jackson
-            // rewrites \N to N before the sample is built), so warn deterministically here, at config
-            // time, on the response header the query author actually reads.
-            HeaderWarning.addWarning(
+            // mode=escaped asks for the C-style decode (\N to null, \t to tab), but setting a quote turns quoting
+            // on, and the quoting parser does not decode escapes. So the user gets neither what they asked for nor a
+            // hint from the data: the sample-based \N notice cannot fire because that parser has already rewritten
+            // \N to N by the time the sample exists. This is the one place the conflict is visible. Recorded, not
+            // emitted; see configWarnings.
+            configWarnings.add(
                 "Mode [escaped] with a quote override turns quoting on, which disables the escaped-mode decode "
                     + "(\\N to null, \\t to tab). To keep decoding, do not set quote; "
                     + "keep it to parse quoted fields instead."
@@ -787,7 +810,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             escaping,
             trimSpaces
         );
-        return merged.equals(baseline) ? null : merged;
+        return new ParsedOptions(merged.equals(baseline) ? null : merged, configWarnings);
     }
 
     /**
@@ -943,7 +966,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             readConfig,
             directBlockEnabled,
             declaredDateFormats,
-            declaredProvenanceBinding
+            declaredProvenanceBinding,
+            configWarnings
         );
     }
 
@@ -961,7 +985,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             readConfig,
             directBlockEnabled,
             declaredDateFormats,
-            declaredProvenanceBinding
+            declaredProvenanceBinding,
+            configWarnings
         );
     }
 
@@ -982,7 +1007,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             readConfig,
             directBlockEnabled,
             declaredDateFormats,
-            binding
+            binding,
+            configWarnings
         );
     }
 
@@ -1129,7 +1155,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             readConfig,
             directBlockEnabled,
             physicalNameToPattern,
-            declaredProvenanceBinding
+            declaredProvenanceBinding,
+            configWarnings
         );
     }
 
@@ -1154,7 +1181,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
-            counters
+            counters,
+            configWarnings
         );
     }
 
@@ -1163,7 +1191,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (config == null || config.isEmpty()) {
             return Configured.empty(this);
         }
-        CsvFormatOptions parsed = parseOptionsFromConfig(config, options);
+        ParsedOptions parsedOptions = parseOptionsFromConfig(config, options);
+        CsvFormatOptions parsed = parsedOptions.options();
         int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
         Check.clientError(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);
@@ -1184,25 +1213,32 @@ public class CsvFormatReader implements SegmentableFormatReader {
             result.readConfig,
             result.directBlockEnabled,
             result.declaredDateFormats,
-            result.declaredProvenanceBinding
+            result.declaredProvenanceBinding,
+            parsedOptions.configWarnings()
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
     @Override
+    public List<String> configWarnings() {
+        return configWarnings;
+    }
+
+    @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        List<Attribute> schema = readSchema(object);
+        List<String> warnings = new ArrayList<>();
+        List<Attribute> schema = readSchema(object, warnings::add);
         String location = object.path().toString();
         // mtime required for cache participation; sizeInBytes best-effort (stream-only sources throw from length()).
         long mtimeMillis;
         try {
             Instant mtime = object.lastModified();
             if (mtime == null) {
-                return new SimpleSourceMetadata(schema, formatName(), location);
+                return new SimpleSourceMetadata(schema, formatName(), location).withWarnings(warnings);
             }
             mtimeMillis = mtime.toEpochMilli();
         } catch (IOException e) {
-            return new SimpleSourceMetadata(schema, formatName(), location);
+            return new SimpleSourceMetadata(schema, formatName(), location).withWarnings(warnings);
         }
         OptionalLong cachedSize;
         try {
@@ -1222,7 +1258,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             configFingerprint
         );
         Map<String, Object> sourceMetadata = SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats);
-        return new SimpleSourceMetadata(schema, formatName(), location, stats, null, sourceMetadata, null);
+        return new SimpleSourceMetadata(schema, formatName(), location, stats, null, sourceMetadata, null).withWarnings(warnings);
     }
 
     /**
@@ -1234,7 +1270,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return canonicalConfig;
     }
 
-    private List<Attribute> readSchema(StorageObject object) throws IOException {
+    private List<Attribute> readSchema(StorageObject object, Consumer<String> warningSink) throws IOException {
         String sourceLocation = object.path().toString();
         InputStream stream = object.newStream();
         // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
@@ -1254,7 +1290,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.quoting()
             );
             if (options.headerRow() == false) {
-                return inferSchemaWithSyntheticNames(recordReader, sourceLocation);
+                return inferSchemaWithSyntheticNames(recordReader, sourceLocation, warningSink);
             }
             String headerLine = null;
             String record;
@@ -1278,14 +1314,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 checkUniqueAttributeNames(typedSchema);
                 return typedSchema;
             }
-            List<Attribute> inferred = inferSchemaFromSample(headerLine, recordReader, sourceLocation);
+            List<Attribute> inferred = inferSchemaFromSample(headerLine, recordReader, sourceLocation, warningSink);
             checkUniqueAttributeNames(inferred);
             return inferred;
         }
     }
 
-    private List<Attribute> inferSchemaFromSample(String headerLine, CsvLogicalRecordReader recordReader, String sourceLocation)
-        throws IOException {
+    private List<Attribute> inferSchemaFromSample(
+        String headerLine,
+        CsvLogicalRecordReader recordReader,
+        String sourceLocation,
+        Consumer<String> warningSink
+    ) throws IOException {
         String[] columnNames = splitFieldsForOptions(headerLine, options);
         if (options.quoting()) {
             // No type annotations on this path, so the fields are bare names — unwrap RFC 4180 quoting.
@@ -1309,7 +1349,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 effectivePolicy
             );
             try {
-                maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
+                maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
                 // The same array both ways: a column the sample demoted off the date_nanos rail must
                 // stay off it even if the widening window holds a nanosecond value.
                 boolean[] sawUndecodableTemporal = new boolean[columnNames.length];
@@ -1328,7 +1368,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    private List<Attribute> inferSchemaWithSyntheticNames(CsvLogicalRecordReader recordReader, String sourceLocation) throws IOException {
+    private List<Attribute> inferSchemaWithSyntheticNames(
+        CsvLogicalRecordReader recordReader,
+        String sourceLocation,
+        Consumer<String> warningSink
+    ) throws IOException {
         Iterator<List<?>> csvIterator = newCsvIterator(recordReader);
         CircuitBreaker breaker = blockFactory.breaker();
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
@@ -1344,7 +1388,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 if (sample.rows().isEmpty()) {
                     throw new IOException("CSV file has no data rows");
                 }
-                maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
+                maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
                 boolean[] sawUndecodableTemporal = new boolean[syntheticColumnCount(sample.rows())];
                 List<Attribute> schema = inferSyntheticSchema(
                     sample.rows(),
@@ -1370,16 +1414,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * literal two characters instead of null. This catches both the safe {@code plain} default and the
      * {@code mode: escaped, quote: …} case (which resolves to quoted, dropping the decode).
      * <p>
-     * Surfaced as a response {@code Warning} header (via {@link HeaderWarning}) rather than a log line,
-     * because the audience is the query author — who reads the response, not the node's DEBUG log; this
-     * is the same channel the skipped-row warnings use. {@link HeaderWarning} dedupes identical
-     * messages, so a query sees at most one such line regardless of how many inference paths fire.
+     * Surfaced as a client-facing warning rather than a log line, because the audience is the query author, who
+     * reads the response and not the node's DEBUG log. It goes to {@code warningSink}: at resolve time that is the
+     * metadata's warning list (see {@link SourceMetadata#warnings()}), at read time the read context's sink (or, for a
+     * context without one, the same {@code HeaderWarning} fallback {@link SkipWarnings} uses). Never {@code HeaderWarning}
+     * directly from here, because both paths run off the request thread. Within one response, identical
+     * messages are collapsed to a single line regardless of how many inference paths fire; every run gets it.
      * Scanned only over the already-materialized sample (bounded by {@code schema_sample_size}), so
      * there is no per-row hot-path cost, and the trigger is the whole-field {@code \N} marker rather
      * than any backslash sequence, so a literal Windows path like {@code C:\temp} never produces a
      * false nudge. Returns on the first match.
      */
-    private void maybeHintUndecodedNullMarker(List<String[]> sampleRows, String sourceLocation) {
+    private void maybeHintUndecodedNullMarker(List<String[]> sampleRows, String sourceLocation, Consumer<String> warningSink) {
         if (options.decodesEscapes()) {
             return;
         }
@@ -1390,7 +1436,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             for (int c = 0; c < row.length; c++) {
                 if (isBackslashNullMarker(row[c])) {
-                    HeaderWarning.addWarning(
+                    warningSink.accept(
                         "["
                             + format
                             + "] read from ["
@@ -3202,6 +3248,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final boolean bracketMultiValues;
         private final String sourceLocation;
         private final SkipWarnings skipWarnings;
+        /** The read context's informational sink; the read-time null-marker hint goes here. */
+        @Nullable
+        private final Consumer<String> warningSink;
         private List<Attribute> schema;
         /**
          * Raw field index per pinned-schema position, or {@code null} when the schema binds positionally (provenance
@@ -3510,6 +3559,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.statsFileFinal = statsFileFinal;
             this.stripeHarvester = statsStripeSize > 0 ? new StripeStatsHarvester(statsStripeSize, statsFileFinal) : null;
+            // Same fallback as SkipWarnings, so a read context without a sink (tests, benchmarks) does not silence one
+            // read-time channel while the other still reaches HeaderWarning. Production read paths always supply one.
+            this.warningSink = warningSink != null ? warningSink : message -> HeaderWarning.addWarning(message);
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 "CSV read from ["
@@ -3517,7 +3569,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     + "] encountered parse errors handled per policy (policy: "
                     + errorPolicy.modeName()
                     + "); affected rows/fields are listed below",
-                warningSink
+                this.warningSink
             );
         }
 
@@ -4212,7 +4264,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return null;
             }
             SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
-            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
+            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
             boolean[] sawUndecodableTemporal = new boolean[columnNames.length];
             List<Attribute> schema = CsvSchemaInferrer.inferSchema(
                 columnNames,
@@ -4240,7 +4292,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return null;
             }
             SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
-            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
+            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
             boolean[] sawUndecodableTemporal = new boolean[syntheticColumnCount(sample.rows())];
             List<Attribute> schema = inferSyntheticSchema(
                 sample.rows(),

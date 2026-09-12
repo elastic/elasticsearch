@@ -1,0 +1,5 @@
+pr: 158779
+summary: Make plugin `@allocates` estimator classes linkable from generated scripts
+area: Infra/Scripting
+type: bug
+issues: []

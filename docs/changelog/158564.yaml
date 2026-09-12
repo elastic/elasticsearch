@@ -1,0 +1,5 @@
+area: Authentication
+issues: []
+pr: 158564
+summary: Fix stackoverflow when authorizing LDAP users with large group membership
+type: bug

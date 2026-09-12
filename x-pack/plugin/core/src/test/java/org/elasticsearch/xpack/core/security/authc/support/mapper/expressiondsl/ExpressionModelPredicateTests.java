@@ -10,7 +10,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
 
 import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.is;
 
@@ -99,4 +102,28 @@ public class ExpressionModelPredicateTests extends ESTestCase {
         assertThat(ExpressionModel.buildPredicate(null).test(fieldValue), is(false));
     }
 
+    public void testCollectionValue() {
+        var stringValue = randomAlphaOfLength(10);
+        var booleanValue = randomBoolean();
+        var longValue = randomLong();
+        var nestedValue = randomAlphaOfLength(12);
+
+        var values = Arrays.asList(null, stringValue, booleanValue, longValue, List.of(nestedValue));
+        var predicate = ExpressionModel.buildPredicate(values);
+
+        assertTrue(predicate.test(new FieldValue(null)));
+        assertTrue(predicate.test(new FieldValue(stringValue)));
+        assertTrue(predicate.test(new FieldValue(booleanValue)));
+        assertTrue(predicate.test(new FieldValue(longValue)));
+        assertTrue(predicate.test(new FieldValue(nestedValue)));
+
+        assertFalse(predicate.test(new FieldValue("not-present")));
+    }
+
+    public void testLargeCollectionDoesNotOverflowStack() {
+        var values = IntStream.range(0, 100_000).mapToObj(i -> "value-" + i).toList();
+        var predicate = ExpressionModel.buildPredicate(values);
+
+        assertFalse(predicate.test(new FieldValue("not-present")));
+    }
 }

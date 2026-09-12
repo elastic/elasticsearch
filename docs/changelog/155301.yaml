@@ -1,0 +1,6 @@
+pr: 155301
+summary: "EQL: `stringContains` returns null instead of failing when the substring argument is null"
+area: EQL
+type: bug
+issues:
+ - 155300

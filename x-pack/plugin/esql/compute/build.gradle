@@ -688,6 +688,23 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/IdeltaDoubleAggregator.java"
   }
 
+  File changesAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-ChangesAggregatorFunctionSupplier.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = changesAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/ChangesIntAggregatorFunctionSupplier.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = changesAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/ChangesLongAggregatorFunctionSupplier.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = changesAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/ChangesDoubleAggregatorFunctionSupplier.java"
+  }
+
   File deltaAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-DeltaAggregator.java.st")
   template {
     it.properties = intProperties

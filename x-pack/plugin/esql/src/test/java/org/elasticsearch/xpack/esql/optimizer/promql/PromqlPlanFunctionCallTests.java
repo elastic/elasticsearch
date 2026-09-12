@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Changes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
@@ -289,10 +291,34 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertFalse(isCounter(field.dataType()));
     }
 
+    public void testChangesSupportsPlainNumericInput() {
+        assumeTrue("Requires PROMQL_CHANGES capability", EsqlCapabilities.Cap.PROMQL_CHANGES.isEnabled());
+        Changes changes = changesFromPromql("PROMQL index=k8s step=5m changes=(changes(network.cost[5m]))");
+
+        FieldAttribute field = as(changes.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.cost"));
+        assertFalse(isCounter(field.dataType()));
+    }
+
+    public void testChangesSupportsCounterInput() {
+        assumeTrue("Requires PROMQL_CHANGES capability", EsqlCapabilities.Cap.PROMQL_CHANGES.isEnabled());
+        Changes changes = changesFromPromql("PROMQL index=k8s step=5m changes=(changes(network.total_bytes_in[5m]))");
+
+        FieldAttribute field = as(changes.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.total_bytes_in"));
+        assertTrue(isCounter(field.dataType()));
+    }
+
     private Avg avgOverTimeFromPromql(String query) {
         LogicalPlan analyzed = planPromql(query, false);
         TimeSeriesAggregate tsAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
         return tsAggregate.aggregates().getFirst().collect(Avg.class).getFirst();
+    }
+
+    private Changes changesFromPromql(String query) {
+        LogicalPlan analyzed = planPromql(query, false);
+        TimeSeriesAggregate tsAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
+        return tsAggregate.aggregates().getFirst().collect(Changes.class).getFirst();
     }
 
     /**

@@ -68,6 +68,7 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
     protected static final String PASS = "x-pack-test-password";
     protected static final String DEFAULT_DATA_STREAM = "metrics-generic.prometheus-default";
     protected static final String MIXED_METRICS_PROMETHEUS_METRIC = "explorer_prometheus_metric";
+    protected static final String PROMQL_CHANGES_CAPABILITY = "promql_changes";
 
     private static final String NON_PROMETHEUS_METRICS_DATA_STREAM = "metrics-system.cpu-default";
 
@@ -195,6 +196,13 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
         }
         doAddReadWriteAuth(request, apiKey);
         return request;
+    }
+
+    protected static void assumePromqlChangesSupported() throws IOException {
+        assumeTrue(
+            "requires PROMQL_CHANGES capability",
+            clusterHasCapability("POST", "/_query", List.of(), List.of(PROMQL_CHANGES_CAPABILITY)).orElse(false)
+        );
     }
 
     // --- sample data helpers ---

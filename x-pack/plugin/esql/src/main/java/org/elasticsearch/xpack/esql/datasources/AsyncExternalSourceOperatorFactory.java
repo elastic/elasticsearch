@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -172,21 +171,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final Set<String> partitionColumnNames;
     private final Map<String, Object> partitionValues;
     /**
-     * Standard ES metadata column names ({@code _index}, {@code _version}, ...) present in
-     * {@link #attributes} that the producer pipeline must materialise as per-file constants.
-     * Derived once from {@link #attributes} at construction. Names whose values require per-row
-     * composition ({@code _id}, {@code _source}) are not included here — they are handled by
-     * separate operator steps.
+     * Standard ES metadata column names ({@code _index} and the ones that answer SQL {@code NULL})
+     * present in {@link #attributes} that the producer pipeline must materialise as per-file
+     * constants. Derived once from {@link #attributes} at construction.
      */
     private final Set<String> standardMetadataPerFileNames;
-    /**
-     * Whether the bound attributes include an {@link ExternalMetadataAttribute} named {@code _id}.
-     * When true, the producer pipeline must compose {@code _id} per row via
-     * {@link ExternalRowIdentity#composePage} and the optimizer must have injected
-     * {@link ColumnExtractor#ROW_POSITION_COLUMN} into the source's projection so the iterator
-     * has the input it needs.
-     */
-    private final boolean idColumnRequested;
     /**
      * Dataset name threaded from the planner ({@code DatasetRewriter} attaches it to
      * {@code UnresolvedExternalRelation}; {@code ExternalRelation} / {@code ExternalSourceExec} round-
@@ -216,25 +205,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      */
     @Nullable
     private final List<Attribute> unifiedReadSchema;
-    /**
-     * Declared {@code _id.path} (the logical name of the data column whose value supplies each row's {@code _id}), or
-     * {@code null} when the dataset declares no {@code mappings._id.path}. When set and {@code _id} is projected,
-     * {@link VirtualColumnIterator} stamps {@code _id} from that column instead of the synthetic (file+row-position)
-     * identity. Threaded to the iterator alongside {@code idPrefix}.
-     */
-    @Nullable
-    private final String idPath;
-    /**
-     * File last-modified epoch-millis used to materialise {@code _version} on the single-file
-     * producer paths ({@link #startSyncWrapperRead} / {@link #startNativeAsyncRead} /
-     * {@link #consumePagesInBackground}). {@code null} when the caller did not supply an mtime
-     * (test harnesses, paths whose backing storage has no mtime concept); {@code _version} then
-     * renders as SQL {@code NULL} per {@link ExternalMetadataColumns#extractPerFileConstants}.
-     * Not consulted on the slice-queue / multi-file paths — those carry per-file mtime via the
-     * {@code FileSplit} / {@code FileList} entries respectively.
-     */
-    @Nullable
-    private final Long lastModifiedMillis;
     /**
      * {@link BlockFactory} used by producer-thread iterator wrappers ({@link VirtualColumnIterator}
      * for {@code _file.*} / Hive-style partition columns, {@link SchemaAdaptingIterator} for
@@ -369,8 +339,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Map<String, String> renames,
         Function<List<Attribute>, String> readConfigFingerprinter,
         @Nullable List<Attribute> unifiedReadSchema,
-        @Nullable String idPath,
-        @Nullable Long lastModifiedMillis,
         @Nullable BlockFactory producerBlockFactory,
         ExternalSliceQueue sliceQueue,
         ErrorPolicy errorPolicy,
@@ -423,49 +391,39 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.rowLimit = rowLimit;
         this.fileList = fileList;
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
-        // Route requested standard metadata names (and _id when requested) through
-        // VirtualColumnIterator's materialization paths by unioning them into the partition-column
-        // set. Per-file constants take the constant-block path; _id takes the iterator's per-row
-        // composition path; _source is handled by a separate operator wrapper.
+        // Route requested standard metadata names through VirtualColumnIterator's constant-block path by
+        // unioning them into the partition-column set. Analyzer.bindMetadataFields builds every
+        // ExternalMetadataAttribute from exactly two registries, so a third kind would fall through both
+        // arms below and silently become an all-null column — fail loud instead.
         Set<String> stdMetaNames = new LinkedHashSet<>();
-        boolean idRequested = false;
-        boolean sourceRequested = false;
         for (Attribute attr : attributes) {
-            if (attr instanceof ExternalMetadataAttribute) {
-                String n = attr.name();
-                if (ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(n)) {
-                    stdMetaNames.add(n);
-                } else if (ExternalMetadataColumns.ID.equals(n)) {
-                    idRequested = true;
-                } else if (ExternalMetadataColumns.SOURCE.equals(n)) {
-                    sourceRequested = true;
-                }
+            if (attr instanceof ExternalMetadataAttribute == false) {
+                continue;
+            }
+            if (ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(attr.name())) {
+                stdMetaNames.add(attr.name());
+            } else if (FileMetadataColumns.isFileMetadataColumn(attr.name()) == false) {
+                throw new IllegalStateException(
+                    "metadata column [" + attr.name() + "] is neither a per-file constant nor a _file.* column and cannot be materialised"
+                );
             }
         }
-        this.idColumnRequested = idRequested;
         this.standardMetadataPerFileNames = stdMetaNames.isEmpty() ? Set.of() : Set.copyOf(stdMetaNames);
-        if (stdMetaNames.isEmpty() && idRequested == false && sourceRequested == false) {
+        if (stdMetaNames.isEmpty()) {
             this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         } else {
-            // Union the standard metadata names (plus {@code _id} / {@code _source} when projected)
-            // into the effective partition-column set so VirtualColumnIterator routes them through
-            // its constant-block / id-composition / source-synthesis path. Hive partition columns
+            // Union the standard metadata names into the effective partition-column set so
+            // VirtualColumnIterator routes them through its constant-block path. Hive partition columns
             // and {@code _file.*} always take precedence on key collision (they overlay last in
             // the per-file merge).
             Set<String> union = new LinkedHashSet<>(stdMetaNames);
-            if (idRequested) {
-                union.add(ExternalMetadataColumns.ID);
-            }
-            if (sourceRequested) {
-                union.add(ExternalMetadataColumns.SOURCE);
-            }
             if (partitionColumnNames != null) {
                 union.addAll(partitionColumnNames);
             }
             this.partitionColumnNames = Collections.unmodifiableSet(union);
         }
         // Resolve queryDataSchema AFTER the effective partitionColumnNames (including any standard
-        // metadata / _id / _source names unioned above) is final: the data-only schema must exclude
+        // metadata names unioned above) is final: the data-only schema must exclude
         // partition and virtual/metadata columns so its width matches the file-backed ColumnMapping
         // (a partition key may shadow a same-named physical column). See
         // ExternalSchema#dataAttributesOf(List, Set).
@@ -475,8 +433,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.renames = renames == null ? Map.of() : renames;
         this.readConfigFingerprinter = readConfigFingerprinter == null ? schema -> "" : readConfigFingerprinter;
         this.unifiedReadSchema = unifiedReadSchema;
-        this.idPath = idPath;
-        this.lastModifiedMillis = lastModifiedMillis;
         this.producerBlockFactory = producerBlockFactory;
         this.sliceQueue = sliceQueue;
         this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
@@ -510,17 +466,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             && formatReader instanceof RangeAwareFormatReader rr
             && rr.supportsBatchRead()
             && this.partitionColumnNames.isEmpty();
-    }
-
-    /**
-     * Test-only accessor for the {@code lastModifiedMillis} value wired in by the builder. Returned
-     * as-is ({@code null} when the caller did not supply an mtime) so regression tests can pin the
-     * single-file {@code _version} fallback wiring at the factory boundary without driving a full
-     * page-drain through the producer iterator stack.
-     */
-    @Nullable
-    Long lastModifiedMillis() {
-        return lastModifiedMillis;
     }
 
     public static Builder builder(
@@ -565,10 +510,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private Function<List<Attribute>, String> readConfigFingerprinter = schema -> "";
         @Nullable
         private List<Attribute> unifiedReadSchema;
-        @Nullable
-        private String idPath;
-        @Nullable
-        private Long lastModifiedMillis;
         @Nullable
         private BlockFactory producerBlockFactory;
         private ExternalSliceQueue sliceQueue;
@@ -679,29 +620,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
          */
         public Builder unifiedReadSchema(@Nullable List<Attribute> unifiedReadSchema) {
             this.unifiedReadSchema = unifiedReadSchema;
-            return this;
-        }
-
-        /**
-         * Declared {@code _id.path} (the logical name of the data column that supplies each row's {@code _id}), or
-         * {@code null} when the dataset declares no {@code mappings._id.path}. When set, {@link VirtualColumnIterator}
-         * stamps {@code _id} from that column instead of the synthetic (file+row-position) identity.
-         */
-        public Builder idPath(@Nullable String idPath) {
-            this.idPath = idPath;
-            return this;
-        }
-
-        /**
-         * Sets the file last-modified epoch-millis used to materialise {@code _version} on the
-         * single-file producer paths. {@code null} (the default) leaves {@code _version} as SQL
-         * {@code NULL} on those paths. Only consulted when the source has no per-file mtime
-         * source — the slice-queue path reads {@code _file.modified} out of the
-         * {@code FileSplit}'s partition values, and the multi-file path reads it off the
-         * {@code FileList} entry; both ignore this builder value.
-         */
-        public Builder lastModifiedMillis(@Nullable Long lastModifiedMillis) {
-            this.lastModifiedMillis = lastModifiedMillis;
             return this;
         }
 
@@ -846,8 +764,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 renames,
                 readConfigFingerprinter,
                 unifiedReadSchema,
-                idPath,
-                lastModifiedMillis,
                 producerBlockFactory,
                 sliceQueue,
                 errorPolicy,
@@ -1142,10 +1058,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (partitionColumnNames.contains(attr.name())) {
                 continue;
             }
-            // Standard ES metadata names ({@code _id}, {@code _index}, ...) are not file-resident
-            // columns; the producer injects them later. {@code _index}, {@code _version}, etc. enter
-            // {@link VirtualColumnIterator}'s per-file constant path via the {@code partitionColumnNames}
-            // union above. {@code _id} and {@code _source} are handled by separate operator wrappers.
+            // Standard ES metadata names ({@code _index}, {@code _score}, ...) are not file-resident
+            // columns; the producer injects them later, through {@link VirtualColumnIterator}'s per-file
+            // constant path via the {@code partitionColumnNames} union above.
             if (attr instanceof ExternalMetadataAttribute) {
                 continue;
             }
@@ -1155,12 +1070,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * Merge standard ES metadata per-file constants ({@code _index}, {@code _version}, ...) into
-     * {@code basePartitionValues}. Returns {@code basePartitionValues} unchanged when no standard
-     * metadata names are bound. The {@code _version} value is sourced from the {@code _file.modified}
-     * entry already populated in {@code basePartitionValues} (slice-queue path); when absent
-     * (single-file paths) the factory's {@link #lastModifiedMillis} is used as a fallback. When
-     * neither is available {@code _version} renders as SQL {@code NULL}.
+     * Merge standard ES metadata per-file constants ({@code _index}, and the names that answer SQL
+     * {@code NULL}) into {@code basePartitionValues}. Returns {@code basePartitionValues} unchanged
+     * when no standard metadata names are bound.
      * <p>
      * Standard metadata names win on key collision: they are dedicated (the spec defines what
      * {@code _index} means; a layout cannot redefine it), so the constants overlay last.
@@ -1176,16 +1088,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (standardMetadataPerFileNames.isEmpty()) {
             return basePartitionValues;
         }
-        // Same key-present-vs-absent split as resolveMtimeMillis: a per-file extraction that
-        // reported no mtime must yield a null _version for that file, not the factory-level
-        // (first file's) mtime.
-        Long version;
-        if (basePartitionValues != null && basePartitionValues.containsKey(FileMetadataColumns.MODIFIED)) {
-            version = basePartitionValues.get(FileMetadataColumns.MODIFIED) instanceof Long longVersion ? longVersion : null;
-        } else {
-            version = lastModifiedMillis;
-        }
-        Map<String, Object> stdConstants = ExternalMetadataColumns.extractPerFileConstants(datasetName, version);
+        Map<String, Object> stdConstants = ExternalMetadataColumns.extractPerFileConstants(datasetName);
         Map<String, Object> merged = basePartitionValues != null ? new HashMap<>(basePartitionValues) : new HashMap<>();
         merged.putAll(stdConstants);
         return merged;
@@ -1205,23 +1108,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Map<String, Object> partitionValuesForFile,
         DriverContext driverContext
     ) {
-        return wrapWithVirtualColumns(pages, partitionValuesForFile, driverContext, this.path);
-    }
-
-    /**
-     * Variant that also wires the per-file {@code _id} prefix when {@code _id} is requested.
-     * Callers in multi-file paths pass the file's actual {@link StoragePath} so the rendered
-     * {@code _id} reflects which physical file each row came from. The prefix carries the file's
-     * mtime as an identity salt, resolved the same way {@link #mergeStandardMetadata} resolves
-     * {@code _version}: the per-file {@code _file.modified} value when the listing carried one,
-     * else the factory-level {@link #lastModifiedMillis}, else {@code 0} (unknown).
-     */
-    private CloseableIterator<Page> wrapWithVirtualColumns(
-        CloseableIterator<Page> pages,
-        Map<String, Object> partitionValuesForFile,
-        DriverContext driverContext,
-        StoragePath filePath
-    ) {
         // Two independent skip axes. The DATASET axis: an unpartitioned dataset has no virtual
         // columns to materialise. The OUTPUT axis: a zero-projection read (a bare STATS COUNT(*),
         // whose argument is a literal and so references no columns) has an empty output schema —
@@ -1237,35 +1123,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (partitionColumnNames.isEmpty() || attributes.isEmpty()) {
             return pages;
         }
-        BytesRef idPrefix = idColumnRequested ? ExternalRowIdentity.prefix(filePath, resolveMtimeMillis(partitionValuesForFile)) : null;
         return new VirtualColumnIterator(
             pages,
             attributes,
             partitionColumnNames,
             partitionValuesForFile,
-            producerBlockFactory(driverContext),
-            idPrefix,
-            idPath
+            producerBlockFactory(driverContext)
         );
-    }
-
-    /**
-     * Resolves the mtime salt for the {@code _id} prefix. The per-file {@code _file.modified}
-     * value wins (multi-file paths build it from the listing via
-     * {@link FileMetadataColumns#extractValues}); the factory-level {@link #lastModifiedMillis}
-     * covers the single-file path; {@code 0} means the storage layer reported no mtime, matching
-     * the {@link org.elasticsearch.xpack.esql.datasources.spi.FileList} missing-mtime convention.
-     */
-    private long resolveMtimeMillis(Map<String, Object> partitionValuesForFile) {
-        // Key present = a per-file extraction ran for THIS file: a Long is its mtime; null means
-        // the storage layer reported none for this file — return the 0 sentinel rather than fall
-        // through, or an unknown-mtime file in a multi-file glob would inherit the factory-level
-        // (first file's) mtime as its _id salt. The factory fallback serves single-file paths,
-        // where no per-file extraction populated the map.
-        if (partitionValuesForFile != null && partitionValuesForFile.containsKey(FileMetadataColumns.MODIFIED)) {
-            return partitionValuesForFile.get(FileMetadataColumns.MODIFIED) instanceof Long mtime ? mtime : 0L;
-        }
-        return lastModifiedMillis != null ? lastModifiedMillis : 0L;
     }
 
     /**
@@ -1310,7 +1174,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // No paired extract operator: no registry, no refcount, nothing to decode downstream.
             // A ColumnExtractorAware reader's iterator still ORs the installed high bits into every
             // _rowPosition value, so install zero — the unencoded form — whenever the channel is
-            // projected for plain _id / _file.record_ref composition (which masks high bits anyway).
+            // projected for plain _file.record_ref composition (which masks high bits anyway).
             // Gate on the READER capability, not the iterator: stats/schema wrappers implement
             // ColumnExtractorProducer as blind pass-throughs that throw when the delegate isn't one.
             if (formatReader instanceof ColumnExtractorAware
@@ -1467,7 +1331,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // ref-counting for identity slots plus the type check — which is negligible.
         // The reader appends the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} to the
         // per-file projection whenever the query projection carries it — for deferred extraction
-        // AND for plain _id / _file.record_ref composition (see {@link #perFileQueryProjection}).
+        // AND for plain _file.record_ref composition (see {@link #perFileQueryProjection}).
         // Its input slot is its position in the per-file projection: the reader emits blocks in
         // projection order, so this index addresses the reader's output page directly. Deriving
         // the slot from the deferred flag or from {@code mapping.width()} is wrong on both arms:
@@ -2157,9 +2021,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
                 // Compressed-offset splits (bzip2 block-aligned / zstd-indexed): splitStartByte is a
                 // COMPRESSED position while text readers anchor _rowPosition in decompressed bytes —
-                // composing _id from that mix yields non-split-invariant, collision-prone tokens. Take
-                // the slot out of the reader's projection and null-splice it instead: null _id over
-                // these layouts, same honest carve-out columnar readers get. Only the reader's column list is
+                // a _file.record_ref built from that mix is not split-invariant. Take the slot out of the
+                // reader's projection and null-splice it instead: null _file.record_ref over these
+                // layouts, same honest carve-out columnar readers get. Only the reader's column list is
                 // narrowed (readerCols); the shared perFileCols still feeds the adapter below at full
                 // width, matching the pre-hoist behaviour where the adapter recomputed the projection.
                 boolean compressedOffsetSplit = "true".equals(fileSplit.config().get(FileSplitProvider.COMPRESSED_OFFSET_SPLIT_KEY));
@@ -2248,12 +2112,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, cols, state.driverContext);
             // Per-split virtual-column iterator: each slice-queue leaf has its own _file.* values
             // (different path/name/dir/size/mtime), so the wrapper is bound to *this* iterator's pages.
-            state.pages = wrapWithVirtualColumns(
-                withEncoder,
-                mergeStandardMetadata(fileSplit.partitionValues()),
-                state.driverContext,
-                fileSplit.path()
-            );
+            state.pages = wrapWithVirtualColumns(withEncoder, mergeStandardMetadata(fileSplit.partitionValues()), state.driverContext);
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
@@ -2349,7 +2208,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (partitionColumnNames.isEmpty() == false) {
             perFileValues = new HashMap<>(partitionValues);
             if (standardMetadataPerFileNames.isEmpty() == false) {
-                perFileValues.putAll(ExternalMetadataColumns.extractPerFileConstants(datasetName, files, fileIndex));
+                perFileValues.putAll(ExternalMetadataColumns.extractPerFileConstants(datasetName));
             }
             perFileValues.putAll(FileMetadataColumns.extractValues(files, fileIndex));
         }
@@ -2428,7 +2287,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
             // this file) so {@code _file.*} columns carry the right values for the current file.
-            state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext, filePath);
+            state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext);
             state.currentObject = obj;
             state.currentObjectBytesSnapshot = readBytesOrZero(obj);
             return true;

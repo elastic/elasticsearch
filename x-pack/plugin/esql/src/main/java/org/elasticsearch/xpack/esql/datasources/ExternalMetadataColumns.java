@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMa
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -23,8 +22,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Registry of the standard ES index metadata names ({@code _id}, {@code _index},
- * {@code _version}, ...) that the external-source pipeline knows how to materialise on
+ * Registry of the standard ES index metadata names ({@code _index}, {@code _score},
+ * {@code _ignored}, ...) that the external-source pipeline knows how to materialise on
  * external datasets. The data types are sourced from
  * {@link MetadataAttribute#ATTRIBUTES_MAP} so the binding here and in the analyzer
  * always agree (including snapshot-only entries such as {@code _tier}).
@@ -34,10 +33,10 @@ import java.util.Set;
  * on the producer thread; the split exists because {@code _file.*} comes from per-file stat
  * while the standard names route through {@link MetadataAttribute#ATTRIBUTES_MAP}.
  * <p>
- * Two materialisation lanes exist: see {@link #PER_FILE_CONSTANT_NAMES} for the canonical
- * per-file-constant set; the remaining standard names ({@code _id} via
- * {@link ExternalRowIdentity}, {@code _source} via {@link SynthesizeExternalSource}) are
- * per-row composed.
+ * Every standard name a dataset can bind is a per-file constant; see
+ * {@link #PER_FILE_CONSTANT_NAMES}. {@code _id}, {@code _version} and {@code _source} are among
+ * them with a {@code null} value: a file holds no document identity, no document version and no
+ * stored source, so the honest answer is SQL NULL rather than a value the engine invented.
  */
 public final class ExternalMetadataColumns {
 
@@ -57,9 +56,9 @@ public final class ExternalMetadataColumns {
     /**
      * Names of standard metadata columns that are materialised by the producer-side
      * constant-block path (per-file values, including SQL {@code NULL} where unavailable).
-     * The other standard names ({@link #ID}, {@link #SOURCE}) are not in this set — they go
-     * through per-row composition operators ({@link ExternalRowIdentity},
-     * {@link SynthesizeExternalSource}).
+     * {@link #ID}, {@link #VERSION} and {@link #SOURCE} are in the set with a {@code null} value:
+     * a file carries no document identity, no document version and no stored source, so the column
+     * binds and every row is NULL.
      */
     public static final Set<String> PER_FILE_CONSTANT_NAMES;
 
@@ -68,7 +67,9 @@ public final class ExternalMetadataColumns {
         // diagnostic / explain output is stable across runs.
         var names = new LinkedHashSet<String>();
         names.add(INDEX);
+        names.add(ID);
         names.add(VERSION);
+        names.add(SOURCE);
         names.add(SCORE);
         names.add(IGNORED);
         names.add(INDEX_MODE);
@@ -78,7 +79,7 @@ public final class ExternalMetadataColumns {
         if (EsqlCapabilities.Cap.METADATA_TIER_FIELD.isEnabled()) {
             names.add(DataTierFieldMapper.NAME);
         }
-        // _slice is backed by _routing doc values on slice-enabled indices; not available on external datasets.
+        // _slice is backed by _routing doc values on indices. A file has no routing, so it binds and answers NULL.
         if (EsqlCapabilities.Cap.METADATA_SLICE.isEnabled()) {
             names.add(SLICE);
         }
@@ -86,28 +87,26 @@ public final class ExternalMetadataColumns {
     }
 
     /**
-     * Every standard metadata name an external relation can bind — {@link #PER_FILE_CONSTANT_NAMES}
-     * plus the per-row composed pair ({@link #ID}, {@link #SOURCE}). This is the dedicated
-     * namespace: dataset layouts (Hive partition directories, data columns) cannot claim these
-     * names; see {@code HivePartitionDetector} for the rename that enforces it.
+     * Every standard metadata name an external relation can bind. {@code Analyzer.bindMetadataFields}
+     * consults this set, so a standard name outside it resolves the way an unknown name does. Its
+     * membership currently matches {@link #PER_FILE_CONSTANT_NAMES}, but a name backed by a real
+     * per-row source would join this set and not that one. For namespace protection use
+     * {@link #RESERVED_NAMES}, which is wider.
      */
     public static final Set<String> STANDARD_NAMES;
 
     static {
-        var names = new LinkedHashSet<>(PER_FILE_CONSTANT_NAMES);
-        names.add(ID);
-        names.add(SOURCE);
-        STANDARD_NAMES = Collections.unmodifiableSet(names);
+        STANDARD_NAMES = Collections.unmodifiableSet(new LinkedHashSet<>(PER_FILE_CONSTANT_NAMES));
     }
 
     /**
      * The dedicated metadata namespace for reservation/rename purposes: {@link #STANDARD_NAMES}
-     * plus every standard name that is only snapshot-gated for binding ({@code _tier}). Reservation
-     * must not flip with build mode — a dataset layout claiming {@code _tier} is renamed to
-     * {@code _partition._tier} in EVERY build, even where {@code METADATA _tier} itself is not yet
-     * exposed — so a Hive dataset surfaces the same column names regardless of snapshot vs release.
-     * Use this set for namespace protection; use {@link #STANDARD_NAMES} for what a relation may
-     * actually bind.
+     * plus every standard name that is only gated for binding ({@code _tier}, {@code _slice}).
+     * Reservation is wider than binding on purpose and must not flip with build mode or flag state
+     * — a dataset layout claiming {@code _tier} is renamed to {@code _partition._tier} in EVERY
+     * build, even where {@code METADATA _tier} itself is not yet exposed, so a Hive dataset
+     * surfaces the same column names either way. Use this set for namespace protection; use
+     * {@link #STANDARD_NAMES} for what a relation may actually bind.
      */
     public static final Set<String> RESERVED_NAMES;
 
@@ -127,48 +126,29 @@ public final class ExternalMetadataColumns {
      * <ul>
      *     <li>{@code _index} — {@code datasetName} when known, otherwise {@code null}
      *         (bare-glob {@code FROM} queries have no dataset identity).</li>
-     *     <li>{@code _version} — {@link FileList#lastModifiedMillis(int)} as a {@code Long};
-     *         {@code 0L} is treated as "unknown" and yields {@code null} per the precedent set
-     *         by {@link FileMetadataColumns#extractValues(FileList, int)}.</li>
-     *     <li>Every other standard name — {@code null}. They are not addressable on external
+     *     <li>Every other name in the set — {@code null}. They are not addressable on external
      *         data (no relevance scoring, no per-row {@code _ignored} list, etc.).</li>
      * </ul>
-     * Callers must call this once per file; the result is meant to overlay onto the
-     * partition-value map so {@link VirtualColumnIterator} renders constant blocks of the
-     * correct type ({@link DataType}) — null values are turned into
+     * The values depend only on the dataset name; nothing here is derived from the file. The
+     * result is meant to overlay onto the partition-value map so {@link VirtualColumnIterator}
+     * renders constant blocks of the correct type ({@link DataType}) — null values are turned into
      * {@code newConstantNullBlock} by the iterator's existing path.
      */
-    public static Map<String, Object> extractPerFileConstants(@Nullable String datasetName, FileList fileList, int index) {
-        long modifiedMillis = fileList.lastModifiedMillis(index);
-        Long version = modifiedMillis == 0L ? null : Long.valueOf(modifiedMillis);
-        return buildPerFileConstants(datasetName, version);
-    }
-
-    /**
-     * Variant for callers that already hold the file's last-modified epoch-millis (e.g. the
-     * slice-queue path, which reuses {@link FileMetadataColumns#MODIFIED} previously stuffed
-     * into the {@code FileSplit}'s partition values). A {@code null} {@code lastModifiedMillis}
-     * yields a {@code null} {@code _version}; zero is treated as "unknown" per
-     * {@link FileMetadataColumns#extractValues(FileList, int)} precedent.
-     */
-    public static Map<String, Object> extractPerFileConstants(@Nullable String datasetName, @Nullable Long lastModifiedMillis) {
-        Long version = lastModifiedMillis == null || lastModifiedMillis == 0L ? null : lastModifiedMillis;
-        return buildPerFileConstants(datasetName, version);
-    }
-
-    private static Map<String, Object> buildPerFileConstants(@Nullable String datasetName, @Nullable Long version) {
+    public static Map<String, Object> extractPerFileConstants(@Nullable String datasetName) {
         var values = new LinkedHashMap<String, Object>(PER_FILE_CONSTANT_NAMES.size());
         for (String name : PER_FILE_CONSTANT_NAMES) {
-            values.put(name, perFileValue(name, datasetName, version));
+            values.put(name, perFileValue(name, datasetName));
         }
         return Collections.unmodifiableMap(values);
     }
 
-    private static Object perFileValue(String name, @Nullable String datasetName, @Nullable Long version) {
+    private static Object perFileValue(String name, @Nullable String datasetName) {
         return switch (name) {
             case INDEX -> datasetName != null ? new BytesRef(datasetName) : null;
-            case VERSION -> version;
-            case SCORE, IGNORED, INDEX_MODE, TSID, SIZE, DataTierFieldMapper.NAME, SLICE -> null;
+            // A file carries no document identity, no document version and no stored source, and no
+            // relevance score, per-row _ignored list, index mode, tsid or stored size either. Every one
+            // of these is SQL NULL rather than a value composed at the reader.
+            case ID, VERSION, SOURCE, SCORE, IGNORED, INDEX_MODE, TSID, SIZE, DataTierFieldMapper.NAME, SLICE -> null;
             default -> throw new AssertionError("Unhandled per-file constant name: " + name);
         };
     }

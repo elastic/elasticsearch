@@ -227,8 +227,8 @@ public class FileSplitProvider implements SplitProvider {
      * zstd-indexed frame groups). Text readers anchor {@code _rowPosition} as
      * {@code splitStartByte + decompressed-bytes-consumed}; a compressed anchor plus a
      * decompressed delta is a value on no axis — not split-invariant and collision-prone across
-     * splits — so the dispatcher must not compose {@code _id} from these splits (it null-splices
-     * the {@code _rowPosition} slot instead).
+     * splits — so the dispatcher must not surface {@code _file.record_ref} from these splits (it
+     * null-splices the {@code _rowPosition} slot instead).
      */
     static final String COMPRESSED_OFFSET_SPLIT_KEY = "_compressed_offset_split";
 

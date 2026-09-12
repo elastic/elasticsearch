@@ -11,12 +11,14 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public class DatasetMetadataTests extends AbstractChunkedSerializingTestCase<DatasetMetadata> {
 
@@ -65,6 +67,38 @@ public class DatasetMetadataTests extends AbstractChunkedSerializingTestCase<Dat
         );
         assertEquals(EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.GATEWAY), metadata.context());
         assertFalse(metadata.context().contains(Metadata.XContentContext.SNAPSHOT));
+    }
+
+    /**
+     * A cluster upgraded from 9.5 has a {@code mappings._id} block in the gateway copy of every dataset that
+     * declared one. Reading that state must not fail: a node that cannot parse its own persisted metadata never
+     * finishes starting. The block is read and dropped, and everything beside it survives.
+     */
+    public void testGatewayStateFrom95WithIdBlockLoads() throws IOException {
+        String json = """
+            {
+              "datasets": {
+                "access_logs": {
+                  "name": "access_logs",
+                  "data_source": "logs_source",
+                  "resource": "s3://bucket/*.csv",
+                  "mappings": {
+                    "dynamic": "true",
+                    "properties": { "request_id": { "type": "keyword" } },
+                    "_id": { "path": "request_id" }
+                  }
+                }
+              }
+            }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            DatasetMetadata metadata = DatasetMetadata.fromXContent(parser);
+            Dataset dataset = metadata.datasets().get("access_logs");
+            assertNotNull(dataset);
+            DatasetMapping.Mappings mappings = dataset.mapping().mappings();
+            assertEquals(DatasetMapping.Dynamic.TRUE, mappings.dynamic());
+            assertEquals(Set.of("request_id"), mappings.properties().keySet());
+        }
     }
 
     static String randomName() {

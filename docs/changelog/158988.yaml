@@ -1,0 +1,5 @@
+pr: 158988
+summary: "`_id`, `_version` and `_source` on a dataset bind and return null"
+area: ES|QL
+type: enhancement
+issues: []

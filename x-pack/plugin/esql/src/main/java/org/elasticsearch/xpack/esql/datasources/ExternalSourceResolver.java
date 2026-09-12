@@ -410,7 +410,7 @@ public class ExternalSourceResolver {
      * column renames; {@code pathsRequiringStats} gates the FIRST_FILE_WINS eager all-file stats aggregation.
      *
      * @param declaredMappings    per-path declared mapping — strict skips inference, non-strict overlays it, and its
-     *        derived read-instructions (renames, {@code _id.path}, date formats) ride a typed {@code DeclaredReadSpec} to
+     *        derived read-instructions (renames, date formats) ride a typed {@code DeclaredReadSpec} to
      *        the reader boundary; {@code null} when no path declares a mapping.
      * @param pathsRequiringStats paths whose multi-file FFW resolution must eagerly aggregate global
      *        statistics across all files (the ungrouped-aggregate metadata fast path). A {@code null}
@@ -495,11 +495,10 @@ public class ExternalSourceResolver {
         // null => legacy eager for every path; non-null => eager only for listed paths.
         boolean requiresStats = pathsRequiringStats == null || pathsRequiringStats.contains(path);
         DatasetMapping declaredMapping = declaredMappings != null ? declaredMappings.get(path) : null;
-        // The declared mapping's read-instructions (logical->physical column renames, _id.path, date formats) travel as a
+        // The declared mapping's read-instructions (logical->physical column renames, date formats) travel as a
         // typed DeclaredReadSpec on the ResolvedSource -> ExternalRelation -> ExternalSourceExec seam, rather than as
         // string keys in the untyped config map. Renames are consumed on the data node by the centralized last-mile
-        // physicalization (PhysicalNames) and the pushdown planner rules (readers stay rename-agnostic); _id.path makes
-        // the data node stamp _id from that column rather than the synthetic (file+row-position) identity.
+        // physicalization (PhysicalNames) and the pushdown planner rules (readers stay rename-agnostic).
         DeclaredReadSpec declaredReadSpec = declaredReadSpecOf(declaredMapping);
 
         resolveSource(path, config, hints, declaredMapping, requiresStats, ActionListener.wrap(resolvedSource -> {
@@ -2599,14 +2598,13 @@ public class ExternalSourceResolver {
 
     /**
      * The typed read-instructions a declared mapping produces for the data node: the logical&rarr;physical column
-     * renames of a {@code path} move, the declared {@code _id.path}, and per-column date parse-patterns (keyed by
+     * renames of a {@code path} move and per-column date parse-patterns (keyed by
      * logical column name). {@link DeclaredReadSpec#NONE} when there is no mapping or it declares none of these. Built
      * once per path in {@link #resolve} and carried on the {@code ResolvedSource}.
      */
     private static DeclaredReadSpec declaredReadSpecOf(@Nullable DatasetMapping declaredMapping) {
         Map<String, String> renames = DeclaredSchemaResolver.renameMap(declaredMapping);
         DatasetMapping.Mappings mappings = declaredMapping == null ? null : declaredMapping.mappings();
-        String idPath = mappings == null ? null : mappings.idPath();
         Map<String, String> dateFormats = Map.of();
         // Every mapped field carries an explicit declared type (DatasetFieldMapping requires it), so the mapping's
         // logical column names ARE the declared-type columns — the ones licensed to coerce (incl. narrow) toward their
@@ -2628,7 +2626,7 @@ public class ExternalSourceResolver {
         // a dynamic schema was INFERRED from the file, so position already equals physical position. Every downstream
         // read-time decision keys on the provenance the data node receives, not on the mode.
         SchemaProvenance provenance = isDeclaredSchema(declaredMapping) ? SchemaProvenance.DECLARED : SchemaProvenance.INFERRED;
-        return DeclaredReadSpec.of(renames, idPath, dateFormats, declaredTypeColumns, provenance);
+        return DeclaredReadSpec.of(renames, dateFormats, declaredTypeColumns, provenance);
     }
 
     /**
@@ -3314,11 +3312,11 @@ public class ExternalSourceResolver {
                 // is typically empty so there is nothing extra to embed.
                 //
                 // This early return does NOT carry the declared read-instructions onto this rail's metadata — so a
-                // declared mapping's renames / _id.path would silently vanish. Until this rail supports them, reject
+                // declared mapping's renames would silently vanish. Until this rail supports them, reject
                 // loudly rather than ignore a mapping the user declared.
                 if (declaredReadSpec.isEmpty() == false) {
                     throw new IllegalArgumentException(
-                        "declared mappings with column types, [path] renames, [_id.path], or a column [format] "
+                        "declared mappings with column types, [path] renames, or a column [format] "
                             + "are not supported for this source type"
                     );
                 }

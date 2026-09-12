@@ -3916,7 +3916,6 @@ public class FileSplitProviderTests extends ESTestCase {
         );
         DeclaredReadSpec spec = DeclaredReadSpec.of(
             Map.of("emp_id", "id", "price", "amount"), // logical -> physical
-            null,
             Map.of(),
             Set.of("emp_id", "price")
         );
@@ -4260,7 +4259,7 @@ public class FileSplitProviderTests extends ESTestCase {
             entry.path(),
             new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(overlaid), null, harvested, inferredTypes)
         );
-        DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("emp_id", "id", "price", "amount"), null, Map.of(), Set.of("emp_id", "price"));
+        DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("emp_id", "id", "price", "amount"), Map.of(), Set.of("emp_id", "price"));
         ExternalSchema schema = new ExternalSchema(overlaid);
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
             null,

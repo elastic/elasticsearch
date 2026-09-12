@@ -419,6 +419,39 @@ public class SnapshotResiliencyTestHelper {
             TransportInterceptor createTransportInterceptor(DiscoveryNode node);
         }
 
+        // There is a deadlock condition where processPendingDeletes awaits on shard snapshots which may be scheduled
+        // after the processPendingDeletes task. In production these tasks run on different threadpools, and processPendingDeletes
+        // waits for 30 minutes. To simulate that here, we reschedule the processPendingDeletes task into the future each time we encounter
+        // it until it is the last task in the queue.
+        private Function<Runnable, Runnable> deferProcessPendingDeletes(Function<Runnable, Runnable> runnableWrapper) {
+            return runnable -> {
+                final Runnable wrapped = runnableWrapper.apply(runnable);
+                if (isProcessPendingDeletes(runnable) == false) {
+                    return wrapped;
+                }
+                return new Runnable() {
+                    @Override
+                    public void run() {
+                        if (deterministicTaskQueue.hasRunnableTasks()) {
+                            logger.debug("--> deferring {} because other DTQ tasks may hold shard locks", runnable);
+                            deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 1, this);
+                            return;
+                        }
+                        wrapped.run();
+                    }
+
+                    @Override
+                    public String toString() {
+                        return wrapped.toString();
+                    }
+                };
+            };
+        }
+
+        private static boolean isProcessPendingDeletes(Runnable task) {
+            return task.toString().contains("processPendingDeletes[");
+        }
+
         public class TestClusterNode {
 
             protected final ProjectResolver projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
@@ -501,7 +534,9 @@ public class SnapshotResiliencyTestHelper {
                 this.environment = createEnvironment(node.getName(), tempDir, nodeSettings(node));
                 this.settings = environment.settings();
                 this.pluginsService = createPluginsService(settings, environment);
-                this.threadPool = deterministicTaskQueue.getThreadPool(runnable -> DeterministicTaskQueue.onNodeLog(this.node, runnable));
+                this.threadPool = deterministicTaskQueue.getThreadPool(
+                    deferProcessPendingDeletes(runnable -> DeterministicTaskQueue.onNodeLog(this.node, runnable))
+                );
                 this.masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
                 this.client = new NodeClient(settings, threadPool, projectResolver);
                 this.usageService = new UsageService();

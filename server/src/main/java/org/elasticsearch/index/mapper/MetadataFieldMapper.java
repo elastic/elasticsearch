@@ -294,6 +294,11 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected final boolean isMetadataFieldMapper() {
+        return true;
+    }
+
+    @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);
     }

@@ -9,23 +9,19 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.foreign.LibraryProvider;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 
 abstract class AbstractNativeAccess implements NativeAccess {
 
     protected static final Logger logger = LogManager.getLogger(NativeAccess.class);
 
     private final String name;
-    private final Zstd zstd;
     protected boolean isMemoryLocked = false;
     protected ExecSandboxState execSandboxState = ExecSandboxState.NONE;
 
     protected AbstractNativeAccess(String name) {
         this.name = name;
-        this.zstd = new Zstd(LibraryProvider.lookupLibrary(ZstdLibrary.class));
     }
 
     String getName() {
@@ -35,11 +31,6 @@ abstract class AbstractNativeAccess implements NativeAccess {
     @Override
     public Systemd systemd() {
         return null;
-    }
-
-    @Override
-    public Zstd getZstd() {
-        return zstd;
     }
 
     @Override

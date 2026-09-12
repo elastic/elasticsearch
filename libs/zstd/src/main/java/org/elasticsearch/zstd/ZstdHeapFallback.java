@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess.lib;
+package org.elasticsearch.zstd;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -24,10 +24,14 @@ import java.lang.invoke.MethodHandle;
  * native segments, and the decoded length is copied back into the caller's heap output. On JDK 22+ this class
  * is not referenced.
  */
-public final class ZstdHeapFallback {
+final class ZstdHeapFallback {
 
     private ZstdHeapFallback() {}
 
+    // The foreign-library annotation processor validates @Critical.fallbackAdapter methods via
+    // reflection at compile time and requires them to be public, even though the generated $Impl
+    // class (same package) would be able to invoke a package-private static method through its own
+    // MethodHandles.lookup(). Class visibility stays package-private; only these two methods widen.
     public static long compressHeap(MethodHandle mh, MemorySegment dst, long dstCap, MemorySegment src, long srcSize, int level)
         throws Throwable {
         try (Arena arena = Arena.ofConfined()) {

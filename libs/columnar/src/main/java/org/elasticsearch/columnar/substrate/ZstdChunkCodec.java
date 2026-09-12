@@ -14,8 +14,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.lucene.store.IndexInputUtils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.Zstd;
+import org.elasticsearch.zstd.Zstd;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -37,7 +36,7 @@ final class ZstdChunkCodec {
 
     private static final int LEVEL = 1;
 
-    private static final Zstd ZSTD = NativeAccess.instance().getZstd();
+    private static final Zstd ZSTD = Zstd.instance();
 
     private ZstdChunkCodec() {}
 

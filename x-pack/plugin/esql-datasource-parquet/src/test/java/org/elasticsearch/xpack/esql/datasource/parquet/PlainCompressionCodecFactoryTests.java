@@ -468,7 +468,7 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
      * how parquet-mr feeds page slices that start inside larger column-chunk buffers. The Panama
      * call must use the absolute offsets passed by the codec (i.e. {@code input.position()} and
      * {@code output.position()}) without double-counting them. Regression test for the addressing
-     * semantics of {@link org.elasticsearch.nativeaccess.Zstd#decompress(ByteBuffer, int, int, ByteBuffer, int, int)}.
+     * semantics of {@link PanamaZstd#decompressDirect(ByteBuffer, int, int, ByteBuffer, int, int)}.
      */
     public void testZstdDirectByteBufferDecompressionWithNonZeroPosition() throws IOException {
         assumeTrue("Panama Zstd binding required for this test", PanamaZstd.instance().isAvailable());

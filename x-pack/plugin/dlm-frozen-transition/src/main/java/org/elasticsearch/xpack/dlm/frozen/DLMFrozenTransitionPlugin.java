@@ -12,7 +12,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedScaleDownExecutorBuilder;
@@ -34,10 +36,11 @@ import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM
  * Plugin that registers the {@link DLMFrozenTransitionService} for converting data stream backing indices to the frozen tier as part of
  * the data stream lifecycle. Only active when the searchable snapshots feature flag is enabled.
  */
-public class DLMFrozenTransitionPlugin extends Plugin {
+public class DLMFrozenTransitionPlugin extends Plugin implements HealthPlugin {
     public static final String EXECUTOR_NAME = "dlm_frozen_transition";
     private final List<AbstractDLMPeriodicMasterOnlyService> managedServices = new ArrayList<>();
     private final SetOnce<DLMFrozenTransitionExecutor> transitionExecutor = new SetOnce<>();
+    private final SetOnce<DLMFrozenTransitionsHealthIndicatorService> healthIndicatorService = new SetOnce<>();
 
     public DLMFrozenTransitionPlugin() {}
 
@@ -138,7 +141,15 @@ public class DLMFrozenTransitionPlugin extends Plugin {
         healthInfoPublisher.init();
         components.add(healthInfoPublisher);
         managedServices.add(healthInfoPublisher);
+
+        healthIndicatorService.set(new DLMFrozenTransitionsHealthIndicatorService(services.projectResolver(), System::currentTimeMillis));
+
         return components;
+    }
+
+    @Override
+    public Collection<HealthIndicatorService> getHealthIndicatorServices() {
+        return List.of(healthIndicatorService.get());
     }
 
     @Override

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
@@ -1890,21 +1891,32 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (ready.isDone() == false) {
                 return parkUntilReady(ready, state, completionListener);
             }
-            Page page = pages.tryAdvance();
-            if (page == null) {
-                // tryAdvance returned null: either EOF or the iterator is between chunks.
-                // Recheck waitForReady: not-done = more data coming, yield. Done = hasNext
-                // gives the definitive answer (won't block since isReadyNow was just true).
-                SubscribableListener<Void> recheck = pages.waitForReady();
-                if (recheck.isDone()) {
-                    if (pages.hasNext() == false) {
-                        return DrainResult.EOF;
+
+            Holder<DrainResult> drainResultHolder = new Holder<>();
+            Page page = buffer.readCounters().meteredCpu(() -> {
+                Page tryPage = pages.tryAdvance();
+                if (tryPage == null) {
+                    // tryAdvance returned null: either EOF or the iterator is between chunks.
+                    // Recheck waitForReady: not-done = more data coming, yield. Done = hasNext
+                    // gives the definitive answer (won't block since isReadyNow was just true).
+                    SubscribableListener<Void> recheck = pages.waitForReady();
+                    if (recheck.isDone()) {
+                        if (pages.hasNext() == false) {
+                            drainResultHolder.set(DrainResult.EOF);
+                            return null;
+                        }
+                        tryPage = pages.next();
+                    } else {
+                        drainResultHolder.set(parkUntilReady(recheck, state, completionListener));
                     }
-                    page = pages.next();
-                } else {
-                    return parkUntilReady(recheck, state, completionListener);
                 }
+                return tryPage;
+            });
+            if (drainResultHolder.get() != null) {
+                return drainResultHolder.get();
             }
+            assert page != null : "page should not be null";
+
             // Check downstream space BEFORE committing the page to the buffer. The page is
             // already consumed from the iterator (tryAdvance/next popped it), so if we must
             // park on space we hold it in the listener closure and deliver it on resume.
@@ -2116,7 +2128,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 if (fileContext != null) {
                     rangeCtx.setFileContext(fileContext);
                 }
-                pages = rangeReader.readRange(fullObj, rangeCtx);
+                pages = state.buffer.readCounters().meteredCpu(() -> rangeReader.readRange(fullObj, rangeCtx));
                 state.lastRangeFilePath = fileSplit.path();
                 state.lastFileContext = rangeCtx.fileContext();
                 state.currentObject = fullObj;
@@ -2175,7 +2187,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     fileSplit.offset(),
                     state.buffer.capturedSourceMetadataSink(),
                     state.buffer::recordWarning,
-                    bufferedInformationalWarningSink(state.buffer)
+                    bufferedInformationalWarningSink(state.buffer),
+                    state.buffer.readCounters()
                 );
                 if (pages == null) {
                     FormatReadContext ctx = FormatReadContext.builder()
@@ -2202,7 +2215,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
                         .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                         .build();
-                    pages = fileReader.read(obj, ctx);
+                    final var finalReader = fileReader;
+                    pages = state.buffer.readCounters().meteredCpu(() -> finalReader.read(obj, ctx));
                 }
                 if (compressedRowPosSlot >= 0) {
                     pages = new NullSpliceRowPositionStrategy(
@@ -2383,7 +2397,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 0L,
                 state.buffer.capturedSourceMetadataSink(),
                 state.buffer::recordWarning,
-                bufferedInformationalWarningSink(state.buffer)
+                bufferedInformationalWarningSink(state.buffer),
+                state.buffer.readCounters()
             );
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
@@ -2398,7 +2413,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
                     .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                     .build();
-                pages = fileReader.read(obj, ctx);
+                pages = state.buffer.readCounters().meteredCpu(() -> fileReader.read(obj, ctx));
             }
             pages = applyRowPositionStrategy(fileReader, pages, perFileCols);
             pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
@@ -2487,7 +2502,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .build();
         // No split here — this rail reads one whole file, so the pre-prune unified schema IS that file's schema.
         FormatReader reader = readerWithDynamicThreshold(formatReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema));
-        reader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
+        long wallStart = System.nanoTime();
+        reader.readAsync(storageObject, ctx, executor, buffer.readCounters(), ActionListener.wrap(iterator -> {
+            // record wall time async took
+            buffer.readCounters().add(System.nanoTime() - wallStart, 0L);
             CloseableIterator<Page> wrapped = applyRowPositionStrategy(reader, iterator, projectedColumns);
             consumePagesInBackground(wrapped, buffer, driverContext, storageObject, projectedColumns);
         }, e -> {
@@ -2531,7 +2549,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     0L,
                     buffer.capturedSourceMetadataSink(),
                     buffer::recordWarning,
-                    bufferedInformationalWarningSink(buffer)
+                    bufferedInformationalWarningSink(buffer),
+                    buffer.readCounters()
                 );
                 if (opened == null) {
                     FormatReadContext ctx = FormatReadContext.builder()
@@ -2544,7 +2563,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .informationalWarningSink(bufferedInformationalWarningSink(buffer))
                         .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
                         .build();
-                    opened = reader.read(storageObject, ctx);
+                    opened = buffer.readCounters().meteredCpu(() -> reader.read(storageObject, ctx));
                 }
                 return opened;
             });
@@ -2815,7 +2834,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         long baseFileOffset,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         @Nullable Consumer<String> partialResultsWarningSink,
-        @Nullable Consumer<String> warningSink
+        @Nullable Consumer<String> warningSink,
+        @Nullable ExternalReadCounters readCounters
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
@@ -2846,7 +2866,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     statsColumnScope,
                     splitIsFileFinal,
                     externalSourceMetrics,
-                    warningSink
+                    warningSink,
+                    readCounters
                 );
             }
             case SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL -> {
@@ -2884,7 +2905,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         statsColumnScope,
                         splitIsFileFinal,
                         externalSourceMetrics,
-                        warningSink
+                        warningSink,
+                        readCounters
                     );
                 }
                 // Bracket multi-value CSV cannot prove a record start at a mid-file offset (bracket depth is
@@ -2928,7 +2950,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         statsColumnScope,
                         new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
                         streamingSegmentatorAdmission,
-                        producerBlockFactory != null ? producerBlockFactory.breaker() : new NoopCircuitBreaker("streaming-parse")
+                        producerBlockFactory != null ? producerBlockFactory.breaker() : new NoopCircuitBreaker("streaming-parse"),
+                        readCounters
                     );
                 } catch (Exception e) {
                     try {
@@ -2979,7 +3002,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         statsColumnScope,
                         new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
                         streamingSegmentatorAdmission,
-                        streamingBreaker
+                        streamingBreaker,
+                        readCounters
                     );
                 } catch (Exception e) {
                     try {

@@ -117,6 +117,11 @@ public final class EscfBatch implements SourceBatch {
     }
 
     @Override
+    public boolean isEmptyObjectColumn(int columnIndex) {
+        return EscfColumnTransforms.allNullOrEmptyObject(columns[columnIndex]);
+    }
+
+    @Override
     public SourceBatch slice(int from, int to) {
         if (from < 0 || to > docCount || from > to) {
             throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + docCount + ")");

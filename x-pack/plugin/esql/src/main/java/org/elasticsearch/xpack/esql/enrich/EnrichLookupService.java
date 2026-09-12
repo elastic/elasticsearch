@@ -303,13 +303,13 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().supports(ESQL_LOOKUP_RESPONSE_WARNINGS)) {
-                out.writeStringCollection(warnings);
-            }
             long bytes = page.ramBytesUsedByBlocks();
             blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize enrich lookup response");
             reservedBytes += bytes;
             page.writeTo(out);
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_RESPONSE_WARNINGS)) {
+                out.writeStringCollection(warnings);
+            }
         }
 
         @Override

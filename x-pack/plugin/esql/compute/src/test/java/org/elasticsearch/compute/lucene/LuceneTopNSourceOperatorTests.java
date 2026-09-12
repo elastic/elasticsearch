@@ -28,6 +28,7 @@ import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
@@ -112,7 +113,8 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
             limit,
             sorts,
             estimatedPerRowSortSize,
-            scoring
+            scoring,
+            QueryWarnings.EMIT
         );
     }
 

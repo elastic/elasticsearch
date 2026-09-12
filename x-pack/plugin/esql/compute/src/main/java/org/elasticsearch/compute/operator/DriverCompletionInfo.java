@@ -32,7 +32,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * @param driverProfiles {@link DriverProfile}s from each driver. These are fairly cheap to build but
  *                          not free so this will be empty if the {@code profile} option was not set in
  *                          the request.
- * @param warnings Warning messages emitted by drivers, deduplicated.
+ * @param warnings Fully-formatted warning strings accumulated per driver into each {@link DriverContext}'s sink
+ *                 during execution. Deduplicated across drivers: each unique warning string appears at most once.
  */
 public record DriverCompletionInfo(
     long documentsFound,
@@ -41,6 +42,10 @@ public record DriverCompletionInfo(
     List<PlanProfile> planProfiles,
     Set<String> warnings
 ) implements Writeable {
+
+    public DriverCompletionInfo {
+        warnings = warnings == null ? Set.of() : warnings;
+    }
 
     /**
      * Completion info we use when we didn't properly complete any drivers.
@@ -62,7 +67,6 @@ public record DriverCompletionInfo(
         long documentsFound = 0;
         long valuesLoaded = 0;
         List<DriverProfile> collectedProfiles = new ArrayList<>(drivers.size());
-        Set<String> warnings = new LinkedHashSet<>();
         for (Driver d : drivers) {
             DriverProfile p = d.profile();
             for (OperatorStatus o : p.operators()) {
@@ -70,14 +74,13 @@ public record DriverCompletionInfo(
                 valuesLoaded += o.valuesLoaded();
             }
             collectedProfiles.add(p);
-            warnings.addAll(d.driverContext().warnings());
         }
         return new DriverCompletionInfo(
             documentsFound,
             valuesLoaded,
             collectedProfiles,
             List.of(new PlanProfile(description, clusterName, nodeName, planTree)),
-            Collections.unmodifiableSet(warnings)
+            collectWarnings(drivers)
         );
     }
 
@@ -87,7 +90,6 @@ public record DriverCompletionInfo(
     public static DriverCompletionInfo excludingProfiles(List<Driver> drivers) {
         long documentsFound = 0;
         long valuesLoaded = 0;
-        Set<String> warnings = new LinkedHashSet<>();
         for (Driver d : drivers) {
             DriverStatus s = d.status();
             assert s.status() == DriverStatus.Status.DONE;
@@ -95,9 +97,27 @@ public record DriverCompletionInfo(
                 documentsFound += o.documentsFound();
                 valuesLoaded += o.valuesLoaded();
             }
-            warnings.addAll(d.driverContext().warnings());
         }
-        return new DriverCompletionInfo(documentsFound, valuesLoaded, List.of(), List.of(), Collections.unmodifiableSet(warnings));
+        return new DriverCompletionInfo(documentsFound, valuesLoaded, List.of(), List.of(), collectWarnings(drivers));
+    }
+
+    /**
+     * Merge per-driver warnings (see {@link DriverContext#warnings()}) across many drivers,
+     * deduplicating in insertion order.
+     */
+    private static Set<String> collectWarnings(List<Driver> drivers) {
+        LinkedHashSet<String> warnings = null;
+        for (Driver d : drivers) {
+            List<String> driverWarnings = d.driverContext().warnings();
+            if (driverWarnings == null || driverWarnings.isEmpty()) {
+                continue;
+            }
+            if (warnings == null) {
+                warnings = new LinkedHashSet<>();
+            }
+            warnings.addAll(driverWarnings);
+        }
+        return warnings == null ? Set.of() : Collections.unmodifiableSet(warnings);
     }
 
     private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
@@ -112,20 +132,18 @@ public record DriverCompletionInfo(
             : List.of();
         Set<String> warnings;
         if (in.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
-            warnings = Collections.unmodifiableSet(new LinkedHashSet<>(in.readCollectionAsImmutableList(StreamInput::readString)));
+            warnings = Collections.unmodifiableSet(in.readCollection(LinkedHashSet::new, (stream, set) -> set.add(stream.readString())));
         } else {
-            List<String> rawHeaders = threadContext.takeResponseHeaders("Warning");
-            if (rawHeaders.isEmpty()) {
+            List<String> headerWarnings = threadContext.takeResponseHeaders("Warning");
+            if (headerWarnings.isEmpty()) {
                 warnings = Set.of();
             } else {
-                Set<String> decoded = new LinkedHashSet<>();
-                for (String h : rawHeaders) {
-                    String value = HeaderWarning.extractWarningValueFromWarningHeader(h, false);
-                    if (value != null) {
-                        decoded.add(HeaderWarning.decodeAndUnescape(value));
-                    }
+                LinkedHashSet<String> parsed = new LinkedHashSet<>(headerWarnings.size());
+                for (String header : headerWarnings) {
+                    String extracted = HeaderWarning.extractWarningValueFromWarningHeader(header, false);
+                    parsed.add(HeaderWarning.decodeAndUnescape(extracted));
                 }
-                warnings = Collections.unmodifiableSet(decoded);
+                warnings = parsed;
             }
         }
         return new DriverCompletionInfo(documentsFound, valuesLoaded, driverProfiles, planProfiles, warnings);
@@ -149,7 +167,7 @@ public record DriverCompletionInfo(
         private long valuesLoaded;
         private final List<DriverProfile> driverProfiles = new ArrayList<>();
         private final List<PlanProfile> planProfiles = new ArrayList<>();
-        private final List<String> warnings = new ArrayList<>();
+        private final Set<String> warnings = new LinkedHashSet<>();
 
         public void accumulate(DriverCompletionInfo info) {
             this.documentsFound += info.documentsFound;
@@ -165,7 +183,7 @@ public record DriverCompletionInfo(
                 valuesLoaded,
                 driverProfiles,
                 planProfiles,
-                Collections.unmodifiableSet(new LinkedHashSet<>(warnings))
+                warnings.isEmpty() ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(warnings))
             );
         }
     }
@@ -175,7 +193,7 @@ public record DriverCompletionInfo(
         private final AtomicLong valuesLoaded = new AtomicLong();
         private final List<DriverProfile> collectedProfiles = Collections.synchronizedList(new ArrayList<>());
         private final List<PlanProfile> planProfiles = Collections.synchronizedList(new ArrayList<>());
-        private final List<String> warnings = Collections.synchronizedList(new ArrayList<>());
+        private final Set<String> warnings = Collections.synchronizedSet(new LinkedHashSet<>());
 
         public void accumulate(DriverCompletionInfo info) {
             this.documentsFound.addAndGet(info.documentsFound);
@@ -186,13 +204,17 @@ public record DriverCompletionInfo(
         }
 
         public DriverCompletionInfo finish() {
-            return new DriverCompletionInfo(
-                documentsFound.get(),
-                valuesLoaded.get(),
-                collectedProfiles,
-                planProfiles,
-                Collections.unmodifiableSet(new LinkedHashSet<>(warnings))
-            );
+            Set<String> warningsSnapshot;
+            synchronized (warnings) {
+                /*
+                 * Preserve insertion order of the warnings so we get stuff like:
+                 *   There was an error in the [BORT(a, b)], only the first 20 returned:
+                 *   param a must be positive but was [-1231]
+                 *   param b must be a string at least 100 characters but was [candy]
+                 */
+                warningsSnapshot = warnings.isEmpty() ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(warnings));
+            }
+            return new DriverCompletionInfo(documentsFound.get(), valuesLoaded.get(), collectedProfiles, planProfiles, warningsSnapshot);
         }
     }
 }

@@ -68,7 +68,7 @@ public abstract class LuceneOperator extends SourceOperator {
      * {@link org.elasticsearch.compute.operator.Warnings} object accumulates warnings.
      */
     private final IdentityHashMap<Query, Warnings> queryWarningsMap = new IdentityHashMap<>();
-    private final QueryWarnings queryWarnings;
+    private final QueryWarnings singleValueQueryWarnings;
 
     /**
      * Count of the number of slices processed.
@@ -93,12 +93,17 @@ public abstract class LuceneOperator extends SourceOperator {
      */
     private long rowsEmitted;
 
-    protected LuceneOperator(DriverContext driverContext, int maxPageSize, LuceneSliceQueue sliceQueue, QueryWarnings queryWarnings) {
+    protected LuceneOperator(
+        DriverContext driverContext,
+        int maxPageSize,
+        LuceneSliceQueue sliceQueue,
+        QueryWarnings singleValueQueryWarnings
+    ) {
         this.driverContext = driverContext;
         this.blockFactory = driverContext.blockFactory();
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
-        this.queryWarnings = queryWarnings;
+        this.singleValueQueryWarnings = singleValueQueryWarnings;
     }
 
     public abstract static class Factory implements SourceOperator.SourceOperatorFactory {
@@ -107,6 +112,7 @@ public abstract class LuceneOperator extends SourceOperator {
         protected final int limit;
         protected final boolean needsScore;
         protected final LuceneSliceQueue sliceQueue;
+        protected final QueryWarnings singleValueQueryWarnings;
 
         /**
          * Build the factory.
@@ -122,8 +128,10 @@ public abstract class LuceneOperator extends SourceOperator {
             int taskConcurrency,
             int limit,
             boolean needsScore,
-            Function<ShardContext, ScoreMode> scoreModeFunction
+            Function<ShardContext, ScoreMode> scoreModeFunction,
+            QueryWarnings singleValueQueryWarnings
         ) {
+            this.singleValueQueryWarnings = singleValueQueryWarnings;
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
             this.sliceQueue = LuceneSliceQueue.create(
@@ -150,7 +158,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final Page getOutput() {
-        try (Releasable ignored = queryWarnings.bind(driverContext, queryWarningsMap)) {
+        try (Releasable ignored = singleValueQueryWarnings.bind(driverContext, queryWarningsMap)) {
             Page page = getCheckedOutput();
             if (page != null) {
                 pagesEmitted++;

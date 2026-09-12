@@ -461,7 +461,8 @@ public class ComputeService {
             context.foldCtx(),
             contexts,
             searchService.getIndicesService().getAnalysis(),
-            physicalSettings
+            physicalSettings,
+            QueryWarnings.EMIT
         );
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(

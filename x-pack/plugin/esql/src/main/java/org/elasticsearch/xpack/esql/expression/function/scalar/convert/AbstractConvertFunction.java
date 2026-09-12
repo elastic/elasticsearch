@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -135,7 +136,9 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
 
         protected AbstractEvaluator(DriverContext driverContext, Source source) {
             this.driverContext = driverContext;
-            this.warnings = driverContext.createWarnings(source.source().getLineNumber(), source.source().getColumnNumber(), source.text());
+            this.warnings = driverContext.createWarnings(
+                new WarningSourceLocation(source.source().getLineNumber(), source.source().getColumnNumber(), source.text())
+            );
         }
 
         protected abstract ExpressionEvaluator next();

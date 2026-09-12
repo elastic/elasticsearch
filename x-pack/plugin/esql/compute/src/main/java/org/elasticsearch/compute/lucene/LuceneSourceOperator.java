@@ -71,7 +71,8 @@ public class LuceneSourceOperator extends LuceneOperator {
             int taskConcurrency,
             int maxPageSize,
             int limit,
-            boolean needsScore
+            boolean needsScore,
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 contexts,
@@ -82,7 +83,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 needsScore,
-                shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES
+                shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES,
+                singleValueQueryWarnings
             );
             this.maxPageSize = maxPageSize;
             // TODO: use a single limiter for multiple stage execution
@@ -91,7 +93,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneSourceOperator(driverContext, maxPageSize, sliceQueue, limit, limiter, needsScore);
+            return new LuceneSourceOperator(driverContext, maxPageSize, sliceQueue, limit, limiter, needsScore, singleValueQueryWarnings);
         }
 
         public int maxPageSize() {
@@ -224,9 +226,10 @@ public class LuceneSourceOperator extends LuceneOperator {
         LuceneSliceQueue sliceQueue,
         int limit,
         Limiter limiter,
-        boolean needsScore
+        boolean needsScore,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(driverContext, maxPageSize, sliceQueue, QueryWarnings.EMIT);
+        super(driverContext, maxPageSize, sliceQueue, singleValueQueryWarnings);
         BlockFactory blockFactory = driverContext.blockFactory();
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;

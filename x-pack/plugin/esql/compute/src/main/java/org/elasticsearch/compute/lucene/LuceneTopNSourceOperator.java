@@ -67,7 +67,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             int limit,
             List<SortBuilder<?>> sorts,
             long estimatedPerRowSortSize,
-            boolean needsScore
+            boolean needsScore,
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 contexts,
@@ -78,7 +79,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 needsScore,
-                scoreModeFunction(sorts, needsScore)
+                scoreModeFunction(sorts, needsScore),
+                singleValueQueryWarnings
             );
             this.maxPageSize = maxPageSize;
             this.sorts = sorts;
@@ -87,7 +89,16 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneTopNSourceOperator(driverContext, maxPageSize, sorts, estimatedPerRowSortSize, limit, sliceQueue, needsScore);
+            return new LuceneTopNSourceOperator(
+                driverContext,
+                maxPageSize,
+                sorts,
+                estimatedPerRowSortSize,
+                limit,
+                sliceQueue,
+                needsScore,
+                singleValueQueryWarnings
+            );
         }
 
         public int maxPageSize() {
@@ -139,9 +150,10 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         long estimatedPerRowSortSize,
         int limit,
         LuceneSliceQueue sliceQueue,
-        boolean needsScore
+        boolean needsScore,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(driverContext, maxPageSize, sliceQueue, QueryWarnings.EMIT);
+        super(driverContext, maxPageSize, sliceQueue, singleValueQueryWarnings);
         this.breaker = driverContext.breaker();
         this.sorts = sorts;
         this.estimatedPerRowSortSize = estimatedPerRowSortSize;

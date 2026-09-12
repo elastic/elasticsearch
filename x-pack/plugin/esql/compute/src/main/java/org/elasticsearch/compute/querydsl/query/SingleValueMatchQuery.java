@@ -69,11 +69,9 @@ public final class SingleValueMatchQuery extends Query {
      * This avoids reporting warnings when queries are not matching multi-values
      */
     private static final int MULTI_VALUE_MATCH_COST = 1000;
-    private static final IllegalArgumentException MULTI_VALUE_EXCEPTION = new IllegalArgumentException(
-        "single-value function encountered multi-value"
-    );
     private final IndexFieldData<?> fieldData;
     private final WarningsTarget warningsTarget;
+    private final String multiValueExceptionMessage;
 
     /**
      * Where {@link #registerMultiValueException()} sends its warning: either a {@link QueryWarnings}
@@ -117,9 +115,15 @@ public final class SingleValueMatchQuery extends Query {
      * @param source   the location that produced this query, used to build a {@code Warnings}
      *                 instance per driver
      */
-    public SingleValueMatchQuery(IndexFieldData<?> fieldData, QueryWarnings warnings, WarningSourceLocation source) {
+    public SingleValueMatchQuery(
+        IndexFieldData<?> fieldData,
+        QueryWarnings warnings,
+        WarningSourceLocation source,
+        String multiValueExceptionMessage
+    ) {
         this.fieldData = fieldData;
         this.warningsTarget = new BridgedWarningsTarget(warnings, source);
+        this.multiValueExceptionMessage = multiValueExceptionMessage;
     }
 
     /**
@@ -128,9 +132,10 @@ public final class SingleValueMatchQuery extends Query {
      * driver/thread for its whole lifetime, e.g.
      * {@link org.elasticsearch.compute.operator.lookup.QueryList}.
      */
-    public SingleValueMatchQuery(IndexFieldData<?> fieldData, Warnings warnings) {
+    public SingleValueMatchQuery(IndexFieldData<?> fieldData, Warnings warnings, String multiValueExceptionMessage) {
         this.fieldData = fieldData;
         this.warningsTarget = new DirectWarningsTarget(warnings);
+        this.multiValueExceptionMessage = multiValueExceptionMessage;
     }
 
     /**
@@ -304,7 +309,7 @@ public final class SingleValueMatchQuery extends Query {
     }
 
     private void registerMultiValueException() {
-        warningsTarget.registerException(this, IllegalArgumentException.class, MULTI_VALUE_EXCEPTION.getMessage());
+        warningsTarget.registerException(this, IllegalArgumentException.class, multiValueExceptionMessage);
     }
 
     @Override

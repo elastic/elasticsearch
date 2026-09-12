@@ -10,6 +10,7 @@ package org.elasticsearch.compute.querydsl.query;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
@@ -71,7 +72,7 @@ public class QueryWarnings {
     /**
      * Per-thread binding: the {@link DriverContext} (for lazy {@link Warnings} creation) and the
      * per-driver map that accumulates those Warnings across multiple
-     * {@code LuceneOperator#getOutput} calls. The {@link DriverContext} is {@code null} when
+     * {@link LuceneOperator#getOutput} calls. The {@link DriverContext} is {@code null} when
      * the caller supplies pre-built Warnings rather than requesting lazy creation.
      */
     private record ThreadState(@Nullable DriverContext dc, IdentityHashMap<Query, Warnings> map) {}

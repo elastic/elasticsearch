@@ -50,7 +50,8 @@ public class LuceneCountOperator extends LuceneOperator {
             DataPartitioning dataPartitioning,
             int docThresholdForAutoStrategy,
             int taskConcurrency,
-            int limit
+            int limit,
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 contexts,
@@ -62,13 +63,14 @@ public class LuceneCountOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 false,
-                shardContext -> ScoreMode.COMPLETE_NO_SCORES
+                shardContext -> ScoreMode.COMPLETE_NO_SCORES,
+                singleValueQueryWarnings
             );
         }
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneCountOperator(driverContext, sliceQueue, limit);
+            return new LuceneCountOperator(driverContext, sliceQueue, limit, singleValueQueryWarnings);
         }
 
         @Override
@@ -77,8 +79,13 @@ public class LuceneCountOperator extends LuceneOperator {
         }
     }
 
-    public LuceneCountOperator(DriverContext driverContext, LuceneSliceQueue sliceQueue, int limit) {
-        super(driverContext, PAGE_SIZE, sliceQueue, QueryWarnings.EMIT);
+    public LuceneCountOperator(
+        DriverContext driverContext,
+        LuceneSliceQueue sliceQueue,
+        int limit,
+        QueryWarnings singleValueQueryWarnings
+    ) {
+        super(driverContext, PAGE_SIZE, sliceQueue, singleValueQueryWarnings);
         this.remainingDocs = limit;
         this.leafCollector = new LeafCollector() {
             @Override

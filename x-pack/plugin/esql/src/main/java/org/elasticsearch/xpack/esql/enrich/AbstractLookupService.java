@@ -45,6 +45,7 @@ import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -77,6 +78,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -723,13 +725,10 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         Releasable release
     ) {
         public static LookupShardContext fromSearchContext(SearchContext context) {
+            EsqlSearchExecutionContext esqlCtx = new EsqlSearchExecutionContext(context.getSearchExecutionContext(), QueryWarnings.NOOP);
             return new LookupShardContext(
-                new EsPhysicalOperationProviders.DefaultShardContext(
-                    0,
-                    context.getSearchExecutionContext(),
-                    context.request().getAliasFilter()
-                ),
-                context.getSearchExecutionContext(),
+                new EsPhysicalOperationProviders.DefaultShardContext(0, esqlCtx, context.request().getAliasFilter()),
+                esqlCtx,
                 context
             );
         }

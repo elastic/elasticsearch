@@ -13,10 +13,10 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
@@ -457,15 +457,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     ),
                     reducePlan,
                     ActionListener.wrap(resp -> {
-                        // don't return until all pages are fetched; preserve the current thread context (which holds the
-                        // reduction driver's warnings) because the completion listener may fire on a different thread
-                        // (the transport thread that processes the coordinator's fetchPageAsync call)
-                        externalSink.addCompletionListener(
-                            ContextPreservingActionListener.wrapPreservingContext(ActionListener.running(() -> {
-                                exchangeService.finishSinkHandler(externalId, null);
-                                reductionListener.onResponse(resp);
-                            }), threadPool.getThreadContext())
-                        );
+                        // don't return until all pages are fetched
+                        externalSink.addCompletionListener(ActionListener.running(() -> {
+                            exchangeService.finishSinkHandler(externalId, null);
+                            reductionListener.onResponse(resp);
+                        }));
                     }, e -> {
                         exchangeService.finishSinkHandler(externalId, e);
                         reductionListener.onFailure(e);
@@ -482,7 +478,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     @Override
     public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
-        final ActionListener<DataNodeComputeResponse> listener = new ChannelActionListener<>(channel);
+        ActionListener<DataNodeComputeResponse> channelListener = new ChannelActionListener<>(channel);
+        // Old coordinators receive warnings as transport response headers rather than the ESQL_DRIVER_WARNINGS
+        // wire field. Emit them here — before the channel serialises its ThreadContext — so they are included.
+        final ActionListener<DataNodeComputeResponse> listener = channel.getVersion().supports(DriverCompletionInfo.ESQL_DRIVER_WARNINGS)
+            ? channelListener
+            : channelListener.map(resp -> {
+                resp.completionInfo().warnings().forEach(HeaderWarning::addWarning);
+                return resp;
+            });
         final PhysicalPlan reductionPlan;
         if (request.plan() instanceof ExchangeSinkExec plan) {
             reductionPlan = ComputeService.reductionPlan(plan, request.runNodeLevelReduction());

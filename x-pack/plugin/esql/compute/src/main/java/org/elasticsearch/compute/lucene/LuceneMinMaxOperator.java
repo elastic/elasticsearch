@@ -72,9 +72,10 @@ final class LuceneMinMaxOperator extends LuceneOperator {
         String fieldName,
         NumberType numberType,
         int limit,
-        long initialResult
+        long initialResult,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(driverContext, PAGE_SIZE, sliceQueue, QueryWarnings.EMIT);
+        super(driverContext, PAGE_SIZE, sliceQueue, singleValueQueryWarnings);
         this.remainingDocs = limit;
         this.numberType = numberType;
         this.fieldName = fieldName;

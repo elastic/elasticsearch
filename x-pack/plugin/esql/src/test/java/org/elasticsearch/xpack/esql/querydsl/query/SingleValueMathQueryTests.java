@@ -88,7 +88,8 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
                 Warnings warnings = dc.createWarnings(1, 1, "test");
                 Query query = new SingleValueMatchQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    warnings
+                    warnings,
+                    "single-value function encountered multi-value"
                 );
                 int count = ctx.searcher().count(query);
                 dc.finish();
@@ -108,7 +109,8 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 Query query = new SingleValueMatchQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.NOOP_WARNINGS
+                    Warnings.NOOP_WARNINGS,
+                    "single-value function encountered multi-value"
                 );
                 runCase(List.of(), ctx.searcher().count(query));
             }

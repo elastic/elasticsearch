@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ccr.AbstractCCRRestTestCase;
+import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.Phase;
@@ -53,6 +54,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
+import static org.elasticsearch.test.TestMatchers.hasStatusCode;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.containsString;
@@ -722,6 +725,43 @@ public class CCRIndexLifecycleIT extends AbstractCCRRestTestCase {
                         is(WaitUntilTimeSeriesEndTimePassesStep.NAME)
                     );
                 }, 30, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    public void testFollowerIndexCanHaveIndependentDataRetention() throws Exception {
+        final String indexName = "follower-retention-test-leader";
+        final String followerIndexName = "follower-retention-test-follower";
+        // Both clusters register independent definitions for the same policy name.
+        // The policy name is set on the leader index and replicated to the follower via CCR.
+        final String policyName = "follower-retention-test-policy";
+        final String documentId = randomIdentifier();
+
+        if (targetCluster == TargetCluster.LEADER) {
+            // Leader policy: retain the index for long enough to survive the test
+            createNewSingletonPolicy(policyName, "delete", DeleteAction.NO_SNAPSHOT_DELETE, TimeValue.timeValueDays(1));
+            createIndex(client(), indexName, indexSettings(1, 0).put("index.lifecycle.name", policyName).build());
+            ensureGreen(indexName);
+            index(client(), indexName, documentId);
+            assertDocumentExists(client(), indexName, documentId);
+        } else if (targetCluster == TargetCluster.FOLLOWER) {
+            createNewSingletonPolicy(policyName, "delete", DeleteAction.NO_SNAPSHOT_DELETE, TimeValue.timeValueSeconds(5));
+
+            followIndex(indexName, followerIndexName);
+            ensureGreen(followerIndexName);
+
+            try (RestClient leaderClient = buildLeaderClient()) {
+                // Confirm the document was replicated before ILM fires.
+                assertBusy(() -> assertDocumentExists(client(), followerIndexName, documentId));
+
+                // Follower ILM delete phase must fire without needing to unfollow.
+                assertBusy(() -> {
+                    final Response response = client().performRequest(new Request("HEAD", "/" + followerIndexName));
+                    assertThat("index should be deleted by the ILM policy", response, hasStatusCode(NOT_FOUND));
+                });
+
+                // ensure the document is still present on the leader
+                assertDocumentExists(leaderClient, indexName, documentId);
             }
         }
     }

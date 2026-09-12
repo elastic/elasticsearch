@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.vectors.ash;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
-import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
@@ -235,16 +234,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         float[] scores = new float[nVectors];
         for (int i = 0; i < nVectors; i++) {
             byte[] packed = ESVectorUtil.ashPack(encodedVectors[i], bitsPerDim);
-            scores[i] = referenceScore(
-                qt,
-                new float[] { queryDotCentroid },
-                packed,
-                0,
-                nDims,
-                bitsPerDim,
-                packCorrections(scales[i], offsets[i], 0),
-                0
-            );
+            scores[i] = referenceScore(qt, new float[] { queryDotCentroid }, packed, 0, nDims, bitsPerDim, scales[i], offsets[i]);
         }
         assertEquals(nVectors, scores.length);
 
@@ -309,8 +299,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                     0,
                     nDims,
                     bitsPerDim,
-                    packCorrections(enc.scale(), enc.offset(), 0),
-                    0
+                    enc.scale(),
+                    enc.offset()
                 );
 
                 double err = reconstructed - trueDot;
@@ -334,16 +324,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // dot = 1.0*0.5 + 0.5*(-0.5) = 0.25
         // result = 0.25 * 1.0 + 0.0 + 0.0 = 0.25
         byte[] packed = ESVectorUtil.ashPack(encodedVector, bitsPerDim);
-        float score = referenceScore(
-            new float[] { 1.0f, 0.5f },
-            new float[] { 0.0f },
-            packed,
-            0,
-            nDims,
-            bitsPerDim,
-            packCorrections(scale, offset, 0),
-            0
-        );
+        float score = referenceScore(new float[] { 1.0f, 0.5f }, new float[] { 0.0f }, packed, 0, nDims, bitsPerDim, scale, offset);
         assertEquals(0.25f, score, 1e-4f);
     }
 
@@ -390,7 +371,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Compute reference score via plain float dot product
         double dot = ESVectorUtil.dotProduct(qt, codes, nDims);
         float floatScore = (float) dot * scale + qdc + offset;
-        float multiBitScore = referenceScore(qt, new float[] { qdc }, packed, 0, nDims, bitsPerDim, packCorrections(scale, offset, 0), 0);
+        float multiBitScore = referenceScore(qt, new float[] { qdc }, packed, 0, nDims, bitsPerDim, scale, offset);
         assertEquals(floatScore, multiBitScore, 1e-4f);
     }
 
@@ -527,8 +508,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                     0,
                     nDims,
                     bitsPerDim,
-                    packCorrections(enc.scale(), enc.offset(), 0),
-                    0
+                    enc.scale(),
+                    enc.offset()
                 );
 
                 exact[q][i] = exactDot;
@@ -616,14 +597,6 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         return ranks;
     }
 
-    private static byte[] packCorrections(float scale, float offset, int docSum) {
-        byte[] corr = new byte[AshPostingsVisitor.CORRECTION_BYTES];
-        BitUtil.VH_LE_INT.set(corr, AshPostingsVisitor.CORR_SCALE, Float.floatToIntBits(scale));
-        BitUtil.VH_LE_INT.set(corr, AshPostingsVisitor.CORR_OFFSET, Float.floatToIntBits(offset));
-        BitUtil.VH_LE_INT.set(corr, AshPostingsVisitor.CORR_DOC_SUM, docSum);
-        return corr;
-    }
-
     /**
      * Reference scorer for test verification: computes the ASH approximate dot product
      * from packed bit-plane codes and corrections.
@@ -635,12 +608,9 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         int codeOffset,
         int nDims,
         int bitsPerDim,
-        byte[] corrections,
-        int correctionOffset
+        float scale,
+        float offset
     ) {
-        float scale = Float.intBitsToFloat((int) BitUtil.VH_LE_INT.get(corrections, correctionOffset + AshPostingsVisitor.CORR_SCALE));
-        float offset = Float.intBitsToFloat((int) BitUtil.VH_LE_INT.get(corrections, correctionOffset + AshPostingsVisitor.CORR_OFFSET));
-
         int planeBytes = (nDims + 7) >>> 3;
         int numLevels = 1 << bitsPerDim;
         float centerOffset = (numLevels - 1) / 2.0f;

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,7 +28,9 @@ import java.util.Objects;
 /**
  * A value class representing the basic required properties of an Elasticsearch index.
  */
-public class Index implements Writeable, ToXContentObject {
+public class Index implements Writeable, ToXContentObject, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Index.class);
 
     public static final Index[] EMPTY_ARRAY = new Index[0];
 
@@ -62,6 +66,11 @@ public class Index implements Writeable, ToXContentObject {
 
     public String getUUID() {
         return uuid;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(name) + RamUsageEstimator.sizeOf(uuid);
     }
 
     @Override

@@ -304,9 +304,6 @@ if (project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || 
   bwc_tests_enabled = false
 }
 
-subprojects { proj ->
-  apply plugin: 'elasticsearch.base'
-}
 
 allprojects {
   // We disable this plugin for now till we shaked out the issues we see
@@ -443,8 +440,6 @@ allprojects {
       integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
     }
   }
-
-  apply plugin: 'elasticsearch.formatting'
 }
 
 tasks.named("updateDaemonJvm") {

@@ -1095,7 +1095,22 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         @Override
         public InputStream getInputStream(long offset, long length) throws IOException {
             var out = new ByteArrayOutputStream(Math.toIntExact(Math.clamp(headerSize - offset, 0, length)));
-            writeHeader(new SlicedOutputStream(out, offset, length));
+            final long rematerializedHeaderSize = writeHeader(new SlicedOutputStream(out, offset, length));
+            // headerSize is measured once, in the constructor, and the whole blob layout is derived from it: the offsets
+            // in internalDataReadersByOffset and getTotalSizeInBytes(). The bytes actually served come from this
+            // re-serialization. If the two ever disagree the header overruns its reserved space or leaves a gap, and
+            // everything after it in the blob is displaced. SlicedInputStream also requires that re-opening a slice
+            // yields the same size as before, which this is the header's side of.
+            assert rematerializedHeaderSize == headerSize
+                : "header for ["
+                    + reference.getPrimaryTerm()
+                    + "]["
+                    + reference.getGeneration()
+                    + "] re-serialized to ["
+                    + rematerializedHeaderSize
+                    + "] bytes but the blob layout reserved ["
+                    + headerSize
+                    + "]";
             return new ByteArrayInputStream(out.toByteArray());
         }
 

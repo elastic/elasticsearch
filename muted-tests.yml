@@ -111,6 +111,8 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testFailToStartRequestOnRemoteCluster
   issue: https://github.com/elastic/elasticsearch/issues/159134
+- class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
+  issue: https://github.com/elastic/elasticsearch/issues/159136
 
 # Examples:
 #

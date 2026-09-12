@@ -104,13 +104,25 @@ public class Highlight extends UnaryPlan
     /** True when ON was omitted or is {@code *}. Kept after the field list is filled in. */
     private final boolean derivedFields;
     /**
-     * True when {@link org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlight} synthesized the {@code analyzer}
-     * option from the borrowed WHERE, rather than the user writing it in {@code WITH}. Analysis-only provenance read by
-     * {@link #postAnalysisVerification(AnalysisRegistry, Failures)} to decide whether an unresolved analyzer keeps its
-     * raw failure (user typed it) or gets the borrowed-from-WHERE framing (we derived it). It is deliberately not
-     * serialized and not part of {@link #equals}: it never affects execution, only the coordinator-side error message.
+     * Source of the effective {@code analyzer} option. This is analysis-only provenance.
+     * {@link #postAnalysisVerification(AnalysisRegistry, Failures)} uses it to pick the error for an unresolved
+     * analyzer. A user-written name keeps the raw failure. A name derived from WHERE uses the borrowed-from-WHERE
+     * framing. The field is not serialized and is not part of {@link #equals}. It does not affect execution. It
+     * only changes the coordinator-side error message.
+     * <p>
+     * This is a two-value enum instead of a third constructor {@code boolean}. {@code EsqlNodeSubclassTests} builds
+     * each node by drawing a value for every constructor argument that differs from all earlier arguments. A third
+     * boolean can never be distinct from the other two, so generation spins until the suite times out. A two-value
+     * enum does not collide with the remaining booleans, so generation finishes.
      */
-    private final boolean analyzerDerived;
+    public enum AnalyzerProvenance {
+        /** The {@code analyzer} option was written by the user in {@code WITH}, or is absent. */
+        NOT_DERIVED,
+        /** {@link org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlight} synthesized it from the borrowed WHERE. */
+        DERIVED_FROM_WHERE
+    }
+
+    private final AnalyzerProvenance analyzerProvenance;
     private final List<NamedExpression> fields;
     private final MapExpression options;
     /** Generated {@code <prefix><field>} attributes, appended in ON-field order. */
@@ -123,7 +135,7 @@ public class Highlight extends UnaryPlan
         Expression query,
         boolean implicitQuery,
         boolean derivedFields,
-        boolean analyzerDerived,
+        AnalyzerProvenance analyzerProvenance,
         List<NamedExpression> fields,
         MapExpression options,
         List<Attribute> generatedFields
@@ -133,7 +145,7 @@ public class Highlight extends UnaryPlan
         this.query = query;
         this.implicitQuery = implicitQuery;
         this.derivedFields = derivedFields;
-        this.analyzerDerived = analyzerDerived;
+        this.analyzerProvenance = analyzerProvenance;
         this.fields = fields;
         this.options = options;
         this.generatedFields = generatedFields;
@@ -147,8 +159,8 @@ public class Highlight extends UnaryPlan
             in.readOptionalNamedWriteable(Expression.class),
             in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) ? in.readBoolean() : false,
             in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) ? in.readBoolean() : false,
-            // analyzerDerived is analysis-only provenance, not carried on the wire: peers do not re-verify.
-            false,
+            // Analyzer provenance is analysis-only and is not serialized. Peers do not re-verify.
+            AnalyzerProvenance.NOT_DERIVED,
             in.readNamedWriteableCollectionAsList(NamedExpression.class),
             // MapExpression is registered under the Expression category, not its own, so read it as an Expression.
             (MapExpression) in.readOptionalNamedWriteable(Expression.class),
@@ -201,8 +213,8 @@ public class Highlight extends UnaryPlan
         return derivedFields;
     }
 
-    public boolean analyzerDerived() {
-        return analyzerDerived;
+    public AnalyzerProvenance analyzerProvenance() {
+        return analyzerProvenance;
     }
 
     public List<NamedExpression> fields() {
@@ -241,7 +253,7 @@ public class Highlight extends UnaryPlan
             query,
             implicitQuery,
             derivedFields,
-            analyzerDerived,
+            analyzerProvenance,
             fields,
             options,
             generatedFields
@@ -262,7 +274,7 @@ public class Highlight extends UnaryPlan
     public Highlight withResolved(
         Expression newQuery,
         boolean newImplicitQuery,
-        boolean newAnalyzerDerived,
+        AnalyzerProvenance newAnalyzerProvenance,
         List<NamedExpression> newFields,
         List<Attribute> newGeneratedFields,
         MapExpression newOptions
@@ -274,7 +286,7 @@ public class Highlight extends UnaryPlan
             newQuery,
             newImplicitQuery,
             derivedFields,
-            newAnalyzerDerived,
+            newAnalyzerProvenance,
             newFields,
             newOptions,
             newGeneratedFields
@@ -303,7 +315,7 @@ public class Highlight extends UnaryPlan
             query,
             implicitQuery,
             derivedFields,
-            analyzerDerived,
+            analyzerProvenance,
             fields,
             options,
             generatedFields
@@ -410,10 +422,10 @@ public class Highlight extends UnaryPlan
 
     /**
      * Message when a borrowed WHERE analyzer is not a registered analyzer. Covers ON-field primaries, off-ON leaf
-     * analyzers, and {@code quote_analyzer}. A name the user typed in {@code WITH} keeps the raw failure: this is why we
-     * track {@link #analyzerDerived}. Without it a user-written {@code WITH {"analyzer": "x"}} whose name also labels a
-     * borrowed leaf would be wrongly framed as coming from WHERE, when the user typed it themselves.
-     * {@code commandAnalyzerName} is the effective {@code WITH} analyzer (user-written or synthesized), or
+     * analyzers, and {@code quote_analyzer}. A name the user typed in {@code WITH} keeps the raw failure. That is why we
+     * track {@link #analyzerProvenance}. Without it a user-written {@code WITH {"analyzer": "x"}} whose name also labels a
+     * borrowed leaf would be framed as coming from WHERE even though the user typed it.
+     * {@code commandAnalyzerName} is the effective {@code WITH} analyzer, user-written or synthesized, or
      * {@code null} when absent or not a string.
      */
     private String unresolvedAnalyzerMessage(String fallback, String commandAnalyzerName) {
@@ -429,7 +441,9 @@ public class Highlight extends UnaryPlan
     }
 
     private boolean isUserWrittenAnalyzerFailure(String fallback, String commandAnalyzerName) {
-        return analyzerDerived == false && commandAnalyzerName != null && isUnregisteredAnalyzer(fallback, commandAnalyzerName);
+        return analyzerProvenance == AnalyzerProvenance.NOT_DERIVED
+            && commandAnalyzerName != null
+            && isUnregisteredAnalyzer(fallback, commandAnalyzerName);
     }
 
     private static boolean isUnregisteredAnalyzer(String message, String name) {
@@ -531,7 +545,7 @@ public class Highlight extends UnaryPlan
             return false;
         }
         Highlight other = (Highlight) o;
-        // analyzerDerived is intentionally excluded: it is analysis-only provenance for error messages, not identity.
+        // analyzerProvenance is excluded. It is analysis-only provenance for error messages, not identity.
         return Objects.equals(prefix, other.prefix)
             && Objects.equals(query, other.query)
             && implicitQuery == other.implicitQuery

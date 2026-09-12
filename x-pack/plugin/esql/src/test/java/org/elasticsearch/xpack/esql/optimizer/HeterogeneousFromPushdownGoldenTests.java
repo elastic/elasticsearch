@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushAggregateThroughUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -31,18 +32,31 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
- * Golden (plan) tests for {@link PushAggregateThroughUnionAll}:
- * pushing aggregates through the leaf {@code UnionAll} a heterogeneous {@code FROM} produces.
+ * Golden (plan) tests for aggregates over a multi-source {@code FROM <dataset>}, which resolves to a
+ * {@link SourceFanInUnionAll} of one producer per source.
+ *
+ * <p>The aggregate reaches each producer through the ordinary two-phase split rather than through
+ * {@link PushAggregateThroughUnionAll}, which declines a {@link SourceFanInUnionAll}. The fan-in is a single exchange
+ * boundary, so every producer's fragment holds the aggregate over its own source and emits intermediate state
+ * ({@code $$s$sum}, {@code $$d$hll}), which one {@code FINAL} aggregate on the coordinator merges. Raw rows therefore
+ * never cross the boundary, whatever the aggregate and wherever the filter sits, and the plans below record that: the
+ * decisive line in each is the mode of the top {@code AggregateExec} and the columns on the {@code SourceFanInExec}.
+ *
+ * <p>The split is made by the physical planner, so only the physical goldens record it. Each
+ * {@code logical_optimization.expected} shows a single {@code Aggregate} sitting above the {@code SourceFanInUnionAll},
+ * which is the input to that split and not evidence that the aggregate stays on the coordinator.
  *
  * <p>The branches are two external datasets with an <b>identical</b> schema ({@code emp_no}/{@code salary}/{@code dept}).
- * Identical schemas are deliberate: when branch schemas differ, union alignment inserts {@code Eval} nodes for the
- * null-filled columns, which makes the {@code UnionAll} non-leaf ({@code isLeafUnionAll} only accepts
- * {@code (Project) > EsRelation | ExternalRelation}) and the heavy aggregate would not push. Two same-schema datasets
- * give a clean leaf {@code UnionAll} so the pushdown actually fires; the rewrite is identical whether a branch is an ES
- * index or an external relation, so this is representative of the index+dataset case too.
+ * Identical schemas keep the plans readable: differing ones make union alignment insert {@code Eval} nodes to null-fill
+ * the missing columns. A producer is prepared the same way whether it reads an index or an external source, so these
+ * are representative of the index+dataset case too.
  *
  * <p>Data correctness for these shapes (including the heterogeneous index+dataset case) is covered by csv-spec tests;
- * these tests only snapshot the plan.
+ * these tests only snapshot the plan. {@code external-heavy-aggregates.csv-spec} is the one that matters most here,
+ * since it asserts {@code COUNT_DISTINCT} over two copies of one fixture returns the single-copy distinct count, which
+ * holds only if the per-producer sketches are merged rather than added. {@code ExternalDistributedSpecIT} runs that
+ * spec once per distribution strategy, so the merge is checked with the producers placed on different nodes as well as
+ * together on the coordinator.
  */
 public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
     private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
@@ -65,7 +79,7 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
     private static final String RESOURCE_A = "s3://bucket/heavy_a.parquet";
     private static final String RESOURCE_B = "s3://bucket/heavy_b.parquet";
 
-    /** Intermediate-state path: {@code COUNT_DISTINCT} pushes an HLL sketch ({@code ToPartial}) into each branch. */
+    /** Intermediate-state path: each producer emits an HLL sketch for {@code COUNT_DISTINCT}. */
     public void testCountDistinctPushed() {
         runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS d = COUNT_DISTINCT(emp_no)");
     }
@@ -75,22 +89,22 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
         runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS d = COUNT_DISTINCT(emp_no) BY dept");
     }
 
-    /** Intermediate-state path: {@code PERCENTILE} pushes a t-digest ({@code ToPartial}) into each branch. */
+    /** Intermediate-state path: each producer emits a t-digest for {@code PERCENTILE}. */
     public void testPercentilePushed() {
         runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS p = PERCENTILE(salary, 50)");
     }
 
-    /** Intermediate-state path: {@code STD_DEV} pushes a Welford state ({@code ToPartial}) into each branch. */
+    /** Intermediate-state path: each producer emits a Welford state for {@code STD_DEV}. */
     public void testStdDevPushed() {
         runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS s = STD_DEV(salary)");
     }
 
-    /** {@code MEDIAN} is surrogate-substituted to {@code PERCENTILE} before the rule runs, so it pushes transitively. */
+    /** {@code MEDIAN} is surrogate-substituted to {@code PERCENTILE}, so it reaches the producers as a t-digest too. */
     public void testMedianPushedViaPercentile() {
         runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS m = MEDIAN(salary)");
     }
 
-    /** {@code AVG} is surrogate-substituted to {@code SUM}/{@code COUNT}, so it pushes through the algebraic path. */
+    /** {@code AVG} is surrogate-substituted to {@code SUM}/{@code COUNT}, so each producer emits those two instead. */
     public void testAvgPushedViaSumCount() {
         heavyGoldenTest("FROM heavy_a, heavy_b | STATS a = AVG(salary) BY dept").expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
@@ -100,7 +114,7 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
         runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS c = COUNT(*), d = COUNT_DISTINCT(emp_no)");
     }
 
-    /** Algebraic aggregates push even with a per-aggregate filter ({@code ToPartial} is not involved). */
+    /** A per-aggregate filter travels into the producer with the aggregate it belongs to. */
     public void testFilteredAlgebraicPushed() {
         heavyGoldenTest("FROM heavy_a, heavy_b | STATS s = SUM(salary) WHERE salary > 0").expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .run();
@@ -108,8 +122,8 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
 
     /**
      * Ungrouped {@code STATS} where every aggregate shares one filter: {@code ExtractAggregateCommonFilter} hoists the
-     * predicate to a query-level {@code WHERE} before this rule runs. That {@code WHERE} is pushed into the branches,
-     * making the {@code UnionAll} non-leaf, so the heavy aggregate stays on the coordinator over the filtered rows.
+     * predicate to a query-level {@code WHERE}, which lands in each producer below that producer's aggregate. Hoisting
+     * therefore changes where the predicate is written, not which side of the boundary the aggregate runs on.
      */
     public void testFilteredHeavyExtractedToQueryFilter() {
         runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS d = COUNT_DISTINCT(emp_no) WHERE salary > 0");
@@ -117,8 +131,8 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
 
     /**
      * Ungrouped {@code STATS} mixing an unfiltered {@code COUNT(*)} and a filtered heavy aggregate. The filters differ,
-     * so {@code ExtractAggregateCommonFilter} cannot hoist a common {@code WHERE}; the filtered heavy aggregate keeps
-     * its per-aggregate filter, which rides on the per-branch {@code ToPartial} while the inner aggregate is unfiltered.
+     * so {@code ExtractAggregateCommonFilter} cannot hoist a common {@code WHERE} and the heavy aggregate carries its
+     * own filter into each producer, alongside the unfiltered count.
      */
     public void testMixedFilteredHeavyPushed() {
         runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS c = COUNT(*), d = COUNT_DISTINCT(emp_no) WHERE salary > 0");
@@ -140,10 +154,10 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
     }
 
     /**
-     * A query-level {@code WHERE} (before {@code STATS}) is pushed into the branches, which makes the {@code UnionAll}
-     * non-leaf; the heavy aggregate therefore stays on the coordinator over the already-filtered branch rows.
+     * A query-level {@code WHERE} written before {@code STATS} is pushed into the producers, and the aggregate still
+     * follows it down, reading the rows the filter already narrowed.
      */
-    public void testQueryFilterHeavyNotPushed() {
+    public void testHeavyPushedAfterQueryFilter() {
         runHeavyGoldenTest("FROM heavy_a, heavy_b | WHERE salary > 0 | STATS d = COUNT_DISTINCT(emp_no)");
     }
 
@@ -163,7 +177,10 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
             .externalSourceResolution(heavyExternalSourceResolution());
     }
 
-    /** Registers {@code heavy_a} and {@code heavy_b} as external datasets so {@code FROM heavy_a, heavy_b} is a UnionAll. */
+    /**
+     * Registers {@code heavy_a} and {@code heavy_b} as external datasets, so {@code FROM heavy_a, heavy_b} resolves to
+     * a {@link SourceFanInUnionAll} with one producer each.
+     */
     private static ProjectMetadata heavyDatasetMetadata() {
         DataSource dataSource = new DataSource("heavy_ds", "test", null, Map.of());
         Dataset a = new Dataset("heavy_a", new DataSourceReference("heavy_ds"), RESOURCE_A, null, Map.of());
@@ -174,7 +191,7 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
             .build();
     }
 
-    /** Identical {@code emp_no}/{@code salary}/{@code dept} schema for both datasets, so the UnionAll stays leaf. */
+    /** Identical {@code emp_no}/{@code salary}/{@code dept} schema for both datasets, so no null-filling is needed. */
     private static ExternalSourceResolution heavyExternalSourceResolution() {
         return new ExternalSourceResolution(
             Map.of(

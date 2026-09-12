@@ -11,6 +11,8 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -53,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.SourceFanInExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
@@ -110,6 +114,10 @@ public class Mapper {
             return mapBinary(binary);
         }
 
+        if (p instanceof SourceFanInUnionAll sourceFanIn) {
+            return mapSourceFanIn(sourceFanIn);
+        }
+
         if (p instanceof MergePlan merge) {
             return mapMergePlan(merge);
         }
@@ -132,12 +140,17 @@ public class Mapper {
     private PhysicalPlan mapUnary(UnaryPlan unary) {
         PhysicalPlan mappedChild = mapInner(unary.child());
 
+        if (mappedChild instanceof SourceFanInExec fanIn) {
+            return mapUnaryOverSourceFanIn(unary, fanIn);
+        }
+
         if (mappedChild instanceof FragmentExec) {
             // COORDINATOR enrich must not be included to the fragment as it has to be executed on the coordinating node
             if (unary instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
                 mappedChild = addExchangeForFragment(enrich.child(), mappedChild);
                 return MapperUtils.mapUnary(unary, mappedChild);
             }
+
             // in case of a fragment, push to it any current streaming operator
             if (unary instanceof PipelineBreaker == false
                 || (unary instanceof Limit limit && limit.local())
@@ -174,61 +187,172 @@ public class Mapper {
             return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.FINAL, intermediate);
         }
 
-        if (unary instanceof Limit limit) {
-            mappedChild = addExchangeForFragment(limit, mappedChild);
-            return new LimitExec(limit.source(), mappedChild, limit.limit(), null);
-        }
-
-        if (unary instanceof LimitBy limitBy) {
-            mappedChild = addExchangeForFragment(limitBy, mappedChild);
-            return new LimitByExec(limitBy.source(), mappedChild, limitBy.limitPerGroup(), limitBy.groupings(), null);
-        }
-
-        if (unary instanceof TopN topN) {
-            mappedChild = addExchangeForFragment(topN, mappedChild);
-            var topNExec = new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
-
-            if (mappedChild instanceof ExchangeExec exchangeExec) {
-                // If the data nodes run a TopN, the TopN in the coordinator will receive already sorted data
-                boolean sortedInput = exchangeExec.child() instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof TopN;
-                return sortedInput ? topNExec.withSortedInput() : topNExec;
-            }
-
-            return topNExec;
-        }
-
-        if (unary instanceof TopNBy topNBy) {
-            mappedChild = addExchangeForFragment(topNBy, mappedChild);
-            var topNByExec = new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null);
-            if (mappedChild instanceof ExchangeExec) {
-                return topNByExec.withSortedOutput();
-            }
-            return topNByExec;
+        if (unary instanceof Limit || unary instanceof LimitBy || unary instanceof TopN || unary instanceof TopNBy) {
+            mappedChild = addExchangeForFragment(unary, mappedChild);
+            return mapPipelineBreaker(unary, mappedChild);
         }
 
         // MetricsInfo uses a two-phase approach like Aggregate: INITIAL on data nodes extracts
         // metric metadata from shards, FINAL on the coordinator merges rows from all data nodes.
-        if (unary instanceof MetricsInfo metricsInfo) {
-            mappedChild = addExchangeForFragment(metricsInfo, mappedChild);
-            return new MetricsInfoExec(
-                metricsInfo.source(),
-                mappedChild,
-                metricsInfo.output(),
-                metricsInfo.output(),
-                MetricsInfoExec.Mode.FINAL
-            );
-        }
-
-        // TsInfo: same two-phase pattern as MetricsInfo but per time-series granularity.
-        if (unary instanceof TsInfo tsInfo) {
-            mappedChild = addExchangeForFragment(tsInfo, mappedChild);
-            return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.FINAL);
+        if (unary instanceof MetricsInfo || unary instanceof TsInfo) {
+            mappedChild = addExchangeForFragment(unary, mappedChild);
+            return mapPipelineBreaker(unary, mappedChild);
         }
 
         //
         // Pipeline operators
         //
         return MapperUtils.mapUnary(unary, mappedChild);
+    }
+
+    private PhysicalPlan mapSourceFanIn(SourceFanInUnionAll unionAll) {
+        List<PhysicalPlan> producers = new ArrayList<>(unionAll.children().size());
+        for (LogicalPlan child : unionAll.children()) {
+            PhysicalPlan producer = mapInner(child);
+            if (producer instanceof FragmentExec == false) {
+                throw new EsqlIllegalArgumentException(
+                    "source fan-in child must map to a fragment, got [" + producer.getClass().getSimpleName() + "]"
+                );
+            }
+            producers.add(producer);
+        }
+        return new SourceFanInExec(unionAll.source(), producers, unionAll.output(), false);
+    }
+
+    private PhysicalPlan mapUnaryOverSourceFanIn(UnaryPlan unary, SourceFanInExec fanIn) {
+        if (unary instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
+            return MapperUtils.mapUnary(unary, fanIn);
+        }
+
+        if (unary instanceof PipelineBreaker == false
+            || (unary instanceof Limit limit && limit.local())
+            || (unary instanceof TopN topN && topN.local())) {
+            return fanIn.withProducers(mapUnaryToProducers(unary, fanIn), unary.output(), fanIn.inBetweenAggs());
+        }
+
+        if (unary instanceof Aggregate aggregate) {
+            List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
+            SourceFanInExec initialFanIn = fanIn.withProducers(mapUnaryToProducers(unary, fanIn), intermediate, true);
+            return MapperUtils.aggExec(aggregate, initialFanIn, AggregatorMode.FINAL, intermediate);
+        }
+
+        if (unary instanceof Limit
+            || unary instanceof LimitBy
+            || unary instanceof TopN
+            || unary instanceof TopNBy
+            || unary instanceof MetricsInfo
+            || unary instanceof TsInfo) {
+            List<Attribute> output = fanInBreakerOutput(unary, fanIn);
+            SourceFanInExec prepared = fanIn.withProducers(mapUnaryToProducers(unary, fanIn), output, false);
+            return mapPipelineBreaker(unary, prepared);
+        }
+
+        return MapperUtils.mapUnary(unary, fanIn);
+    }
+
+    /**
+     * Shared final construction for pipeline breakers that sit above either an exchange or a
+     * source fan-in. Aggregate preparation stays on the two mapUnary paths because fan-in
+     * producers exchange native intermediate attributes while ordinary aggregates keep their
+     * SINGLE versus INITIAL/FINAL handling.
+     */
+    private static PhysicalPlan mapPipelineBreaker(UnaryPlan unary, PhysicalPlan input) {
+        if (unary instanceof Limit limit) {
+            return new LimitExec(limit.source(), input, limit.limit(), null);
+        }
+        if (unary instanceof LimitBy limitBy) {
+            return new LimitByExec(limitBy.source(), input, limitBy.limitPerGroup(), limitBy.groupings(), null);
+        }
+        if (unary instanceof TopN topN) {
+            var topNExec = new TopNExec(topN.source(), input, topN.order(), topN.limit(), null);
+            if (hasTopNSortedInput(input)) {
+                return topNExec.withSortedInput();
+            }
+            return topNExec;
+        }
+        if (unary instanceof TopNBy topNBy) {
+            var topNByExec = new TopNByExec(topNBy.source(), input, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null);
+            if (input instanceof ExchangeExec || input instanceof SourceFanInExec) {
+                return topNByExec.withSortedOutput();
+            }
+            return topNByExec;
+        }
+        if (unary instanceof MetricsInfo metricsInfo) {
+            return new MetricsInfoExec(metricsInfo.source(), input, metricsInfo.output(), metricsInfo.output(), MetricsInfoExec.Mode.FINAL);
+        }
+        if (unary instanceof TsInfo tsInfo) {
+            return new TsInfoExec(tsInfo.source(), input, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.FINAL);
+        }
+        return MapperUtils.mapUnary(unary, input);
+    }
+
+    private static boolean hasTopNSortedInput(PhysicalPlan input) {
+        if (input instanceof ExchangeExec exchangeExec) {
+            return exchangeExec.child() instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof TopN;
+        }
+        if (input instanceof SourceFanInExec fanIn) {
+            return fanIn.producers()
+                .stream()
+                .allMatch(producer -> producer instanceof FragmentExec fragment && fragment.fragment() instanceof TopN);
+        }
+        return false;
+    }
+
+    private static List<Attribute> fanInBreakerOutput(UnaryPlan unary, SourceFanInExec fanIn) {
+        if (unary instanceof MetricsInfo metricsInfo) {
+            return metricsInfo.output();
+        }
+        if (unary instanceof TsInfo tsInfo) {
+            return tsInfo.output();
+        }
+        return fanIn.output();
+    }
+
+    private List<PhysicalPlan> mapUnaryToProducers(UnaryPlan unary, SourceFanInExec fanIn) {
+        List<PhysicalPlan> producers = new ArrayList<>(fanIn.producers().size());
+        for (PhysicalPlan producer : fanIn.producers()) {
+            if (producer instanceof FragmentExec == false) {
+                throw new EsqlIllegalArgumentException(
+                    "source fan-in producer must be a fragment, got [" + producer.getClass().getSimpleName() + "]"
+                );
+            }
+            FragmentExec fragment = (FragmentExec) producer;
+            UnaryPlan rebound = rebindUnary(unary, fanIn.output(), fragment.output());
+            producers.add(fragment.withFragment(rebound.replaceChild(fragment.fragment())));
+        }
+        return producers;
+    }
+
+    private static UnaryPlan rebindUnary(UnaryPlan unary, List<Attribute> commonOutput, List<Attribute> producerOutput) {
+        if (commonOutput.size() != producerOutput.size()) {
+            throw new EsqlIllegalArgumentException(
+                "source fan-in output size mismatch [" + commonOutput.size() + "] != [" + producerOutput.size() + "]"
+            );
+        }
+        AttributeMap.Builder<Expression> replacements = AttributeMap.builder();
+        for (int i = 0; i < commonOutput.size(); i++) {
+            Attribute common = commonOutput.get(i);
+            Attribute producer = producerOutput.get(i);
+            if (common.name().equals(producer.name()) == false || common.dataType() != producer.dataType()) {
+                throw new EsqlIllegalArgumentException(
+                    "source fan-in output mismatch at position ["
+                        + i
+                        + "]: ["
+                        + common.name()
+                        + ":"
+                        + common.dataType()
+                        + "] != ["
+                        + producer.name()
+                        + ":"
+                        + producer.dataType()
+                        + "]"
+                );
+            }
+            replacements.put(common, producer);
+        }
+        AttributeMap<Expression> map = replacements.build();
+        // transformExpressionsOnly rewrites expressions in place and returns the same node type.
+        return (UnaryPlan) unary.transformExpressionsOnly(Attribute.class, attribute -> map.resolve(attribute, attribute));
     }
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {

@@ -130,6 +130,32 @@ public record DriverCompletionInfo(
     }
 
     /**
+     * Returns a copy flagged as partial. Callers use this when a lenient policy dropped data the
+     * drivers themselves completed over, so the loss is not visible in the driver profiles: the
+     * flag is what the coordinator ORs together to set the response's {@code is_partial}.
+     */
+    public DriverCompletionInfo withPartial() {
+        if (partial) {
+            return this;
+        }
+        return new DriverCompletionInfo(
+            documentsFound,
+            valuesLoaded,
+            rowsEmitted,
+            bytesRead,
+            readNanos,
+            readCpuNanos,
+            cpuNanos,
+            driverProfiles,
+            planProfiles,
+            capturedSourceMetadata,
+            true,
+            approximationApplied,
+            warnings
+        );
+    }
+
+    /**
      * Returns a copy with {@code additional} raw warning bodies merged in, preserving insertion
      * order (existing warnings first). Empty or null input returns {@code this}.
      */

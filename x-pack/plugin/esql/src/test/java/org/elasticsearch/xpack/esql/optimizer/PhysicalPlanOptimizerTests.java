@@ -157,6 +157,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.SourceFanInExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
@@ -229,6 +230,7 @@ import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_D
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.planner.mapper.MapperUtils.hasScoreAttribute;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -3811,6 +3813,257 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             Project.class
         );
         assertThat(project.projections(), contains(some_field1));
+
+        var secondRelation = new EsRelation(
+            Source.EMPTY,
+            index.name(),
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            index.indexProperties(),
+            esField.stream().map(field -> (Attribute) new FieldAttribute(Source.EMPTY, null, null, field.getName(), field)).toList()
+        );
+        Attribute commonField1 = new ReferenceAttribute(Source.EMPTY, "some_field1", DataType.KEYWORD);
+        Attribute commonField2 = new ReferenceAttribute(Source.EMPTY, "some_field2", DataType.KEYWORD);
+        SourceFanInExec fanIn = new SourceFanInExec(
+            Source.EMPTY,
+            List.of(new FragmentExec(relation), new FragmentExec(secondRelation)),
+            List.of(commonField1, commonField2),
+            false
+        );
+        plan = rule.apply(new ProjectExec(Source.EMPTY, fanIn, List.of(commonField1)));
+        SourceFanInExec projectedFanIn = as(as(plan, ProjectExec.class).child(), SourceFanInExec.class);
+        assertThat(projectedFanIn.output(), contains(commonField1));
+        for (int i = 0; i < projectedFanIn.producers().size(); i++) {
+            FragmentExec projectedFragment = as(projectedFanIn.producers().get(i), FragmentExec.class);
+            Project producerProject = as(projectedFragment.fragment(), Project.class);
+            assertThat(producerProject.projections(), contains(i == 0 ? some_field1 : secondRelation.output().get(0)));
+        }
+
+        Count countFn = new Count(Source.EMPTY, new Literal(Source.EMPTY, 1, DataType.INTEGER));
+        Alias count = new Alias(Source.EMPTY, "count", countFn);
+        SourceFanInExec countFanInSource = new SourceFanInExec(
+            Source.EMPTY,
+            List.of(new FragmentExec(relation), new FragmentExec(secondRelation)),
+            List.of(commonField1, commonField2),
+            false
+        );
+        plan = rule.apply(
+            new AggregateExec(Source.EMPTY, countFanInSource, List.of(), List.of(count), AggregatorMode.SINGLE, List.of(), null)
+        );
+        SourceFanInExec countFanIn = as(as(plan, AggregateExec.class).child(), SourceFanInExec.class);
+        assertThat(countFanIn.output().get(0).name(), equalTo(ProjectAwayColumns.ALL_FIELDS_PROJECTED));
+        for (PhysicalPlan producer : countFanIn.producers()) {
+            Project producerProject = as(as(producer, FragmentExec.class).fragment(), Project.class);
+            assertThat(producerProject.projections().get(0).name(), equalTo(ProjectAwayColumns.ALL_FIELDS_PROJECTED));
+        }
+
+        Count countStar = new Count(Source.EMPTY, new Literal(Source.EMPTY, 1, DataType.INTEGER));
+        Alias userCount = new Alias(Source.EMPTY, "c", countStar);
+        Alias userSum = new Alias(Source.EMPTY, "s", new Count(Source.EMPTY, some_field1));
+        Aggregate producerAgg = new Aggregate(Source.EMPTY, relation, List.of(), List.of(userSum, userCount));
+        List<Attribute> intermediates = List.of(
+            new ReferenceAttribute(Source.EMPTY, "sum_inter", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "sum_seen", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "count_inter", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "count_seen", DataType.LONG)
+        );
+        SourceFanInExec betweenAggs = new SourceFanInExec(
+            Source.EMPTY,
+            List.of(new FragmentExec(producerAgg), new FragmentExec(producerAgg)),
+            intermediates,
+            true
+        );
+        SourceFanInExec keptBetweenAggs = as(rule.apply(betweenAggs), SourceFanInExec.class);
+        assertTrue(keptBetweenAggs.inBetweenAggs());
+        assertThat(keptBetweenAggs.output(), equalTo(intermediates));
+        for (PhysicalPlan producer : keptBetweenAggs.producers()) {
+            assertThat(as(producer, FragmentExec.class).fragment(), instanceOf(Aggregate.class));
+        }
+    }
+
+    public void testProjectAwayColumnsLeavesOrdinaryLookupJoinRelation() {
+        var rule = new ProjectAwayColumns();
+        Attribute leftKey = new ReferenceAttribute(Source.EMPTY, "language_code", DataType.INTEGER);
+        LocalSourceExec left = new LocalSourceExec(Source.EMPTY, List.of(leftKey), EmptyLocalSupplier.EMPTY);
+        EsField field = new EsField("language_code", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        var index = EsIndexGenerator.esIndex("languages_lookup", Map.of(field.getName(), field));
+        EsRelation lookupRelation = new EsRelation(
+            Source.EMPTY,
+            index.name(),
+            IndexMode.LOOKUP,
+            Map.of(),
+            Map.of(),
+            index.indexProperties(),
+            List.of(new FieldAttribute(Source.EMPTY, null, null, field.getName(), field))
+        );
+        FragmentExec right = new FragmentExec(lookupRelation);
+        LookupJoinExec join = new LookupJoinExec(
+            Source.EMPTY,
+            left,
+            right,
+            List.of(leftKey),
+            List.of(lookupRelation.output().get(0)),
+            List.of(),
+            null
+        );
+
+        LookupJoinExec planned = as(rule.apply(join), LookupJoinExec.class);
+        assertThat(as(planned.lookup(), FragmentExec.class).fragment(), instanceOf(EsRelation.class));
+    }
+
+    public void testProjectAwayColumnsLookupJoinInsideFanInProducerKeepsRightRelation() {
+        var rule = new ProjectAwayColumns();
+        Attribute leftKey = new ReferenceAttribute(Source.EMPTY, "language_code", DataType.INTEGER);
+        LocalSourceExec left = new LocalSourceExec(Source.EMPTY, List.of(leftKey), EmptyLocalSupplier.EMPTY);
+        EsField field = new EsField("language_code", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        var index = EsIndexGenerator.esIndex("languages_lookup", Map.of(field.getName(), field));
+        EsRelation lookupRelation = new EsRelation(
+            Source.EMPTY,
+            index.name(),
+            IndexMode.LOOKUP,
+            Map.of(),
+            Map.of(),
+            index.indexProperties(),
+            List.of(new FieldAttribute(Source.EMPTY, null, null, field.getName(), field))
+        );
+        LookupJoinExec producer = new LookupJoinExec(
+            Source.EMPTY,
+            left,
+            new FragmentExec(lookupRelation),
+            List.of(leftKey),
+            List.of(lookupRelation.output().get(0)),
+            List.of(),
+            null
+        );
+        SourceFanInExec fanIn = new SourceFanInExec(Source.EMPTY, List.of(producer), List.of(leftKey), false);
+
+        SourceFanInExec planned = as(rule.apply(fanIn), SourceFanInExec.class);
+        LookupJoinExec plannedJoin = as(planned.producers().get(0), LookupJoinExec.class);
+        assertThat(as(plannedJoin.lookup(), FragmentExec.class).fragment(), instanceOf(EsRelation.class));
+    }
+
+    public void testProjectAwayColumnsLookupKeepsJoinKeyOnLeftExchange() {
+        var rule = new ProjectAwayColumns();
+        EsField leftField = new EsField("language_code", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        var leftIndex = EsIndexGenerator.esIndex("test", Map.of(leftField.getName(), leftField));
+        Attribute leftKey = new FieldAttribute(Source.EMPTY, null, null, leftField.getName(), leftField);
+        EsRelation leftRelation = new EsRelation(
+            Source.EMPTY,
+            leftIndex.name(),
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            leftIndex.indexProperties(),
+            List.of(leftKey)
+        );
+        EsField lookupKeyField = new EsField("language_code", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        EsField lookupNameField = new EsField("language_name", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        var lookupIndex = EsIndexGenerator.esIndex(
+            "languages_lookup",
+            Map.of(lookupKeyField.getName(), lookupKeyField, lookupNameField.getName(), lookupNameField)
+        );
+        Attribute lookupKey = new FieldAttribute(Source.EMPTY, null, null, lookupKeyField.getName(), lookupKeyField);
+        Attribute languageName = new FieldAttribute(Source.EMPTY, null, null, lookupNameField.getName(), lookupNameField);
+        EsRelation lookupRelation = new EsRelation(
+            Source.EMPTY,
+            lookupIndex.name(),
+            IndexMode.LOOKUP,
+            Map.of(),
+            Map.of(),
+            lookupIndex.indexProperties(),
+            List.of(lookupKey, languageName)
+        );
+        LookupJoinExec join = new LookupJoinExec(
+            Source.EMPTY,
+            new ExchangeExec(Source.EMPTY, new FragmentExec(leftRelation)),
+            new FragmentExec(lookupRelation),
+            List.of(leftKey),
+            List.of(lookupKey),
+            List.of(languageName),
+            null
+        );
+
+        ProjectExec planned = as(rule.apply(new ProjectExec(Source.EMPTY, join, List.of(languageName))), ProjectExec.class);
+        LookupJoinExec plannedJoin = as(planned.child(), LookupJoinExec.class);
+        assertThat(as(plannedJoin.lookup(), FragmentExec.class).fragment(), instanceOf(EsRelation.class));
+        Project leftProject = as(as(as(plannedJoin.left(), ExchangeExec.class).child(), FragmentExec.class).fragment(), Project.class);
+        assertThat(Expressions.names(leftProject.projections()), contains("language_code"));
+        assertFalse(Expressions.names(leftProject.projections()).contains("language_name"));
+    }
+
+    public void testProjectAwayColumnsLookupKeepsJoinKeyWhenOutputIsLookupField() {
+        var plan = physicalPlanNoSerializationCheck("""
+              FROM test
+            | RENAME languages AS language_code
+            | LIMIT 10
+            | LOOKUP JOIN languages_lookup ON language_code
+            | KEEP language_name
+            """);
+        Holder<LookupJoinExec> found = new Holder<>();
+        plan.forEachDown(LookupJoinExec.class, found::set);
+        LookupJoinExec join = found.get();
+        assertNotNull(join);
+        assertThat(as(join.lookup(), FragmentExec.class).fragment(), instanceOf(EsRelation.class));
+        List<String> leftNames = Expressions.names(join.left().output());
+        assertThat(leftNames, anyOf(hasItem("language_code"), hasItem("languages")));
+        assertFalse(leftNames.contains("language_name"));
+        Holder<ExchangeExec> leftExchange = new Holder<>();
+        join.left().forEachDown(ExchangeExec.class, leftExchange::set);
+        if (leftExchange.get() != null) {
+            List<String> exchangeNames = Expressions.names(leftExchange.get().output());
+            assertThat(exchangeNames, anyOf(hasItem("language_code"), hasItem("languages")));
+            assertFalse(exchangeNames.contains("language_name"));
+        }
+    }
+
+    public void testEstimateRowSizeIsolatedAcrossForkBranches() {
+        Attribute value = new ReferenceAttribute(Source.EMPTY, "value", DataType.KEYWORD);
+        LocalSourceExec localSource = new LocalSourceExec(Source.EMPTY, List.of(value), EmptyLocalSupplier.EMPTY);
+        EvalExec firstBranch = new EvalExec(
+            Source.EMPTY,
+            localSource,
+            List.of(new Alias(Source.EMPTY, "added", new Literal(Source.EMPTY, 1, DataType.INTEGER)))
+        );
+        FragmentExec secondBranch = new FragmentExec(new LocalRelation(Source.EMPTY, List.of(value), EmptyLocalSupplier.EMPTY));
+        MergeExec merge = new MergeExec(Source.EMPTY, List.of(firstBranch, secondBranch), List.of(value));
+
+        MergeExec estimated = as(EstimatesRowSize.estimateRowSize(0, merge), MergeExec.class);
+
+        assertThat(as(estimated.children().get(1), FragmentExec.class).estimatedRowSize(), equalTo(0));
+    }
+
+    public void testEstimateRowSizeIsolatedAcrossForkAndFanIn() {
+        Attribute value = new ReferenceAttribute(Source.EMPTY, "value", DataType.KEYWORD);
+        LocalSourceExec localSource = new LocalSourceExec(Source.EMPTY, List.of(value), EmptyLocalSupplier.EMPTY);
+        EvalExec localEval = new EvalExec(
+            Source.EMPTY,
+            localSource,
+            List.of(new Alias(Source.EMPTY, "added", new Literal(Source.EMPTY, 1, DataType.INTEGER)))
+        );
+        ProjectExec localBranch = new ProjectExec(Source.EMPTY, localEval, List.of(value));
+        FragmentExec firstProducer = new FragmentExec(new LocalRelation(Source.EMPTY, List.of(value), EmptyLocalSupplier.EMPTY));
+        FragmentExec secondProducer = new FragmentExec(new LocalRelation(Source.EMPTY, List.of(value), EmptyLocalSupplier.EMPTY));
+        SourceFanInExec fanIn = new SourceFanInExec(Source.EMPTY, List.of(firstProducer, secondProducer), List.of(value), false);
+
+        for (List<PhysicalPlan> branches : List.of(List.of(localBranch, fanIn), List.of(fanIn, localBranch))) {
+            MergeExec merge = new MergeExec(Source.EMPTY, branches, List.of(value));
+            MergeExec estimated = as(EstimatesRowSize.estimateRowSize(0, merge), MergeExec.class);
+            SourceFanInExec estimatedFanIn = null;
+            for (PhysicalPlan child : estimated.children()) {
+                if (child instanceof SourceFanInExec found) {
+                    estimatedFanIn = found;
+                }
+            }
+            assertNotNull(estimatedFanIn);
+            for (PhysicalPlan producer : estimatedFanIn.producers()) {
+                assertThat(as(producer, FragmentExec.class).estimatedRowSize(), equalTo(0));
+            }
+            SourceFanInExec leaked = as(EstimatesRowSize.estimateRowSize(DataType.INTEGER.estimatedSize(), fanIn), SourceFanInExec.class);
+            for (PhysicalPlan producer : leaked.producers()) {
+                assertThat(as(producer, FragmentExec.class).estimatedRowSize(), equalTo(DataType.INTEGER.estimatedSize()));
+            }
+        }
     }
 
     /**

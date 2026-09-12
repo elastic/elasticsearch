@@ -31,12 +31,17 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.view.ViewCompaction;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -129,11 +134,108 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("ds1,ds2"), project);
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
         assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
         assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
+    }
+
+    public void testProvisionalSourceGroupWithNestedFanInFlattens() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset ds3 = new Dataset("ds3", new DataSourceReference("s3_parent"), "s3://c/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds3", ds3), Set.of("some_idx"));
+
+        LogicalPlan inner = rewrite(relationOf("some_idx,ds1"), project);
+        LogicalPlan sibling = rewrite(relationOf("ds3"), project);
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("view", inner);
+        children.put("other", sibling);
+        LogicalPlan composed = SourceFanInUnionAll.provisional(Source.EMPTY, children, List.of());
+
+        LogicalPlan flattened = SourceExpansionNormalizer.normalize(composed);
+        assertThat(flattened, instanceOf(SourceFanInUnionAll.class));
+        assertThat(((SourceFanInUnionAll) flattened).isProvisional(), equalTo(false));
+        assertThat(flattened.children(), hasSize(3));
+    }
+
+    public void testViewUnionAllIsNotPromotedToSourceFanIn() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("ds1", ds1), Set.of("some_idx"));
+
+        LogicalPlan inner = rewrite(relationOf("ds1"), project);
+        assertThat(inner, instanceOf(UnresolvedExternalRelation.class));
+        LogicalPlan sibling = rewrite(relationOf("some_idx"), project);
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("view", inner);
+        children.put("other", sibling);
+        LogicalPlan composed = new ViewUnionAll(Source.EMPTY, children, List.of());
+
+        LogicalPlan flattened = SourceExpansionNormalizer.normalize(composed);
+        assertSame(composed, flattened);
+        assertThat(flattened, instanceOf(ViewUnionAll.class));
+    }
+
+    public void testProvisionalSingleDatasetPlusIndexDoesNotFlatten() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("ds1", ds1), Set.of("some_idx"));
+
+        LogicalPlan inner = rewrite(relationOf("ds1"), project);
+        LogicalPlan sibling = rewrite(relationOf("some_idx"), project);
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("view", inner);
+        children.put("other", sibling);
+        LogicalPlan composed = SourceFanInUnionAll.provisional(Source.EMPTY, children, List.of());
+
+        LogicalPlan flattened = SourceExpansionNormalizer.normalize(composed);
+        assertThat(flattened, instanceOf(ViewUnionAll.class));
+        assertThat(flattened.children(), hasSize(2));
+        assertFalse(flattened.anyMatch(p -> p instanceof SourceFanInUnionAll));
+    }
+
+    public void testViewUnionAllWithPipelineSiblingDoesNotFlatten() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        Dataset ds3 = new Dataset("ds3", new DataSourceReference("s3_parent"), "s3://c/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2, "ds3", ds3));
+
+        LogicalPlan inner = rewrite(relationOf("ds1,ds2"), project);
+        LogicalPlan pipeline = new Filter(Source.EMPTY, rewrite(relationOf("ds3"), project), Literal.TRUE);
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("view", inner);
+        children.put("other", pipeline);
+        LogicalPlan composed = new ViewUnionAll(Source.EMPTY, children, List.of());
+
+        LogicalPlan flattened = SourceExpansionNormalizer.normalize(composed);
+        assertSame(composed, flattened);
+        assertThat(flattened, instanceOf(ViewUnionAll.class));
+        assertThat(flattened.children(), hasSize(2));
+    }
+
+    public void testViewCompactionKeepsNestedFanInBesidePipelineSibling() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        Dataset ds3 = new Dataset("ds3", new DataSourceReference("s3_parent"), "s3://c/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2, "ds3", ds3));
+
+        LogicalPlan inner = rewrite(relationOf("ds1,ds2"), project);
+        LogicalPlan pipeline = new Filter(Source.EMPTY, rewrite(relationOf("ds3"), project), Literal.TRUE);
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("view", inner);
+        children.put("other", pipeline);
+        LogicalPlan composed = new ViewUnionAll(Source.EMPTY, children, List.of());
+
+        LogicalPlan compacted = ViewCompaction.postIndexResolution(composed);
+        assertThat(compacted, instanceOf(ViewUnionAll.class));
+        assertThat(compacted.children(), hasSize(2));
+        List<LogicalPlan> fanIns = compacted.children().stream().filter(child -> child instanceof SourceFanInUnionAll).toList();
+        assertThat(fanIns, hasSize(1));
+        assertThat(fanIns.getFirst().children(), hasSize(2));
     }
 
     public void testMixedDatasetsAndNonDatasetsProducesUnionAll() {
@@ -144,7 +246,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("some_idx,logs"), project);
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
         // Dataset branches precede the index branch under the unified rail.
@@ -168,7 +270,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("idx1,idx2,ds1,ds2"), project);
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         // 1 index branch + 2 dataset branches = 3 children
         assertThat(union.children(), hasSize(3));
@@ -272,7 +374,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
 
         LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
         assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
@@ -319,7 +421,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("my_closed_index,logs"), project);
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
         assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
@@ -336,7 +438,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
         assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
@@ -353,7 +455,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("logs_*"), project, Set.of("logs_dataset"));
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         List<LogicalPlan> children = rewritten.children();
         assertThat(children, hasSize(2));
         assertThat(children.get(0), instanceOf(UnresolvedExternalRelation.class));
@@ -384,7 +486,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("logs_dataset"), project, Set.of("logs_dataset"));
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         List<LogicalPlan> children = rewritten.children();
         assertThat(children, hasSize(2));
         assertThat(children.get(0), instanceOf(UnresolvedExternalRelation.class));
@@ -434,7 +536,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("ds1,ds2"), project, Set.of("ds1", "ds2"));
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         List<LogicalPlan> children = rewritten.children();
         assertThat(children, hasSize(4));
         long externalCount = children.stream().filter(c -> c instanceof UnresolvedExternalRelation).count();
@@ -474,7 +576,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("some_idx,logs_dataset"), project, Set.of("logs_dataset"));
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         List<LogicalPlan> children = rewritten.children();
         // external(logs_dataset) + index branch(some_idx) + shadow(logs_dataset)
         assertThat(children, hasSize(3));
@@ -486,23 +588,18 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     public void testExactDatasetShadowsDoNotConsumeTheRewriteCap() {
-        // The rewrite-time cap counts real reads (datasets + index branch), not the speculative shadows. A shadow
-        // strips when its exact name has no remote namesake (the common case), so it must not eat the per-FROM budget.
-        // Five exact datasets under CPS = 5 externals + 5 shadows = 10 UnionAll children but only 5 real reads, so it
-        // must NOT be rejected at rewrite -- otherwise the shadows would silently halve the dataset budget.
+        // Eight exact datasets under CPS = 8 externals + 8 unmatched shadows. Shadows are speculative
+        // and strip when the exact name has no remote namesake, so they must not consume the rewrite cap.
         DataSource parent = dataSource("s3_parent", Map.of());
-        Map<String, Dataset> datasets = new HashMap<>();
-        for (int i = 0; i < 5; i++) {
-            datasets.put("ds" + i, new Dataset("ds" + i, new DataSourceReference("s3_parent"), "s3://" + i + "/", null, Map.of()));
-        }
+        Map<String, Dataset> datasets = namedDatasets(8, "ds");
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
 
-        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("ds0,ds1,ds2,ds3,ds4"), project, datasets.keySet());
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf(commaNames(8, "ds")), project, datasets.keySet());
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
-        UnionAll union = (UnionAll) rewritten;
-        assertThat(union.children(), hasSize(10)); // 5 externals + 5 shadows
-        assertThat(union.children().stream().filter(c -> c instanceof DatasetShadowRelation).count(), equalTo(5L));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
+        assertThat(rewritten.children(), hasSize(16));
+        assertThat(rewritten.children().stream().filter(c -> c instanceof DatasetShadowRelation).count(), equalTo(8L));
+        assertThat(DatasetRewriter.definiteProducerCount(rewritten.children()), equalTo(8));
     }
 
     public void testNonStringSettingsArePreservedThroughCarrier() {
@@ -590,10 +687,7 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(tablePathString(out), equalTo("s3://a/"));
     }
 
-    public void testWildcardAtUnionAllCapSucceeds() {
-        // UnionAll extends MergePlan which caps at 8 branches — the upper bound the rewriter can hand off.
-        // A wildcard expanding to exactly the cap proves the bucketing + UnionAll construction path
-        // is bounded-time at the platform's largest supported shape.
+    public void testWildcardMatchingEightDatasetsIsOneFanIn() {
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
         for (int i = 0; i < 8; i++) {
@@ -606,19 +700,41 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
 
-        assertThat(rewritten, instanceOf(UnionAll.class));
-        UnionAll union = (UnionAll) rewritten;
-        assertThat(union.children(), hasSize(8));
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
+        assertThat(rewritten.children(), hasSize(8));
     }
 
-    public void testWildcardOverUnionAllCapRejectsWithUserFacingMessage() {
-        // A wildcard matching more than 8 datasets crosses MergePlan's 8-branch cap. The rewriter
-        // intercepts before constructing the UnionAll and throws a VerificationException with
-        // user-facing framing — the user typed FROM <pattern>, not FORK, so the error references
-        // the pattern + the cap, not the internal union type name.
+    public void testFromStarWithEightDatasetsNoIndicesIsOneFanIn() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = namedDatasets(8, "ds_");
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
+
+        LogicalPlan rewritten = rewrite(relationOf("*"), project);
+
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
+        assertThat(rewritten.children(), hasSize(8));
+        for (LogicalPlan child : rewritten.children()) {
+            assertThat(child, instanceOf(UnresolvedExternalRelation.class));
+        }
+    }
+
+    public void testFromStarWithNineDatasetsNoIndicesRejects() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = namedDatasets(9, "ds_");
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
+
+        VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("*"), project));
+        assertThat(ex.getMessage(), containsString("FROM [*]"));
+        assertThat(ex.getMessage(), containsString("resolved to 9 sources"));
+        assertThat(ex.getMessage(), containsString("the current limit of " + SourceFanInUnionAll.MAX_PRODUCERS));
+    }
+
+    public void testWildcardOverFanInCapRejectsWithUserFacingMessage() {
+        // The user typed FROM <pattern>, not FORK, so the message references the pattern and the
+        // per-FROM source cap rather than MergePlan's internal name.
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
-        for (int i = 0; i < 9; i++) {
+        for (int i = 0; i <= SourceFanInUnionAll.MAX_PRODUCERS; i++) {
             datasets.put(
                 "logs_" + i,
                 new Dataset("logs_" + i, new DataSourceReference("s3_parent"), "s3://logs/" + i + "/", null, Map.of())
@@ -628,9 +744,127 @@ public class DatasetRewriterTests extends ESTestCase {
 
         VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("logs_*"), project));
         assertThat(ex.getMessage(), containsString("FROM [logs_*]"));
-        assertThat(ex.getMessage(), containsString("resolved to 9 branches"));
-        assertThat(ex.getMessage(), containsString("the current limit of 8"));
+        assertThat(ex.getMessage(), containsString("resolved to " + (SourceFanInUnionAll.MAX_PRODUCERS + 1) + " sources"));
+        assertThat(ex.getMessage(), containsString("the current limit of " + SourceFanInUnionAll.MAX_PRODUCERS));
         assertThat(ex.getMessage(), containsString("Narrow the pattern"));
+    }
+
+    public void testWildcardAtFanInCapSucceeds() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = new HashMap<>();
+        for (int i = 0; i < SourceFanInUnionAll.MAX_PRODUCERS; i++) {
+            datasets.put(
+                "logs_" + i,
+                new Dataset("logs_" + i, new DataSourceReference("s3_parent"), "s3://logs/" + i + "/", null, Map.of())
+            );
+        }
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
+
+        LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
+
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
+        assertThat(rewritten.children(), hasSize(SourceFanInUnionAll.MAX_PRODUCERS));
+    }
+
+    public void testFromStarWithEightDatasetsAndAnIndexRejectsNineProducers() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = namedDatasets(8, "ds_");
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), datasets, Set.of("logs"));
+
+        VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("*"), project));
+        assertThat(ex.getMessage(), containsString("resolved to 9 sources"));
+        assertThat(ex.getMessage(), containsString("the current limit of " + SourceFanInUnionAll.MAX_PRODUCERS));
+    }
+
+    public void testSevenDatasetsPlusSeveralIndexNamesIsEightProducers() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = namedDatasets(7, "ds_");
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), datasets, Set.of("idx_a", "idx_b", "idx_c"));
+
+        LogicalPlan rewritten = rewrite(relationOf(commaNames(7, "ds_") + ",idx_a,idx_b,idx_c"), project);
+
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
+        assertThat(rewritten.children(), hasSize(8));
+    }
+
+    public void testEightDatasetsPlusIndexBranchRejects() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = namedDatasets(8, "ds_");
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), datasets, Set.of("idx_a", "idx_b"));
+
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> rewrite(relationOf(commaNames(8, "ds_") + ",idx_a,idx_b"), project)
+        );
+        assertThat(ex.getMessage(), containsString("resolved to 9 sources"));
+    }
+
+    public void testUserViewUnionIsNotPromotedToSourceFanIn() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset ds3 = new Dataset("ds3", new DataSourceReference("s3_parent"), "s3://c/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds3", ds3), Set.of("some_idx"));
+
+        LogicalPlan inner = rewrite(relationOf("some_idx,ds1"), project);
+        LogicalPlan sibling = rewrite(relationOf("ds3"), project);
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("view", inner);
+        children.put("other", sibling);
+        LogicalPlan composed = new ViewUnionAll(Source.EMPTY, children, List.of());
+
+        LogicalPlan flattened = SourceExpansionNormalizer.normalize(composed);
+        assertSame(composed, flattened);
+        assertThat(flattened, instanceOf(ViewUnionAll.class));
+    }
+
+    public void testSourceCompositionWithUnmatchedShadowsUsesDefiniteCount() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = namedDatasets(8, "ds_");
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
+
+        LogicalPlan inner = rewriteWithAuthorizedCps(relationOf(commaNames(4, "ds_")), project, datasets.keySet());
+        LogicalPlan sibling = rewriteWithAuthorizedCps(relationOf("ds_4,ds_5,ds_6,ds_7"), project, datasets.keySet());
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("left", inner);
+        children.put("right", sibling);
+        LogicalPlan composed = SourceFanInUnionAll.provisional(Source.EMPTY, children, List.of());
+
+        LogicalPlan flattened = SourceExpansionNormalizer.normalize(composed);
+        assertThat(flattened, instanceOf(SourceFanInUnionAll.class));
+        assertThat(((SourceFanInUnionAll) flattened).isProvisional(), equalTo(false));
+        assertThat(DatasetRewriter.definiteProducerCount(flattened.children()), equalTo(8));
+        assertThat(flattened.children().stream().filter(c -> c instanceof DatasetShadowRelation).count(), equalTo(8L));
+    }
+
+    public void testComposedViewsWithNineDefiniteLeavesReject() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = namedDatasets(9, "ds_");
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
+
+        LogicalPlan inner = rewrite(relationOf(commaNames(5, "ds_")), project);
+        LogicalPlan sibling = rewrite(relationOf("ds_5,ds_6,ds_7,ds_8"), project);
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("left", inner);
+        children.put("right", sibling);
+        LogicalPlan composed = SourceFanInUnionAll.provisional(Source.EMPTY, children, List.of());
+
+        VerificationException ex = expectThrows(VerificationException.class, () -> SourceExpansionNormalizer.normalize(composed));
+        assertThat(ex.getMessage(), containsString("resolved through view expansion to 9 sources"));
+        assertThat(ex.getMessage(), containsString("the current limit of " + SourceFanInUnionAll.MAX_PRODUCERS));
+    }
+
+    public void testFromStarWithSevenDatasetsAndAnIndexIsAtCap() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = new HashMap<>();
+        for (int i = 0; i < 7; i++) {
+            datasets.put("ds_" + i, new Dataset("ds_" + i, new DataSourceReference("s3_parent"), "s3://ds/" + i + "/", null, Map.of()));
+        }
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), datasets, Set.of("logs"));
+
+        LogicalPlan rewritten = rewrite(relationOf("*"), project);
+
+        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
+        assertThat(rewritten.children(), hasSize(8));
     }
 
     public void testDateMathPatternReachesSlowPath() {
@@ -905,6 +1139,26 @@ public class DatasetRewriterTests extends ESTestCase {
     private static DatasetRewriter.DatasetResolution resolve(String rawPattern, ProjectMetadata project, Set<String> authorized) {
         String[] raw = Strings.splitStringByCommaToArray(rawPattern);
         return DatasetRewriter.resolve(authorized.toArray(String[]::new), raw, project, RESOLVER);
+    }
+
+    private static Map<String, Dataset> namedDatasets(int count, String prefix) {
+        Map<String, Dataset> datasets = new HashMap<>();
+        for (int i = 0; i < count; i++) {
+            String name = prefix + i;
+            datasets.put(name, new Dataset(name, new DataSourceReference("s3_parent"), "s3://" + name + "/", null, Map.of()));
+        }
+        return datasets;
+    }
+
+    private static String commaNames(int count, String prefix) {
+        StringBuilder names = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            if (i > 0) {
+                names.append(',');
+            }
+            names.append(prefix).append(i);
+        }
+        return names.toString();
     }
 
     private static UnresolvedRelation relationOf(String pattern) {

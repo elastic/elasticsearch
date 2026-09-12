@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
@@ -76,6 +77,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Handles computes within a single cluster by dispatching {@link DataNodeRequest} to data nodes
@@ -85,6 +88,25 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     private static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE = TransportVersion.fromName(
         "esql_retry_on_shard_level_failure"
+    );
+    /**
+     * Completes a node slot that produced nothing but must not fail the query: everything is zero or empty
+     * and only {@code partial} is set. See {@link DriverCompletionInfo} for the positional meaning.
+     */
+    private static final DriverCompletionInfo PARTIAL_COMPLETION_INFO = new DriverCompletionInfo(
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        List.of(),
+        List.of(),
+        Map.of(),
+        true, // partial
+        false, // approximationApplied
+        Set.of()
     );
 
     private final ComputeService computeService;
@@ -136,6 +158,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         // Non-null iff retainSearchContexts: every request that asks a data node to retain contexts must have a releaser tracking it.
         @Nullable RemoteFetchService.RetainedSessionReleaser remoteFetchRetainedSessionReleaser,
         Runnable runOnTaskFailure,
+        BooleanSupplier executionStopped,
         ActionListener<ComputeResponse> outListener
     ) {
         Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
@@ -293,13 +316,74 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ExternalDistributionPlan distributionPlan,
         ExchangeSourceHandler exchangeSource,
         Runnable runOnTaskFailure,
+        BooleanSupplier executionStopped,
+        boolean tolerateAllNodesFailure,
+        Consumer<Exception> allNodesFailureConsumer,
         ComputeListener parentComputeListener
     ) {
         var queryPragmas = configuration.pragmas();
         boolean allowPartial = configuration.allowPartialResults();
-        boolean sentAny = false;
-        int nodesWithSplits = 0;
-        AtomicInteger failedNodes = new AtomicInteger(0);
+        int nodesWithSplits = Math.toIntExact(
+            distributionPlan.nodeAssignments().values().stream().filter(splits -> splits.isEmpty() == false).count()
+        );
+        if (nodesWithSplits == 0) {
+            parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
+            return;
+        }
+        final int expectedNodes = nodesWithSplits;
+        final ActionListener<DriverCompletionInfo> distributionListener = parentComputeListener.acquireCompute();
+        enum NodeOutcome {
+            SUCCEEDED,
+            FAILED,
+            /** The exchange stopped wanting rows before this node was read from, so it never ran. */
+            NOT_ASKED
+        }
+        class DistributionCompletion {
+            private final AtomicInteger completedNodes = new AtomicInteger();
+            private final AtomicInteger failedNodes = new AtomicInteger();
+            private final AtomicBoolean completed = new AtomicBoolean();
+
+            /**
+             * A node the query never asked for data from, because the exchange has stopped wanting any. Failures close
+             * their exchange sinks, so a finished exchange is not evidence that the query already had enough rows,
+             * which is why this counts as neither a success nor a failure: recording it as a success would decide the
+             * all-nodes-failed question below on the outcome of an unrelated node.
+             */
+            void nodeSkipped() {
+                nodeCompleted();
+            }
+
+            void nodeFinished(boolean successful) {
+                if (successful == false) {
+                    failedNodes.incrementAndGet();
+                }
+                nodeCompleted();
+            }
+
+            private void nodeCompleted() {
+                if (completedNodes.incrementAndGet() == expectedNodes && completed.compareAndSet(false, true)) {
+                    boolean allFailed = failedNodes.get() == expectedNodes;
+                    if (allFailed && executionStopped.getAsBoolean() == false && parentTask.isCancelled() == false) {
+                        var failure = new IllegalStateException("all [" + failedNodes.get() + "] nodes assigned external splits failed");
+                        if (allowPartial && tolerateAllNodesFailure) {
+                            allNodesFailureConsumer.accept(failure);
+                            distributionListener.onResponse(PARTIAL_COMPLETION_INFO);
+                        } else {
+                            distributionListener.onFailure(failure);
+                        }
+                    } else {
+                        distributionListener.onResponse(failedNodes.get() > 0 ? PARTIAL_COMPLETION_INFO : DriverCompletionInfo.EMPTY);
+                    }
+                }
+            }
+
+            void fail(Exception failure) {
+                if (completed.compareAndSet(false, true)) {
+                    distributionListener.onFailure(failure);
+                }
+            }
+        }
+        DistributionCompletion distributionCompletion = new DistributionCompletion();
 
         final var keepAlive = new ExchangeSourceLinkKeepAlive(exchangeSource);
         try {
@@ -309,7 +393,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 if (nodeSplits.isEmpty()) {
                     continue;
                 }
-                nodesWithSplits++;
+                if (parentTask.isCancelled()) {
+                    distributionCompletion.fail(new TaskCancelledException(parentTask.getReasonCancelled()));
+                    return;
+                }
+                if (exchangeSource.isFinished()) {
+                    distributionCompletion.nodeSkipped();
+                    continue;
+                }
 
                 DiscoveryNode node = clusterService.state().nodes().get(nodeId);
                 if (node == null) {
@@ -322,8 +413,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             nodeId,
                             nodeSplits.size()
                         );
-                        failedNodes.incrementAndGet();
-                        parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
+                        distributionCompletion.nodeFinished(false);
                         continue;
                     }
                     LOGGER.warn(
@@ -331,7 +421,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         nodeId,
                         nodeSplits.size()
                     );
-                    parentComputeListener.acquireCompute().onFailure(nodeError);
+                    distributionCompletion.fail(nodeError);
                     return;
                 }
 
@@ -347,8 +437,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             nodeSplits.size(),
                             e
                         );
-                        failedNodes.incrementAndGet();
-                        parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
+                        distributionCompletion.nodeFinished(false);
                         continue;
                     }
                     LOGGER.warn(
@@ -358,21 +447,56 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         nodeSplits.size(),
                         e
                     );
-                    parentComputeListener.acquireCompute().onFailure(e);
+                    distributionCompletion.fail(e);
                     return;
                 }
 
-                sentAny = true;
                 var childSessionId = computeService.newChildSession(sessionId);
                 keepAlive.track();
                 final AtomicBoolean nodeDone = new AtomicBoolean(false);
+                final AtomicReference<NodeOutcome> nodeOutcome = new AtomicReference<>(NodeOutcome.FAILED);
                 final Runnable finishNode = () -> {
                     if (nodeDone.compareAndSet(false, true)) {
                         keepAlive.done();
+                        switch (nodeOutcome.get()) {
+                            case SUCCEEDED -> distributionCompletion.nodeFinished(true);
+                            case FAILED -> distributionCompletion.nodeFinished(false);
+                            case NOT_ASKED -> distributionCompletion.nodeSkipped();
+                        }
                     }
                 };
-                ActionListener<Void> openExchangeListener = parentComputeListener.acquireAvoid().delegateFailureAndWrap((l, unused) -> {
-                    l = ActionListener.runAfter(l, finishNode);
+                ActionListener<Void> openExchangeSlot = ActionListener.runAfter(parentComputeListener.acquireAvoid(), finishNode);
+                ActionListener<Void> openExchangeListener = openExchangeSlot.delegateFailureAndWrap((l, unused) -> {
+                    boolean cancelled = parentTask.isCancelled();
+                    if (cancelled || exchangeSource.isFinished()) {
+                        var remoteSink = exchangeService.newRemoteSink(parentTask, childSessionId, transportService, connection);
+                        ActionListener<Void> terminalListener = l;
+                        if (cancelled == false) {
+                            nodeOutcome.set(NodeOutcome.NOT_ASKED);
+                        }
+                        Runnable releaseSlot = () -> {
+                            if (cancelled) {
+                                terminalListener.onFailure(new TaskCancelledException(parentTask.getReasonCancelled()));
+                            } else {
+                                terminalListener.onResponse(null);
+                            }
+                        };
+                        // The close only releases a sink this node was never read from. Its failure says nothing about
+                        // the rows the query already has, and this slot came from acquireAvoid, so reporting it would
+                        // cancel a query that is either already done or already being cancelled for its own reason.
+                        remoteSink.close(ActionListener.wrap(ignored -> releaseSlot.run(), e -> {
+                            LOGGER.debug(
+                                () -> Strings.format(
+                                    "failed to close the unread external sink on node [%s] for session [%s]",
+                                    node.getName(),
+                                    childSessionId
+                                ),
+                                e
+                            );
+                            releaseSlot.run();
+                        }));
+                        return;
+                    }
                     final Runnable onGroupFailure;
                     final CancellableTask groupTask;
                     if (allowPartial) {
@@ -398,15 +522,33 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     final ActionListener<Void> outerL = l;
                     try (var computeListener = new ComputeListener(onGroupFailure, ActionListener.wrap(info -> {
                         try {
+                            nodeOutcome.set(NodeOutcome.SUCCEEDED);
                             profileSlot.onResponse(info);
                         } finally {
                             outerL.onResponse(null);
                         }
                     }, e -> {
-                        try {
-                            profileSlot.onFailure(e);
-                        } finally {
-                            outerL.onFailure(e);
+                        if (allowPartial && EsqlCCSUtils.canAllowPartial(e)) {
+                            // The slot completes with an empty, partial-flagged info, so the exception reaches neither
+                            // the response nor EsqlExecutionInfo. Without this the user sees is_partial with no reason.
+                            LOGGER.warn(
+                                "external source execution failed on node [{}] ({}) with {} splits; skipping (partial results)",
+                                nodeId,
+                                node.getName(),
+                                nodeSplits.size(),
+                                e
+                            );
+                            try {
+                                profileSlot.onResponse(PARTIAL_COMPLETION_INFO);
+                            } finally {
+                                outerL.onResponse(null);
+                            }
+                        } else {
+                            try {
+                                profileSlot.onFailure(e);
+                            } finally {
+                                outerL.onFailure(e);
+                            }
                         }
                     }))) {
                         var dataNodeRequest = new DataNodeRequest(
@@ -458,10 +600,23 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         }
                     }
                 }, e -> {
-                    try {
-                        openExchangeListener.onFailure(e);
-                    } finally {
+                    if (allowPartial && EsqlCCSUtils.canAllowPartial(e)) {
+                        LOGGER.warn(
+                            "failed to open the exchange on node [{}] ({}) for external source execution with {} splits; "
+                                + "skipping (partial results)",
+                            nodeId,
+                            node.getName(),
+                            nodeSplits.size(),
+                            e
+                        );
+                        openExchangeSlot.onResponse(null);
                         finishNode.run();
+                    } else {
+                        try {
+                            openExchangeListener.onFailure(e);
+                        } finally {
+                            finishNode.run();
+                        }
                     }
                 });
                 try {
@@ -475,19 +630,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     );
                 } catch (Exception e) {
                     openExchangeListenerWithNodeCompletion.onFailure(e);
-                    return;
-                }
-            }
-            if (sentAny == false) {
-                if (failedNodes.get() > 0 && failedNodes.get() >= nodesWithSplits) {
-                    parentComputeListener.acquireCompute()
-                        .onFailure(
-                            new IllegalStateException(
-                                "all [" + failedNodes.get() + "] nodes assigned external splits failed; cannot serve partial results"
-                            )
-                        );
-                } else {
-                    parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
+                    continue;
                 }
             }
         } finally {

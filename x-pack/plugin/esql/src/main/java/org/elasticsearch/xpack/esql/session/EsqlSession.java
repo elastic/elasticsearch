@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.datasources.SourceExpansionNormalizer;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
@@ -1570,7 +1571,8 @@ public class EsqlSession {
         // no FROM pattern can match a registered dataset.
         datasetResolver.replaceDatasets(parsed, projectMetadata, logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
             datasetResolutionProfile.stop();
-            analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
+            LogicalPlan normalized = SourceExpansionNormalizer.normalize(rewritten);
+            analyzedPlanAfterDatasetResolution(normalized, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
         }));
     }
 

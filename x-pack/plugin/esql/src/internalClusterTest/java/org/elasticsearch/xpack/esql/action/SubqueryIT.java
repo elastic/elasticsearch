@@ -18,6 +18,8 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Tests for subquery batch execution in ComputeService.
@@ -51,7 +53,9 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | SORT id
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(pragmas);
+        request.includeExecutionMetadata(true);
+        try (var resp = run(request)) {
             assertColumnNames(resp.columns(), List.of("id", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -64,6 +68,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
                 List.of(6, "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
+            assertCompletedLocalIndexMetadata(resp, getNumShards("test").numPrimaries);
         }
     }
 
@@ -79,7 +84,9 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | KEEP id, content
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 2).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(pragmas);
+        request.includeExecutionMetadata(true);
+        try (var resp = run(request)) {
             assertColumnNames(resp.columns(), List.of("id", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -90,6 +97,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
                 List.of(6, "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
+            assertCompletedLocalIndexMetadata(resp, getNumShards("test").numPrimaries);
         }
     }
 
@@ -123,7 +131,9 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             | SORT id
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 2).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(pragmas);
+        request.includeExecutionMetadata(true);
+        try (var resp = run(request)) {
             assertColumnNames(resp.columns(), List.of("id", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -134,6 +144,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
                 List.of(6, "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
+            assertCompletedLocalIndexMetadata(resp, getNumShards("test").numPrimaries);
         }
     }
 
@@ -384,6 +395,19 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             );
             assertValues(resp.values(), expectedValues);
         }
+    }
+
+    private static void assertCompletedLocalIndexMetadata(EsqlQueryResponse resp, int shards) {
+        EsqlExecutionInfo info = resp.getExecutionInfo();
+        assertNotNull(info);
+        assertThat(info.overallTook().millis(), greaterThanOrEqualTo(0L));
+        EsqlExecutionInfo.Cluster local = info.getCluster("");
+        assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        assertThat(local.getTotalShards(), equalTo(shards));
+        assertThat(local.getSuccessfulShards(), equalTo(shards));
+        assertThat(local.getSkippedShards(), equalTo(0));
+        assertThat(local.getFailedShards(), equalTo(0));
+        assertThat(local.getTook().millis(), greaterThanOrEqualTo(0L));
     }
 
     private void createAndPopulateIndex() {

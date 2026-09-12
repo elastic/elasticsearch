@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.SourceExpansionNormalizer;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -1910,11 +1912,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // have already become EsRelations and the merge step is a no-op.
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM my-view, source-alias"), viewResolver);
         LogicalPlan compacted = ViewCompaction.preIndexResolution(resolved);
-        // Before the fix, compacted was a single UR("source-index,source-alias") — the two branches
-        // were merged and field-caps would deduplicate them. After the fix it must be a ViewUnionAll
-        // with two separate children.
-        assertThat(compacted, instanceOf(ViewUnionAll.class));
-        assertThat(compacted.children().size(), equalTo(2));
+        // Resolver-owned source-only composition is a provisional source group until dataset
+        // rewrite finishes. The PreAnalyzer input must be the restored index/view plan.
+        assertThat(compacted, instanceOf(SourceFanInUnionAll.class));
+        assertTrue(((SourceFanInUnionAll) compacted).isProvisional());
+        LogicalPlan preAnalyzer = SourceExpansionNormalizer.normalize(compacted);
+        assertThat(preAnalyzer, instanceOf(ViewUnionAll.class));
+        assertThat(preAnalyzer.children().size(), equalTo(2));
     }
 
     /**
@@ -1936,8 +1940,27 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("my-view", "FROM source-alias");
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM source-index, my-view"), viewResolver);
         LogicalPlan compacted = ViewCompaction.preIndexResolution(resolved);
-        assertThat(compacted, instanceOf(ViewUnionAll.class));
-        assertThat(compacted.children().size(), equalTo(2));
+        assertThat(compacted, instanceOf(SourceFanInUnionAll.class));
+        assertTrue(((SourceFanInUnionAll) compacted).isProvisional());
+        LogicalPlan preAnalyzer = SourceExpansionNormalizer.normalize(compacted);
+        assertThat(preAnalyzer, instanceOf(ViewUnionAll.class));
+        assertThat(preAnalyzer.children().size(), equalTo(2));
+    }
+
+    public void testIndexOnlyIndependentViewReadsRestoreAfterNormalization() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addIndex("emp");
+        addView("view_a", "FROM emp");
+        addView("view_b", "FROM emp");
+        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM view_a, view_b"), viewResolver);
+        LogicalPlan compacted = ViewCompaction.preIndexResolution(resolved);
+        assertThat(compacted, instanceOf(SourceFanInUnionAll.class));
+        assertTrue(((SourceFanInUnionAll) compacted).isProvisional());
+        LogicalPlan preAnalyzer = SourceExpansionNormalizer.normalize(compacted);
+        assertThat(preAnalyzer, instanceOf(ViewUnionAll.class));
+        assertThat(preAnalyzer.children().size(), equalTo(2));
+        assertFalse(preAnalyzer.anyMatch(p -> p instanceof SourceFanInUnionAll));
+        assertThat(SourceExpansionNormalizer.normalize(preAnalyzer), sameInstance(preAnalyzer));
     }
 
     /**
@@ -2303,16 +2326,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     public void testUncompactedSingleView() {
         addView("v", "FROM emp");
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v"));
-        assertThat(resolved, instanceOf(ViewUnionAll.class));
-        ViewUnionAll vua = (ViewUnionAll) resolved;
-        assertThat(vua.namedSubqueries().keySet(), containsInAnyOrder("v", "v#shadow"));
-        assertThat(vua.namedSubqueries().get("v"), instanceOf(UnresolvedRelation.class));
-        assertThat(vua.namedSubqueries().get("v#shadow"), instanceOf(ViewShadowRelation.class));
-        assertThat(((ViewShadowRelation) vua.namedSubqueries().get("v#shadow")).viewName(), equalTo("v"));
-        assertThat(
-            ((ViewShadowRelation) vua.namedSubqueries().get("v#shadow")).linkedIndexPattern().pattern().indexPattern(),
-            equalTo("v")
-        );
+        assertTrue(isNamedSourceOrViewUnion(resolved));
+        Map<String, LogicalPlan> branches = namedBranches(resolved);
+        assertThat(branches.keySet(), containsInAnyOrder("v", "v#shadow"));
+        assertThat(branches.get("v"), instanceOf(UnresolvedRelation.class));
+        assertThat(branches.get("v#shadow"), instanceOf(ViewShadowRelation.class));
+        assertThat(((ViewShadowRelation) branches.get("v#shadow")).viewName(), equalTo("v"));
+        assertThat(((ViewShadowRelation) branches.get("v#shadow")).linkedIndexPattern().pattern().indexPattern(), equalTo("v"));
     }
 
     /**
@@ -2324,13 +2344,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("v_a", "FROM emp1");
         addView("v_b", "FROM emp2");
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v_a, v_b"));
-        assertThat(resolved, instanceOf(ViewUnionAll.class));
-        ViewUnionAll vua = (ViewUnionAll) resolved;
+        assertTrue(isNamedSourceOrViewUnion(resolved));
+        Map<String, LogicalPlan> branches = namedBranches(resolved);
         // Strict siblings collapsed into one bare UnresolvedRelation by the per-level merge.
-        long strictCount = vua.namedSubqueries().values().stream().filter(p -> p instanceof UnresolvedRelation).count();
-        assertThat("expected exactly one merged strict UR in: " + vua.namedSubqueries(), strictCount, equalTo(1L));
+        long strictCount = branches.values().stream().filter(p -> p instanceof UnresolvedRelation).count();
+        assertThat("expected exactly one merged strict UR in: " + branches, strictCount, equalTo(1L));
         // Both views have their own shadow.
-        assertThat(vua.namedSubqueries().keySet(), hasItems("v_a#shadow", "v_b#shadow"));
+        assertThat(branches.keySet(), hasItems("v_a#shadow", "v_b#shadow"));
     }
 
     /**
@@ -2343,9 +2363,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("inner", "FROM emp1, emp2");
         addView("outer", "FROM inner");
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM outer"));
-        assertThat(resolved, instanceOf(ViewUnionAll.class));
-        ViewUnionAll outerVua = (ViewUnionAll) resolved;
-        assertThat(outerVua.namedSubqueries().keySet(), hasItems("outer", "outer#shadow"));
+        assertTrue(isNamedSourceOrViewUnion(resolved));
+        Map<String, LogicalPlan> outerBranches = namedBranches(resolved);
+        assertThat(outerBranches.keySet(), hasItems("outer", "outer#shadow"));
         // Inner level should also surface its own shadow inside the outer's NamedSubquery wrapper.
         assertThat(
             "outer-level plan tree should contain shadows for both 'outer' and 'inner'",
@@ -2369,13 +2389,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // The outer query has two sibling UnresolvedRelations. The view body's exclusion-bearing
         // UnresolvedRelation must stay scoped — represented as a NamedSubquery in the uncompacted output.
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM idx-a*, data-view"));
-        assertThat(resolved, instanceOf(ViewUnionAll.class));
-        ViewUnionAll vua = (ViewUnionAll) resolved;
+        assertTrue(isNamedSourceOrViewUnion(resolved));
+        Map<String, LogicalPlan> branches = namedBranches(resolved);
         // One entry is the bare outer UnresolvedRelation; another is the data-view body wrapped in
         // a NamedSubquery; another is the data-view shadow.
         assertThat(
-            "Expected one entry to be a NamedSubquery wrapping the exclusion-bearing view body. Found: " + vua.namedSubqueries(),
-            vua.namedSubqueries().values().stream().anyMatch(p -> p instanceof NamedSubquery),
+            "Expected one entry to be a NamedSubquery wrapping the exclusion-bearing view body. Found: " + branches,
+            branches.values().stream().anyMatch(p -> p instanceof NamedSubquery),
             equalTo(true)
         );
         assertThat(collectShadowNames(resolved), contains("data-view"));
@@ -2643,15 +2663,15 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // Stage 1: view resolution only. Per-level merge folds the two strict URs into one,
         // shadows attached as siblings.
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v_a, v_b"));
-        assertThat(resolved, instanceOf(ViewUnionAll.class));
-        ViewUnionAll resolvedVua = (ViewUnionAll) resolved;
-        long strictCount = resolvedVua.namedSubqueries().values().stream().filter(p -> p instanceof UnresolvedRelation).count();
+        assertTrue(isNamedSourceOrViewUnion(resolved));
+        Map<String, LogicalPlan> resolvedBranches = namedBranches(resolved);
+        long strictCount = resolvedBranches.values().stream().filter(p -> p instanceof UnresolvedRelation).count();
         assertThat("expected one merged strict UR", strictCount, equalTo(1L));
         assertThat(collectShadowNames(resolved), containsInAnyOrder("v_a", "v_b"));
 
-        // Stage 2: preIndexResolution is the rewrite step. Already a ViewUnionAll, so no-op.
+        // Stage 2: preIndexResolution is the rewrite step. Already a typed source group, so no-op.
         LogicalPlan preIndicesResolved = ViewCompaction.preIndexResolution(resolved);
-        assertThat(preIndicesResolved, instanceOf(ViewUnionAll.class));
+        assertTrue(isNamedSourceOrViewUnion(preIndicesResolved));
         assertThat(collectShadowNames(preIndicesResolved), containsInAnyOrder("v_a", "v_b"));
 
         // Stage 3: postIndexResolution strips both shadows; the merged strict UR is the sole survivor.
@@ -2765,18 +2785,43 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         return found[0];
     }
 
+    private static boolean isNamedSourceOrViewUnion(LogicalPlan plan) {
+        return plan instanceof ViewUnionAll || plan instanceof SourceFanInUnionAll fanIn && fanIn.isProvisional();
+    }
+
     /**
-     * Replace views and apply the compaction step that the analyzer runs in production. Most of
-     * this file's assertions are on the compacted shape, since that's what users observe; tests
-     * that need to assert on the raw uncompacted resolver output should use
-     * {@link #replaceViewsWithoutCompaction(LogicalPlan)}.
+     * Named branches of a {@link ViewUnionAll} or a provisional {@link SourceFanInUnionAll}.
+     * Resolver-owned source-only composition uses the latter until normalization.
+     */
+    private static Map<String, LogicalPlan> namedBranches(LogicalPlan plan) {
+        if (plan instanceof ViewUnionAll vua) {
+            return vua.namedSubqueries();
+        }
+        if (plan instanceof SourceFanInUnionAll fanIn && fanIn.isProvisional()) {
+            LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+            List<String> keys = fanIn.branchKeys();
+            List<LogicalPlan> children = fanIn.children();
+            for (int i = 0; i < children.size(); i++) {
+                branches.put(keys.get(i), children.get(i));
+            }
+            return branches;
+        }
+        throw new AssertionError("expected a named source or view union, got " + plan.nodeString());
+    }
+
+    /**
+     * Replace views, restore index-only source groups, then apply post-index compaction.
+     * That matches the no-dataset session path. Production still runs normalization in
+     * {@code EsqlSession} after dataset resolution. Tests that need the raw resolver output
+     * should use {@link #replaceViewsWithoutCompaction(LogicalPlan)}.
      */
     private LogicalPlan replaceViews(LogicalPlan plan) {
         return replaceViews(plan, viewResolver);
     }
 
     private LogicalPlan replaceViews(LogicalPlan plan, ViewResolver resolver) {
-        return COMPACTION.apply(replaceViewsWithoutCompaction(plan, resolver));
+        LogicalPlan resolved = replaceViewsWithoutCompaction(plan, resolver);
+        return ViewCompaction.postIndexResolution(SourceExpansionNormalizer.normalize(ViewCompaction.preIndexResolution(resolved)));
     }
 
     /**
@@ -2810,7 +2855,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan replaceViewsWithCPS(LogicalPlan plan) {
-        return COMPACTION.apply(replaceViewsWithoutCompaction(plan, cpsViewResolver()));
+        LogicalPlan resolved = replaceViewsWithoutCompaction(plan, cpsViewResolver());
+        return ViewCompaction.postIndexResolution(SourceExpansionNormalizer.normalize(ViewCompaction.preIndexResolution(resolved)));
     }
 
     private static final ViewCompaction COMPACTION = new ViewCompaction();

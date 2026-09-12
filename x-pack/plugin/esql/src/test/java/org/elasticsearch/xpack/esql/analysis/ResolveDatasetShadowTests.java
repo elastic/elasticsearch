@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -449,6 +450,127 @@ public class ResolveDatasetShadowTests extends ESTestCase {
         assertWarnings(NO_LIMIT_WARNING);
     }
 
+    public void testTypedFanInStripsUnmatchedDatasetAndViewShadows() {
+        DatasetShadowRelation dsShadow = new DatasetShadowRelation(EMPTY, "ds", LinkedIndexPattern.Kind.OPTIONAL, "ds");
+        ViewShadowRelation viewShadow = new ViewShadowRelation(EMPTY, "v", LinkedIndexPattern.Kind.OPTIONAL, "v");
+        var analyzer = datasetExternalAnalyzer().addLenientResolution(dsShadow.linkedIndexPattern(), IndexResolution.empty("ds"))
+            .addLenientResolution(viewShadow.linkedIndexPattern(), IndexResolution.empty("v"))
+            .buildAnalyzer();
+
+        LogicalPlan plan = analyzer.analyze(sourceFanInOf(datasetExternal("ds"), dsShadow, viewShadow));
+
+        assertFalse("no union should survive, got: " + plan, containsNode(plan, UnionAll.class));
+        assertFalse("no EsRelation should survive, got: " + plan, containsNode(plan, EsRelation.class));
+        assertFalse("no dataset shadow should survive, got: " + plan, containsNode(plan, DatasetShadowRelation.class));
+        assertFalse("no view shadow should survive, got: " + plan, containsNode(plan, ViewShadowRelation.class));
+        assertEquals("expected exactly one ExternalRelation, got: " + plan, 1, countNodes(plan, ExternalRelation.class));
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    public void testTypedFanInKeepsMatchedDatasetShadowAndStripsUnmatchedViewShadow() {
+        DatasetShadowRelation dsShadow = new DatasetShadowRelation(EMPTY, "ds", LinkedIndexPattern.Kind.OPTIONAL, "ds");
+        ViewShadowRelation viewShadow = new ViewShadowRelation(EMPTY, "v", LinkedIndexPattern.Kind.OPTIONAL, "v");
+        EsIndex linkedDs = EsIndexGenerator.esIndex(
+            "ds",
+            LoadMapping.loadMapping("mapping-one-field.json"),
+            Map.of("ds", IndexMode.STANDARD)
+        );
+        var analyzer = datasetExternalAnalyzer().addLenientResolution(linkedDs)
+            .addLenientResolution(viewShadow.linkedIndexPattern(), IndexResolution.empty("v"))
+            .buildAnalyzer();
+
+        LogicalPlan plan = analyzer.analyze(sourceFanInOf(datasetExternal("ds"), dsShadow, viewShadow));
+
+        assertFalse("no ViewUnionAll should survive, got: " + plan, containsNode(plan, ViewUnionAll.class));
+        assertFalse("no shadow should survive, got: " + plan, containsNode(plan, DatasetShadowRelation.class));
+        assertFalse("no view shadow should survive, got: " + plan, containsNode(plan, ViewShadowRelation.class));
+        SourceFanInUnionAll fanIn = onlyNode(plan, SourceFanInUnionAll.class);
+        assertEquals("expected the matched dataset shadow to survive as a second producer, got: " + plan, 2, fanIn.children().size());
+        assertEquals("expected exactly one ExternalRelation, got: " + plan, 1, countNodes(plan, ExternalRelation.class));
+        assertEquals("expected exactly one EsRelation for the matched dataset shadow, got: " + plan, 1, countNodes(plan, EsRelation.class));
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    public void testTypedFanInKeepsMatchedViewShadowAndStripsUnmatchedDatasetShadow() {
+        DatasetShadowRelation dsShadow = new DatasetShadowRelation(EMPTY, "ds", LinkedIndexPattern.Kind.OPTIONAL, "ds");
+        ViewShadowRelation viewShadow = new ViewShadowRelation(EMPTY, "v", LinkedIndexPattern.Kind.OPTIONAL, "v");
+        EsIndex linkedView = EsIndexGenerator.esIndex(
+            "v",
+            LoadMapping.loadMapping("mapping-one-field.json"),
+            Map.of("v", IndexMode.STANDARD)
+        );
+        var analyzer = datasetExternalAnalyzer().addLenientResolution(dsShadow.linkedIndexPattern(), IndexResolution.empty("ds"))
+            .addLenientResolution(linkedView)
+            .buildAnalyzer();
+
+        LogicalPlan plan = analyzer.analyze(sourceFanInOf(datasetExternal("ds"), dsShadow, viewShadow));
+
+        assertFalse("no ViewUnionAll should survive, got: " + plan, containsNode(plan, ViewUnionAll.class));
+        assertFalse("no dataset shadow should survive, got: " + plan, containsNode(plan, DatasetShadowRelation.class));
+        assertFalse("no view shadow should survive, got: " + plan, containsNode(plan, ViewShadowRelation.class));
+        SourceFanInUnionAll fanIn = onlyNode(plan, SourceFanInUnionAll.class);
+        assertEquals("expected the matched view shadow to survive as a second producer, got: " + plan, 2, fanIn.children().size());
+        assertEquals("expected exactly one ExternalRelation, got: " + plan, 1, countNodes(plan, ExternalRelation.class));
+        assertEquals("expected exactly one EsRelation for the matched view shadow, got: " + plan, 1, countNodes(plan, EsRelation.class));
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    public void testTypedFanInKeepsMatchedDatasetAndViewShadows() {
+        DatasetShadowRelation dsShadow = new DatasetShadowRelation(EMPTY, "ds", LinkedIndexPattern.Kind.OPTIONAL, "ds");
+        ViewShadowRelation viewShadow = new ViewShadowRelation(EMPTY, "v", LinkedIndexPattern.Kind.OPTIONAL, "v");
+        EsIndex linkedDs = EsIndexGenerator.esIndex(
+            "ds",
+            LoadMapping.loadMapping("mapping-one-field.json"),
+            Map.of("ds", IndexMode.STANDARD)
+        );
+        EsIndex linkedView = EsIndexGenerator.esIndex(
+            "v",
+            LoadMapping.loadMapping("mapping-one-field.json"),
+            Map.of("v", IndexMode.STANDARD)
+        );
+        var analyzer = datasetExternalAnalyzer().addLenientResolution(linkedDs).addLenientResolution(linkedView).buildAnalyzer();
+
+        LogicalPlan plan = analyzer.analyze(sourceFanInOf(datasetExternal("ds"), dsShadow, viewShadow));
+
+        assertFalse("no ViewUnionAll should survive, got: " + plan, containsNode(plan, ViewUnionAll.class));
+        assertFalse("no dataset shadow should survive, got: " + plan, containsNode(plan, DatasetShadowRelation.class));
+        assertFalse("no view shadow should survive, got: " + plan, containsNode(plan, ViewShadowRelation.class));
+        SourceFanInUnionAll fanIn = onlyNode(plan, SourceFanInUnionAll.class);
+        assertEquals("expected the dataset, its matched namesake, and the matched view namesake, got: " + plan, 3, fanIn.children().size());
+        assertEquals("expected exactly one ExternalRelation, got: " + plan, 1, countNodes(plan, ExternalRelation.class));
+        assertEquals("expected two EsRelations for the matched shadows, got: " + plan, 2, countNodes(plan, EsRelation.class));
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    public void testTypedFanInValidEmptyDatasetShadowIsNotAProducer() {
+        DatasetShadowRelation dsShadow = new DatasetShadowRelation(EMPTY, "ds", LinkedIndexPattern.Kind.OPTIONAL, "ds");
+        var analyzer = datasetExternalAnalyzer().addLenientResolution(dsShadow.linkedIndexPattern(), IndexResolution.empty("ds"))
+            .buildAnalyzer();
+
+        LogicalPlan plan = analyzer.analyze(sourceFanInOf(datasetExternal("ds"), dsShadow));
+
+        assertFalse("no union should survive, got: " + plan, containsNode(plan, UnionAll.class));
+        assertFalse("no EsRelation should survive, got: " + plan, containsNode(plan, EsRelation.class));
+        assertEquals("expected exactly one ExternalRelation, got: " + plan, 1, countNodes(plan, ExternalRelation.class));
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    public void testTypedFanInMatchedEmptyMappingDatasetShadowIsAProducer() {
+        DatasetShadowRelation dsShadow = new DatasetShadowRelation(EMPTY, "ds", LinkedIndexPattern.Kind.OPTIONAL, "ds");
+        var analyzer = datasetExternalAnalyzer().addLenientResolution(
+            dsShadow.linkedIndexPattern(),
+            IndexResolution.valid(EsIndexGenerator.esIndex("ds"), Set.of("ds"), Map.of())
+        ).buildAnalyzer();
+
+        LogicalPlan plan = analyzer.analyze(sourceFanInOf(datasetExternal("ds"), dsShadow));
+
+        SourceFanInUnionAll fanIn = onlyNode(plan, SourceFanInUnionAll.class);
+        assertEquals("a matched empty-mapping namesake is still a producer, got: " + plan, 2, fanIn.children().size());
+        assertEquals("expected exactly one ExternalRelation, got: " + plan, 1, countNodes(plan, ExternalRelation.class));
+        assertEquals("expected exactly one EsRelation for the matched empty mapping, got: " + plan, 1, countNodes(plan, EsRelation.class));
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
     // ---- helpers ----
 
     /** A strict (non-optional) {@link UnresolvedRelation} for a CCS subquery branch, mirroring a {@code FROM} head. */
@@ -459,6 +581,11 @@ public class ResolveDatasetShadowTests extends ESTestCase {
     /** Build a plain {@link UnionAll} of the dataset's external relation and its shadow, mirroring DatasetRewriter. */
     private static UnionAll unionOf(UnresolvedExternalRelation external, DatasetShadowRelation shadow) {
         return new UnionAll(EMPTY, List.of(external, shadow), List.of());
+    }
+
+    /** Typed source fan-in of the given producer and shadow leaves. */
+    private static SourceFanInUnionAll sourceFanInOf(LogicalPlan... children) {
+        return new SourceFanInUnionAll(EMPTY, List.of(children), List.of());
     }
 
     /** The {@link UnresolvedExternalRelation} the DatasetRewriter produces for a single dataset. */

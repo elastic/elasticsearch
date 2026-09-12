@@ -39,6 +39,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
@@ -443,6 +444,121 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             assertThat("no doc for shard " + shardStats.getShardRouting().shardId(), docsStats.getCount(), greaterThan(0L));
         }
         return ids;
+    }
+
+    public void testRemoteInSubqueryPartialThenLocalFork() throws Exception {
+        int okShards = randomIntBetween(1, 3);
+        int failShards = randomIntBetween(1, 3);
+        populateJoinIndex(LOCAL_CLUSTER, "join-local", 1, List.of("a", "b", "c"));
+        populateJoinIndex(REMOTE_CLUSTER_1, "join-ok", okShards, List.of("a", "b"));
+        populateFailingJoinIndex(REMOTE_CLUSTER_1, "join-fail", failShards);
+
+        String inSubquery = """
+            FROM join-local
+            | WHERE id IN (
+                FROM cluster-a:join-ok,cluster-a:join-fail
+                | WHERE fail_me IS NULL
+                | KEEP id
+              )
+            """;
+        try (EsqlQueryResponse control = runQuery(partialInSubqueryRequest(inSubquery + "| KEEP id | SORT id"))) {
+            assertTrue(control.isPartial());
+            assertThat(getValuesList(control), equalTo(List.of(List.of("a"), List.of("b"))));
+            assertRemoteInSubqueryMetadata(control, okShards, failShards);
+        }
+
+        try (EsqlQueryResponse forked = runQuery(partialInSubqueryRequest(inSubquery + """
+            | FORK
+                (KEEP id)
+                (WHERE id IS NOT NULL | KEEP id)
+            | KEEP _fork, id
+            | SORT _fork, id
+            """))) {
+            assertTrue(forked.isPartial());
+            assertThat(
+                getValuesList(forked),
+                equalTo(List.of(List.of("fork1", "a"), List.of("fork1", "b"), List.of("fork2", "a"), List.of("fork2", "b")))
+            );
+            assertRemoteInSubqueryMetadata(forked, okShards, failShards);
+        }
+    }
+
+    private static EsqlQueryRequest partialInSubqueryRequest(String query) {
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query(query);
+        request.allowPartialResults(true);
+        request.includeCCSMetadata(true);
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
+        request.acceptedPragmaRisks(true);
+        return request;
+    }
+
+    private void assertRemoteInSubqueryMetadata(EsqlQueryResponse resp, int okShards, int failShards) {
+        assertClusterSuccess(resp, LOCAL_CLUSTER, 1);
+        assertClusterPartial(resp, REMOTE_CLUSTER_1, okShards + failShards, okShards);
+        assertClusterFailure(resp, REMOTE_CLUSTER_1, "Accessing failing field");
+        EsqlExecutionInfo.Cluster remote = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+        assertThat(remote.getFailedShards(), greaterThanOrEqualTo(1));
+        assertThat(remote.getTook().millis(), greaterThanOrEqualTo(0L));
+        EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(LOCAL_CLUSTER);
+        assertThat(local.getTook().millis(), greaterThanOrEqualTo(0L));
+        assertThat(resp.getExecutionInfo().overallTook().millis(), greaterThanOrEqualTo(0L));
+        for (String alias : resp.getExecutionInfo().clusterAliases()) {
+            assertThat(resp.getExecutionInfo().getCluster(alias).getStatus(), not(equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING)));
+        }
+    }
+
+    private void populateJoinIndex(String clusterAlias, String indexName, int numShards, List<String> ids) {
+        Client client = client(clusterAlias);
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.number_of_shards", numShards))
+                .setMapping("id", "type=keyword")
+        );
+        for (String id : ids) {
+            client.prepareIndex(indexName).setSource("id", id).get();
+        }
+        client.admin().indices().prepareRefresh(indexName).get();
+    }
+
+    private void populateFailingJoinIndex(String clusterAlias, String indexName, int numShards) throws IOException {
+        Client client = client(clusterAlias);
+        XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
+        mapping.startObject("runtime");
+        {
+            mapping.startObject("fail_me");
+            {
+                mapping.field("type", "long");
+                mapping.startObject("script").field("source", "").field("lang", FailingFieldPlugin.FAILING_FIELD_LANG).endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+        mapping.startObject("properties");
+        {
+            mapping.startObject("id").field("type", "keyword").endObject();
+            mapping.startObject("tag").field("type", "keyword").endObject();
+        }
+        mapping.endObject();
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.number_of_shards", numShards))
+                .setMapping(mapping.endObject())
+        );
+        int numDocs = Math.max(numShards * 10, 20);
+        for (int i = 0; i < numDocs; i++) {
+            client.prepareIndex(indexName).setSource("id", "fail-" + i, "tag", "fail").get();
+        }
+        client.admin().indices().prepareRefresh(indexName).get();
+        for (var shardStats : client.admin().indices().prepareStats(indexName).clear().setDocs(true).get().getShards()) {
+            var docsStats = shardStats.getStats().docs;
+            assertNotNull(docsStats);
+            assertThat("no doc for shard " + shardStats.getShardRouting().shardId(), docsStats.getCount(), greaterThan(0L));
+        }
     }
 
     private void createUnavailableIndex(String clusterAlias, String indexName) throws IOException {

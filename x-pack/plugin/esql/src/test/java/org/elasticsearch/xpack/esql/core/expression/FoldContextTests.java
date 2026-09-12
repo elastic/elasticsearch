@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -93,5 +95,28 @@ public class FoldContextTests extends ESTestCase {
         FoldContext ctx = new FoldContext(123);
         ctx.trackAllocation(Source.EMPTY, 22);
         assertThat(ctx.toString(), equalTo("FoldContext[101/123]"));
+    }
+
+    /**
+     * FORK source producers and {@code SubPlansExecutor} subplans each call
+     * {@link Configuration#newFoldContext()}. A FoldContext is a mutable
+     * unsynchronized byte budget, so a later FORK branch (or an INLINE STATS /
+     * IN-subquery subplan) that folds while the coordinator plan is still
+     * folding cannot share one remaining-bytes counter.
+     */
+    public void testIndependentBudgetsFromSameConfiguration() {
+        Configuration configuration = EsqlTestUtils.TEST_CFG;
+        FoldContext coordinator = configuration.newFoldContext();
+        FoldContext laterForkBranch = configuration.newFoldContext();
+        assertNotSame(coordinator, laterForkBranch);
+        assertThat(coordinator.initialAllowedBytes(), equalTo(laterForkBranch.initialAllowedBytes()));
+        assertThat(coordinator.allowedBytes(), equalTo(laterForkBranch.allowedBytes()));
+
+        coordinator.trackAllocation(Source.synthetic("coordinator fold"), coordinator.initialAllowedBytes());
+        assertThat(coordinator.allowedBytes(), equalTo(0L));
+        assertThat(laterForkBranch.allowedBytes(), equalTo(laterForkBranch.initialAllowedBytes()));
+
+        laterForkBranch.trackAllocation(Source.synthetic("later FORK branch"), laterForkBranch.initialAllowedBytes());
+        assertThat(laterForkBranch.allowedBytes(), equalTo(0L));
     }
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
@@ -322,6 +323,9 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
      * to avoid unbounded sort in the subquery.
      */
     private static LogicalPlan maybeAppendLimitToSubquery(UnionAll unionAll, LogicalOptimizerContext context) {
+        if (unionAll instanceof SourceFanInUnionAll) {
+            return unionAll;
+        }
         List<LogicalPlan> oldChildren = unionAll.children();
         List<LogicalPlan> newChildren = new ArrayList<>(oldChildren.size());
         boolean changed = false;

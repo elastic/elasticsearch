@@ -62,7 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.*;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 
 public class TestDenseInferenceServiceExtension implements InferenceServiceExtension {
 

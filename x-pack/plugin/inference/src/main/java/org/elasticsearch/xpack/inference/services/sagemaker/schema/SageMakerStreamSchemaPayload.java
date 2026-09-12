@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.sagemaker.schema;
 import software.amazon.awssdk.core.SdkBytes;
 
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
@@ -41,7 +41,7 @@ public interface SageMakerStreamSchemaPayload extends SageMakerSchemaPayload {
      */
     StreamingCompletionResults.Results streamResponseBody(SageMakerModel model, SdkBytes response) throws Exception;
 
-    SdkBytes chatCompletionRequestBytes(SageMakerModel model, UnifiedCompletionRequest request) throws Exception;
+    SdkBytes chatCompletionRequestBytes(SageMakerModel model, UnifiedCompletionRequestBody request) throws Exception;
 
     StreamingUnifiedChatCompletionResults.Results chatCompletionResponseBody(SageMakerModel model, SdkBytes response) throws Exception;
 }

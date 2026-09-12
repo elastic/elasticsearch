@@ -92,29 +92,56 @@ public class OpenAiUnifiedChatCompletionResponseHandlerTests extends ESTestCase 
              [500]","type":"UnifiedChatCompletionErrorResponse"}}"""));
     }
 
+    /**
+     * Non-streaming chat completion goes through the same error-building path as the streaming variant, so that callers see a stable
+     * error shape either way. This used to be forbidden by an assertion in {@code ChatCompletionErrorResponseHandler}.
+     */
+    public void testFailValidationForNonStreamingRequest() throws IOException {
+        var responseJson = """
+            {
+              "error": {
+                "type": "not_found_error",
+                "message": "a message",
+                "code": "ahh",
+                "param": "model"
+              }
+            }
+            """;
+
+        var errorJson = invalidResponseJson(responseJson, false);
+
+        assertThat(errorJson, is("""
+            {"error":{"code":"ahh","message":"Received a server error status code for request from inference entity id [abc] status [500]. \
+            Error message: [a message]","param":"model","type":"not_found_error"}}"""));
+    }
+
     private String invalidResponseJson(String responseJson) throws IOException {
-        var exception = invalidResponse(responseJson);
+        return invalidResponseJson(responseJson, true);
+    }
+
+    private String invalidResponseJson(String responseJson, boolean isStreaming) throws IOException {
+        var exception = invalidResponse(responseJson, isStreaming);
         assertThat(exception, isA(RetryException.class));
         assertThat(unwrapCause(exception), isA(UnifiedChatCompletionException.class));
         return toJson((UnifiedChatCompletionException) unwrapCause(exception));
     }
 
-    private Exception invalidResponse(String responseJson) {
+    private Exception invalidResponse(String responseJson, boolean isStreaming) {
         return expectThrows(
             RetryException.class,
             () -> responseHandler.validateResponse(
                 mock(),
                 mock(),
-                mockRequest(),
+                mockRequest(isStreaming),
                 new HttpResult(mock500Response(), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
     }
 
-    private static OutboundRequest mockRequest() {
+    private static OutboundRequest mockRequest(boolean isStreaming) {
         var outboundRequest = mock(OutboundRequest.class);
         when(outboundRequest.getInferenceEntityId()).thenReturn("abc");
-        when(outboundRequest.isStreaming()).thenReturn(true);
+        when(outboundRequest.isStreaming()).thenReturn(isStreaming);
         return outboundRequest;
     }
 

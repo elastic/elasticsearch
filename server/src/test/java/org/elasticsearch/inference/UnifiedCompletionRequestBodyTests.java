@@ -19,7 +19,7 @@ import org.elasticsearch.inference.completion.ToolChoice;
 
 import java.util.List;
 
-public class UnifiedCompletionRequestTests extends InferenceObjectRamBytesUsedTest<UnifiedCompletionRequest> {
+public class UnifiedCompletionRequestBodyTests extends InferenceObjectRamBytesUsedTest<UnifiedCompletionRequestBody> {
 
     private static final List<Message> MESSAGES = List.of(new Message(new ContentString("content"), "role", "id", null));
     private static final String MODEL = "model";
@@ -31,8 +31,8 @@ public class UnifiedCompletionRequestTests extends InferenceObjectRamBytesUsedTe
     private static final String SESSION_ID = "session";
 
     @Override
-    public UnifiedCompletionRequest objectToEstimate() {
-        return new UnifiedCompletionRequest(
+    public UnifiedCompletionRequestBody objectToEstimate() {
+        return new UnifiedCompletionRequestBody(
             MESSAGES,
             MODEL,
             null,
@@ -48,10 +48,10 @@ public class UnifiedCompletionRequestTests extends InferenceObjectRamBytesUsedTe
     }
 
     @Override
-    public List<UnifiedCompletionRequest> objectsToEstimateWithLargerInput() {
+    public List<UnifiedCompletionRequestBody> objectsToEstimateWithLargerInput() {
         return List.of(
             // More messages
-            new UnifiedCompletionRequest(
+            new UnifiedCompletionRequestBody(
                 List.of(MESSAGES.getFirst(), MESSAGES.getFirst()),
                 MODEL,
                 null,
@@ -65,7 +65,7 @@ public class UnifiedCompletionRequestTests extends InferenceObjectRamBytesUsedTe
                 SESSION_ID
             ),
             // Longer model
-            new UnifiedCompletionRequest(
+            new UnifiedCompletionRequestBody(
                 MESSAGES,
                 MODEL.repeat(5),
                 null,
@@ -79,7 +79,7 @@ public class UnifiedCompletionRequestTests extends InferenceObjectRamBytesUsedTe
                 SESSION_ID
             ),
             // More stop
-            new UnifiedCompletionRequest(
+            new UnifiedCompletionRequestBody(
                 MESSAGES,
                 MODEL,
                 null,
@@ -93,7 +93,7 @@ public class UnifiedCompletionRequestTests extends InferenceObjectRamBytesUsedTe
                 SESSION_ID
             ),
             // More tools
-            new UnifiedCompletionRequest(
+            new UnifiedCompletionRequestBody(
                 MESSAGES,
                 MODEL,
                 null,
@@ -107,7 +107,7 @@ public class UnifiedCompletionRequestTests extends InferenceObjectRamBytesUsedTe
                 SESSION_ID
             ),
             // Longer session id
-            new UnifiedCompletionRequest(
+            new UnifiedCompletionRequestBody(
                 MESSAGES,
                 MODEL,
                 null,

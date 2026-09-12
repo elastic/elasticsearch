@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.inference.services.elastic.action;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -22,6 +24,8 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
@@ -29,9 +33,12 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
@@ -40,10 +47,13 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequest;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
@@ -57,6 +67,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.inference.InferenceStringTests.inferenceStringToMap;
+import static org.elasticsearch.xpack.core.inference.results.CompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -67,12 +78,14 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.ap
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createApplierFactory;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
+import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator.USER_ROLE;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -81,6 +94,28 @@ import static org.mockito.Mockito.when;
 public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String MODEL_ID = "my-model-id";
+    private static final String COMPLETION_INPUT = "hello world";
+    private static final String COMPLETION_CONTENT = "Hello there, how may I assist you today?";
+    private static final String COMPLETION_RESPONSE_JSON = Strings.format("""
+        {
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "created": 1677652288,
+            "model": "%s",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "%s"
+                    },
+                    "finish_reason": "stop"
+                }
+            ]
+        }
+        """, MODEL_ID, COMPLETION_CONTENT);
+
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -329,6 +364,156 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var inputList = (List<String>) requestMap.get("input");
             assertThat(inputList, contains("hello world"));
             assertThat(requestMap.get("model"), is("my-model-id"));
+        }
+    }
+
+    /**
+     * A {@code completion} model must be routed to the non-streaming completion strategy, which parses the OpenAI-shaped body into
+     * {@link CompletionResults}. Routing it to the chat completion strategy instead
+     * silently produces the unified chat-completion shape.
+     */
+    public void testExecute_ReturnsSuccessfulResponse_ForCompletionAction() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(COMPLETION_RESPONSE_JSON));
+
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(getUrl(webServer), MODEL_ID, TaskType.COMPLETION);
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new UnifiedChatInput(List.of(COMPLETION_INPUT), USER_ROLE, false), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result, instanceOf(CompletionResults.class));
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of(COMPLETION_CONTENT))));
+
+            assertHeadersWithoutAuth(webServer.requests());
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.get("model"), is(MODEL_ID));
+            assertFalse((Boolean) requestMap.get("stream"));
+            assertNull(requestMap.get("stream_options"));
+        }
+    }
+
+    public void testExecute_ReturnsErrorResponse_ForCompletionAction() throws IOException {
+        // timeout as zero for no retries
+        var settings = buildSettingsWithRetryFields(
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueSeconds(0)
+        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
+
+        try (var sender = createSender(senderFactory)) {
+            webServer.enqueue(new MockResponse().setResponseCode(400).setBody("""
+                {
+                    "error": "some error"
+                }
+                """));
+
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(getUrl(webServer), MODEL_ID, TaskType.COMPLETION);
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new UnifiedChatInput(List.of(COMPLETION_INPUT), USER_ROLE, false), null, listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+
+            // The completion task type must not surface the unified chat-completion error shape.
+            assertThat(thrownException, not(instanceOf(UnifiedChatCompletionException.class)));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    "Received a bad request status code for request from inference entity id [id] status [400]. "
+                        + "Error message: [some error]"
+                )
+            );
+        }
+    }
+
+    /**
+     * {@code completion} is a streaming-capable task type for EIS, so the completion handler must also parse an SSE body — into
+     * {@link org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults}, not the unified chat-completion chunks.
+     */
+    public void testExecute_ReturnsStreamingResponse_ForCompletionAction() throws Exception {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody("""
+                data: {\
+                    "id":"chatcmpl-123",\
+                    "object":"chat.completion.chunk",\
+                    "created":1677652288,\
+                    "model":"my-model-id",\
+                    "choices":[\
+                        {\
+                            "index":0,\
+                            "delta":{\
+                                "content":"hello, world"\
+                            },\
+                            "finish_reason":null\
+                        }\
+                    ]\
+                }
+
+                """));
+
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(getUrl(webServer), MODEL_ID, TaskType.COMPLETION);
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new UnifiedChatInput(List.of(COMPLETION_INPUT), USER_ROLE, true), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result, instanceOf(StreamingCompletionResults.class));
+            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+                {"completion":[{"delta":"hello, world"}]}""");
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertTrue((Boolean) requestMap.get("stream"));
+        }
+    }
+
+    /**
+     * The chat completion twin of {@link #testExecute_ReturnsErrorResponse_ForCompletionAction}, so the two strategies stay pinned
+     * against each other.
+     */
+    public void testExecute_ReturnsUnifiedErrorResponse_ForChatCompletionAction() throws IOException {
+        // timeout as zero for no retries
+        var settings = buildSettingsWithRetryFields(
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueSeconds(0)
+        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
+
+        try (var sender = createSender(senderFactory)) {
+            webServer.enqueue(new MockResponse().setResponseCode(400).setBody("""
+                {
+                    "error": "some error"
+                }
+                """));
+
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(getUrl(webServer), MODEL_ID, TaskType.CHAT_COMPLETION);
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new UnifiedChatInput(List.of(COMPLETION_INPUT), USER_ROLE, true), null, listener);
+
+            var thrownException = expectThrows(UnifiedChatCompletionException.class, () -> listener.actionGet(TIMEOUT));
+
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    "Received a bad request status code for request from inference entity id [id] status [400]. "
+                        + "Error message: [some error]"
+                )
+            );
         }
     }
 

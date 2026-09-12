@@ -251,7 +251,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
             var sageMakerModel = (SageMakerModel) model;
             var regionAndSecrets = regionAndSecrets(sageMakerModel);
             var schema = schemas.streamSchemaFor(sageMakerModel);
-            var sagemakerRequest = schema.chatCompletionStreamRequest(sageMakerModel, request);
+            var sagemakerRequest = schema.chatCompletionStreamRequest(sageMakerModel, request.body());
             client.invokeStream(
                 regionAndSecrets,
                 sagemakerRequest,

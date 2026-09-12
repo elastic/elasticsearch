@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.anthropic.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.action.support.TestPlainActionFuture;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
@@ -101,7 +101,7 @@ public class AnthropicUnifiedChatCompletionRequestTests extends ESTestCase {
 
     private static UnifiedChatInput unifiedChatInput(boolean stream) {
         var message = new Message(new ContentString(INPUT), ROLE, null, null);
-        var unifiedRequest = UnifiedCompletionRequest.of(List.of(message));
+        var unifiedRequest = UnifiedCompletionRequestBody.of(List.of(message));
         return new UnifiedChatInput(unifiedRequest, stream);
     }
 

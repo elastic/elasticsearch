@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.request;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -39,7 +39,7 @@ public class IbmWatsonxChatCompletionRequestEntity implements ToXContentObject {
         builder.field(PROJECT_ID_FIELD, model.getServiceSettings().projectId());
         unifiedRequestEntity.toXContent(
             builder,
-            UnifiedCompletionRequest.withMaxTokensAndSkipStreamOptionsField(model.getServiceSettings().modelId(), params)
+            UnifiedCompletionRequestBody.withMaxTokensAndSkipStreamOptionsField(model.getServiceSettings().modelId(), params)
         );
         builder.endObject();
         return builder;

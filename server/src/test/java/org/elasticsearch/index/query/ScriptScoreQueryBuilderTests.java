@@ -19,15 +19,24 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -151,5 +160,38 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
         ScriptScoreQueryBuilder queryBuilder = doCreateTestQueryBuilder();
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> queryBuilder.toQuery(searchExecutionContext));
         assertEquals("[script score] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", e.getMessage());
+    }
+
+    public void testScriptParamsBreakerEstimate() throws IOException {
+        // ScriptScoreQueryBuilder.parseTimeBreakerEstimate() = BASELINE + source.length()*2 + estimateValue(params) + lang
+        // Inner MatchAllQueryBuilder also charges BASELINE (256) via namedObject.
+        // Small: source = "score" (5 chars), empty params → own 256+10+32+80=378; total 256+378=634
+        // Large: same source, Map.of("k", "x".repeat(500)) → own 256+10+1210+80=1556; total 256+1556=1812
+        String source = "score";
+        long innerMatchAllCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long ownSmallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + source.length() * 2L + 32L + "painless".length() * 2L
+            + 64L;
+        long limit = innerMatchAllCost + ownSmallCost;
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            ScriptScoreQueryBuilder small = new ScriptScoreQueryBuilder(new MatchAllQueryBuilder(), new Script(source));
+            ScriptScoreQueryBuilder big = new ScriptScoreQueryBuilder(
+                new MatchAllQueryBuilder(),
+                new Script(ScriptType.INLINE, "painless", source, Map.of("k", "x".repeat(500)))
+            );
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 }

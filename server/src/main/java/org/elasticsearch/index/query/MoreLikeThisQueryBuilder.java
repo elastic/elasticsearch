@@ -1065,6 +1065,62 @@ public class MoreLikeThisQueryBuilder extends LeafQueryBuilder<MoreLikeThisQuery
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        long total = QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        for (String t : likeTexts) {
+            total += t.length() * 2L + 64L;
+        }
+        for (String t : unlikeTexts) {
+            total += t.length() * 2L + 64L;
+        }
+        if (fields != null) {
+            for (String f : fields) {
+                total += f.length() * 2L + 64L;
+            }
+        }
+        for (Item item : likeItems) {
+            total += estimateItemCost(item);
+        }
+        for (Item item : unlikeItems) {
+            total += estimateItemCost(item);
+        }
+        if (stopWords != null) {
+            total += stopWords.length * 8L;
+            for (String s : stopWords) {
+                total += s.length() * 2L + 64L;
+            }
+        }
+        if (analyzer != null) total += analyzer.length() * 2L + 64L;
+        total += minimumShouldMatch.length() * 2L + 64L;
+        return total;
+    }
+
+    private static long estimateItemCost(Item item) {
+        long cost;
+        if (item.doc() != null) {
+            cost = item.doc().length() + 64L;
+        } else {
+            cost = item.id() != null ? item.id().length() * 2L + 64L : 64L;
+        }
+        if (item.index() != null) cost += item.index().length() * 2L + 64L;
+        if (item.routing() != null) cost += item.routing().length() * 2L + 64L;
+        if (item.fields != null) {
+            cost += item.fields.length * 8L;
+            for (String f : item.fields) {
+                cost += f.length() * 2L + 64L;
+            }
+        }
+        if (item.perFieldAnalyzer != null) {
+            cost += 32L + item.perFieldAnalyzer.size() * 48L;
+            for (var e : item.perFieldAnalyzer.entrySet()) {
+                cost += e.getKey().length() * 2L + 64L;
+                cost += e.getValue().length() * 2L + 64L;
+            }
+        }
+        return cost;
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(
             Arrays.hashCode(fields),

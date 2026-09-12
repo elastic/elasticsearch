@@ -24,16 +24,25 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
@@ -466,5 +475,34 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     @Override
     protected String[] shuffleProtectedFields() {
         return new String[] { TOKENS_FIELD.getPreferredName() };
+    }
+
+    public void testTokenListBreakerEstimate() throws IOException {
+        // Short token: BASELINE + fieldName ("field" = 5 chars = 74) + 1*8 (slot) + 1 token*(2*2+80)
+        String shortToken = "hi";
+        long shortCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + "field".length() * 2L + 64L + 1 * 8L + shortToken.length()
+            * 2L + 80L;
+        long limit = shortCost;
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            WeightedTokensQueryBuilder ok = new WeightedTokensQueryBuilder("field", List.of(new WeightedToken(shortToken, 1.0f)));
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(ok, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser);
+                }
+            }
+            WeightedTokensQueryBuilder big = new WeightedTokensQueryBuilder("field", List.of(new WeightedToken("x".repeat(500), 1.0f)));
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(big, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+        assertWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
     }
 }

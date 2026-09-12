@@ -416,6 +416,9 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
             validationException = addValidationError("using [point in time] is not allowed with wait_for_checkpoints", validationException);
 
         }
+        if (validationException != null && source != null) {
+            source.close();
+        }
         return validationException;
     }
 

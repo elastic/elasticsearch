@@ -42,16 +42,24 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.index.search.MatchQueryParser.Type;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -882,5 +890,62 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             "1kb",
             () -> new MatchQueryBuilder(TEXT_FIELD_NAME, longText).fuzziness(Fuzziness.AUTO)
         );
+    }
+
+    public void testAnalyzerAndMsmBreakerEstimate() throws IOException {
+        // Setting analyzer or minimumShouldMatch should increase the estimate by exactly
+        // the string cost, and cause a breaker trip when the limit was sized without them.
+        MatchQueryBuilder base = new MatchQueryBuilder(TEXT_FIELD_NAME, "v");
+        long noOptionalEstimate = base.parseTimeBreakerEstimate();
+        String analyzer = "english";
+        assertEquals(noOptionalEstimate + analyzer.length() * 2L + 64L, base.analyzer(analyzer).parseTimeBreakerEstimate());
+        String msm = "2";
+        assertEquals(
+            noOptionalEstimate + analyzer.length() * 2L + 64L + msm.length() * 2L + 64L,
+            base.minimumShouldMatch(msm).parseTimeBreakerEstimate()
+        );
+        // A breaker sized for the estimate without analyzer trips when analyzer is present
+        long limit = noOptionalEstimate;
+        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
+        try {
+            MatchQueryBuilder withAnalyzer = new MatchQueryBuilder(TEXT_FIELD_NAME, "v").analyzer(analyzer);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(withAnalyzer, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    public void testFieldValueBreakerEstimate() throws IOException {
+        // MatchQueryBuilder stores value as String: estimateValue = s.length()*2 + 64.
+        // TEXT_FIELD_NAME = "mapped_string" (13 chars): fieldName cost = 13*2+64 = 90.
+        // "hi" → estimateValue = 2*2+64 = 68. Small cost = BASELINE + 90 + 68 = 414.
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        String shortValue = "hi";
+        long smallCost = baseline + 13 * 2L + 64L + shortValue.length() * 2L + 64L;
+        long limit = smallCost; // equal to limit does not trip (LimitedBreaker uses strict >)
+        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
+        try {
+            MatchQueryBuilder small = new MatchQueryBuilder(TEXT_FIELD_NAME, shortValue);
+            MatchQueryBuilder big = new MatchQueryBuilder(TEXT_FIELD_NAME, "x".repeat(500));
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 }

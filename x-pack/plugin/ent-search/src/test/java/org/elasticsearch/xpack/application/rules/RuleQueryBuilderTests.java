@@ -20,9 +20,16 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -33,6 +40,8 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.LocalStateEnterpriseSearch;
 import org.elasticsearch.xpack.searchbusinessrules.SearchBusinessRules;
 import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
@@ -218,6 +227,40 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         }
 
         return super.simulateMethod(method, args);
+    }
+
+    public void testRulesetIdsBreakerEstimate() throws IOException {
+        // cost = BASELINE + estimateValue(matchCriteria) + id.length() * 2 + 64 (per rulesetId)
+        // matchCriteria = {"k": "v"}: 32 + 1*48 + (2+64) + (2+64) = 212
+        // rulesetId "r" (1 char): 1*2 + 64 = 66
+        // namedObject charges the organic MatchAll (256) before the RuleQueryBuilder itself
+        // small total: 256 (organic) + 256 (rule) + 212 (map) + 66 (id) = 790; limit = 790 (equal → does not trip)
+        Map<String, Object> matchCriteria = Map.of("k", "v");
+        long mapEstimate = 32L + 1 * 48L + "k".length() * 2L + 64L + "v".length() * 2L + 64L;
+        String smallRulesetId = "r";
+        long organicCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long limit = organicCost + AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + mapEstimate + smallRulesetId.length() * 2L
+            + 64L;
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            RuleQueryBuilder small = new RuleQueryBuilder(new MatchAllQueryBuilder(), matchCriteria, List.of(smallRulesetId));
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+            }
+            RuleQueryBuilder large = new RuleQueryBuilder(new MatchAllQueryBuilder(), matchCriteria, List.of("x".repeat(500)));
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(large, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 
     public void testBuildExcludedDocsQueryUsesShould() {

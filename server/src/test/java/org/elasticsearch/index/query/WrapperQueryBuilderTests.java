@@ -15,13 +15,18 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
@@ -205,6 +210,33 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
             );
         } finally {
             AbstractQueryBuilder.setMaxNestedDepth(INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY));
+        }
+    }
+
+    public void testSourceBytesBreakerEstimate() throws IOException {
+        // Small source: estimate = BASELINE + source.length + 32. Large source trips a tightly-set breaker.
+        byte[] smallSource = Strings.toString(new TermQueryBuilder(TEXT_FIELD_NAME, "v")).getBytes(StandardCharsets.UTF_8);
+        byte[] largeSource = Strings.toString(new TermQueryBuilder(TEXT_FIELD_NAME, "v".repeat(500))).getBytes(StandardCharsets.UTF_8);
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + smallSource.length + 32L;
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            WrapperQueryBuilder small = new WrapperQueryBuilder(smallSource);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser);
+                }
+            }
+            WrapperQueryBuilder large = new WrapperQueryBuilder(largeSource);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(large, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
         }
     }
 }

@@ -7,19 +7,23 @@
 
 package org.elasticsearch.xpack.fleet.rest;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.usage.SearchUsageHolder;
 
@@ -70,32 +74,60 @@ public class RestFleetSearchAction extends BaseRestHandler {
         }
 
         IntConsumer setSize = size -> searchRequest.source().size(size);
-        request.withContentOrSourceParamParserOrNull(parser -> {
-            RestSearchAction.parseSearchRequest(searchRequest, request, parser, clusterSupportsFeature, setSize, searchUsageHolder);
-            String[] stringWaitForCheckpoints = request.paramAsStringArray("wait_for_checkpoints", Strings.EMPTY_ARRAY);
-            final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];
-            for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {
-                waitForCheckpoints[i] = Long.parseLong(stringWaitForCheckpoints[i]);
+        // parseSearchRequest closes source on throw; the fleet-specific code below can also throw, so guard separately.
+        boolean parsedOk = false;
+        try {
+            request.withContentOrSourceParamParserOrNull(parser -> {
+                RestSearchAction.parseSearchRequest(searchRequest, request, parser, clusterSupportsFeature, setSize, searchUsageHolder);
+                String[] stringWaitForCheckpoints = request.paramAsStringArray("wait_for_checkpoints", Strings.EMPTY_ARRAY);
+                final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];
+                for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {
+                    waitForCheckpoints[i] = Long.parseLong(stringWaitForCheckpoints[i]);
+                }
+                String[] indices1 = Strings.splitStringByCommaToArray(request.param("index"));
+                if (indices1.length > 1) {
+                    throw new IllegalArgumentException(
+                        "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices1) + "]."
+                    );
+                }
+                if (RemoteClusterService.isRemoteIndexName(indices1[0])) {
+                    throw new IllegalArgumentException("Fleet search API does not support remote indices. Found: [" + indices1[0] + "].");
+                }
+                if (waitForCheckpoints.length != 0) {
+                    searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices1[0], waitForCheckpoints));
+                }
+                final TimeValue waitForCheckpointsTimeout = request.paramAsTime(
+                    "wait_for_checkpoints_timeout",
+                    TimeValue.timeValueSeconds(30)
+                );
+                searchRequest.setWaitForCheckpointsTimeout(waitForCheckpointsTimeout);
+            });
+            parsedOk = true;
+        } finally {
+            if (parsedOk == false && searchRequest.source() != null) {
+                searchRequest.source().close();
             }
-            String[] indices1 = Strings.splitStringByCommaToArray(request.param("index"));
-            if (indices1.length > 1) {
-                throw new IllegalArgumentException(
-                    "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices1) + "]."
+        }
+        final SearchSourceBuilder parsedSource = searchRequest.source();
+        return new RestChannelConsumer() {
+            @Override
+            public void accept(RestChannel channel) throws Exception {
+                RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+                ActionListener<SearchResponse> completionListener = new RestRefCountedChunkedToXContentListener<>(channel);
+                cancelClient.execute(
+                    TransportSearchAction.TYPE,
+                    searchRequest,
+                    parsedSource != null ? ActionListener.runAfter(completionListener, parsedSource::close) : completionListener
                 );
             }
-            if (RemoteClusterService.isRemoteIndexName(indices1[0])) {
-                throw new IllegalArgumentException("Fleet search API does not support remote indices. Found: [" + indices1[0] + "].");
-            }
-            if (waitForCheckpoints.length != 0) {
-                searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices1[0], waitForCheckpoints));
-            }
-            final TimeValue waitForCheckpointsTimeout = request.paramAsTime("wait_for_checkpoints_timeout", TimeValue.timeValueSeconds(30));
-            searchRequest.setWaitForCheckpointsTimeout(waitForCheckpointsTimeout);
-        });
 
-        return channel -> {
-            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(TransportSearchAction.TYPE, searchRequest, new RestRefCountedChunkedToXContentListener<>(channel));
+            @Override
+            public void close() {
+                // Abandonment path: parsed but never dispatched. SearchSourceBuilder.close() is idempotent.
+                if (parsedSource != null) {
+                    parsedSource.close();
+                }
+            }
         };
     }
 

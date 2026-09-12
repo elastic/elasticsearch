@@ -261,6 +261,11 @@ public class SpanNearQueryBuilder extends LeafQueryBuilder<SpanNearQueryBuilder>
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + clauses.size() * 8L;
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(clauses, slop, inOrder);
     }

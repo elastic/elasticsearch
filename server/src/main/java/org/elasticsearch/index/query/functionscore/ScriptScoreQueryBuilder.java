@@ -146,6 +146,14 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + script.getIdOrCode().length() * 2L + estimateValue(script.getParams());
+        if (script.getLang() != null) estimate += script.getLang().length() * 2L + 64L;
+        if (script.getOptions().isEmpty() == false) estimate += estimateValue(script.getOptions());
+        return estimate;
+    }
+
+    @Override
     protected boolean doEquals(ScriptScoreQueryBuilder other) {
         return Objects.equals(this.query, other.query)
             && Objects.equals(this.script, other.script)

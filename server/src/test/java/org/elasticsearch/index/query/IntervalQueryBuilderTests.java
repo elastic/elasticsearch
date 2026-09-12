@@ -27,10 +27,16 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.Script;
@@ -38,11 +44,14 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -1241,5 +1250,233 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             builder1.toQuery(createSearchExecutionContext());
         });
         assertEquals("Either [gte] or [gt], one of them must be provided", exc.getCause().getMessage());
+    }
+
+    public void testScriptFilterParamsBreakerEstimate() throws IOException {
+        // IntervalFilter.estimateBytes() must charge estimateValue(script.getParams()) in addition
+        // to the script source. An empty params map incurs only the 32-byte Map header; a map with
+        // one large string value must push the total well above the small-params limit.
+        //
+        // Small: Match("hi") + script filter with empty params.
+        // TEXT_FIELD_NAME = "mapped_string" (13 chars): field cost = 13*2+64 = 90.
+        // query "hi": 2*2+64 = 68.
+        // filter: type="script"(6) → 6*2+64=76; source "interval.start > 3"(18) → 18*2+64=100;
+        // params Map.of() → estimateValue = 32. filter total = 76+100+32 = 208.
+        // small total = 256+90+68+208 = 622.
+        String scriptSource = "interval.start > 3";
+        Script smallScript = new Script(ScriptType.INLINE, "painless", scriptSource, Map.of());
+        IntervalsSourceProvider.IntervalFilter smallFilter = new IntervalsSourceProvider.IntervalFilter(smallScript);
+        IntervalsSourceProvider smallSource = new IntervalsSourceProvider.Match("hi", -1, true, null, smallFilter, null);
+        long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 13 * 2L + 64L   // field
+            + 2 * 2L + 64L    // query "hi"
+            + 6 * 2L + 64L    // type "script"
+            + scriptSource.length() * 2L + 64L  // idOrCode
+            + 32L;            // empty params map header
+        long limit = smallCost; // equal to limit does not trip (LimitedBreaker uses strict >)
+        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
+        try {
+            IntervalQueryBuilder small = new IntervalQueryBuilder(TEXT_FIELD_NAME, smallSource);
+            // Large params: one entry with a 500-char value dwarfs the small limit.
+            Script largeScript = new Script(ScriptType.INLINE, "painless", scriptSource, Map.of("k", "x".repeat(500)));
+            IntervalsSourceProvider.IntervalFilter largeFilter = new IntervalsSourceProvider.IntervalFilter(largeScript);
+            IntervalsSourceProvider largeSource = new IntervalsSourceProvider.Match("hi", -1, true, null, largeFilter, null);
+            IntervalQueryBuilder big = new IntervalQueryBuilder(TEXT_FIELD_NAME, largeSource);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    public void testMatchSourceBreakerEstimate() throws IOException {
+        // IntervalQueryBuilder charges BASELINE + field.length()*2+64 + sourceProvider.estimateBytes().
+        // For Match with no analyzer/filter/useField: source cost = query.length()*2+64.
+        // TEXT_FIELD_NAME = "mapped_string" (13 chars): field cost = 13*2+64 = 90.
+        // Short query "hi": 2*2+64 = 68; total = 256+90+68 = 414.
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        String shortQuery = "hi";
+        long smallCost = baseline + 13 * 2L + 64L + shortQuery.length() * 2L + 64L;
+        long limit = smallCost; // equal to limit does not trip (LimitedBreaker uses strict >)
+        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
+        try {
+            IntervalQueryBuilder small = new IntervalQueryBuilder(
+                TEXT_FIELD_NAME,
+                new IntervalsSourceProvider.Match(shortQuery, -1, true, null, null, null)
+            );
+            IntervalQueryBuilder big = new IntervalQueryBuilder(
+                TEXT_FIELD_NAME,
+                new IntervalsSourceProvider.Match("x".repeat(500), -1, true, null, null, null)
+            );
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    public void testDisjunctionSourceBreakerEstimate() throws IOException {
+        // Disjunction.estimateBytes() = 32 + subSources.size()*8 + Σ s.estimateBytes().
+        // Small: any_of of Match("hi") and Match("lo").
+        // Match("hi"): 2*2+64=68; Match("lo"): 2*2+64=68.
+        // Disjunction: 32+2*8+68+68=184.
+        // IntervalQueryBuilder: 256 + (13*2+64) + 184 = 530.
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long fieldCost = 13 * 2L + 64L; // TEXT_FIELD_NAME = "mapped_string", 13 chars
+        long matchHi = 2 * 2L + 64L;    // "hi"
+        long matchLo = 2 * 2L + 64L;    // "lo"
+        long disjSmall = 32L + 2 * 8L + matchHi + matchLo;
+        long smallCost = baseline + fieldCost + disjSmall;
+        long limit = smallCost;
+        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
+        try {
+            IntervalsSourceProvider small = new IntervalsSourceProvider.Disjunction(
+                List.of(
+                    new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                    new IntervalsSourceProvider.Match("lo", -1, true, null, null, null)
+                ),
+                null
+            );
+            IntervalsSourceProvider big = new IntervalsSourceProvider.Disjunction(
+                List.of(
+                    new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                    new IntervalsSourceProvider.Match("x".repeat(500), -1, true, null, null, null)
+                ),
+                null
+            );
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(new IntervalQueryBuilder(TEXT_FIELD_NAME, small), type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+                BytesReference bigBytes = XContentHelper.toXContent(new IntervalQueryBuilder(TEXT_FIELD_NAME, big), type, false);
+                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    public void testCombineSourceBreakerEstimate() throws IOException {
+        // Combine.estimateBytes() = 32 + subSources.size()*8 + Σ s.estimateBytes().
+        // Small: all_of of Match("hi") and Match("lo") — same arithmetic as Disjunction.
+        // Combine: 32+2*8+68+68=184. Total: 256+(13*2+64)+184=530.
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long fieldCost = 13 * 2L + 64L;
+        long matchHi = 2 * 2L + 64L;
+        long matchLo = 2 * 2L + 64L;
+        long combineSmall = 32L + 2 * 8L + matchHi + matchLo;
+        long smallCost = baseline + fieldCost + combineSmall;
+        long limit = smallCost;
+        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
+        try {
+            IntervalsSourceProvider small = new IntervalsSourceProvider.Combine(
+                List.of(
+                    new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                    new IntervalsSourceProvider.Match("lo", -1, true, null, null, null)
+                ),
+                false,
+                0,
+                null
+            );
+            IntervalsSourceProvider big = new IntervalsSourceProvider.Combine(
+                List.of(
+                    new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                    new IntervalsSourceProvider.Match("x".repeat(500), -1, true, null, null, null)
+                ),
+                false,
+                0,
+                null
+            );
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(new IntervalQueryBuilder(TEXT_FIELD_NAME, small), type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+                BytesReference bigBytes = XContentHelper.toXContent(new IntervalQueryBuilder(TEXT_FIELD_NAME, big), type, false);
+                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
+    }
+
+    public void testNestedDisjunctionBreakerEstimate() throws IOException {
+        // Verifies recursive accumulation: an outer any_of containing an inner any_of.
+        // Small: outer Disjunction of [inner Disjunction(Match("hi"), Match("lo")), Match("ok")].
+        // inner: 32+2*8+68+68=184. outer: 32+2*8+(184+68)=300.
+        // Total: 256+(13*2+64)+300=646.
+        // Large: inner gets Match("x".repeat(500)) replacing Match("lo"):
+        // inner: 32+16+68+1064=1180. outer: 32+16+1180+68=1296. Total: 1642 → trips.
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long fieldCost = 13 * 2L + 64L;
+        long matchHi = 2 * 2L + 64L;
+        long matchLo = 2 * 2L + 64L;
+        long matchOk = 2 * 2L + 64L;
+        long innerSmall = 32L + 2 * 8L + matchHi + matchLo;
+        long outerSmall = 32L + 2 * 8L + innerSmall + matchOk;
+        long smallCost = baseline + fieldCost + outerSmall;
+        long limit = smallCost;
+        LimitedBreaker limitedBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
+        try {
+            IntervalsSourceProvider innerSmallSrc = new IntervalsSourceProvider.Disjunction(
+                List.of(
+                    new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                    new IntervalsSourceProvider.Match("lo", -1, true, null, null, null)
+                ),
+                null
+            );
+            IntervalsSourceProvider small = new IntervalsSourceProvider.Disjunction(
+                List.of(innerSmallSrc, new IntervalsSourceProvider.Match("ok", -1, true, null, null, null)),
+                null
+            );
+            IntervalsSourceProvider innerLargeSrc = new IntervalsSourceProvider.Disjunction(
+                List.of(
+                    new IntervalsSourceProvider.Match("hi", -1, true, null, null, null),
+                    new IntervalsSourceProvider.Match("x".repeat(500), -1, true, null, null, null)
+                ),
+                null
+            );
+            IntervalsSourceProvider big = new IntervalsSourceProvider.Disjunction(
+                List.of(innerLargeSrc, new IntervalsSourceProvider.Match("ok", -1, true, null, null, null)),
+                null
+            );
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(new IntervalQueryBuilder(TEXT_FIELD_NAME, small), type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+                BytesReference bigBytes = XContentHelper.toXContent(new IntervalQueryBuilder(TEXT_FIELD_NAME, big), type, false);
+                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 }

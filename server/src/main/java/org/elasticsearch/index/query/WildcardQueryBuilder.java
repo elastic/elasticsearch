@@ -280,6 +280,13 @@ public class WildcardQueryBuilder extends LeafQueryBuilder<WildcardQueryBuilder>
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + value.length() * 2L + 64L;
+        if (rewrite != null) estimate += rewrite.length() * 2L + 64L;
+        return estimate;
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, value, rewrite, caseInsensitive, forceStringMatch);
     }

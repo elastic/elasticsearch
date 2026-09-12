@@ -404,6 +404,11 @@ public final class RankFeatureQueryBuilder extends LeafQueryBuilder<RankFeatureQ
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + field.length() * 2L + 64L;
+    }
+
+    @Override
     protected boolean doEquals(RankFeatureQueryBuilder other) {
         return Objects.equals(field, other.field) && Objects.equals(scoreFunction, other.scoreFunction);
     }

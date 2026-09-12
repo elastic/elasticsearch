@@ -66,7 +66,7 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
     protected static void declareBaseParserFields(AbstractObjectParser<? extends RetrieverBuilder, RetrieverParserContext> parser) {
         parser.declareObjectArray(
             (r, v) -> r.preFilterQueryBuilders = new ArrayList<>(v),
-            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage),
+            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage, c.getQueryParsingReleasables()),
             PRE_FILTER_FIELD
         );
         parser.declareString(RetrieverBuilder::retrieverName, NAME_FIELD);

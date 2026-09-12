@@ -282,6 +282,13 @@ public class FuzzyQueryBuilder extends LeafQueryBuilder<FuzzyQueryBuilder> imple
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + estimateValue(value);
+        if (rewrite != null) estimate += rewrite.length() * 2L + 64L;
+        return estimate;
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, value, fuzziness, prefixLength, maxExpansions, transpositions, rewrite);
     }

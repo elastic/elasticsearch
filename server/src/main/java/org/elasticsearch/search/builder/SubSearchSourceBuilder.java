@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -25,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -37,7 +39,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  */
 public class SubSearchSourceBuilder implements ToXContent, Writeable, Rewriteable<SubSearchSourceBuilder> {
 
-    private static final ConstructingObjectParser<SubSearchSourceBuilder, SearchUsage> PARSER = new ConstructingObjectParser<>(
+    private record ParseContext(SearchUsage searchUsage, List<Releasable> releasables) {}
+
+    private static final ConstructingObjectParser<SubSearchSourceBuilder, ParseContext> PARSER = new ConstructingObjectParser<>(
         "sub_search_source_builder",
         args -> new SubSearchSourceBuilder((QueryBuilder) args[0])
     );
@@ -45,13 +49,18 @@ public class SubSearchSourceBuilder implements ToXContent, Writeable, Rewriteabl
     static {
         PARSER.declareObject(
             constructorArg(),
-            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage),
+            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p, c.searchUsage()::trackQueryUsage, c.releasables()),
             SearchSourceBuilder.QUERY_FIELD
         );
     }
 
     public static SubSearchSourceBuilder fromXContent(XContentParser parser, SearchUsage searchUsage) throws IOException {
-        return PARSER.parse(parser, searchUsage);
+        return fromXContent(parser, searchUsage, null);
+    }
+
+    public static SubSearchSourceBuilder fromXContent(XContentParser parser, SearchUsage searchUsage, List<Releasable> releasables)
+        throws IOException {
+        return PARSER.parse(parser, new ParseContext(searchUsage, releasables));
     }
 
     @Override

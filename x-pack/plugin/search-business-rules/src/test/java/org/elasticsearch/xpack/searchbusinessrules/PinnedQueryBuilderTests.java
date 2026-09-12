@@ -10,6 +10,13 @@ package org.elasticsearch.xpack.searchbusinessrules;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -235,6 +242,35 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         PinnedQueryBuilder queryBuilder = new PinnedQueryBuilder(new TermQueryBuilder("unmapped_field", "42"), "42");
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testPinnedIdsBreakerEstimate() throws IOException {
+        // cost = BASELINE + id.length() * 2 + 64 (per id)
+        // namedObject also charges the organic query (MatchAll = 256) before PinnedQueryBuilder itself.
+        // "a" (1 char): 256 (organic) + 256 + 2 + 64 = 578; limit = 578 (equal → does not trip)
+        String smallId = "a";
+        long organicCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long limit = organicCost + AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + smallId.length() * 2L + 64L;
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            PinnedQueryBuilder small = new PinnedQueryBuilder(new MatchAllQueryBuilder(), smallId);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+            }
+            PinnedQueryBuilder large = new PinnedQueryBuilder(new MatchAllQueryBuilder(), "x".repeat(500));
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(large, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 
     public void testIdInsertionOrderRetained() {

@@ -22,9 +22,15 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.indices.TermsLookup;
@@ -32,6 +38,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 
@@ -352,6 +359,35 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
         QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
         assertThat(rewritten, CoreMatchers.instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    public void testPayloadBreakerTripsOnLargeTermsList() throws IOException {
+        // Root query is charged its full parseTimeBreakerEstimate(). One term fits; two do not.
+        // CircuitBreakingException propagates directly — no ObjectParser wrapping at root level.
+        String term = "value";
+        long perTerm = term.length() * 2L + 64L;
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + TEXT_FIELD_NAME.length() * 2L + 64L + perTerm;
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            TermsQueryBuilder ok = new TermsQueryBuilder(TEXT_FIELD_NAME, term);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(ok, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+            }
+
+            TermsQueryBuilder big = new TermsQueryBuilder(TEXT_FIELD_NAME, term, "other");
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(big, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 
     @Override

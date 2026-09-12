@@ -20,6 +20,12 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -27,6 +33,8 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -189,6 +197,36 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
             }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(e.getMessage(), containsString("[script] query does not support token [VALUE_NULL]"));
+    }
+
+    public void testScriptParamsBreakerEstimate() throws IOException {
+        // ScriptQueryBuilder.parseTimeBreakerEstimate() = BASELINE + source.length()*2 + estimateValue(params) + lang
+        // Small: source = "doc['score'].value", empty params (emptyMap → 32), lang "painless" (8 chars → 80)
+        // Large: same source, Map.of("k", "x".repeat(500)) → map estimate 1210; largeCost > limit → trips
+        String source = "doc['score'].value";
+        long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + source.length() * 2L + 32L + "painless".length() * 2L
+            + 64L;
+        long limit = smallCost; // equal to limit does not trip (LimitedBreaker uses strict >)
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            ScriptQueryBuilder small = new ScriptQueryBuilder(new Script(source));
+            ScriptQueryBuilder big = new ScriptQueryBuilder(
+                new Script(ScriptType.INLINE, "painless", source, Map.of("k", "x".repeat(500)))
+            );
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 
     public void testReportedCost() throws IOException {

@@ -182,6 +182,13 @@ public class KqlQueryBuilder extends LeafQueryBuilder<KqlQueryBuilder> {
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + query.length() * 2L + 64L;
+        if (defaultField != null) estimate += defaultField.length() * 2L + 64L;
+        return estimate;
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(query, caseInsensitive, timeZone, defaultField);
     }

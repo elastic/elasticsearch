@@ -16,13 +16,19 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -31,6 +37,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
@@ -375,5 +382,35 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         PercolateQueryBuilder queryBuilder = doCreateTestQueryBuilder(true);
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> queryBuilder.toQuery(searchExecutionContext));
         assertEquals("[percolate] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", e.getMessage());
+    }
+
+    public void testInlineDocumentsBreakerEstimate() throws IOException {
+        // Formula: BASELINE + field.length()*2+64 + docs.size() * 8 + sum(doc.length())
+        // queryField is always 4 chars (randomAlphaOfLength(4)), cost = 4*2+64 = 72.
+        // Small: 1 doc of 9 bytes → 256 + 72 + 1*8 + 9 = 345
+        BytesReference smallDoc = new BytesArray("{\"k\":\"v\"}");
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + queryField.length() * 2L + 64L + 1 * 8L + smallDoc.length();
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            PercolateQueryBuilder small = new PercolateQueryBuilder(queryField, Collections.singletonList(smallDoc), XContentType.JSON);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+            }
+            // Large: 1 doc of 498 bytes → 256 + 72 + 1*8 + 498 = 834, exceeds limit
+            BytesReference largeDoc = new BytesArray("{\"k\":\"" + "x".repeat(490) + "\"}");
+            PercolateQueryBuilder large = new PercolateQueryBuilder(queryField, Collections.singletonList(largeDoc), XContentType.JSON);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(large, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 }

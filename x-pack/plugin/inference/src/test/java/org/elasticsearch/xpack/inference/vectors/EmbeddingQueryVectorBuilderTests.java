@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InferenceStringGroupTests;
 import org.elasticsearch.inference.TaskType;
@@ -89,5 +90,23 @@ public class EmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBuilder
     @Override
     protected EmbeddingQueryVectorBuilder doParseInstance(XContentParser parser) throws IOException {
         return EmbeddingQueryVectorBuilder.fromXContent(parser);
+    }
+
+    public void testParseTimeBreakerEstimate() {
+        String inferenceId = "my-endpoint";
+        String inputText = "query text";
+        EmbeddingQueryVectorBuilder builder = new EmbeddingQueryVectorBuilder(inferenceId, new InferenceStringGroup(inputText), null);
+        long expected = inputText.length() * 2L + 64L + inferenceId.length() * 2L + 64L;
+        assertEquals(expected, builder.parseTimeBreakerEstimate());
+
+        // Multiple inference strings charge for each
+        String text2 = "second input";
+        EmbeddingQueryVectorBuilder multi = new EmbeddingQueryVectorBuilder(
+            inferenceId,
+            new InferenceStringGroup(List.of(InferenceString.ofText(inputText), InferenceString.ofText(text2))),
+            null
+        );
+        long multiExpected = inputText.length() * 2L + 64L + text2.length() * 2L + 64L + inferenceId.length() * 2L + 64L;
+        assertEquals(multiExpected, multi.parseTimeBreakerEstimate());
     }
 }

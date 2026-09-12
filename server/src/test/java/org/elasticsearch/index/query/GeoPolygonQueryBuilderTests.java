@@ -15,12 +15,20 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -289,6 +297,45 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
 
         QueryShardException e2 = expectThrows(QueryShardException.class, () -> parseQuery(queryInvalidLon).toQuery(context));
         assertThat(e2.getMessage(), containsString("illegal longitude value [-190.0] for [geo_polygon]"));
+        assertDeprecationWarning();
+    }
+
+    public void testPolygonPointsBreakerEstimate() throws IOException {
+        // GeoPolygonQueryBuilder charges BASELINE + fieldName + shell.size() * 40.
+        // The constructor auto-closes open polygons (appends the first point), so
+        // 3 open distinct points → shell.size() = 4.
+        List<GeoPoint> smallPoints = new ArrayList<>();
+        smallPoints.add(new GeoPoint(0, 0));
+        smallPoints.add(new GeoPoint(1, 0));
+        smallPoints.add(new GeoPoint(1, 1));
+        // 3 open points → constructor auto-closes → shell.size() = 4
+        long smallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + GEO_POINT_FIELD_NAME.length() * 2L + 64L + 4L * 40L;
+        long limit = smallCost; // equal to limit does not trip (LimitedBreaker uses strict >)
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            GeoPolygonQueryBuilder small = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, smallPoints);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser); // must not throw
+                }
+            }
+            // 50 open points → shell.size() = 51 → cost = 256 + fieldName + 51*40
+            List<GeoPoint> largePoints = new ArrayList<>();
+            for (int i = 0; i < 50; i++) {
+                largePoints.add(new GeoPoint(i * 0.1, i * 0.1));
+            }
+            GeoPolygonQueryBuilder large = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, largePoints);
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(large, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
         assertDeprecationWarning();
     }
 }

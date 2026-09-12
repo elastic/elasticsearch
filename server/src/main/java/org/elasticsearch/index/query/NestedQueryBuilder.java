@@ -253,6 +253,11 @@ public class NestedQueryBuilder extends LeafQueryBuilder<NestedQueryBuilder> {
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + path.length() * 2L + 64L;
+    }
+
+    @Override
     protected boolean doEquals(NestedQueryBuilder that) {
         return Objects.equals(query, that.query)
             && Objects.equals(path, that.path)

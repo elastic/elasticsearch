@@ -12,10 +12,15 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -129,6 +134,23 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
     @Override
     public void testUnknownField() {
         // Test isn't relevant, since query is never parsed from xContent
+    }
+
+    public void testVectorBreakerEstimate() {
+        // exact_knn is not user-parseable from XContent, so verify the estimate directly.
+        // small: 2-element float vector -> cost = 256 + fieldName + 2*4; large: 256 + fieldName + 100*4
+        ExactKnnQueryBuilder small = new ExactKnnQueryBuilder(VectorData.fromFloats(new float[] { 1f, 2f }), VECTOR_FIELD, null);
+        ExactKnnQueryBuilder large = new ExactKnnQueryBuilder(VectorData.fromFloats(new float[100]), VECTOR_FIELD, null);
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + VECTOR_FIELD.length() * 2L + 64L + 2 * 4L;
+        // small estimate equals limit; LimitedBreaker uses strict >, so does NOT trip
+        LimitedBreaker breakerSmall = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        breakerSmall.addEstimateBytesAndMaybeBreak(small.parseTimeBreakerEstimate(), "query-parsing"); // must not throw
+        // large estimate exceeds limit; must trip
+        LimitedBreaker breakerLarge = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> breakerLarge.addEstimateBytesAndMaybeBreak(large.parseTimeBreakerEstimate(), "query-parsing")
+        );
     }
 
 }

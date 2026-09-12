@@ -44,15 +44,23 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -1465,5 +1473,30 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             IntStream.range(0, 100).forEach(i -> joiner.add("/(pattern" + i + "|alternate" + i + "|option" + i + ").*/"));
             return queryStringQuery(joiner.toString()).defaultField(TEXT_FIELD_NAME);
         });
+    }
+
+    public void testQueryStringBreakerEstimate() throws IOException {
+        // BASELINE + queryString.length()*2 + estimateValue(fieldsAndWeights)
+        // fieldsAndWeights defaults to empty map → estimateValue = 32.
+        // "hi" (2 chars): 256 + 4 + 32 = 292; "x"×500: 256 + 1000 + 32 = 1288.
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + 2 * 2L + 32L;
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        AbstractQueryBuilder.setQueryParsingBreaker(breaker);
+        try {
+            QueryStringQueryBuilder small = new QueryStringQueryBuilder("hi");
+            QueryStringQueryBuilder big = new QueryStringQueryBuilder("x".repeat(500));
+            for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
+                BytesReference bytes = XContentHelper.toXContent(small, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bytes)) {
+                    parseQuery(parser);
+                }
+                BytesReference bigBytes = XContentHelper.toXContent(big, type, false);
+                try (XContentParser parser = createParser(type.xContent(), bigBytes)) {
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
+                }
+            }
+        } finally {
+            AbstractQueryBuilder.setQueryParsingBreaker(null);
+        }
     }
 }

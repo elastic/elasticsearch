@@ -98,6 +98,10 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.internal.AssumptionViolatedException;
+import org.junit.rules.TestRule;
+import org.junit.runners.model.Statement;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -267,7 +271,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * A client for the running Elasticsearch cluster
      */
-    private static RestClient client;
+    static RestClient client;
     /**
      * A client for the running Elasticsearch cluster configured to take test administrative actions like remove all indexes after the test
      * completes
@@ -277,6 +281,12 @@ public abstract class ESRestTestCase extends ESTestCase {
      * A client for the running Elasticsearch cluster configured to clean up the cluster after tests
      */
     private static RestClient cleanupClient;
+
+    /**
+     * Set once a test failure indicates the cluster is unreachable, so that remaining tests in the
+     * suite are skipped instead of producing redundant failures. Reset after each suite.
+     */
+    static boolean clusterUnavailable;
 
     private static boolean multiProjectEnabled;
     private static String activeProject;
@@ -387,6 +397,50 @@ public abstract class ESRestTestCase extends ESTestCase {
         activeProject = "active00" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
         multiProjectEnabled = Booleans.parseBoolean(System.getProperty("tests.multi_project.enabled", "false"));
+    }
+
+    @Before
+    public final void skipIfClusterUnavailable() {
+        assumeFalse("cluster unavailable", clusterUnavailable);
+    }
+
+    /**
+     * Wraps each test with logic that, on any (non-assumption) test failure, pings the cluster to
+     * check whether it is still usable. If the ping fails for any reason (unreachable or error
+     * response), the remaining tests in the suite are skipped and the original failure is replaced
+     * with a clearer error, avoiding a cascade of redundant, confusing failures.
+     */
+    @Rule
+    public final TestRule clusterDeadRule = (base, description) -> new Statement() {
+        @Override
+        public void evaluate() throws Throwable {
+            try {
+                base.evaluate();
+            } catch (AssumptionViolatedException e) {
+                throw e;
+            } catch (Throwable originalFailure) {
+                RestClient c = client();
+                if (c == null) {
+                    // initClient() failed before any test body ran — terminal state for the suite
+                    throw markClusterUnavailable("Test cluster was unreachable during client initialization", null, originalFailure);
+                }
+                try {
+                    c.performRequest(new Request("HEAD", "/"));
+                } catch (ResponseException e) {
+                    throw markClusterUnavailable("Test cluster is in a bad state", e, originalFailure);
+                } catch (IOException e) {
+                    throw markClusterUnavailable("Test cluster is unreachable", e, originalFailure);
+                }
+                throw originalFailure;
+            }
+        }
+    };
+
+    private static AssertionError markClusterUnavailable(String message, Throwable pingFailure, Throwable originalFailure) {
+        clusterUnavailable = true;
+        AssertionError e = new AssertionError(message, pingFailure);
+        e.addSuppressed(originalFailure);
+        return e;
     }
 
     @Before
@@ -640,6 +694,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         return new HttpHost(host, port, getProtocol());
     }
 
+    @Override
+    protected boolean previousFailureSkipsRemaining() {
+        return clusterUnavailable || super.previousFailureSkipsRemaining();
+    }
+
     /**
      * Clean up after the test case.
      */
@@ -655,6 +714,11 @@ public abstract class ESRestTestCase extends ESTestCase {
                 logIfThereAreRunningTasks();
             }
         }
+    }
+
+    @AfterClass
+    public static void resetClusterUnavailable() {
+        clusterUnavailable = false;
     }
 
     @AfterClass

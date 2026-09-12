@@ -537,10 +537,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
         private final List<String> warnings;
 
-        LookupResponse(List<Page> pages, BlockFactory blockFactory) {
-            this(pages, blockFactory, null, List.of());
-        }
-
         LookupResponse(List<Page> pages, BlockFactory blockFactory, @Nullable String planString, List<String> warnings) {
             super(blockFactory);
             this.pages = pages;

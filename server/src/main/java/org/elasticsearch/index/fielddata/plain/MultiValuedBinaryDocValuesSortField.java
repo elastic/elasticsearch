@@ -136,8 +136,8 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
      *
      * <p>A payload is written for every present document, including one whose slots are all null and one holding no slot at all. Neither
      * has a value to sort on, so both are skipped here and read as missing, consistent with how the other encodings
-     * treat absent documents by writing no blob. Skipping in the iterator rather than at {@link #binaryValue()} is what both index-sort drivers understand: they take
-     * a document the cursor stepped over as having no value.
+     * treat absent documents by writing no blob. Skipping in the iterator rather than at {@link #binaryValue()} is what both
+     * index-sort drivers understand: they take a document the cursor stepped over as having no value.
      */
     private static final class ColumnarPayloadMinMaxBinaryDocValues extends FilterBinaryDocValues {
         private final boolean maxMode;

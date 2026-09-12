@@ -218,6 +218,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<String, NodeHeapEstimates> nodeHeapEstimates;
         private volatile ShardHeapUsageEstimates estimatedShardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
         private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
+        private volatile Map<ShardId, Double> averageShardWriteLoads = Map.of();
         private volatile Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements = Map.of();
         private volatile Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = Map.of();
         private volatile Map<String, Long> hostedShardsPartitionSizeByNodeId = Map.of();
@@ -235,10 +236,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             logger.trace("starting async refresh");
 
             try (var ignoredRefs = fetchRefs) {
-                maybeFetchIndicesStats(diskThresholdEnabled || writeLoadConstraintEnabled.atLeastLowThresholdEnabled());
+                maybeFetchIndicesStats(diskThresholdEnabled || needIndicesStatsForShardWriteLoads());
                 fetchNodeStats(diskThresholdEnabled);
                 fetchEstimatedHeapUsage();
-                fetchNodesUsageStatsForThreadPools();
+                maybeFetchNodesUsageStatsForThreadPools(writeLoadConstraintEnabled.atLeastLowThresholdEnabled());
                 fetchCacheUsageAndCommitments();
                 fetchPartitionSizes();
                 fetchSearchLaneRequirements();
@@ -256,21 +257,36 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
         }
 
+        private void maybeFetchNodesUsageStatsForThreadPools(boolean shouldFetch) {
+            if (shouldFetch) {
+                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                    fetchNodesUsageStatsForThreadPools();
+                }
+            } else {
+                logger.trace("skipping collecting shard/node write load estimates from cluster, feature currently disabled");
+                nodeThreadPoolUsageStatsPerNode = Map.of();
+            }
+        }
+
         private void fetchNodesUsageStatsForThreadPools() {
             try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
                 nodeUsageStatsForThreadPoolsCollector.collectUsageStats(
                     client,
                     clusterStateSupplier.get(),
+                    // Per-shard write loads from this action are only needed when the write loads are not fetched via the indices stats.
+                    writeLoadDeciderShardWriteLoadType.useIndicesStats() == false,
                     ActionListener.releaseAfter(new ActionListener<>() {
                         @Override
-                        public void onResponse(Map<String, NodeUsageStatsForThreadPools> threadPoolStats) {
-                            nodeThreadPoolUsageStatsPerNode = threadPoolStats;
+                        public void onResponse(NodeUsageStatsForThreadPoolsCollector.CollectedUsageStats stats) {
+                            nodeThreadPoolUsageStatsPerNode = stats.nodeUsageStats();
+                            averageShardWriteLoads = stats.shardWriteLoads();
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             logger.warn("failed to fetch thread pool usage estimates for nodes", e);
                             nodeThreadPoolUsageStatsPerNode = Map.of();
+                            averageShardWriteLoads = Map.of();
                         }
                     }, fetchRefs.acquire())
                 );
@@ -367,7 +383,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 // This returns the shard sizes on disk
                 indicesStatsRequest.store(true);
             }
-            if (writeLoadConstraintEnabled.atLeastLowThresholdEnabled()) {
+            if (needIndicesStatsForShardWriteLoads()) {
                 // This returns the shard write-loads
                 indicesStatsRequest.indexing(true);
             }
@@ -534,6 +550,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
         }
 
+        public boolean needIndicesStatsForShardWriteLoads() {
+            return writeLoadConstraintEnabled.atLeastLowThresholdEnabled() && writeLoadDeciderShardWriteLoadType.useIndicesStats();
+        }
+
         private ClusterInfo updateAndGetCurrentClusterInfo() {
             final Map<String, NodeHeapMetrics> nodeHeapMetrics = new HashMap<>(maxHeapPerNode.size());
             maxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
@@ -559,7 +579,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 estimatedShardHeapUsageEstimates.perShard(),
                 estimatedShardHeapUsageEstimates.defaultForShardsWithoutMetrics(),
                 nodeThreadPoolUsageStatsPerNode,
-                indicesStatsSummary.shardWriteLoads(),
+                writeLoadDeciderShardWriteLoadType.useIndicesStats() ? indicesStatsSummary.shardWriteLoads() : averageShardWriteLoads,
                 maxHeapPerNode,
                 nodeIdsWriteLoadHotspotting,
                 nodeCacheSizeAndCommitments,
@@ -717,11 +737,13 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     reservedSpaceBuilder.add(shardRouting.shardId(), reserved);
                 }
             }
-            final IndexingStats indexingStats = s.getStats().getIndexing();
-            if (indexingStats != null) {
-                final double shardWriteLoad = shardWriteLoadType.getWriteLoad(indexingStats);
-                if (shardWriteLoad > shardWriteLoads.getOrDefault(shardRouting.shardId(), -1.0)) {
-                    shardWriteLoads.put(shardRouting.shardId(), shardWriteLoad);
+            if (shardWriteLoadType.useIndicesStats()) {
+                final IndexingStats indexingStats = s.getStats().getIndexing();
+                if (indexingStats != null) {
+                    final double shardWriteLoad = shardWriteLoadType.getWriteLoad(indexingStats);
+                    if (shardWriteLoad > shardWriteLoads.getOrDefault(shardRouting.shardId(), -1.0)) {
+                        shardWriteLoads.put(shardRouting.shardId(), shardWriteLoad);
+                    }
                 }
             }
         }

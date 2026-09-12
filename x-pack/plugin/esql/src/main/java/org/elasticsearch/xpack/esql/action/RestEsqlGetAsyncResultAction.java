@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.ALL_COLUMNS_OPTION;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
 
@@ -47,6 +48,6 @@ public class RestEsqlGetAsyncResultAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Set.of(URL_PARAM_DELIMITER, DROP_NULL_COLUMNS_OPTION);
+        return Set.of(URL_PARAM_DELIMITER, DROP_NULL_COLUMNS_OPTION, ALL_COLUMNS_OPTION);
     }
 }

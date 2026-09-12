@@ -98,6 +98,10 @@ public class EsqlClientYamlAsyncSubmitAndFetchIT extends AbstractEsqlClientYamlI
                 if (dropNullColumns != null) {
                     params.put("drop_null_columns", dropNullColumns);
                 }
+                String allColumns = original.getApiCallSection().getParams().get("all_columns");
+                if (allColumns != null) {
+                    params.put("all_columns", allColumns);
+                }
                 ClientYamlTestResponse fetchResponse = executionContext.callApi(
                     "esql.async_query_get",
                     params,

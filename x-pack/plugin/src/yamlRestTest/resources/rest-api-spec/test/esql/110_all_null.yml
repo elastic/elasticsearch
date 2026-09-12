@@ -261,3 +261,59 @@ columnar and drop null:
   - length: {values: 6}
   - length: {values.0: 2}
   - match: {values.0.0: red}
+
+---
+row wise, drop null, and suppress all_columns:
+  - do:
+      esql.query:
+        drop_null_columns: true
+        all_columns: false
+        body:
+          query: 'FROM test | WHERE time <= 1674835275188 | SORT time ASC | LIMIT 2'
+          columnar: false
+
+  - is_false: all_columns
+  - length: {columns: 6}
+  - match: {columns.0.name: "color"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "count"}
+  - match: {columns.1.type: "long"}
+  - match: {columns.2.name: "count_d"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "data"}
+  - match: {columns.3.type: "long"}
+  - match: {columns.4.name: "data_d"}
+  - match: {columns.4.type: "double"}
+  - match: {columns.5.name: "time"}
+  - match: {columns.5.type: "long"}
+  - length: {values: 2}
+  - length: {values.0: 6}
+  - match: {values.0.0: red}
+
+---
+columnar, drop null, and suppress all_columns:
+  - do:
+      esql.query:
+        drop_null_columns: true
+        all_columns: false
+        body:
+          query: 'FROM test | WHERE time <= 1674835275188 | SORT time ASC | LIMIT 2'
+          columnar: true
+
+  - is_false: all_columns
+  - length: {columns: 6}
+  - match: {columns.0.name: "color"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "count"}
+  - match: {columns.1.type: "long"}
+  - match: {columns.2.name: "count_d"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "data"}
+  - match: {columns.3.type: "long"}
+  - match: {columns.4.name: "data_d"}
+  - match: {columns.4.type: "double"}
+  - match: {columns.5.name: "time"}
+  - match: {columns.5.type: "long"}
+  - length: {values: 6}
+  - length: {values.0: 2}
+  - match: {values.0.0: red}

@@ -69,6 +69,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -6319,8 +6320,20 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         putFirstFileWinsGlob("drift_pq_type_ffw", dir);
 
         // The INTEGER anchor cannot represent part-b's LONG, so that file's x is read as null.
-        assertThat(collectWarningsContaining("FROM drift_pq_type_ffw | KEEP x | SORT x", "incompatible with planner type"), not(empty()));
-        assertThat(firstRowOf("FROM drift_pq_type_ffw | KEEP x | SORT x"), equalTo(List.of(1)));
+        // Parquet emits a SkipWarnings summary plus one per-column detail; the file path is a temp URI.
+        List<String> warnings = collectWarningsContaining("FROM drift_pq_type_ffw | KEEP x | SORT x", "incompatible with planner type");
+        assertThat(warnings, hasSize(2));
+        assertThat(
+            warnings,
+            hasItem(containsString("has columns whose on-disk type is incompatible with the planner type; they are returned as null"))
+        );
+        assertThat(warnings, hasItem(containsString("part-b.parquet")));
+        assertThat(warnings, hasItem(containsString("Column [x] in file [")));
+        assertThat(
+            warnings,
+            hasItem(containsString("has type [LONG] incompatible with planner type [INTEGER]; returning nulls for this column"))
+        );
+        assertThat(columnValues("FROM drift_pq_type_ffw | KEEP x | SORT x"), containsInAnyOrder(1, 2, null, null));
         assertThat(firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
         assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
         assertThat(documentsReadBy("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(0L));
@@ -6345,7 +6358,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         writeParquet(dir.resolve("part-b.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
         putFirstFileWinsGlob("widen_pq_type_ffw", dir);
 
-        assertThat(firstRowOf("FROM widen_pq_type_ffw | KEEP x | SORT x"), equalTo(List.of(-10L)));
+        assertThat(columnValues("FROM widen_pq_type_ffw | KEEP x | SORT x"), containsInAnyOrder(-10L, 1L, 2L, 20L));
         assertThat(
             firstRowOf("FROM widen_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
             equalTo(List.of(-10L, 20L, 4L))
@@ -6364,7 +6377,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         putFirstFileWinsGlob("drift_csv_type_ffw", dir, "csv", Map.of("error_mode", "null_field"));
 
         // Text harvests describe each file's own schema, so COUNT cannot fold and must scan.
-        assertThat(firstRowOf("FROM drift_csv_type_ffw | KEEP x | SORT x"), equalTo(List.of(1)));
+        assertThat(columnValues("FROM drift_csv_type_ffw | KEEP x | SORT x"), containsInAnyOrder(1, 2, null, null));
         assertThat(firstRowOf("FROM drift_csv_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
         try (var response = run(syncEsqlQueryRequest("FROM drift_csv_type_ffw | STATS c = COUNT(x)"), TIMEOUT)) {
             assertThat(getValuesList(response).get(0), equalTo(List.of(2L)));
@@ -6380,11 +6393,14 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         putFirstFileWinsGlob("ul_pq_type_ffw", dir);
 
         // Unsigned extrema use a different representation than a signed harvest; MIN/MAX must
-        // answer over the coerced domain, not mix the two.
-        List<Object> scan = firstRowOf("FROM ul_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)");
-        assertThat(firstRowOf("FROM ul_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(scan));
+        // answer over the coerced domain, not mix the two. 0, 1, 2, 200.
+        List<Object> expectedUl = firstRowOf("FROM ul_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)");
+        assertThat(expectedUl.get(0).toString(), equalTo("0"));
+        assertThat(expectedUl.get(1).toString(), equalTo("200"));
+        assertThat(expectedUl.get(2), equalTo(4L));
+        assertThat(firstRowOf("FROM ul_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(expectedUl));
         assertThat(documentsReadBy("FROM ul_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
-        assertThat(firstRowOf("FROM ul_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(scan));
+        assertThat(firstRowOf("FROM ul_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(expectedUl));
         assertThat(documentsReadBy("FROM ul_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
     }
 
@@ -6399,7 +6415,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         List<Object> expected = List.of(1.0, 2.0, 2L);
         assertThat(firstRowOf("FROM double_ul_ffw | WHERE x IS NOT NULL | " + aggregates), equalTo(expected));
         assertThat(firstRowOf("FROM double_ul_ffw | " + aggregates), equalTo(expected));
-        assertThat(firstRowOf("FROM double_ul_ffw | " + aggregates), equalTo(expected));
+        // Encoded unsigned extrema are not doubles, so MIN/MAX scan; COUNT stays warm.
+        assertThat(documentsReadBy("FROM double_ul_ffw | " + aggregates), equalTo(4L));
         assertThat(firstRowOf("FROM double_ul_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
         assertThat(documentsReadBy("FROM double_ul_ffw | STATS c = COUNT(x)"), equalTo(0L));
     }
@@ -6416,6 +6433,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // -10 is out of the unsigned_long domain, so the fold cannot encode that file's extrema.
         List<Object> scan = firstRowOf("FROM ul_pq_neg_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)");
+        assertThat(scan.get(0).toString(), equalTo("1"));
+        assertThat(scan.get(1).toString(), equalTo("200"));
+        assertThat(scan.get(2), equalTo(3L));
         assertThat(firstRowOf("FROM ul_pq_neg_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(scan));
         assertThat(firstRowOf("FROM ul_pq_neg_ffw | STATS c = COUNT(x)"), equalTo(List.of(3L)));
         assertThat(documentsReadBy("FROM ul_pq_neg_ffw | STATS c = COUNT(x)"), equalTo(4L));
@@ -6432,7 +6452,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         putFirstFileWinsGlob("drift_pq_declared_ffw", dir, "parquet", Map.of(), mapping);
 
         // A declared integer licenses per-value coerce, so COUNT/MIN/MAX scan instead of all-nulling.
-        assertThat(firstRowOf("FROM drift_pq_declared_ffw | KEEP x | SORT x"), equalTo(List.of(-10)));
+        assertThat(columnValues("FROM drift_pq_declared_ffw | KEEP x | SORT x"), containsInAnyOrder(-10, 1, 2, 20));
         assertThat(firstRowOf("FROM drift_pq_declared_ffw | STATS c = COUNT(x)"), equalTo(List.of(4L)));
         assertThat(firstRowOf("FROM drift_pq_declared_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(-10, 20, 4L)));
         assertThat(documentsReadBy("FROM drift_pq_declared_ffw | STATS c = COUNT(x)"), equalTo(4L));
@@ -6514,6 +6534,12 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows.isEmpty(), equalTo(false));
             return rows.get(0);
+        }
+    }
+
+    private List<Object> columnValues(String query) {
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            return getValuesList(response).stream().map(row -> row.get(0)).toList();
         }
     }
 }

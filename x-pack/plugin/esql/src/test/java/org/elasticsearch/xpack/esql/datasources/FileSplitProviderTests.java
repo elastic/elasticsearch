@@ -4365,6 +4365,8 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(2L, stats.get(SourceStatisticsSerializer.columnNullCountKey("x")));
         assertNull(stats.get(SourceStatisticsSerializer.columnMinKey("x")));
         assertNull(stats.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
         assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 
@@ -4394,6 +4396,8 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(2L, stats.get(SourceStatisticsSerializer.columnNullCountKey("x")));
         assertNull(stats.get(SourceStatisticsSerializer.columnMinKey("x")));
         assertNull(stats.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
         assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
     }
 

@@ -451,6 +451,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         f1.put(SourceStatisticsSerializer.columnNullCountKey("ts"), 0L);
         f1.put(SourceStatisticsSerializer.columnMinKey("id"), 1L);
         f1.put(SourceStatisticsSerializer.columnMaxKey("id"), 9L);
+        f1.put(SourceStatisticsSerializer.columnValueCountKey("id"), 2L);
+        f1.put(SourceStatisticsSerializer.columnNullCountKey("id"), 0L);
         Map<String, Object> f2 = new HashMap<>();
         f2.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
         f2.put(SourceStatisticsSerializer.columnMinKey("ts"), 2_000_000L);
@@ -459,6 +461,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         f2.put(SourceStatisticsSerializer.columnNullCountKey("ts"), 0L);
         f2.put(SourceStatisticsSerializer.columnMinKey("id"), 3L);
         f2.put(SourceStatisticsSerializer.columnMaxKey("id"), 7L);
+        f2.put(SourceStatisticsSerializer.columnValueCountKey("id"), 2L);
+        f2.put(SourceStatisticsSerializer.columnNullCountKey("id"), 0L);
         SourceMetadata m1 = new SimpleSourceMetadata(
             List.of(attr("ts", DataType.DATETIME), attr("id", DataType.LONG)),
             "parquet",
@@ -488,6 +492,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(2L, ((Number) agg.get(SourceStatisticsSerializer.columnNullCountKey("ts"))).longValue());
         assertEquals(1L, agg.get(SourceStatisticsSerializer.columnMinKey("id")));
         assertEquals(9L, agg.get(SourceStatisticsSerializer.columnMaxKey("id")));
+        assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.columnValueCountKey("id"))).longValue());
+        assertEquals(0L, ((Number) agg.get(SourceStatisticsSerializer.columnNullCountKey("id"))).longValue());
     }
 
     public void testFfwFooterAggregateRewritesUnrepresentableColumnAndKeepsWidening() {
@@ -765,7 +772,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNotNull(agg);
         assertNull(agg.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnNullCountKey("x")));
         assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
     }
 
     public void testFfwFooterAggregatePoisonsUnsignedExtremaUnderDoubleAnchor() {

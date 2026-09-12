@@ -228,6 +228,31 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         return copy(child(), query, fields, newOptions, generatedFields);
     }
 
+    /**
+     * Keeps {@link #derivedFields} while replacing the rest: verification reads it to skip ON-membership enforcement
+     * for a field list the user never wrote. Pass {@code newGeneratedFields} through unchanged unless
+     * {@code newFields} changed, since {@code generatedAttributesFor} mints fresh {@link NameId}s on every call.
+     */
+    public Highlight withResolved(
+        Expression newQuery,
+        boolean newImplicitQuery,
+        List<NamedExpression> newFields,
+        List<Attribute> newGeneratedFields
+    ) {
+        return new Highlight(source(), child(), prefix, newQuery, newImplicitQuery, derivedFields, newFields, options, newGeneratedFields);
+    }
+
+    /**
+     * Narrows this HIGHLIGHT to a subset of its ON fields and their aligned generated columns, keeping {@link #query},
+     * {@link #implicitQuery} and {@link #derivedFields}. Column pruning uses this to drop ON fields whose generated
+     * {@code <prefix><field>} column is never consumed downstream, except fields the query still translates against.
+     * This runs after verification, so ON-membership is unaffected; a literal query simply spans fewer fields, but a
+     * {@code QSTR} or {@code MATCH} that names a pruned field would fail at runtime.
+     */
+    public Highlight withPrunedFields(List<NamedExpression> prunedFields, List<Attribute> prunedGeneratedFields) {
+        return copy(child(), query, prunedFields, options, prunedGeneratedFields);
+    }
+
     @Override
     public Highlight replaceChild(LogicalPlan newChild) {
         return copy(newChild, query, fields, options, generatedFields);

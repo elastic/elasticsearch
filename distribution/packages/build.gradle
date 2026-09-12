@@ -11,6 +11,7 @@ import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.OS
 import org.redline_rpm.header.Flags
+import org.redline_rpm.payload.Directive
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -226,12 +227,12 @@ def commonPackageConfig(String type, String architecture) {
       permissionGroup 'elasticsearch'
       includeEmptyDirs = true
       createDirectoryEntry true
-      fileType CONFIG | NOREPLACE
+      fileType new Directive(Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE)
     }
     String envFile = expansionsForDistribution(type, false)['path.env']
     configurationFile envFile
     into(new File(envFile).getParent()) {
-      fileType CONFIG | NOREPLACE
+      fileType new Directive(Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE)
       permissionGroup 'elasticsearch'
       filePermissions {
         unix(0660)
@@ -247,14 +248,14 @@ def commonPackageConfig(String type, String architecture) {
       }
     }
     into('/usr/lib/systemd/system') {
-      fileType CONFIG | NOREPLACE
+      fileType new Directive(Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE)
       from "${packagingFiles}/systemd/elasticsearch.service"
       filePermissions {
         unix(0644)
       }
     }
     into('/usr/lib/sysctl.d') {
-      fileType CONFIG | NOREPLACE
+      fileType new Directive(Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE)
       from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"
       filePermissions {
         unix(0644)
@@ -336,7 +337,7 @@ Closure commonDebConfig(String architecture) {
     // ospackage silently ignores setting it. This is probably because `License`
     // is not actually a field in the Debian control file. So instead, we set
     // the license as "custom field".
-    customFields['License'] = 'Elastic-License'
+    customField('License', 'Elastic-License')
 
     archiveVersion = project.version.replace('-', '~')
     packageGroup = 'web'

@@ -115,8 +115,11 @@ public final class SourceExpansionNormalizer {
     }
 
     /**
-     * True when a descendant is already a finished source fan-in. The candidate itself is
-     * provisional, so only its children are inspected.
+     * True when a descendant is already a finished multi-source fan-in. A single dataset
+     * plus only speculative CPS shadows is not enough: those wrappers exist so a remote
+     * namesake can join later, and they must not promote an overlapping single-dataset
+     * view composition. The candidate itself is provisional, so only its children are
+     * inspected.
      */
     private static boolean hasNestedFinalFanIn(LogicalPlan plan) {
         LogicalPlan body = unwrapNamedSubquery(plan);
@@ -133,7 +136,7 @@ public final class SourceExpansionNormalizer {
     private static boolean containsFinalFanIn(LogicalPlan plan) {
         LogicalPlan body = unwrapNamedSubquery(plan);
         if (body instanceof SourceFanInUnionAll fanIn) {
-            if (fanIn.isProvisional() == false) {
+            if (fanIn.isProvisional() == false && DatasetRewriter.definiteProducerCount(fanIn.children()) > 1) {
                 return true;
             }
             for (LogicalPlan child : fanIn.children()) {

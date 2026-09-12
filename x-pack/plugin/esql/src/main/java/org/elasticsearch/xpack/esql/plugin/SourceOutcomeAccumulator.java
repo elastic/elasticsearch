@@ -35,6 +35,7 @@ final class SourceOutcomeAccumulator {
     private final Map<String, Long> remoteTookNanos = new ConcurrentHashMap<>();
     private final AtomicBoolean indexSourceSucceeded = new AtomicBoolean();
     private final AtomicBoolean externalSourceSucceeded = new AtomicBoolean();
+    private final AtomicBoolean localSourceSucceeded = new AtomicBoolean();
     private final AtomicBoolean applied = new AtomicBoolean();
 
     void recordIndexResponse(SourceClusterKey key, ComputeResponse response) {
@@ -77,6 +78,14 @@ final class SourceOutcomeAccumulator {
         externalSourceSucceeded.set(true);
     }
 
+    /**
+     * A coordinator-only subplan completed compute, for example a {@code ROW} branch.
+     * Distinct from synthetic INITIAL pages produced above a failed read.
+     */
+    void recordLocalSourceSuccess() {
+        localSourceSucceeded.set(true);
+    }
+
     void recordExternalFailure(Exception failure) {
         externalSourceFailures.add(failure);
     }
@@ -90,7 +99,7 @@ final class SourceOutcomeAccumulator {
     }
 
     void failIfAllSourcesFailed(EsqlExecutionInfo execInfo, List<Page> finalResults) {
-        if (externalSourceSucceeded() || indexSourceSucceeded.get()) {
+        if (externalSourceSucceeded() || indexSourceSucceeded.get() || localSourceSucceeded.get()) {
             return;
         }
         FailureCollector failureCollector = new FailureCollector();

@@ -203,6 +203,27 @@ public class SourceFanInProductionOrderTests extends ESTestCase {
         }
     }
 
+    public void testSingleDatasetViewsStillRejectForkUnderCps() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
+            putView(viewService, "view_a", "FROM ds1");
+            putView(viewService, "view_b", "FROM ds1");
+
+            String query = """
+                FROM view_a, view_b
+                | FORK
+                    (KEEP emp_no)
+                    (WHERE emp_no IS NOT NULL | KEEP emp_no)
+                """;
+            VerificationException error = expectThrows(
+                VerificationException.class,
+                () -> analyzeProductionOrder(viewService, query, false, UnmappedResolution.DEFAULT, true)
+            );
+            assertThat(error.getMessage(), containsString("FORK after subquery is not supported"));
+            assertWarnings(NO_LIMIT_WARNING);
+        }
+    }
+
     public void testEstimateRowSizeIsolatedWhenOneForkBranchIsLocal() {
         assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
@@ -421,6 +442,25 @@ public class SourceFanInProductionOrderTests extends ESTestCase {
             assertThat(fanIns, hasSize(1));
             Attribute ts = fanIns.getFirst().output().stream().filter(attr -> "ts".equals(attr.name())).findFirst().orElseThrow();
             assertThat(ts.dataType(), equalTo(DataType.DATE_NANOS));
+            assertWarnings(NO_LIMIT_WARNING);
+        }
+    }
+
+    public void testUnusedIntegerAndLongConflictStillMapsCountStar() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
+            putView(viewService, VIEW, "FROM ds1, ds2");
+
+            Map<String, List<Attribute>> schemas = Map.of(
+                DS1_PATH,
+                List.of(referenceAttribute("emp_no", DataType.INTEGER)),
+                DS2_PATH,
+                List.of(referenceAttribute("emp_no", DataType.LONG))
+            );
+            LogicalPlan analyzed = analyzeProductionOrder(viewService, "FROM view_fan | STATS n = COUNT(*)", schemas);
+            assertUnsupportedFanInField(analyzed, "emp_no");
+            PhysicalPlan physical = mapPlan(analyzed);
+            assertThat(countPhysical(physical, SourceFanInExec.class), equalTo(1));
             assertWarnings(NO_LIMIT_WARNING);
         }
     }

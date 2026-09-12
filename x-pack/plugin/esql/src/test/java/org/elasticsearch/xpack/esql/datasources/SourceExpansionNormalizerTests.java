@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
@@ -104,6 +105,27 @@ public class SourceExpansionNormalizerTests extends ESTestCase {
         assertThat(normalized, instanceOf(ViewUnionAll.class));
         assertTrue(normalized.anyMatch(p -> p instanceof UnresolvedExternalRelation));
         assertFalse(normalized.anyMatch(p -> p instanceof SourceFanInUnionAll fanIn && fanIn.isProvisional() == false));
+    }
+
+    public void testSingleDatasetPlusShadowDoesNotFlattenViewComposition() {
+        SourceFanInUnionAll viewA = new SourceFanInUnionAll(
+            Source.EMPTY,
+            List.of(external("s3://a/"), new DatasetShadowRelation(Source.EMPTY, "ds1", LinkedIndexPattern.Kind.OPTIONAL, "ds1")),
+            List.of()
+        );
+        SourceFanInUnionAll viewB = new SourceFanInUnionAll(
+            Source.EMPTY,
+            List.of(external("s3://a/"), new DatasetShadowRelation(Source.EMPTY, "ds1", LinkedIndexPattern.Kind.OPTIONAL, "ds1")),
+            List.of()
+        );
+        LinkedHashMap<String, LogicalPlan> outer = new LinkedHashMap<>();
+        outer.put("view_a", viewA);
+        outer.put("view_b", viewB);
+        SourceFanInUnionAll candidate = SourceFanInUnionAll.provisional(Source.EMPTY, outer, List.of());
+
+        LogicalPlan normalized = SourceExpansionNormalizer.normalize(candidate);
+        assertThat(normalized, instanceOf(ViewUnionAll.class));
+        assertThat(normalized.children(), hasSize(2));
     }
 
     public void testNestedFinalFanInPlusDatasetFlattens() {

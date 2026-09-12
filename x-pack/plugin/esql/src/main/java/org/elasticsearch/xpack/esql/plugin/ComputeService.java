@@ -1476,12 +1476,8 @@ public class ComputeService {
             updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
                 updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo, finalizeQuery);
-                if (finalizeQuery == false
-                    && resolvedPlan.anyMatch(
-                        plan -> plan instanceof ExternalSourceExec
-                            || plan instanceof FragmentExec fragment && fragment.fragment().anyMatch(ExternalRelation.class::isInstance)
-                    )) {
-                    sourceOutcomes.recordExternalSuccess();
+                if (finalizeQuery == false) {
+                    sourceOutcomes.recordLocalSourceSuccess();
                 }
                 return new Result(resolvedPlan.output(), collectedPages, null, configuration, completionInfo, execInfo, null);
             }))) {
@@ -1994,13 +1990,7 @@ public class ComputeService {
                 listener.onFailure(new IllegalStateException("external distribution selected for an index source producer"));
                 return;
             }
-            AtomicBoolean externalSourceFailed = new AtomicBoolean();
-            try (var producerComputeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
-                if (externalSourceFailed.get() == false) {
-                    sourceOutcomes.recordExternalSuccess();
-                }
-                return completionInfo;
-            }))) {
+            try (var producerComputeListener = new ComputeListener(cancelQueryOnFailure, listener)) {
                 dataNodeComputeHandler.startExternalComputeOnDataNodes(
                     sessionId,
                     rootTask,
@@ -2012,10 +2002,8 @@ public class ComputeService {
                     cancelQueryOnFailure,
                     execInfo::isStopped,
                     true,
-                    failure -> {
-                        externalSourceFailed.set(true);
-                        sourceOutcomes.recordExternalFailure(failure);
-                    },
+                    sourceOutcomes::recordExternalFailure,
+                    sourceOutcomes::recordExternalSuccess,
                     producerComputeListener
                 );
             }
@@ -2278,12 +2266,9 @@ public class ComputeService {
         var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
-        AtomicBoolean externalSourceFailed = new AtomicBoolean();
         try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
             if (finalizeQuery) {
                 execInfo.markEndQuery();
-            } else if (externalSourceFailed.get() == false) {
-                sourceOutcomes.recordExternalSuccess();
             }
             l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));
         }))) {
@@ -2321,10 +2306,8 @@ public class ComputeService {
                 cancelQueryOnFailure,
                 execInfo::isStopped,
                 finalizeQuery == false,
-                failure -> {
-                    externalSourceFailed.set(true);
-                    sourceOutcomes.recordExternalFailure(failure);
-                },
+                sourceOutcomes::recordExternalFailure,
+                finalizeQuery ? () -> {} : sourceOutcomes::recordExternalSuccess,
                 computeListener
             );
         }

@@ -95,7 +95,10 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                     // Producers already hold a logical Aggregate whose output is the user
                     // aggregates. The fan-in exchanges a wider intermediate attribute list.
                     // Those widths differ by design; the fragments are not projected.
-                    List<PhysicalPlan> newProducers = fanIn.producers().stream().map(producer -> apply(producer, false, true)).toList();
+                    List<PhysicalPlan> newProducers = fanIn.producers()
+                        .stream()
+                        .map(producer -> apply(producer, isForkBranch, true))
+                        .toList();
                     if (newProducers.equals(fanIn.producers())) {
                         return fanIn;
                     }
@@ -115,7 +118,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                             producerRequired.add(producerOutput.get(i));
                         }
                     }
-                    return apply(producer, false, producerRequired.build(), true);
+                    return apply(producer, isForkBranch, producerRequired.build(), true);
                 }).toList();
                 List<Attribute> newOutput = new ArrayList<>();
                 for (Attribute commonAttribute : fanIn.output()) {

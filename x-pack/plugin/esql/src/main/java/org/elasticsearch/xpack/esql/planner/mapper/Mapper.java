@@ -333,7 +333,7 @@ public class Mapper {
         for (int i = 0; i < commonOutput.size(); i++) {
             Attribute common = commonOutput.get(i);
             Attribute producer = producerOutput.get(i);
-            if (common.name().equals(producer.name()) == false || common.dataType() != producer.dataType()) {
+            if (common.name().equals(producer.name()) == false || compatibleFanInTypes(common, producer) == false) {
                 throw new EsqlIllegalArgumentException(
                     "source fan-in output mismatch at position ["
                         + i
@@ -353,6 +353,18 @@ public class Mapper {
         AttributeMap<Expression> map = replacements.build();
         // transformExpressionsOnly rewrites expressions in place and returns the same node type.
         return (UnaryPlan) unary.transformExpressionsOnly(Attribute.class, attribute -> map.resolve(attribute, attribute));
+    }
+
+    /**
+     * Analysis leaves an {@code UNSUPPORTED} attribute on the fan-in and a null
+     * {@code KEYWORD} placeholder on each producer when a conflicting column is
+     * not referenced downstream. Those positions still line up by name.
+     */
+    private static boolean compatibleFanInTypes(Attribute common, Attribute producer) {
+        if (common.dataType() == producer.dataType()) {
+            return true;
+        }
+        return common.dataType() == DataType.UNSUPPORTED && producer.dataType() == DataType.KEYWORD;
     }
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {

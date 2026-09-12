@@ -273,6 +273,25 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
         outcomes.failIfAllSourcesFailed(executionInfo, List.of());
     }
 
+    public void testLocalSourceSuccessAllowsOtherSourceFailures() {
+        EsqlExecutionInfo executionInfo = executionInfo();
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
+        outcomes.recordIndexFailure(new SourceClusterKey("", List.of("failed")), new IllegalStateException("failed before response"));
+        outcomes.recordLocalSourceSuccess();
+
+        outcomes.failIfAllSourcesFailed(executionInfo, List.of());
+    }
+
+    public void testSkippedExternalSourceDoesNotMaskSiblingFailure() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS);
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
+        IllegalStateException failure = new IllegalStateException("only executed source failed");
+        outcomes.recordExternalFailure(failure);
+
+        Exception thrown = expectThrows(Exception.class, () -> outcomes.failIfAllSourcesFailed(executionInfo, List.of()));
+        assertSame(failure, thrown);
+    }
+
     public void testSuccessfulExternalSourceAllowsOtherExternalSourceFailures() {
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS);
         SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();

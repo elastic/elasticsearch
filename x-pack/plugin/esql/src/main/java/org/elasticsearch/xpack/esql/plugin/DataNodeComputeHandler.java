@@ -319,6 +319,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         BooleanSupplier executionStopped,
         boolean tolerateAllNodesFailure,
         Consumer<Exception> allNodesFailureConsumer,
+        Runnable onNodeSuccess,
         ComputeListener parentComputeListener
     ) {
         var queryPragmas = configuration.pragmas();
@@ -340,6 +341,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
         class DistributionCompletion {
             private final AtomicInteger completedNodes = new AtomicInteger();
+            private final AtomicInteger succeededNodes = new AtomicInteger();
             private final AtomicInteger failedNodes = new AtomicInteger();
             private final AtomicBoolean completed = new AtomicBoolean();
 
@@ -354,7 +356,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             }
 
             void nodeFinished(boolean successful) {
-                if (successful == false) {
+                if (successful) {
+                    succeededNodes.incrementAndGet();
+                    onNodeSuccess.run();
+                } else {
                     failedNodes.incrementAndGet();
                 }
                 nodeCompleted();
@@ -362,8 +367,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
             private void nodeCompleted() {
                 if (completedNodes.incrementAndGet() == expectedNodes && completed.compareAndSet(false, true)) {
-                    boolean allFailed = failedNodes.get() == expectedNodes;
-                    if (allFailed && executionStopped.getAsBoolean() == false && parentTask.isCancelled() == false) {
+                    boolean failedWithoutSuccess = succeededNodes.get() == 0 && failedNodes.get() > 0;
+                    if (failedWithoutSuccess && executionStopped.getAsBoolean() == false && parentTask.isCancelled() == false) {
                         var failure = new IllegalStateException("all [" + failedNodes.get() + "] nodes assigned external splits failed");
                         if (allowPartial && tolerateAllNodesFailure) {
                             allNodesFailureConsumer.accept(failure);

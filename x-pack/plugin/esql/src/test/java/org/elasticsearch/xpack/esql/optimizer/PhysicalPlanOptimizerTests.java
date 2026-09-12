@@ -3880,6 +3880,27 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         for (PhysicalPlan producer : keptBetweenAggs.producers()) {
             assertThat(as(producer, FragmentExec.class).fragment(), instanceOf(Aggregate.class));
         }
+
+        SourceFanInExec forkFanIn = new SourceFanInExec(
+            Source.EMPTY,
+            List.of(
+                new FragmentExec(new Project(Source.EMPTY, relation, List.of())),
+                new FragmentExec(new Project(Source.EMPTY, secondRelation, List.of()))
+            ),
+            List.of(),
+            false
+        );
+        LocalSourceExec emptyForkBranch = new LocalSourceExec(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
+        MergeExec emptyFork = new MergeExec(Source.EMPTY, List.of(forkFanIn, emptyForkBranch), List.of());
+        plan = rule.apply(new AggregateExec(Source.EMPTY, emptyFork, List.of(), List.of(count), AggregatorMode.SINGLE, List.of(), null));
+        MergeExec projectedFork = as(as(plan, AggregateExec.class).child(), MergeExec.class);
+        assertThat(projectedFork.output(), equalTo(List.of()));
+        SourceFanInExec projectedForkFanIn = as(projectedFork.children().getFirst(), SourceFanInExec.class);
+        assertThat(projectedForkFanIn.output(), equalTo(List.of()));
+        for (PhysicalPlan producer : projectedForkFanIn.producers()) {
+            Project producerProject = as(as(producer, FragmentExec.class).fragment(), Project.class);
+            assertThat(producerProject.projections(), equalTo(List.of()));
+        }
     }
 
     public void testProjectAwayColumnsLeavesOrdinaryLookupJoinRelation() {

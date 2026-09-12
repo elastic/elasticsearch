@@ -110,6 +110,15 @@ public class MatchOnlyTextShardBatchMapperResolveTests extends MapperServiceTest
         assertTrue(resolution.columnMappers()[0] instanceof MatchOnlyTextFieldMapper);
     }
 
+    public void testMatchOnlyTextNonColumnarDocValuesFallsBack() throws IOException {
+        MapperService ms = createMapperService(
+            mapping(b -> b.startObject("f").field("type", "match_only_text").field("doc_values", true).endObject())
+        );
+        var rawMapper = ms.mappingLookup().getMapper("f");
+        assertTrue(rawMapper instanceof MatchOnlyTextFieldMapper);
+        assertFalse(((MatchOnlyTextFieldMapper) rawMapper).supportsColumnarParse(ms.getIndexSettings()));
+    }
+
     public void testMatchOnlyTextDocValuesDisabledFallsBack() throws IOException {
         MapperService ms = mapper(
             mapping(b -> { b.startObject("f").field("type", "match_only_text").field("doc_values", false).endObject(); })

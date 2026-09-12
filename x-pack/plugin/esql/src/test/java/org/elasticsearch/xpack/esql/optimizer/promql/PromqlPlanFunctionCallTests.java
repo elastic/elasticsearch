@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
@@ -45,12 +44,17 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isCounter;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTests {
+
+    public PromqlPlanFunctionCallTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     public void testConstantResults() {
         assertConstantResult("ceil(vector(3.14159))", equalTo(4.0));
@@ -337,11 +341,8 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(sumAgg.groupings(), hasSize(2));
         assertThat(sumAgg.aggregates().getFirst().collect(Sum.class), not(empty()));
 
-        var pack = as(sumAgg.child(), PackDims.class);
-        assertThat(pack.dims(), hasSize(1));
-        assertThat(Expressions.name(pack.dims().getFirst()), equalTo("cluster"));
-
-        var tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
+        var tsAgg = packedTimeSeriesAggregate(sumAgg.child(), 1);
+        assertThat(Expressions.names(packedDims(tsAgg.aggregates())), contains("cluster"));
         assertThat(tsAgg.aggregates().getFirst().collect(LastOverTime.class), not(empty()));
     }
 

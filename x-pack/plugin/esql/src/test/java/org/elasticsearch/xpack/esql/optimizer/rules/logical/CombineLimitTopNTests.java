@@ -25,6 +25,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CombineLimitTopNTests extends AbstractLogicalPlanOptimizerTests {
 
+    public CombineLimitTopNTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     public void testCombineLimitByTopNBySameGroupings() {
         var attr = getFieldAttribute("a");
         var groupings = List.<Expression>of(attr);

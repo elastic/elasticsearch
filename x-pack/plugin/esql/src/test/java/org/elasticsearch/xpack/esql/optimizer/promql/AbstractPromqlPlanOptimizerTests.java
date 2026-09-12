@@ -32,13 +32,17 @@ import static org.hamcrest.Matchers.not;
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug tests")
 public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
 
-    protected static TestAnalyzer tsAnalyzer() {
+    protected AbstractPromqlPlanOptimizerTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
+    protected TestAnalyzer tsAnalyzer() {
         return analyzerWithEnrichPolicies().addK8s()
             .addK8sDateNanos()
             .addOtelMetrics()
             .addEmptyIndex()
             .unmappedResolution(UnmappedResolution.NULLIFY)
-            .minimumTransportVersion(TimeSeriesCollapse.TS_COLLAPSE);
+            .minimumTransportVersion(minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE));
     }
 
     protected LogicalPlan planPromql(String query) {

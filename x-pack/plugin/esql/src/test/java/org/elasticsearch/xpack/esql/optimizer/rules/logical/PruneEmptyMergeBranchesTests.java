@@ -34,6 +34,10 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTests {
 
+    public PruneEmptyMergeBranchesTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     /**
      * {@snippet lang="text":
      * Limit[10[INTEGER],false,false]

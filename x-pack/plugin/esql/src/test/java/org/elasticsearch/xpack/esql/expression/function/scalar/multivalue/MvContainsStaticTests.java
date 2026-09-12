@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.TermsSetQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -99,6 +103,23 @@ public class MvContainsStaticTests extends ESTestCase {
         }
     }
 
+    public void testTranslatableWithFoldableLeftArgument() {
+        for (DataType dataType : pushableDataTypes) {
+            FieldAttribute fieldAttr = new FieldAttribute(
+                EMPTY,
+                "abc",
+                new EsField("abc", dataType, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+            );
+            MvContains mvContains = new MvContains(Source.EMPTY, randomLiteral(dataType), fieldAttr);
+
+            assertThat(
+                mvContains.translatable(LucenePushdownPredicates.DEFAULT),
+                equalTo(TranslationAware.Translatable.RECHECK_BUT_NO_NEGATED)
+            );
+            assertThat(mvContains.translatable(LucenePushdownPredicates.DEFAULT).negate(), equalTo(TranslationAware.Translatable.NO));
+        }
+    }
+
     public void testAsQuery() {
         String fieldName = "my_field";
 
@@ -125,5 +146,38 @@ public class MvContainsStaticTests extends ESTestCase {
             assertThat(queryBuilder.getMinimumShouldMatch(), equalTo(Integer.toString(values.size())));
             assertThat(queryBuilder.getValues(), hasSize(values.size()));
         }
+    }
+
+    public void testAsQueryWithFoldableLeftArgument() {
+        String fieldName = "my_field";
+        List<BytesRef> values = List.of(new BytesRef("python"), new BytesRef("c++"));
+        FieldAttribute fieldAttr = new FieldAttribute(
+            EMPTY,
+            fieldName,
+            new EsField(fieldName, DataType.KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        MvContains mvContains = new MvContains(EMPTY, new Literal(EMPTY, values, DataType.KEYWORD), fieldAttr);
+
+        assertThat(
+            mvContains.translatable(LucenePushdownPredicates.DEFAULT),
+            equalTo(TranslationAware.Translatable.RECHECK_BUT_NO_NEGATED)
+        );
+
+        Query query = mvContains.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        assertThat(query.toQueryBuilder(), instanceOf(BoolQueryBuilder.class));
+
+        BoolQueryBuilder boolQuery = (BoolQueryBuilder) query.toQueryBuilder();
+        assertThat(boolQuery.should(), hasSize(2));
+        assertThat(boolQuery.should().stream().anyMatch(TermsQueryBuilder.class::isInstance), equalTo(true));
+        assertThat(
+            boolQuery.should()
+                .stream()
+                .anyMatch(
+                    q -> q instanceof BoolQueryBuilder nested
+                        && nested.mustNot().size() == 1
+                        && nested.mustNot().getFirst() instanceof ExistsQueryBuilder
+                ),
+            equalTo(true)
+        );
     }
 }

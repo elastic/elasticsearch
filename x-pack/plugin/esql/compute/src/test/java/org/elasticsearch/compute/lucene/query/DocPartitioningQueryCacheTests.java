@@ -138,8 +138,8 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
         });
         blocked.addListener(ActionListener.running(thread2::start));
         blockedOnFirstRange.countDown();
-        thread1.join(10_000);
-        thread2.join(10_000);
+        safeJoin(thread1);
+        safeJoin(thread2);
         // The cache wrapper iterates the full leaf once to build the cached DocIdSet.
         assertThat(visited.get(), equalTo(numDocs));
         reader.close();
@@ -344,7 +344,7 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             assertNull(op2.getOutput());
             assertFalse(op2.isBlocked().listener().isDone());
             scorerProceed.countDown();
-            thread1.join(30_000);
+            safeJoin(thread1);
             assertTrue(op2.isBlocked().listener().isDone());
             assertNull(op2.getOutput());
             assertTrue(op2.isFinished());
@@ -494,9 +494,9 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
         latch.countDown();
         allowScoring.countDown();
         for (Thread thread : threads) {
-            thread.join(30_000);
+            safeJoin(thread);
         }
-        cachingThread.join(30_000);
+        safeJoin(cachingThread);
         reader.close();
         dir.close();
         assertThat(indicesQueryCache.getStats(shard, () -> 0L).getCacheCount(), greaterThanOrEqualTo((long) numClauses));

@@ -19,23 +19,34 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Options;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -44,9 +55,11 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
@@ -262,7 +275,142 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         return (plan, failures) -> {
             super.postOptimizationPlanVerification().accept(plan, failures);
             fieldVerifier(plan, this, field, null, failures);
+            // Only a search predicate is checked. HIGHLIGHT also holds full-text functions, but it analyzes values
+            // row by row through a MemoryIndex whether or not a FORK precedes it, so nothing about it is silently
+            // substituted here - see forkColumnBackedByMappedTextField.
+            if (isRuntimeSearch() && plan instanceof Filter) {
+                ForkTextColumn forkColumn = forkColumnBackedByMappedTextField(plan);
+                if (forkColumn != null) {
+                    failures.add(
+                        fail(
+                            this,
+                            "[{}] {} cannot search column [{}] after FORK: the merged column is not index-backed, so its "
+                                + "values are analyzed with the [{}] analyzer rather than the analyzer mapped for [{}]. "
+                                + "Search [{}] in the FORK branches instead, or declare an analyzer for the merged column "
+                                + "with TO_TEXT({}, {\"analyzer\": ...}).",
+                            functionName(),
+                            functionType(),
+                            forkColumn.column().name(),
+                            AnalyzedTextExpression.STANDARD_ANALYZER,
+                            forkColumn.mappedField().name(),
+                            // the branches know the field by its own name, which a RENAME above them may have changed
+                            forkColumn.mappedField().name(),
+                            forkColumn.column().name()
+                        )
+                    );
+                }
+            }
         };
+    }
+
+    /**
+     * The column this runtime search reads, paired with the mapped {@code text} field a {@code FORK} branch fills
+     * it from. The two differ when {@code RENAME} or {@code EVAL} sits between them.
+     */
+    private record ForkTextColumn(Attribute column, FieldAttribute mappedField) {}
+
+    /**
+     * Whether this runtime search reads a {@code FORK} output column that at least one branch fills from a mapped
+     * {@code text} field, and if so which field.
+     * <p>
+     * A {@code FORK} output column is merged from every branch, so it is no longer index-backed and its values are
+     * analyzed row by row with the analyzer declared on the column - the standard analyzer when nothing declared
+     * one. When those values come from a mapped {@code text} field, that default silently replaces the analyzer the
+     * field was mapped with, and the search answers a different question than the same search below {@code FORK}
+     * would. The declaration is the only thing that can tell the two cases apart: the merged attribute is a
+     * {@code ReferenceAttribute} of type {@code TEXT} either way, and ES|QL field types carry no analyzer.
+     * <p>
+     * Only reachable when push-down left the search above the merge. {@code PushDownFiltersIntoFork} moves a filter
+     * into the branches whenever at least one of them has no pipeline breaker, which restores an index-backed search
+     * and makes {@link #isRuntimeSearch()} false. {@code MV_EXPAND} substitutes the analyzer the same way but is
+     * deliberately not checked: it did so before a runtime search was allowed above a pipeline breaker at all, so
+     * narrowing it now would break working queries rather than restrict newly opened ground. {@code HIGHLIGHT} is
+     * not checked either, for a different reason: it never searches an index, so there is no index behaviour for a
+     * merged column to diverge from.
+     */
+    @Nullable
+    private ForkTextColumn forkColumnBackedByMappedTextField(LogicalPlan plan) {
+        Expression searched = field();
+        if (searched instanceof AbstractConvertFunction convertFunction) {
+            searched = convertFunction.field();
+        }
+        if (searched instanceof Attribute == false) {
+            return null;
+        }
+        Attribute column = (Attribute) searched;
+        // A keyword column is not analyzed, so it has no mapping analyzer to lose. A declared values analyzer - which
+        // Alias propagates along a chain of EVAL/RENAME - means the query already says how to analyze the values.
+        if (column.dataType() != TEXT || AnalyzedTextExpression.valuesAnalyzerOf(column) != null) {
+            return null;
+        }
+        // Checked before the bindings are collected so that the far more common FORK-less plan costs one short
+        // circuiting walk rather than a map of every alias in it.
+        if (plan.anyMatch(p -> p instanceof Fork) == false) {
+            return null;
+        }
+
+        Map<NameId, Expression> aliases = aliasBindings(plan);
+        Expression resolved = resolveThroughAliases(aliases, column);
+        if (resolved instanceof Attribute == false) {
+            return null;
+        }
+        Attribute merged = (Attribute) resolved;
+
+        Holder<FieldAttribute> mappedField = new Holder<>();
+        plan.forEachDown(Fork.class, fork -> {
+            if (mappedField.get() != null || fork.output().stream().noneMatch(out -> out.id().equals(merged.id()))) {
+                return;
+            }
+            // Branches are name-aligned by the time the merge resolves, so the name is what identifies the same
+            // column across them; only the branch that wins the merge shares the output attribute's id.
+            for (LogicalPlan branch : fork.children()) {
+                for (Attribute branchColumn : branch.output()) {
+                    if (branchColumn.name().equals(merged.name())
+                        && resolveThroughAliases(aliases, branchColumn) instanceof FieldAttribute mapped
+                        && mapped.dataType() == TEXT) {
+                        mappedField.set(mapped);
+                        return;
+                    }
+                }
+            }
+        });
+        return mappedField.get() == null ? null : new ForkTextColumn(column, mappedField.get());
+    }
+
+    /**
+     * Every {@code EVAL} and {@code RENAME} binding in {@code plan}, keyed by the id of the attribute it defines, so
+     * that a column can be followed back to whatever produces it. Ids are unique across a plan, so a single map
+     * covers both the columns above a {@code FORK} and those inside its branches.
+     */
+    private static Map<NameId, Expression> aliasBindings(LogicalPlan plan) {
+        Map<NameId, Expression> bindings = new HashMap<>();
+        plan.forEachDown(p -> {
+            if (p instanceof Eval eval) {
+                for (Alias alias : eval.fields()) {
+                    bindings.put(alias.id(), alias.child());
+                }
+            } else if (p instanceof Project project) {
+                for (NamedExpression projection : project.projections()) {
+                    if (projection instanceof Alias alias) {
+                        bindings.put(alias.id(), alias.child());
+                    }
+                }
+            }
+        });
+        return bindings;
+    }
+
+    private static Expression resolveThroughAliases(Map<NameId, Expression> aliases, Expression expression) {
+        Expression current = expression;
+        // A binding never defines the attribute it resolves to, so no chain can be longer than the map itself.
+        for (int hops = aliases.size(); hops > 0 && current instanceof Attribute attribute; hops--) {
+            Expression bound = aliases.get(attribute.id());
+            if (bound == null) {
+                break;
+            }
+            current = bound;
+        }
+        return current;
     }
 
     @Override

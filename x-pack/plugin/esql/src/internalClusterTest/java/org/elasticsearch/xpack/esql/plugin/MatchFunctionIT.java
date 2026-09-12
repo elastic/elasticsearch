@@ -1163,6 +1163,77 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    public void testMatchOnMappedTextAfterForkThrowsError() {
+        // The LIMIT in each branch stops the filter being pushed into them, so the search runs on the merged column
+        // and would analyze a mapped text field's values with the standard analyzer instead of the field's own.
+        var query = """
+            FROM test
+            | FORK (WHERE match(content, "fox") | SORT id | LIMIT 5)
+                   (WHERE match(content, "dog") | SORT id | LIMIT 5)
+            | WHERE match(content, "brown")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot search column [content] after FORK"));
+        assertThat(error.getMessage(), containsString("Search [content] in the FORK branches instead"));
+        assertThat(error.getMessage(), containsString("TO_TEXT(content, {\"analyzer\": ...})"));
+    }
+
+    public void testMatchOnMappedTextAfterForkWithDeclaredAnalyzer() {
+        // Declaring the values analyzer makes the same merge searchable. Whitespace lowercases neither side, so
+        // document 4 - retrieved by the dog branch, and the only other row containing "this" - is dropped for
+        // spelling it in lower case. Under the standard analyzer it would come back.
+        var query = """
+            FROM test
+            | FORK (WHERE match(content, "fox") | SORT id | LIMIT 5)
+                   (WHERE match(content, "dog") | SORT id | LIMIT 5)
+            | EVAL t = to_text(content, {"analyzer": "whitespace"})
+            | WHERE match(t, "This")
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("fork1", 1, "This is a brown fox"),
+                    List.of("fork2", 2, "This is a brown dog"),
+                    List.of("fork2", 3, "This dog is really brown")
+                )
+            );
+        }
+    }
+
+    public void testMatchOnMappedTextAfterForkWithoutPipelineBreaker() {
+        // No pipeline breaker in either branch, so the filter is pushed into them and this stays an indexed search
+        // that honors the field's mapped analyzer - nothing for the FORK restriction to reject.
+        var query = """
+            FROM test
+            | FORK (WHERE match(content, "fox"))
+                   (WHERE match(content, "dog"))
+            | WHERE match(content, "brown")
+            | KEEP _fork, id
+            | SORT _fork, id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("fork1", 1),
+                    List.of("fork1", 6),
+                    List.of("fork2", 2),
+                    List.of("fork2", 3),
+                    List.of("fork2", 4),
+                    List.of("fork2", 6)
+                )
+            );
+        }
+    }
+
     static void createAndPopulateIndices(Consumer<String[]> ensureYellow) {
         createTestIndex("test", """
             {

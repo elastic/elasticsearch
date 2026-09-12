@@ -2057,6 +2057,14 @@ public class VerifierTests extends ESTestCase {
     }
 
     /**
+     * The documented way out of the mapping analyzer being dropped: once the column is an expression, its values
+     * analyzer can be declared again on {@code TO_TEXT}, which is rejected while the field is still index-mapped.
+     */
+    public void testValuesAnalyzerCanBeRedeclaredAfterMvExpand() throws Exception {
+        fullText().query("from test | mv_expand title | eval t = to_text(title, {\"analyzer\": \"whitespace\"}) | where match(t, \"cat\")");
+    }
+
+    /**
      * A values analyzer declared below FORK reaches the search through the fork's merged output, so every branch
      * has to agree on it. Fork's output minting keeps only one declaration per column name, which would otherwise
      * analyze the other branches' rows with an analyzer they never declared.

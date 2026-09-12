@@ -204,8 +204,8 @@ instead of using the index.
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 Because such a search does not use the index, the restriction above does not apply to it: it can
 appear anywhere in the query, including after `STATS`, `LIMIT` and `FORK`. (In earlier versions it
-was restricted to the same positions as a search on an indexed field.)  For example, this query is 
-accepted:
+was restricted to the same positions as a search on an indexed field. Searching a mapped `text` field
+that `FORK` merged is the one exception, described below.) For example, this query is accepted:
 
 ```esql
 FROM books
@@ -236,11 +236,43 @@ per-index custom analyzer. On other expression types options are not supported.
 An indexed `text` field is sometimes searched as an expression rather than through the index, and its values are
 then analyzed with the values analyzer of the column rather than the one its mapping declares: `standard`, unless it uses
 `TO_TEXT` with its optional `analyzer` argument. This applies whenever the field cannot be searched through the
-index, which includes the column [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) expanded,
-anything [`FORK`](/reference/query-languages/esql/commands/fork.md) outputs, and a field that is not mapped the
-same way across every index the query reads. Searching the field where it can still use the index uses the
-mapping's analyzer. `FORK` branches that declare different values analyzers for the same column
-are rejected, since the merged column can only carry one of them.
+index, which includes the column [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) expanded and
+a field that is not mapped the same way across every index the query reads. Searching the field where it can still
+use the index uses the mapping's analyzer.
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+What [`FORK`](/reference/query-languages/esql/commands/fork.md) outputs is not index-backed either, but there the
+mapped-`text` case is rejected rather than answered with the substituted analyzer. Declare the analyzer on the
+merged column to search it, which is allowed because the merged column is no longer an indexed field, or search the
+field inside the `FORK` branches instead:
+
+```esql
+FROM books
+| FORK (SORT book_no | LIMIT 5)
+       (SORT book_no DESC | LIMIT 5)
+| EVAL t = TO_TEXT(title, {"analyzer": "whitespace"})
+| WHERE MATCH(t, "Tolkien")
+```
+
+This only applies to a column the merge actually makes non-indexed. Where no branch contains a pipeline breaker
+such as `LIMIT` or `STATS`, the search is pushed into the branches and still uses the index, so it is unaffected.
+`FORK` branches that declare different values analyzers for the same column are rejected too, since the merged
+column can only carry one of them.
+
+:::{warning}
+`MV_EXPAND`, and a field that is not mapped the same way across every index the query reads, substitute the
+analyzer without reporting it. A field whose mapping declares an analyzer other than `standard` is then searched
+differently depending on where in the query it is searched, and the query succeeds while quietly matching a
+different set of documents. Either search the field before the command that turns it into an expression, or declare
+the analyzer again on `TO_TEXT` afterwards, which is allowed once the column is no longer an indexed field:
+
+```esql
+FROM books
+| MV_EXPAND author
+| EVAL a = TO_TEXT(author, {"analyzer": "whitespace"})
+| WHERE MATCH(a, "Tolkien")
+```
+:::
 
 Which column `MV_EXPAND` expanded therefore decides how the field is searched. Both of these expand
 `author`, which a book can have several of, but only the first searches the expanded column and so

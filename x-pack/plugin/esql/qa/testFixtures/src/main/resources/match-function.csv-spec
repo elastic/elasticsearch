@@ -2390,6 +2390,63 @@ the Fox jumped | fork1
 the Fox jumped | fork2
 ;
 
+// Two unrelated retrieval strategies merged - Tolkien's own books, and every edition of one Faulkner novel - then
+// filtered on the merged title column. The branches share no rows, and the filter is on an axis neither of them
+// searched, so a row survives independently of why it was retrieved.
+//
+// Declaring the values analyzer is what makes that last filter legal: TO_TEXT rejects the analyzer option on an
+// index-mapped field, but the merged column is no longer index-mapped. The top-N in each branch is also what keeps the
+// filter above the merge - with no pipeline breaker it would be pushed into the branches and search the index instead.
+//
+// The three Unvanquished editions differ only in the case of their titles, so they show exactly what the whitespace
+// analyzer does: it lowercases neither side, so 4977 and 8077 match "The" while 4724, titled "THE UNVANQUISHED",
+// does not. Under the standard analyzer all three would match.
+matchOnMappedTextAfterForkWithDeclaredAnalyzer
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+required_capability: fork_v9
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| FORK (WHERE match(author, "Tolkien") | SORT book_no | LIMIT 5)
+       (WHERE match(title, "unvanquished") | SORT book_no | LIMIT 3)
+| EVAL t = to_text(title, {"analyzer": "whitespace"})
+| WHERE match(t, "The")
+| KEEP _fork, book_no, author, title
+| SORT _fork, book_no
+;
+
+_fork:keyword | book_no:keyword | author:text                                      | title:text
+fork1         | 2130            | [Christopher Tolkien, John Ronald Reuel Tolkien] | The J. R. R. Tolkien Audio Collection
+fork1         | 2675            | J.R.R. Tolkien                                   | The Lord of the Rings - Boxed Set
+fork1         | 2714            | J. R. R. Tolkien                                 | Return of the King Being the Third Part of The Lord of the Rings
+fork2         | 4977            | William Faulkner                                 | The Unvanquished
+fork2         | 8077            | William Faulkner                                 | The unvanquished
+;
+
+// The same merge with a lowercase term selects a different set of rows, which is the proof that the declared
+// analyzer is in force: under the standard analyzer "the" and "The" would both match every row above. Here only
+// the two titles carrying a lowercase "the" as a whole token come back, and the Faulkner branch drops out entirely.
+matchOnMappedTextAfterForkWithDeclaredAnalyzerIsCaseSensitive
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+required_capability: fork_v9
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| FORK (WHERE match(author, "Tolkien") | SORT book_no | LIMIT 5)
+       (WHERE match(title, "unvanquished") | SORT book_no | LIMIT 3)
+| EVAL t = to_text(title, {"analyzer": "whitespace"})
+| WHERE match(t, "the")
+| KEEP _fork, book_no, author, title
+| SORT _fork, book_no
+;
+
+_fork:keyword | book_no:keyword | author:text      | title:text
+fork1         | 2675            | J.R.R. Tolkien   | The Lord of the Rings - Boxed Set
+fork1         | 2714            | J. R. R. Tolkien | Return of the King Being the Third Part of The Lord of the Rings
+;
+
 matchOnRuntimeTextWithKeywordAnalyzer
 required_capability: match_function
 required_capability: fn_to_text_analyzer

@@ -782,6 +782,54 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertEquals(1, docValuesCount);
     }
 
+    public void testDocValuesColumnarSingleValueFormat() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "hello")));
+        List<IndexableField> dvFields = doc.rootDoc()
+            .getFields("field")
+            .stream()
+            .filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY)
+            .toList();
+
+        assertEquals("multi_value=false columnar text must write exactly one binary DV field", 1, dvFields.size());
+        assertEquals(
+            "multi_value=false columnar text must store the raw bytes unchanged",
+            new BytesRef("hello"),
+            dvFields.get(0).binaryValue()
+        );
+
+        assertTrue(
+            "multi_value=false columnar text must not write a .counts field",
+            doc.rootDoc().getFields("field" + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX).isEmpty()
+        );
+    }
+
+    public void testDocValuesColumnarMultiValueFormat() throws IOException {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text")));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
+
+        List<IndexableField> dvFields = doc.rootDoc()
+            .getFields("field")
+            .stream()
+            .filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY)
+            .toList();
+        assertEquals("multi_value=true columnar text must write exactly one binary DV field", 1, dvFields.size());
+        BytesRef blob = dvFields.get(0).binaryValue();
+        BytesRef expectedBlob = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(List.of(new BytesRef("a"), new BytesRef("b")));
+        assertEquals("ArrayOrderInlineNull blob must encode [\"a\",\"b\"] correctly", expectedBlob, blob);
+
+        String countsField = "field" + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        List<IndexableField> countFields = doc.rootDoc().getFields(countsField).stream().filter(f -> f.numericValue() != null).toList();
+        assertFalse("multi_value=true columnar text must write a .counts field", countFields.isEmpty());
+        assertEquals(".counts companion must carry the slot count (2)", 2L, countFields.get(0).numericValue().longValue());
+    }
+
     public void testDocValuesHighCardinalityMultiValue() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "text")));

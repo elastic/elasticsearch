@@ -69,8 +69,8 @@ public class EsqlSecurityLogsdbColumnarIT extends EsqlSecurityIT {
     }
 
     /**
-     * Columnar types {@code partial} as {@code keyword}; sorting a keyword rather than a text field also flips which row {@code LIMIT 1}
-     * keeps.
+     * Columnar disables auto-text, so {@code partial} is a {@code keyword}; the sort order and the winning row are the same as the
+     * base class.
      */
     @Override
     public void testFieldLevelSecurityAllowPartial() throws Exception {
@@ -86,7 +86,7 @@ public class EsqlSecurityLogsdbColumnarIT extends EsqlSecurityIT {
                         matchesMap().entry("name", "value").entry("type", "double")
                     )
                 )
-                .entry("values", List.of(List.of("sales10.0", 10.0)))
+                .entry("values", List.of(List.of("engineering20.0", 20.0)))
         );
     }
 

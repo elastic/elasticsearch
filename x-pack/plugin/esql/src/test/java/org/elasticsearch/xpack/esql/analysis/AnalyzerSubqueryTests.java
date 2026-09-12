@@ -986,7 +986,9 @@ public class AnalyzerSubqueryTests extends ESTestCase {
 
         List<Attribute> output = unionAll.output();
         assertEquals(6, output.size());
+        // Assert unsupported attribute handling for conflicting subquery types (Issue #156226)
         assertUnsupportedAttribute(output.get(0), "m", List.of(DOUBLE.esType(), KEYWORD.esType()));
+        assertNotNull("Subquery output attribute m should be non-null", output.get(0));
 
         // Branch 0: TS leg
         Project tsProject = as(unionAll.children().get(0), Project.class);

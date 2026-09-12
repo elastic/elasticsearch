@@ -1265,6 +1265,47 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 5, reusable, new int[] {});
     }
 
+    /**
+     * An all-null batch of a KEYWORD column must filter to zero survivors, not fail the query.
+     * {@code ConstantNullBlock} implements every typed block interface, so until this was fixed it
+     * bound {@code evaluateComparison}'s first arm ({@code IntBlock}) regardless of the column's
+     * real type and cast the {@link BytesRef} literal to {@code Number}
+     * (elastic/elasticsearch#157313). The remaining shapes of this hazard are swept exhaustively
+     * by {@link ParquetPushedExpressionsNullBatchMatrixTests}.
+     */
+    public void testKeywordComparisonsOnConstantNullBlock() {
+        Block nullBlock = blockFactory.newConstantNullBlock(5);
+        Map<String, Block> blocks = Map.of("col", nullBlock);
+        WordMask reusable = new WordMask();
+        BytesRef us = new BytesRef("US");
+
+        for (Expression expr : List.<Expression>of(
+            new Equals(Source.EMPTY, attr("col", DataType.KEYWORD), lit(us, DataType.KEYWORD), null),
+            new NotEquals(Source.EMPTY, attr("col", DataType.KEYWORD), lit(us, DataType.KEYWORD), null),
+            new GreaterThan(Source.EMPTY, attr("col", DataType.KEYWORD), lit(us, DataType.KEYWORD), null),
+            new LessThanOrEqual(Source.EMPTY, attr("col", DataType.KEYWORD), lit(us, DataType.KEYWORD), null)
+        )) {
+            assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 5, reusable, new int[] {});
+        }
+    }
+
+    /**
+     * Pin locking in the LIKE family's already-correct behavior on an all-null batch.
+     * {@code ConstantNullBlock} implements {@link org.elasticsearch.compute.data.BytesRefBlock}, so
+     * it takes that arm and the per-row null guard empties the mask.
+     */
+    public void testWildcardLikeOnConstantNullBlock() {
+        Block nullBlock = blockFactory.newConstantNullBlock(4);
+        Map<String, Block> blocks = Map.of("col", nullBlock);
+        WordMask reusable = new WordMask();
+
+        Expression like = new WildcardLike(Source.EMPTY, attr("col", DataType.KEYWORD), new WildcardPattern("*US*"));
+        assertSurvivors(new ParquetPushedExpressions(List.of(like)), blocks, 4, reusable, new int[] {});
+
+        Expression notLike = new Not(Source.EMPTY, like);
+        assertSurvivors(new ParquetPushedExpressions(List.of(notLike)), blocks, 4, reusable, new int[] {});
+    }
+
     public void testMissingPredicateColumnIsNullWithConstantNullBlock() {
         // IS NULL on all-null block -> all rows survive
         Block nullBlock = blockFactory.newConstantNullBlock(4);

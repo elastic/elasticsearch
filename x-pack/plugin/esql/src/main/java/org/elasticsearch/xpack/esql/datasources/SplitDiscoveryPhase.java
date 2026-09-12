@@ -428,7 +428,8 @@ public final class SplitDiscoveryPhase {
             exec.unifiedSchema(),
             maxRecordBytes,
             isCancelled,
-            exec.declaredReadSpec()
+            exec.declaredReadSpec(),
+            exec.datasetName()
         );
 
         SplitDiscoveryResult result;
@@ -476,7 +477,8 @@ public final class SplitDiscoveryPhase {
             exec.unifiedSchema(),
             maxRecordBytes,
             isCancelled,
-            exec.declaredReadSpec()
+            exec.declaredReadSpec(),
+            exec.datasetName()
         );
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {

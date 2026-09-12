@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -608,6 +610,28 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         );
     }
 
+    public void testCountDoesNotFoldOnVirtualIndexIsNotNull() {
+        SplitStats split1 = buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
+        ExternalMetadataAttribute index = new ExternalMetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+        ExternalSourceExec ext = externalSourceWithVirtualIndex(index, split1);
+        Expression filterCondition = new IsNotNull(Source.EMPTY, index);
+        var agg = aggregateExec(new FilterExec(Source.EMPTY, ext, filterCondition), countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
+    public void testCountDoesNotFoldOnAliasedVirtualIndexIsNotNull() {
+        SplitStats split1 = buildSplitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
+        ExternalMetadataAttribute index = new ExternalMetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+        ExternalSourceExec ext = externalSourceWithVirtualIndex(index, split1);
+        Alias idxAlias = alias("idx", index);
+        EvalExec eval = new EvalExec(Source.EMPTY, ext, List.of(idxAlias));
+        Expression filterCondition = new IsNotNull(Source.EMPTY, idxAlias.toAttribute());
+        var agg = aggregateExec(new FilterExec(Source.EMPTY, eval, filterCondition), countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
     // --- helpers ---
 
     @SafeVarargs
@@ -628,6 +652,18 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
 
     private static ExternalSourceExec externalSource(Map<String, Object> sourceMetadata) {
         return new ExternalSourceExec(Source.EMPTY, "file:///test.parquet", "parquet", defaultAttrs(), Map.of(), sourceMetadata, null);
+    }
+
+    private static ExternalSourceExec externalSourceWithVirtualIndex(ExternalMetadataAttribute index, SplitStats... perSplitStats) {
+        List<Attribute> attrs = new ArrayList<>(defaultAttrs());
+        attrs.add(index);
+        List<ExternalSplit> splits = new ArrayList<>(perSplitStats.length);
+        for (int i = 0; i < perSplitStats.length; i++) {
+            splits.add(fileSplit(i, perSplitStats[i]));
+        }
+        return new ExternalSourceExec(Source.EMPTY, "file:///test.parquet", "parquet", attrs, Map.of(), Map.of(), null, null).withSplits(
+            splits
+        );
     }
 
     private static List<Attribute> defaultAttrs() {

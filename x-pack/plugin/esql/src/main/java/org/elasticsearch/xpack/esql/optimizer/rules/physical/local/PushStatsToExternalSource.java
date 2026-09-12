@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -131,13 +132,15 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
         // SplitFilterClassifier reasons from file-level stats and treats columns physically absent from
         // the file as "all null" (columnNullCount == rowCount). Partition columns live in the directory
         // path, not the payload, so they are absent from every file's stats and would misclassify
-        // IS NULL / IS NOT NULL on a partition column as MATCH/MISS for every split. Bail out so the
-        // normal scan path evaluates the partition predicate against the VirtualColumnIterator's
-        // constant block. Symmetric with PushFiltersToSource keeping partition predicates in FilterExec.
+        // IS NULL / IS NOT NULL on a partition column as MATCH/MISS for every split. A footer statistic
+        // also never describes an engine-materialised column (MetadataAttribute or VirtualAttribute),
+        // so those conjuncts take the same bail. The scan path evaluates them against the
+        // VirtualColumnIterator's constant or per-row block.
         // Read the partition set from serialized sourceMetadata (not the coordinator-only fileList): on a data node
         // externalExec.fileList() is UNRESOLVED, so COUNT(partition_col) would otherwise fold to 0 there.
         Set<String> pathDerivedColumns = externalExec.partitionColumnNames();
-        if (filterForClassification != null && referencesAnyColumn(filterForClassification, pathDerivedColumns)) {
+        if (filterForClassification != null
+            && (referencesAnyColumn(filterForClassification, pathDerivedColumns) || referencesVirtualColumn(filterForClassification))) {
             return aggregateExec;
         }
 
@@ -219,5 +222,9 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
             return false;
         }
         return expr.references().stream().anyMatch(a -> columnNames.contains(a.name()));
+    }
+
+    private static boolean referencesVirtualColumn(Expression expr) {
+        return expr.references().stream().anyMatch(PushdownPredicates::isVirtualColumn);
     }
 }

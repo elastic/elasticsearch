@@ -341,6 +341,83 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
         }
     }
 
+    public void testMetadataFilterSelectsRowsAndCountsThem() throws Exception {
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index == \"employees\" | SORT emp_no"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), hasSize(3));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index == \"employees\" | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index IS NULL | STATS c = COUNT(*)"), TIMEOUT)
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _file.name | WHERE _file.name IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _file.record_ref | WHERE _file.record_ref IS NOT NULL | SORT emp_no"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), hasSize(3));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index == \"nosuchdataset\" | SORT emp_no"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | WHERE NOT (_index IS NULL) | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | EVAL idx = _index | WHERE idx IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(syncEsqlQueryRequest("FROM employees METADATA _id | WHERE _id IS NOT NULL | STATS c = COUNT(*)"), TIMEOUT)
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _source | WHERE _source IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+    }
+
     /** The deserialized {@code _source} value is a {@link Map}; fail loudly if a format yields otherwise. */
     private static Map<?, ?> asMap(Object source) {
         assertThat("_source deserializes to a Map", source, org.hamcrest.Matchers.instanceOf(Map.class));

@@ -11,6 +11,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,16 +103,31 @@ public record DriverCompletionInfo(
     private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
     public static final TransportVersion ESQL_DRIVER_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
 
-    public static DriverCompletionInfo readFrom(StreamInput in) throws IOException {
+    public static DriverCompletionInfo readFrom(StreamInput in, ThreadContext threadContext) throws IOException {
         long documentsFound = in.readVLong();
         long valuesLoaded = in.readVLong();
         List<DriverProfile> driverProfiles = in.readCollectionAsImmutableList(DriverProfile::new);
         List<PlanProfile> planProfiles = in.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)
             ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
             : List.of();
-        Set<String> warnings = in.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)
-            ? Collections.unmodifiableSet(new LinkedHashSet<>(in.readCollectionAsImmutableList(StreamInput::readString)))
-            : Set.of();
+        Set<String> warnings;
+        if (in.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
+            warnings = Collections.unmodifiableSet(new LinkedHashSet<>(in.readCollectionAsImmutableList(StreamInput::readString)));
+        } else {
+            List<String> rawHeaders = threadContext.takeResponseHeaders("Warning");
+            if (rawHeaders.isEmpty()) {
+                warnings = Set.of();
+            } else {
+                Set<String> decoded = new LinkedHashSet<>();
+                for (String h : rawHeaders) {
+                    String value = HeaderWarning.extractWarningValueFromWarningHeader(h, false);
+                    if (value != null) {
+                        decoded.add(HeaderWarning.decodeAndUnescape(value));
+                    }
+                }
+                warnings = Collections.unmodifiableSet(decoded);
+            }
+        }
         return new DriverCompletionInfo(documentsFound, valuesLoaded, driverProfiles, planProfiles, warnings);
     }
 

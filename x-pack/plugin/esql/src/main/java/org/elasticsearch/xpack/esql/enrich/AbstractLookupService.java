@@ -37,6 +37,7 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
@@ -79,6 +80,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -196,13 +198,28 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
     /**
      * Build the response.
+     *
+     * @param warnings warnings accumulated into the lookup {@link org.elasticsearch.compute.operator.DriverContext}
      */
-    protected abstract LookupResponse createLookupResponse(List<Page> resultPages, BlockFactory blockFactory) throws IOException;
+    protected abstract LookupResponse createLookupResponse(List<Page> resultPages, BlockFactory blockFactory, Collection<String> warnings)
+        throws IOException;
+
+    /**
+     * Helper to create a LookupResponse from pages and send it to the listener.
+     * The response is released after sending via {@link ActionListener#respondAndRelease}.
+     */
+    protected final void respondWithPages(ActionListener<LookupResponse> listener, List<Page> pages, Collection<String> warnings)
+        throws IOException {
+        ActionListener.respondAndRelease(listener, createLookupResponse(pages, blockFactory, warnings));
+    }
 
     /**
      * Read the response from a {@link StreamInput}.
+     * When the remote node is old (transport version before {@link DriverCompletionInfo#ESQL_DRIVER_WARNINGS}),
+     * warnings arrive as RFC 7234 {@code Warning:} transport response headers stored in {@code threadContext}.
      */
-    protected abstract LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException;
+    protected abstract LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext)
+        throws IOException;
 
     protected static QueryList termQueryList(
         MappedFieldType field,
@@ -225,7 +242,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     /**
      * Perform the actual lookup.
      */
-    public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
+    public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<LookupResponse> outListener) {
         ClusterState clusterState = clusterService.state();
         List<ShardIterator> shardIterators = clusterService.operationRouting()
             .searchShards(clusterState, new String[] { request.index }, Map.of(), "_local");
@@ -248,31 +265,32 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
     protected void sendChildRequest(
         CancellableTask parentTask,
-        ActionListener<List<Page>> delegate,
+        ActionListener<LookupResponse> delegate,
         DiscoveryNode targetNode,
         T transportRequest
     ) {
+        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         transportService.sendChildRequest(
             targetNode,
             actionName,
             transportRequest,
             parentTask,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(
-                delegate.map(LookupResponse::takePages),
-                in -> readLookupResponse(in, blockFactory),
-                executor
-            )
+            new ActionListenerResponseHandler<>(delegate, in -> readLookupResponse(in, blockFactory, threadContext), executor)
         );
     }
 
-    private void doLookup(T request, CancellableTask task, ActionListener<List<Page>> listener) {
+    private void doLookup(T request, CancellableTask task, ActionListener<LookupResponse> listener) {
         Block inputBlock = request.inputPage.getBlock(0);
         if (inputBlock.areAllValuesNull()) {
             List<Page> nullResponse = mergePages
                 ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
                 : List.of();
-            listener.onResponse(nullResponse);
+            try {
+                respondWithPages(listener, nullResponse, List.of());
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
             return;
         }
         final List<Releasable> releasables = new ArrayList<>(6);
@@ -381,17 +399,16 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
-                    // Propagate any warnings accumulated in the inner driver's DriverContext to
-                    // the calling thread's response headers so that ResponseHeadersCollector in
-                    // the outer operator (EnrichLookupOperator) can pick them up.
-                    for (String w : driverContext.warnings()) {
-                        HeaderWarning.addWarning(w);
-                    }
+                    DriverCompletionInfo completionInfo = DriverCompletionInfo.excludingProfiles(List.of(driver));
                     List<Page> out = collectedPages;
                     if (mergePages && out.isEmpty()) {
                         out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
                     }
-                    listener.onResponse(out);
+                    try {
+                        respondWithPages(listener, out, completionInfo.warnings());
+                    } catch (IOException e) {
+                        listener.onFailure(e);
+                    }
                 }
 
                 @Override
@@ -488,14 +505,20 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) {
             request.incRef();
-            ActionListener<LookupResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), request::decRef);
-            doLookup(
-                request,
-                (CancellableTask) task,
-                listener.delegateFailureAndWrap(
-                    (l, resultPages) -> ActionListener.respondAndRelease(l, createLookupResponse(resultPages, blockFactory))
-                )
+            ActionListener<LookupResponse> channelListener = ActionListener.runBefore(
+                new ChannelActionListener<>(channel),
+                request::decRef
             );
+            // Old coordinators receive warnings as transport response headers rather than the
+            // ESQL_DRIVER_WARNINGS wire field. Emit them here — before the channel serialises its
+            // ThreadContext — so they are included in the response headers sent back to the old node.
+            final ActionListener<LookupResponse> listener = channel.getVersion().supports(DriverCompletionInfo.ESQL_DRIVER_WARNINGS)
+                ? channelListener
+                : channelListener.map(resp -> {
+                    resp.warnings().forEach(HeaderWarning::addWarning);
+                    return resp;
+                });
+            doLookup(request, (CancellableTask) task, listener);
         }
     }
 
@@ -637,6 +660,12 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         LookupResponse(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
         }
+
+        /**
+         * Warnings accumulated by the lookup {@link org.elasticsearch.compute.operator.DriverContext} to be replayed
+         * into the requesting {@link org.elasticsearch.compute.operator.DriverContext}. Never {@code null}.
+         */
+        public abstract List<String> warnings();
 
         protected abstract List<Page> takePages();
 

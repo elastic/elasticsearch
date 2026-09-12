@@ -18,7 +18,6 @@ import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -95,7 +94,6 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     private final String matchField;
     private final List<NamedExpression> loadFields;
     private final Source source;
-    private final ResponseHeadersCollector responseHeadersCollector;
     private long totalTerms = 0L;
     /**
      * Total number of pages emitted by this {@link Operator}.
@@ -131,7 +129,6 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         this.matchField = matchField;
         this.loadFields = loadFields;
         this.source = source;
-        this.responseHeadersCollector = new ResponseHeadersCollector(lookupService.getThreadContext());
     }
 
     @Override
@@ -148,14 +145,14 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             loadFields,
             source
         );
-        lookupService.lookupAsync(
-            request,
-            parentTask,
-            ActionListener.runBefore(
-                listener.map(pages -> new OngoingJoin(new RightChunkedLeftJoin(inputPage, loadFields.size()), pages.iterator())),
-                responseHeadersCollector::collect
-            )
-        );
+        lookupService.lookupAsync(request, parentTask, listener.delegateFailureAndWrap((l, response) -> {
+            // Replay warnings accumulated by the (possibly remote) lookup driver.
+            for (String warning : response.warnings()) {
+                driverContext().addWarning(warning);
+            }
+            List<Page> pages = response.takePages();
+            l.onResponse(new OngoingJoin(new RightChunkedLeftJoin(inputPage, loadFields.size()), pages.iterator()));
+        }));
     }
 
     @Override
@@ -226,7 +223,6 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     protected void doClose() {
         // TODO: Maybe create a sub-task as the parent task of all the lookup tasks
         // then cancel it when this operator terminates early (e.g., have enough result).
-        responseHeadersCollector.finish();
         Releasables.close(ongoing);
     }
 

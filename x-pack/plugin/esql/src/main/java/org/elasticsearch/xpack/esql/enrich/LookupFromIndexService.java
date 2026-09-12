@@ -14,11 +14,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -37,6 +40,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
@@ -98,13 +102,18 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     @Override
-    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) throws IOException {
-        return new LookupResponse(pages, blockFactory);
+    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory, Collection<String> warnings)
+        throws IOException {
+        return new LookupResponse(pages, blockFactory, List.copyOf(warnings));
     }
 
     @Override
-    protected AbstractLookupService.LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
-        return new LookupResponse(in, blockFactory);
+    protected AbstractLookupService.LookupResponse readLookupResponse(
+        StreamInput in,
+        BlockFactory blockFactory,
+        ThreadContext threadContext
+    ) throws IOException {
+        return new LookupResponse(in, blockFactory, threadContext);
     }
 
     public static class Request extends AbstractLookupService.Request {
@@ -213,18 +222,40 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     protected static class LookupResponse extends AbstractLookupService.LookupResponse {
-        private List<Page> pages;
+        // Lookup-response warnings ship as part of the same per-driver warnings feature as the DriverCompletionInfo
+        // warnings field, so they are gated behind the same transport version.
+        private static final TransportVersion ESQL_LOOKUP_RESPONSE_WARNINGS = DriverCompletionInfo.ESQL_DRIVER_WARNINGS;
 
-        LookupResponse(List<Page> pages, BlockFactory blockFactory) {
+        private List<Page> pages;
+        private final List<String> warnings;
+
+        LookupResponse(List<Page> pages, BlockFactory blockFactory, List<String> warnings) {
             super(blockFactory);
             this.pages = pages;
+            this.warnings = warnings == null ? List.of() : warnings;
         }
 
-        LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+        LookupResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext) throws IOException {
             super(blockFactory);
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
                 this.pages = bsi.readCollectionAsList(Page::new);
             }
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_RESPONSE_WARNINGS)) {
+                this.warnings = in.readStringCollectionAsList();
+            } else {
+                // Old nodes send warnings as transport response headers; the transport layer has already
+                // deposited them into the current thread's context before this constructor is called.
+                // Parse the RFC 7234 warning format to extract the plain warning text.
+                this.warnings = threadContext.takeResponseHeaders("Warning")
+                    .stream()
+                    .map(s -> HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(s, false)))
+                    .toList();
+            }
+        }
+
+        @Override
+        public List<String> warnings() {
+            return warnings;
         }
 
         @Override
@@ -233,6 +264,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize lookup join response");
             reservedBytes += bytes;
             out.writeCollection(pages);
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_RESPONSE_WARNINGS)) {
+                out.writeStringCollection(warnings);
+            }
         }
 
         @Override
@@ -259,12 +293,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 return false;
             }
             LookupResponse that = (LookupResponse) o;
-            return Objects.equals(pages, that.pages);
+            return Objects.equals(pages, that.pages) && Objects.equals(warnings, that.warnings);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(pages);
+            return Objects.hash(pages, warnings);
         }
 
         @Override

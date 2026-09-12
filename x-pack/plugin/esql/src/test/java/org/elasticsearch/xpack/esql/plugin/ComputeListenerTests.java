@@ -26,10 +26,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -88,7 +86,7 @@ public class ComputeListenerTests extends ESTestCase {
 
     public void testEmpty() {
         PlainActionFuture<DriverCompletionInfo> results = new PlainActionFuture<>();
-        try (var ignored = new ComputeListener(threadPool, () -> {}, results)) {
+        try (var ignored = new ComputeListener(() -> {}, results)) {
             assertFalse(results.isDone());
         }
         assertTrue(results.isDone());
@@ -101,7 +99,7 @@ public class ComputeListenerTests extends ESTestCase {
         long valuesLoaded = 0;
         List<DriverProfile> allProfiles = new ArrayList<>();
         AtomicInteger onFailure = new AtomicInteger();
-        try (var computeListener = new ComputeListener(threadPool, onFailure::incrementAndGet, future)) {
+        try (var computeListener = new ComputeListener(onFailure::incrementAndGet, future)) {
             int tasks = randomIntBetween(1, 100);
             for (int t = 0; t < tasks; t++) {
                 if (randomBoolean()) {
@@ -145,7 +143,7 @@ public class ComputeListenerTests extends ESTestCase {
         int failedTasks = between(1, 100);
         PlainActionFuture<DriverCompletionInfo> rootListener = new PlainActionFuture<>();
         final AtomicInteger onFailure = new AtomicInteger();
-        try (var computeListener = new ComputeListener(threadPool, onFailure::incrementAndGet, rootListener)) {
+        try (var computeListener = new ComputeListener(onFailure::incrementAndGet, rootListener)) {
             for (int i = 0; i < successTasks; i++) {
                 ActionListener<DriverCompletionInfo> subListener = computeListener.acquireCompute();
                 threadPool.schedule(
@@ -177,7 +175,7 @@ public class ComputeListenerTests extends ESTestCase {
         AtomicLong documentsFound = new AtomicLong();
         AtomicLong valuesLoaded = new AtomicLong();
         List<DriverProfile> allProfiles = new ArrayList<>();
-        Map<String, Set<String>> allWarnings = new HashMap<>();
+        Set<String> allWarnings = new HashSet<>();
         ActionListener<DriverCompletionInfo> rootListener = new ActionListener<>() {
             @Override
             public void onResponse(DriverCompletionInfo result) {
@@ -187,12 +185,7 @@ public class ComputeListenerTests extends ESTestCase {
                     result.driverProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
                     equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
                 );
-                Map<String, Set<String>> responseHeaders = threadPool.getThreadContext()
-                    .getResponseHeaders()
-                    .entrySet()
-                    .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, e -> new HashSet<>(e.getValue())));
-                assertThat(responseHeaders, equalTo(allWarnings));
+                assertThat(new HashSet<>(result.warnings()), equalTo(allWarnings));
             }
 
             @Override
@@ -203,11 +196,7 @@ public class ComputeListenerTests extends ESTestCase {
         AtomicInteger onFailure = new AtomicInteger();
         CountDownLatch latch = new CountDownLatch(1);
         try (
-            var computeListener = new ComputeListener(
-                threadPool,
-                onFailure::incrementAndGet,
-                ActionListener.runAfter(rootListener, latch::countDown)
-            )
+            var computeListener = new ComputeListener(onFailure::incrementAndGet, ActionListener.runAfter(rootListener, latch::countDown))
         ) {
             int tasks = randomIntBetween(1, 100);
             for (int t = 0; t < tasks; t++) {
@@ -219,25 +208,50 @@ public class ComputeListenerTests extends ESTestCase {
                         threadPool.generic()
                     );
                 } else {
-                    var resp = randomCompletionInfo();
+                    int numWarnings = randomIntBetween(1, 5);
+                    Set<String> warnings = new HashSet<>();
+                    for (int i = 0; i < numWarnings; i++) {
+                        warnings.add("warning" + between(1, 20));
+                    }
+                    allWarnings.addAll(warnings);
+                    var resp = new DriverCompletionInfo(
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomList(
+                            0,
+                            2,
+                            () -> new DriverProfile(
+                                randomIdentifier(),
+                                randomNonNegativeLong(),
+                                randomNonNegativeLong(),
+                                randomNonNegativeLong(),
+                                randomNonNegativeLong(),
+                                randomNonNegativeLong(),
+                                List.of(),
+                                DriverSleeps.empty()
+                            )
+                        ),
+                        randomList(
+                            0,
+                            2,
+                            () -> new PlanProfile(
+                                randomIdentifier(),
+                                randomIdentifier(),
+                                randomIdentifier(),
+                                randomAlphaOfLengthBetween(1, 1024)
+                            )
+                        ),
+                        warnings
+                    );
                     documentsFound.addAndGet(resp.documentsFound());
                     valuesLoaded.addAndGet(resp.valuesLoaded());
                     allProfiles.addAll(resp.driverProfiles());
-                    int numWarnings = randomIntBetween(1, 5);
-                    Map<String, String> warnings = new HashMap<>();
-                    for (int i = 0; i < numWarnings; i++) {
-                        warnings.put("key" + between(1, 10), "value" + between(1, 10));
-                    }
-                    for (Map.Entry<String, String> e : warnings.entrySet()) {
-                        allWarnings.computeIfAbsent(e.getKey(), v -> new HashSet<>()).add(e.getValue());
-                    }
                     var subListener = computeListener.acquireCompute();
-                    threadPool.schedule(ActionRunnable.wrap(subListener, l -> {
-                        for (Map.Entry<String, String> e : warnings.entrySet()) {
-                            threadPool.getThreadContext().addResponseHeader(e.getKey(), e.getValue());
-                        }
-                        l.onResponse(resp);
-                    }), TimeValue.timeValueNanos(between(0, 100)), threadPool.generic());
+                    threadPool.schedule(
+                        ActionRunnable.wrap(subListener, l -> l.onResponse(resp)),
+                        TimeValue.timeValueNanos(between(0, 100)),
+                        threadPool.generic()
+                    );
                 }
             }
         }

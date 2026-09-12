@@ -105,6 +105,7 @@ public class Highlight extends UnaryPlan
      * True when ON was omitted or is {@code *}. Set at parse time and kept after the field list is filled in.
      */
     private final boolean derivedFields;
+
     /**
      * Source of the effective {@code analyzer} option. This is analysis-only provenance.
      * {@link #postAnalysisVerification(AnalysisRegistry, Failures)} uses it to pick the error for an unresolved

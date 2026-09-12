@@ -417,7 +417,7 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
     public void testManyWorkerAndClauses() throws Exception {
         var dir = newDirectory();
         final int numThreads = between(50, 150);
-        final int numDocs = numThreads * 100;
+        final int numDocs = (numThreads + 1) * 100;
         var writer = new IndexWriter(dir, new IndexWriterConfig());
         for (int d = 0; d < numDocs; d++) {
             writer.addDocument(new Document());

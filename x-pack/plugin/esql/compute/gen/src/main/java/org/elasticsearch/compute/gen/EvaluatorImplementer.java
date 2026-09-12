@@ -312,7 +312,8 @@ public class EvaluatorImplementer {
         builder.addModifiers(Modifier.PRIVATE).returns(WARNINGS);
         builder.beginControlFlow("if (warnings == null)");
         builder.addStatement(
-            "this.warnings = driverContext.createWarnings(source.source().getLineNumber(), source.source().getColumnNumber(), source.text())"
+            "this.warnings = driverContext.createWarnings(source.source().getLineNumber(), source.source().getColumnNumber(), "+
+                "source.text())"
         );
         builder.endControlFlow();
         builder.addStatement("return warnings");

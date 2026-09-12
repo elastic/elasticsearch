@@ -178,6 +178,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
@@ -285,6 +286,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveConfigurationAware(),
                 new ResolveTable(),
                 new ResolveViewShadow(),
+                new InjectOuterMetadataForSubqueries(),
                 new ResolveDatasetShadow(),
                 new StripDatasetShadowRelations(),
                 new ViewCompactionPostIndexResolution(),
@@ -1189,6 +1191,68 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             scope.addAll(destinations);
             return scope;
+        }
+    }
+
+    /**
+     * Consumes {@link UnresolvedMetadata} nodes emitted by the parser and null-injects any
+     * outer {@code METADATA} field that is absent from a branch's output.
+     */
+    private static class InjectOuterMetadataForSubqueries extends ParameterizedAnalyzerRule<UnresolvedMetadata, AnalyzerContext> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(UnresolvedMetadata unresolvedMetadata, AnalyzerContext context) {
+            List<NamedExpression> metadataFields = unresolvedMetadata.metadataFields();
+            // If any UnresolvedRelation remains, output() is meaningless — skip injection.
+            // ResolveTable runs before this rule, so any remaining UR failed to resolve and
+            // will be caught by the verifier.
+            if (unresolvedMetadata.anyMatch(UnresolvedRelation.class::isInstance)) {
+                return unresolvedMetadata;
+            }
+            if (metadataFields.isEmpty()) {
+                // Nothing to inject; just strip the wrapper.
+                return unresolvedMetadata.child();
+            }
+
+            LogicalPlan child = unresolvedMetadata.child();
+            Source src = unresolvedMetadata.source();
+
+            if (child instanceof UnionAll unionAll) {
+                // Multi-source: inject into each branch that is missing the field.
+                List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
+                boolean changed = false;
+                for (LogicalPlan branch : unionAll.children()) {
+                    LogicalPlan injected = injectMissing(branch, metadataFields, src);
+                    newChildren.add(injected);
+                    if (injected != branch) {
+                        changed = true;
+                    }
+                }
+                return changed ? unionAll.replaceChildren(newChildren) : child;
+            } else {
+                // Single source (UR/EsRelation/Subquery/NamedSubquery): inject directly.
+                return injectMissing(child, metadataFields, src);
+            }
+        }
+
+        /** Wraps {@code plan} in {@code Eval(null AS field, ...)} for each metadata field absent from its output. */
+        private static LogicalPlan injectMissing(LogicalPlan plan, List<NamedExpression> metadataFields, Source src) {
+            Set<String> present = plan.output().stream().map(Attribute::name).collect(Collectors.toSet());
+            List<Alias> nullFills = new ArrayList<>();
+            for (NamedExpression field : metadataFields) {
+                if (field.resolved() == false) {
+                    continue;
+                }
+                if (present.contains(field.name()) == false) {
+                    nullFills.add(new Alias(src, field.name(), new Literal(src, null, field.dataType())));
+                }
+            }
+            return nullFills.isEmpty() ? plan : new Eval(src, plan, nullFills);
         }
     }
 

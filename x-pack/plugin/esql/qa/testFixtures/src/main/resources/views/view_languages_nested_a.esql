@@ -1,0 +1,1 @@
+FROM view_languages_nested_b METADATA _index | EVAL viewA_index = _index

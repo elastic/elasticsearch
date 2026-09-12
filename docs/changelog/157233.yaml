@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157233
+summary: Fix METADATA behavior with subqueries and extend that to logical views
+type: "enhancement"

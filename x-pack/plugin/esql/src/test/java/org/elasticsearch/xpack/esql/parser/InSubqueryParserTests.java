@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
@@ -515,7 +516,7 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
     /*
      * IN subquery where the subquery's FROM command includes METADATA fields.
      *
-     * Filter[InSubquery[?x, Keep[UnresolvedRelation[sub_index, METADATA _id, _index]]]]
+     * Filter[InSubquery[?x, Keep[UnresolvedMetadata[UnresolvedRelation[sub_index], METADATA _id, _index]]]]
      * \_UnresolvedRelation[main_index]
      */
     public void testWhereInSubqueryWithMetadata() {
@@ -529,10 +530,11 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         InSubquery inSubquery = as(filter.condition(), InSubquery.class);
 
         Keep keep = as(inSubquery.subquery(), Keep.class);
-        UnresolvedRelation subRelation = as(keep.child(), UnresolvedRelation.class);
-        assertEquals("sub_index", subRelation.indexPattern().indexPattern());
-        List<String> metadataFieldNames = subRelation.metadataFields().stream().map(NamedExpression::name).toList();
+        UnresolvedMetadata subMetadata = as(keep.child(), UnresolvedMetadata.class);
+        List<String> metadataFieldNames = subMetadata.metadataFields().stream().map(NamedExpression::name).toList();
         assertEquals(List.of("_id", "_index"), metadataFieldNames);
+        UnresolvedRelation subRelation = as(subMetadata.child(), UnresolvedRelation.class);
+        assertEquals("sub_index", subRelation.indexPattern().indexPattern());
 
         UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
         assertEquals("main_index", mainRelation.indexPattern().indexPattern());

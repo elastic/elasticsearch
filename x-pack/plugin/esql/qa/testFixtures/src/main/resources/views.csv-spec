@@ -384,7 +384,6 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 
 FROM airports_mp_filtered, airports METADATA _index
-| EVAL _index = CASE(_index IS NULL, "view", _index)
 | STATS duplications=COUNT(), indexes=VALUES(_index) BY abbrev
 | WHERE duplications == 2
 | EVAL indexes = MV_SORT(indexes)
@@ -392,12 +391,12 @@ FROM airports_mp_filtered, airports METADATA _index
 ignoreOrder:true
 
 duplications:long | abbrev:keyword | indexes:keyword
-2                 | LUH            | [airports, view]
-2                 | SSE            | [airports, view]
-2                 | IXR            | [airports, view]
-2                 | AWZ            | [airports, view]
-2                 | GWL            | [airports, view]
-2                 | HOD            | [airports, view]
+2                 | LUH            | [airports]
+2                 | SSE            | [airports]
+2                 | IXR            | [airports]
+2                 | AWZ            | [airports]
+2                 | GWL            | [airports]
+2                 | HOD            | [airports]
 2                 | PZU            | [airports]
 ;
 

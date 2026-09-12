@@ -34,6 +34,9 @@ import java.util.function.Predicate;
  */
 public final class PlainStringColumnReader extends StringColumnReader {
 
+    /** Whether the column's values repeat often enough that naming a page's values pays, as the writer found. */
+    private final boolean valuesWorthNaming;
+
     private final ValueStream.Reader values;
 
     /** The value addresses holding a null, ascending; null when no slot in the column is one. */
@@ -47,6 +50,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
 
     PlainStringColumnReader(StringColumnMetadata.Plain column, IndexInput data) throws IOException {
         super(column, data, column.values().valuesPerBlock());
+        this.valuesWorthNaming = column.valuesWorthNaming();
         this.values = column.numDocsWithField() == 0 ? null : column.values().open(data);
         this.numNullSlots = column.numNullSlots();
         this.nullSlots = column.hasNullSlots()
@@ -226,7 +230,54 @@ public final class PlainStringColumnReader extends StringColumnReader {
      * entry a run rather than one a document, without comparing any bytes.
      */
     @Override
-    protected boolean appendPage(int count, StringBlockSink sink) throws IOException {
+    protected boolean appendPage(int docCount, StringBlockSink sink) throws IOException {
+        if (pageable()) {
+            // One value a document and every one of them present: the page is the documents, and a run tells itself
+            // from the address its value was read at without any of the accounting below.
+            return appendSingleValuedPage(docCount, sink);
+        }
+        final int values = countPageValues(docCount);
+        growPageValues(Math.max(values, 1));
+        pageBytesLength = 0;
+        startPageSlots(values);
+        int slots = 0;
+        int at = 0;
+        for (int i = 0; i < docCount; i++) {
+            final int rank = pageRanks[i];
+            final long first = firstValueAddress(rank);
+            final long held = valueCount(rank);
+            for (long s = 0; s < held; s++) {
+                final long address = first + s;
+                if (isNullSlot(address)) {
+                    continue;
+                }
+                this.values.get(address, scratch);
+                final int slot = pageSlotFor(scratch, slots);
+                if (slot == slots) {
+                    slots++;
+                }
+                pageOrdinals[at++] = slot;
+            }
+        }
+        assert at == values : "wrote " + at + " values, counted " + values;
+        point(pageDictionary, slots);
+        if ((long) slots * MIN_PAGE_REPEAT > values) {
+            for (int i = 0; i < values; i++) {
+                pageValues[i] = pageDictionary[pageOrdinals[i]];
+            }
+            sink.appendValues(pageValues, values, pageValueCounts, docCount);
+            return true;
+        }
+        sink.appendOrdinals(pageOrdinals, values, pageValueCounts, docCount, pageDictionary, slots);
+        return true;
+    }
+
+    /** A page of a column holding one value a document, which is the shape a run-encoded column pays off on. */
+    private boolean appendSingleValuedPage(int count, StringBlockSink sink) throws IOException {
+        if (valuesWorthNaming == false) {
+            return appendSingleValuedPageAsValues(count, sink);
+        }
+        growPageValues(count);
         pageBytesLength = 0;
         startPageSlots(count);
         int slots = 0;
@@ -259,10 +310,47 @@ public final class PlainStringColumnReader extends StringColumnReader {
             for (int i = 0; i < count; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }
-            sink.appendValues(pageValues, count);
+            sink.appendValues(pageValues, count, null, count);
             return true;
         }
-        sink.appendOrdinals(pageOrdinals, count, pageDictionary, slots);
+        sink.appendOrdinals(pageOrdinals, count, null, count, pageDictionary, slots);
+        return true;
+    }
+
+    /**
+     * The same page, without a dictionary being built for it. A page handed over as values never reads the one
+     * the method above builds, and building it hashes every value and probes a table for it. So a column whose
+     * values do not repeat is read this way instead: runs are still collapsed, which costs no bytes to find,
+     * but nothing is hashed.
+     *
+     * <p>Only the way the values are found changes. What the sink is given is what it would have been given.
+     */
+    private boolean appendSingleValuedPageAsValues(int count, StringBlockSink sink) throws IOException {
+        growPageValues(count);
+        pageBytesLength = 0;
+        int runs = 0;
+        long previous = -1;
+        int previousLength = -1;
+        int previousRun = -1;
+        for (int i = 0; i < count; i++) {
+            final long identity = values.read(pageRanks[i], scratch);
+            if (previousRun < 0 || identity != previous || scratch.length != previousLength) {
+                // A run staged across two blocks is stored twice and answers with a new address, so the run
+                // before is compared once by its bytes before a new one is started.
+                if (previousRun < 0 || pageSlotHolds(previousRun, scratch) == false) {
+                    appendToPage(runs, scratch);
+                    previousRun = runs++;
+                }
+                previous = identity;
+                previousLength = scratch.length;
+            }
+            pageOrdinals[i] = previousRun;
+        }
+        point(pageDictionary, runs);
+        for (int i = 0; i < count; i++) {
+            pageValues[i] = pageDictionary[pageOrdinals[i]];
+        }
+        sink.appendValues(pageValues, count, null, count);
         return true;
     }
 }

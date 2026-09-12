@@ -16,5 +16,7 @@ public final class AnalyzeCapabilities {
 
     private static final String WRONG_CUSTOM_ANALYZER_RETURNS_400_CAPABILITY = "wrong_custom_analyzer_returns_400";
 
-    public static final Set<String> CAPABILITIES = Set.of(WRONG_CUSTOM_ANALYZER_RETURNS_400_CAPABILITY);
+    private static final String MAX_CHAR_COUNT_CAPABILITY = "analyze_max_char_count";
+
+    public static final Set<String> CAPABILITIES = Set.of(WRONG_CUSTOM_ANALYZER_RETURNS_400_CAPABILITY, MAX_CHAR_COUNT_CAPABILITY);
 }

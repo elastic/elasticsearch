@@ -599,7 +599,27 @@ public final class TextStructureUtils {
      */
     static boolean isMoreLikelyTextThanKeyword(String str) {
         int length = str.length();
-        return length > KEYWORD_MAX_LEN || length - str.replaceAll("\\s", "").length() > KEYWORD_MAX_SPACES;
+        if (length > KEYWORD_MAX_LEN) {
+            return true;
+        }
+        int whitespaceCount = 0;
+        for (int i = 0; i < length; i++) {
+            if (isJavaRegexWhitespace(str.charAt(i))) {
+                whitespaceCount++;
+                if (whitespaceCount > KEYWORD_MAX_SPACES) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Matches {@code java.util.regex.Pattern} {@code \s}: space, tab, LF, vertical tab, form feed, CR.
+     * This is not the same character set as {@link Character#isWhitespace(char)}.
+     */
+    private static boolean isJavaRegexWhitespace(char c) {
+        return c == ' ' || c == '\t' || c == '\n' || c == '\u000B' || c == '\f' || c == '\r';
     }
 
     /**

@@ -12,6 +12,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
@@ -27,12 +28,16 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
@@ -44,6 +49,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class VirtualBatchedCompoundCommitTests extends ESTestCase {
 
@@ -717,6 +723,265 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
     private static void assertEquals(BatchedCompoundCommit batchedCompoundCommit, BatchedCompoundCommit deserializedBatchedCompoundCommit) {
         assertNotSame(deserializedBatchedCompoundCommit, batchedCompoundCommit);
         assertThat(deserializedBatchedCompoundCommit, equalTo(batchedCompoundCommit));
+    }
+
+    /**
+     * The concurrent multipart upload path in {@code AzureBlobStore} builds a blob from one
+     * {@link VirtualBatchedCompoundCommit#getFrozenInputStreamForUpload(long, long)} call per part. Concatenating
+     * those parts must reproduce the blob byte for byte.
+     * <p>
+     * Part sizes below deliberately include values larger than the compound commit header. With small chunks part 0
+     * always ends inside the header, which cannot observe a bug in where the header slice is placed.
+     */
+    public void testRangedUploadStreamTilesBlobExactly() throws Exception {
+        final long primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            var vbcc = frozenVbccWithCommits(fakeNode, primaryTerm);
+            try {
+                final byte[] expected = wholeUploadBlob(vbcc);
+                assertThat((long) expected.length, equalTo(vbcc.getTotalSizeInBytes()));
+                assertOpensWithCommitHeader(expected);
+
+                for (long partSize : uploadPartSizesToExercise(expected.length)) {
+                    var reassembled = new byte[expected.length];
+                    int written = 0;
+                    for (long[] range : multiPartRanges(expected.length, partSize)) {
+                        byte[] part = readUploadPart(vbcc, range[0], range[1]);
+                        assertThat(
+                            "part at offset " + range[0] + " has wrong length for partSize " + partSize,
+                            (long) part.length,
+                            equalTo(range[1])
+                        );
+                        System.arraycopy(part, 0, reassembled, written, part.length);
+                        written += part.length;
+                    }
+                    assertThat(written, equalTo(expected.length));
+                    assertOpensWithCommitHeader(reassembled);
+                    assertArrayEquals("tiling mismatch at partSize " + partSize, expected, reassembled);
+                }
+            } finally {
+                vbcc.close();
+            }
+        }
+    }
+
+    /**
+     * When staging a part times out, the provided input stream is closed without having been read to EOF (see the
+     * cancellation handlers in {@code AzureBlobStore#stageBlock}). {@code RetryableAction} then re-runs the whole
+     * upload, asking the provider for the same ranges again.
+     * <p>
+     * Re-reading a range after an abandoned read must yield identical bytes. The corruption this guards against
+     * produced a part 0 holding {@code source[headerSize .. partSize + headerSize)} rather than
+     * {@code source[0 .. partSize)}: the commit header absent and the payload shifted forward into its place, while
+     * later parts stayed correctly positioned. Total blob length was unchanged, so neither a length nor a footer
+     * check detected it.
+     */
+    public void testUploadPartIsIdenticalWhenReReadAfterAbandonedUpload() throws Exception {
+        final long primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            var vbcc = frozenVbccWithCommits(fakeNode, primaryTerm);
+            try {
+                final byte[] expected = wholeUploadBlob(vbcc);
+
+                // Sweep part sizes so that part 0 ends inside the commit header in some cases and beyond it in
+                // others. The production failure had a 100MB part 0 ending far past the header; a part that stops
+                // inside the header cannot observe a misplaced header at all.
+                for (long partSize : uploadPartSizesToExercise(expected.length)) {
+                    final var ranges = multiPartRanges(expected.length, partSize);
+                    final long firstPartLength = ranges.get(0)[1];
+
+                    // Abandon part 0 part-way through, one or more times, as cancelled stage attempts do.
+                    for (int attempt = 0; attempt < randomIntBetween(1, 3); attempt++) {
+                        try (var stream = vbcc.getFrozenInputStreamForUpload(0, firstPartLength)) {
+                            var discarded = new byte[Math.toIntExact(Math.max(1L, firstPartLength / 3L))];
+                            Streams.readFully(stream, discarded, 0, discarded.length);
+                            // closed here without reaching EOF
+                        }
+                    }
+
+                    // Retry the upload in full; every part must match the pristine blob.
+                    var reassembled = new byte[expected.length];
+                    int written = 0;
+                    for (long[] range : ranges) {
+                        byte[] part = readUploadPart(vbcc, range[0], range[1]);
+                        System.arraycopy(part, 0, reassembled, written, part.length);
+                        written += part.length;
+                    }
+                    assertThat(written, equalTo(expected.length));
+
+                    // Check the header first: it gives a far clearer failure than a whole-array diff.
+                    assertOpensWithCommitHeader(reassembled);
+                    assertArrayEquals(
+                        "retried part 0 differs from the original upload at partSize " + partSize,
+                        Arrays.copyOfRange(expected, 0, Math.toIntExact(firstPartLength)),
+                        Arrays.copyOfRange(reassembled, 0, Math.toIntExact(firstPartLength))
+                    );
+                    assertArrayEquals("retried blob differs at partSize " + partSize, expected, reassembled);
+
+                    try (BytesStreamOutput roundTrip = new BytesStreamOutput()) {
+                        roundTrip.writeBytes(reassembled);
+                        assertEquals(
+                            vbcc.getFrozenBatchedCompoundCommit(),
+                            deserializeBatchedCompoundCommit(vbcc.getBlobName(), roundTrip)
+                        );
+                    }
+                }
+            } finally {
+                vbcc.close();
+            }
+        }
+    }
+
+    /**
+     * Parts are staged concurrently, so several provider streams are open against one frozen VBCC at once. Reads all
+     * parts in parallel, released together from a barrier, and requires exact tiling.
+     */
+    public void testConcurrentUploadPartReadsDoNotInterfere() throws Exception {
+        final long primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            var vbcc = frozenVbccWithCommits(fakeNode, primaryTerm);
+            try {
+                final byte[] expected = wholeUploadBlob(vbcc);
+                final long partSize = Math.max(4096L, expected.length / randomIntBetween(3, 6));
+                final var ranges = multiPartRanges(expected.length, partSize);
+
+                final var parts = new byte[ranges.size()][];
+                final var barrier = new CyclicBarrier(ranges.size());
+                final var done = new CountDownLatch(ranges.size());
+                final var failures = new ArrayList<Throwable>();
+
+                for (int i = 0; i < ranges.size(); i++) {
+                    final int index = i;
+                    new Thread(() -> {
+                        try {
+                            barrier.await(30, TimeUnit.SECONDS);
+                            parts[index] = readUploadPart(vbcc, ranges.get(index)[0], ranges.get(index)[1]);
+                        } catch (Throwable t) {
+                            synchronized (failures) {
+                                failures.add(t);
+                            }
+                        } finally {
+                            done.countDown();
+                        }
+                    }, "vbcc-upload-part-" + index).start();
+                }
+                assertTrue("concurrent part reads timed out", done.await(60, TimeUnit.SECONDS));
+                synchronized (failures) {
+                    assertThat("concurrent part reads threw " + failures, failures, empty());
+                }
+
+                var reassembled = new byte[expected.length];
+                int written = 0;
+                for (byte[] part : parts) {
+                    System.arraycopy(part, 0, reassembled, written, part.length);
+                    written += part.length;
+                }
+                assertOpensWithCommitHeader(reassembled);
+                assertArrayEquals(expected, reassembled);
+            } finally {
+                vbcc.close();
+            }
+        }
+    }
+
+    /**
+     * {@code InternalHeaderReader} measures its header size once, in its constructor, but re-serializes the header on
+     * every read. The blob layout is derived from the measured value while the uploaded bytes come from the
+     * re-serialization, so the two disagreeing would shift everything that follows the header.
+     */
+    public void testUploadHeaderRematerializesAtStableLength() throws Exception {
+        final long primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            var vbcc = frozenVbccWithCommits(fakeNode, primaryTerm);
+            try {
+                final byte[] expected = wholeUploadBlob(vbcc);
+                for (int i = 0; i < 5; i++) {
+                    assertArrayEquals("whole-blob read " + i + " differs", expected, wholeUploadBlob(vbcc));
+                }
+                final long prefix = Math.min(expected.length, 4096L);
+                final byte[] first = readUploadPart(vbcc, 0, prefix);
+                for (int i = 0; i < 5; i++) {
+                    assertArrayEquals("header prefix read " + i + " differs", first, readUploadPart(vbcc, 0, prefix));
+                }
+                assertArrayEquals(Arrays.copyOfRange(expected, 0, Math.toIntExact(prefix)), first);
+            } finally {
+                vbcc.close();
+            }
+        }
+    }
+
+    private VirtualBatchedCompoundCommit frozenVbccWithCommits(FakeStatelessNode fakeNode, long primaryTerm) throws Exception {
+        var commits = fakeNode.generateIndexCommits(randomIntBetween(2, 4));
+        var vbcc = new VirtualBatchedCompoundCommit(
+            fakeNode.shardId,
+            "node-id",
+            primaryTerm,
+            commits.getFirst().getGeneration(),
+            (fileName) -> {
+                throw new AssertionError("Unexpected call");
+            },
+            ESTestCase::randomNonNegativeLong,
+            fakeNode.sharedCacheService.getRegionSize(),
+            randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+        );
+        for (StatelessCommitRef statelessCommitRef : commits) {
+            assertTrue(vbcc.appendCommit(statelessCommitRef, randomBoolean(), null));
+        }
+        vbcc.freeze();
+        return vbcc;
+    }
+
+    /** Reads the whole blob through the non-ranged upload stream, the ground truth for the ranged reads. */
+    private static byte[] wholeUploadBlob(VirtualBatchedCompoundCommit vbcc) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            try (var stream = vbcc.getFrozenInputStreamForUpload()) {
+                Streams.copy(stream, output, false);
+            }
+            return BytesReference.toBytes(output.bytes());
+        }
+    }
+
+    /** Reads one multipart range through the provider the concurrent multipart upload path uses. */
+    private static byte[] readUploadPart(VirtualBatchedCompoundCommit vbcc, long offset, long length) throws IOException {
+        var buffer = new byte[Math.toIntExact(length)];
+        try (var stream = vbcc.getFrozenInputStreamForUpload(offset, length)) {
+            Streams.readFully(stream, buffer, 0, buffer.length);
+        }
+        return buffer;
+    }
+
+    /** A batched compound commit blob must open with the stateless commit codec header. */
+    private static void assertOpensWithCommitHeader(byte[] blob) throws IOException {
+        CodecUtil.checkHeader(
+            new BytesReferenceIndexInput("blob", new BytesArray(blob)),
+            StatelessCompoundCommit.SHARD_COMMIT_CODEC,
+            StatelessCompoundCommit.VERSION_WITH_COMMIT_FILES,
+            StatelessCompoundCommit.CURRENT_VERSION
+        );
+    }
+
+    /**
+     * Part sizes worth exercising for a blob of the given size. Deliberately spans sizes smaller than the compound
+     * commit header and sizes larger than it, so part 0 ends inside the header in some runs and past it in others.
+     */
+    private static long[] uploadPartSizesToExercise(long totalSize) {
+        var sizes = new ArrayList<Long>();
+        for (long candidate : new long[] { 512L, 4096L, 16L * 1024L, 64L * 1024L, totalSize / 4L, totalSize / 2L + 1L, totalSize }) {
+            if (candidate > 0 && candidate <= totalSize && sizes.contains(candidate) == false) {
+                sizes.add(candidate);
+            }
+        }
+        assertThat(sizes, not(empty()));
+        return sizes.stream().mapToLong(Long::longValue).toArray();
+    }
+
+    /** Part boundaries as {@code AzureBlobStore} computes them: equal parts with the remainder in the last. */
+    private static List<long[]> multiPartRanges(long totalSize, long partSize) {
+        var ranges = new ArrayList<long[]>();
+        for (long offset = 0; offset < totalSize; offset += partSize) {
+            ranges.add(new long[] { offset, Math.min(partSize, totalSize - offset) });
+        }
+        return ranges;
     }
 
 }

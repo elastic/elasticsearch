@@ -106,6 +106,8 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/159132
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueriesWithInvalidLicenseIT
+  issue: https://github.com/elastic/elasticsearch/issues/159133
 
 # Examples:
 #

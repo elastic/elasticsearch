@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.ml.process.NativeController;
@@ -28,22 +29,40 @@ public class PyTorchBuilder {
     private static final String CACHE_MEMORY_LIMIT_BYTES_ARG = "--cacheMemorylimitBytes=";
     private static final String LOW_PRIORITY_ARG = "--lowPriority";
     private static final String SKIP_MODEL_VALIDATION_ARG = "--skipModelValidation";
+    private static final String DISABLE_SANDBOX_ARG = "--disableSandbox";
+    private static final String REQUIRE_SANDBOX_ARG = "--requireSandbox";
 
     private final NativeController nativeController;
     private final ProcessPipes processPipes;
     private final StartTrainedModelDeploymentAction.TaskParams taskParams;
     private final boolean modelGraphValidationEnabled;
+    private final boolean sandboxEnabled;
+    private final boolean isLinux;
 
     public PyTorchBuilder(
         NativeController nativeController,
         ProcessPipes processPipes,
         StartTrainedModelDeploymentAction.TaskParams taskParams,
-        boolean modelGraphValidationEnabled
+        boolean modelGraphValidationEnabled,
+        boolean sandboxEnabled
+    ) {
+        this(nativeController, processPipes, taskParams, modelGraphValidationEnabled, sandboxEnabled, Constants.LINUX);
+    }
+
+    PyTorchBuilder(
+        NativeController nativeController,
+        ProcessPipes processPipes,
+        StartTrainedModelDeploymentAction.TaskParams taskParams,
+        boolean modelGraphValidationEnabled,
+        boolean sandboxEnabled,
+        boolean isLinux
     ) {
         this.nativeController = Objects.requireNonNull(nativeController);
         this.processPipes = Objects.requireNonNull(processPipes);
         this.taskParams = Objects.requireNonNull(taskParams);
         this.modelGraphValidationEnabled = modelGraphValidationEnabled;
+        this.sandboxEnabled = sandboxEnabled;
+        this.isLinux = isLinux;
     }
 
     public void build() throws IOException, InterruptedException {
@@ -69,6 +88,14 @@ public class PyTorchBuilder {
         }
         if (modelGraphValidationEnabled == false) {
             command.add(SKIP_MODEL_VALIDATION_ARG);
+        }
+        // Sandbox2 is Linux-only, so the route token is only meaningful there (see design.md
+        // Non-goals: "must never receive a Linux-only routing token" off Linux). On Linux, every
+        // launch sends exactly one of the two tokens - never neither - so the controller's own
+        // no-token default (which now always means legacy, see ml-cpp#3188) is never relied upon
+        // by Elasticsearch itself, only by direct/manual invocations of the controller.
+        if (isLinux) {
+            command.add(sandboxEnabled ? REQUIRE_SANDBOX_ARG : DISABLE_SANDBOX_ARG);
         }
 
         return command;

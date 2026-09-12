@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.process;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -78,6 +79,14 @@ public class ProcessPipes {
      *                    Must not be a full path, nor have the .exe extension on Windows.
      * @param jobId The job ID of the process to which pipes are to be opened, if the process is associated with a specific job.
      *              May be null or empty for processes not associated with a specific job.
+     * @param useIsolatedChildIpcDir If {@code true} (and running on Linux, and {@code jobId} is non-empty), the pipe names are
+     *                               built from the isolated per-child IPC directory ({@code $TMPDIR/ml-child-ipc/<jobId>/}) with
+     *                               the fixed filenames {@code input}, {@code output}, {@code restore} and {@code logPipe},
+     *                               instead of the legacy flat-prefix-plus-pid-suffix naming. See
+     *                               {@link NamedPipeHelper#getChildIpcDirectoryPrefix}. Command and persist pipes have no
+     *                               defined name within that directory, so requesting either while this is {@code true} is
+     *                               rejected. On any other platform, or if {@code jobId} is empty, this parameter has no effect
+     *                               and the legacy naming is used.
      */
     public ProcessPipes(
         Environment env,
@@ -90,33 +99,91 @@ public class ProcessPipes {
         boolean wantProcessInPipe,
         boolean wantProcessOutPipe,
         boolean wantRestorePipe,
-        boolean wantPersistPipe
+        boolean wantPersistPipe,
+        boolean useIsolatedChildIpcDir
+    ) {
+        this(
+            env,
+            namedPipeHelper,
+            timeout,
+            processName,
+            jobId,
+            uniqueId,
+            wantCommandPipe,
+            wantProcessInPipe,
+            wantProcessOutPipe,
+            wantRestorePipe,
+            wantPersistPipe,
+            useIsolatedChildIpcDir,
+            Constants.LINUX
+        );
+    }
+
+    /**
+     * Package-private constructor that additionally allows tests to inject the result of the "is this Linux" check.
+     * {@link Constants#LINUX} is a {@code static final boolean} and cannot be overridden in-process, so this seam
+     * mirrors the one used by {@code PyTorchBuilder} for the same reason.
+     */
+    ProcessPipes(
+        Environment env,
+        NamedPipeHelper namedPipeHelper,
+        Duration timeout,
+        String processName,
+        String jobId,
+        Long uniqueId,
+        boolean wantCommandPipe,
+        boolean wantProcessInPipe,
+        boolean wantProcessOutPipe,
+        boolean wantRestorePipe,
+        boolean wantPersistPipe,
+        boolean useIsolatedChildIpcDir,
+        boolean isLinux
     ) {
         this.namedPipeHelper = namedPipeHelper;
         this.jobId = jobId;
         this.tempDir = env.tmpDir();
         this.timeout = timeout;
 
-        // The way the pipe names are formed MUST match what is done in the controller main()
-        // function, as it does not get any command line arguments when started as a daemon. If
-        // you change the code here then you MUST also change the C++ code in controller's
-        // main() function.
-        StringBuilder prefixBuilder = new StringBuilder();
-        prefixBuilder.append(namedPipeHelper.getDefaultPipeDirectoryPrefix(env)).append(Objects.requireNonNull(processName)).append('_');
-        if (Strings.isNullOrEmpty(jobId) == false) {
-            prefixBuilder.append(jobId).append('_');
+        boolean isolateChildIpcDir = useIsolatedChildIpcDir && isLinux && Strings.isNullOrEmpty(jobId) == false;
+        if (isolateChildIpcDir) {
+            // The isolated child IPC directory contract validated by the native controller only covers the
+            // input/output/restore/logPipe paths. Command and persist pipes are not part of that contract, so there
+            // is no defined filename for them within the directory - fail fast rather than silently constructing an
+            // unvalidated path.
+            if (wantCommandPipe || wantPersistPipe) {
+                throw new IllegalArgumentException("Isolated child IPC directories do not support command or persist pipes");
+            }
+            String childIpcDirPrefix = namedPipeHelper.getChildIpcDirectoryPrefix(env, jobId);
+            logPipeName = childIpcDirPrefix + "logPipe";
+            commandPipeName = null;
+            processInPipeName = wantProcessInPipe ? childIpcDirPrefix + "input" : null;
+            processOutPipeName = wantProcessOutPipe ? childIpcDirPrefix + "output" : null;
+            restorePipeName = wantRestorePipe ? childIpcDirPrefix + "restore" : null;
+            persistPipeName = null;
+        } else {
+            // The way the pipe names are formed MUST match what is done in the controller main()
+            // function, as it does not get any command line arguments when started as a daemon. If
+            // you change the code here then you MUST also change the C++ code in controller's
+            // main() function.
+            StringBuilder prefixBuilder = new StringBuilder();
+            prefixBuilder.append(namedPipeHelper.getDefaultPipeDirectoryPrefix(env))
+                .append(Objects.requireNonNull(processName))
+                .append('_');
+            if (Strings.isNullOrEmpty(jobId) == false) {
+                prefixBuilder.append(jobId).append('_');
+            }
+            if (uniqueId != null) {
+                prefixBuilder.append(uniqueId).append('_');
+            }
+            String prefix = prefixBuilder.toString();
+            String suffix = String.format(Locale.ROOT, "_%d", JvmInfo.jvmInfo().getPid());
+            logPipeName = String.format(Locale.ROOT, "%slog%s", prefix, suffix);
+            commandPipeName = wantCommandPipe ? String.format(Locale.ROOT, "%scommand%s", prefix, suffix) : null;
+            processInPipeName = wantProcessInPipe ? String.format(Locale.ROOT, "%sinput%s", prefix, suffix) : null;
+            processOutPipeName = wantProcessOutPipe ? String.format(Locale.ROOT, "%soutput%s", prefix, suffix) : null;
+            restorePipeName = wantRestorePipe ? String.format(Locale.ROOT, "%srestore%s", prefix, suffix) : null;
+            persistPipeName = wantPersistPipe ? String.format(Locale.ROOT, "%spersist%s", prefix, suffix) : null;
         }
-        if (uniqueId != null) {
-            prefixBuilder.append(uniqueId).append('_');
-        }
-        String prefix = prefixBuilder.toString();
-        String suffix = String.format(Locale.ROOT, "_%d", JvmInfo.jvmInfo().getPid());
-        logPipeName = String.format(Locale.ROOT, "%slog%s", prefix, suffix);
-        commandPipeName = wantCommandPipe ? String.format(Locale.ROOT, "%scommand%s", prefix, suffix) : null;
-        processInPipeName = wantProcessInPipe ? String.format(Locale.ROOT, "%sinput%s", prefix, suffix) : null;
-        processOutPipeName = wantProcessOutPipe ? String.format(Locale.ROOT, "%soutput%s", prefix, suffix) : null;
-        restorePipeName = wantRestorePipe ? String.format(Locale.ROOT, "%srestore%s", prefix, suffix) : null;
-        persistPipeName = wantPersistPipe ? String.format(Locale.ROOT, "%spersist%s", prefix, suffix) : null;
     }
 
     /**

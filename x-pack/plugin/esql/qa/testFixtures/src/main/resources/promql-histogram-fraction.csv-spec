@@ -1,0 +1,69 @@
+// End-to-end PromQL csv-spec coverage for histogram_fraction over classic histograms.
+
+histogram_fraction_by_job
+required_capability: promql_command_v0
+required_capability: promql_histogram_fraction_classic
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(round(histogram_fraction(0.5, 1.5, sum by (job, le) (request_duration_seconds_bucket)), 0.001))
+| SORT job;
+
+result:double | step:datetime            | job:keyword
+0.333         | 2024-05-10T00:10:00.000Z | api
+0.1           | 2024-05-10T00:10:00.000Z | repair
+0.417         | 2024-05-10T00:10:00.000Z | worker
+;
+
+histogram_fraction_filtered_scalar_output
+required_capability: promql_command_v0
+required_capability: promql_histogram_fraction_classic
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(round(histogram_fraction(0.5, 1.5, sum by (le) (request_duration_seconds_bucket{job="api"})), 0.001));
+
+result:double | step:datetime
+0.333         | 2024-05-10T00:10:00.000Z
+;
+
+histogram_fraction_full_range
+required_capability: promql_command_v0
+required_capability: promql_histogram_fraction_classic
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(histogram_fraction(-Inf, Inf, sum by (job, le) (request_duration_seconds_bucket)))
+| SORT job;
+
+result:double | step:datetime            | job:keyword
+1.0           | 2024-05-10T00:10:00.000Z | api
+1.0           | 2024-05-10T00:10:00.000Z | repair
+1.0           | 2024-05-10T00:10:00.000Z | worker
+;
+
+histogram_fraction_rate_by_job
+required_capability: promql_command_v0
+required_capability: promql_histogram_fraction_classic
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(round(histogram_fraction(0.5, 1.5, sum by (job, le) (rate(request_duration_seconds_bucket[5m]))), 0.001))
+| KEEP result, step, job
+| SORT job;
+
+result:double | step:datetime            | job:keyword
+0.333         | 2024-05-10T00:10:00.000Z | api
+0.1           | 2024-05-10T00:10:00.000Z | repair
+0.417         | 2024-05-10T00:10:00.000Z | worker
+;
+
+// Like Prometheus, an input without the `le` label yields no fraction and emits a warning.
+histogram_fraction_without_le_returns_empty
+required_capability: promql_command_v0
+required_capability: promql_histogram_fraction_classic
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(histogram_fraction(0.5, 1.5, sum by (job) (request_duration_seconds_bucket)))
+| SORT job;
+warningRegex:.*histogram_fraction: input vector has no le label; no buckets to evaluate.*
+
+result:double | step:datetime | job:keyword
+;
+
+histogram_fraction_malformed_le_warns_and_ignores_bucket
+required_capability: promql_command_v0
+required_capability: promql_histogram_fraction_classic
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:00:00.000Z" result=(round(histogram_fraction(0.5, 1.5, sum by (job, le) (request_duration_seconds_bucket{job="malformed"})), 0.001));
+warningRegex:.*evaluation of \[histogram_fraction\(0.5, 1.5, sum by \(job, le\) \(request_duration_seconds_bucket\{job=\\\"malformed\\\"\}\)\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:.*NumberFormatException: bucket label \[le\] has a malformed value of \[bogus\]
+
+result:double | step:datetime            | job:keyword
+0.333         | 2024-05-10T00:00:00.000Z | malformed
+;

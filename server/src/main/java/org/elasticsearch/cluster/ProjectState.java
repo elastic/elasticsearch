@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -63,6 +65,19 @@ public final class ProjectState {
 
     public Settings settings() {
         return projectSettings;
+    }
+
+    /**
+     * Rejects project mutations when the project is marked for deletion.
+     * This check is intended for cluster state update tasks, which must validate the latest
+     * cluster state rather than relying only on an earlier transport-action block check.
+     */
+    public void ensureProjectNotUnderDeletion() {
+        // The default project is not managed by the project soft-deletion lifecycle.
+        if (ProjectId.DEFAULT.equals(projectId()) == false
+            && blocks().hasGlobalBlock(projectId(), ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK)) {
+            throw new ClusterBlockException(Set.of(ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK));
+        }
     }
 
     @Override

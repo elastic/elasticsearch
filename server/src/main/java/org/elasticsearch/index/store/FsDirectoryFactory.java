@@ -16,6 +16,7 @@ import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
@@ -37,6 +38,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -177,33 +179,63 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     public static final class HybridDirectory extends NIOFSDirectory {
         private final MMapDirectory delegate;
         private final DirectIODirectory directIODelegate;
+        private final DirectIODirectory mergeDirectIODelegate;
 
         public HybridDirectory(LockFactory lockFactory, MMapDirectory delegate, int asyncPrefetchLimit) throws IOException {
             super(delegate.getDirectory(), lockFactory);
             this.delegate = delegate;
 
-            DirectIODirectory directIO;
+            DirectIODirectory directIO = null;
+            DirectIODirectory mergeDirectIO = null;
             try {
-                // use 8kB buffer (two pages) to guarantee it can load all of an un-page-aligned 1024-dim float vector
-                directIO = new AlwaysDirectIODirectory(delegate, 8192, DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT, asyncPrefetchLimit);
+                // rescore reads: small random reads, two-page buffer, async prefetch
+                directIO = new AlwaysDirectIODirectory(
+                    delegate,
+                    AlwaysDirectIODirectory.RANDOM_ACCESS_BUFFER_SIZE,
+                    DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT,
+                    asyncPrefetchLimit
+                );
             } catch (Exception e) {
                 // directio not supported
-                Log.warn("Could not initialize DirectIO access", e);
-                directIO = null;
+                Log.warn("Could not initialize DirectIO access for rescoring", e);
+            }
+            // independent of the rescore delegate: the two differ in buffer size and prefetch, and
+            // a failure on either side must not take the other down
+            try {
+                // merge reads and writes are long sequential streams over whole files: one delegate
+                // with Lucene's merge-sized buffer and no async prefetch serves both directions. Whether
+                // a field's merges use it is its on_disk_merge option, decided in the codec; the delegate
+                // itself does no I/O until asked
+                mergeDirectIO = new AlwaysDirectIODirectory(
+                    delegate,
+                    DirectIODirectory.DEFAULT_MERGE_BUFFER_SIZE,
+                    DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT,
+                    0
+                );
+            } catch (Exception e) {
+                // directio not supported: merges read and write through the page cache
+                Log.warn("Could not initialize DirectIO access for vector merges", e);
             }
             this.directIODelegate = directIO;
+            this.mergeDirectIODelegate = mergeDirectIO;
         }
 
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
             Throwable directIOException = null;
-            if (directIODelegate != null && context.hints().contains(DirectIOHint.INSTANCE)) {
+            // merge-context opens go to the merge delegate, which only takes raw vector files; whether a
+            // field's merges carry the hint is its on_disk_merge option, decided in the codec. Everything
+            // else with a direct I/O hint is a rescore read
+            DirectIODirectory dio = context.context() == IOContext.Context.MERGE ? mergeDirectIODelegate : directIODelegate;
+            if (dio != null
+                && context.hints().contains(DirectIOHint.INSTANCE)
+                && (context.context() != IOContext.Context.MERGE || isRawVectorFile(name))) {
                 ensureOpen();
                 ensureCanRead(name);
                 try {
                     Log.debug("Opening {} with direct IO", name);
-                    return directIODelegate.openInput(name, context);
-                } catch (FileSystemException e) {
+                    return dio.openInput(name, context);
+                } catch (FileSystemException | UnsupportedOperationException e) {
                     Log.debug(() -> Strings.format("Could not open %s with direct IO", name), e);
                     directIOException = e;
                     // and fallthrough to normal opening below
@@ -232,6 +264,57 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
 
         @Override
+        public IndexOutput createOutput(String name, IOContext context) throws IOException {
+            Throwable directIOException = null;
+            // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
+            ensureOpen();
+            // a direct I/O output opens the file itself, skipping FSDirectory's pending-delete bookkeeping:
+            // a live file created under a name that is still pending delete could be removed by a later
+            // retry. getPendingDeletions() retries the pending deletes first; a name still pending after
+            // that goes down the buffered path below, which takes it off the pending set before creating.
+            // Segment file names are not normally reused.
+            if (mergeDirectIODelegate != null
+                && context.context() == IOContext.Context.MERGE
+                && context.hints().contains(DirectIOHint.INSTANCE)
+                && isRawVectorFile(name)
+                && getPendingDeletions().contains(name) == false) {
+                Path file = getDirectory().resolve(name);
+                boolean existed = Files.exists(file);
+                try {
+                    Log.debug("Creating {} with direct IO", name);
+                    return mergeDirectIODelegate.createOutput(name, context);
+                } catch (FileAlreadyExistsException e) {
+                    throw e; // CREATE_NEW hit an existing file: not ours to delete
+                } catch (FileSystemException | UnsupportedOperationException e) {
+                    Log.debug(() -> Strings.format("Could not create %s with direct IO", name), e);
+                    directIOException = e;
+                    // the failed open may still have created the file; remove any partial file so the
+                    // buffered CREATE_NEW open below can succeed, and fall through to normal creation.
+                    // A file that existed before the attempt is not ours: the buffered path fails on
+                    // it exactly as it would have without direct I/O. On Linux an existing file is
+                    // rejected by the open itself (CREATE_NEW) and rethrown above; the check matters
+                    // where the JDK declines the direct open before it reaches the file system
+                    if (existed == false) {
+                        IOUtils.deleteFilesIgnoringExceptions(file);
+                    }
+                }
+            }
+            try {
+                return super.createOutput(name, context);
+            } catch (Throwable t) {
+                if (directIOException != null) {
+                    t.addSuppressed(directIOException);
+                }
+                throw t;
+            }
+        }
+
+        /** Visible for tests: whether opens in the given context can be served with direct I/O. */
+        boolean hasDirectIODelegate(IOContext.Context context) {
+            return (context == IOContext.Context.MERGE ? mergeDirectIODelegate : directIODelegate) != null;
+        }
+
+        @Override
         public void close() throws IOException {
             IOUtils.close(super::close, delegate);
         }
@@ -244,6 +327,17 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             } else {
                 return name.substring(lastDotIndex + 1);
             }
+        }
+
+        /**
+         * Only raw vector data files ({@code .vec}) go to the merge delegate. The raw vector writers create
+         * their metadata file from the same merge context as the data file, and a few hundred bytes of
+         * metadata must not get a 256 KiB aligned direct I/O buffer. Opens are filtered the same way; the
+         * readers open metadata through {@code openChecksumInput}, which never carries the hint, so that
+         * half only guards against a future caller.
+         */
+        static boolean isRawVectorFile(String name) {
+            return LuceneFilesExtensions.fromExtension(getExtension(name)) == LuceneFilesExtensions.VEC;
         }
 
         static boolean useDelegate(String name, IOContext ioContext) {
@@ -306,13 +400,18 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     }
 
     public static final class AlwaysDirectIODirectory extends DirectIODirectory {
+        // two pages, guaranteeing a single buffer can load all of an un-page-aligned 1024-dim float vector
+        public static final int RANDOM_ACCESS_BUFFER_SIZE = 8192;
+
         private final int blockSize;
+        private final int bufferSize;
         private final int asyncPrefetchLimit;
 
-        public AlwaysDirectIODirectory(FSDirectory delegate, int mergeBufferSize, long minBytesDirect, int asyncPrefetchLimit)
+        public AlwaysDirectIODirectory(FSDirectory delegate, int bufferSize, long minBytesDirect, int asyncPrefetchLimit)
             throws IOException {
-            super(delegate, mergeBufferSize, minBytesDirect);
+            super(delegate, bufferSize, minBytesDirect);
             blockSize = getBlockSize(delegate.getDirectory());
+            this.bufferSize = bufferSize;
             this.asyncPrefetchLimit = asyncPrefetchLimit;
         }
 
@@ -325,8 +424,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         public IndexInput openInput(String name, IOContext context) throws IOException {
             ensureOpen();
             if (asyncPrefetchLimit > 0) {
-                return new AsyncDirectIOIndexInput(getDirectory().resolve(name), blockSize, 8192, asyncPrefetchLimit);
+                return new AsyncDirectIOIndexInput(getDirectory().resolve(name), blockSize, bufferSize, asyncPrefetchLimit);
             } else {
+                // no async prefetching: a plain direct-IO input at this instance's buffer size
                 return super.openInput(name, context);
             }
         }

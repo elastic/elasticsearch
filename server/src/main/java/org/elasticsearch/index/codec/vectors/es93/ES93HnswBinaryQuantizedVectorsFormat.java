@@ -129,6 +129,21 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
         flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO);
     }
 
+    /** @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option) */
+    public ES93HnswBinaryQuantizedVectorsFormat(
+        int maxConn,
+        int beamWidth,
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        int numMergeWorkers,
+        ExecutorService mergeExec,
+        int hnswGraphThreshold,
+        boolean onDiskMerge
+    ) {
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, resolveThreshold(hnswGraphThreshold, BBQ_HNSW_GRAPH_THRESHOLD));
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(elementType, useDirectIO, onDiskMerge);
+    }
+
     @Override
     protected FlatVectorsFormat flatVectorsFormat() {
         return flatVectorsFormat;

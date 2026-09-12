@@ -105,7 +105,8 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
             ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
             ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
             writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO,
-            flatVectorThreshold
+            flatVectorThreshold,
+            false
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;

@@ -19,6 +19,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,6 +29,7 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
 
     private final String rawVectorFormatName;
     private final boolean useDirectIOReads;
+    private final boolean onDiskMerge;
     private final FlatVectorsWriter rawVectorWriter;
     private final IndexOutput metaOut;
     private final List<Integer> fieldNumbers = new ArrayList<>();
@@ -37,12 +39,14 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
         GenericFormatMetaInformation metaInfo,
         String rawVectorsFormatName,
         boolean useDirectIOReads,
+        boolean onDiskMerge,
         SegmentWriteState state,
         FlatVectorsWriter rawWriter
     ) throws IOException {
         super(rawWriter.getFlatVectorScorer());
         this.rawVectorFormatName = rawVectorsFormatName;
         this.useDirectIOReads = useDirectIOReads;
+        this.onDiskMerge = onDiskMerge;
         this.rawVectorWriter = rawWriter;
 
         final String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaInfo.extension());
@@ -63,6 +67,7 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
 
     @Override
     public FlatFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
+        DirectIOCapableFlatVectorsFormat.recordOnDiskMerge(fieldInfo, onDiskMerge);
         var writer = rawVectorWriter.addField(fieldInfo);
         fieldNumbers.add(fieldInfo.number);
         return writer;
@@ -70,6 +75,7 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
 
     @Override
     public void mergeOneFlatVectorField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        DirectIOCapableFlatVectorsFormat.recordOnDiskMerge(fieldInfo, onDiskMerge);
         rawVectorWriter.mergeOneFlatVectorField(fieldInfo, mergeState);
         writeMeta(fieldInfo.number);
     }

@@ -1,0 +1,95 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.vectors.on_disk_merge" ]
+      reason: "on_disk_merge needs to be supported"
+
+---
+"on_disk_merge is accepted, round-trips, merges still search, and is updatable":
+  - do:
+      indices.create:
+        index: on_disk_merge_hnsw
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 4
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  on_disk_merge: true
+
+  - do:
+      indices.get_mapping:
+        index: on_disk_merge_hnsw
+  - match: { on_disk_merge_hnsw.mappings.properties.vector.index_options.type: hnsw }
+  - match: { on_disk_merge_hnsw.mappings.properties.vector.index_options.on_disk_merge: true }
+
+  - do:
+      index:
+        index: on_disk_merge_hnsw
+        id: "1"
+        body:
+          vector: [1.0, 0.0, 0.0, 0.0]
+  # flush so that the merge below has two segments to work on
+  - do:
+      indices.flush:
+        index: on_disk_merge_hnsw
+  - do:
+      index:
+        index: on_disk_merge_hnsw
+        id: "2"
+        body:
+          vector: [0.0, 1.0, 0.0, 0.0]
+  - do:
+      index:
+        index: on_disk_merge_hnsw
+        id: "3"
+        body:
+          vector: [0.0, 0.0, 1.0, 0.0]
+  - do:
+      indices.refresh:
+        index: on_disk_merge_hnsw
+
+  - do:
+      indices.forcemerge:
+        index: on_disk_merge_hnsw
+        max_num_segments: 1
+  - do:
+      indices.refresh:
+        index: on_disk_merge_hnsw
+
+  - do:
+      search:
+        index: on_disk_merge_hnsw
+        body:
+          knn:
+            field: vector
+            query_vector: [1.0, 0.0, 0.0, 0.0]
+            k: 3
+            num_candidates: 3
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "1" }
+
+  # the option is updatable in place: switch it off and the mapping no longer carries it
+  - do:
+      indices.put_mapping:
+        index: on_disk_merge_hnsw
+        body:
+          properties:
+            vector:
+              type: dense_vector
+              dims: 4
+              index: true
+              similarity: l2_norm
+              index_options:
+                type: hnsw
+                on_disk_merge: false
+  - do:
+      indices.get_mapping:
+        index: on_disk_merge_hnsw
+  - is_false: on_disk_merge_hnsw.mappings.properties.vector.index_options.on_disk_merge

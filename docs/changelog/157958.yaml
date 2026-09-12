@@ -1,0 +1,5 @@
+area: Audit
+issues: []
+pr: 157958
+summary: Add circuit breaker checks to audit trail write
+type: enhancement

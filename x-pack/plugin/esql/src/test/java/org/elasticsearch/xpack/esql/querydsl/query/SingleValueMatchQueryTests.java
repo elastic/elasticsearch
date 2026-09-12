@@ -26,12 +26,17 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestWarningsSource;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -43,9 +48,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -97,6 +104,15 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
     private final Setup setup;
 
+    /**
+     * Target for warnings.
+     */
+    private final DriverContext warningsContext = new DriverContext(
+        BigArrays.NON_RECYCLING_INSTANCE,
+        TestBlockFactory.getNonBreakingInstance(),
+        null
+    );
+
     public SingleValueMatchQueryTests(Setup setup) {
         this.setup = setup;
     }
@@ -107,13 +123,10 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
             List<List<Object>> fieldValues = setup.build(iw);
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
-                Query query = new SingleValueMatchQuery(
-                    ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")),
-                    "single-value function encountered multi-value"
-                );
-                runCase(fieldValues, ctx.searcher().count(query));
-                setup.assertRewrite(ctx.searcher(), query);
+                withBoundQuery(ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH), query -> {
+                    runCase(fieldValues, ctx.searcher().count(query));
+                    setup.assertRewrite(ctx.searcher(), query);
+                });
             }
         }
     }
@@ -123,13 +136,35 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
-                Query query = new SingleValueMatchQuery(
+                withBoundQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")),
-                    "single-value function encountered multi-value"
+                    query -> runCase(List.of(), ctx.searcher().count(query))
                 );
-                runCase(List.of(), ctx.searcher().count(query));
             }
+        }
+    }
+
+    @FunctionalInterface
+    interface IOConsumer<T> {
+        void accept(T t) throws IOException;
+    }
+
+    /**
+     * Build a {@link SingleValueMatchQuery} bound, via a private one-off {@link QueryWarnings}
+     * bridge, to a fresh {@link Warnings}, run {@code action} with it while the binding is active,
+     * then close the binding. Mirrors how {@link org.elasticsearch.compute.operator.lookup.QueryList}
+     * binds a non-shared query to its bridge, but scopes the binding to the action's lifetime.
+     */
+    private void withBoundQuery(IndexFieldData<?> fieldData, IOConsumer<SingleValueMatchQuery> action) throws IOException {
+        QueryWarnings bridge = QueryWarnings.EMIT;
+        SingleValueMatchQuery query = new SingleValueMatchQuery(
+            fieldData,
+            bridge,
+            new TestWarningsSource("test"),
+            "single-value function encountered multi-value"
+        );
+        try (Releasable ignored = bridge.bind(Map.of(query, warningsContext.createWarnings(new TestWarningsSource("test"))))) {
+            action.accept(query);
         }
     }
 
@@ -148,9 +183,13 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         // the SingleValueQuery.TwoPhaseIteratorForSortedNumericsAndTwoPhaseQueries can scan all docs - and generate warnings - even if
         // inner query matches none, so warn if MVs have been encountered within given range, OR if a full scan is required
         if (mvCountInRange > 0) {
-            assertWarnings(
-                "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+            warningsContext.finish();
+            assertThat(
+                warningsContext.warnings(),
+                containsInAnyOrder(
+                    "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+                )
             );
         }
     }

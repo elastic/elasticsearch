@@ -598,8 +598,22 @@ public class StreamingLookupFromIndexOperator implements Operator {
             logger.debug("isFinished: false (client not finished, waiting for server response)");
             return false;
         }
+        // Replay warnings accumulated by the (remote) lookup drivers into this driver.
+        drainClientWarnings();
         logger.debug("isFinished: true");
         return true;
+    }
+
+    private boolean clientWarningsDrained = false;
+
+    private void drainClientWarnings() {
+        if (clientWarningsDrained || client == null) {
+            return;
+        }
+        clientWarningsDrained = true;
+        for (String warning : client.warnings()) {
+            driverContext.addWarning(warning);
+        }
     }
 
     @Override
@@ -698,7 +712,6 @@ public class StreamingLookupFromIndexOperator implements Operator {
             } catch (Exception e) {
                 BidirectionalBatchExchangeBase.logExchangeFailure(logger, Level.ERROR, e, "Error finishing client", e);
             }
-            client.finishCollectingResponseHeaders();
             try {
                 client.close();
             } catch (Exception e) {

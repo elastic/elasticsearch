@@ -76,7 +76,7 @@ public class OptimizedScalarQuantizer {
         byte[] bits,
         float[] centroid
     ) {
-        assert similarityFunction != COSINE || VectorUtil.isUnitVector(vector);
+        assert similarityFunction != COSINE || BQVectorUtils.isUnitVector(vector);
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(centroid);
         assert bits.length == destinations.length;
         if (similarityFunction == EUCLIDEAN) {

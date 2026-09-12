@@ -18,9 +18,7 @@ import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilderWrapper;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
-import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
-import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -106,16 +104,9 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
         if (sorts == null || sorts.isEmpty()) {
             return;
         }
-        for (SortBuilder<?> sort : sorts) {
-            if (sort instanceof ScoreSortBuilder) {
-                continue;
-            }
-            if (sort instanceof FieldSortBuilder) {
-                FieldSortBuilder fieldSort = (FieldSortBuilder) sort;
-                if (ShardDocSortField.NAME.equals(fieldSort.getFieldName())) {
-                    continue;
-                }
-            }
+
+        SortBuilder<?> sort = sorts.get(0);
+        if (sort instanceof ScoreSortBuilder == false) {
             throw new IllegalArgumentException(
                 "[" + NAME + "] retriever only supports sorting by score, invalid sort criterion: " + sort.toString()
             );

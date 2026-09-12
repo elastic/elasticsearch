@@ -2056,17 +2056,85 @@ public class VerifierTests extends ESTestCase {
         fullText().query("from test | eval x = concat(title, body) | eval t = to_text(x, {\"analyzer\": \"whitespace\"})");
     }
 
-    public void testToTextAnalyzerThroughForkOutputUnreachable() throws Exception {
-        // Full-text functions cannot be used after FORK at all, so a values analyzer declared in or below fork
-        // branches can never be consumed through the fork's merged output. If that restriction is ever relaxed,
-        // Fork's output minting must propagate valuesAnalyzer for agreeing branches and reject conflicting
-        // declarations across branches, like it rejects conflicting data types.
-        fullText().error("""
+    /**
+     * The documented way out of the mapping analyzer being dropped: once the column is an expression, its values
+     * analyzer can be declared again on {@code TO_TEXT}, which is rejected while the field is still index-mapped.
+     */
+    public void testValuesAnalyzerCanBeRedeclaredAfterMvExpand() throws Exception {
+        fullText().query("from test | mv_expand title | eval t = to_text(title, {\"analyzer\": \"whitespace\"}) | where match(t, \"cat\")");
+    }
+
+    /**
+     * A values analyzer declared below FORK reaches the search through the fork's merged output, so every branch
+     * has to agree on it. Fork's output minting keeps only one declaration per column name, which would otherwise
+     * analyze the other branches' rows with an analyzer they never declared.
+     */
+    public void testToTextAnalyzerThroughForkOutput() throws Exception {
+        // declared once, below the fork: every branch carries the same declaration
+        fullText().query("""
             from test
             | eval t = to_text(concat(title, body), {"analyzer": "whitespace"})
             | fork (where true) (where true)
             | where match(t, "cat")
-            """, containsString("[MATCH] function cannot be used after FORK"));
+            """);
+        // declared per branch, but in agreement
+        fullText().query("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+            | where match(t, "cat")
+            """);
+        // conflicting declarations across branches
+        fullText().error("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = to_text(concat(title, body), {"analyzer": "english"}))
+            | where match(t, "cat")
+            """, containsString("Column [t] has conflicting values analyzers in FORK branches: [english] and [whitespace]"));
+        // declaring nothing is declaring the standard analyzer, so it conflicts too, whichever order the branches
+        // come in - otherwise the analyzer applied would depend on which branch supplied the column first
+        fullText().error("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = to_text(concat(title, body)))
+            | where match(t, "cat")
+            """, containsString("conflicting values analyzers in FORK branches"));
+        fullText().error("""
+            from test
+            | fork (eval t = to_text(concat(title, body)))
+                   (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+            | where match(t, "cat")
+            """, containsString("conflicting values analyzers in FORK branches"));
+        // a branch that does not produce the column at all is exempt: alignment fills it with nulls, and a column of
+        // nothing but nulls has no values for a sibling's declaration to disagree with
+        fullText().query("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (where true)
+            | where match(t, "cat")
+            """);
+        // an explicit null column is the same shape, and equally empty
+        fullText().query("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = null)
+            | where match(t, "cat")
+            """);
+        // ... but only in this order. A null-typed branch coming first represents the column in the merged output
+        // and nothing widens it, so the populated branch conflicts on data type before the analyzers are compared.
+        fullText().error("""
+            from test
+            | fork (eval t = null)
+                   (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+            | where match(t, "cat")
+            """, containsString("Column [t] has conflicting data types in FORK branches: [TEXT] and [NULL]"));
+        // a null assignment the branch then shadows is not what the branch outputs, so the exemption must not apply
+        fullText().error("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = null | eval t = to_text(concat(title, body), {"analyzer": "english"}))
+            | where match(t, "cat")
+            """, containsString("conflicting values analyzers in FORK branches"));
     }
 
     public void testToTextAnalyzerOptionOnUnionTypedField() throws Exception {
@@ -2179,18 +2247,76 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testRuntimeFullTextFunctionsAllowedAfterCommands() {
+        checkRuntimeFullTextFunctionAllowedAfterCommands("match(t, \"Meditation\")");
+        checkRuntimeFullTextFunctionAllowedAfterCommands("t : \"Meditation\"");
+        checkRuntimeFullTextFunctionAllowedAfterCommands("match_phrase(t, \"Meditation\")");
+    }
+
+    /**
+     * A runtime search scans the column's values row by row instead of querying the index, so it needs neither a
+     * shard context nor push-down to Lucene and can sit anywhere in the pipeline. The commands checked here are the
+     * ones {@code FullTextFunction#checkCommandsBeforeExpression} rejects for index-backed searches.
+     */
+    private void checkRuntimeFullTextFunctionAllowedAfterCommands(String functionInvocation) {
+        String prefix = "from test | eval t = to_text(concat(title, body)) ";
+        fullText().query(prefix + "| limit 10 | where " + functionInvocation);
+        fullText().query(prefix + "| stats c = count(id) by t | where " + functionInvocation);
+        fullText().query(prefix + "| limit 1 by id | where " + functionInvocation);
+        fullText().query(prefix + "| sort id | limit 1 by id | where " + functionInvocation);
+        // already allowed before this restriction was lifted, through the MV_EXPAND-only carve-out
+        fullText().query(prefix + "| mv_expand id | where " + functionInvocation);
+        if (EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled()) {
+            fullText().query(prefix + "| dedup | where " + functionInvocation);
+        }
+    }
+
+    /**
+     * The exemption is per full-text function, not per condition: an index-backed search sharing a WHERE with a
+     * runtime one still cannot be pushed to Lucene from above a pipeline breaker, so it must keep failing.
+     * <p>
+     * {@code Failure} equality is keyed on the node, so only one failure is reported for the condition - whichever
+     * function it is walked into first. With the same function on both sides the two messages are identical, so that
+     * case shows the query is rejected but not by which leg; the cases pairing different function types name the
+     * index-backed one, and hold only once the runtime one stops failing.
+     */
+    public void testMixedRuntimeAndIndexedFullTextRejectedAfterLimit() {
+        // the plainest form of the mixed condition: the same function on a runtime column and on an indexed field
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | limit 10 | where match(t, \"cat\") or match(title, \"dog\")",
+            containsString("[MATCH] function cannot be used after LIMIT")
+        );
+        // the same with differing function types, which pins *which* of the two is rejected
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | limit 10 | where match(t, \"cat\") or match_phrase(title, \"dog\")",
+            containsString("[MatchPhrase] function cannot be used after LIMIT")
+        );
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | limit 10 | where match_phrase(t, \"cat\") or title : \"dog\"",
+            containsString("[:] operator cannot be used after LIMIT")
+        );
+    }
+
+    public void testPositionalErrorOnlyNamesIndexedFieldsWhenThereIsAnAlternative() {
+        fullText().error(
+            "from test | limit 10 | where match(title, \"cat\")",
+            containsString("[MATCH] function cannot be used after LIMIT when it targets an indexed field")
+        );
+        fullText().error(
+            "from test | limit 10 | where qstr(\"title: cat\")",
+            allOf(containsString("[QSTR] function cannot be used after LIMIT"), not(containsString("indexed field")))
+        );
+    }
+
     public void testFullTextFunctionsAfterFork() {
-        fullText().error(
-            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where title : \"data\"",
-            containsString("[:] operator cannot be used after FORK")
+        // Everything FORK outputs is a ReferenceAttribute, so searching one of its columns is a runtime search and
+        // carries no positional restriction. Only the functions without runtime search support still fail.
+        fullText().query("from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where title : \"data\"");
+        fullText().query(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")"
         );
-        fullText().error(
-            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")",
-            containsString("[MATCH] function cannot be used after FORK")
-        );
-        fullText().error(
-            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match_phrase(title, \"data\")",
-            containsString("[MatchPhrase] function cannot be used after FORK")
+        fullText().query(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match_phrase(title, \"data\")"
         );
         // No KEEP here: unlike the general per-command check above, KQL/QSTR's own stricter allow-list also
         // rejects Project (i.e. RENAME/KEEP), and since Failure equality is keyed on the failing node - not the
@@ -2209,20 +2335,20 @@ public class VerifierTests extends ESTestCase {
         );
         fullText().stripErrorPrefix(false)
             .error(
-                "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")",
-                allOf(containsString("Found 1 problem"), containsString("[MATCH] function cannot be used after FORK"))
+                "from test metadata _id, _index, _score | fork (where true) (where true) | keep vector | where knn(vector, [1, 2, 3])",
+                allOf(containsString("Found 1 problem"), containsString("[KNN] function cannot be used after FORK"))
             );
     }
 
     public void testFullTextFunctionsAfterForkWithEvalInBranch() {
-        fullText().stripErrorPrefix(false)
-            .error(
-                "from test metadata _id, _index, _score "
-                    + "| fork (where true) (where true | EVAL title = to_text(\"abc\")) "
-                    + "| keep title "
-                    + "| where title : \"data\"",
-                allOf(containsString("Found 1 problem"), containsString("[:] operator cannot be used after FORK"))
-            );
+        // One branch supplies the mapped field and the other an EVAL column. Neither declares a values analyzer, so
+        // the branches agree and the merged column is searchable.
+        fullText().query(
+            "from test metadata _id, _index, _score "
+                + "| fork (where true) (where true | EVAL title = to_text(\"abc\")) "
+                + "| keep title "
+                + "| where title : \"data\""
+        );
     }
 
     public void testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands() throws Exception {

@@ -197,10 +197,26 @@ still not supported after `INLINE STATS`. A `STATS` command before the search fu
 causes the query to fail, even if an `INLINE STATS` comes after it.
 
 {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
-This restriction does not apply when `MATCH` targets an expression rather
-than an indexed field (for example, a column produced by `EVAL` or `STATS`).
-In that case, `MATCH` evaluates by scanning values row by row instead of
-using the index, and can appear anywhere in the query.
+`MATCH` can also target an expression rather than an indexed field, for example a column
+produced by `EVAL` or `STATS`. It then evaluates by scanning the column's values row by row
+instead of using the index.
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+Because such a search does not use the index, the restriction above does not apply to it: it can
+appear anywhere in the query, including after `STATS`, `LIMIT` and `FORK`. (In earlier versions it
+was restricted to the same positions as a search on an indexed field. Searching a mapped `text` field
+that `FORK` merged is the one exception, described below.) For example, this query is accepted:
+
+```esql
+FROM books
+| SORT book_no
+| LIMIT 10
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien")
+```
+
+The restriction is lifted per search function, not per `WHERE` command, so a search on an indexed
+field sharing the command still fails. (e.g. if `content` was an indexed field instead, the query would be rejected.)
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md)
@@ -215,6 +231,67 @@ the column is created, through
 `analyzer` option, and the query analyzer defaults to that values analyzer (`standard` when none is
 declared). Analyzer names must name a registered analyzer (prebuilt or plugin-contributed), not a
 per-index custom analyzer. On other expression types options are not supported.
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+An indexed `text` field is sometimes searched as an expression rather than through the index, and its values are
+then analyzed with the values analyzer of the column rather than the one its mapping declares: `standard`, unless it uses
+`TO_TEXT` with its optional `analyzer` argument. This applies whenever the field cannot be searched through the
+index, which includes the column [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) expanded and
+a field that is not mapped the same way across every index the query reads. Searching the field where it can still
+use the index uses the mapping's analyzer.
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+What [`FORK`](/reference/query-languages/esql/commands/fork.md) outputs is not index-backed either, but there the
+mapped-`text` case is rejected rather than answered with the substituted analyzer. Declare the analyzer on the
+merged column to search it, which is allowed because the merged column is no longer an indexed field, or search the
+field inside the `FORK` branches instead:
+
+```esql
+FROM books
+| FORK (SORT book_no | LIMIT 5)
+       (SORT book_no DESC | LIMIT 5)
+| EVAL t = TO_TEXT(title, {"analyzer": "whitespace"})
+| WHERE MATCH(t, "Tolkien")
+```
+
+This only applies to a column the merge actually makes non-indexed. Where no branch contains a pipeline breaker
+such as `LIMIT` or `STATS`, the search is pushed into the branches and still uses the index, so it is unaffected.
+`FORK` branches that declare different values analyzers for the same column are rejected too, since the merged
+column can only carry one of them.
+
+:::{warning}
+`MV_EXPAND`, and a field that is not mapped the same way across every index the query reads, substitute the
+analyzer without reporting it. A field whose mapping declares an analyzer other than `standard` is then searched
+differently depending on where in the query it is searched, and the query succeeds while quietly matching a
+different set of documents. Either search the field before the command that turns it into an expression, or declare
+the analyzer again on `TO_TEXT` afterwards, which is allowed once the column is no longer an indexed field:
+
+```esql
+FROM books
+| MV_EXPAND author
+| EVAL a = TO_TEXT(author, {"analyzer": "whitespace"})
+| WHERE MATCH(a, "Tolkien")
+```
+:::
+
+Which column `MV_EXPAND` expanded therefore decides how the field is searched. Both of these expand
+`author`, which a book can have several of, but only the first searches the expanded column and so
+becomes a runtime search:
+
+```esql
+FROM books
+| MV_EXPAND author
+| WHERE MATCH(author, "Tolkien")
+```
+
+The second searches an indexed field instead, which is still subject to the restriction above and
+fails after `MV_EXPAND`:
+
+```esql
+FROM books
+| MV_EXPAND author
+| WHERE MATCH(title, "Tolkien")
+```
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:

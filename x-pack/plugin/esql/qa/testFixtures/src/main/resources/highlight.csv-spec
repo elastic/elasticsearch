@@ -381,6 +381,25 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
+# Searching a HIGHLIGHT-generated column is a runtime search on a value that only exists above the HIGHLIGHT, so
+# unlike highlightThenWhereMatchOperator the filter cannot be pushed below it.
+highlightThenWhereMatchOnGeneratedColumn
+required_capability: highlight_v6
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| HIGHLIGHT "return" ON title
+| EVAL fragment = to_text(highlight_title)
+| WHERE match(fragment, "Shadow")
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+7350            | <em>Return</em> of the Shadow
+;
+
+
 # SCORE after HIGHLIGHT keeps the scores it would produce without it: HIGHLIGHT appends a column and passes the doc
 # vector through, so the score evaluator still runs on the data node where the Lucene doc IDs are available.
 highlightThenEvalScore

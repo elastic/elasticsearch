@@ -227,6 +227,15 @@ public abstract class FullTextFunction extends Function
     }
 
     /**
+     * Whether this function can search an expression at all, as opposed to {@link #isRuntimeSearch()}, which says
+     * whether the call in hand does. A function that cannot has no alternative to offer when it is rejected for
+     * needing the index, so error messages naming that restriction only qualify it for functions that can.
+     * <p>
+     * Not necessarily constant per class: {@code KNN} answers from its configuration.
+     */
+    public abstract boolean supportsRuntimeSearch();
+
+    /**
      * Checks full text query functions for invalid usage.
      *
      * @param plan root plan to check
@@ -389,11 +398,13 @@ public abstract class FullTextFunction extends Function
         Failures failures
     ) {
         condition.forEachDown(typeToken, exp -> {
+            // A runtime search is evaluated row by row over the values already in the page (see RuntimeSearch) instead
+            // of querying a Lucene index, so it doesn't need a shard context or push-down to a data node.
+            if (exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) {
+                return;
+            }
             plan.forEachDown(LogicalPlan.class, lp -> {
-                // `checkCommandsBeforeExpression` should be completely skipped for search functions that do not operate on index fields,
-                // but for now all checks apply, except for MV_EXPAND which can be used before a runtime search function
-                if ((lp instanceof MvExpand && exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) == false
-                    && commandCheck.test(lp) == false) {
+                if (commandCheck.test(lp) == false) {
                     if (lp instanceof ExternalRelation externalRelation) {
                         // Federated sources are never Lucene-backed, so functions gated to Lucene-only relations (e.g. KQL/QSTR)
                         // fail here regardless of position. Name the actual limitation instead of the generic positional
@@ -418,7 +429,12 @@ public abstract class FullTextFunction extends Function
                     } else {
                         errorMessage = sourceText.split(" ")[0].toUpperCase(Locale.ROOT);
                     }
-                    failures.add(fail(plan, "{} cannot be used after {}", typeErrorMsgProvider.apply(exp), errorMessage));
+                    // Name the reason for functions that could have searched an expression instead, since for them the
+                    // restriction is not about the command at all. For the rest there is no alternative to point at.
+                    String qualifier = exp instanceof FullTextFunction ftf && ftf.supportsRuntimeSearch()
+                        ? " when it targets an indexed field"
+                        : "";
+                    failures.add(fail(plan, "{} cannot be used after {}{}", typeErrorMsgProvider.apply(exp), errorMessage, qualifier));
                 }
             });
         });
@@ -725,8 +741,11 @@ public abstract class FullTextFunction extends Function
                 checkFullTextFunctionsInFilter(f, failures, true);
                 // After optimization, if a coordinator-executed join still sits anywhere beneath this filter
                 // (not just as a direct child), the push-down optimizer could not move the filter to the data
-                // nodes. Full-text functions require a Lucene shard context that the coordinator does not have.
-                if (f.anyMatch(p -> p instanceof Join join && join.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)) {
+                // nodes. An index-backed search requires a Lucene shard context that the coordinator does not have;
+                // a runtime search scans the values already in the page, so it runs there just as well. This check
+                // sees the final answer from isRuntimeSearch(), running after push-down has settled it.
+                if (isRuntimeSearch() == false
+                    && f.anyMatch(p -> p instanceof Join join && join.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)) {
                     failures.add(
                         fail(
                             this,

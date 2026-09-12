@@ -921,6 +921,36 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | fork2         | 1                     | a                       | 1756468
 ;
 
+// Same pattern-awareness as the subquery case: KEEP * admits unmapped_message, so the mention still reaches this branch.
+forkKeepStarBranchStillGetsMention
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "43") (KEEP *)
+| STATS with_message = COUNT(*) WHERE unmapped_message IS NOT NULL, rows = COUNT(*)
+;
+
+with_message:long | rows:long
+8                 | 8
+;
+
+// Contrast with the KEEP * branch above: messag* does not admit unmapped_message, so the mention stops at the branch that made it.
+forkKeepPatternNotAdmittingMentionNullFills
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "43") (KEEP messag*)
+| STATS with_message = COUNT(*) WHERE unmapped_message IS NOT NULL, rows = COUNT(*)
+;
+
+with_message:long | rows:long
+1                 | 8
+;
+
 forkDropInOneBranchNullFillsNamedField
 required_capability: optional_fields_load_all_fork
 required_capability: fork_v9
@@ -1687,6 +1717,867 @@ FROM partial_mapping_sample_data
 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3 | 4          | German
 2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2 | 3          | Spanish
 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43                         | 2          | French
+;
+
+// #############
+// # SUBQUERIES #
+// #############
+
+// Mapped KEYWORD on one subquery index is a named column and is loaded from _source on the other; remaining source keys stay extras.
+loadAllSubqueryMappedKeywordLoadsOnUnmappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM message_types), (FROM no_mapping_sample_data)
+;
+ignoreOrder:true
+
+message:keyword          | type:keyword | @timestamp:keyword       | client_ip:keyword | event_duration:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+Connection error         | Error        | null                     | null              | null                   | null                  | null                    | null                            | null
+Disconnected             | Disconnected | null                     | null              | null                   | null                  | null                    | null                            | null
+Connected to 10.1.0.1    | Success      | null                     | null              | null                   | null                  | null                    | null                            | null
+Connected to 10.1.0.2    | Success      | null                     | null              | null                   | null                  | null                    | null                            | null
+Connected to 10.1.0.3    | Success      | null                     | null              | null                   | null                  | null                    | null                            | null
+Production environment   | Production   | null                     | null              | null                   | null                  | null                    | null                            | null
+Development environment  | Development  | null                     | null              | null                   | null                  | null                    | null                            | null
+Connected to 10.1.0.3!   | null         | 2024-10-23T12:15:03.360Z | 173.21.2.162      | 3450232                | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+Connected to 10.1.0.2!   | null         | 2024-10-23T12:27:28.948Z | 173.21.2.113      | 2764888                | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+42                       | null         | 2024-10-23T13:33:34.937Z | 173.21.0.5        | 1232381                | 2                     | e                       | 1232383                         | 43
+Connection error?        | null         | 2024-10-23T13:51:54.732Z | 173.21.3.15       | 725447                 | 1                     | d                       | 725449                          | Disconnection error
+Connection error?        | null         | 2024-10-23T13:52:55.015Z | 173.21.3.15       | 8268152                | 3                     | c                       | 8268154                         | Disconnection error
+Connection error?        | null         | 2024-10-23T13:53:55.832Z | 173.21.3.15       | 5033754                | 2                     | b                       | 5033756                         | Disconnection error
+Connected to 10.1.0.1!   | null         | 2024-10-23T13:55:01.543Z | 173.21.3.15       | 1756466                | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
+// Same as above with branches swapped: mapped columns still precede extras (first mention is the mapped index, not $$UM).
+loadAllSubqueryMappedKeywordLoadsOnUnmappedSiblingReversed
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM no_mapping_sample_data), (FROM message_types)
+;
+ignoreOrder:true
+
+message:keyword          | type:keyword | @timestamp:keyword       | client_ip:keyword | event_duration:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+Connection error         | Error        | null                     | null              | null                   | null                  | null                    | null                            | null
+Disconnected             | Disconnected | null                     | null              | null                   | null                  | null                    | null                            | null
+Connected to 10.1.0.1    | Success      | null                     | null              | null                   | null                  | null                    | null                            | null
+Connected to 10.1.0.2    | Success      | null                     | null              | null                   | null                  | null                    | null                            | null
+Connected to 10.1.0.3    | Success      | null                     | null              | null                   | null                  | null                    | null                            | null
+Production environment   | Production   | null                     | null              | null                   | null                  | null                    | null                            | null
+Development environment  | Development  | null                     | null              | null                   | null                  | null                    | null                            | null
+Connected to 10.1.0.3!   | null         | 2024-10-23T12:15:03.360Z | 173.21.2.162      | 3450232                | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+Connected to 10.1.0.2!   | null         | 2024-10-23T12:27:28.948Z | 173.21.2.113      | 2764888                | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+42                       | null         | 2024-10-23T13:33:34.937Z | 173.21.0.5        | 1232381                | 2                     | e                       | 1232383                         | 43
+Connection error?        | null         | 2024-10-23T13:51:54.732Z | 173.21.3.15       | 725447                 | 1                     | d                       | 725449                          | Disconnection error
+Connection error?        | null         | 2024-10-23T13:52:55.015Z | 173.21.3.15       | 8268152                | 3                     | c                       | 8268154                         | Disconnection error
+Connection error?        | null         | 2024-10-23T13:53:55.832Z | 173.21.3.15       | 5033754                | 2                     | b                       | 5033756                         | Disconnection error
+Connected to 10.1.0.1!   | null         | 2024-10-23T13:55:01.543Z | 173.21.3.15       | 1756466                | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
+// date, ip and long all have an implicit cast from keyword, so all three load from _source on the unmapped sibling: the two
+// indices hold the same documents, so every row comes back twice.
+loadAllSubqueryMappedLongLoadsOnUnmappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data)
+;
+ignoreOrder:true
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
+// Same as above with branches swapped: mapped columns still precede extras.
+loadAllSubqueryMappedLongLoadsOnUnmappedSiblingReversed
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM no_mapping_sample_data), (FROM partial_mapping_sample_data)
+;
+ignoreOrder:true
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
+// A sibling's mapped type wins over the keyword an unmapped branch fabricates, whichever branch is listed first. Here the
+// unmapped branch comes first and mentions the field via KEEP, which used to make the union reject the query outright.
+loadAllSubqueryUnmappedBranchFirstKeepCastsToSiblingType
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM no_mapping_sample_data | KEEP event_duration), (FROM partial_mapping_sample_data)
+| KEEP event_duration
+| SORT event_duration
+| LIMIT 3
+;
+
+event_duration:long
+725447
+725447
+1232381
+;
+
+// Same, materialized by a WHERE reference rather than a KEEP: that shape used to yield an all-null unsupported column.
+loadAllSubqueryUnmappedBranchFirstWhereCastsToSiblingType
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM no_mapping_sample_data | WHERE event_duration IS NOT NULL), (FROM partial_mapping_sample_data)
+| KEEP event_duration
+| SORT event_duration
+| LIMIT 3
+;
+
+event_duration:long
+725447
+725447
+1232381
+;
+
+// Mapped on both sides is an ordinary type conflict, unrelated to LOAD_ALL: no cast, and unsupported in either branch order.
+loadAllSubqueryBothBranchesMappedConflictStaysUnsupported
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM sample_data_str), (FROM sample_data)
+| KEEP client_ip
+| LIMIT 1
+;
+
+client_ip:unsupported
+null
+;
+
+// KEEP * admits every name, so it must not stop the branch from reading a sibling-mapped column: 14, not the 7 mapped rows alone.
+loadAllSubqueryKeepStarBranchStillLoadsMappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP *)
+| STATS with_timestamp = COUNT(*) WHERE @timestamp IS NOT NULL, rows = COUNT(*)
+;
+
+with_timestamp:long | rows:long
+14                  | 14
+;
+
+// The pattern is consulted, not merely its presence: unmapped* does not admit @timestamp, so that branch null-fills it.
+loadAllSubqueryKeepPatternNotAdmittingMappedSiblingNullFills
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP unmapped*)
+| STATS with_timestamp = COUNT(*) WHERE @timestamp IS NOT NULL, rows = COUNT(*)
+;
+
+with_timestamp:long | rows:long
+7                   | 14
+;
+
+// text has no implicit cast from keyword; text_state_nonexistent has no txt in _source, so there is nothing to fail on.
+// The failing case (a sibling that does carry a value) is in 298_unmapped_load_all_subquery_non_loadable.yml.
+loadAllSubqueryMappedTextNullsOnSiblingWithoutSourceValue
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM text_state_mapped), (FROM text_state_nonexistent)
+| KEEP doc_id, txt
+| SORT doc_id
+;
+
+doc_id:keyword | txt:text
+mapped-1       | William Faulkner
+mapped-2       | Jane Austen
+nonexistent-1  | null
+;
+
+// Suffix glob so LOAD_ALL extras stay enabled without also keeping the metric subfields (tx.min/max/sum/value_count).
+loadAllSubqueryMappedAmdLoadsOnUnmappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM k8s-downsampled), (FROM k8s_nonexistent)
+| KEEP *eth0.tx
+;
+ignoreOrder:true
+
+network.eth0.tx:aggregate_metric_double
+{"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}
+{"min":442.0,"max":1011.0,"sum":3850.0,"value_count":7}
+{"min":341.0,"max":592.0,"sum":1956.0,"value_count":5}
+{"min":565.0,"max":829.0,"sum":7290.0,"value_count":10}
+{"min":20.0,"max":190.0,"sum":370.0,"value_count":10}
+{"min":201.0,"max":582.0,"sum":1794.0,"value_count":6}
+{"min":346.0,"max":356.0,"sum":1765.0,"value_count":5}
+{"min":304.0,"max":1148.0,"sum":8590.0,"value_count":10}
+{"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+{"min":231.0,"max":795.0,"sum":4096.0,"value_count":8}
+{"min":604.0,"max":664.0,"sum":3100.0,"value_count":5}
+{"min":172.0,"max":411.0,"sum":755.0,"value_count":3}
+{"min":94.0,"max":94.0,"sum":94.0,"value_count":1}
+{"min":663.0,"max":1419.0,"sum":11259.0,"value_count":9}
+{"min":113.0,"max":341.0,"sum":1112.0,"value_count":4}
+{"min":176.0,"max":1042.0,"sum":5579.0,"value_count":7}
+{"min":441.0,"max":1248.0,"sum":11960.0,"value_count":10}
+{"min":321.0,"max":685.0,"sum":1932.0,"value_count":3}
+{"min":157.0,"max":193.0,"sum":1232.0,"value_count":7}
+{"min":315.0,"max":815.0,"sum":4320.0,"value_count":8}
+{"min":690.0,"max":824.0,"sum":2936.0,"value_count":4}
+{"min":598.0,"max":1060.0,"sum":6986.0,"value_count":7}
+{"min":377.0,"max":602.0,"sum":2190.0,"value_count":5}
+{"min":162.0,"max":715.0,"sum":1912.0,"value_count":8}
+{"min":468.0,"max":694.0,"sum":3075.0,"value_count":5}
+{"min":75.0,"max":594.0,"sum":5760.0,"value_count":10}
+{"min":243.0,"max":398.0,"sum":2585.0,"value_count":10}
+null
+null
+;
+
+loadAllSubqueryMappedAmdLoadsOnUnmappedSiblingReversed
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM k8s_nonexistent), (FROM k8s-downsampled)
+| KEEP *eth0.tx
+;
+ignoreOrder:true
+
+network.eth0.tx:aggregate_metric_double
+{"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}
+{"min":442.0,"max":1011.0,"sum":3850.0,"value_count":7}
+{"min":341.0,"max":592.0,"sum":1956.0,"value_count":5}
+{"min":565.0,"max":829.0,"sum":7290.0,"value_count":10}
+{"min":20.0,"max":190.0,"sum":370.0,"value_count":10}
+{"min":201.0,"max":582.0,"sum":1794.0,"value_count":6}
+{"min":346.0,"max":356.0,"sum":1765.0,"value_count":5}
+{"min":304.0,"max":1148.0,"sum":8590.0,"value_count":10}
+{"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+{"min":231.0,"max":795.0,"sum":4096.0,"value_count":8}
+{"min":604.0,"max":664.0,"sum":3100.0,"value_count":5}
+{"min":172.0,"max":411.0,"sum":755.0,"value_count":3}
+{"min":94.0,"max":94.0,"sum":94.0,"value_count":1}
+{"min":663.0,"max":1419.0,"sum":11259.0,"value_count":9}
+{"min":113.0,"max":341.0,"sum":1112.0,"value_count":4}
+{"min":176.0,"max":1042.0,"sum":5579.0,"value_count":7}
+{"min":441.0,"max":1248.0,"sum":11960.0,"value_count":10}
+{"min":321.0,"max":685.0,"sum":1932.0,"value_count":3}
+{"min":157.0,"max":193.0,"sum":1232.0,"value_count":7}
+{"min":315.0,"max":815.0,"sum":4320.0,"value_count":8}
+{"min":690.0,"max":824.0,"sum":2936.0,"value_count":4}
+{"min":598.0,"max":1060.0,"sum":6986.0,"value_count":7}
+{"min":377.0,"max":602.0,"sum":2190.0,"value_count":5}
+{"min":162.0,"max":715.0,"sum":1912.0,"value_count":8}
+{"min":468.0,"max":694.0,"sum":3075.0,"value_count":5}
+{"min":75.0,"max":594.0,"sum":5760.0,"value_count":10}
+{"min":243.0,"max":398.0,"sum":2585.0,"value_count":10}
+null
+null
+;
+
+// Without the DROP, the integer _source value for this field fails at execution
+// (298_unmapped_load_all_subquery_non_loadable.yml).
+loadAllSubqueryDropAmdOnUnmappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM k8s-downsampled), (FROM k8s_unmapped | DROP network.eth0.tx)
+| KEEP cluster, network.eth0.tx
+| STATS loaded = COUNT(*) WHERE network.eth0.tx IS NOT NULL, rows = COUNT(*)
+;
+
+loaded:long | rows:long
+27          | 227
+;
+
+// KEEP of an unmapped name is a mention: LOAD_ALL loads it from _source on the unrestricted sibling too.
+loadAllSubqueryKeepUnmappedLoadsOnSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM no_mapping_sample_data | KEEP unmapped_message), (FROM partial_mapping_sample_data)
+;
+ignoreOrder:true
+
+unmapped_message:keyword   | @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+Disconnected from 10.1.0.3 | null                     | null         | null                | null                   | null                  | null                    | null
+Disconnected from 10.1.0.2 | null                     | null         | null                | null                   | null                  | null                    | null
+43                         | null                     | null         | null                | null                   | null                  | null                    | null
+Disconnection error        | null                     | null         | null                | null                   | null                  | null                    | null
+Disconnection error        | null                     | null         | null                | null                   | null                  | null                    | null
+Disconnection error        | null                     | null         | null                | null                   | null                  | null                    | null
+Disconnected from 10.1.0.1 | null                     | null         | null                | null                   | null                  | null                    | null
+Disconnected from 10.1.0.3 | 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234
+Disconnected from 10.1.0.2 | 2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890
+43                         | 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383
+Disconnection error        | 2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449
+Disconnection error        | 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154
+Disconnection error        | 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756
+Disconnected from 10.1.0.1 | 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468
+;
+
+loadAllSubqueryKeepUnmappedLoadsOnSiblingReversed
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP unmapped_message)
+;
+ignoreOrder:true
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword   | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | 4                     | g                       | 3450234
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | 3                     | f                       | 2764890
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | 2                     | e                       | 1232383
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | 1                     | d                       | 725449
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | 3                     | c                       | 8268154
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | 2                     | b                       | 5033756
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | 1                     | a                       | 1756468
+null                     | null         | null                | null                   | Disconnected from 10.1.0.3 | null                  | null                    | null
+null                     | null         | null                | null                   | Disconnected from 10.1.0.2 | null                  | null                    | null
+null                     | null         | null                | null                   | 43                         | null                  | null                    | null
+null                     | null         | null                | null                   | Disconnection error        | null                  | null                    | null
+null                     | null         | null                | null                   | Disconnection error        | null                  | null                    | null
+null                     | null         | null                | null                   | Disconnection error        | null                  | null                    | null
+null                     | null         | null                | null                   | Disconnected from 10.1.0.1 | null                  | null                    | null
+;
+
+// Mapped LONG first so the union type is LONG; KEEP on the unmapped index is a PUNK that gets ToLong.
+loadAllSubqueryKeepLongLoadsOnUnmappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP event_duration)
+;
+ignoreOrder:true
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+null                     | null         | 3450232             | null                   | null                  | null                    | null                            | null
+null                     | null         | 2764888             | null                   | null                  | null                    | null                            | null
+null                     | null         | 1232381             | null                   | null                  | null                    | null                            | null
+null                     | null         | 725447              | null                   | null                  | null                    | null                            | null
+null                     | null         | 8268152             | null                   | null                  | null                    | null                            | null
+null                     | null         | 5033754             | null                   | null                  | null                    | null                            | null
+null                     | null         | 1756466             | null                   | null                  | null                    | null                            | null
+;
+
+// Mapped index first so the union type is aggregate_metric_double; the KEEP on the unmapped index becomes a non-loadable marker.
+loadAllSubqueryKeepAmdLoadsOnUnmappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM k8s-downsampled), (FROM k8s_nonexistent | KEEP network.eth0.tx)
+| KEEP network.eth0.tx
+;
+ignoreOrder:true
+
+network.eth0.tx:aggregate_metric_double
+{"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}
+{"min":442.0,"max":1011.0,"sum":3850.0,"value_count":7}
+{"min":341.0,"max":592.0,"sum":1956.0,"value_count":5}
+{"min":565.0,"max":829.0,"sum":7290.0,"value_count":10}
+{"min":20.0,"max":190.0,"sum":370.0,"value_count":10}
+{"min":201.0,"max":582.0,"sum":1794.0,"value_count":6}
+{"min":346.0,"max":356.0,"sum":1765.0,"value_count":5}
+{"min":304.0,"max":1148.0,"sum":8590.0,"value_count":10}
+{"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+{"min":231.0,"max":795.0,"sum":4096.0,"value_count":8}
+{"min":604.0,"max":664.0,"sum":3100.0,"value_count":5}
+{"min":172.0,"max":411.0,"sum":755.0,"value_count":3}
+{"min":94.0,"max":94.0,"sum":94.0,"value_count":1}
+{"min":663.0,"max":1419.0,"sum":11259.0,"value_count":9}
+{"min":113.0,"max":341.0,"sum":1112.0,"value_count":4}
+{"min":176.0,"max":1042.0,"sum":5579.0,"value_count":7}
+{"min":441.0,"max":1248.0,"sum":11960.0,"value_count":10}
+{"min":321.0,"max":685.0,"sum":1932.0,"value_count":3}
+{"min":157.0,"max":193.0,"sum":1232.0,"value_count":7}
+{"min":315.0,"max":815.0,"sum":4320.0,"value_count":8}
+{"min":690.0,"max":824.0,"sum":2936.0,"value_count":4}
+{"min":598.0,"max":1060.0,"sum":6986.0,"value_count":7}
+{"min":377.0,"max":602.0,"sum":2190.0,"value_count":5}
+{"min":162.0,"max":715.0,"sum":1912.0,"value_count":8}
+{"min":468.0,"max":694.0,"sum":3075.0,"value_count":5}
+{"min":75.0,"max":594.0,"sum":5760.0,"value_count":10}
+{"min":243.0,"max":398.0,"sum":2585.0,"value_count":10}
+null
+null
+;
+
+// KEEP x, * still mentions x but extras stay enabled (unlike a pattern-less KEEP).
+loadAllSubqueryKeepStarUnmappedLoadsOnSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM no_mapping_sample_data | KEEP unmapped_message, *), (FROM partial_mapping_sample_data)
+;
+ignoreOrder:true
+
+unmapped_message:keyword   | @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+43                         | 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383
+43                         | 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383
+Disconnected from 10.1.0.1 | 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468
+Disconnected from 10.1.0.1 | 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468
+Disconnected from 10.1.0.2 | 2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890
+Disconnected from 10.1.0.2 | 2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890
+Disconnected from 10.1.0.3 | 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234
+Disconnected from 10.1.0.3 | 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234
+Disconnection error        | 2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449
+Disconnection error        | 2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449
+Disconnection error        | 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154
+Disconnection error        | 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154
+Disconnection error        | 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756
+Disconnection error        | 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756
+;
+
+loadAllSubqueryKeepStarUnmappedLoadsOnSiblingReversed
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP unmapped_message, *)
+;
+ignoreOrder:true
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword   | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | 4                     | g                       | 3450234
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | 4                     | g                       | 3450234
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | 3                     | f                       | 2764890
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | 3                     | f                       | 2764890
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | 2                     | e                       | 1232383
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | 2                     | e                       | 1232383
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | 1                     | d                       | 725449
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | 1                     | d                       | 725449
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | 3                     | c                       | 8268154
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | 3                     | c                       | 8268154
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | 2                     | b                       | 5033756
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | 2                     | b                       | 5033756
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | 1                     | a                       | 1756468
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | 1                     | a                       | 1756468
+;
+
+loadAllSubqueryKeepStarLongLoadsOnUnmappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP event_duration, *)
+;
+ignoreOrder:true
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
+loadAllSubqueryKeepStarAmdLoadsOnUnmappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM k8s-downsampled), (FROM k8s_nonexistent | KEEP network.eth0.tx, *)
+| KEEP *eth0.tx
+;
+ignoreOrder:true
+
+network.eth0.tx:aggregate_metric_double
+{"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}
+{"min":442.0,"max":1011.0,"sum":3850.0,"value_count":7}
+{"min":341.0,"max":592.0,"sum":1956.0,"value_count":5}
+{"min":565.0,"max":829.0,"sum":7290.0,"value_count":10}
+{"min":20.0,"max":190.0,"sum":370.0,"value_count":10}
+{"min":201.0,"max":582.0,"sum":1794.0,"value_count":6}
+{"min":346.0,"max":356.0,"sum":1765.0,"value_count":5}
+{"min":304.0,"max":1148.0,"sum":8590.0,"value_count":10}
+{"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+{"min":231.0,"max":795.0,"sum":4096.0,"value_count":8}
+{"min":604.0,"max":664.0,"sum":3100.0,"value_count":5}
+{"min":172.0,"max":411.0,"sum":755.0,"value_count":3}
+{"min":94.0,"max":94.0,"sum":94.0,"value_count":1}
+{"min":663.0,"max":1419.0,"sum":11259.0,"value_count":9}
+{"min":113.0,"max":341.0,"sum":1112.0,"value_count":4}
+{"min":176.0,"max":1042.0,"sum":5579.0,"value_count":7}
+{"min":441.0,"max":1248.0,"sum":11960.0,"value_count":10}
+{"min":321.0,"max":685.0,"sum":1932.0,"value_count":3}
+{"min":157.0,"max":193.0,"sum":1232.0,"value_count":7}
+{"min":315.0,"max":815.0,"sum":4320.0,"value_count":8}
+{"min":690.0,"max":824.0,"sum":2936.0,"value_count":4}
+{"min":598.0,"max":1060.0,"sum":6986.0,"value_count":7}
+{"min":377.0,"max":602.0,"sum":2190.0,"value_count":5}
+{"min":162.0,"max":715.0,"sum":1912.0,"value_count":8}
+{"min":468.0,"max":694.0,"sum":3075.0,"value_count":5}
+{"min":75.0,"max":594.0,"sum":5760.0,"value_count":10}
+{"min":243.0,"max":398.0,"sum":2585.0,"value_count":10}
+null
+null
+;
+
+loadAllUnmappedFieldInOneSubqueryBranchNoOuterKeep
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP @timestamp, unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| SORT @timestamp
+;
+
+@timestamp:datetime      | unmapped_message:keyword   | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+2024-10-23T13:33:34.937Z | 43                         | null         | null                | null                   | null                  | null                    | null
+2024-10-23T13:55:01.543Z | Disconnected from 10.1.0.1 | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468
+;
+
+loadAllUnmappedFieldInOneSubqueryBranch
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP @timestamp, unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!" | KEEP @timestamp)
+| KEEP @timestamp, unmapped_message
+| SORT @timestamp
+;
+
+@timestamp:datetime          | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 43
+2024-10-23T13:55:01.543Z | null
+;
+
+loadAllUnmappedFieldReferencedOnlyAboveSubqueries
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP @timestamp, message, unmapped_message
+| SORT @timestamp
+;
+
+@timestamp:datetime          | message:keyword        | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 42                     | 43
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadAllUnmappedFieldTypeConflictAcrossSubqueriesIsUnsupported
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: inline_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM languages | EVAL does_not_exist1 = does_not_exist1::LONG), (FROM sample_data | EVAL does_not_exist1 = does_not_exist1::DOUBLE)
+| KEEP does_not_exist1
+| INLINE STATS c = COUNT(*)
+;
+
+does_not_exist1:unsupported | c:long
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+null                        | 11
+;
+
+loadAllSubqueryOuterEvalFunctionMaterializesAllBranches
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| EVAL upper = TO_UPPER(unmapped_message)
+| KEEP messag*, unmapped_mess*, upper
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword   | upper:keyword
+42                     | 43                         | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | DISCONNECTED FROM 10.1.0.1
+;
+
+loadAllSubqueryOuterWhereMaterializesAllBranches
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connection error?")
+| WHERE unmapped_message == "Disconnection error"
+| KEEP messag*, unmapped_mess*
+| SORT message
+;
+
+message:keyword   | unmapped_message:keyword
+Connection error? | Disconnection error
+Connection error? | Disconnection error
+Connection error? | Disconnection error
+;
+
+loadAllSubqueryOuterStatsByMaterializesAllBranches
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| STATS c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+;
+
+c:long | unmapped_message:keyword
+1      | 43
+1      | Disconnected from 10.1.0.1
+;
+
+loadAllSubqueryOuterSortDescMaterializesThreeBranches
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.2!")
+| SORT unmapped_message DESC
+| KEEP messag*, unmapped_mess*
+;
+
+message:keyword        | unmapped_message:keyword
+Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+42                     | 43
+;
+
+loadAllSubqueryOuterCastEvalMaterializesAllBranches
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| EVAL dur = unmapped_event_duration::long
+| KEEP message, dur
+| SORT message
+;
+
+message:keyword        | dur:long
+42                     | 1232383
+Connected to 10.1.0.1! | 1756468
+;
+
+loadAllSubqueryDropInOneBranchOuterKeepLoadsNonDroppedBranch
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | DROP unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadAllSubqueryKeepInOneBranchScopesFieldToBranch
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP message, unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!" | KEEP message)
+| EVAL has = unmapped_message IS NOT NULL
+| KEEP message, unmapped_message, has
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword | has:boolean
+42                     | 43                       | true
+Connected to 10.1.0.1! | null                     | false
+;
+
+loadAllSubqueryEvalInOneBranchScopesAliasToBranch
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | EVAL tag = unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, tag
+| SORT message
+;
+
+message:keyword        | tag:keyword
+42                     | 43
+Connected to 10.1.0.1! | null
+;
+
+loadAllSubqueryRenameInOneBranchOuterReferencesNewName
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | RENAME unmapped_message AS renamed),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, renamed
+| SORT message
+;
+
+message:keyword        | renamed:keyword
+42                     | 43
+Connected to 10.1.0.1! | null
+;
+
+loadAllSubqueryStatsInOneBranchNullFillsOuterReference
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!" | STATS rows = COUNT(*))
+| KEEP message, unmapped_message, rows
+| SORT message NULLS LAST
+;
+
+message:keyword | unmapped_message:keyword | rows:long
+42              | 43                       | null
+null            | null                     | 1
+;
+
+loadAllSubqueryCastInSubquery
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | EVAL dur_plus = unmapped_event_duration::LONG + 1 | WHERE message == "42" OR message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_event_duration, dur_plus
+| SORT message
+;
+
+message:keyword        | unmapped_event_duration:keyword | dur_plus:long
+42                     | 1232383                         | 1232384
+Connected to 10.1.0.1! | 1756468                         | 1756469
+;
+
+loadAllSubqueryNoKeepExpandsUnmappedFields
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| SORT @timestamp
+;
+
+@timestamp:datetime          | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
+loadAllSubqueryStatsInOneBranchNullFillsExtras
+required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_stats
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | STATS c = COUNT(*)),
+     (FROM partial_mapping_sample_data | WHERE message == "42")
+| SORT c NULLS LAST
+;
+
+c:long | @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+7      | null                     | null         | null                | null            | null                  | null                    | null                            | null
+null   | 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 2                     | e                       | 1232383                         | 43
+;
+
+loadAllSubqueryKeepWildcardInOneBranchNullFillsNonMatchingExtras
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!" | KEEP messag*),
+     (FROM partial_mapping_sample_data | WHERE message == "42")
+| SORT message
+;
+
+message:keyword        | @timestamp:datetime      | client_ip:ip | event_duration:long | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+42                     | 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 2                     | e                       | 1232383                         | 43
+Connected to 10.1.0.1! | null                     | null         | null                | null                  | null                    | null                            | null
 ;
 
 ###########################################################
@@ -3178,6 +4069,131 @@ foo:integer | id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.de
 123         | 5          | null             | null                 | null                       | [arr1, arr2]         | abc
 123         | 6          | null             | null                 | deep6                      | null                 | abc
 123         | 7          | null             | bar7                 | null                       | null                 | abc
+;
+
+// Same nulls and warning as the load twin in unmapped-load.csv-spec: a comma-separated FROM does not reach the non-loadable
+// marker, so it warns instead of failing the way the subquery form does (298_unmapped_load_all_subquery_non_loadable.yml).
+loadAllCommaFormDenseVectorWarnsAndNulls
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_fix_partially_unmapped_dense_vector
+required_capability: optional_fields_warn_non_loadable_punk
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM dense_vector, dense_vector_unmapped METADATA _index
+| KEEP _index, id, float_vector
+| SORT _index, id
+| LIMIT 6
+;
+warning:Field [float_vector] of type [dense_vector] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+_index:keyword        | id:l | float_vector:dense_vector
+dense_vector          | 0    | [1.0, 2.0, 3.0]
+dense_vector          | 1    | [4.0, 5.0, 6.0]
+dense_vector          | 2    | [9.0, 8.0, 7.0]
+dense_vector          | 3    | [0.0625, 0.25, 0.75]
+dense_vector          | 4    | null
+dense_vector_unmapped | 0    | null
+;
+
+// A branch mentioning txt while unmapped must not cost the mapped branch its data: with a third branch that lacks txt
+// entirely, the mention used to overwrite the mapped text attribute with a keyword one and condemn the column.
+loadAllSubqueryMentionInOneBranchKeepsMappedSiblingData
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM text_state_mapped), (FROM text_state_nonexistent | KEEP doc_id, txt), (FROM text_state_nonexistent)
+| KEEP doc_id, txt
+| SORT doc_id, txt NULLS LAST
+;
+
+doc_id:keyword | txt:text
+mapped-1       | William Faulkner
+mapped-2       | Jane Austen
+nonexistent-1  | null
+nonexistent-1  | null
+;
+
+// A RENAME or DROP cannot remove a column another branch maps, so an unrelated one must not stop this branch reading
+// language_code from _source: all 11 rows have it, not just the 4 from languages.
+loadAllSubqueryUnrelatedRenameStillLoadsMappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM languages), (FROM partial_mapping_sample_data | RENAME message AS msg)
+| STATS with_lc = COUNT(*) WHERE language_code IS NOT NULL, rows = COUNT(*)
+;
+
+with_lc:long | rows:long
+11           | 11
+;
+
+loadAllSubqueryUnrelatedRenameThenKeepStarStillLoadsMappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM languages), (FROM partial_mapping_sample_data | RENAME message AS msg | KEEP *)
+| STATS with_lc = COUNT(*) WHERE language_code IS NOT NULL, rows = COUNT(*)
+;
+
+with_lc:long | rows:long
+11           | 11
+;
+
+loadAllSubqueryUnrelatedDropStillLoadsMappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM languages), (FROM partial_mapping_sample_data | DROP message)
+| STATS with_lc = COUNT(*) WHERE language_code IS NOT NULL, rows = COUNT(*)
+;
+
+with_lc:long | rows:long
+11           | 11
+;
+
+// The renaming leaves no language_code behind, so the branch feeds lc instead and the union column stays null there.
+loadAllSubqueryRenameOfMappedSiblingNameNullFills
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM languages), (FROM partial_mapping_sample_data | RENAME language_code AS lc)
+| STATS with_lc = COUNT(*) WHERE language_code IS NOT NULL, with_alias = COUNT(*) WHERE lc IS NOT NULL, ips = COUNT(client_ip), rows = COUNT(*)
+;
+
+with_lc:long | with_alias:long | ips:long | rows:long
+4            | 7               | 7        | 11
+;
+
+loadAllSubqueryDropOfMappedSiblingNameNullFills
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM languages), (FROM partial_mapping_sample_data | DROP language_code)
+| STATS with_lc = COUNT(*) WHERE language_code IS NOT NULL, ips = COUNT(client_ip), rows = COUNT(*)
+;
+
+with_lc:long | ips:long | rows:long
+4            | 7        | 11
+;
+
+// `RENAME x AS x` is skipped as a NOP when the projections are resolved, so it must not block language_code either.
+loadAllSubquerySelfRenameStillLoadsMappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM languages), (FROM partial_mapping_sample_data | RENAME language_code AS language_code)
+| STATS with_lc = COUNT(*) WHERE language_code IS NOT NULL, rows = COUNT(*)
+;
+
+with_lc:long | rows:long
+11           | 11
 ;
 
 showMeTheSource

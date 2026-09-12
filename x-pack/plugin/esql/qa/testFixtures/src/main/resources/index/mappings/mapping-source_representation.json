@@ -1,0 +1,17 @@
+{
+    "properties": {
+        "id": {
+            "type": "keyword"
+        },
+        "loc": {
+            "type": "geo_point"
+        },
+        "wkt": {
+            "type": "geo_point"
+        },
+        "d": {
+            "type": "date",
+            "format": "dd/MM/yyyy"
+        }
+    }
+}

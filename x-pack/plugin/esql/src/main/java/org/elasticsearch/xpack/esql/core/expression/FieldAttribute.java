@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedNonLoadableEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -378,6 +379,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
 
     public boolean isPotentiallyUnmapped() {
         return field() instanceof PotentiallyUnmappedKeywordEsField
+            || field() instanceof PotentiallyUnmappedNonLoadableEsField
             || field() instanceof UnionTypeEsField utf && utf.getUnmappedConversionExpression() != null;
     }
 }

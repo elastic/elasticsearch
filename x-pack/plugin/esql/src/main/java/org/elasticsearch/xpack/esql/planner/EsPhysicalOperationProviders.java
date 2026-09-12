@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedNonLoadableEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
@@ -309,6 +310,18 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
         if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
             shardContext = wrapWithUnmappedFieldContext(shardContext, getFieldName(fa));
+        }
+        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedNonLoadableEsField) {
+            String name = getFieldName(fa);
+            Set<String> sourcePaths = shardContext.ctx.isSourceEnabled() ? shardContext.ctx.sourcePath(name) : Set.of();
+            return ValuesSourceReaderOperator.load(
+                new UnmappedNonLoadableBlockLoader(
+                    name,
+                    fa.dataType(),
+                    sourcePaths,
+                    shardContext.ctx.getIndexSettings().getIgnoredSourceFormat()
+                )
+            );
         }
         if (attr instanceof UnmappedFieldsAttribute ufa) {
             // The pattern's excludes cover what field caps reported to the coordinator, not this shard's mapping, so a field mapped

@@ -168,6 +168,11 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     @SuppressWarnings("unchecked")
+    public boolean noneMatch(Predicate<? super T> predicate) {
+        return anyMatch(predicate) == false;
+    }
+
+    @SuppressWarnings("unchecked")
     public boolean anyMatch(Predicate<? super T> predicate) {
         boolean result = predicate.test((T) this);
         if (result == false) {

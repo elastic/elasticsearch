@@ -7,18 +7,25 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -121,6 +128,29 @@ public class ResolvingProject extends Project {
         return command.unmappedFieldsPattern();
     }
 
+    /** Whether KEEP/DROP/RENAME would keep a field named {@code name} that is materialized only after this node was resolved. */
+    public boolean admitsLateUnmappedField(String name) {
+        return switch (command.kind()) {
+            case KEEP -> unmappedFieldsPattern().matches(name);
+            case RENAME -> isUntouchedByRename(name);
+            case DROP -> unmappedFieldsPattern().matches(name)
+                && command.projections().stream().noneMatch(r -> r instanceof UnresolvedAttribute ua && name.equals(ua.name()));
+        };
+    }
+
+    private boolean isUntouchedByRename(String name) {
+        for (NamedExpression renaming : command.projections()) {
+            if (renaming instanceof Alias alias) {
+                String from = Expressions.name(alias.child());
+                // `RENAME a AS a` is skipped as a NOP, so it touches nothing.
+                if (from.equals(alias.name()) == false && (name.equals(from) || name.equals(alias.name()))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     @Override
     protected NodeInfo<Project> info() {
         return NodeInfo.create(
@@ -133,7 +163,30 @@ public class ResolvingProject extends Project {
 
     @Override
     public ResolvingProject replaceChild(LogicalPlan newChild) {
-        return new ResolvingProject(source(), newChild, command);
+        ResolvingProject recomputed = new ResolvingProject(source(), newChild, command);
+        Set<String> names = new HashSet<>(Expressions.names(recomputed.projections()));
+        Set<String> childNames = newChild.outputSet().names();
+        // Convert-function synthetics (e.g. $$field$converted_to$long) must survive re-resolution.
+        // Skip the empty-mapping <no-fields> placeholder: ResolveUnmapped has already replaced it on the
+        // relation, and re-appending it would project an attribute the child no longer outputs.
+        // Only keep synthetics the new child still produces — a different child must not inherit orphans.
+        var missingSynthetics = projections().stream()
+            .filter(
+                p -> p.synthetic()
+                    && p instanceof UnmappedFieldsAttribute == false
+                    && Analyzer.NO_FIELDS_NAME.equals(p.name()) == false
+                    && names.contains(p.name()) == false
+                    && childNames.contains(p.name())
+            )
+            .toList();
+        return missingSynthetics.isEmpty()
+            ? recomputed
+            : new ResolvingProject(
+                source(),
+                recomputed.child(),
+                CollectionUtils.combine(recomputed.projections(), missingSynthetics),
+                command
+            );
     }
 
     @Override

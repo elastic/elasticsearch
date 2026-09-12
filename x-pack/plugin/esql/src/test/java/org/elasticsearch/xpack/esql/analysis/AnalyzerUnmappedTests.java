@@ -1480,7 +1480,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; ["
+                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
                         + commandAndLabel.v2()
                         + "] is not supported yet"
                 )
@@ -1532,6 +1532,42 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statementError(setUnmappedLoad(query), containsString("No matches found for pattern [_inde*]"));
     }
 
+    public void testLoadAllModeAllowsSingleSubqueryInFrom() {
+        test().statement(setUnmappedLoadAll("FROM (FROM test)"));
+    }
+
+    public void testLoadAllModeAllowsMainIndexPlusSubquery() {
+        test().addLanguages().statement(setUnmappedLoadAll("FROM test, (FROM languages | WHERE language_code > 1)"));
+    }
+
+    public void testLoadAllModeAllowsTwoSubqueriesWithoutMainIndex() {
+        test().statement(setUnmappedLoadAll("FROM (FROM test),(FROM test)"));
+    }
+
+    public void testLoadAllModeAllowsThreeSubqueries() {
+        test().statement(setUnmappedLoadAll("FROM (FROM test),(FROM test),(FROM test)"));
+    }
+
+    public void testLoadAllSubqueryEvalThenKeepExactNamesDoesNotExpand() {
+        LogicalPlan plan = partialMappingTest().statement(setUnmappedLoadAll("""
+            FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+                 (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+            | EVAL dur = unmapped_event_duration::long
+            | KEEP message, dur
+            | SORT message
+            """));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("message", "dur")));
+    }
+
+    public void testLoadAllModeAllowsSubqueryWithLookupJoin() {
+        test().addLanguagesLookup().statement(setUnmappedLoadAll("""
+            FROM test,
+                (FROM test
+                | EVAL language_code = languages
+                | LOOKUP JOIN languages_lookup ON language_code)
+            """));
+    }
+
     /**
      * The {@code TS} command creates an {@link EsRelation} with {@link IndexMode#TIME_SERIES}, which is rejected by the allow-list.
      * The error names the source command ({@code TS}), not the internal node type. Tested both with and without a downstream STATS.
@@ -1542,7 +1578,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; [TS] is not supported yet"
+                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is not supported yet"
                 )
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
@@ -1550,7 +1586,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; [TS] is not supported yet"
+                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is not supported yet"
                 )
             );
     }

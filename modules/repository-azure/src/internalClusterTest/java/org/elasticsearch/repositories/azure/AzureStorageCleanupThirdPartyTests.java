@@ -27,8 +27,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -86,32 +84,6 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     private static final String AZURE_ACCOUNT = System.getProperty("test.azure.account");
 
-    /**
-     * AzureRepositoryPlugin that sets a low value for getUploadBlockSize()
-     */
-    public static class TestAzureRepositoryPlugin extends AzureRepositoryPlugin {
-
-        public TestAzureRepositoryPlugin(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        AzureStorageService createAzureStorageService(
-            Settings settings,
-            AzureClientProvider azureClientProvider,
-            ClusterService clusterService,
-            ProjectResolver projectResolver
-        ) {
-            final long blockSize = ByteSizeValue.ofKb(64L).getBytes() * randomIntBetween(1, 15);
-            return new AzureStorageService(settings, azureClientProvider, clusterService, projectResolver) {
-                @Override
-                long getUploadBlockSize() {
-                    return blockSize;
-                }
-            };
-        }
-    }
-
     @ClassRule
     public static AzureHttpFixture fixture = new AzureHttpFixture(
         USE_FIXTURE ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.NONE,
@@ -126,7 +98,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(TestAzureRepositoryPlugin.class);
+        return pluginList(AzureRepositoryPlugin.class);
     }
 
     @Override
@@ -164,6 +136,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @Override
     protected void createRepository(String repoName) {
+        final long blockSizeBytes = ByteSizeValue.ofKb(64L).getBytes() * randomIntBetween(5, 15);
         AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
@@ -174,7 +147,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                 Settings.builder()
                     .put("container", System.getProperty("test.azure.container"))
                     .put("base_path", System.getProperty("test.azure.base") + randomAlphaOfLength(8))
-                    .put("max_single_part_upload_size", ByteSizeValue.of(1, ByteSizeUnit.MB))
+                    .put(AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
+                    .put(AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(blockSizeBytes))
             )
             .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -344,6 +318,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                     .put("container", System.getProperty("test.azure.container"))
                     .put("base_path", System.getProperty("test.azure.base") + randomAlphaOfLength(8))
                     .put(AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
+                    .put(AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
                     .put(AzureRepository.Repository.DATA_ACCESS_TIER_SETTING.getKey(), dataAccessTier.toString())
                     .put(AzureRepository.Repository.METADATA_ACCESS_TIER_SETTING.getKey(), metadataAccessTier.toString())
             )

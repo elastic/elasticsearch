@@ -708,3 +708,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
   method: test {csv-spec:csv-multivalue.csvBracketsParsesMultiValue [csv.bz/HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/159135
+- class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT
+  method: test {upgradedNodes=1 yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
+  issue: https://github.com/elastic/elasticsearch/issues/158357

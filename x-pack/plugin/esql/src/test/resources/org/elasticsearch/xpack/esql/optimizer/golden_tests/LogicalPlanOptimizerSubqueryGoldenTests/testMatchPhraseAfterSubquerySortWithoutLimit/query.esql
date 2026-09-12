@@ -1,0 +1,2 @@
+FROM (FROM employees | SORT first_name), (FROM employees | WHERE emp_no > 0)
+| WHERE match_phrase(first_name, "Meditation")

@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
@@ -283,10 +284,11 @@ public final class SourceStatisticsSerializer {
 
     /**
      * Poisons a column's {@code min}/{@code max} in-place: drops the extremum values and writes the unservable
-     * markers so the column safe-misses to a scan. Count stats (row/null/value counts) are left intact. Used when
-     * the extremum cannot be trusted — e.g. the FIRST_FILE_WINS fold detects a column whose physical type diverges
-     * across files, so both the unit-blind fold AND the anchor-schema misread of the divergent file make a warm
-     * extremum unable to match a scan.
+     * markers so MIN/MAX safe-miss to a scan. Count stats (row/null/value counts) are left intact. Used when
+     * the extremum cannot be trusted: a declared retype, a text pin, or an {@code UNSIGNED_LONG} planner
+     * type folding a signed integer harvest. Callers that also cannot trust counts (text FIRST_FILE_WINS
+     * unrepresentable, a failed unsigned encode, a declared narrowing the scan would still coerce) drop
+     * the count keys after this method.
      */
     public static void poisonColumnExtrema(Map<String, Object> statsMap, String columnName) {
         statsMap.remove(columnMinKey(columnName));
@@ -295,8 +297,156 @@ public final class SourceStatisticsSerializer {
         statsMap.put(columnMaxUnservableKey(columnName), Boolean.TRUE);
     }
 
+    /**
+     * Copies fold-level unservability onto a per-file or per-range harvest so split merge cannot
+     * serve a column the coordinator fold already dropped or poisoned. Only columns the fold
+     * mentions are touched. When {@code folded} marks extrema unservable, harvest extrema are
+     * poisoned. When {@code folded} has neither a value count nor a null count for that column,
+     * harvest counts are dropped. Returns {@code harvest} when nothing changes. {@code harvest}
+     * is not mutated.
+     */
+    @Nullable
+    public static Map<String, Object> alignHarvestWithFold(@Nullable Map<String, Object> harvest, @Nullable Map<String, Object> folded) {
+        if (harvest == null || harvest.isEmpty() || folded == null || folded.isEmpty()) {
+            return harvest;
+        }
+        Map<String, Object> out = null;
+        for (String column : columnNamesIn(harvest)) {
+            boolean foldPoisoned = Boolean.TRUE.equals(folded.get(columnMinUnservableKey(column)))
+                || Boolean.TRUE.equals(folded.get(columnMaxUnservableKey(column)));
+            boolean foldHasCounts = folded.containsKey(columnValueCountKey(column)) || folded.containsKey(columnNullCountKey(column));
+            boolean foldHasExtrema = folded.containsKey(columnMinKey(column)) || folded.containsKey(columnMaxKey(column)) || foldPoisoned;
+            if (foldHasCounts == false && foldHasExtrema == false) {
+                continue;
+            }
+            boolean foldDroppedCounts = foldHasCounts == false
+                && (harvest.containsKey(columnValueCountKey(column)) || harvest.containsKey(columnNullCountKey(column)));
+            if (foldPoisoned == false && foldDroppedCounts == false) {
+                continue;
+            }
+            if (out == null) {
+                out = new HashMap<>(harvest);
+            }
+            if (foldPoisoned) {
+                poisonColumnExtrema(out, column);
+            }
+            if (foldDroppedCounts) {
+                out.remove(columnValueCountKey(column));
+                out.remove(columnNullCountKey(column));
+            }
+        }
+        return out != null ? out : harvest;
+    }
+
+    /**
+     * The column name a flat {@code _stats.columns.<name>.<suffix>} key belongs to, or {@code null}
+     * when {@code key} is not a per-column stat key. Splits on the last dot so a dotted column name
+     * ({@code _stats.columns.a.b.min} -> {@code a.b}) survives.
+     */
+    @Nullable
+    private static String columnNameOfStatKey(String key) {
+        if (key.startsWith(STATS_COL_PREFIX) == false) {
+            return null;
+        }
+        String rest = key.substring(STATS_COL_PREFIX.length());
+        int dotIdx = rest.lastIndexOf('.');
+        return dotIdx <= 0 ? null : rest.substring(0, dotIdx);
+    }
+
+    /** Every column name mentioned by a per-column stat key in {@code statsMap}. */
+    private static Set<String> columnNamesIn(Map<String, Object> statsMap) {
+        Set<String> names = new HashSet<>();
+        for (String key : statsMap.keySet()) {
+            String name = columnNameOfStatKey(key);
+            if (name != null) {
+                names.add(name);
+            }
+        }
+        return names;
+    }
+
+    /**
+     * Rewrites each named column to the all-null contract {@link SplitStats} already skips without
+     * poisoning siblings: {@code value_count = 0}, {@code null_count = row_count}, no min/max, no
+     * unservable markers. Used when a footer read discards the column (the planner type cannot
+     * represent the file type). Returns a new map; {@code statsMap} is not mutated. {@code row_count}
+     * is unchanged.
+     */
+    public static Map<String, Object> rewriteColumnsAsAllNull(Map<String, Object> statsMap, Collection<String> columnNames) {
+        if (statsMap == null || statsMap.isEmpty() || columnNames == null || columnNames.isEmpty()) {
+            return statsMap;
+        }
+        Map<String, Object> out = new HashMap<>(statsMap);
+        Object rowCount = out.get(STATS_ROW_COUNT);
+        long nulls = rowCount instanceof Number n ? n.longValue() : 0L;
+        for (String columnName : columnNames) {
+            out.put(columnValueCountKey(columnName), 0L);
+            out.put(columnNullCountKey(columnName), nulls);
+            out.remove(columnMinKey(columnName));
+            out.remove(columnMaxKey(columnName));
+            out.remove(columnMinUnservableKey(columnName));
+            out.remove(columnMaxUnservableKey(columnName));
+        }
+        return out;
+    }
+
+    /**
+     * Drops each named column's count family ({@code value_count} / {@code null_count}), leaving extrema,
+     * the unservable markers and {@code row_count} untouched. Used when a harvest counted cells the scan
+     * will not produce, so the counts describe a read that never happens: summing them would under- or
+     * over-count. The column family itself survives via whatever extrema keys remain, which is what keeps
+     * {@code SplitStats} reporting {@code -1} (unknown, safe-miss) rather than treating the column as absent
+     * and serving {@code rowCount - rowCount = 0}. Returns a new map; {@code statsMap} is not mutated.
+     */
+    public static Map<String, Object> removeColumnCounts(Map<String, Object> statsMap, Collection<String> columnNames) {
+        if (statsMap == null || statsMap.isEmpty() || columnNames == null || columnNames.isEmpty()) {
+            return statsMap;
+        }
+        Map<String, Object> out = new HashMap<>(statsMap);
+        for (String columnName : columnNames) {
+            out.remove(columnValueCountKey(columnName));
+            out.remove(columnNullCountKey(columnName));
+        }
+        return out;
+    }
+
+    /**
+     * Rewrites each named column's min/max from a raw signed harvest into the {@code UNSIGNED_LONG}
+     * in-memory domain ({@link DeclaredTypeCoercions#coerceToUnsignedLong}). A value that cannot be
+     * coerced poisons that column's extrema so MIN/MAX scan and is added to {@code failedColumns}.
+     * One map copy. {@code statsMap} is not mutated. Counts stay on the per-file map so a footer
+     * merge does not treat the file as all-null; the caller drops merged counts for any column
+     * named in {@code failedColumns}.
+     */
+    static Map<String, Object> encodeColumnExtremaAsUnsignedLong(
+        Map<String, Object> statsMap,
+        Collection<String> columnNames,
+        Set<String> failedColumns
+    ) {
+        if (statsMap == null || statsMap.isEmpty() || columnNames == null || columnNames.isEmpty()) {
+            return statsMap;
+        }
+        Map<String, Object> out = new HashMap<>(statsMap);
+        for (String columnName : columnNames) {
+            try {
+                Object min = out.get(columnMinKey(columnName));
+                if (min instanceof Number n) {
+                    out.put(columnMinKey(columnName), DeclaredTypeCoercions.coerceToUnsignedLong(n));
+                }
+                Object max = out.get(columnMaxKey(columnName));
+                if (max instanceof Number n) {
+                    out.put(columnMaxKey(columnName), DeclaredTypeCoercions.coerceToUnsignedLong(n));
+                }
+            } catch (IllegalArgumentException e) {
+                poisonColumnExtrema(out, columnName);
+                failedColumns.add(columnName);
+            }
+        }
+        return out;
+    }
+
     // All seven per-column stat suffixes, for the declared-overlay rekey: a column's whole stat family moves together,
-    // including the unservable markers (an upstream FFW-divergence poison must survive a `path` rename).
+    // including the unservable markers (an upstream extrema poison must survive a path rename).
     private static final String[] COLUMN_STAT_SUFFIXES = {
         NULL_COUNT_SUFFIX,
         VALUE_COUNT_SUFFIX,
@@ -307,8 +457,8 @@ public final class SourceStatisticsSerializer {
         MAX_UNSERVABLE_SUFFIX };
 
     /**
-     * The declared-schema overlay's stats boundary — the fourth, after reconciliation-normalize, FFW-divergence poison,
-     * and commit-time coercion. Stats are produced keyed by <b>physical</b> (file) column names holding <b>inferred</b>-type
+     * The declared-schema overlay's stats boundary, after reconciliation-normalize and commit-time coercion.
+     * Stats are produced keyed by <b>physical</b> (file) column names holding <b>inferred</b>-type
      * values; the declared overlay renames/retypes the plan afterwards, so without this the warm path serves physical-keyed
      * stats under logical names (a renamed {@code COUNT(col)} serves 0) and inferred-type extrema/counts a coerced scan
      * never produces. This (1) REKEYS every per-column stat family physical&rarr;logical for each {@code path} rename — a

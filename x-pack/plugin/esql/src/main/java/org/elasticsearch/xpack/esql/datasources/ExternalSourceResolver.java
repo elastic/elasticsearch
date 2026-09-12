@@ -53,11 +53,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -802,7 +802,15 @@ public class ExternalSourceResolver {
             ListingHint anchorHint = new ListingHint(listing.size(0), anchorMtime);
             final FileList finalListing = listing;
             ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
-                anchorMetadata -> completeFirstFileWins(anchorMetadata, finalListing, config, requiresStats, cacheable, listener),
+                anchorMetadata -> completeFirstFileWins(
+                    anchorMetadata,
+                    finalListing,
+                    config,
+                    declaredMapping,
+                    requiresStats,
+                    cacheable,
+                    listener
+                ),
                 listener::onFailure
             );
             if (cacheable) {
@@ -831,6 +839,7 @@ public class ExternalSourceResolver {
         ExternalSourceMetadata anchorMetadata,
         FileList listing,
         Map<String, Object> config,
+        @Nullable DatasetMapping declaredMapping,
         boolean requiresStats,
         boolean cacheable,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
@@ -862,11 +871,13 @@ public class ExternalSourceResolver {
                 // into the async aggregation so text-format multi-file merges force a re-scan instead of serving
                 // a subset COUNT/MIN/MAX (see foldsAbsentColumnAsImplicitNull / SourceStatisticsSerializer).
                 boolean implicitNulls = foldsAbsentColumnAsImplicitNull(base.sourceType());
+                Set<String> declaredTypeColumns = physicalDeclaredTypeColumnsOf(declaredMapping);
                 // Prefetch the dataset-level aggregate BEFORE the per-file stats gather — see
                 // applyDatasetAggregate for why post-gather reads self-defeat under cache pressure.
                 DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(listing, config, cacheable);
                 // Filled by the gather below, before this listener runs.
                 Map<String, String> ffwReadConfigs = new HashMap<>(listing.fileCount());
+                Map<StoragePath, Map<String, DataType>> ffwInferredTypes = new HashMap<>();
                 ActionListener<Map<String, Object>> statsListener = ActionListener.wrap(aggregatedStats -> {
                     try {
                         Map<String, Object> effective = applyDatasetAggregate(
@@ -877,24 +888,42 @@ public class ExternalSourceResolver {
                             base,
                             config
                         );
-                        listener.onResponse(finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, effective), config));
+                        listener.onResponse(
+                            finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, effective), config, ffwInferredTypes)
+                        );
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
                 }, listener::onFailure);
                 if (cacheable) {
-                    readAndAggregateAllFileStatsWithCache(listing, config, implicitNulls, ffwReadConfigs, statsListener);
+                    readAndAggregateAllFileStatsWithCache(
+                        listing,
+                        config,
+                        implicitNulls,
+                        declaredTypeColumns,
+                        ffwReadConfigs,
+                        ffwInferredTypes,
+                        statsListener
+                    );
                 } else {
-                    readAndAggregateAllFileStats(listing, config, implicitNulls, ffwReadConfigs, statsListener);
+                    readAndAggregateAllFileStats(
+                        listing,
+                        config,
+                        implicitNulls,
+                        declaredTypeColumns,
+                        ffwReadConfigs,
+                        ffwInferredTypes,
+                        statsListener
+                    );
                 }
             } else if (listing.fileCount() > 1) {
                 // Defer branch (requiresStats == false): skip the N footer reads. The anchor-only stats are not
                 // representative of the whole glob, so mark them partial — exactly the state the failed-aggregation
                 // path produces, which downstream already handles (SplitStats.resolveEffectiveStats returns null
                 // rather than consuming anchor stats as global). STATS_FILE_COUNT, stamped above, is preserved.
-                listener.onResponse(finishFirstFileWins(listing, markStatsAsPartial(base), config));
+                listener.onResponse(finishFirstFileWins(listing, markStatsAsPartial(base), config, Map.of()));
             } else {
-                listener.onResponse(finishFirstFileWins(listing, base, config));
+                listener.onResponse(finishFirstFileWins(listing, base, config, Map.of()));
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -982,7 +1011,8 @@ public class ExternalSourceResolver {
     private ExternalSourceResolution.ResolvedSource finishFirstFileWins(
         FileList listing,
         ExternalSourceMetadata extMetadata,
-        Map<String, Object> config
+        Map<String, Object> config,
+        Map<StoragePath, Map<String, DataType>> inferredTypesByPath
     ) {
         // The anchor's pre-enrichment schema is the physical read schema every file's reader parses. Partition
         // columns are path-derived (injected by VirtualColumnIterator at read time), so they are never part of the
@@ -1019,12 +1049,14 @@ public class ExternalSourceResolver {
                 // individual file. Each file's own harvest lives on its schema-cache entry (and, for a
                 // one-file listing, on the anchor metadata). That per-file harvest is what split
                 // discovery uses to skip a second footer open when readableUnitCount is 1.
+                StoragePath path = listing.path(i);
                 perFileInfo.put(
-                    listing.path(i),
+                    path,
                     new SchemaReconciliation.FileSchemaInfo(
                         fileSchema,
                         mapping,
-                        fileStatisticsForFirstFileWins(listing, i, extMetadata, config)
+                        fileStatisticsForFirstFileWins(listing, i, extMetadata, config),
+                        inferredTypesByPath.get(path)
                     )
                 );
             }
@@ -1874,44 +1906,202 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * FFW path. FIRST_FILE_WINS reads every file with the anchor's schema and assumes the others match, but does
-     * NOT enforce it. A column whose physical type DIVERGES across files (e.g. DATETIME/epoch-millis in the anchor
-     * and DATE_NANOS/epoch-nanos in another) would fold its extrema unit-blind here; worse, the divergent file's
-     * data is itself misread under the anchor schema, so no warm extremum can match a scan. We cannot normalize to
-     * a common unit (the cold path is already wrong), so we POISON such columns' extrema — safe-miss to a scan.
+     * FIRST_FILE_WINS fold. Footer files rewrite an unrepresentable column to the all-null contract;
+     * text, declared-coercion, encode-failure, and unsigned-domain mismatch drop or poison merged
+     * extrema so MIN/MAX scan. Counts that would describe a different read stay unknown rather than
+     * becoming implicit zeros. Split stamps are raw harvests; {@link #alignHarvestWithAnchorTypes}
+     * and {@link SourceStatisticsSerializer#alignHarvestWithFold} reapply this file's rewrite and
+     * the fold's unservability. {@code allMetadata.get(0)} is the anchor.
      */
     @Nullable
-    static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
+    static Map<String, Object> aggregateFileStatistics(List<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
+        return aggregateFileStatistics(allMetadata, implicitNullsForAbsentColumn, Set.of());
+    }
+
+    @Nullable
+    static Map<String, Object> aggregateFileStatistics(
+        List<SourceMetadata> allMetadata,
+        boolean implicitNullsForAbsentColumn,
+        Set<String> declaredTypeColumns
+    ) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
         Map<String, DataType> anchorTypes = null;
-        Set<String> divergentColumns = new HashSet<>();
+        Set<String> invalidCountColumns = new HashSet<>();
+        Set<String> unsignedForeignDomainColumns = new HashSet<>();
+        Set<String> declaredColumns = declaredTypeColumns == null ? Set.of() : declaredTypeColumns;
         for (SourceMetadata meta : allMetadata) {
             Map<String, Object> flat = flatStatsOf(meta);
             if (flat == null) {
                 LOGGER.debug("multi-file stats aggregate incomplete: [{}] has no statistics", meta.location());
                 return null;
             }
-            perFileFlatStats.add(flat);
             Map<String, DataType> fileTypes = attributesToTypeMap(meta.schema());
             if (anchorTypes == null) {
                 anchorTypes = fileTypes;
             } else {
+                List<String> rewriteColumns = null;
+                List<String> encodeColumns = null;
                 for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
                     DataType anchorType = anchorTypes.get(entry.getKey());
-                    if (anchorType != null && anchorType != entry.getValue()) {
-                        divergentColumns.add(entry.getKey());
+                    DataType fileType = entry.getValue();
+                    if (unrepresentableUnderAnchor(anchorType, fileType)) {
+                        if (declaredCoercible(declaredColumns, entry.getKey(), fileType, anchorType)) {
+                            // The scan still coerces this column per value, so its harvest describes neither an
+                            // all-null read nor the coerced one: drop extrema and counts after the merge.
+                            invalidCountColumns.add(entry.getKey());
+                        } else if (implicitNullsForAbsentColumn) {
+                            // Footer readers null-fill the whole column, so the file's harvest becomes all-null.
+                            if (rewriteColumns == null) {
+                                rewriteColumns = new ArrayList<>();
+                            }
+                            rewriteColumns.add(entry.getKey());
+                        } else {
+                            // Text readers decide per value under the error policy; the harvest is not all-null.
+                            invalidCountColumns.add(entry.getKey());
+                        }
+                    } else if (signedHarvestUnderUnsignedPlanner(anchorType, fileType)) {
+                        if (implicitNullsForAbsentColumn) {
+                            if (encodeColumns == null) {
+                                encodeColumns = new ArrayList<>();
+                            }
+                            encodeColumns.add(entry.getKey());
+                        } else {
+                            invalidCountColumns.add(entry.getKey());
+                        }
+                    } else if (unsignedExtremaUnderNonUnsignedPlanner(anchorType, fileType)) {
+                        unsignedForeignDomainColumns.add(entry.getKey());
                     }
                 }
+                if (rewriteColumns != null) {
+                    flat = SourceStatisticsSerializer.rewriteColumnsAsAllNull(flat, rewriteColumns);
+                }
+                if (encodeColumns != null) {
+                    flat = SourceStatisticsSerializer.encodeColumnExtremaAsUnsignedLong(flat, encodeColumns, invalidCountColumns);
+                }
             }
+            perFileFlatStats.add(flat);
         }
         Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
-        if (merged != null && divergentColumns.isEmpty() == false) {
-            merged = new HashMap<>(merged); // mergeStatistics may hand back an unmodifiable/shared map
-            for (String column : divergentColumns) {
-                SourceStatisticsSerializer.poisonColumnExtrema(merged, column);
-            }
+        if (merged != null && (invalidCountColumns.isEmpty() == false || unsignedForeignDomainColumns.isEmpty() == false)) {
+            merged = new HashMap<>(merged);
+            dropColumnCounts(merged, invalidCountColumns, true);
+            dropColumnCounts(merged, unsignedForeignDomainColumns, false);
         }
         return merged;
+    }
+
+    /**
+     * Reapplies the FIRST_FILE_WINS per-file rewrite or unsigned encode onto a raw harvest so
+     * split merge cannot serve values the scan discards. A footer column the planner cannot
+     * represent becomes the all-null contract. A signed harvest under an {@code UNSIGNED_LONG}
+     * planner has its extrema encoded. Unsigned extrema under a non-unsigned planner are poisoned
+     * without changing counts. Declared-coercible columns and text ({@code implicitNulls}
+     * false) are left for {@link SourceStatisticsSerializer#alignHarvestWithFold}. Returns
+     * {@code harvest} when nothing changes.
+     */
+    @Nullable
+    static Map<String, Object> alignHarvestWithAnchorTypes(
+        @Nullable Map<String, Object> harvest,
+        @Nullable Map<String, DataType> fileTypes,
+        @Nullable Map<String, DataType> plannerTypes,
+        boolean implicitNullsForAbsentColumn,
+        Set<String> declaredTypeColumns
+    ) {
+        if (harvest == null
+            || harvest.isEmpty()
+            || fileTypes == null
+            || fileTypes.isEmpty()
+            || plannerTypes == null
+            || plannerTypes.isEmpty()) {
+            return harvest;
+        }
+        Set<String> declaredColumns = declaredTypeColumns == null ? Set.of() : declaredTypeColumns;
+        List<String> rewriteColumns = null;
+        List<String> encodeColumns = null;
+        List<String> poisonColumns = null;
+        for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
+            DataType plannerType = plannerTypes.get(entry.getKey());
+            DataType fileType = entry.getValue();
+            if (unrepresentableUnderAnchor(plannerType, fileType)) {
+                if (declaredCoercible(declaredColumns, entry.getKey(), fileType, plannerType)) {
+                    continue;
+                }
+                if (implicitNullsForAbsentColumn) {
+                    if (rewriteColumns == null) {
+                        rewriteColumns = new ArrayList<>();
+                    }
+                    rewriteColumns.add(entry.getKey());
+                }
+            } else if (signedHarvestUnderUnsignedPlanner(plannerType, fileType) && implicitNullsForAbsentColumn) {
+                if (encodeColumns == null) {
+                    encodeColumns = new ArrayList<>();
+                }
+                encodeColumns.add(entry.getKey());
+            } else if (unsignedExtremaUnderNonUnsignedPlanner(plannerType, fileType)) {
+                if (poisonColumns == null) {
+                    poisonColumns = new ArrayList<>();
+                }
+                poisonColumns.add(entry.getKey());
+            }
+        }
+        if (rewriteColumns != null) {
+            harvest = SourceStatisticsSerializer.rewriteColumnsAsAllNull(harvest, rewriteColumns);
+        }
+        if (encodeColumns != null) {
+            // An extremum that cannot move into the planner domain also invalidates this file's
+            // counts: the scan nulls those cells, so summing the harvest would over-count.
+            Set<String> failedEncodes = new HashSet<>();
+            harvest = SourceStatisticsSerializer.encodeColumnExtremaAsUnsignedLong(harvest, encodeColumns, failedEncodes);
+            harvest = SourceStatisticsSerializer.removeColumnCounts(harvest, failedEncodes);
+        }
+        if (poisonColumns != null) {
+            harvest = new HashMap<>(harvest);
+            for (String column : poisonColumns) {
+                SourceStatisticsSerializer.poisonColumnExtrema(harvest, column);
+            }
+        }
+        return harvest;
+    }
+
+    /**
+     * Whether a footer or text read of {@code fileType} under planner type {@code anchorType} discards
+     * the column. A column absent from the anchor is ignored, not discarded. {@code commonType} returning
+     * null (DATETIME vs DATE_NANOS) is unrepresentable.
+     */
+    private static boolean unrepresentableUnderAnchor(DataType anchorType, DataType fileType) {
+        return anchorType != null && anchorType.equals(EsqlDataTypeConverter.commonType(anchorType, fileType)) == false;
+    }
+
+    /**
+     * Footer {@code UNSIGNED_LONG} min/max are sign-flip-encoded. Under any other planner type those
+     * longs are not the scan's values (a DOUBLE planner would {@code doubleValue()} the encoding).
+     */
+    private static boolean unsignedExtremaUnderNonUnsignedPlanner(DataType anchorType, DataType fileType) {
+        return fileType == DataType.UNSIGNED_LONG && anchorType != null && anchorType != DataType.UNSIGNED_LONG;
+    }
+
+    private static boolean declaredCoercible(Set<String> declaredTypeColumns, String name, DataType fileType, DataType plannerType) {
+        return declaredTypeColumns.contains(name) && DeclaredTypeCoercions.supports(fileType, plannerType);
+    }
+
+    private static void dropColumnCounts(Map<String, Object> merged, Set<String> columns, boolean dropCounts) {
+        for (String column : columns) {
+            SourceStatisticsSerializer.poisonColumnExtrema(merged, column);
+            if (dropCounts) {
+                merged.remove(SourceStatisticsSerializer.columnValueCountKey(column));
+                merged.remove(SourceStatisticsSerializer.columnNullCountKey(column));
+            }
+        }
+    }
+
+    /**
+     * Signed harvest extrema under an {@code UNSIGNED_LONG} planner, which use a different in-memory
+     * representation. The reverse pairing is unrepresentable ({@code commonType} with
+     * {@code UNSIGNED_LONG} is always {@code UNSIGNED_LONG}) and is handled by
+     * {@link #unrepresentableUnderAnchor}.
+     */
+    private static boolean signedHarvestUnderUnsignedPlanner(DataType plannerType, DataType fileType) {
+        return plannerType == DataType.UNSIGNED_LONG && (fileType == DataType.LONG || fileType == DataType.INTEGER);
     }
 
     /** A file's flat stat map — cached in sourceMetadata(), or embedded from typed statistics() — or null if absent. */
@@ -1946,10 +2136,9 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * The columns a UNION_BY_NAME pin retyped above their inferred type for this file, i.e. the columns whose read-time
-     * type differs from the type their cached stats were harvested at. Derived as {@code inferredTypes != fileSchema}:
-     * {@link SchemaReconciliation.FileSchemaInfo#inferredTypes()} snapshots the pre-pin types and is populated only when
-     * the pin actually retyped a column, so a null (nothing retyped) or type-equal entry yields the empty set.
+     * Columns this file is read at a different type than its harvest: a {@code UNION_BY_NAME} pin or a
+     * FIRST_FILE_WINS file whose footer type differs from the anchor. The cache identity is
+     * read-schema-blind, so those columns must be stripped at commit.
      */
     public static Set<String> pinnedColumnsOf(SchemaReconciliation.FileSchemaInfo info) {
         Map<String, DataType> inferred = info.inferredTypes();
@@ -2009,12 +2198,15 @@ public class ExternalSourceResolver {
         FileList listing,
         Map<String, Object> config,
         boolean implicitNulls,
+        Set<String> declaredTypeColumns,
         Map<String, String> readConfigsOut,
+        Map<StoragePath, Map<String, DataType>> inferredTypesOut,
         ActionListener<Map<String, Object>> listener
     ) {
         gatherPerFile(listing, config, false, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
-            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls));
+            collectInferredTypes(listing, allMeta, inferredTypesOut);
+            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, declaredTypeColumns));
         }, e -> {
             // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
             // instead of silently degrading to partial stats and continuing. A read that failed *because* the query
@@ -2051,33 +2243,41 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Cache-aware variant of {@link #readAndAggregateAllFileStats}. Peeks the schema cache (keyed by path + mtime) for
-     * each file so repeated multi-file resolves do not re-read footers. Responds with {@code null} if any file cannot
-     * be resolved or lacks statistics; a bare cancellation is surfaced as a failure so it is never masked as partial
-     * stats.
+     * Each file's footer-inferred types, keyed by listing path. FIRST_FILE_WINS pins every
+     * {@link SchemaReconciliation.FileSchemaInfo#fileSchema} to the anchor, so stamp-time rewrite
+     * and unsigned encode need this snapshot to see the file's own type.
+     */
+    private static void collectInferredTypes(FileList listing, List<SourceMetadata> allMeta, Map<StoragePath, Map<String, DataType>> into) {
+        int count = Math.min(listing.fileCount(), allMeta.size());
+        for (int i = 0; i < count; i++) {
+            SourceMetadata meta = allMeta.get(i);
+            if (meta == null || meta.schema() == null || meta.schema().isEmpty()) {
+                continue;
+            }
+            into.put(listing.path(i), attributesToTypeMap(meta.schema()));
+        }
+    }
+
+    /**
+     * Cache-aware gather for {@link #readAndAggregateAllFileStats}. Peeks the schema cache (keyed by path + mtime)
+     * for each file so repeated multi-file resolves do not re-read footers, then folds through the same
+     * {@link #aggregateFileStatistics(List, boolean)} as the direct route. Responds with {@code null} if any file
+     * cannot be resolved or lacks statistics; a bare cancellation is surfaced as a failure so it is never masked
+     * as partial stats.
      */
     private void readAndAggregateAllFileStatsWithCache(
         FileList listing,
         Map<String, Object> config,
         boolean implicitNulls,
+        Set<String> declaredTypeColumns,
         Map<String, String> readConfigsOut,
+        Map<StoragePath, Map<String, DataType>> inferredTypesOut,
         ActionListener<Map<String, Object>> listener
     ) {
         gatherPerFile(listing, config, true, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
-            List<Map<String, Object>> perFileStats = new ArrayList<>(allMeta.size());
-            for (SourceMetadata meta : allMeta) {
-                Map<String, Object> fileMeta = meta.sourceMetadata();
-                if (fileMeta == null || fileMeta.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false) {
-                    // This file has no statistics — cannot produce accurate global stats. Name the first
-                    // offender; the all-or-nothing miss is otherwise undiagnosable at glob scale.
-                    LOGGER.debug("multi-file stats aggregate incomplete: [{}] has no row count", meta.location());
-                    listener.onResponse(null);
-                    return;
-                }
-                perFileStats.add(fileMeta);
-            }
-            listener.onResponse(SourceStatisticsSerializer.mergeStatistics(perFileStats, implicitNulls));
+            collectInferredTypes(listing, allMeta, inferredTypesOut);
+            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, declaredTypeColumns));
         }, e -> {
             // A bare cancellation, or a read that failed because the query was cancelled mid-flight (the cache wraps
             // loader failures, so consult the state directly), must abort rather than degrade to partial stats.
@@ -2597,6 +2797,33 @@ public class ExternalSourceResolver {
             && declaredMapping.mappings().dynamic() == DatasetMapping.Dynamic.FALSE;
     }
 
+    private static Set<String> declaredTypeColumnsOf(@Nullable DatasetMapping declaredMapping) {
+        DatasetMapping.Mappings mappings = declaredMapping == null ? null : declaredMapping.mappings();
+        return mappings == null ? Set.of() : Set.copyOf(mappings.properties().keySet());
+    }
+
+    /**
+     * Declared-type columns as the physical file names {@link #aggregateFileStatistics} sees on
+     * each file's schema. {@link #declaredTypeColumnsOf} is logical; a {@code path} rename is
+     * applied here so membership matches the harvest. {@link DeclaredReadSpec} keeps the logical
+     * set; {@link FileSourceFactory} physicalizes that copy at read time.
+     */
+    static Set<String> physicalDeclaredTypeColumnsOf(@Nullable DatasetMapping declaredMapping) {
+        Set<String> logical = declaredTypeColumnsOf(declaredMapping);
+        if (logical.isEmpty()) {
+            return logical;
+        }
+        Map<String, String> renames = DeclaredSchemaResolver.renameMap(declaredMapping);
+        if (renames.isEmpty()) {
+            return logical;
+        }
+        Set<String> physical = new HashSet<>(logical.size());
+        for (String col : logical) {
+            physical.add(PhysicalNames.translate(col, renames));
+        }
+        return Set.copyOf(physical);
+    }
+
     /**
      * The typed read-instructions a declared mapping produces for the data node: the logical&rarr;physical column
      * renames of a {@code path} move, the declared {@code _id.path}, and per-column date parse-patterns (keyed by
@@ -2611,7 +2838,7 @@ public class ExternalSourceResolver {
         // Every mapped field carries an explicit declared type (DatasetFieldMapping requires it), so the mapping's
         // logical column names ARE the declared-type columns — the ones licensed to coerce (incl. narrow) toward their
         // target at read time. Keyed by LOGICAL name; FileSourceFactory physicalizes them via renames.
-        Set<String> declaredTypeColumns = mappings == null ? Set.of() : Set.copyOf(mappings.properties().keySet());
+        Set<String> declaredTypeColumns = declaredTypeColumnsOf(declaredMapping);
         if (mappings != null) {
             Map<String, String> collected = new HashMap<>();
             for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {

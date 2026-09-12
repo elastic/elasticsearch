@@ -4331,6 +4331,123 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(9007199254740992.0, stats.get(SourceStatisticsSerializer.columnMaxKey("v")));
     }
 
+    /**
+     * UNION_BY_NAME reads DATETIME and converts afterwards. Aligning against the unified
+     * DATE_NANOS type would treat the file as unrepresentable and rewrite {@code value_count = 0}.
+     */
+    public void testRangeAwareSplitsKeepUnionByNameTemporalWideningStats() {
+        Map<String, Object> rawStats = harvestStats("ts", 1000L, 5000L);
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
+        FileSplitProvider splitter = splitterFor(mockReader);
+        List<Attribute> fileSchema = List.of(new ReferenceAttribute(SRC, "ts", DataType.DATETIME));
+        ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "ts", DataType.DATE_NANOS)));
+        SplitDiscoveryContext ctx = singleFileStatsContext(
+            "s3://b/part-a.parquet",
+            "s3://b/*.parquet",
+            new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(fileSchema), null, null, Map.of("ts", DataType.DATETIME)),
+            unified,
+            Map.of()
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals(1, splits.size());
+        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
+        assertEquals(1_000_000_000L, stats.get(SourceStatisticsSerializer.columnMinKey("ts")));
+        assertEquals(5_000_000_000L, stats.get(SourceStatisticsSerializer.columnMaxKey("ts")));
+        assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.columnValueCountKey("ts"))).longValue());
+        assertEquals(0L, ((Number) stats.get(SourceStatisticsSerializer.columnNullCountKey("ts"))).longValue());
+        assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+    }
+
+    public void testRangeAwareSplitsRewriteFirstFileWinsUnrepresentableFooterColumn() {
+        Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
+        FileSplitProvider splitter = splitterFor(mockReader);
+        ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.INTEGER)));
+        SplitDiscoveryContext ctx = singleFileStatsContext(
+            "s3://b/part-b.parquet",
+            "s3://b/*.parquet",
+            new SchemaReconciliation.FileSchemaInfo(unified, null, null, Map.of("x", DataType.LONG)),
+            unified,
+            Map.of()
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals(1, splits.size());
+        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
+        assertEquals(0L, stats.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertEquals(2L, stats.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+    }
+
+    /**
+     * An extensionless object with {@code format: parquet} still applies the footer rewrite;
+     * implicit-nulls come from the configured reader, not the filename extension.
+     */
+    public void testCachedExtensionlessSplitsRewriteUnrepresentableFooterColumn() throws Exception {
+        Map<String, Object> rawStats = harvestStats("x", -10L, 20L);
+        RangeAwareFormatReader mockReader = createCachedRangeReader(List.of(new SplitRange(0, 2000, rawStats)));
+        FileSplitProvider splitter = rangeAwareProvider(mockReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        ExternalSchema unified = new ExternalSchema(List.of(new ReferenceAttribute(SRC, "x", DataType.INTEGER)));
+        SplitDiscoveryContext ctx = singleFileStatsContext(
+            "s3://b/part-b",
+            "s3://b/part-b",
+            new SchemaReconciliation.FileSchemaInfo(unified, null, null, Map.of("x", DataType.LONG)),
+            unified,
+            Map.of(FormatNameResolver.CONFIG_FORMAT, "parquet")
+        );
+
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        splitter.discoverSplitsAsync(ctx, EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        List<ExternalSplit> splits = future.actionGet(30, TimeUnit.SECONDS).splits();
+        assertEquals(1, splits.size());
+        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
+        assertEquals(0L, stats.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertEquals(2L, stats.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertEquals(2L, ((Number) stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+    }
+
+    private static Map<String, Object> harvestStats(String column, long min, long max) {
+        Map<String, Object> rawStats = new HashMap<>();
+        rawStats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        rawStats.put(SourceStatisticsSerializer.columnMinKey(column), min);
+        rawStats.put(SourceStatisticsSerializer.columnMaxKey(column), max);
+        rawStats.put(SourceStatisticsSerializer.columnValueCountKey(column), 2L);
+        rawStats.put(SourceStatisticsSerializer.columnNullCountKey(column), 0L);
+        return rawStats;
+    }
+
+    private static SplitDiscoveryContext singleFileStatsContext(
+        String path,
+        String glob,
+        SchemaReconciliation.FileSchemaInfo info,
+        ExternalSchema unified,
+        Map<String, Object> config
+    ) {
+        StorageEntry entry = new StorageEntry(StoragePath.of(path), 2000, Instant.EPOCH);
+        return new SplitDiscoveryContext(
+            null,
+            GlobExpander.fileListOf(List.of(entry), glob),
+            Map.of(entry.path(), info),
+            config,
+            PartitionMetadata.EMPTY,
+            List.of(),
+            unified,
+            unified,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            DeclaredReadSpec.NONE
+        );
+    }
+
     private static FileSplitProvider splitterFor(RangeAwareFormatReader reader) {
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
         formatRegistry.registerLazy("parquet", (s, bf) -> reader, Settings.EMPTY, null);
@@ -4664,12 +4781,30 @@ public class FileSplitProviderTests extends ESTestCase {
         return createMockRangeReader(ranges, () -> {}, discoverCalls);
     }
 
+    private static RangeAwareFormatReader createCachedRangeReader(List<SplitRange> ranges) {
+        return createMockRangeReader(ranges, () -> {}, new AtomicInteger(), true);
+    }
+
     private static RangeAwareFormatReader createMockRangeReader(List<SplitRange> ranges, Runnable onDiscover, AtomicInteger discoverCalls) {
+        return createMockRangeReader(ranges, onDiscover, discoverCalls, false);
+    }
+
+    private static RangeAwareFormatReader createMockRangeReader(
+        List<SplitRange> ranges,
+        Runnable onDiscover,
+        AtomicInteger discoverCalls,
+        boolean serveCachedRanges
+    ) {
         return new RangeAwareFormatReader() {
 
             @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
                 return Configured.empty(this);
+            }
+
+            @Override
+            public List<SplitRange> cachedSplitRanges(StorageObject object) {
+                return serveCachedRanges ? ranges : null;
             }
 
             @Override

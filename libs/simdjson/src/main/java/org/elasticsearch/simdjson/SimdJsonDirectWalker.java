@@ -120,7 +120,10 @@ public final class SimdJsonDirectWalker {
 
     private void freezeAfterFirstDoc() {
         if (docCount++ == 0) {
-            nameCache.freeze();
+            // release() already freezes an unfrozen-and-dirty cache, and additionally falls back
+            // to adopting an already-published parent table when the first document taught us
+            // nothing (e.g. {}); calling it here instead of freeze() directly gets both for free.
+            nameCache.release();
         }
     }
 

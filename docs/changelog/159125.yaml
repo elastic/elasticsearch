@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159125
+summary: Add null-safety to TRange exception
+type: bug

@@ -290,7 +290,7 @@ public class TRange extends EsqlConfigurationFunction
             var zonedDateTime = ZonedDateTime.ofInstant(base, QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()));
             return zonedDateTime.minus(amount).toInstant();
         }
-        throw new InvalidArgumentException("Unsupported offset type [{}]", offset.getClass().getSimpleName());
+        throw new InvalidArgumentException("Unsupported offset type [{}]", offset != null ? offset.getClass().getSimpleName() : "null");
     }
 
     private Instant parseToInstant(Object value, String paramName, boolean nanos) {
@@ -316,7 +316,7 @@ public class TRange extends EsqlConfigurationFunction
 
         throw new InvalidArgumentException(
             "Unsupported time value type [{}] for parameter [{}]",
-            value.getClass().getSimpleName(),
+            value != null ? value.getClass().getSimpleName() : "null",
             paramName
         );
     }

@@ -80,7 +80,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                     newChildren.add(newChild);
                 }
                 if (changed) {
-                    // Preserve the original MergeExec output (which uses the fork's NameIds) unless it is
+                    // Preserve the original MergeExec output (which uses the merge's NameIds) unless it is
                     // empty — that happens when all branches had only the <no-fields> marker, which was
                     // stripped by PruneColumns. In that case adopt the children's output (ALL_FIELDS_PROJECTED).
                     var newOutput = mergeExec.output().isEmpty() ? newChildren.getFirst().output() : mergeExec.output();

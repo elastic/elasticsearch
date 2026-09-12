@@ -38,8 +38,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
@@ -79,8 +79,8 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  * <ul>
  *   <li>{@link UnresolvedRelation}: Resolves views and replaces them with their query plans, then recursively processes those
  *       plans</li>
- *   <li>{@link Fork}: Recursively processes each child branch</li>
- *   <li>{@code UnionAll}: Skipped (assumes rewriting is already complete)</li>
+ *   <li>{@link MergePlan}: Recursively processes each child branch. This includes {@code Fork}
+ *       and user-written {@code UnionAll}; {@link ViewUnionAll} is handled separately below</li>
  *   <li>{@link AbstractSubqueryJoin}: Recursively processes the left and right sides</li>
  *   <li>{@link Filter}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} into a {@code SemiJoin}/{@code AntiJoin}/
  *       {@code MarkJoin}, then recurses into the newly created subquery plans to resolve view references nested there</li>
@@ -239,7 +239,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenInner = new LinkedHashSet<>(seenViews);
         // Tracks wildcard patterns already resolved within this transformDown traversal to prevent duplicate processing
         HashSet<String> seenWildcards = new HashSet<>();
-        // Tracks plans already resolved by view handlers (Fork, UnresolvedRelation) to prevent double-processing.
+        // Tracks plans already resolved by view handlers (MergePlan, UnresolvedRelation) to prevent double-processing.
         // Without this, transformDown recurses into the children of resolved plans, causing wildcards
         // in view subqueries to be re-resolved against sibling view names, producing false circular
         // reference errors and deeply nested duplicate resolution.
@@ -254,11 +254,11 @@ public class ViewResolver {
             switch (p) {
                 case ViewUnionAll viewUnion ->
                     // ViewUnionAll is the result of view resolution, so we skip it.
-                    // Plain UnionAll (from user-written subqueries) matches the Fork case below
+                    // Plain UnionAll (from user-written subqueries) matches the MergePlan case below
                     // and its children are recursed into with proper seen-set scoping.
                     planListener.onResponse(viewUnion);
-                case Fork fork -> replaceViewsFork(
-                    fork,
+                case MergePlan mergePlan -> replaceViewsMergePlan(
+                    mergePlan,
                     projectRouting,
                     parser,
                     seenInner,
@@ -375,11 +375,11 @@ public class ViewResolver {
                 );
                 default -> planListener.onResponse(p);
             }
-        }, listener);
+        }, executor, listener);
     }
 
-    private void replaceViewsFork(
-        Fork fork,
+    private void replaceViewsMergePlan(
+        MergePlan mergePlan,
         String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
@@ -388,7 +388,7 @@ public class ViewResolver {
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
-        var currentSubplans = fork.children();
+        var currentSubplans = mergePlan.children();
         SubscribableListener<List<LogicalPlan>> chain = SubscribableListener.newForked(l -> l.onResponse(null));
         for (int i = 0; i < currentSubplans.size(); i++) {
             var index = i;
@@ -422,9 +422,9 @@ public class ViewResolver {
         }
         chain.andThenApply(updatedSubplans -> {
             if (updatedSubplans != null) {
-                return fork.replaceSubPlans(updatedSubplans);
+                return mergePlan.replaceSubPlans(updatedSubplans);
             }
-            return (LogicalPlan) fork;
+            return (LogicalPlan) mergePlan;
         }).addListener(listener);
     }
 
@@ -921,7 +921,7 @@ public class ViewResolver {
         // compaction work has moved to the {@link ViewCompaction} analyzer rule, but a per-level merge
         // here keeps the resolved plan compact: a wide branching level (e.g. {@code FROM v1, v2, ... v9}
         // of compactable views) folds into a single {@link UnresolvedRelation} entry rather than a
-        // ViewUnionAll that would later trip {@link Fork#MAX_BRANCHES} at post-analysis verification.
+        // ViewUnionAll that would later trip {@link MergePlan#MAX_BRANCHES} at post-analysis verification.
         mergeCompatibleUnresolvedRelations(plans, buildAliasResolver());
 
         if (plans.size() == 1) {
@@ -986,7 +986,7 @@ public class ViewResolver {
      * Merges bare UnresolvedRelation entries that don't share index patterns into a single entry.
      * Those that cannot be merged are wrapped in NamedSubquery nodes to preserve data duplication
      * semantics. The full broader-scope compaction lives in {@link ViewCompaction}; this is the
-     * per-level merge that keeps the resolved tree small enough to pass {@link Fork#MAX_BRANCHES}
+     * per-level merge that keeps the resolved tree small enough to pass {@link MergePlan#MAX_BRANCHES}
      * at post-analysis verification.
      */
     private static void mergeCompatibleUnresolvedRelations(

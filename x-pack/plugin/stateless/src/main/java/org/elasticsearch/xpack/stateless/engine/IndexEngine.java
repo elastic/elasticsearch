@@ -696,8 +696,15 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
-    protected RefreshResult refreshInternalSearcher(String source, boolean block) throws EngineException {
-        if (source.equals(REAL_TIME_GET_REFRESH_SOURCE) || source.equals(UNSAFE_VERSION_MAP_REFRESH_SOURCE)) {
+    protected RefreshResult refreshInternalSearcher(OperationPurpose purpose, String source, boolean block) throws EngineException {
+        /// [org.elasticsearch.action.get.TransportGetFromTranslogAction] relies on the flush below being done
+        /// because it reads [lastUnsafeSegmentGenerationForGets] that is bumped in [getVersionFromMap].
+        /// This flush can happen in two scenarios:
+        /// 1. Live version map is unsafe
+        /// 2. Translog locations are not being tracked
+        /// We don't need to flush in the second case since `lastUnsafeSegmentGenerationForGets` is not bumped
+        /// and the read is performed on the index shard.
+        if (purpose == OperationPurpose.GET_FROM_TRANSLOG && source.equals(UNSAFE_VERSION_MAP_REFRESH_SOURCE)) {
             try {
                 IS_FLUSH_BY_REFRESH.set(true);
                 // TODO: Eventually the Refresh API will also need to transition (maybe) to an async API here.
@@ -707,7 +714,7 @@ public class IndexEngine extends InternalEngine {
             }
         }
         // TODO: could we avoid this refresh if we have flushed above?
-        return super.refreshInternalSearcher(source, block);
+        return super.refreshInternalSearcher(purpose, source, block);
     }
 
     // visible for testing
@@ -911,6 +918,12 @@ public class IndexEngine extends InternalEngine {
         } else {
             return Translog.Snapshot.EMPTY;
         }
+    }
+
+    public void waitForCurrentCommitDurability(ActionListener<Void> listener) {
+        // The current Lucene generation may have been produced by a flush-by-refresh, which is never queued for BCC upload.
+        long genToWaitFor = Math.min(getCurrentGeneration(), statelessCommitService.getMaxPendingOrUploadedGeneration(shardId));
+        waitForCommitDurability(genToWaitFor, listener);
     }
 
     @Override

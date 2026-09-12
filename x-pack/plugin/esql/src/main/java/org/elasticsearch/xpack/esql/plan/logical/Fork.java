@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -17,232 +14,83 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
-
 /**
- * A Fork is a n-ary {@code Plan} where each child is a sub plan, e.g.
+ * The {@code FORK} command: an n-ary {@link MergePlan} where each child is a sub plan, e.g.
  * {@code FORK [WHERE content:"fox" ] [WHERE content:"dog"] }
  */
-public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAware, TelemetryAware, ExecutesOn.Coordinator {
+public final class Fork extends MergePlan implements TelemetryAware {
 
     public static final String FORK_FIELD = "_fork";
-    public static final int MAX_BRANCHES = 8;
 
     /**
-     * A {@link Fork} that branches the query: a user {@code FORK}, a subquery {@link UnionAll}, or a
-     * {@link ViewUnionAll}. Excludes {@link SourceFanInUnionAll}, which is a {@link Fork} subclass only because it
-     * reuses the n-ary shape: it is one resolved {@code FROM} expanded into its sources, not a branch of the query.
+     * A merge that branches the query: a user {@code FORK}, a subquery {@link UnionAll}, or a
+     * {@link ViewUnionAll}. Excludes {@link SourceFanInUnionAll}: that is one resolved {@code FROM}
+     * expanded into its sources, not a branch of the query.
      * <p>
-     * A {@link ViewUnionAll} is not user-written, but it does branch the query, so it counts here. Callers that want
-     * only what the user typed as {@code FORK}, such as {@code FeatureMetric.FORK}, exclude it separately.
+     * A {@link ViewUnionAll} is not user-written, but it does branch the query, so it counts here.
+     * Callers that want only what the user typed as {@code FORK}, such as {@code FeatureMetric.FORK},
+     * exclude it separately.
      */
     public static boolean isQueryBranchingFork(LogicalPlan plan) {
-        return plan instanceof Fork && plan instanceof SourceFanInUnionAll == false;
+        return plan instanceof MergePlan && plan instanceof SourceFanInUnionAll == false;
     }
 
     /**
-     * Every {@link Fork} in {@code plan} that branches the query, per {@link #isQueryBranchingFork}. Callers that
-     * count or reject forks want this rather than {@code plan.collect(Fork.class)}: a multi-source {@code FROM}
-     * expands to a {@link SourceFanInUnionAll}, which is a {@link Fork} subclass but is one resolved source, so
-     * counting it would charge a user a FORK they never asked for.
+     * Every {@link MergePlan} in {@code plan} that branches the query, per {@link #isQueryBranchingFork}.
+     * Callers that count or reject forks want this rather than {@code plan.collect(MergePlan.class)}:
+     * a multi-source {@code FROM} expands to a {@link SourceFanInUnionAll}, which is one resolved
+     * source, so counting it would charge a user a FORK they never asked for.
      */
-    public static List<Fork> collectQueryBranchingForks(LogicalPlan plan) {
-        List<Fork> forks = new ArrayList<>();
-        for (Fork fork : plan.collect(Fork.class)) {
-            if (isQueryBranchingFork(fork)) {
-                forks.add(fork);
+    public static List<MergePlan> collectQueryBranchingForks(LogicalPlan plan) {
+        List<MergePlan> forks = new ArrayList<>();
+        for (MergePlan merge : plan.collect(MergePlan.class)) {
+            if (isQueryBranchingFork(merge)) {
+                forks.add(merge);
             }
         }
         return forks;
     }
 
-    private final List<Attribute> output;
-
     public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
-        super(source, children);
-        this.output = output;
-    }
-
-    /**
-     * Branch-count predicate shared by {@link Fork}'s constructor and any caller that wants to fail
-     * earlier with a more user-facing message. Returns {@code true} if {@code count} would exceed the
-     * branch cap. Centralizes the comparison so the cap can move in one place.
-     */
-    public static boolean exceedsMaxBranches(int count) {
-        return count > MAX_BRANCHES;
+        super(source, children, output);
     }
 
     @Override
-    public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
-        return new Fork(source(), newChildren, output);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("not serialized");
-    }
-
-    @Override
-    public String getWriteableName() {
-        throw new UnsupportedOperationException("not serialized");
-    }
-
-    @Override
-    public boolean expressionsResolved() {
-        if (children().stream().allMatch(LogicalPlan::resolved) == false) {
-            return false;
-        }
-
-        if (children().stream()
-            .anyMatch(p -> p.outputSet().names().contains(Analyzer.NO_FIELDS_NAME) || output.size() != p.output().size())) {
-            return false;
-        }
-
-        // Here we check if all sub plans output the same column names.
-        // If they don't then FORK was not resolved.
-        List<String> firstOutputNames = children().getFirst().output().stream().map(Attribute::name).toList();
-        Holder<Boolean> resolved = new Holder<>(true);
-        children().stream().skip(1).forEach(subPlan -> {
-            List<String> names = subPlan.output().stream().map(Attribute::name).toList();
-            if (names.equals(firstOutputNames) == false) {
-                resolved.set(false);
-            }
-        });
-
-        return resolved.get();
+    public Fork replaceChildren(List<LogicalPlan> newChildren) {
+        return new Fork(source(), newChildren, output());
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Fork::new, children(), output);
+        return NodeInfo.create(this, Fork::new, children(), output());
     }
 
+    @Override
     public Fork replaceSubPlans(List<LogicalPlan> subPlans) {
-        return new Fork(source(), subPlans, output);
+        return new Fork(source(), subPlans, output());
     }
 
+    @Override
     public Fork replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
         return new Fork(source(), subPlans, output);
     }
 
+    @Override
     public Fork refreshOutput() {
         return new Fork(source(), children(), refreshedOutput());
     }
 
-    /**
-     * Drop branches whose root the {@code isEmpty} predicate considers empty. Each
-     * {@link Fork} subclass with structural invariants beyond the positional children list
-     * (notably {@link ViewUnionAll}, which carries a named-subqueries map) overrides this method
-     * to preserve those invariants.
-     * <p>
-     * Behaviour:
-     * <ul>
-     *   <li>nothing pruned → returns {@code this} (cheap no-op);</li>
-     *   <li>at least one branch pruned → returns {@code replaceChildren(survivors)} with the
-     *       remaining children — this includes the all-empty case, which produces a Fork (or
-     *       subclass) with zero children. The caller is expected either to short-circuit the
-     *       all-empty case before calling (e.g. {@code PruneEmptyForkBranches} replaces with
-     *       a {@code LocalRelation} when every branch reduces to empty) or to let the
-     *       analyzer's verifier surface the empty-Fork state via {@link #checkBranchCount}.</li>
-     * </ul>
-     * Single-survivor collapse semantics — a {@link UnionAll}/{@link ViewUnionAll} with one
-     * branch left is equivalent to that branch — are not part of this primitive; callers that
-     * want that collapse do it explicitly (see {@code ViewCompaction.stripViewShadowRelations}).
-     * A {@link Fork} with a single branch is still a {@link Fork} per FORK syntax.
-     */
-    public LogicalPlan pruneEmptyBranches(Predicate<LogicalPlan> isEmpty) {
-        List<LogicalPlan> kept = new ArrayList<>(children().size());
-        for (LogicalPlan child : children()) {
-            if (isEmpty.test(child) == false) {
-                kept.add(child);
-            }
-        }
-        if (kept.size() == children().size()) {
-            return this;
-        }
-        return replaceChildren(kept);
-    }
-
-    protected List<Attribute> refreshedOutput() {
-        return toReferenceAttributesPreservingIds(outputUnion(children()), this.output());
-    }
-
-    @Override
-    public List<Attribute> output() {
-        return output;
-    }
-
-    public static List<Attribute> outputUnion(List<LogicalPlan> subplans) {
-        List<Attribute> output = new ArrayList<>();
-        Set<String> names = new HashSet<>();
-        // these are attribute names we know should have an UNSUPPORTED data type in the FORK output
-        Set<String> unsupportedAttributesNames = outputUnsupportedAttributeNames(subplans);
-
-        for (var subPlan : subplans) {
-            for (var attr : subPlan.output()) {
-                // When we have multiple attributes with the same name, the ones that have a supported data type take priority.
-                // We only add an attribute with an unsupported data type if we know that in the output of the rest of the FORK branches
-                // there exists no attribute with the same name and with a supported data type.
-                if (attr.dataType() == DataType.UNSUPPORTED && unsupportedAttributesNames.contains(attr.name()) == false) {
-                    continue;
-                }
-
-                if (names.contains(attr.name()) == false && attr != NO_FIELDS.getFirst()) {
-                    names.add(attr.name());
-                    output.add(attr);
-                }
-            }
-        }
-        return output;
-    }
-
-    /**
-     * Returns a list of attribute names that will need to have the @{code UNSUPPORTED} data type in FORK output.
-     * These are attributes that are either {@code UNSUPPORTED} or missing in each FORK branch.
-     * If two branches have the same attribute name, but only in one of them the data type is {@code UNSUPPORTED}, this constitutes
-     * data type conflict, and so this attribute name will not be returned by this function.
-     * Data type conflicts are later on checked in {@code postAnalysisPlanVerification}.
-     */
-    public static Set<String> outputUnsupportedAttributeNames(List<LogicalPlan> subplans) {
-        Set<String> unsupportedAttributes = new HashSet<>();
-        Set<String> names = new HashSet<>();
-
-        for (var subPlan : subplans) {
-            for (var attr : subPlan.output()) {
-                var attrName = attr.name();
-                if (unsupportedAttributes.contains(attrName) == false
-                    && attr.dataType() == DataType.UNSUPPORTED
-                    && names.contains(attrName) == false) {
-                    unsupportedAttributes.add(attrName);
-                } else if (unsupportedAttributes.contains(attrName) && attr.dataType() != DataType.UNSUPPORTED) {
-                    unsupportedAttributes.remove(attrName);
-                }
-                names.add(attrName);
-            }
-        }
-
-        return unsupportedAttributes;
-    }
-
     @Override
     public int hashCode() {
-        return Objects.hash(Fork.class, output, children());
+        return Objects.hash(Fork.class, output(), children());
     }
 
     @Override
@@ -255,7 +103,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         }
         Fork other = (Fork) o;
 
-        return Objects.equals(output, other.output) && Objects.equals(children(), other.children());
+        return Objects.equals(output(), other.output()) && Objects.equals(children(), other.children());
     }
 
     @Override
@@ -263,60 +111,25 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         return Fork::checkFork;
     }
 
-    /**
-     * Branch-count bounds shared by all {@link Fork} subclasses (Fork, UnionAll, ViewUnionAll).
-     * Lives at post-analysis verification rather than the Fork constructor so that compaction
-     * passes (e.g. ViewCompaction) get a chance to reduce the count first. Called from both
-     * {@code Fork::checkFork} and {@code UnionAll::checkUnionAll} since each subclass dispatches
-     * to its own {@link #postAnalysisPlanVerification()} override.
-     * <p>
-     * The lower bound (≥ 1 branch) catches invalid plans where {@link #pruneEmptyBranches}
-     * removed every branch — e.g. a CCS subquery whose {@code IndexResolution} came back
-     * {@code EMPTY_SUBQUERY} for every sibling. The {@code PruneEmptyForkBranches} optimizer
-     * rule short-circuits this case to a {@code LocalRelation}; rules that don't (the analyzer's
-     * {@code PruneEmptyUnionAllBranch}, {@code ViewCompaction.stripViewShadowRelations}) rely on
-     * this check to surface the bad state with a clear message rather than letting an empty
-     * {@code Fork}/{@code UnionAll} propagate silently.
-     * <p>
-     * A {@link SourceFanInUnionAll} is one resolved {@code FROM} (many dataset and index
-     * producers, the same shape as one {@code EsRelation} with many concrete indices). It
-     * counts as a single FORK branch, so its children are bounded by
-     * {@link SourceFanInUnionAll#MAX_PRODUCERS} rather than by the user-FORK cap.
-     */
-    static void checkBranchCount(LogicalPlan plan, Failures failures) {
-        if (plan instanceof Fork fork) {
-            int size = fork.children().size();
-            if (size == 0) {
-                failures.add(Failure.fail(fork, "{} requires at least one branch", fork.getClass().getSimpleName()));
-            } else if (fork instanceof SourceFanInUnionAll fanIn && fanIn.isProvisional() == false) {
-                if (SourceFanInUnionAll.exceedsMaxProducers(size)) {
-                    failures.add(Failure.fail(fork, "FROM supports up to {} sources, got: {}", SourceFanInUnionAll.MAX_PRODUCERS, size));
-                }
-            } else if (exceedsMaxBranches(size)) {
-                failures.add(Failure.fail(fork, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, size));
-            }
-        }
-    }
-
     private static void checkFork(LogicalPlan plan, Failures failures) {
         checkBranchCount(plan, failures);
-        if (plan instanceof Fork == false || plan instanceof UnionAll) {
+        if (plan instanceof Fork == false) {
             return;
         }
         Fork fork = (Fork) plan;
 
-        forEachForkSkippingSubqueries(fork, otherFork -> {
-            if (otherFork == fork) {
+        forEachMergePlanSkippingSubqueries(fork, other -> {
+            if (other == fork) {
                 return;
             }
-            if (otherFork instanceof SourceFanInUnionAll) {
+            if (other instanceof SourceFanInUnionAll) {
                 return;
             }
 
             failures.add(
                 Failure.fail(
-                    otherFork,
-                    otherFork instanceof UnionAll
+                    other,
+                    other instanceof UnionAll
                         ? "FORK after subquery is not supported"
                         : "Only a single FORK command is supported, but found multiple"
                 )
@@ -350,21 +163,5 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
                 }
             }
         });
-    }
-
-    /**
-     * Traverses the plan tree downward, invoking {@code action} for each {@link Fork} encountered,
-     * but does not descend into the right-hand side (subquery plan) of an {@link AbstractSubqueryJoin}.
-     * The right side is a separate query scope; a FORK inside it is independent of any FORK in the
-     * enclosing query.
-     */
-    static void forEachForkSkippingSubqueries(LogicalPlan plan, Consumer<Fork> action) {
-        if (plan instanceof Fork fork) {
-            action.accept(fork);
-        }
-        List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin join ? List.of(join.left()) : plan.children();
-        for (LogicalPlan child : children) {
-            forEachForkSkippingSubqueries(child, action);
-        }
     }
 }

@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all, optional_fields_load_all_skips_valueless_fields ]
+          capabilities: [ optional_fields_load_all_v2 ]
       reason: "under SET unmapped_fields=\"load_all\", a source field that is null, [] or [null] everywhere expands into no column"
 
   # dynamic:false keeps every field but id unmapped no matter what the documents write to it, so those are only ever discoverable
@@ -109,6 +109,119 @@ setup:
           - { "index": { } }
           - { "id": "2", "tags": [ "web", "api" ] }
 
+  - do:
+      indices.create:
+        index: nully-valueless-synthetic
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      bulk:
+        index: nully-valueless-synthetic
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": "1", "specific_unmapped_field": null }
+          - { "index": { } }
+          - { "id": "2", "specific_unmapped_field": [ ] }
+          - { "index": { } }
+          - { "id": "3", "specific_unmapped_field": [ null ] }
+          - { "index": { } }
+          - { "id": "4" }
+
+  - do:
+      indices.create:
+        index: nully-valueless-mixed-synthetic
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      bulk:
+        index: nully-valueless-mixed-synthetic
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": "1", "specific_unmapped_field": null }
+          - { "index": { } }
+          - { "id": "2", "specific_unmapped_field": [ ] }
+          - { "index": { } }
+          - { "id": "3", "specific_unmapped_field": [ null ] }
+          - { "index": { } }
+          - { "id": "4" }
+          - { "index": { } }
+          - { "id": "5", "specific_unmapped_field": "present" }
+
+  - do:
+      indices.create:
+        index: nully-nested-synthetic
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      bulk:
+        index: nully-nested-synthetic
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": "1", "nully_array_of_objects": [ { "foo": null }, { "bar": [ ] } ] }
+          - { "index": { } }
+          - { "id": "2", "nully_object": { "baz": [ null ], "inga": { } } }
+          - { "index": { } }
+          - { "id": "3", "object_with_a_value": { "baz": "world" } }
+
+  - do:
+      indices.create:
+        index: nully-drop-null-cols
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      bulk:
+        index: nully-drop-null-cols
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": "1", "nully_field": null }
+          - { "index": { } }
+          - { "id": "2", "nully_field": [ ] }
+          - { "index": { } }
+          - { "id": "3", "nully_field": [ null ] }
+          - { "index": { } }
+          - { "id": "4" }
+          - { "index": { } }
+          - { "id": "5", "real_field": "value" }
+
 ---
 'valueless unmapped field expands into no column':
   - do:
@@ -182,13 +295,11 @@ setup:
   # Only the object that has something in it earns a column.
   - length: { columns: 2 }
   - match: { columns.0.name: id }
-  - match: { columns.1.name: object_with_a_value }
+  - match: { columns.1.name: object_with_a_value.baz }
   - match: { columns.1.type: keyword }
   - match: { values.0: [ "1", null ] }
   - match: { values.1: [ "2", null ] }
-  # An object renders as a stringified Java map rather than as JSON today. That is the objectsGap in unmapped-load-all.csv-spec,
-  # tracked in https://github.com/elastic/elasticsearch/issues/156320; expect this expectation to change with it.
-  - match: { values.2: [ "3", "{baz=world}" ] }
+  - match: { values.2: [ "3", "world" ] }
 
 ---
 'nulls are stripped from an array that is kept':
@@ -200,8 +311,81 @@ setup:
           query: 'SET unmapped_fields="load_all"; FROM load-all-array-nulls | SORT id'
   - length: { columns: 2 }
   - match: { columns.1.name: tags }
-  # An array still renders as one stringified keyword rather than a multi-value - that is the arraysGap in unmapped-load-all.csv-spec,
-  # tracked in https://github.com/elastic/elasticsearch/issues/156320; expect these expectations to change with it.
-  # The point here is that the nulls document 1 wrote are gone, so it reads exactly as if it had never carried them.
-  - match: { values.0: [ "1", "[web]" ] }
-  - match: { values.1: [ "2", "[web, api]" ] }
+  - match: { values.0: [ "1", "web" ] }
+  - match: { values.1: [ "2", ["web", "api"] ] }
+
+---
+'nully valueless field under synthetic source expands into no column':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM nully-valueless-synthetic | SORT id | LIMIT 10'
+  - length: { columns: 1 }
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: keyword }
+  - length: { values: 4 }
+
+---
+'nully documents are null in a column another synthetic-source document fills':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM nully-valueless-mixed-synthetic | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: specific_unmapped_field }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "1", null ] }
+  - match: { values.1: [ "2", null ] }
+  - match: { values.2: [ "3", null ] }
+  - match: { values.3: [ "4", null ] }
+  - match: { values.4: [ "5", "present" ] }
+
+---
+'nully objects under synthetic source expand into no column':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM nully-nested-synthetic | SORT id | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: object_with_a_value.baz }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "1", null ] }
+  - match: { values.1: [ "2", null ] }
+  - match: { values.2: [ "3", "world" ] }
+
+---
+'drop_null_columns false does not surface LOAD_ALL suppressed nully field':
+  - do:
+      esql.query:
+        drop_null_columns: false
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM nully-drop-null-cols | SORT id | LIMIT 10'
+  # Only id and real_field appear; nully_field is absent because LOAD_ALL suppressed it.
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: real_field }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "1", null ] }
+  - match: { values.1: [ "2", null ] }
+  - match: { values.2: [ "3", null ] }
+  - match: { values.3: [ "4", null ] }
+  - match: { values.4: [ "5", "value" ] }
+
+---
+'drop_null_columns true shows LOAD_ALL suppressed nully field absent from all_columns':
+  - do:
+      esql.query:
+        drop_null_columns: true
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM nully-drop-null-cols | SORT id | LIMIT 10'
+  # all_columns: every column the query produced — id and real_field only; nully_field was never produced.
+  - length: { all_columns: 2 }
+  - match: { all_columns.0.name: id }
+  - match: { all_columns.1.name: real_field }
+  # columns: subset with at least one non-null value — both id and real_field qualify (real_field has "value" in doc 5).
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: real_field }
+  - match: { values.4: [ "5", "value" ] }

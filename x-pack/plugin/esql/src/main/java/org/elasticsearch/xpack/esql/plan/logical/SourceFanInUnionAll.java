@@ -34,19 +34,19 @@ public class SourceFanInUnionAll extends UnionAll {
 
     /**
      * Cap on the number of source producers one resolved {@code FROM} may expand to. Distinct from
-     * {@link Fork#MAX_BRANCHES}, which bounds the branches of a user-written {@code FORK}: those are
+     * {@link MergePlan#MAX_BRANCHES}, which bounds the branches of a user-written {@code FORK}: those are
      * independent query pipelines, while these are the sources of a single {@code FROM}, closer to the
      * concrete indices behind one {@code EsRelation}. Enforced twice: {@code DatasetRewriter} rejects an
      * over-cap expansion before pre-analysis so field-caps never walks the extra leaves, and
-     * {@link Fork#checkBranchCount} catches any tree that reaches post-analysis over the cap, including one
+     * {@link MergePlan#checkBranchCount} catches any tree that reaches post-analysis over the cap, including one
      * assembled by flattening.
      * <p>
      * The bound is per resolved {@code FROM}, not per plan, and two things sit outside the pre-analysis half
      * of it. Cross-project shadows are appended after the rewrite-time check, so a shadow that matches a
-     * remote namesake becomes a real producer that only {@link Fork#checkBranchCount} counts; a {@code FROM}
+     * remote namesake becomes a real producer that only {@link MergePlan#checkBranchCount} counts; a {@code FROM}
      * naming more than half the cap in exact dataset names can therefore be rejected post-analysis for a
      * count the user did not write. And a user {@code FORK} copies the pipeline into every branch, so each
-     * branch carries its own fan-in: the plan-wide producer count reaches {@link Fork#MAX_BRANCHES} times
+     * branch carries its own fan-in: the plan-wide producer count reaches {@link MergePlan#MAX_BRANCHES} times
      * this number, and the per-source costs below are paid that many times. Peak concurrency is unaffected,
      * since one throttle is shared across the whole session.
      * <p>

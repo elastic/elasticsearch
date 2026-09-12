@@ -73,10 +73,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
  * </ul>
  * The lenient field-caps integration that populates the resolution map in production
  * ({@code EsqlSession.preAnalyzeLinkedIndices}) is shared with view shadows and exercised elsewhere;
- * the "remote dataset/view of the same name FAILS" leg is the detection rail
+ * the "remote view of the same name FAILS" leg is the detection rail
  * ({@code EsqlResolveFieldsAction} / {@code EsqlCCSUtils.checkForRemoteResourceErrors}) covered by
  * {@code EsqlCCSUtilsTests} — it fires at field-caps time, before this analyzer rule runs, so it is not
- * reachable through the analyzer-only path these tests drive.
+ * reachable through the analyzer-only path these tests drive. A remote dataset of the same name is invisible
+ * and produces no leg at all.
  * <p>
  * Each test calls {@link #assertWarnings(String...)} to acknowledge the "No limit defined" warning that
  * {@code AddImplicitLimit} adds since the test inputs are bare relations.

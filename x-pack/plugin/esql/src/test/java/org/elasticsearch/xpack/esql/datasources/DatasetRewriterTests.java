@@ -567,8 +567,9 @@ public class DatasetRewriterTests extends ESTestCase {
     public void testHeterogeneousFromUnderCpsEmitsShadowForDataset() {
         // A heterogeneous FROM (local index + local dataset) under CPS must run the same
         // non-remotable-abstraction rail as a dataset-only FROM. The dataset's exact name gets a DatasetShadowRelation
-        // so a remote index of the same name reads both and a remote dataset/view of the same name fails. Before the
-        // unification the heterogeneous path returned before the CPS rail, silently skipping the dataset's remote check.
+        // so a remote index of the same name reads both, a remote view of the same name fails, and a remote dataset of
+        // the same name is invisible. Before the unification the heterogeneous path returned before the CPS rail,
+        // silently skipping the dataset's remote half.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_dataset", ds), Set.of("some_idx"));
@@ -730,7 +731,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
     public void testWildcardOverFanInCapRejectsWithUserFacingMessage() {
         // The user typed FROM <pattern>, not FORK, so the message references the pattern and the
-        // per-FROM source cap rather than Fork's internal name.
+        // per-FROM source cap rather than MergePlan's internal name.
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
         for (int i = 0; i <= SourceFanInUnionAll.MAX_PRODUCERS; i++) {

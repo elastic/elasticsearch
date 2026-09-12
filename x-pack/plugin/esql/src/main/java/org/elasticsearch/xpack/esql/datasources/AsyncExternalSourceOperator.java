@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -19,6 +20,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -57,6 +59,17 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     /** Low-cardinality storage scheme dimension for this scan's histograms; {@code null} when unknown (connector path). */
     private final String scheme;
     /**
+     * Format name from the resolved {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader#formatName()};
+     * {@code null} on the connector path, folded to {@code unresolved} by the metrics holder.
+     */
+    private final String format;
+    /**
+     * Factory hold released from {@link #close()} so a producer that finishes during pipeline
+     * construction cannot drop the last {@code operatorRefCount} before later {@code get()} calls.
+     * No-op when this operator was not created by {@link AsyncExternalSourceOperatorFactory}.
+     */
+    private final Releasable onOperatorClose;
+    /**
      * Reference point for the time-to-first-row measurement, captured when this SCAN OPERATOR is constructed
      * (per driver, after planning and discovery) — NOT at query start. The measurement is therefore a per-scan
      * proxy: a query with several external-source scans records one observation per scan.
@@ -68,19 +81,33 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     private long processNanos;
 
     public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
-        this(buffer, driverContext, ExternalSourceMetrics.NOOP, null);
+        this(buffer, driverContext, ExternalSourceMetrics.NOOP, null, null);
     }
 
     public AsyncExternalSourceOperator(
         AsyncExternalSourceBuffer buffer,
         DriverContext driverContext,
         ExternalSourceMetrics externalSourceMetrics,
-        String scheme
+        String scheme,
+        String format
+    ) {
+        this(buffer, driverContext, externalSourceMetrics, scheme, format, () -> {});
+    }
+
+    public AsyncExternalSourceOperator(
+        AsyncExternalSourceBuffer buffer,
+        DriverContext driverContext,
+        ExternalSourceMetrics externalSourceMetrics,
+        String scheme,
+        String format,
+        Releasable onOperatorClose
     ) {
         this.buffer = Objects.requireNonNull(buffer, "buffer");
         this.driverContext = Objects.requireNonNull(driverContext, "driverContext");
         this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
         this.scheme = scheme;
+        this.format = format;
+        this.onOperatorClose = onOperatorClose == null ? () -> {} : onOperatorClose;
     }
 
     @Override
@@ -91,7 +118,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             if (page != null) {
                 if (pagesEmitted == 0) {
                     // First page delivered: record time-to-first-row once. The record method self-guards (best-effort).
-                    externalSourceMetrics.recordTimeToFirstRow((startNanos - operatorStartNanos) / 1_000_000, scheme);
+                    externalSourceMetrics.recordTimeToFirstRow((startNanos - operatorStartNanos) / 1_000_000, scheme, format);
                 }
                 pagesEmitted++;
                 rowsEmitted += page.getPositionCount();
@@ -142,9 +169,13 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public void close() {
-        emitPendingWarnings();
-        recordParseAndSplits();
-        finish();
+        try {
+            emitPendingWarnings();
+            driverContext.waitForAsyncActions(ActionListener.running(this::recordParseAndSplits));
+            finish();
+        } finally {
+            onOperatorClose.close();
+        }
     }
 
     /**
@@ -164,11 +195,14 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         if (rowsEmitted == 0 && splitsProcessed == 0) {
             return;
         }
-        FormatReaderStatus formatReaderStatus = buffer.formatReaderStatus();
-        long readNanos = formatReaderStatus == null ? 0L : formatReaderStatus.readNanos();
-        // Both record methods self-guard (best-effort): an instrumentation failure cannot break teardown.
-        externalSourceMetrics.recordParse(rowsEmitted, TimeUnit.NANOSECONDS.toMillis(readNanos), scheme);
-        externalSourceMetrics.recordSplitsScanned(splitsProcessed, scheme);
+        externalSourceMetrics.recordParse(
+            rowsEmitted,
+            TimeUnit.NANOSECONDS.toMillis(buffer.readCounters().readNanos()),
+            TimeUnit.NANOSECONDS.toMillis(buffer.readCounters().readCpuNanos()),
+            scheme,
+            format
+        );
+        externalSourceMetrics.recordSplitsScanned(splitsProcessed, scheme, format);
     }
 
     /**
@@ -199,10 +233,6 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public Status status() {
-        FormatReaderStatus formatReaderStatus = buffer.formatReaderStatus();
-        // Lift format-reader read_nanos and read_cpu_nanos to the operator top level for rollup.
-        long readNanos = formatReaderStatus == null ? 0L : formatReaderStatus.readNanos();
-        long readCpuNanos = formatReaderStatus == null ? 0L : formatReaderStatus.readCpuNanos();
         return new Status(
             buffer.size(),
             pagesEmitted,
@@ -214,9 +244,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             buffer.splitsTotal(),
             buffer.currentSplit(),
             buffer.bytesRead(),
-            readNanos,
-            readCpuNanos,
-            formatReaderStatus,
+            buffer.readCounters(),
+            buffer.formatReaderStatus(),
             buffer.capturedSourceMetadataSnapshot(),
             buffer.isPartial()
         );
@@ -249,8 +278,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         private final int splitsTotal;
         private final int currentSplit;
         private final long bytesRead;
-        private final long readNanos;
-        private final long readCpuNanos;
+        private final ExternalReadCounters readCounters;
         private final FormatReaderStatus formatReader;
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata;
         private final boolean partial;
@@ -266,8 +294,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             int splitsTotal,
             int currentSplit,
             long bytesRead,
-            long readNanos,
-            long readCpuNanos,
+            ExternalReadCounters readCounters,
             FormatReaderStatus formatReader,
             Map<String, List<Map<String, Object>>> capturedSourceMetadata,
             boolean partial
@@ -282,8 +309,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             this.splitsTotal = splitsTotal;
             this.currentSplit = currentSplit;
             this.bytesRead = bytesRead;
-            this.readNanos = readNanos;
-            this.readCpuNanos = readCpuNanos;
+            this.readCounters = readCounters;
             this.formatReader = formatReader;
             this.capturedSourceMetadata = capturedSourceMetadata == null ? Map.of() : capturedSourceMetadata;
             this.partial = partial;
@@ -295,6 +321,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             rowsEmitted = in.readVLong();
             bytesBuffered = in.getTransportVersion().supports(ESQL_ASYNC_SOURCE_BYTES_BUFFERED) ? in.readVLong() : 0;
             failure = in.readException();
+            long readNanos;
+            long readCpuNanos;
             if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
                 processNanos = in.readVLong();
                 splitsProcessed = in.readVInt();
@@ -313,6 +341,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 formatReader = null;
             }
             readCpuNanos = in.getTransportVersion().supports(ESQL_READ_CPU_NANOS) ? in.readVLong() : 0L;
+            readCounters = ExternalReadCounters.fromCounters(readNanos, readCpuNanos);
             if (in.getTransportVersion().supports(ESQL_CAPTURED_SOURCE_METADATA)) {
                 int n = in.readVInt();
                 if (n == 0) {
@@ -351,11 +380,11 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 out.writeVInt(splitsTotal);
                 out.writeVInt(currentSplit);
                 out.writeVLong(bytesRead);
-                out.writeVLong(readNanos);
+                out.writeVLong(readCounters.readNanos());
                 out.writeOptionalNamedWriteable(formatReader);
             }
             if (out.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
-                out.writeVLong(readCpuNanos);
+                out.writeVLong(readCounters.readCpuNanos());
             }
             if (out.getTransportVersion().supports(ESQL_CAPTURED_SOURCE_METADATA)) {
                 out.writeVInt(capturedSourceMetadata.size());
@@ -461,14 +490,18 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             return bytesRead;
         }
 
+        public ExternalReadCounters readCounters() {
+            return readCounters;
+        }
+
         @Override
         public long readNanos() {
-            return readNanos;
+            return readCounters.readNanos();
         }
 
         @Override
         public long readCpuNanos() {
-            return readCpuNanos;
+            return readCounters.readCpuNanos();
         }
 
         public FormatReaderStatus formatReader() {
@@ -498,8 +531,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             builder.field("splits_total", splitsTotal);
             builder.field("current_split", currentSplit);
             builder.field("bytes_read", bytesRead);
-            builder.field("read_nanos", readNanos);
-            builder.field("read_cpu_nanos", readCpuNanos);
+            builder.field("read_nanos", readCounters.readNanos());
+            builder.field("read_cpu_nanos", readCounters.readCpuNanos());
             builder.field("stripes_committed", stripesCommitted());
             builder.field("partial", partial);
             builder.startObject("format_reader");
@@ -533,8 +566,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 && splitsTotal == status.splitsTotal
                 && currentSplit == status.currentSplit
                 && bytesRead == status.bytesRead
-                && readNanos == status.readNanos
-                && readCpuNanos == status.readCpuNanos
+                && readNanos() == status.readNanos()
+                && readCpuNanos() == status.readCpuNanos()
                 && partial == status.partial
                 && Objects.equals(formatReader, status.formatReader)
                 && Objects.equals(thisFailureMsg, otherFailureMsg)
@@ -554,8 +587,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 splitsTotal,
                 currentSplit,
                 bytesRead,
-                readNanos,
-                readCpuNanos,
+                readCounters.readNanos(),
+                readCounters.readCpuNanos(),
                 formatReader,
                 capturedSourceMetadata,
                 partial

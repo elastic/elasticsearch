@@ -124,12 +124,12 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         assertThat(overCapFailures.toString(), containsString("FROM supports up to " + SourceFanInUnionAll.MAX_PRODUCERS + " sources"));
         assertThat(overCapFailures.toString(), containsString("got: " + (SourceFanInUnionAll.MAX_PRODUCERS + 1)));
 
-        UnionAll union = new UnionAll(Source.EMPTY, relations(Fork.MAX_BRANCHES + 1), List.of());
+        UnionAll union = new UnionAll(Source.EMPTY, relations(MergePlan.MAX_BRANCHES + 1), List.of());
         Failures unionFailures = new Failures();
         union.postAnalysisPlanVerification().accept(union, unionFailures);
         assertTrue(unionFailures.hasFailures());
-        assertThat(unionFailures.toString(), containsString("FORK supports up to " + Fork.MAX_BRANCHES + " branches"));
-        assertThat(unionFailures.toString(), containsString("got: " + (Fork.MAX_BRANCHES + 1)));
+        assertThat(unionFailures.toString(), containsString("FORK supports up to " + MergePlan.MAX_BRANCHES + " branches"));
+        assertThat(unionFailures.toString(), containsString("got: " + (MergePlan.MAX_BRANCHES + 1)));
     }
 
     public void testFanInIsBoundedByItsOwnProducerCap() {

@@ -23,7 +23,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class UnionAll extends Fork implements PostOptimizationPlanVerificationAware {
+public class UnionAll extends MergePlan implements PostOptimizationPlanVerificationAware {
 
     /**
      * Builds a relational union. A mixed dataset+index {@code FROM} uses {@link SourceFanInUnionAll}.
@@ -58,7 +58,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
     }
 
     /**
-     * Override of {@link Fork#pruneEmptyBranches(Predicate)} that returns a {@link UnionAll}
+     * Override of {@link MergePlan#pruneEmptyBranches(Predicate)} that returns a {@link UnionAll}
      * (rather than letting the base implementation produce whatever {@link #replaceChildren}
      * would). Mirrors the base behaviour otherwise: single-survivor wrappers are preserved
      * (callers that want to collapse to the lone child do so explicitly).
@@ -101,7 +101,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
     }
 
     private static void checkUnionAll(LogicalPlan plan, Failures failures) {
-        Fork.checkBranchCount(plan, failures);
+        checkBranchCount(plan, failures);
         // Check that all UnionAll branches have compatible data types for each column
         if (plan instanceof UnionAll unionAll) {
             Map<String, DataType> outputTypes = unionAll.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
@@ -144,7 +144,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
      */
     private static void checkNestedUnionAlls(LogicalPlan logicalPlan, Failures failures) {
         if (logicalPlan instanceof UnionAll unionAll) {
-            Fork.forEachForkSkippingSubqueries(unionAll, nested -> {
+            forEachMergePlanSkippingSubqueries(unionAll, nested -> {
                 if (unionAll == nested) {
                     return;
                 }

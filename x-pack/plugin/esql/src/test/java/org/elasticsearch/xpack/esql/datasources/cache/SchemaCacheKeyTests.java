@@ -62,6 +62,23 @@ public class SchemaCacheKeyTests extends ESTestCase {
         assertNotEquals(strict, lenient);
     }
 
+    public void testDatasetAggregateKeyChangesWithFileSortByAndFileOrder() {
+        FileSetFingerprint fingerprint = new FileSetFingerprint(11, 22);
+        SchemaCacheKey listDefault = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            fingerprint,
+            "ndjson",
+            Map.of("schema_resolution", "first_file_wins")
+        );
+        SchemaCacheKey mtimeDesc = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            fingerprint,
+            "ndjson",
+            Map.of("schema_resolution", "first_file_wins", "file_sort_by", "mtime", "file_order", "desc")
+        );
+        assertNotEquals(listDefault, mtimeDesc);
+    }
+
     public void testDatasetAggregateKeyIgnoresCredentials() {
         // Mirrors buildFormatConfig: credentials are not row-interpretation-affecting, so two users
         // over the same files share the aggregate (the schema cache is shared by design).
@@ -84,6 +101,20 @@ public class SchemaCacheKeyTests extends ESTestCase {
         SchemaCacheKey ndjson = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", Map.of());
         SchemaCacheKey csv = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "csv", Map.of());
         assertNotEquals(ndjson, csv);
+    }
+
+    /**
+     * {@code hive_partitioning} is a deprecated no-op and must NOT discriminate the schema cache. Two configs
+     * differing only in this key must produce the same {@code buildFormatConfig} string, so they share one cache
+     * entry rather than fragmenting it unnecessarily. This pin catches a regression where the key is re-added to
+     * {@code FORMAT_AFFECTING_PARAMS}.
+     */
+    public void testHivePartitioningDoesNotAffectCacheKey() {
+        FileSetFingerprint fingerprint = new FileSetFingerprint(11, 22);
+        SchemaCacheKey withKey = SchemaCacheKey.forDatasetAggregate(PATTERN, fingerprint, "ndjson", Map.of("hive_partitioning", "false"));
+        SchemaCacheKey withoutKey = SchemaCacheKey.forDatasetAggregate(PATTERN, fingerprint, "ndjson", Map.of());
+        assertEquals(withKey, withoutKey);
+        assertEquals(SchemaCacheKey.buildFormatConfig(Map.of("hive_partitioning", "false")), SchemaCacheKey.buildFormatConfig(Map.of()));
     }
 
     public void testDatasetAggregateKeyDistinctFromPerFileKeys() {

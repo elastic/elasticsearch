@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
@@ -325,18 +326,18 @@ public class ApproximationPlan {
 
         Double confidenceLevel = settings.confidenceLevel();
 
-        // Collect all plans inside FORK branches that cannot be approximated
+        // Collect all plans inside merge branches that cannot be approximated
         // (as indicated by: queryProperties.forkBranchProperties[i] == null).
         // When rewriting the query, don't rewrite any such plans.
         Set<LogicalPlan> plansInNonApproximableForkBranch = new HashSet<>();
         if (queryProperties.forkBranchProperties() != null) {
-            List<Fork> forks = Fork.collectQueryBranchingForks(logicalPlan);
-            assert forks.size() == 1;
-            Fork fork = forks.getFirst();
-            assert fork.children().size() == queryProperties.forkBranchProperties().size();
-            for (int i = 0; i < fork.children().size(); i++) {
+            List<MergePlan> mergePlans = Fork.collectQueryBranchingForks(logicalPlan);
+            assert mergePlans.size() == 1;
+            MergePlan mergePlan = mergePlans.getFirst();
+            assert mergePlan.children().size() == queryProperties.forkBranchProperties().size();
+            for (int i = 0; i < mergePlan.children().size(); i++) {
                 if (queryProperties.forkBranchProperties().get(i) == null) {
-                    fork.children().get(i).forEachDown(plansInNonApproximableForkBranch::add);
+                    mergePlan.children().get(i).forEachDown(plansInNonApproximableForkBranch::add);
                 }
             }
         }
@@ -642,7 +643,7 @@ public class ApproximationPlan {
             case Eval eval -> evalIncludingBuckets(eval, fieldBuckets, notRoundedExpressions);
             case Project project -> projectIncludingBuckets(project, fieldBuckets, notRoundedExpressions);
             case MvExpand mvExpand -> mvExpandIncludingBuckets(mvExpand, fieldBuckets);
-            case Fork fork -> forkIncludingBuckets(fork, fieldBuckets);
+            case MergePlan mergePlan -> mergePlanIncludingBuckets(mergePlan, fieldBuckets);
             default -> plan;
         };
     }
@@ -792,20 +793,20 @@ public class ApproximationPlan {
     }
 
     /**
-     * For FORK, if branches output fields with buckets, these buckets must be
-     * added to the (merged) fork as well. Furthermore, if other fork branches
+     * For a {@link MergePlan}, if branches output fields with buckets, these buckets must be
+     * added to the merge output as well. Furthermore, if other branches
      * don't contain the buckets, they must be added in it too with null value.
      */
-    private static LogicalPlan forkIncludingBuckets(Fork fork, Map<NameId, List<Attribute>> fieldBuckets) {
+    private static LogicalPlan mergePlanIncludingBuckets(MergePlan mergePlan, Map<NameId, List<Attribute>> fieldBuckets) {
         if (fieldBuckets == null) {
-            return fork;
+            return mergePlan;
         }
 
-        // Check whether the fork output fields have bucket in any branch.
-        // If so, add them to the fork output as well.
+        // Check whether the merge output fields have buckets in any branch.
+        // If so, add them to the merge output as well.
         List<Attribute> output = null;
-        for (Attribute attribute : fork.output()) {
-            children: for (LogicalPlan child : fork.children()) {
+        for (Attribute attribute : mergePlan.output()) {
+            children: for (LogicalPlan child : mergePlan.children()) {
                 for (Attribute childAttribute : child.output()) {
                     if (childAttribute.name().equals(attribute.name()) && fieldBuckets.containsKey(childAttribute.id())) {
                         List<Attribute> buckets = new ArrayList<>();
@@ -813,7 +814,7 @@ public class ApproximationPlan {
                             buckets.add(new ReferenceAttribute(Source.EMPTY, bucket.qualifier(), bucket.name(), bucket.dataType()));
                         }
                         if (output == null) {
-                            output = new ArrayList<>(fork.output());
+                            output = new ArrayList<>(mergePlan.output());
                         }
                         fieldBuckets.put(attribute.id(), buckets);
                         output.addAll(buckets);
@@ -823,15 +824,15 @@ public class ApproximationPlan {
             }
         }
 
-        // If there are no fields with buckets, return the original fork.
+        // If there are no fields with buckets, return the original union.
         if (output == null) {
-            return fork;
+            return mergePlan;
         }
 
-        // For each attribute in the fork output, if it's not present in the
+        // For each attribute in the merge output, if it's not present in the
         // output of a branch, add it.
         List<LogicalPlan> children = new ArrayList<>();
-        for (LogicalPlan child : fork.children()) {
+        for (LogicalPlan child : mergePlan.children()) {
             Map<String, Attribute> childAttributes = child.output()
                 .stream()
                 .collect(Collectors.toMap(Attribute::name, Function.identity()));
@@ -859,7 +860,7 @@ public class ApproximationPlan {
             children.add(new Project(Source.EMPTY, child, projections));
         }
 
-        return new Fork(fork.source(), children, output);
+        return mergePlan.replaceSubPlansAndOutput(children, output);
     }
 
     /**
@@ -1004,11 +1005,11 @@ public class ApproximationPlan {
      * (non-sampled) aggregate value in that fork branch.
      */
     public static LogicalPlan substituteSampleProbabilityInForkBranch(LogicalPlan logicalPlan, double sampleProbability, int branchIndex) {
-        logicalPlan = logicalPlan.transformUp(Fork.class, fork -> {
-            if (Fork.isQueryBranchingFork(fork) == false) {
-                return fork;
+        logicalPlan = logicalPlan.transformUp(MergePlan.class, mergePlan -> {
+            if (Fork.isQueryBranchingFork(mergePlan) == false) {
+                return mergePlan;
             }
-            List<LogicalPlan> children = new ArrayList<>(fork.children());
+            List<LogicalPlan> children = new ArrayList<>(mergePlan.children());
             assert branchIndex >= 0 && branchIndex < children.size();
 
             LogicalPlan child = children.get(branchIndex);
@@ -1021,7 +1022,7 @@ public class ApproximationPlan {
             }
 
             children.set(branchIndex, child);
-            return fork.replaceSubPlans(children).refreshOutput();
+            return mergePlan.replaceSubPlans(children).refreshOutput();
         });
         logicalPlan = new PruneColumns().apply(logicalPlan);
         logicalPlan.setOptimized();

@@ -398,10 +398,6 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
                     parquetStatus.rowGroupsInFile(),
                     greaterThanOrEqualTo(1L)
                 );
-                // read_nanos is wall-time and can read as zero on fast / containerized CI runners
-                // (sub-microsecond synchronous reads + low-resolution clocks). Assert non-negative
-                // rather than a strict positive — the deterministic shape signal lives in row_groups_in_file.
-                assertThat("read_nanos must be non-negative", parquetStatus.readNanos(), greaterThanOrEqualTo(0L));
                 assertThat(
                     "split discovery time should be metered",
                     response.getExecutionInfo().queryProfile().splitDiscoveryNanos(),

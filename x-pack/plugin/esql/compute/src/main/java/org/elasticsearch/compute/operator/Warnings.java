@@ -20,6 +20,11 @@ public class Warnings {
         public void registerException(Exception exception) {
             // this space intentionally left blank
         }
+
+        @Override
+        public void registerException(Class<? extends Exception> exceptionClass, String message) {
+            // this space intentionally left blank
+        }
     };
 
     /**

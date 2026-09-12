@@ -87,6 +87,12 @@ public class WarningsTests extends ESTestCase {
         );
     }
 
+    public void testNoopWarningsRegisterExceptionDoesNotThrow() {
+        // NOOP_WARNINGS has a null driverContext; both overloads must be no-ops, not NPE.
+        Warnings.NOOP_WARNINGS.registerException(new IllegalArgumentException("boom"));
+        Warnings.NOOP_WARNINGS.registerException(IllegalArgumentException.class, "boom");
+    }
+
     private static List<String> collected(DriverContext dc) {
         dc.finish();
         return dc.warnings();

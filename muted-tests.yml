@@ -85,6 +85,34 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.esnative.ReservedRealmIntegTests
   method: testChangingPassword
   issue: https://github.com/elastic/elasticsearch/issues/159018
+- class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
+  method: testAutoFollowing
+  issue: https://github.com/elastic/elasticsearch/issues/159085
+- class: org.elasticsearch.client.RestClientSingleHostIntegTests
+  method: testRequestResetAndAbort
+  issue: https://github.com/elastic/elasticsearch/issues/156177
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Explain data frame analytics}
+  issue: https://github.com/elastic/elasticsearch/issues/157943
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
+  issue: https://github.com/elastic/elasticsearch/issues/157941
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
+  issue: https://github.com/elastic/elasticsearch/issues/157942
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQuery
+  issue: https://github.com/elastic/elasticsearch/issues/159131
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryLocal
+  issue: https://github.com/elastic/elasticsearch/issues/159132
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueriesWithInvalidLicenseIT
+  issue: https://github.com/elastic/elasticsearch/issues/159133
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testFailToStartRequestOnRemoteCluster
+  issue: https://github.com/elastic/elasticsearch/issues/159134
+- class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
+  issue: https://github.com/elastic/elasticsearch/issues/159136
 
 # Examples:
 #

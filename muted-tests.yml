@@ -722,3 +722,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/159143
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
   issue: https://github.com/elastic/elasticsearch/issues/159149
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=esql/40_tsdb/PromQL missing field outside the command fails under nullify}
+  issue: https://github.com/elastic/elasticsearch/issues/159152

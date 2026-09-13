@@ -23,10 +23,12 @@
  *     nothing about datasets, requests, or the wire; it is given a {@code fieldBinder} (name &rarr; the expression that
  *     stands for that field on the source being translated against) and the query's {@code now}, and returns a boolean
  *     predicate over the supported subset: {@code bool}, {@code term}, {@code terms}, {@code range}, {@code exists},
- *     {@code match_all}, {@code match_none}, and the {@code match}/{@code match_phrase}/{@code multi_match} family as
- *     equality on an exact-typed field. Anything else — or a supported construct carrying an option it cannot honor
- *     faithfully — raises {@link org.elasticsearch.xpack.esql.dsltranslate.TranslationUnsupportedException} rather than
- *     silently mis-translating.</li>
+ *     {@code match_all}, {@code match_none}, the {@code match}/{@code match_phrase}/{@code multi_match} family as
+ *     equality on an exact-typed field, {@code prefix}/{@code wildcard}/{@code regexp} as pattern matching on one, and
+ *     the score-only wrappers {@code constant_score}/{@code boosting}/{@code dis_max}. Anything else — or a supported
+ *     construct carrying an option it cannot honor faithfully — raises
+ *     {@link org.elasticsearch.xpack.esql.dsltranslate.TranslationUnsupportedException} rather than silently
+ *     mis-translating.</li>
  *     <li>{@link org.elasticsearch.xpack.esql.dsltranslate.FilterRewriter} — the source-agnostic <em>mechanism</em>.
  *     Given a target predicate, it installs the filter as an ordinary {@code Filter} above every node that predicate
  *     selects, binding the DSL against <em>that node's own</em> output schema (present field &rarr; its attribute,

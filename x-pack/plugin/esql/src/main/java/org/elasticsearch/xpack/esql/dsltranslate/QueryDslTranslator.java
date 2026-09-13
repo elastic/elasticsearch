@@ -614,8 +614,9 @@ public final class QueryDslTranslator {
             if (narrowed.isEmpty()) {
                 return Literal.FALSE;
             }
-            // Narrowing already produced the field's internal representation. Running these back through coerce would
-            // re-read them as JSON values, and a biased unsigned_long read that way is a different number.
+            // Narrowing already produced the field's internal representation, so these go straight into the literal.
+            // coerce has no unsigned_long arm at all — it is the integral path that owns the type — so routing them
+            // back through it would degrade every unsigned_long terms clause.
             return checkedLeaf(field, new MvIntersects(Source.EMPTY, field, new Literal(Source.EMPTY, narrowed, field.dataType())));
         }
         // any-value set membership: the field's values intersect the term set

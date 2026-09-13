@@ -383,8 +383,11 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         for (String pattern : List.of("t\\.", "t\\|1", "t\\+", "t\\@", "t\\~", "t\\&", "t\\#", "t\\(", "t\\[")) {
             assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", pattern));
         }
-        // The positive control: the same characters unescaped keep their RegExp meaning on both sides.
-        assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", "t."));
+        // The positive control has to SELECT rows through the same path, or the assertions above hold vacuously by
+        // both sides matching nothing. Lucene reads an escape of a non-metacharacter as that character, so "t\\1" is
+        // the pattern t1 and matches; ES|QL rejects that spelling, which is exactly what routes it through the
+        // wildcard-to-RegExp conversion the cases above exercise.
+        assertSelectsSameRows(QueryBuilders.wildcardQuery("tags", "t\\1"));
     }
 
     /** regexp is Lucene RegExp syntax on both sides, with the same RegexpFlag.ALL parse. */
@@ -551,6 +554,23 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         List<Object> supportedOnly = selectedIds(dataset, QueryBuilders.termQuery("status", 300));
         assertThat("the fixture must select rows, or the equality below is vacuous", supportedOnly.isEmpty(), equalTo(false));
         assertThat(withUntranslatable, equalTo(supportedOnly));
+    }
+
+    /**
+     * The index caps a numeric string at 1000 characters and rejects a longer one with a bare
+     * IllegalArgumentException. On the dataset path nothing between the translator and the REST layer catches that
+     * class, so it used to leave the collecting walk and fail the whole query with a 400 — the one outcome the
+     * drop-and-warn policy forbids. A fieldless multi_match reaches it without naming a field, because the expansion
+     * covers the unsigned_long column.
+     */
+    public void testOverLongNumericValueDoesNotFailTheQuery() {
+        // A fieldless multi_match is implicitly lenient on both paths, so the unsigned_long arm matches nothing
+        // rather than degrading — and the index agrees value for value, which is the stronger claim.
+        assertSelectsSameRows(QueryBuilders.multiMatchQuery("1".repeat(1001)));
+        // A term names the field, so there is no leniency to fall back on: the clause degrades and is dropped, which
+        // can only over-return. The index answers a 400 here, so the two cannot be compared row for row.
+        List<Object> ids = selectedIds(dataset, QueryBuilders.termQuery("quota", "1".repeat(1001)));
+        assertThat("the dropped clause leaves the dataset unfiltered", ids.size(), equalTo(ROWS));
     }
 
     /**

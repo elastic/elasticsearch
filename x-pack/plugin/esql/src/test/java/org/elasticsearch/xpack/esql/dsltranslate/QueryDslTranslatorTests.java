@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
@@ -97,19 +98,19 @@ public class QueryDslTranslatorTests extends ESTestCase {
         "release"
     );
 
-    private static Expression translate(org.elasticsearch.index.query.QueryBuilder qb) {
+    private static Expression translate(QueryBuilder qb) {
         return new QueryDslTranslator(BINDER, FIELDS, CONFIG).translate(qb).applied();
     }
 
-    private static Expression translate(org.elasticsearch.index.query.QueryBuilder qb, Locale locale) {
+    private static Expression translate(QueryBuilder qb, Locale locale) {
         return new QueryDslTranslator(BINDER, FIELDS, new ConfigurationBuilder(CONFIG).locale(locale).build()).translate(qb).applied();
     }
 
-    private static QueryDslTranslator.TranslationResult translateResult(org.elasticsearch.index.query.QueryBuilder qb) {
+    private static QueryDslTranslator.TranslationResult translateResult(QueryBuilder qb) {
         return new QueryDslTranslator(BINDER, FIELDS, CONFIG).translate(qb);
     }
 
-    private static QueryDslTranslator.TranslationResult translateResult(org.elasticsearch.index.query.QueryBuilder qb, Locale locale) {
+    private static QueryDslTranslator.TranslationResult translateResult(QueryBuilder qb, Locale locale) {
         return new QueryDslTranslator(BINDER, FIELDS, new ConfigurationBuilder(CONFIG).locale(locale).build()).translate(qb);
     }
 
@@ -335,7 +336,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     /**
-     * A two-bound range on a KEYWORD field is a supported combination per the behavior table, and it takes the generic
+     * A two-bound range on a KEYWORD field takes the generic
      * both-bounds path rather than the integral or date one. A closed interval emits no options map, because inclusive
      * on both ends is what mv_in_range already means.
      */
@@ -469,7 +470,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
             new Object[] { QueryBuilders.regexpQuery("tags", "["), "regexp[pattern]" }
         );
         for (Object[] c : cases) {
-            var result = translateResult((org.elasticsearch.index.query.QueryBuilder) c[0]);
+            var result = translateResult((QueryBuilder) c[0]);
             assertFalse("expected " + c[1] + " to degrade", result.isComplete());
             assertEquals(c[1], result.unsupported().get(0).construct());
         }
@@ -522,6 +523,58 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals("fuzzy", result.unsupported().get(0).construct());
     }
 
+    /**
+     * The two-valued design exists so NOT composes for free, and a pattern is the newest leaf to depend on it: a
+     * must_not over one must exclude exactly the rows the pattern matches, and over a MISSING field must exclude
+     * nothing rather than everything. A wrapper inside the must_not takes the all-or-nothing path, where a dropped
+     * sub-clause would over-exclude, so a failing one drops the whole NOT instead.
+     */
+    public void testPatternUnderMustNot() {
+        var negatedPattern = QueryBuilders.boolQuery().mustNot(QueryBuilders.wildcardQuery("tags", "t*"));
+        assertTrue(translateResult(negatedPattern).isComplete());
+        assertThat(translate(negatedPattern), instanceOf(Not.class));
+        // Through a score-only wrapper, still on the all-or-nothing path.
+        var negatedWrapped = QueryBuilders.boolQuery().mustNot(QueryBuilders.constantScoreQuery(QueryBuilders.prefixQuery("tags", "t")));
+        assertTrue(translateResult(negatedWrapped).isComplete());
+        assertThat(translate(negatedWrapped), instanceOf(Not.class));
+        // A missing field binds to null and the leaf folds to false, so NOT(false) excludes nothing.
+        var negatedMissing = QueryBuilders.boolQuery().mustNot(QueryBuilders.wildcardQuery("missing_field", "a*"));
+        assertTrue(translateResult(negatedMissing).isComplete());
+        // An untranslatable pattern under must_not drops the whole NOT rather than over-excluding.
+        var negatedBad = QueryBuilders.boolQuery().mustNot(QueryBuilders.wildcardQuery("body", "a*"));
+        assertFalse(translateResult(negatedBad).isComplete());
+        assertEquals(Literal.TRUE, translate(negatedBad));
+    }
+
+    /**
+     * boosting only reads its positive clause — the negative one moves the score and never removes a row — so an
+     * untranslatable negative must not degrade anything. Nothing pinned that, and the natural reading of "a clause
+     * failed" is to drop.
+     */
+    public void testBoostingIgnoresAnUntranslatableNegative() {
+        var boosting = QueryBuilders.boostingQuery(QueryBuilders.termQuery("tags", "a"), QueryBuilders.fuzzyQuery("tags", "b"))
+            .negativeBoost(0.1f);
+        assertTrue("the negative clause is never visited", translateResult(boosting).isComplete());
+        assertThat(translate(boosting), instanceOf(MvContains.class));
+    }
+
+    /** An explicitly chosen automaton budget is an option mv_rlike cannot be told, so the clause degrades. */
+    public void testRegexpMaxDeterminizedStatesDegrades() {
+        assertFalse(translateResult(QueryBuilders.regexpQuery("tags", "t.*").maxDeterminizedStates(100)).isComplete());
+        // The default is accepted, so the assertion above is not vacuous.
+        assertThat(translate(QueryBuilders.regexpQuery("tags", "t.*")), instanceOf(MvRLike.class));
+    }
+
+    /**
+     * A JSON number above Long.MAX_VALUE arrives as a BigInteger, a different arm of the unsigned_long term rule from
+     * the string form the other tests take. In range it is the value; above the type's maximum it can equal nothing.
+     */
+    public void testUnsignedLongTermFromBigInteger() {
+        assertThat(translate(QueryBuilders.termQuery("quota", new BigInteger("18446744073709551615"))), instanceOf(MvContains.class));
+        assertEquals(Literal.FALSE, translate(QueryBuilders.termQuery("quota", new BigInteger("18446744073709551616"))));
+        assertEquals(Literal.FALSE, translate(QueryBuilders.termQuery("quota", new BigInteger("-1"))));
+    }
+
     /** A pattern over a MISSING field stays null-bound and folds to false, like every other leaf. */
     public void testPatternOnMissingFieldFoldsToFalse() {
         Expression e = translate(QueryBuilders.wildcardQuery("missing_field", "a*"));
@@ -529,7 +582,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(Literal.NULL, ((MvLike) e).left());
     }
 
-    private static String constructOf(org.elasticsearch.index.query.QueryBuilder qb) {
+    private static String constructOf(QueryBuilder qb) {
         var result = translateResult(qb);
         assertFalse(result.isComplete());
         return result.unsupported().get(0).construct();
@@ -1227,7 +1280,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
         QueryDslTranslator.TranslationResult result = translateResult(
             QueryBuilders.boolQuery().should(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.fuzzyQuery("tags", "xyz"))
         );
-        assertFalse("wildcard arm failure is reported", result.isComplete());
+        assertFalse("fuzzy arm failure is reported", result.isComplete());
         assertEquals("whole OR group dropped — pre-filter must over-fetch", Literal.TRUE, result.applied());
     }
 
@@ -1288,7 +1341,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
                     QueryBuilders.boolQuery().should(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.fuzzyQuery("tags", "xyz"))
                 )
         );
-        assertFalse("wildcard arm failure is reported", result.isComplete());
+        assertFalse("fuzzy arm failure is reported", result.isComplete());
         assertEquals("whole nested OR group dropped — pre-filter must over-fetch", Literal.TRUE, result.applied());
     }
 
@@ -1296,7 +1349,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
      * must_not in a nested bool is all-or-nothing: if the arm cannot be fully translated, NOT is skipped entirely
      * rather than applying NOT(partial), which would over-exclude and under-fetch.
      * The must arm is still applied; the failed must_not arm produces no NOT expression in the result.
-     * If must_not were incorrectly applied, applied() would be And(must_expr, Not(wildcard_expr)).
+     * If must_not were incorrectly applied, applied() would be And(must_expr, Not(fuzzy_expr)).
      * With the correct all-or-nothing policy, applied() is just the single must_expr (no And wrapper).
      */
     public void testNestedMustNotAllOrNothingSkipsPartialArm() {

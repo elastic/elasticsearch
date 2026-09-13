@@ -1,22 +1,29 @@
 (function propertiesbuilder(attr) {
+
+    var stringProps = [
+        ["v-timezone", "timezone"],
+        ["v-connectTimeout", "connect.timeout"],
+        ["v-networkTimeout", "network.timeout"],
+        ["v-pageSize", "page.size"],
+        ["v-pageTimeout", "page.timeout"],
+        ["v-queryTimeout", "query.timeout"],
+        ["v-proxyHttp", "proxy.http"],
+        ["v-proxySocks", "proxy.socks"],
+        ["v-fieldMultiValueLeniency", "field.multi.value.leniency"],
+        ["v-indexIncludeFrozen", "index.include.frozen"],
+        ["v-allowPartialSearchResults", "allow.partial.search.results"],
+        ["v-validateProperties", "validate.properties"]
+    ];
+
     var props = {};
 
     props["user"] = attr["username"];
     props["password"] = attr["password"];
 
-    var extraProps = attr[connectionHelper.attributeVendor1];
-    if (extraProps != null && extraProps.trim().length > 0) {
-        // allow `&` and white-space as attribue-value pair delimiters
-        var avps = extraProps.trim().split(/[\s&]/);
-        for (var i = 0; i < avps.length; i++) {
-            var tokens = avps[i].split("=");
-            if (tokens.length != 2 || tokens[0].length == 0 || tokens[1].length == 0) {
-                var errMessage = "Invalid additional settings property `" + avps[i] + "`: " +
-                    "not conforming to the attribute=value format."
-                return connectionHelper.ThrowTableauException(errMessage);
-            } else {
-                props[tokens[0]] = tokens[1];
-            }
+    for (var i = 0; i < stringProps.length; i++) {
+        var value = attr[stringProps[i][0]];
+        if(value != null && value != ""){
+            props[stringProps[i][1]] = value;
         }
     }
 

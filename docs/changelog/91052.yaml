@@ -1,0 +1,6 @@
+pr: 91052
+summary: Enhance Tableau Connector providing an explicit list of configuration options
+  at login
+area: SQL
+type: enhancement
+issues: []

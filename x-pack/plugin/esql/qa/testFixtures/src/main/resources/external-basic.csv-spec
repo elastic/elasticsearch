@@ -128,9 +128,11 @@ count:long
 100
 ;
 
+// The 10 employees with a blank gender cell group under null: the dataset is registered without mappings,
+// so its schema is inferred and a blank cell carries no value. SORT ... ASC puts that group last.
 aggregateByGender
 required_capability: dataset_in_from_command
-required_capability: external_csv_empty_string_not_null
+required_capability: external_csv_blank_cell_null_unless_declared
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
 FROM employees_no_mv
@@ -138,9 +140,9 @@ FROM employees_no_mv
 | SORT gender;
 
 count:long | gender:keyword
-10         |
 33         | "F"
 57         | "M"
+10         | null
 ;
 
 aggregateAverageSalary
@@ -166,7 +168,7 @@ min_salary:integer | max_salary:integer | avg_salary:double
 
 aggregateSalaryByGender
 required_capability: dataset_in_from_command
-required_capability: external_csv_empty_string_not_null
+required_capability: external_csv_blank_cell_null_unless_declared
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
 FROM employees_no_mv
@@ -174,9 +176,9 @@ FROM employees_no_mv
 | SORT gender;
 
 avg_salary:double    | count:long | gender:keyword
-48760.5              | 10         |
 50490.78787878788    | 33         | "F"
 46860.59649122807    | 57         | "M"
+48760.5              | 10         | null
 ;
 
 filterAndSort

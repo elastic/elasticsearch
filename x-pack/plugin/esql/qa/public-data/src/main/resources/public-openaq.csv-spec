@@ -1,0 +1,362 @@
+// OpenAQ archive fraction: locationid=2178/year=2016 (Del Norte, Albuquerque) - 298 tiny gzip
+// CSVs (~200-700 bytes each) in nested year=/month= hive partitions on anonymous S3. The
+// per-object overhead IS the case: many small objects, deeply nested layout, real store latency.
+// datetime carries a UTC offset so ES|QL keeps it keyword (lexical order == temporal within this
+// single-offset station). month is a DETECTED hive-partition column (integer), asserted by
+// q45/q46. Expected tables derived at authoring time by clickhouse local over the scratch copy
+// of the same pinned objects.
+
+// corpus: openaq
+// reference-variant: openaq-s3-csv-gzip-nested-hive
+// pinned: 298 objects, 198997 bytes, locationid=2178/year=2016 subtree
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('month=*/*.csv.gz', CSVWithNames, 'location_id Int64, sensors_id Int64, location String, datetime String, lat Float64, lon Float64, parameter String, units String, value Float64')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q01_countMeasurements
+required_capability: dataset_in_from_command
+dataset: openaq: "{{corpus}}"
+FROM openaq | STATS count = COUNT(*);
+
+count:long
+32952
+;
+
+// corpus: openaq
+// reference-variant: openaq-s3-csv-gzip-nested-hive
+// pinned: 298 objects, 198997 bytes, locationid=2178/year=2016 subtree
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('month=*/*.csv.gz', CSVWithNames, 'location_id Int64, sensors_id Int64, location String, datetime String, lat Float64, lon Float64, parameter String, units String, value Float64') WHERE parameter = 'pm25'
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q02_countPm25
+required_capability: dataset_in_from_command
+dataset: openaq: "{{corpus}}"
+FROM openaq | WHERE parameter == "pm25" | STATS count = COUNT(*);
+
+count:long
+6624
+;
+
+// corpus: openaq
+// reference-variant: openaq-s3-csv-gzip-nested-hive
+// pinned: 298 objects, 198997 bytes, locationid=2178/year=2016 subtree
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(value), count(), avg(value) FROM file('month=*/*.csv.gz', CSVWithNames, 'location_id Int64, sensors_id Int64, location String, datetime String, lat Float64, lon Float64, parameter String, units String, value Float64') WHERE parameter = 'pm10'
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q03_statsPm10Totals
+required_capability: dataset_in_from_command
+dataset: openaq: "{{corpus}}"
+FROM openaq | WHERE parameter == "pm10" | STATS sum_value = SUM(value), count = COUNT(*), avg_value = AVG(value);
+
+sum_value:double | count:long | avg_value:double
+139406           | 6664       | 20.919267707082835
+;
+
+// corpus: openaq
+// reference-variant: openaq-s3-csv-gzip-nested-hive
+// pinned: 298 objects, 198997 bytes, locationid=2178/year=2016 subtree
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(sensors_id) FROM file('month=*/*.csv.gz', CSVWithNames, 'location_id Int64, sensors_id Int64, location String, datetime String, lat Float64, lon Float64, parameter String, units String, value Float64')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+// note: no nulls in this fraction; plain uniqExact mirrors the two-stage distinct
+q05_distinctSensors
+required_capability: dataset_in_from_command
+dataset: openaq: "{{corpus}}"
+FROM openaq | STATS BY sensors_id | STATS u = COUNT(*);
+
+u:long
+5
+;
+
+// corpus: openaq
+// reference-variant: openaq-s3-csv-gzip-nested-hive
+// pinned: 298 objects, 198997 bytes, locationid=2178/year=2016 subtree
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(parameter) FROM file('month=*/*.csv.gz', CSVWithNames, 'location_id Int64, sensors_id Int64, location String, datetime String, lat Float64, lon Float64, parameter String, units String, value Float64')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q06_distinctParameters
+required_capability: dataset_in_from_command
+dataset: openaq: "{{corpus}}"
+FROM openaq | STATS BY parameter | STATS u = COUNT(*);
+
+u:long
+5
+;
+
+// corpus: openaq
+// reference-variant: openaq-s3-csv-gzip-nested-hive
+// pinned: 298 objects, 198997 bytes, locationid=2178/year=2016 subtree
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT formatDateTime(min(parseDateTimeBestEffort(datetime)), '%FT%T.000Z', 'UTC') AS mn, formatDateTime(max(parseDateTimeBestEffort(datetime)), '%FT%T.000Z', 'UTC') AS mx FROM file('month=*/*.csv.gz', CSVWithNames, 'location_id Int64, sensors_id Int64, location String, datetime String, lat Float64, lon Float64, parameter String, units String, value Float64')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+// note: ES|QL infers the offset-ISO strings as datetime and normalizes to UTC; oracle mirrors with parse+format
+q07_minMaxDatetime
+required_capability: dataset_in_from_command
+dataset: openaq: "{{corpus}}"
+FROM openaq | STATS min_dt = MIN(datetime), max_dt = MAX(datetime);
+
+min_dt:datetime          | max_dt:datetime
+2016-03-06T19:00:00.000Z | 2017-01-01T07:00:00.000Z
+;
+
+// corpus: openaq
+// reference-variant: openaq-s3-csv-gzip-nested-hive
+// pinned: 298 objects, 198997 bytes, locationid=2178/year=2016 subtree
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, parameter FROM file('month=*/*.csv.gz', CSVWithNames, 'location_id Int64, sensors_id Int64, location String, datetime String, lat Float64, lon Float64, parameter String, units String, value Float64') GROUP BY parameter ORDER BY c DESC, parameter ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+q08_countByParameter
+required_capability: dataset_in_from_command
+dataset: openaq: "{{corpus}}"
+FROM openaq | STATS c = COUNT(*) BY parameter | SORT c DESC, parameter ASC | LIMIT 10;
+
+c:long | parameter:keyword
+6664   | pm10
+6628   | o3
+6624   | pm25
+6579   | so2
+6457   | no2
+;
+
+// corpus: openaq
+// reference-variant: openaq-s3-csv-gzip-nested-hive
+// pinned: 298 objects, 198997 bytes, locationid=2178/year=2016 subtree
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(value), count() AS c, avg(value), parameter FROM file('month=*/*.csv.gz', CSVWithNames, 'location_id Int64, sensors_id Int64, location String, datetime String, lat Float64, lon Float64, parameter String, units String, value Float64') GROUP BY parameter ORDER BY c DESC, parameter ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+q10_parameterAggregates
+required_capability: dataset_in_from_command
+dataset: openaq: "{{corpus}}"
+FROM openaq | STATS sum_value = SUM(value), c = COUNT(*), avg_value = AVG(value) BY parameter | SORT c DESC, parameter ASC | LIMIT 10;
+
+sum_value:double   | c:long | avg_value:double      | parameter:keyword
+139406             | 6664   | 20.919267707082835    | pm10
+233.98899999999978 | 6628   | 0.03530310802655398   | o3
+35647.100000000006 | 6624   | 5.381506642512078     | pm25
+5.970000000000004  | 6579   | 0.0009074327405380763 | so2
+60.42299999999976  | 6457   | 0.009357751277683098  | no2
+;
+
+// corpus: openaq
+// reference-variant: openaq-s3-csv-gzip-nested-hive
+// pinned: 298 objects, 198997 bytes, locationid=2178/year=2016 subtree
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, sensors_id FROM file('month=*/*.csv.gz', CSVWithNames, 'location_id Int64, sensors_id Int64, location String, datetime String, lat Float64, lon Float64, parameter String, units String, value Float64') GROUP BY sensors_id ORDER BY c DESC, sensors_id ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+q16_countBySensor
+required_capability: dataset_in_from_command
+dataset: openaq: "{{corpus}}"
+FROM openaq | STATS c = COUNT(*) BY sensors_id | SORT c DESC, sensors_id ASC | LIMIT 10;
+
+c:long | sensors_id:integer
+6664   | 3919
+6628   | 3917
+6624   | 3920
+6579   | 3918
+6457   | 3916
+;
+
+// corpus: openaq
+// reference-variant: openaq-s3-csv-gzip-nested-hive
+// pinned: 298 objects, 198997 bytes, locationid=2178/year=2016 subtree
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sensors_id FROM file('month=*/*.csv.gz', CSVWithNames, 'location_id Int64, sensors_id Int64, location String, datetime String, lat Float64, lon Float64, parameter String, units String, value Float64') WHERE sensors_id = 3918 AND value >= 0.004
+// oracle-run: 2026-08-14
+// read-shape: scan
+// max-rows: 300
+// sort-reviewed: every returned value is the needle itself; order carries no information
+q20_scanNeedleSensor
+required_capability: dataset_in_from_command
+dataset: openaq: "{{corpus}}"
+FROM openaq | WHERE sensors_id == 3918 AND value >= 0.004 | KEEP sensors_id;
+
+sensors_id:integer
+3918
+3918
+3918
+3918
+3918
+3918
+3918
+3918
+3918
+3918
+3918
+3918
+3918
+3918
+3918
+;
+
+// corpus: openaq
+// reference-variant: openaq-s3-csv-gzip-nested-hive
+// pinned: 298 objects, 198997 bytes, locationid=2178/year=2016 subtree
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT value, formatDateTime(parseDateTimeBestEffort(datetime), '%FT%T.000Z', 'UTC') AS dt, parameter FROM file('month=*/*.csv.gz', CSVWithNames, 'location_id Int64, sensors_id Int64, location String, datetime String, lat Float64, lon Float64, parameter String, units String, value Float64') WHERE parameter = 'pm10' ORDER BY value DESC, parseDateTimeBestEffort(datetime) ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: topn
+// max-rows: 10
+// note: datetime column is ES|QL-inferred datetime, rendered UTC; sort ties break temporally
+q24_topPm10Readings
+required_capability: dataset_in_from_command
+dataset: openaq: "{{corpus}}"
+FROM openaq | WHERE parameter == "pm10" | SORT value DESC, datetime ASC | KEEP value, datetime, parameter | LIMIT 10;
+
+value:double | datetime:datetime        | parameter:keyword
+987          | 2016-04-25T13:00:00.000Z | pm10
+987          | 2016-04-25T14:00:00.000Z | pm10
+986          | 2016-04-24T14:00:00.000Z | pm10
+986          | 2016-04-24T15:00:00.000Z | pm10
+986          | 2016-04-24T16:00:00.000Z | pm10
+986          | 2016-04-24T17:00:00.000Z | pm10
+986          | 2016-04-24T18:00:00.000Z | pm10
+986          | 2016-04-24T20:00:00.000Z | pm10
+986          | 2016-04-24T21:00:00.000Z | pm10
+986          | 2016-04-24T22:00:00.000Z | pm10
+;
+
+// corpus: openaq
+// reference-variant: openaq-s3-csv-gzip-nested-hive
+// pinned: 298 objects, 198997 bytes, locationid=2178/year=2016 subtree
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT formatDateTime(parseDateTimeBestEffort(datetime), '%FT%T.000Z', 'UTC') AS dt FROM file('month=*/*.csv.gz', CSVWithNames, 'location_id Int64, sensors_id Int64, location String, datetime String, lat Float64, lon Float64, parameter String, units String, value Float64') WHERE parameter = 'o3' ORDER BY parseDateTimeBestEffort(datetime) ASC, sensors_id ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: topn
+// max-rows: 10
+// note: temporal ascending sort; values rendered UTC as ES|QL does
+q26_sortDatetimeAsc
+required_capability: dataset_in_from_command
+dataset: openaq: "{{corpus}}"
+FROM openaq | WHERE parameter == "o3" | SORT datetime ASC, sensors_id ASC | KEEP datetime | LIMIT 10;
+
+datetime:datetime
+2016-03-06T19:00:00.000Z
+2016-03-06T20:00:00.000Z
+2016-03-07T14:00:00.000Z
+2016-03-07T15:00:00.000Z
+2016-03-10T07:00:00.000Z
+2016-03-10T08:00:00.000Z
+2016-03-11T15:00:00.000Z
+2016-03-11T16:00:00.000Z
+2016-03-11T17:00:00.000Z
+2016-03-11T18:00:00.000Z
+;
+
+// corpus: openaq
+// reference-variant: openaq-s3-csv-gzip-nested-hive
+// pinned: 298 objects, 198997 bytes, locationid=2178/year=2016 subtree
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, substring(formatDateTime(parseDateTimeBestEffort(datetime), '%FT%T.000Z', 'UTC'), 1, 7) AS m FROM file('month=*/*.csv.gz', CSVWithNames, 'location_id Int64, sensors_id Int64, location String, datetime String, lat Float64, lon Float64, parameter String, units String, value Float64') GROUP BY m ORDER BY m ASC LIMIT 12
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 12
+// sort-reviewed: sorted by the group key itself, which is unique per row
+// note: months bucket in UTC (TO_STRING renders UTC), shifting some boundary hours vs the station's local offset
+q43_readingsPerMonth
+required_capability: dataset_in_from_command
+dataset: openaq: "{{corpus}}"
+FROM openaq | EVAL m = SUBSTRING(TO_STRING(datetime), 1, 7) | STATS c = COUNT(*) BY m | SORT m ASC | LIMIT 12;
+
+c:long | m:keyword
+2215   | 2016-03
+3294   | 2016-04
+3545   | 2016-05
+3378   | 2016-06
+3584   | 2016-07
+3326   | 2016-08
+3437   | 2016-09
+3413   | 2016-10
+3234   | 2016-11
+3487   | 2016-12
+39     | 2017-01
+;
+
+// corpus: openaq
+// reference-variant: openaq-s3-csv-gzip-nested-hive
+// pinned: 298 objects, 198997 bytes, locationid=2178/year=2016 subtree
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT parameter FROM file('month=*/*.csv.gz', CSVWithNames, 'location_id Int64, sensors_id Int64, location String, datetime String, lat Float64, lon Float64, parameter String, units String, value Float64') WHERE parameter = 'so2' LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: limit
+// max-rows: 10
+// sort-reviewed: every returned value is the needle itself; order carries no information
+q44_limitNeedleParameter
+required_capability: dataset_in_from_command
+dataset: openaq: "{{corpus}}"
+FROM openaq | WHERE parameter == "so2" | KEEP parameter | LIMIT 10;
+
+parameter:keyword
+so2
+so2
+so2
+so2
+so2
+so2
+so2
+so2
+so2
+so2
+;
+
+// corpus: openaq
+// reference-variant: openaq-s3-csv-gzip-nested-hive
+// pinned: 298 objects, 198997 bytes, locationid=2178/year=2016 subtree
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('month=*/*.csv.gz', CSVWithNames, 'location_id Int64, sensors_id Int64, location String, datetime String, lat Float64, lon Float64, parameter String, units String, value Float64') WHERE _path LIKE '%/month=03/%'
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+// note: month is a detected hive-partition column (integer 3 from month=03); proves partition pruning on the nested layout
+q45_monthPartitionFilter
+required_capability: dataset_in_from_command
+dataset: openaq: "{{corpus}}"
+FROM openaq | WHERE month == 3 | STATS count = COUNT(*);
+
+count:long
+2240
+;
+
+// corpus: openaq
+// reference-variant: openaq-s3-csv-gzip-nested-hive
+// pinned: 298 objects, 198997 bytes, locationid=2178/year=2016 subtree
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, toInt64(replaceRegexpOne(_path, '.*month=(\\d+).*', '\\1')) AS month FROM file('month=*/*.csv.gz', CSVWithNames, 'location_id Int64, sensors_id Int64, location String, datetime String, lat Float64, lon Float64, parameter String, units String, value Float64') GROUP BY month ORDER BY month ASC LIMIT 12
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 12
+// sort-reviewed: sorted by the group key itself, which is unique per row
+// note: groups by the detected hive-partition column
+q46_countByMonth
+required_capability: dataset_in_from_command
+dataset: openaq: "{{corpus}}"
+FROM openaq | STATS c = COUNT(*) BY month | SORT month ASC | LIMIT 12;
+
+c:long | month:integer
+2240   | 3
+3304   | 4
+3530   | 5
+3393   | 6
+3584   | 7
+3321   | 8
+3437   | 9
+3418   | 10
+3239   | 11
+3486   | 12
+;

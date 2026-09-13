@@ -1,0 +1,340 @@
+// Overture Maps divisions (release 2026-07-22.0), one zstd Parquet part: 4,655,003 division rows
+// with a deeply nested schema (structs, maps, arrays-of-structs, geometry) around scalar columns.
+// Closes the codec=zstd cell. q30 is a NESTED-READ PROBE kept by explicit reviewer decision:
+// it asserts struct-field access (bbox.xmin/bbox.ymax) on parquet - if the reader's nested
+// contract differs, that failure is a finding for the gate, not suite noise. Release paths are
+// version-immutable (stable pins). Expected tables derived at authoring time by clickhouse local
+// over the scratch copy of the same pinned bytes.
+
+// corpus: overture-divisions
+// reference-variant: overture-divisions-s3-parquet-zstd-single
+// pinned: 1 object, 576185044 bytes, release/2026-07-22.0 theme=divisions/type=division part-00000
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('part-00000.zstd.parquet')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q01_countDivisions
+required_capability: dataset_in_from_command
+dataset: overture_divisions: "{{corpus}}"
+FROM overture_divisions | STATS count = COUNT(*);
+
+count:long
+4655003
+;
+
+// corpus: overture-divisions
+// reference-variant: overture-divisions-s3-parquet-zstd-single
+// pinned: 1 object, 576185044 bytes, release/2026-07-22.0 theme=divisions/type=division part-00000
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('part-00000.zstd.parquet') WHERE country = 'US'
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q02_countUs
+required_capability: dataset_in_from_command
+dataset: overture_divisions: "{{corpus}}"
+FROM overture_divisions | WHERE country == "US" | STATS count = COUNT(*);
+
+count:long
+206449
+;
+
+// corpus: overture-divisions
+// reference-variant: overture-divisions-s3-parquet-zstd-single
+// pinned: 1 object, 576185044 bytes, release/2026-07-22.0 theme=divisions/type=division part-00000
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(population), count(), avg(population) FROM file('part-00000.zstd.parquet')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+// note: population is mostly null; SUM/AVG skip nulls identically in both engines, COUNT(*) does not
+q03_statsPopulation
+required_capability: dataset_in_from_command
+dataset: overture_divisions: "{{corpus}}"
+FROM overture_divisions | STATS sum_pop = SUM(population), count = COUNT(*), avg_pop = AVG(population);
+
+sum_pop:long | count:long | avg_pop:double
+18330789755  | 4655003    | 26752.739381458945
+;
+
+// corpus: overture-divisions
+// reference-variant: overture-divisions-s3-parquet-zstd-single
+// pinned: 1 object, 576185044 bytes, release/2026-07-22.0 theme=divisions/type=division part-00000
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(country) + if(countIf(country IS NULL) > 0, 1, 0) FROM file('part-00000.zstd.parquet')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+// note: two-stage distinct counts the null group; oracle mirrors with +1 when nulls exist
+q05_distinctCountries
+required_capability: dataset_in_from_command
+dataset: overture_divisions: "{{corpus}}"
+FROM overture_divisions | STATS BY country | STATS u = COUNT(*);
+
+u:long
+273
+;
+
+// corpus: overture-divisions
+// reference-variant: overture-divisions-s3-parquet-zstd-single
+// pinned: 1 object, 576185044 bytes, release/2026-07-22.0 theme=divisions/type=division part-00000
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(subtype) + if(countIf(subtype IS NULL) > 0, 1, 0) FROM file('part-00000.zstd.parquet')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q06_distinctSubtypes
+required_capability: dataset_in_from_command
+dataset: overture_divisions: "{{corpus}}"
+FROM overture_divisions | STATS BY subtype | STATS u = COUNT(*);
+
+u:long
+9
+;
+
+// corpus: overture-divisions
+// reference-variant: overture-divisions-s3-parquet-zstd-single
+// pinned: 1 object, 576185044 bytes, release/2026-07-22.0 theme=divisions/type=division part-00000
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, subtype FROM file('part-00000.zstd.parquet') GROUP BY subtype ORDER BY c DESC, subtype ASC NULLS LAST LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+// sort-reviewed: ES|QL sorts nulls last ascending; oracle mirrors with NULLS LAST
+q08_divisionsBySubtype
+required_capability: dataset_in_from_command
+dataset: overture_divisions: "{{corpus}}"
+FROM overture_divisions | STATS c = COUNT(*) BY subtype | SORT c DESC, subtype ASC | LIMIT 10;
+
+c:long  | subtype:keyword
+3479642 | locality
+720705  | neighborhood
+234946  | microhood
+155225  | macrohood
+38909   | county
+21385   | localadmin
+3919    | region
+219     | country
+53      | dependency
+;
+
+// corpus: overture-divisions
+// reference-variant: overture-divisions-s3-parquet-zstd-single
+// pinned: 1 object, 576185044 bytes, release/2026-07-22.0 theme=divisions/type=division part-00000
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, country FROM file('part-00000.zstd.parquet') GROUP BY country ORDER BY c DESC, country ASC NULLS LAST LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+// sort-reviewed: ES|QL sorts nulls last ascending; oracle mirrors with NULLS LAST
+q13_divisionsByCountry
+required_capability: dataset_in_from_command
+dataset: overture_divisions: "{{corpus}}"
+FROM overture_divisions | STATS c = COUNT(*) BY country | SORT c DESC, country ASC | LIMIT 10;
+
+c:long | country:keyword
+549200 | CN
+359088 | IN
+323760 | FR
+220600 | JP
+206449 | US
+180364 | RU
+149626 | BR
+129419 | ID
+121857 | PL
+117467 | DE
+;
+
+// corpus: overture-divisions
+// reference-variant: overture-divisions-s3-parquet-zstd-single
+// pinned: 1 object, 576185044 bytes, release/2026-07-22.0 theme=divisions/type=division part-00000
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, subtype, class FROM file('part-00000.zstd.parquet') GROUP BY subtype, class ORDER BY c DESC, subtype ASC NULLS LAST, class ASC NULLS LAST LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+// sort-reviewed: ES|QL sorts nulls last ascending; oracle mirrors with NULLS LAST
+q15_subtypeClassCross
+required_capability: dataset_in_from_command
+dataset: overture_divisions: "{{corpus}}"
+FROM overture_divisions | STATS c = COUNT(*) BY subtype, class | SORT c DESC, subtype ASC, class ASC | LIMIT 10;
+
+c:long  | subtype:keyword | class:keyword
+1701720 | locality        | hamlet
+1547607 | locality        | village
+720705  | neighborhood    | null
+234946  | microhood       | null
+155225  | macrohood       | null
+112330  | locality        | null
+103755  | locality        | town
+38909   | county          | null
+21385   | localadmin      | null
+14230   | locality        | city
+;
+
+// corpus: overture-divisions
+// reference-variant: overture-divisions-s3-parquet-zstd-single
+// pinned: 1 object, 576185044 bytes, release/2026-07-22.0 theme=divisions/type=division part-00000
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT country FROM file('part-00000.zstd.parquet') WHERE country = 'LI'
+// oracle-run: 2026-08-14
+// read-shape: scan
+// max-rows: 60
+// sort-reviewed: every returned value is the needle itself; order carries no information
+q20_scanLiechtenstein
+required_capability: dataset_in_from_command
+dataset: overture_divisions: "{{corpus}}"
+FROM overture_divisions | WHERE country == "LI" | KEEP country;
+
+country:keyword
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+;
+
+// corpus: overture-divisions
+// reference-variant: overture-divisions-s3-parquet-zstd-single
+// pinned: 1 object, 576185044 bytes, release/2026-07-22.0 theme=divisions/type=division part-00000
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT id, country, subtype, population FROM file('part-00000.zstd.parquet') ORDER BY population DESC NULLS LAST, id ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: topn
+// max-rows: 10
+q24_topPopulated
+required_capability: dataset_in_from_command
+dataset: overture_divisions: "{{corpus}}"
+FROM overture_divisions | SORT population DESC NULLS LAST, id ASC | KEEP id, country, subtype, population | LIMIT 10;
+
+id:keyword                           | country:keyword | subtype:keyword | population:integer
+c3edf10a-fe23-4c7e-a777-52199ac7df8e | IN              | country         | 1428627663
+fb68fc73-3ac6-41c9-a692-22fcf20cb5be | CN              | country         | 1425671352
+f39eb4af-5206-481b-b19e-bd784ded3f05 | US              | country         | 331449281
+b86e56ae-ee94-482c-952d-395d0caf97cf | ID              | country         | 270203917
+b952fd95-5a2e-45b9-b30c-9e83b2fd3025 | PK              | country         | 241499431
+6dd0e3d7-b16a-4d38-bffd-9f7e17627b40 | BR              | country         | 208714806
+50d252ed-bfb9-414f-9ff2-b0ddd1b514b5 | BD              | country         | 172954319
+3264d7ab-fdb5-4956-ad97-6307200c9e0a | NG              | country         | 152217341
+604e4d47-073c-46f8-86a5-2a8838509986 | RU              | country         | 146119928
+fc20aaf8-7a12-4cb2-9b0b-ebb1a4b652aa | MX              | country         | 129900000
+;
+
+// corpus: overture-divisions
+// reference-variant: overture-divisions-s3-parquet-zstd-single
+// pinned: 1 object, 576185044 bytes, release/2026-07-22.0 theme=divisions/type=division part-00000
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT id FROM file('part-00000.zstd.parquet') ORDER BY id ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: topn
+// max-rows: 10
+// sort-reviewed: GERS ids are unique; single-key sort is total
+q26_sortIdsAsc
+required_capability: dataset_in_from_command
+dataset: overture_divisions: "{{corpus}}"
+FROM overture_divisions | SORT id ASC | KEEP id | LIMIT 10;
+
+id:keyword
+000006f0-5ac8-4ee0-81f6-5804e00a8fe5
+0000149b-ab04-4587-b906-d62e556af25f
+00001740-a71b-4111-bfd0-d3e34cbf53df
+000017c1-1092-4e00-bf14-7557641743c8
+00001948-c83b-4c7a-87be-97344710a0e0
+00001b7c-7640-4a67-a7b9-8c5b4c3d3a99
+00001f1b-6c9d-42b5-97b9-3818ba12f388
+000022e6-9606-4316-aecb-e8d7362e5650
+000024e3-a2ff-4d89-b1a6-5f28dd174e91
+00002503-3ed0-49d0-81b1-d7fa16cabc71
+;
+
+// corpus: overture-divisions
+// reference-variant: overture-divisions-s3-parquet-zstd-single
+// pinned: 1 object, 576185044 bytes, release/2026-07-22.0 theme=divisions/type=division part-00000
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT id, bbox.xmin, bbox.ymax FROM file('part-00000.zstd.parquet') WHERE country = 'LI' AND subtype = 'country'
+// oracle-run: 2026-08-14
+// read-shape: scan
+// max-rows: 10
+// note: NESTED-READ PROBE (kept by explicit decision): asserts struct-field access on parquet; a failure here is a gate finding about the reader's nested contract, not suite noise
+q30_nestedBboxProbe
+required_capability: dataset_in_from_command
+dataset: overture_divisions: "{{corpus}}"
+FROM overture_divisions | WHERE country == "LI" AND subtype == "country" | KEEP id, bbox.xmin, bbox.ymax;
+
+id:keyword                           | bbox.xmin:double | bbox.ymax:double
+a0214888-0987-4cad-94a9-a4833b1529e0 | 9.55315113067627 | 47.141632080078125
+;
+
+// corpus: overture-divisions
+// reference-variant: overture-divisions-s3-parquet-zstd-single
+// pinned: 1 object, 576185044 bytes, release/2026-07-22.0 theme=divisions/type=division part-00000
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT country FROM file('part-00000.zstd.parquet') WHERE country = 'LI' LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: limit
+// max-rows: 10
+// sort-reviewed: every returned value is the needle itself; order carries no information
+q44_limitNeedleLi
+required_capability: dataset_in_from_command
+dataset: overture_divisions: "{{corpus}}"
+FROM overture_divisions | WHERE country == "LI" | KEEP country | LIMIT 10;
+
+country:keyword
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+LI
+;

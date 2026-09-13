@@ -13,13 +13,23 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.hamcrest.Matchers.containsString;
 
 public class GetComposableIndexTemplateResponseTests extends AbstractWireSerializingTestCase<GetComposableIndexTemplateAction.Response> {
     @Override
@@ -60,6 +70,46 @@ public class GetComposableIndexTemplateResponseTests extends AbstractWireSeriali
             }
         }
         return new GetComposableIndexTemplateAction.Response(templates, rolloverConfiguration);
+    }
+
+    public void testXContentSerialization() throws IOException {
+        String name = randomAlphaOfLength(10);
+        var response = new GetComposableIndexTemplateAction.Response(
+            Map.of(name, ComposableIndexTemplateTests.randomInstance()),
+            randomBoolean() ? null : RolloverConfigurationTests.randomRolloverConditions()
+        );
+
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.humanReadable(true);
+            Iterator<? extends ToXContent> chunks = response.toXContentChunked(EMPTY_PARAMS);
+            while (chunks.hasNext()) {
+                chunks.next().toXContent(builder, EMPTY_PARAMS);
+            }
+            String serialized = Strings.toString(builder);
+            assertThat(serialized, containsString("index_templates"));
+            assertThat(serialized, containsString(name));
+            for (var indexTemplateName : response.indexTemplates().keySet()) {
+                assertThat(serialized, containsString(indexTemplateName));
+            }
+        }
+    }
+
+    /**
+     * Each index template must be serialized as its own chunk so that the peak heap needed to render the response is bounded by a single
+     * template rather than the whole set. The response also emits the enclosing object and array open/close markers, so the expected chunk
+     * count is the number of templates plus four.
+     */
+    public void testChunking() {
+        int numberOfTemplates = randomIntBetween(0, 100);
+        Map<String, ComposableIndexTemplate> templates = new HashMap<>();
+        for (int i = 0; i < numberOfTemplates; i++) {
+            templates.put(randomAlphaOfLength(10) + i, ComposableIndexTemplateTests.randomInstance());
+        }
+        var response = new GetComposableIndexTemplateAction.Response(
+            templates,
+            randomBoolean() ? null : RolloverConfigurationTests.randomRolloverConditions()
+        );
+        AbstractChunkedSerializingTestCase.assertChunkCount(response, r -> r.indexTemplates().size() + 4);
     }
 
     @Override

@@ -64,7 +64,6 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
 
     private final Map<String, MappedFieldType> fields;
     private final IndexAnalyzers indexAnalyzers;
-    private final NamedAnalyzer searchAnalyzer;
     private final boolean lenientFields;
 
     public static RuntimeSearchExecutionContext create(List<String> fieldNames) {
@@ -83,19 +82,11 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
      *                      HIGHLIGHT does not target.
      */
     public static RuntimeSearchExecutionContext create(List<String> fieldNames, NamedAnalyzer searchAnalyzer, boolean lenientFields) {
-        Map<String, MappedFieldType> fields = new LinkedHashMap<>();
+        Map<String, NamedAnalyzer> fieldAnalyzers = new LinkedHashMap<>();
         for (String name : fieldNames) {
-            fields.put(name, textField(name, searchAnalyzer));
+            fieldAnalyzers.put(name, searchAnalyzer);
         }
-        // QueryStringQueryParser needs a "default" entry. Query builders carrying an explicit analyzer option
-        // (e.g. match with {"analyzer": "whitespace"}) validate the name against getIndexAnalyzers(), so the
-        // search analyzer is registered under its own name as well.
-        Map<String, NamedAnalyzer> analyzers = new LinkedHashMap<>();
-        analyzers.put(DEFAULT_ANALYZER_KEY, searchAnalyzer);
-        if (DEFAULT_ANALYZER_KEY.equals(searchAnalyzer.name()) == false) {
-            analyzers.put(searchAnalyzer.name(), searchAnalyzer);
-        }
-        return new RuntimeSearchExecutionContext(fields, IndexAnalyzers.of(analyzers), searchAnalyzer, lenientFields);
+        return create(fieldAnalyzers, Map.of(), lenientFields);
     }
 
     /**
@@ -120,14 +111,15 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
             fields.put(entry.getKey(), textField(entry.getKey(), analyzer));
             analyzers.putIfAbsent(analyzer.name(), analyzer);
         }
-        // QueryStringQueryParser needs a "default" fallback; the first field's analyzer is as good as any.
-        if (defaultAnalyzer != null) {
-            analyzers.put(DEFAULT_ANALYZER_KEY, defaultAnalyzer);
-        }
         for (Map.Entry<String, NamedAnalyzer> extra : extraAnalyzers.entrySet()) {
             analyzers.putIfAbsent(extra.getKey(), extra.getValue());
         }
-        return new RuntimeSearchExecutionContext(fields, IndexAnalyzers.of(analyzers), defaultAnalyzer, lenientFields);
+        // QueryStringQueryParser needs a "default" fallback; only add it when no real analyzer claims that name.
+        // "default" is a prebuilt analyzer name, so an unconditional put would clobber MATCH(..., {"analyzer": "default"}).
+        if (defaultAnalyzer != null) {
+            analyzers.putIfAbsent(DEFAULT_ANALYZER_KEY, defaultAnalyzer);
+        }
+        return new RuntimeSearchExecutionContext(fields, IndexAnalyzers.of(analyzers), lenientFields);
     }
 
     private static MappedFieldType textField(String name, NamedAnalyzer analyzer) {
@@ -147,12 +139,7 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
         return new IndexSettings(meta, Settings.EMPTY);
     }
 
-    private RuntimeSearchExecutionContext(
-        Map<String, MappedFieldType> fields,
-        IndexAnalyzers indexAnalyzers,
-        NamedAnalyzer searchAnalyzer,
-        boolean lenientFields
-    ) {
+    private RuntimeSearchExecutionContext(Map<String, MappedFieldType> fields, IndexAnalyzers indexAnalyzers, boolean lenientFields) {
         super(
             0,                              // shardId
             0,                              // shardRequestIndex
@@ -179,13 +166,7 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
         );
         this.fields = fields;
         this.indexAnalyzers = indexAnalyzers;
-        this.searchAnalyzer = searchAnalyzer;
         this.lenientFields = lenientFields;
-    }
-
-    /** Returns the analyzer configured on the synthetic fields. */
-    public NamedAnalyzer searchAnalyzer() {
-        return searchAnalyzer;
     }
 
     @Override

@@ -4960,7 +4960,6 @@ public class VerifierTests extends ESTestCase {
                 containsString("HIGHLIGHT derived its query from a preceding WHERE"),
                 containsString("refers to analyzer [my_custom_analyzer]"),
                 containsString("Per-index custom analyzers cannot be used in HIGHLIGHT"),
-                containsString("WITH analyzer does not override it"),
                 not(containsString("[my_custom_analyzer] is not a registered analyzer"))
             )
         );
@@ -5002,21 +5001,13 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testHighlightValidUserWithDoesNotMaskBorrowedCustomAnalyzer() {
+    public void testHighlightValidUserWithOverridesBorrowedCustomAnalyzer() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        // The user wrote a valid WITH analyzer (whitespace), but the borrowed WHERE leaf uses a custom per-index
-        // analyzer. WITH cannot rescue it - the leaf's own analyzer is still resolved to translate the query - so the
-        // message must not tell the user to add a WITH they already have; it points them at an explicit query instead.
-        supportsHighlightImplicit(fullText()).error(
+        // WITH now wins on the query side too, so a registered command analyzer overrides a borrowed
+        // per-index custom analyzer instead of still resolving the leaf name.
+        supportsHighlightImplicit(fullText()).query(
             "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"my_custom_analyzer\"})"
-                + " | HIGHLIGHT ON title WITH { \"analyzer\": \"whitespace\" }",
-            allOf(
-                containsString("HIGHLIGHT derived its query from a preceding WHERE"),
-                containsString("refers to analyzer [my_custom_analyzer]"),
-                containsString("Per-index custom analyzers cannot be used in HIGHLIGHT"),
-                containsString("Provide an explicit HIGHLIGHT query that does not use analyzer [my_custom_analyzer]"),
-                containsString("WITH analyzer does not override it")
-            )
+                + " | HIGHLIGHT ON title WITH { \"analyzer\": \"whitespace\" }"
         );
     }
 
@@ -5119,6 +5110,33 @@ public class VerifierTests extends ESTestCase {
         supportsHighlight(fullText()).query(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"})"
                 + " OR MATCH(body, \"bar\", {\"analyzer\": \"standard\"}) ON title, body"
+        );
+    }
+
+    // A command analyzer overrides the leaf analyzer, but a name the user typed in the HIGHLIGHT query is still their
+    // own typo and must be reported rather than silently discarded along with the option.
+    public void testHighlightReportsUnregisteredLeafAnalyzerEvenWhenWithOverridesIt() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"not_a_real_analyzer\"}) ON title"
+                + " WITH { \"analyzer\": \"whitespace\" }",
+            containsString("[not_a_real_analyzer] is not a registered analyzer")
+        );
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT QSTR(\"title:\\\"fox\\\"\", {\"quote_analyzer\": \"not_a_real_analyzer\"}) ON title"
+                + " WITH { \"analyzer\": \"whitespace\" }",
+            containsString("[not_a_real_analyzer] is not a registered analyzer")
+        );
+    }
+
+    public void testHighlightKnnQueryIsRejectedWithVerificationError() {
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT KNN(vector, [1, 2, 3]) ON title",
+            containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL)")
+        );
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\") OR KNN(vector, [1, 2, 3]) ON title",
+            containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL)")
         );
     }
 

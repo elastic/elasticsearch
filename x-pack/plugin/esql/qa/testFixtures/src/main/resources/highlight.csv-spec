@@ -1921,19 +1921,63 @@ The Lord of the <em>Rings</em>
 ;
 
 
-# The WITH analyzer overrides the MATCH leaf analyzer for highlighting: english re-tokenizes the document and stems
-# "Rings" to "ring", so "ring" matches. The leaf's own "standard" analyzer does not stem, so before the override won
-# by WITH the highlight was null (see highlightAnalyzerDefaultMissesStem).
+# The WITH analyzer overrides the MATCH leaf analyzer on both the document and the query: english
+# stems "Rings" to "ring" on both sides. The leaf's own "standard" analyzer does not stem, so if WITH
+# overrode only the document the highlight would be null.
 highlightAnalyzerWithOverridesMatchLeafAnalyzer
 required_capability: highlight_implicit_query_and_fields
 
 ROW title = to_text("The Lord of the Rings")
-| HIGHLIGHT MATCH(title, "ring", { "analyzer": "standard" }) ON title WITH { "analyzer": "english" }
+| HIGHLIGHT MATCH(title, "Rings", { "analyzer": "standard" }) ON title WITH { "analyzer": "english" }
 | KEEP highlight_title
 ;
 
 highlight_title:keyword
 The Lord of the <em>Rings</em>
+;
+
+
+# WITH keyword re-tokenizes both the document and the query as a single token. The MATCH leaf's
+# whitespace analyzer would have split the query into three terms that cannot match the keyword
+# document token; after the override both sides agree.
+highlightAnalyzerWithOverridesWhitespaceLeafWithKeyword
+required_capability: highlight_implicit_query_and_fields
+
+ROW title = to_text("the quick fox")
+| HIGHLIGHT MATCH(title, "the quick fox", { "analyzer": "whitespace" }) ON title WITH { "analyzer": "keyword" }
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+<em>the quick fox</em>
+;
+
+
+# An explicit MATCH analyzer is used for highlighting even without WITH.
+highlightAnalyzerExplicitLeafWithoutWith
+required_capability: highlight_implicit_query_and_fields
+
+ROW title = to_text("The Lord of the Rings")
+| HIGHLIGHT MATCH(title, "ring", { "analyzer": "english" }) ON title
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
+;
+
+
+# Mixed leaf analyzers on different fields, without WITH.
+highlightAnalyzerExplicitMixedLeaves
+required_capability: highlight_implicit_query_and_fields
+
+ROW title = to_text("The Lord of the Rings"), author = to_text("Tolkien-wrote-of-rings")
+| HIGHLIGHT MATCH(title, "ring", { "analyzer": "english" }) OR MATCH(author, "Tolkien-wrote-of-rings", { "analyzer": "whitespace" }) ON title, author
+| KEEP highlight_title, highlight_author
+;
+
+highlight_title:keyword        | highlight_author:keyword
+The Lord of the <em>Rings</em> | <em>Tolkien-wrote-of-rings</em>
 ;
 
 

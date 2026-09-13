@@ -403,6 +403,20 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         assertThat(term.getTerm(), equalTo(new Term("title", "Fox Bar")));
     }
 
+    // A leaf analyzer option never decides how the query text is analyzed: the field's analyzer does, so the query and
+    // the document HIGHLIGHT indexes always agree. Here the field analyzer (english) stems "Rings" to "ring" even
+    // though the leaf asked for "standard".
+    public void testFieldAnalyzerOverridesMatchLeafAnalyzerOnQuerySide() {
+        Expression query = match("title", "Rings", options("analyzer", "standard"));
+        HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
+            query,
+            Map.of("title", "english"),
+            analysisRegistry
+        );
+        TermQuery term = asInstanceOf(TermQuery.class, translated.query());
+        assertThat(term.getTerm(), equalTo(new Term("title", "ring")));
+    }
+
     public void testQuoteAnalyzerUnresolvableWithoutAnalysisRegistry() {
         QueryString qstr = queryString("\"Fox Bar\"", options("quote_analyzer", "keyword"));
         QueryShardException e = expectThrows(QueryShardException.class, () -> translate(qstr, TITLE));

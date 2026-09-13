@@ -446,7 +446,10 @@ public final class QueryDslTranslator {
         Number literal;
         try {
             literal = integralTermValue(type, value);
-        } catch (NumberFormatException e) {
+        } catch (IllegalArgumentException e) {
+            // IllegalArgumentException, not just its NumberFormatException subclass: the index's own parse rejects an
+            // over-long numeric string with a bare IllegalArgumentException (Numbers.checkNumericStringLength). Letting
+            // that escape would take the whole query down, which is the one outcome the drop-and-warn policy forbids.
             if (lenient && isPresent(field)) {
                 return Literal.FALSE;
             }
@@ -738,11 +741,17 @@ public final class QueryDslTranslator {
         BigDecimal number;
         try {
             // integer/long bounds go through Double.parseDouble on the index, which ignores surrounding whitespace;
-            // an unsigned_long bound goes through Numbers.newBigDecimal, which rejects it and fails the query. We
-            // cannot fail the query, so a padded unsigned_long bound degrades instead of quietly meaning more.
-            String text = type == DataType.UNSIGNED_LONG ? String.valueOf(value) : String.valueOf(value).trim();
-            number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(text);
-        } catch (NumberFormatException e) {
+            // an unsigned_long bound goes through Numbers.newBigDecimal, which rejects padding and over-long strings
+            // and fails the query. We cannot fail the query, so such a bound degrades instead of quietly meaning more.
+            if (type == DataType.UNSIGNED_LONG) {
+                // Exactly the index's own call: parseLowerRangeTerm/parseUpperRangeTerm stringify anything that is not
+                // an integral box and hand it to Numbers.newBigDecimal, whose length check throws IllegalArgumentException.
+                number = Numbers.newBigDecimal(String.valueOf(value));
+            } else {
+                String text = String.valueOf(value).trim();
+                number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(text);
+            }
+        } catch (IllegalArgumentException e) {
             throw new TranslationUnsupportedException("range[bound on " + type.typeName() + "]");
         }
         boolean hasDecimal = number.stripTrailingZeros().scale() > 0;
@@ -1019,7 +1028,9 @@ public final class QueryDslTranslator {
 
     /**
      * The value an integral field can equal, or {@code null} when no value of the type equals it — the index's
-     * match-no-docs. A malformed value throws {@link NumberFormatException} so each caller can apply its own policy.
+     * match-no-docs. A value the index's own parse rejects throws {@link IllegalArgumentException} — a
+     * {@link NumberFormatException} for a non-numeric value, a bare one for an over-long numeric string — so each
+     * caller can apply its own policy.
      *
      * <p>{@code integer} and {@code long} follow {@code NumberFieldMapper}, which coerces: {@code "300.0"} and a padded
      * {@code " 300"} are 300, and a fractional or out-of-range value matches nothing. {@code unsigned_long} has its own
@@ -1118,7 +1129,8 @@ public final class QueryDslTranslator {
     private static Number narrowIntegralValue(DataType type, Object value) {
         try {
             return integralTermValue(type, value);
-        } catch (NumberFormatException e) {
+        } catch (IllegalArgumentException e) {
+            // See integralEquality: the over-long-string rejection is a bare IllegalArgumentException.
             throw new TranslationUnsupportedException("terms[integral value on " + type.typeName() + "]");
         }
     }

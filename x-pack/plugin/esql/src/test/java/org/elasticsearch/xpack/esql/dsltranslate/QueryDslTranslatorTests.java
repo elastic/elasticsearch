@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -80,7 +81,21 @@ public class QueryDslTranslatorTests extends ESTestCase {
     private static final Configuration CONFIG = new ConfigurationBuilder(EsqlTestUtils.TEST_CFG).now(Instant.ofEpochMilli(NOW)).build();
 
     // The schema field set (for multi_match expansion) — the names the BINDER resolves to a present attribute.
-    private static final Set<String> FIELDS = Set.of("status", "tags", "bytes", "score", "@timestamp", "ts_nanos", "active", "body");
+    // Every such name belongs here: a fieldless multi_match expands over the whole set, and that is the shape that
+    // reaches a type's term path without naming it.
+    private static final Set<String> FIELDS = Set.of(
+        "status",
+        "tags",
+        "bytes",
+        "score",
+        "@timestamp",
+        "ts_nanos",
+        "active",
+        "body",
+        "client_ip",
+        "quota",
+        "release"
+    );
 
     private static Expression translate(org.elasticsearch.index.query.QueryBuilder qb) {
         return new QueryDslTranslator(BINDER, FIELDS, CONFIG).translate(qb).applied();
@@ -962,13 +977,6 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     /**
-     * An unsigned_long value that parses and then does not fit is reported as an unsupported clause, never thrown.
-     * It is the case that escapes a narrower catch: a non-numeric value fails BigDecimal parsing with a
-     * NumberFormatException (an IllegalArgumentException), while "-1" parses and then fails safeToUnsignedLong with an
-     * InvalidArgumentException, which descends from QlClientException. If that one is not caught it leaves the
-     * collecting walk entirely and takes the whole query down, past the point the drop-and-warn policy can act.
-     */
-    /**
      * unsigned_long is an integral type, so it takes the integral narrowing rather than the generic encoding: a
      * fractional, negative or over-range value can equal no unsigned_long and matches nothing, exactly as the index's
      * {@code UnsignedLongFieldType.parseTerm} returns NO_DOCS for each. Truncating instead — which the generic
@@ -1007,6 +1015,29 @@ public class QueryDslTranslatorTests extends ESTestCase {
         // terms applies the same rule value by value: the unmatchable one is dropped, the rest still select.
         MvIntersects kept = (MvIntersects) translate(QueryBuilders.termsQuery("quota", List.of("42.0", 43)));
         assertEquals(List.of(EsqlDataTypeConverter.stringToUnsignedLong("43")), ((Literal) kept.children().get(1)).value());
+    }
+
+    /**
+     * The index caps a numeric string at {@code Numbers.MAX_NUMERIC_STRING_LENGTH} and rejects a longer one with a
+     * bare IllegalArgumentException — not the NumberFormatException subclass every other malformed value throws. It is
+     * the shape that escapes a narrower catch: nothing on the way out catches it, so it leaves the collecting walk and
+     * fails the whole query, which is the one outcome the drop-and-warn policy forbids. Every arm that parses an
+     * integral value must degrade instead.
+     */
+    public void testOverLongNumericStringDegradesRatherThanThrowing() {
+        String tooLong = "1".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH + 1);
+        assertFalse("term degrades", translateResult(QueryBuilders.termQuery("quota", tooLong)).isComplete());
+        assertFalse("terms degrades", translateResult(QueryBuilders.termsQuery("quota", List.of(tooLong))).isComplete());
+        assertFalse("match degrades", translateResult(QueryBuilders.matchQuery("quota", tooLong)).isComplete());
+        assertFalse("range bound degrades", translateResult(QueryBuilders.rangeQuery("quota").gte(tooLong)).isComplete());
+        assertFalse("range upper bound degrades", translateResult(QueryBuilders.rangeQuery("quota").lte(tooLong)).isComplete());
+        // A lenient match matches nothing rather than degrading, the same policy every other malformed value takes.
+        assertEquals(Literal.FALSE, translate(QueryBuilders.matchQuery("quota", tooLong).lenient(true)));
+        // The reachable shape that names no field at all: multi_match expands over the schema, unsigned_long included.
+        assertFalse("fieldless multi_match degrades", translateResult(QueryBuilders.multiMatchQuery(tooLong)).isComplete());
+        // One character shorter is accepted by the index, so the assertions above are not vacuous.
+        String longest = "1".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        assertTrue("the longest accepted string still translates", translateResult(QueryBuilders.termQuery("quota", longest)).isComplete());
     }
 
     /** An unsigned_long RANGE bound does coerce a decimal, but Numbers.newBigDecimal rejects padding. */

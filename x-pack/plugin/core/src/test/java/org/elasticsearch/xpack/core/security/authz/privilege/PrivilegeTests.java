@@ -35,6 +35,10 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
+import org.elasticsearch.xpack.core.security.action.namedcredentials.DecryptNamedCredentialAction;
+import org.elasticsearch.xpack.core.security.action.namedcredentials.DeleteNamedCredentialAction;
+import org.elasticsearch.xpack.core.security.action.namedcredentials.GetNamedCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.namedcredentials.PutNamedCredentialAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
@@ -588,5 +592,26 @@ public class PrivilegeTests extends ESTestCase {
         verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:admin/reindex/rethrottle");
         verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:monitor/something/else");
         verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:admin/something/else");
+    }
+
+    public void testNamedCredentialsPrivileges() {
+        verifyClusterActionAllowed(
+            ClusterPrivilegeResolver.MANAGE_NAMED_CREDENTIALS,
+            PutNamedCredentialAction.NAME,
+            GetNamedCredentialsAction.NAME,
+            DeleteNamedCredentialAction.NAME,
+            DecryptNamedCredentialAction.NAME
+        );
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_NAMED_CREDENTIALS, "cluster:admin/xpack/security/token/create");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_NAMED_CREDENTIALS, GetNamedCredentialsAction.NAME);
+        verifyClusterActionDenied(
+            ClusterPrivilegeResolver.READ_NAMED_CREDENTIALS,
+            PutNamedCredentialAction.NAME,
+            DeleteNamedCredentialAction.NAME,
+            DecryptNamedCredentialAction.NAME
+        );
+        // read_security provides read-only access to named credentials (redacted), but not decrypt
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_SECURITY, GetNamedCredentialsAction.NAME);
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_SECURITY, DecryptNamedCredentialAction.NAME);
     }
 }

@@ -1554,7 +1554,7 @@ public class EsqlCapabilities {
         /**
          * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
          */
-        WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
+        WHERE_IN_MULTI_COLUMN_SUBQUERY,
 
         /**
          * Support non-correlated IN subqueries in the {@code EVAL} command.
@@ -1627,6 +1627,10 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/147863
          */
         VIEWS_EXPLICIT_INCLUDE_EXCLUDE_FIX,
+        /**
+         * Makes views not visible on remote clusters / linked projects
+         */
+        VIEWS_NOT_DISCOVERABLE_ON_REMOTES,
 
         /**
          * Fixes two related bugs where mixing TS-mode and standard sources caused the optimizer to
@@ -1663,6 +1667,26 @@ public class EsqlCapabilities {
          * parse counters and histograms, plus cluster-state inventory counts)?
          */
         USAGE_CONTAINS_DATASOURCES,
+
+        /**
+         * Does the usage information for ESQL contain dense datasource inventory marginals
+         * ({@code datasources.config.datasources.by_auth.*}, {@code datasets.by_format.*},
+         * {@code by_schema.*}, {@code by_partitioning.*}, {@code by_compression.*})?
+         */
+        USAGE_CONTAINS_DATASOURCE_INVENTORY_MARGINALS,
+
+        /**
+         * Does the usage information for ESQL contain per-format parse-row phone-home keys
+         * ({@code datasources.parse.rows.by_format.<format>})?
+         */
+        USAGE_CONTAINS_DATASOURCE_PARSE_BY_FORMAT,
+
+        /**
+         * Does the usage information for ESQL contain datasource/dataset CRUD change counters
+         * ({@code datasources.config.datasources.changes.by_op.*} and
+         * {@code datasources.config.datasets.changes.by_op.*})?
+         */
+        USAGE_CONTAINS_DATASOURCE_CONFIG_CHANGES,
 
         /**
          * Support loading of ip fields if they are not indexed.
@@ -2964,20 +2988,19 @@ public class EsqlCapabilities {
         DATA_SOURCES_SERVERLESS_SCOPE,
 
         /**
-         * Signals that this node reports no datasets during remote field resolution whenever federation is unavailable
-         * (see {@code Federation}), whether because the operator property suppressed it or because the setting leaves it
-         * off, so a {@code FROM <remote>:<dataset>} falls through to normal index resolution instead of surfacing a
-         * {@code RemoteDatasetNotSupportedException}. Old nodes in a mixed cluster predate this behavior and will not
-         * report the capability via {@code /_capabilities}, so any mixed cluster containing such a node correctly
-         * returns {@code supported=false}.
+         * A dataset registered on another cluster is invisible to this node's queries instead of failing them: a
+         * wildcard that matches one returns that cluster's indices beside it, and the exact qualified name resolves to
+         * nothing rather than surfacing a {@code RemoteDatasetNotSupportedException}. Gates the branch in
+         * {@code RemoteDatasetInvisibleRestIT}, which runs against a mixed pair under this module's backwards
+         * compatibility tasks. Either end reporting this is enough for the dataset to be hidden, since a coordinator
+         * that has it never asks its remotes to resolve datasets and a remote that has it clears the option whatever
+         * the caller asked; only a pair older on both sides still fails the query naming the dataset.
          */
-        REGISTER_FEDERATION_FEATURE,
+        REMOTE_DATASETS_ARE_INVISIBLE,
 
         /**
          * Signals that this node reads the {@code esql.federation.enabled} setting (see {@code Federation}), so a
-         * deployment can turn federation on or off per node. Nodes that only have the operator kill switch report
-         * {@link #REGISTER_FEDERATION_FEATURE} but not this, and they have federation on with no way to turn it off
-         * per node, so a test that drives the setting has to skip against them.
+         * deployment can turn federation on or off per node.
          */
         FEDERATION_ENABLED_SETTING,
 
@@ -2994,6 +3017,9 @@ public class EsqlCapabilities {
          * string {@code ""} instead of {@code null}. Genuinely missing fields (a row shorter than the schema) and empty
          * fields on non-string columns still read as {@code null}. Used to gate the affected external csv-spec tests so they
          * are skipped on mixed clusters where a pre-change node still maps empty string cells to {@code null}.
+         * <p>
+         * Superseded by {@link #EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED} and no longer referenced by any spec: the
+         * reading described above now holds only for a strictly declared string column, so gate new cases on that one.
          */
         EXTERNAL_CSV_EMPTY_STRING_NOT_NULL,
 
@@ -3432,6 +3458,40 @@ public class EsqlCapabilities {
          */
         OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE(Build.current().isSnapshot()),
 
+        OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Support for {@code INLINE STATS} under {@code unmapped_fields="LOAD_ALL"}. Only meaningful when
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, queries using LOOKUP JOIN and ENRICH are now supported.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Support for {@code STATS} under {@code unmapped_fields="LOAD_ALL"}.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_STATS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Support for {@code FORK} under {@code unmapped_fields="LOAD_ALL"}. Only meaningful when
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_FORK(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value that says nothing about its field - {@code null},
+         * {@code []}, {@code {}} and any nesting of those, e.g. {@code [null]} or {@code {"baz":[null],"inga":{}}} - is dropped where
+         * the data node extracts unmapped fields. So a field written that way by every document no longer expands into a column that
+         * is null in every row, and where such a value sits in a column another document did fill it reads as {@code null} instead of
+         * a stringified {@code "[]"}.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_SKIPS_VALUELESS_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
@@ -3725,6 +3785,11 @@ public class EsqlCapabilities {
         PROMQL_HISTOGRAM_FRACTION,
 
         /**
+         * Support for PromQL {@code histogram_fraction()} over classic histograms with {@code le} buckets.
+         */
+        PROMQL_HISTOGRAM_FRACTION_CLASSIC,
+
+        /**
          * Fix PromQL {@code topk()} over an already-aggregated vector (e.g. {@code topk(k, sum by (...) (...))}).
          * The outer aggregate must wrap the passthrough value in {@code VALUES} so physical planning registers it
          * in the layout; without that, execution fails with {@code can't find input for [topk(...)]}.
@@ -3838,6 +3903,12 @@ public class EsqlCapabilities {
         TS_STATS_LITERAL_AGG_FIX,
 
         /**
+         * Coordinator-driven remote fetch phase for deferred TopN fields after node-level reduction.
+         * Runtime enablement is gated by {@code esql.query.remote_fetch_topn.enabled}.
+         */
+        REMOTE_FETCH_TOPN_FETCH_PHASE,
+
+        /**
          * KNN function support for runtime expressions, not just ES mapped fields.
          */
         KNN_RUNTIME_FIELD(Build.current().isSnapshot()),
@@ -3848,6 +3919,32 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/issues/144831">#144831</a>.
          */
         FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS(INLINE_STATS.enabled),
+
+        /**
+         * Support partitioning in aggregations
+         */
+        PARTITIONING_AGGREGATIONS(),
+
+        /**
+         * A blank cell in an external CSV/TSV datasource reads as {@code null} on every column whose type was
+         * INFERRED, whatever that inferred type is — so the value no longer depends on what the rest of the column
+         * happens to hold. The empty string is produced only for a {@code keyword}/{@code text} column of a
+         * strictly declared schema ({@code mappings} with {@code dynamic: false}), and setting {@code null_value}
+         * to the empty string forces {@code null} there too. Supersedes {@link #EXTERNAL_CSV_EMPTY_STRING_NOT_NULL}.
+         * Gates the csv-spec tests that assert this, since it changes results for an ordinary inferred read:
+         * a pre-change node still answers {@code ""} for a blank cell in a column that sampled as a string.
+         */
+        EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED,
+
+        /**
+         * Materialize more aggregate inputs into a synthetic pre-agg eval.
+         * This covers two cases that previously failed, namely expressions in an aggregate
+         * parameter (e.g. {@code TOP(field, 1, "asc", CONCAT("first", " ", "last")}), and
+         * constant fields for aggregates that don't special-case them (e.g. {@code TOP(42, 2, "ASC")}).
+         * See <a href="https://github.com/elastic/elasticsearch/issues/158467">#158467</a>
+         * and <a href="https://github.com/elastic/elasticsearch/issues/158659">#158659</a>.
+         */
+        AGGS_MORE_INPUTS_VIA_EVAL,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

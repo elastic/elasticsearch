@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -19,7 +20,7 @@ import java.util.Locale;
  * Quoting and escaping are two independent knobs. {@link #quoting} decides whether a field may be
  * wrapped in {@link #quoteChar} (RFC&nbsp;4180 doubling); {@link #escaping} decides whether
  * {@link #escapeChar} is consulted — inside quoted fields when {@link #quoting} is also on, or as a
- * C-style value decode ({@code \t}, {@code \n}, {@code \N}) when it is off. The four combinations are
+ * field-split protect and C-style value decode ({@code \t}, {@code \n}, {@code \N}) when it is off. The four combinations are
  * all reachable and all meaningful; the user-facing {@code mode} keyword ({@link Mode}) is just a
  * named preset over the pair, and explicit {@code quote}/{@code escape} keys override whatever the
  * preset chose.
@@ -29,10 +30,13 @@ import java.util.Locale;
  *                           when {@link #quoting} is {@code true}
  * @param escapeChar         character used to escape special characters (default: backslash);
  *                           consulted only when {@link #escaping} is {@code true} — inside quoted
- *                           fields when {@link #quoting} is also on, otherwise at value decode
+ *                           fields when {@link #quoting} is also on, otherwise to keep
+ *                           escape + delimiter in one field and as a C-style value decode
  * @param commentPrefix      prefix for comment lines to skip (default: "//")
- * @param nullValue          token whose exact match reads as null (default: empty string, which installs
- *                           no null token, so an empty field is a present empty value rather than null)
+ * @param nullValue          token whose exact match reads as null, or {@code null} (the default) when no token is
+ *                           configured. The empty string is a legal token: naming it is how a user declares that a
+ *                           blank cell is null even on a declared string column, which is why absence is carried as
+ *                           {@code null} rather than as {@code ""} — the two must be distinguishable.
  * @param encoding           character encoding of the input (default: UTF-8)
  * @param datetimeFormatter  custom datetime parser compiled from the {@code datetime_format} option, or null for
  *                           ISO-8601/epoch. An ES {@link DateFormatter} — the same engine the per-column declared
@@ -52,27 +56,25 @@ import java.util.Locale;
  *                           {@code headerRow} is {@code true}. An empty prefix yields purely numeric
  *                           names ({@code 0, 1, 2, ...}) which must be backtick-quoted in ES|QL.
  * @param quoting            whether fields may be quoted with {@link #quoteChar}. When {@code false}
- *                           a raw newline is always a record boundary and a raw delimiter always a
- *                           field boundary, which is what allows the no-quote fast scan.
+ *                           a raw newline is always a record boundary. A raw delimiter is a field
+ *                           boundary unless {@link #escaping} is on and the delimiter is immediately
+ *                           preceded by {@link #escapeChar}.
  * @param escaping           whether {@link #escapeChar} is consulted (see {@link #escapeChar}).
  * @param trimSpaces         whether surrounding ASCII whitespace is trimmed from field values
  *                           (default: {@code false}). Applies to string content only — typed
  *                           (non-string) parses always tolerate padding (they trim before parsing,
  *                           mirroring schema inference). Jackson only ever
  *                           trimmed unquoted values; with this off an unquoted padded value is preserved,
- *                           matching RFC 4180 and the byte-fidelity posture of {@link Mode#PLAIN}. Known
- *                           limitation: {@code mode: escaped} (the one dialect that stays on Jackson under
- *                           no-trim) still loses the FIRST column's leading whitespace (Jackson skips it at
- *                           record start regardless of the feature); every other column and all trailing
- *                           whitespace is preserved. PLAIN/QUOTED no-trim reads — including when the
- *                           direct-block path is disabled — use the house grammar, which preserves it.
+ *                           matching RFC 4180 and the byte-fidelity posture of {@link Mode#PLAIN}.
+ *                           Escaped, PLAIN, and QUOTED no-trim reads use the house grammar, which
+ *                           preserves first-column leading whitespace.
  */
 public record CsvFormatOptions(
     char delimiter,
     char quoteChar,
     char escapeChar,
     String commentPrefix,
-    String nullValue,
+    @Nullable String nullValue,
     Charset encoding,
     DateFormatter datetimeFormatter,
     int maxFieldSize,
@@ -96,9 +98,10 @@ public record CsvFormatOptions(
      *   <li>{@link #QUOTED} — {@code (quoting, escaping) = (true, true)}. Fields may be wrapped in
      *       {@link CsvFormatOptions#quoteChar}; an embedded quote is doubled (RFC 4180) and a
      *       backslash escapes inside a quoted field. The RFC 4180 spreadsheet/dataframe ecosystem.</li>
-     *   <li>{@link #ESCAPED} — {@code (false, true)}. No quoting; specials are escaped with
-     *       {@link CsvFormatOptions#escapeChar} ({@code \t}, {@code \n}, {@code \\}) and null is
-     *       {@code \N}. Common database text exports (tab-separated, backslash-escaped).</li>
+     *   <li>{@link #ESCAPED} ({@code (false, true)}). No quoting; escape + delimiter stays in one
+     *       field; specials are escaped with {@link CsvFormatOptions#escapeChar} ({@code \t},
+     *       {@code \n}, {@code \\}) and null is {@code \N}. Common database text exports
+     *       (tab-separated, backslash-escaped).</li>
      *   <li>{@link #PLAIN} — {@code (false, false)}. No quoting, no escaping; every byte is literal,
      *       so a field cannot contain the delimiter or a newline. Unix tooling and scientific text
      *       formats; the IANA tab-separated-values registration.</li>
@@ -152,7 +155,7 @@ public record CsvFormatOptions(
         DEFAULT_QUOTE,
         DEFAULT_ESCAPE,
         "//",
-        "",
+        null, // nullValue: no null token configured (see the record javadoc)
         StandardCharsets.UTF_8,
         null,
         DEFAULT_MAX_FIELD_SIZE,
@@ -176,7 +179,7 @@ public record CsvFormatOptions(
         DEFAULT_QUOTE,
         DEFAULT_ESCAPE,
         "//",
-        "",
+        null, // nullValue: no null token configured (see the record javadoc)
         StandardCharsets.UTF_8,
         null,
         DEFAULT_MAX_FIELD_SIZE,
@@ -198,7 +201,7 @@ public record CsvFormatOptions(
         char quoteChar,
         char escapeChar,
         String commentPrefix,
-        String nullValue,
+        @Nullable String nullValue,
         Charset encoding,
         DateFormatter datetimeFormatter,
         int maxFieldSize,
@@ -243,6 +246,9 @@ public record CsvFormatOptions(
         if (columnPrefix == null) {
             throw new IllegalArgumentException("columnPrefix must not be null");
         }
+        // No such check for nullValue: null there is the "no null token configured" state, distinct from the
+        // empty string, which is a token a user may legitimately configure. See the record javadoc.
+
         // The ACTIVE special characters must be pairwise-distinct and none of them a line terminator:
         // each byte in the hot scan has exactly one meaning. Inactive characters (the quote when
         // quoting is off, the escape when escaping is off) are never consulted, so they are not

@@ -23,7 +23,6 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
-import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 
 import java.util.ArrayList;
@@ -45,11 +44,6 @@ public class BulkUpdateStoredFieldsPrefetchIT extends AbstractStatelessPluginInt
     }
 
     public void testStoredFieldsPrefetchedBeforeUpdateExecution() throws Exception {
-        assumeTrue(
-            "object store prefetch requires OBJECT_STORE_PREFETCH_FEATURE_FLAG",
-            CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled()
-        );
-
         // Small region size so each document's stored-fields chunk spans multiple regions, making the
         // prefetch observable as multiple Fetched outcomes rather than a single AlreadyCached region.
         final var regionSizeInBytes = 4 * SharedBytes.PAGE_SIZE;
@@ -152,10 +146,6 @@ public class BulkUpdateStoredFieldsPrefetchIT extends AbstractStatelessPluginInt
     }
 
     public void testNoPrefetchForNonStoredSourceMode() {
-        assumeTrue(
-            "object store prefetch requires OBJECT_STORE_PREFETCH_FEATURE_FLAG",
-            CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled()
-        );
         startMasterOnlyNode();
         String indexNode = startIndexNode(Settings.builder().put(PreResolvedUpdates.PRE_RESOLVE_BULK_UPDATES.getKey(), true).build());
         ensureStableCluster(2);

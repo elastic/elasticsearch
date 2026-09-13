@@ -128,6 +128,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryFeatures;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
@@ -725,6 +726,7 @@ public class SnapshotResiliencyTestHelper {
                 new TransportFetchPhaseResponseChunkAction(transportService, activeFetchPhaseTasks, namedWriteableRegistry);
                 Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
 
+                shardStateAction = new ShardStateAction(clusterService, transportService, allocationService, rerouteService, threadPool);
                 // Inject initialization from subclass which may be needed by initializations after this point.
                 doInit(actions, actionFilters);
 
@@ -736,7 +738,6 @@ public class SnapshotResiliencyTestHelper {
                     indicesService,
                     createSnapshotShardContextFactory()
                 );
-                shardStateAction = new ShardStateAction(clusterService, transportService, allocationService, rerouteService, threadPool);
                 nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
                 actions.put(
                     TransportUpdateSnapshotStatusAction.TYPE,
@@ -933,7 +934,13 @@ public class SnapshotResiliencyTestHelper {
                     mock(FileSettingsService.class),
                     threadPool,
                     false,
-                    IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance()
+                    IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
+                    new FeatureService(List.of()) {
+                        @Override
+                        public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                            return RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE.equals(feature);
+                        }
+                    }
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,

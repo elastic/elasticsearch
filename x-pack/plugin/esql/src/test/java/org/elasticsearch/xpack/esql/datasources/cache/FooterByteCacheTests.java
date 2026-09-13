@@ -209,6 +209,13 @@ public class FooterByteCacheTests extends ESTestCase {
         assertEquals(256 * 1024L, small.maxEntryBytes());
     }
 
+    public void testFromSettingsClampsMaxEntryToDefaultWhenBudgetIsLarge() {
+        Settings settings = Settings.builder().put("esql.external.cache.footer.size", "32mb").build();
+        FooterByteCache large = FooterByteCache.fromSettings(settings);
+        assertEquals(FooterByteCache.DEFAULT_MAX_ENTRY_BYTES, large.maxEntryBytes());
+        assertEquals(2L * 1024 * 1024, large.maxEntryBytes());
+    }
+
     public void testNonPositiveBudgetIsRejectedAtSettingsParseTime() {
         // The caches are built lazily on first reader construction, so a zero budget must be
         // rejected when the setting is parsed rather than on the first Parquet/ORC query.

@@ -367,9 +367,9 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testKeywordWhitespacePreservedByDefault() throws IOException {
         // Default is no-trim: a string column keeps its surrounding whitespace, identically on both paths.
         // Uses a second column so the value under test is not at column 0; column-0 leading-whitespace
-        // preservation is pinned separately by testColumnZeroLeadingWhitespaceCsv / ...TsvPlain, which now
-        // agree on both the direct and house arms under no-trim (QUOTED / PLAIN). (Escaped mode is the only
-        // dialect that still eats col-0 leading whitespace — it stays on Jackson; not exercised here.)
+        // preservation is pinned separately by testColumnZeroLeadingWhitespaceCsv / ...TsvPlain, which
+        // agree on both the direct and house arms under no-trim (QUOTED / PLAIN). Escaped no-trim also
+        // preserves col-0 leading whitespace (house grammar); not exercised here.
         List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:keyword\nx,  spaced  \n");
         assertEquals(List.of(row(br("x"), br("  spaced  "))), rows);
     }
@@ -387,9 +387,9 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     public void testEmptyQuotedFieldIsEmptyString() throws IOException {
-        // A present-but-empty quoted field "" on a string column reads as the empty string, exactly
+        // A present-but-empty quoted field "" on a DECLARED string column reads as the empty string, exactly
         // like an empty unquoted cell; pin that so the direct-block parser must match.
-        List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:keyword\n\"\",x\n");
+        List<List<Object>> rows = readDeclared(false, Map.of(), "a:keyword,b:keyword\n\"\",x\n");
         assertEquals(List.of(row(br(""), br("x"))), rows);
     }
 
@@ -397,11 +397,50 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     // Empty / null handling
     // ---------------------------------------------------------------------------------------------
 
-    public void testEmptyCellIsEmptyStringOnStringColumnNullOnNumeric() throws IOException {
-        // A present-but-empty cell reads as the empty string on a string (KEYWORD) column and as null
-        // on a numeric column, which has no empty representation.
-        List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:long\n,5\nx,\n");
+    public void testEmptyCellIsEmptyStringOnDeclaredStringColumnNullOnNumeric() throws IOException {
+        // A present-but-empty cell reads as the empty string on a DECLARED string (KEYWORD) column and as
+        // null on a numeric column, which has no empty representation.
+        List<List<Object>> rows = readDeclared(false, Map.of(), "a:keyword,b:long\n,5\nx,\n");
         assertEquals(List.of(row(br(""), 5L), row(br("x"), null)), rows);
+    }
+
+    /**
+     * The same bytes read with an INFERRED schema: a blank cell is null on both columns, so its meaning does
+     * not depend on the type the column's other rows produced. Both arms must agree on that too.
+     */
+    public void testBlankCellIsNullOnEveryInferredColumn() throws IOException {
+        List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:long\n,5\nx,\n");
+        assertEquals(List.of(row(null, 5L), row(br("x"), null)), rows);
+    }
+
+    /** {@code null_value: ""} names the blank, which nulls it even on a declared string column. */
+    public void testEmptyNullValueNullsDeclaredStringColumn() throws IOException {
+        List<List<Object>> rows = readDeclared(false, Map.of("null_value", ""), "a:keyword,b:long\n,5\nx,\n");
+        assertEquals(List.of(row(null, 5L), row(br("x"), null)), rows);
+    }
+
+    /**
+     * The blank must read the same on both sides of the prefetch boundary. An inferred schema is sampled twice
+     * -- {@code schema_sample_size} rows to infer, then another {@code schema_sample_size} as the widening
+     * window ({@code collectWideningWindowAndPrefetch}) -- and every prefetched row is replayed through the
+     * shared conversion before the direct walkers see anything. So with {@code schema_sample_size: 2} the
+     * boundary sits after row 4: the blank in row 2 is decided by the replay and the one in row 5 by the direct
+     * loop. Six rows rather than four is what puts a row past the boundary at all.
+     */
+    public void testInferredBlankIsNullAcrossThePrefetchBoundary() throws IOException {
+        String csv = "id,phrase,tail\n1,apple,x\n2,,y\n3,pear,z\n4,plum,w\n5,,v\n6,banana,\n";
+        List<List<Object>> rows = read(false, Map.of("schema_sample_size", 2), csv);
+        assertEquals(
+            List.of(
+                row(1, br("apple"), br("x")),
+                row(2, null, br("y")), // replayed from the prefetch
+                row(3, br("pear"), br("z")),
+                row(4, br("plum"), br("w")),
+                row(5, null, br("v")), // decoded by the direct loop
+                row(6, br("banana"), null)
+            ),
+            rows
+        );
     }
 
     public void testCustomNullValue() throws IOException {
@@ -881,10 +920,10 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(br("\u00a0x\u00a0"))), rows);
     }
 
-    public void testTsvPlainEmptyCellIsEmptyStringOnStringColumnNullOnNumeric() throws IOException {
-        // A present-but-empty cell reads as the empty string on a string (KEYWORD) column and as null
-        // on a numeric column, which has no empty representation.
-        List<List<Object>> rows = read(true, Map.of(), "a:keyword\tb:long\n\t5\nx\t\n");
+    public void testTsvPlainEmptyCellIsEmptyStringOnDeclaredStringColumnNullOnNumeric() throws IOException {
+        // A present-but-empty cell reads as the empty string on a DECLARED string (KEYWORD) column and as
+        // null on a numeric column, which has no empty representation.
+        List<List<Object>> rows = readDeclared(true, Map.of(), "a:keyword\tb:long\n\t5\nx\t\n");
         assertEquals(List.of(row(br(""), 5L), row(br("x"), null)), rows);
     }
 
@@ -970,10 +1009,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         // it; the delimiter-aware check must keep it.
         List<List<Object>> rows = read(true, Map.of(), "a:keyword\tb:keyword\tc:keyword\nx\ty\tz\n\t\t\np\tq\tr\n");
         assertEquals("separator-only TSV row must not be dropped", 3, rows.size());
-        // The separator row produces three empty/null fields on a keyword schema.
-        assertEquals(br(""), rows.get(1).get(0));
-        assertEquals(br(""), rows.get(1).get(1));
-        assertEquals(br(""), rows.get(1).get(2));
+        // The separator row produces three blank fields, null here because the schema is inferred.
+        assertEquals(row(null, null, null), rows.get(1));
     }
 
     public void testTsvPlainCommentLinesSkipped() throws IOException {
@@ -1046,17 +1083,17 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testTsvLeadingDelimiterBeforeCommentPrefixIsDataRow() throws IOException {
         // A TSV line whose first cell is empty (a leading TAB delimiter) is NOT a comment, even though
         // the comment prefix follows: Jackson classifies comments on the first parsed cell, so the
-        // direct path must keep this as a two-column data row rather than dropping it. The empty first
-        // cell reads as the empty string on its string column.
+        // direct path must keep this as a two-column data row rather than dropping it. The blank first
+        // cell reads as null on this inferred schema; what matters here is that the row survives.
         List<List<Object>> rows = read(true, Map.of("comment", "//"), "a:keyword\tb:keyword\nx\ty\n\t// c\n");
-        assertEquals(List.of(row(br("x"), br("y")), row(br(""), br("// c"))), rows);
+        assertEquals(List.of(row(br("x"), br("y")), row(null, br("// c"))), rows);
     }
 
     public void testCommaLeadingDelimiterBeforeCommentPrefixIsDataRow() throws IOException {
         // Same first-cell rule for CSV: an empty first cell before the comment prefix is a data row.
-        // The empty first cell reads as the empty string on its string column.
+        // The blank first cell reads as null on this inferred schema.
         List<List<Object>> rows = read(false, Map.of("comment", "//"), "a:keyword,b:keyword\nx,y\n,// c\n");
-        assertEquals(List.of(row(br("x"), br("y")), row(br(""), br("// c"))), rows);
+        assertEquals(List.of(row(br("x"), br("y")), row(null, br("// c"))), rows);
     }
 
     public void testQuotedFirstCellThatDecodesToCommentIsSkipped() throws IOException {
@@ -1498,7 +1535,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
-     * A custom {@code null_value} is matched by Jackson against the RAW token on both escaped arms, so projecting
+     * A custom {@code null_value} is matched against the decoded field on both escaped arms, so projecting
      * {@code _rowPosition} must not change which cells are null nor re-decode the surviving ones.
      */
     public void testRowPositionEscapedCustomNullValueUnchanged() throws IOException {
@@ -1521,10 +1558,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
-     * Non-regression pin for the OTHER arm of the same routing decision: with stripe capture on and no
-     * {@code _rowPosition}, escaped mode rides {@code newTrackedJacksonBulkIterator}, which delivers RAW values —
-     * so the batch loop must still decode. Guards against "fixing" the double-decode by suppressing the decode
-     * unconditionally, which would leave escape sequences un-decoded on both bulk arms.
+     * Stripe ALL + escaped uses the house iterator, which already decodes. Guards against running
+     * {@code decodeFieldValue} a second time (or skipping it) on that seam.
      */
     public void testEscapedTrackedBulkPathStillDecodesOnce() throws IOException {
         assertEquals(List.of(row(br("x\\ty"))), readAllScope(Map.of("mode", "escaped"), "note:keyword\nx\\\\ty\n"));
@@ -1637,9 +1672,10 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     ) throws IOException {
         CsvFormatReader configured = config.isEmpty() ? baseReader(tsv) : (CsvFormatReader) baseReader(tsv).withConfig(config);
         // Parity harness: read once with the direct-to-block path (default) and once with it forced
-        // off (Jackson), and assert the two agree row-for-row. For modes that are not eligible for the
-        // direct path (e.g. bracket multi-values or escaped mode) both arms are Jackson and the
-        // comparison is trivially true, but the golden assertEquals in each test still pins behavior.
+        // off, and assert the two agree row-for-row. For modes that are not eligible for the
+        // direct path (bracket multi-values, escaped) both arms use the same house/Jackson tokenizer
+        // and the comparison is trivially true, but the golden assertEquals in each test still pins
+        // behavior.
         // The direct arm is read first so a test using assertThrows still observes the direct path's
         // exception.
         List<List<Object>> direct = drain(configured.withDirectBlockEnabled(true), projection, batchSize, policy, content);
@@ -1648,10 +1684,40 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         return direct;
     }
 
+    /**
+     * The DECLARED-provenance twin of {@link #read(boolean, Map, String)}: the file's own schema is read back
+     * through {@code metadata} and pinned as a user declaration, which is what a dataset registered with
+     * explicit mappings produces. Both arms are compared as usual. Needed wherever the expected value is the
+     * empty string, which only a declared {@code keyword}/{@code text} column produces for a blank cell.
+     */
+    private List<List<Object>> readDeclared(boolean tsv, Map<String, Object> config, String content) throws IOException {
+        CsvFormatReader configured = config.isEmpty() ? baseReader(tsv) : (CsvFormatReader) baseReader(tsv).withConfig(config);
+        List<List<Object>> direct = drainDeclared(configured.withDirectBlockEnabled(true), content);
+        List<List<Object>> jackson = drainDeclared(configured.withDirectBlockEnabled(false), content);
+        assertEquals("direct-block output diverged from the Jackson baseline", jackson, direct);
+        return direct;
+    }
+
+    private List<List<Object>> drainDeclared(CsvFormatReader reader, String content) throws IOException {
+        StorageObject object = new InMemoryStorageObject(content.getBytes(StandardCharsets.UTF_8));
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(1024)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .firstSplit(true)
+            .recordAligned(true)
+            .readSchema(reader.metadata(object).schema())
+            .build();
+        return collect(reader.withDeclaredProvenanceBinding(true), object, ctx);
+    }
+
     private List<List<Object>> drain(CsvFormatReader reader, List<String> projection, int batchSize, ErrorPolicy policy, String content)
         throws IOException {
         StorageObject object = new InMemoryStorageObject(content.getBytes(StandardCharsets.UTF_8));
         FormatReadContext ctx = FormatReadContext.builder().projectedColumns(projection).batchSize(batchSize).errorPolicy(policy).build();
+        return collect(reader, object, ctx);
+    }
+
+    private List<List<Object>> collect(CsvFormatReader reader, StorageObject object, FormatReadContext ctx) throws IOException {
         List<List<Object>> rows = new ArrayList<>();
         try (CloseableIterator<Page> pages = reader.read(object, ctx)) {
             while (pages.hasNext()) {

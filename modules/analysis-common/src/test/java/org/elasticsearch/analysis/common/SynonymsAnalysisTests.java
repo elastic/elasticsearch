@@ -25,6 +25,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
+import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.test.ESTestCase;
@@ -610,6 +611,65 @@ public class SynonymsAnalysisTests extends ESTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(idxSettings, settings, plugin));
         assertThat(e.getMessage(), containsString("not supported until all nodes in the cluster have been upgraded"));
+    }
+
+    /**
+     * The Synonyms API reloads analyzers by naming the synonyms set that changed, and
+     * {@link IndexAnalyzers#reload} only picks analyzers whose {@link ReloadableCustomAnalyzer#usesResource}
+     * answers for that name. Wrapping a {@code synonyms_set} filter in a multiplexer must therefore not
+     * hide the set name, otherwise the wrapped analyzer is silently skipped and keeps stale synonyms.
+     * Asserted against the unwrapped analyzer built from the same filter, so both must agree.
+     */
+    public void testSynonymsSetResourceIsVisibleThroughMultiplexer() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.my_synonyms.type", "synonym_graph")
+            .put("index.analysis.filter.my_synonyms.updateable", "true")
+            .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a")
+            .put("index.analysis.filter.my_multiplexer.type", "multiplexer")
+            .putList("index.analysis.filter.my_multiplexer.filters", "my_synonyms")
+            .put("index.analysis.analyzer.plain_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.plain_analyzer.filter", "my_synonyms")
+            .put("index.analysis.analyzer.multiplexed_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.multiplexed_analyzer.filter", "my_multiplexer")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
+
+        assertUsesSynonymsSet("plain_analyzer", "set-a");
+        assertUsesSynonymsSet("multiplexed_analyzer", "set-a");
+    }
+
+    /**
+     * A multiplexer branch may itself be a comma separated chain of filters, which the factory wraps in a
+     * second anonymous factory. The synonyms set named inside such a branch must survive that extra
+     * wrapping as well.
+     */
+    public void testSynonymsSetResourceIsVisibleThroughMultiplexerFilterChain() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.my_synonyms.type", "synonym_graph")
+            .put("index.analysis.filter.my_synonyms.updateable", "true")
+            .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a")
+            .put("index.analysis.filter.my_multiplexer.type", "multiplexer")
+            .putList("index.analysis.filter.my_multiplexer.filters", "lowercase,my_synonyms")
+            .put("index.analysis.analyzer.multiplexed_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.multiplexed_analyzer.filter", "my_multiplexer")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
+
+        assertUsesSynonymsSet("multiplexed_analyzer", "set-a");
+    }
+
+    private void assertUsesSynonymsSet(String analyzerName, String synonymsSet) {
+        Analyzer analyzer = indexAnalyzers.get(analyzerName).analyzer();
+        assertThat(analyzer, instanceOf(ReloadableCustomAnalyzer.class));
+        ReloadableCustomAnalyzer reloadable = (ReloadableCustomAnalyzer) analyzer;
+        assertThat(reloadable.usesResource(synonymsSet), equalTo(true));
+        assertThat(reloadable.usesResource("some-other-set"), equalTo(false));
     }
 
     private void match(String analyzerName, String source, String target) throws IOException {

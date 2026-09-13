@@ -176,7 +176,8 @@ public abstract class PartitionedBlockHashTestCase extends ComputeTestCase {
                 null,
                 null,
                 driverContext,
-                parallelConfig
+                parallelConfig,
+                randomBoolean()
             );
             try (
                 var source = new CannedSourceOperator(CannedSourceOperator.deepCopyOf(driverContext.blockFactory(), inputPages).iterator());

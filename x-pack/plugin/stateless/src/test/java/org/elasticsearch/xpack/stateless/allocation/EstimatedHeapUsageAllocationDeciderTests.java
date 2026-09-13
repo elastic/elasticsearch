@@ -81,7 +81,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
             routingAllocation
         );
         assertThat(canRemainDecision.type(), equalTo(Decision.Type.YES));
-        assertThat(canRemainDecision.getExplanation(), equalTo("heap decider can remain disabled"));
+        assertThat(canRemainDecision.getExplanation(), equalTo("estimated heap decider can remain disabled"));
     }
 
     public void testYesDecisionWhenDisabled() {
@@ -146,14 +146,14 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
         assertThat(canAllocateDecision.type(), equalTo(Decision.Type.YES));
         assertThat(
             canAllocateDecision.getExplanation(),
-            containsString("no estimated heap estimation available for node [" + OTHER_NODE_ID + "]")
+            containsString("no estimated heap estimation available for node [" + OTHER_NODE_ID + "/" + OTHER_NODE_ID + "]")
         );
 
         final Decision canRemainDecision = decider.canRemain(mock(IndexMetadata.class), shardRouting, noHeapNode, routingAllocation);
         assertThat(canRemainDecision.type(), equalTo(Decision.Type.YES));
         assertThat(
             canRemainDecision.getExplanation(),
-            containsString("no estimated heap estimation available for node [" + OTHER_NODE_ID + "]")
+            containsString("no estimated heap estimation available for node [" + OTHER_NODE_ID + "/" + OTHER_NODE_ID + "]")
         );
     }
 
@@ -174,7 +174,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
         assertThat(highHeapCanAllocateDecision.type(), equalTo(Decision.Type.NO));
         assertThat(
             highHeapCanAllocateDecision.getExplanation(),
-            containsString("insufficient estimated heap available on node [" + NODE_ID + "]")
+            containsString("insufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]")
         );
 
         final Decision highHeapCanRemainDecision = decider.canRemain(
@@ -186,7 +186,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
         assertThat(highHeapCanRemainDecision.type(), equalTo(Decision.Type.NO));
         assertThat(
             highHeapCanRemainDecision.getExplanation(),
-            containsString("insufficient estimated heap available on node [" + NODE_ID + "]")
+            containsString("insufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]")
         );
 
         // A node with heap below the low watermark should return YES regardless of an absent shard-level heap estimate.
@@ -194,7 +194,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
         assertThat(lowHeapCanAllocateDecision.type(), equalTo(Decision.Type.YES));
         assertThat(
             lowHeapCanAllocateDecision.getExplanation(),
-            containsString("sufficient estimated heap available on node [" + OTHER_NODE_ID + "]")
+            containsString("sufficient estimated heap available on node [" + OTHER_NODE_ID + "/" + OTHER_NODE_ID + "]")
         );
 
         final Decision lowHeapCanRemainDecision = decider.canRemain(
@@ -206,7 +206,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
         assertThat(lowHeapCanRemainDecision.type(), equalTo(Decision.Type.YES));
         assertThat(
             lowHeapCanRemainDecision.getExplanation(),
-            containsString("sufficient estimated heap available on node [" + OTHER_NODE_ID + "]")
+            containsString("sufficient estimated heap available on node [" + OTHER_NODE_ID + "/" + OTHER_NODE_ID + "]")
         );
     }
 
@@ -227,11 +227,17 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
 
         final Decision canAllocateDecision = decider.canAllocate(shardRouting, routingNode, routingAllocation);
         assertThat(canAllocateDecision.type(), equalTo(Decision.Type.YES));
-        assertThat(canAllocateDecision.getExplanation(), containsString("sufficient estimated heap available on node [" + NODE_ID + "]"));
+        assertThat(
+            canAllocateDecision.getExplanation(),
+            containsString("sufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]")
+        );
 
         final Decision canRemainDecision = decider.canRemain(mock(IndexMetadata.class), shardRouting, routingNode, routingAllocation);
         assertThat(canRemainDecision.type(), equalTo(Decision.Type.YES));
-        assertThat(canRemainDecision.getExplanation(), containsString("sufficient estimated heap available on node [" + NODE_ID + "]"));
+        assertThat(
+            canRemainDecision.getExplanation(),
+            containsString("sufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]")
+        );
     }
 
     public void testNoDecisionWhenUsageAboveWatermark() {
@@ -253,13 +259,16 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
 
         final Decision canAllocateDecision = decider.canAllocate(shardRouting, routingNode, routingAllocation);
         assertThat(canAllocateDecision.toString(), canAllocateDecision.type(), equalTo(Decision.Type.NO));
-        assertThat(canAllocateDecision.getExplanation(), containsString("insufficient estimated heap available on node [" + NODE_ID + "]"));
+        assertThat(
+            canAllocateDecision.getExplanation(),
+            containsString("insufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]")
+        );
 
         final Decision canRemainDecision = decider.canRemain(mock(IndexMetadata.class), shardRouting, otherRoutingNode, routingAllocation);
         assertThat(canRemainDecision.toString(), canRemainDecision.type(), equalTo(Decision.Type.NO));
         assertThat(
             canRemainDecision.getExplanation(),
-            containsString("insufficient estimated heap available on node [" + OTHER_NODE_ID + "]")
+            containsString("insufficient estimated heap available on node [" + OTHER_NODE_ID + "/" + OTHER_NODE_ID + "]")
         );
     }
 
@@ -283,7 +292,10 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
         final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
         final Decision decision = decider.canAllocate(shardRouting, routingAllocation.routingNodes().node(NODE_ID), routingAllocation);
         assertThat(decision.toString(), decision.type(), equalTo(Decision.Type.NO));
-        assertThat(decision.getExplanation(), containsString("insufficient estimated heap available on node [" + NODE_ID + "]"));
+        assertThat(
+            decision.getExplanation(),
+            containsString("insufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]")
+        );
     }
 
     /**
@@ -305,7 +317,10 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
         final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
         final Decision decision = decider.canAllocate(shardRouting, routingAllocation.routingNodes().node(NODE_ID), routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(), containsString("sufficient estimated heap available on node [" + NODE_ID + "]"));
+        assertThat(
+            decision.getExplanation(),
+            containsString("sufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]")
+        );
     }
 
     public void testYesDecisionWhenNodeHeapIsBelowMinimumThreshold() {
@@ -383,13 +398,13 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
             explanation,
             nodeDecisions,
             Decision.Type.YES,
-            "sufficient estimated heap available on node [" + NODE_ID + "]"
+            "sufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]"
         );
         assertExplanationResult(
             explanation,
             nodeDecisions,
             Decision.Type.NO,
-            "insufficient estimated heap available on node [" + OTHER_NODE_ID + "]"
+            "insufficient estimated heap available on node [" + OTHER_NODE_ID + "/" + OTHER_NODE_ID + "]"
         );
         assertExplanationResult(
             explanation,
@@ -457,7 +472,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
                 canRemainDecision.getDecisions().toString(),
                 canRemainDecision.getDecisions(),
                 Decision.Type.NO,
-                "insufficient estimated heap available on node [" + NODE_ID + "]"
+                "insufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]"
             );
         }
 
@@ -489,7 +504,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
                 canRemainDecision.getDecisions().toString(),
                 canRemainDecision.getDecisions(),
                 Decision.Type.YES,
-                "sufficient estimated heap available on node [" + NODE_ID + "]"
+                "sufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]"
             );
         }
 
@@ -607,7 +622,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
     ) {
         final var clusterSettings = new ClusterSettings(
             Settings.builder()
-                .put(EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT.getKey(), minimumHeapSizeForEnabled)
+                .put(AbstractEstimatedHeapAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT.getKey(), minimumHeapSizeForEnabled)
                 .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), enabled)
                 .put(
                     EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED.getKey(),
@@ -624,11 +639,11 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
                 .build(),
             Set.of(
                 InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
-                EstimatedHeapUsageAllocationDecider.MINIMUM_LOGGING_INTERVAL,
+                AbstractEstimatedHeapAllocationDecider.MINIMUM_LOGGING_INTERVAL,
                 EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK,
                 EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK,
                 EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED,
-                EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT
+                AbstractEstimatedHeapAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT
             )
         );
         return new EstimatedHeapUsageAllocationDecider(new EstimatedHeapSettings(clusterSettings), clusterSettings);
@@ -776,9 +791,9 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
 
     private static DiscoveryNodes.Builder nodesBuilder() {
         return DiscoveryNodes.builder()
-            .add(newNode(NODE_ID, Set.of(DiscoveryNodeRole.INDEX_ROLE)))
-            .add(newNode(OTHER_NODE_ID, Set.of(DiscoveryNodeRole.INDEX_ROLE)))
-            .add(newNode(SEARCH_NODE_ID, Set.of(DiscoveryNodeRole.SEARCH_ROLE)));
+            .add(newNode(NODE_ID, NODE_ID, Set.of(DiscoveryNodeRole.INDEX_ROLE)))
+            .add(newNode(OTHER_NODE_ID, OTHER_NODE_ID, Set.of(DiscoveryNodeRole.INDEX_ROLE)))
+            .add(newNode(SEARCH_NODE_ID, SEARCH_NODE_ID, Set.of(DiscoveryNodeRole.SEARCH_ROLE)));
     }
 
     private NodeHeapMetrics createNodeHeapMetrics(String nodeId, long usagePercent, ByteSizeValue totalHeapSize) {

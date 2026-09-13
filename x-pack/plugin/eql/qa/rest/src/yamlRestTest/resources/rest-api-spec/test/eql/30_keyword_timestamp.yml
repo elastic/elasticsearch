@@ -1,0 +1,63 @@
+---
+setup:
+  - do:
+      indices.create:
+          index:  eql_keyword_ts
+          body:
+            mappings:
+              properties:
+                "@timestamp":
+                  type: keyword
+                event:
+                  properties:
+                    category:
+                      type: keyword
+                user:
+                  type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: eql_keyword_ts
+              _id:    "1"
+          - event:
+              - category: process
+            "@timestamp": "2020-02-03T12:34:56.000Z"
+            user: SYSTEM
+          - index:
+              _index: eql_keyword_ts
+              _id:    "2"
+          - event:
+              - category: process
+            "@timestamp": "2020-02-04T12:34:56.000Z"
+            user: SYSTEM
+          - index:
+              _index: eql_keyword_ts
+              _id:    "3"
+          - event:
+              - category: process
+            "@timestamp": "2020-02-05T12:34:56.000Z"
+            user: SYSTEM
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: eql_keyword_ts
+        ignore: 404
+
+---
+"Sequence matching accepts ISO-8601 strings when timestamp is mapped as keyword":
+  - do:
+      eql.search:
+        index: eql_keyword_ts
+        body:
+          query: 'sequence by user [process where true] [process where true]'
+  - match: {timed_out: false}
+  - match: {hits.total.value: 2}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.events.0._id: "1"}
+  - match: {hits.sequences.0.events.1._id: "2"}
+  - match: {hits.sequences.1.events.0._id: "2"}
+  - match: {hits.sequences.1.events.1._id: "3"}

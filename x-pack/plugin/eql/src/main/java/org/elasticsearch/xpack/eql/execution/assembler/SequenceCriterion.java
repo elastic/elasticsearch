@@ -74,10 +74,7 @@ public class SequenceCriterion extends Criterion<BoxedQueryRequest> {
 
     @SuppressWarnings({ "unchecked" })
     public Ordinal ordinal(SearchHit hit) {
-        Object ts = timestamp.extract(hit);
-        if (ts instanceof Timestamp == false) {
-            throw new EqlIllegalArgumentException("Expected timestamp as a Timestamp but got {}", ts.getClass());
-        }
+        Timestamp ts = Timestamp.from(timestamp.extract(hit));
 
         Comparable<Object> tbreaker = null;
         if (tiebreaker != null) {
@@ -93,7 +90,7 @@ public class SequenceCriterion extends Criterion<BoxedQueryRequest> {
             throw new EqlIllegalArgumentException("Expected _shard_doc/implicit tiebreaker as long but got [{}]", implicitTbreaker);
         }
         long timebreakerValue = ((Number) implicitTbreaker).longValue();
-        return new Ordinal((Timestamp) ts, tbreaker, timebreakerValue);
+        return new Ordinal(ts, tbreaker, timebreakerValue);
     }
 
     public boolean missing() {
@@ -101,11 +98,7 @@ public class SequenceCriterion extends Criterion<BoxedQueryRequest> {
     }
 
     public Timestamp timestamp(SearchHit hit) {
-        Object ts = timestamp.extract(hit);
-        if (ts instanceof Timestamp == false) {
-            throw new EqlIllegalArgumentException("Expected timestamp as a Timestamp but got {}", ts.getClass());
-        }
-        return (Timestamp) ts;
+        return Timestamp.from(timestamp.extract(hit));
     }
 
     @Override

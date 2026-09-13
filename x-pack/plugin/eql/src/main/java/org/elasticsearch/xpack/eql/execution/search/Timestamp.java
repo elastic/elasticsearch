@@ -7,7 +7,13 @@
 
 package org.elasticsearch.xpack.eql.execution.search;
 
+import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.util.DateUtils;
+
 import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 
 import static java.time.temporal.ChronoUnit.NANOS;
 
@@ -23,6 +29,44 @@ public abstract class Timestamp {
 
     int compareTo(Timestamp other) {
         return instant().compareTo(other.instant());
+    }
+
+    /**
+     * Converts a value extracted from a search hit into a {@link Timestamp}.
+     * Sequence matching requests {@code epoch_millis} (or {@code millis.micros}) strings, but the fields
+     * API can also return ISO-8601 strings when the timestamp is not mapped as {@code date}, or when a
+     * fetch format other than {@code epoch_millis} wins.
+     */
+    public static Timestamp from(Object value) {
+        if (value instanceof Timestamp timestamp) {
+            return timestamp;
+        }
+        if (value instanceof String str) {
+            return parseString(str);
+        }
+        if (value instanceof Number number) {
+            return of(Long.toString(number.longValue()));
+        }
+        if (value instanceof ZonedDateTime zonedDateTime) {
+            return of(Long.toString(zonedDateTime.toInstant().toEpochMilli()));
+        }
+        if (value == null) {
+            throw new EqlIllegalArgumentException("Expected timestamp as a Timestamp but got null");
+        }
+        throw new EqlIllegalArgumentException("Expected timestamp as a Timestamp but got {}", value.getClass());
+    }
+
+    private static Timestamp parseString(String value) {
+        try {
+            return of(value);
+        } catch (NumberFormatException e) {
+            try {
+                Instant instant = DateFormatters.from(DateUtils.UTC_DATE_TIME_FORMATTER.parse(value)).toInstant();
+                return of(Long.toString(instant.toEpochMilli()));
+            } catch (DateTimeParseException | IllegalArgumentException parseException) {
+                throw new EqlIllegalArgumentException("Expected timestamp as a Timestamp but got {}", value.getClass());
+            }
+        }
     }
 
     public static Timestamp of(String milliseconds) {

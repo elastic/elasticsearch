@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.dsltranslate;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -52,6 +53,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -479,7 +481,9 @@ public class QueryDslTranslatorTests extends ESTestCase {
             new Object[] { QueryBuilders.termQuery("body", "a"), "term[on analyzed text]" },
             new Object[] { QueryBuilders.wildcardQuery("status", "2*"), "wildcard[on integer]" },
             new Object[] { QueryBuilders.regexpQuery("release", "1.*"), "regexp[on version]" },
-            new Object[] { QueryBuilders.regexpQuery("tags", "["), "regexp[pattern]" }
+            new Object[] { QueryBuilders.regexpQuery("tags", "["), "regexp[pattern]" },
+            new Object[] { QueryBuilders.termQuery("client_ip", "not-an-address"), "term[literal on ip]" },
+            new Object[] { QueryBuilders.termsQuery("client_ip", List.of("10.0.0.0/99")), "terms[literal on ip]" }
         );
         for (Object[] c : cases) {
             var result = translateResult((QueryBuilder) c[0]);
@@ -581,10 +585,37 @@ public class QueryDslTranslatorTests extends ESTestCase {
      * A JSON number above Long.MAX_VALUE arrives as a BigInteger, a different arm of the unsigned_long term rule from
      * the string form the other tests take. In range it is the value; above the type's maximum it can equal nothing.
      */
-    public void testUnsignedLongTermFromBigInteger() {
+    /**
+     * A value above Long.MAX_VALUE is the one an unsigned_long exists for, and JSON hands it to the builder as a
+     * BigInteger. It does not arrive here as one: AbstractQueryBuilder.maybeConvertToBytesRef turns a BigInteger into
+     * a BytesRef at construction and value() converts that back with maybeConvertToString, so the translator is
+     * handed the decimal string and takes the Long.parseUnsignedLong arm — the same one the index's parseTerm takes
+     * for the same query. What matters is the answer, which is why the assertions are on the emitted expression.
+     */
+    public void testUnsignedLongTermAboveLongMaxValue() {
         assertThat(translate(QueryBuilders.termQuery("quota", new BigInteger("18446744073709551615"))), instanceOf(MvContains.class));
         assertEquals(Literal.FALSE, translate(QueryBuilders.termQuery("quota", new BigInteger("18446744073709551616"))));
         assertEquals(Literal.FALSE, translate(QueryBuilders.termQuery("quota", new BigInteger("-1"))));
+        // The shape the builder actually delivers, asserted directly so the claim above is not taken on faith.
+        assertEquals("18446744073709551615", QueryBuilders.termQuery("quota", new BigInteger("18446744073709551615")).value());
+    }
+
+    /**
+     * unsigned_long takes every integral box, not just the two a test is likely to reach for: parseTerm's number arm
+     * accepts Byte and Short exactly as it accepts Integer and Long, and a negative one of any width can equal no
+     * unsigned_long.
+     */
+    public void testUnsignedLongTermFromEveryIntegralBox() {
+        for (Object value : List.of((byte) 42, (short) 42, 42, 42L)) {
+            assertThat(
+                "[" + value.getClass().getSimpleName() + "] is an integral box unsigned_long accepts",
+                translate(QueryBuilders.termQuery("quota", value)),
+                instanceOf(MvContains.class)
+            );
+        }
+        for (Object value : List.of((byte) -1, (short) -1)) {
+            assertEquals("a negative can equal no unsigned_long", Literal.FALSE, translate(QueryBuilders.termQuery("quota", value)));
+        }
     }
 
     /**
@@ -653,6 +684,142 @@ public class QueryDslTranslatorTests extends ESTestCase {
                 QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery("status", 200)).add(QueryBuilders.fuzzyQuery("tags", "x"))
             ).isComplete()
         );
+    }
+
+    /**
+     * A wrapper inside an all-or-nothing context reaches the strict walk, which carries its own wrapper arms — the
+     * collecting walk unwraps a constant_score or a boosting long before a dis_max arm is dispatched. Without them
+     * the caller would lose the whole clause to a wrapper that only replaces a score.
+     */
+    public void testScoreOnlyWrappersInsideAnAllOrNothingContext() {
+        Expression boosting = translate(
+            QueryBuilders.disMaxQuery()
+                .add(QueryBuilders.boostingQuery(QueryBuilders.termQuery("status", 200), QueryBuilders.termQuery("tags", "t1")))
+                .add(QueryBuilders.termQuery("status", 404))
+        );
+        assertThat(boosting, instanceOf(Or.class));
+        // A single-armed dis_max is that arm, so the unwrapping is visible in the emitted node rather than inferred.
+        assertThat(
+            translate(
+                QueryBuilders.disMaxQuery()
+                    .add(QueryBuilders.boostingQuery(QueryBuilders.termQuery("status", 200), QueryBuilders.termQuery("tags", "t1")))
+            ),
+            instanceOf(MvContains.class)
+        );
+        assertThat(
+            translate(QueryBuilders.disMaxQuery().add(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("status", 200)))),
+            instanceOf(MvContains.class)
+        );
+        // The negative clause still only changes a score, so an untranslatable one costs nothing even here.
+        assertThat(
+            translate(
+                QueryBuilders.disMaxQuery()
+                    .add(QueryBuilders.boostingQuery(QueryBuilders.termQuery("status", 200), QueryBuilders.fuzzyQuery("tags", "x")))
+            ),
+            instanceOf(MvContains.class)
+        );
+    }
+
+    /**
+     * An ip value carrying a {@code /} is a block, not an address: IpFieldType.termQuery answers it with
+     * InetAddressPoint.newPrefixQuery, which matches every address in the subnet. The block is contiguous in the
+     * encoded ordering, so it is an inclusive range over its first and last address.
+     */
+    public void testIpCidrBlockBecomesAnInclusiveRange() {
+        MvInRange block = (MvInRange) translate(QueryBuilders.termQuery("client_ip", "10.0.0.0/29"));
+        assertEquals(EsqlDataTypeConverter.stringToIP("10.0.0.0"), ((Literal) block.lower()).value());
+        assertEquals(EsqlDataTypeConverter.stringToIP("10.0.0.7"), ((Literal) block.upper()).value());
+        // A /32 is the single address, so the block form and the address form select the same one row.
+        MvInRange single = (MvInRange) translate(QueryBuilders.termQuery("client_ip", "10.0.0.1/32"));
+        assertEquals(EsqlDataTypeConverter.stringToIP("10.0.0.1"), ((Literal) single.lower()).value());
+        assertEquals(EsqlDataTypeConverter.stringToIP("10.0.0.1"), ((Literal) single.upper()).value());
+        // An IPv6 block takes the same path, over the same 16-byte encoding.
+        MvInRange v6 = (MvInRange) translate(QueryBuilders.termQuery("client_ip", "2001:db8::/126"));
+        assertEquals(EsqlDataTypeConverter.stringToIP("2001:db8::"), ((Literal) v6.lower()).value());
+        assertEquals(EsqlDataTypeConverter.stringToIP("2001:db8::3"), ((Literal) v6.upper()).value());
+    }
+
+    /**
+     * A lenient match folds a value the type cannot represent to false. A CIDR block is not such a value — the index
+     * matches the whole subnet — so folding it would return none of the rows the caller asked for, which is the one
+     * direction this translator may never take.
+     */
+    public void testLenientMatchOnACidrBlockStillSelectsTheBlock() {
+        assertThat(translate(QueryBuilders.matchQuery("client_ip", "10.0.0.0/29").lenient(true)), instanceOf(MvInRange.class));
+        assertThat(translate(QueryBuilders.matchQuery("client_ip", "10.0.0.0/29")), instanceOf(MvInRange.class));
+        // A malformed block is malformed like any other value: lenient folds it to false, strict degrades.
+        assertEquals(Literal.FALSE, translate(QueryBuilders.matchQuery("client_ip", "10.0.0.0/99").lenient(true)));
+        assertFalse(translateResult(QueryBuilders.termQuery("client_ip", "10.0.0.0/99")).isComplete());
+        assertEquals("term[literal on ip]", constructOf(QueryBuilders.termQuery("client_ip", "10.0.0.0/99")));
+    }
+
+    /**
+     * One block in a terms list makes the index abandon its set query for a disjunction of term queries
+     * (IpFieldType.termsQuery), so the list is a union of blocks and whatever plain addresses remain.
+     */
+    public void testIpTermsMixesBlocksAndAddresses() {
+        Expression mixed = translate(QueryBuilders.termsQuery("client_ip", List.of("10.0.0.0/29", "192.168.1.1")));
+        assertThat(mixed, instanceOf(Or.class));
+        assertThat(((Or) mixed).left(), instanceOf(MvInRange.class));
+        assertThat(((Or) mixed).right(), instanceOf(MvIntersects.class));
+        // Blocks only: still a union, with no set-membership leaf at all.
+        Expression blocks = translate(QueryBuilders.termsQuery("client_ip", List.of("10.0.0.0/29", "10.1.0.0/29")));
+        assertThat(blocks, instanceOf(Or.class));
+        assertThat(((Or) blocks).left(), instanceOf(MvInRange.class));
+        assertThat(((Or) blocks).right(), instanceOf(MvInRange.class));
+        // No block: the plain set-membership leaf, unchanged.
+        assertThat(translate(QueryBuilders.termsQuery("client_ip", List.of("10.0.0.1", "192.168.1.1"))), instanceOf(MvIntersects.class));
+    }
+
+    /**
+     * A range may name the format its bounds are written in, and the bounds are then parsed with that formatter
+     * rather than the field's default — so the same instant spelled two ways translates to the same bound. A pattern
+     * that does not compile never arrives: RangeQueryBuilder.format compiles it when the builder is built, so a
+     * malformed one is a 400 from request parsing. A bound the named format cannot read is a different matter, and
+     * degrades on the bound rule.
+     */
+    public void testRangeFormatOptionIsHonoured() {
+        MvInRange formatted = (MvInRange) translate(
+            QueryBuilders.rangeQuery("@timestamp").gte("2024/01/01").lte("2024/01/31").format("yyyy/MM/dd")
+        );
+        MvInRange iso = (MvInRange) translate(QueryBuilders.rangeQuery("@timestamp").gte("2024-01-01").lte("2024-01-31"));
+        assertEquals(((Literal) iso.lower()).value(), ((Literal) formatted.lower()).value());
+        assertEquals(((Literal) iso.upper()).value(), ((Literal) formatted.upper()).value());
+        assertEquals(
+            "range[date bound on datetime]",
+            constructOf(QueryBuilders.rangeQuery("@timestamp").gte("2024-01-01").format("yyyy/MM/dd"))
+        );
+    }
+
+    /**
+     * A date_nanos bound written as a string is parsed with the nanos formatter, so sub-millisecond precision in the
+     * bound survives instead of being truncated to the millisecond.
+     */
+    public void testDateNanosStringBoundKeepsNanosecondPrecision() {
+        MvInRange e = (MvInRange) translate(
+            QueryBuilders.rangeQuery("ts_nanos").gte("2020-06-15T12:00:00.123456789Z").lte("2020-06-15T12:00:01Z")
+        );
+        assertEquals(
+            DateUtils.toLong(Instant.parse("2020-06-15T12:00:00.123456789Z")),
+            ((Literal) e.lower()).value()
+        );
+    }
+
+    /**
+     * A percentage or an expression minimum_should_match is legal DSL that the OR rewrite cannot express. It parses
+     * as neither 0 nor 1, so the clause degrades — naming the value, because that is what the caller wrote.
+     */
+    public void testUnparseableMinimumShouldMatchDegrades() {
+        for (String msm : List.of("75%", "2<-1", "nonsense")) {
+            var result = translateResult(
+                QueryBuilders.boolQuery()
+                    .should(QueryBuilders.termQuery("status", 1))
+                    .should(QueryBuilders.termQuery("status", 2))
+                    .minimumShouldMatch(msm)
+            );
+            assertFalse("[" + msm + "] cannot be honoured", result.isComplete());
+            assertEquals("bool[minimum_should_match=" + msm + "]", result.unsupported().get(0).construct());
+        }
     }
 
     /** A terms-lookup has no values to translate (and values() is null — it used to NPE). */
@@ -830,6 +997,35 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(Literal.FALSE, translate(QueryBuilders.termQuery("bytes", 3.5))); // decimal vs long
         // a whole-number value in range is a normal contains
         assertThat(translate(QueryBuilders.termQuery("status", 200)), instanceOf(MvContains.class));
+    }
+
+    /**
+     * A term outside the field type's range can equal no value of that type, at either end — the index's own parse
+     * rejects it rather than clamping, so the clause matches nothing instead of matching the extreme.
+     */
+    public void testIntegralTermOutsideTheTypeRangeMatchesNothing() {
+        assertEquals(Literal.FALSE, translate(QueryBuilders.termQuery("status", 3_000_000_000L)));
+        assertEquals(Literal.FALSE, translate(QueryBuilders.termQuery("status", -3_000_000_000L)));
+        // The same values on a long field are ordinary terms, so the assertions above are not vacuous.
+        assertThat(translate(QueryBuilders.termQuery("bytes", 3_000_000_000L)), instanceOf(MvContains.class));
+        assertThat(translate(QueryBuilders.termQuery("bytes", -3_000_000_000L)), instanceOf(MvContains.class));
+    }
+
+    /**
+     * A bound arrives either as a number or as its string spelling depending on how the request was written, and the
+     * index reads both to the same value. The two must therefore translate to the same bound literal.
+     */
+    public void testRangeBoundReadsANumberAndItsStringAlike() {
+        MvInRange fromNumber = (MvInRange) translate(QueryBuilders.rangeQuery("bytes").gt(5));
+        MvInRange fromString = (MvInRange) translate(QueryBuilders.rangeQuery("bytes").gt("5"));
+        assertEquals(((Literal) fromNumber.lower()).value(), ((Literal) fromString.lower()).value());
+        MvInRange toNumber = (MvInRange) translate(QueryBuilders.rangeQuery("bytes").lt(10));
+        MvInRange toString = (MvInRange) translate(QueryBuilders.rangeQuery("bytes").lt("10"));
+        assertEquals(((Literal) toNumber.upper()).value(), ((Literal) toString.upper()).value());
+        // A fractional spelling is read the same way from either shape, and rounds inward from either.
+        MvInRange decimalNumber = (MvInRange) translate(QueryBuilders.rangeQuery("bytes").gt(4.5));
+        MvInRange decimalString = (MvInRange) translate(QueryBuilders.rangeQuery("bytes").gt("4.5"));
+        assertEquals(((Literal) decimalNumber.lower()).value(), ((Literal) decimalString.lower()).value());
     }
 
     /** terms drops the values no value of an integral field can equal; an emptied set matches nothing. */
@@ -1268,7 +1464,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
         );
         assertFalse("bool-options failure makes result incomplete", result.isComplete());
         assertEquals(1, result.unsupported().size());
-        assertThat(result.unsupported().get(0).construct(), org.hamcrest.Matchers.containsString("minimum_should_match"));
+        assertThat(result.unsupported().get(0).construct(), containsString("minimum_should_match"));
         assertNotEquals("must arm must be applied, not abandoned to TRUE", Literal.TRUE, result.applied());
     }
 
@@ -1327,7 +1523,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
                 .minimumShouldMatch(2)
         );
         assertFalse("msm failure is reported", result.isComplete());
-        assertThat(result.unsupported().get(0).construct(), org.hamcrest.Matchers.containsString("minimum_should_match"));
+        assertThat(result.unsupported().get(0).construct(), containsString("minimum_should_match"));
         assertThat("must_not arm must be applied despite msm failure", result.applied(), instanceOf(Not.class));
     }
 

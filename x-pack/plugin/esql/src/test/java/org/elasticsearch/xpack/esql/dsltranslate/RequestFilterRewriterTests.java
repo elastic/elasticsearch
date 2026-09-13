@@ -85,7 +85,6 @@ public class RequestFilterRewriterTests extends ESTestCase {
             () -> RequestFilterRewriter.rewrite(
                 relation,
                 QueryBuilders.boolQuery().must(QueryBuilders.termQuery("a", 1)).must(QueryBuilders.fuzzyQuery("a", "x")),
-
                 CONFIG,
                 CURRENT,
                 false
@@ -138,7 +137,6 @@ public class RequestFilterRewriterTests extends ESTestCase {
             () -> RequestFilterRewriter.rewrite(
                 relation,
                 QueryBuilders.boolQuery().mustNot(QueryBuilders.fuzzyQuery("a", "x")),
-
                 CONFIG,
                 CURRENT,
                 false
@@ -244,7 +242,6 @@ public class RequestFilterRewriterTests extends ESTestCase {
             QueryBuilders.boolQuery()
                 .must(QueryBuilders.termQuery("region", "eu"))
                 .must(QueryBuilders.rangeQuery("status").gte(200).lte(400)),
-
             CONFIG,
             CURRENT,
             false
@@ -275,7 +272,6 @@ public class RequestFilterRewriterTests extends ESTestCase {
         LogicalPlan result = RequestFilterRewriter.rewrite(
             relation,
             QueryBuilders.boolQuery().must(QueryBuilders.termQuery("a", 1)).must(QueryBuilders.fuzzyQuery("a", "x")),
-
             CONFIG,
             CURRENT,
             true

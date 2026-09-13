@@ -39,7 +39,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * The out-of-band request {@code filter} is applied to an external dataset by translating the Query DSL into ES|QL
@@ -326,6 +328,24 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         assertSelectsSameRows(QueryBuilders.rangeQuery("client_ip").gte("10.0.0.5").lte("10.0.0.20"));
     }
 
+    /**
+     * An ip value carrying a {@code /} is a block, not an address. The index answers a term on it with
+     * InetAddressPoint.newPrefixQuery — every address in the subnet — and a terms list containing one abandons its
+     * set query for a disjunction of term queries. A lenient match takes the same path, which is where treating the
+     * value as malformed and folding it to false would cost the caller every row in the block.
+     */
+    public void testIpCidrBlocks() {
+        assertSelectsSameRows(QueryBuilders.termQuery("client_ip", "10.0.0.0/29"));
+        assertSelectsSameRows(QueryBuilders.termQuery("client_ip", "10.0.0.16/28"));
+        assertSelectsSameRows(QueryBuilders.termQuery("client_ip", "10.0.0.5/32"));
+        assertSelectsSameRows(QueryBuilders.matchQuery("client_ip", "10.0.0.0/29").lenient(true));
+        assertSelectsSameRows(QueryBuilders.matchQuery("client_ip", "10.0.0.0/29"));
+        assertSelectsSameRows(QueryBuilders.termsQuery("client_ip", List.of("10.0.0.0/30", "10.0.0.20")));
+        assertSelectsSameRows(QueryBuilders.termsQuery("client_ip", List.of("10.0.0.0/30", "10.1.0.0/30")));
+        // The block selects part of the data rather than none of it or all of it, so the agreement above is not vacuous.
+        assertEquals(List.of(0, 1, 2, 3, 4, 5, 6, 7), selectedIds(INDEX, QueryBuilders.termQuery("client_ip", "10.0.0.0/29")));
+    }
+
     /** An unsigned_long literal arrives as a JSON number and must encode to the field's internal representation. */
     public void testUnsignedLongTermAndExclusiveRange() {
         assertSelectsSameRows(QueryBuilders.termQuery("quota", 700));
@@ -577,9 +597,14 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
      * covers the unsigned_long column.
      */
     public void testOverLongNumericValueDoesNotFailTheQuery() {
-        // A fieldless multi_match is implicitly lenient on both paths, so the unsigned_long arm matches nothing
-        // rather than degrading — and the index agrees value for value, which is the stronger claim.
+        // A fieldless multi_match is implicitly lenient on both paths, so a value no field can hold matches nothing
+        // rather than degrading. Both sides select nothing here, so what this pins is that neither fails the query.
         assertSelectsSameRows(QueryBuilders.multiMatchQuery("1".repeat(1001)));
+        assertThat(selectedIds(dataset, QueryBuilders.multiMatchQuery("1".repeat(1001))), empty());
+        // A value a field does hold selects rows through that same path, so the agreement above is the agreement of
+        // two paths that work rather than of two empty answers.
+        assertSelectsSameRows(QueryBuilders.multiMatchQuery("700"));
+        assertThat(selectedIds(dataset, QueryBuilders.multiMatchQuery("700")), not(empty()));
         // A term names the field, so there is no leniency to fall back on: the clause degrades and is dropped, which
         // can only over-return. The index answers a 400 here, so the two cannot be compared row for row.
         List<Object> ids = selectedIds(dataset, QueryBuilders.termQuery("quota", "1".repeat(1001)));

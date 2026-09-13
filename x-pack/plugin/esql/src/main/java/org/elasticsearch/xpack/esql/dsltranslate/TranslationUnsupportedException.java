@@ -21,32 +21,32 @@ import org.elasticsearch.index.query.QueryBuilder;
  */
 public class TranslationUnsupportedException extends RuntimeException {
 
-    private final String construct;
-    private final String detail;
+    private final String text;
+
+    /** True when {@link #text} is a leaf reason awaiting a construct name rather than a construct name itself. */
+    private final boolean leafReason;
 
     public TranslationUnsupportedException(String construct) {
-        super("Query DSL construct [" + construct + "] has no ES|QL translation");
-        this.construct = construct;
-        this.detail = null;
+        this(construct, false);
     }
 
-    private TranslationUnsupportedException(String detail, boolean leaf) {
-        super("Query DSL construct [" + detail + "] has no ES|QL translation");
-        this.construct = null;
-        this.detail = detail;
+    private TranslationUnsupportedException(String text, boolean leafReason) {
+        super("Query DSL construct [" + text + "] has no ES|QL translation");
+        this.text = text;
+        this.leafReason = leafReason;
     }
 
     /**
-     * A failure raised where only the reason is known — typically a type the leaf cannot be built over. The DSL
-     * construct name is attached later by {@link #constructFor}.
+     * A failure raised where only the reason is known — typically a type the leaf cannot be built over, or a literal
+     * the type cannot represent. The DSL construct name is attached later by {@link #constructFor}.
      */
-    public static TranslationUnsupportedException forLeaf(String detail) {
-        return new TranslationUnsupportedException(detail, true);
+    public static TranslationUnsupportedException forLeaf(String reason) {
+        return new TranslationUnsupportedException(reason, true);
     }
 
     /** The DSL construct name (e.g. {@code wildcard}, {@code geo_bounding_box}) that could not be translated. */
     public String construct() {
-        return construct != null ? construct : detail;
+        return text;
     }
 
     /**
@@ -54,6 +54,6 @@ public class TranslationUnsupportedException extends RuntimeException {
      * query's own DSL name qualified by the reason — {@code wildcard[on analyzed text]}, never an ES|QL function name.
      */
     public String constructFor(QueryBuilder query) {
-        return construct != null ? construct : query.getName() + "[" + detail + "]";
+        return leafReason ? query.getName() + "[" + text + "]" : text;
     }
 }

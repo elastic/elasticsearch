@@ -11,10 +11,13 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.network.CIDRUtils;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -433,6 +436,12 @@ public final class QueryDslTranslator {
         if (isIntegral(type)) {
             return integralEquality(field, type, value, lenient);
         }
+        // An ip value carrying a '/' is a CIDR block, not an address, and the index matches the whole block.
+        if (type == DataType.IP && isCidr(value)) {
+            return lenient && isPresent(field)
+                ? foldMalformedToFalse(() -> checkedLeaf(field, ipBlock(field, value)))
+                : checkedLeaf(field, ipBlock(field, value));
+        }
         // keyword, boolean and version never fail to coerce; double and ip fail only on a value their type cannot
         // represent, which is exactly what a lenient match folds to false. Analyzed text stays out: it is a
         // capability gap, and lenient's "skip a bad value" is not a licence to drop a whole capability.
@@ -445,6 +454,41 @@ public final class QueryDslTranslator {
             return foldMalformedToFalse(() -> checkedLeaf(field, new MvContains(Source.EMPTY, field, literalFor(field, value))));
         }
         return checkedLeaf(field, new MvContains(Source.EMPTY, field, literalFor(field, value)));
+    }
+
+    /**
+     * Whether an ip value names a block rather than an address. This is the index's own test: every ip path —
+     * {@code IpFieldType.termQuery}, and {@code termsQuery} which falls back to a disjunction of term queries as soon
+     * as one value carries it — switches on the presence of a {@code /}, not on the value parsing as CIDR.
+     */
+    private static boolean isCidr(Object value) {
+        return String.valueOf(value).indexOf('/') >= 0;
+    }
+
+    /**
+     * The leaf for a CIDR block. {@code IpFieldType.termQuery} answers one with
+     * {@code InetAddressPoint.newPrefixQuery}, which matches every address in the block; the block is contiguous in
+     * the encoded ordering, so an inclusive {@code mv_in_range} over its first and last address selects exactly that
+     * set. The bounds come from {@link CIDRUtils#getLowerUpper}, the same masking the index's own CIDR paths use, and
+     * {@link CIDRUtils#encode} puts an IPv4 block into the IPv4-mapped form an {@code ip} literal holds. A malformed
+     * block degrades (or folds to false when the caller is lenient), exactly as a malformed address does.
+     */
+    private static Expression ipBlock(Expression field, Object value) {
+        BytesRef lower;
+        BytesRef upper;
+        try {
+            Tuple<byte[], byte[]> bounds = CIDRUtils.getLowerUpper(InetAddresses.parseCidr(String.valueOf(value)));
+            lower = new BytesRef(CIDRUtils.encode(bounds.v1()));
+            upper = new BytesRef(CIDRUtils.encode(bounds.v2()));
+        } catch (IllegalArgumentException malformed) {
+            throw TranslationUnsupportedException.forLeaf("literal on " + DataType.IP.typeName());
+        }
+        return new MvInRange(
+            Source.EMPTY,
+            field,
+            new Literal(Source.EMPTY, lower, DataType.IP),
+            new Literal(Source.EMPTY, upper, DataType.IP)
+        );
     }
 
     /** A lenient match over a value an encodable type cannot represent matches nothing, mirroring the index. */
@@ -621,6 +665,24 @@ public final class QueryDslTranslator {
             // back through it would degrade every unsigned_long terms clause.
             return checkedLeaf(field, new MvIntersects(Source.EMPTY, field, new Literal(Source.EMPTY, narrowed, field.dataType())));
         }
+        // One CIDR value in the list makes the index abandon its set query for a disjunction of term queries
+        // (IpFieldType.termsQuery), each of which matches a whole block. Mirror that: the blocks become ranges and
+        // whatever plain addresses remain stay one set-membership leaf, all of it unioned.
+        if (field.dataType() == DataType.IP && values.stream().anyMatch(QueryDslTranslator::isCidr)) {
+            List<Expression> disjuncts = new ArrayList<>(values.size());
+            List<Object> addresses = new ArrayList<>(values.size());
+            for (Object v : values) {
+                if (isCidr(v)) {
+                    disjuncts.add(checkedLeaf(field, ipBlock(field, v)));
+                } else {
+                    addresses.add(v);
+                }
+            }
+            if (addresses.isEmpty() == false) {
+                disjuncts.add(checkedLeaf(field, new MvIntersects(Source.EMPTY, field, listLiteralFor(field, addresses))));
+            }
+            return orAll(disjuncts);
+        }
         // any-value set membership: the field's values intersect the term set
         return checkedLeaf(field, new MvIntersects(Source.EMPTY, field, listLiteralFor(field, values)));
     }
@@ -670,6 +732,9 @@ public final class QueryDslTranslator {
         }
         Expression field = fieldBinder.apply(range.fieldName());
         DataType type = field.dataType();
+        // Compiling the pattern cannot fail here: RangeQueryBuilder.format compiles it eagerly when the builder is
+        // built ("this just ensure that the pattern is actually valid"), so a malformed one is already a 400 from
+        // request parsing and never reaches the translator.
         DateFormatter formatter = range.format() == null ? null : DateFormatter.forPattern(range.format());
 
         boolean hasLower = range.from() != null;
@@ -902,17 +967,13 @@ public final class QueryDslTranslator {
      * {@code ?} inside it stays a character rather than becoming a wildcard — {@code prefix} has no metacharacters.
      */
     private Expression prefix(PrefixQueryBuilder prefix) {
-        if (prefix.caseInsensitive()) {
-            throw new TranslationUnsupportedException("prefix[case_insensitive]");
-        }
+        checkCaseSensitive("prefix", prefix.caseInsensitive());
         checkRewrite("prefix", prefix.rewrite());
         return wildcardLeaf(fieldBinder.apply(prefix.fieldName()), StringUtils.escapeWildcardLiteral(prefix.value()) + "*");
     }
 
     private Expression wildcard(WildcardQueryBuilder wildcard) {
-        if (wildcard.caseInsensitive()) {
-            throw new TranslationUnsupportedException("wildcard[case_insensitive]");
-        }
+        checkCaseSensitive("wildcard", wildcard.caseInsensitive());
         checkRewrite("wildcard", wildcard.rewrite());
         return wildcardLeaf(fieldBinder.apply(wildcard.fieldName()), wildcard.value());
     }
@@ -924,6 +985,17 @@ public final class QueryDslTranslator {
      * unhonoured option in the same sense as {@code regexp[max_determinized_states]}, and it degrades for the same
      * reason. An unparseable method degrades too, rather than escaping as the query-killing failure the index raises.
      */
+    /**
+     * The pattern clauses all take a {@code case_insensitive} flag and none of them can honour it: neither
+     * {@code mv_like} nor {@code mv_rlike} takes a case-insensitivity option, and an automaton match has no
+     * field-side {@code TO_LOWER} equivalent that preserves the pattern's meaning.
+     */
+    private static void checkCaseSensitive(String construct, boolean caseInsensitive) {
+        if (caseInsensitive) {
+            throw new TranslationUnsupportedException(construct + "[case_insensitive]");
+        }
+    }
+
     private static void checkRewrite(String construct, String rewrite) {
         if (rewrite == null) {
             return;
@@ -947,9 +1019,7 @@ public final class QueryDslTranslator {
      * has no way to express, so it degrades rather than answering a differently-parsed pattern.
      */
     private Expression regexp(RegexpQueryBuilder regexp) {
-        if (regexp.caseInsensitive()) {
-            throw new TranslationUnsupportedException("regexp[case_insensitive]");
-        }
+        checkCaseSensitive("regexp", regexp.caseInsensitive());
         if (regexp.flags() != RegexpQueryBuilder.DEFAULT_FLAGS_VALUE) {
             throw new TranslationUnsupportedException("regexp[flags]");
         }
@@ -1113,6 +1183,10 @@ public final class QueryDslTranslator {
             return exact < 0 ? null : NumericUtils.asLongUnsigned(BigInteger.valueOf(exact));
         }
         if (value instanceof BigInteger big) {
+            // Not reached from a request: AbstractQueryBuilder.maybeConvertToBytesRef turns a BigInteger into a
+            // BytesRef when the builder is constructed, and value()/values()/from()/to() hand back a String. The arm
+            // mirrors parseTerm's anyway, because dropping it would route an in-range big value into the Number arm
+            // below and match nothing — tighter than the index, the one direction this translator may never take.
             return NumericUtils.isUnsignedLong(big) ? NumericUtils.asLongUnsigned(big) : null;
         }
         if (value instanceof Number) {
@@ -1238,12 +1312,14 @@ public final class QueryDslTranslator {
                 // where a fractional or out-of-range value matches nothing instead of being truncated into a match.
                 // The remaining types have encodings we do not reproduce; rejecting keeps us from handing the
                 // evaluator a value it cannot read.
-                default -> throw new TranslationUnsupportedException("literal on " + type.typeName());
+                default -> throw TranslationUnsupportedException.forLeaf("literal on " + type.typeName());
             };
         } catch (IllegalArgumentException e) {
             // A value the type cannot represent cannot be translated faithfully — an unparseable boolean, a malformed
-            // ip. Every encoder above reports that as an IllegalArgumentException.
-            throw new TranslationUnsupportedException("literal on " + type.typeName());
+            // ip. Every encoder above reports that as an IllegalArgumentException. The reason alone is the failure:
+            // the clause that carried the literal supplies the name where it is caught, so the warning says
+            // term[literal on ip] rather than naming an encoder the caller never wrote.
+            throw TranslationUnsupportedException.forLeaf("literal on " + type.typeName());
         }
     }
 

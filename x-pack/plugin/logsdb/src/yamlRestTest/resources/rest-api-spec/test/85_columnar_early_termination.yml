@@ -1,0 +1,126 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "Columnar index mode required for binary keyword sort and search_after"
+
+  - do:
+      cluster.put_component_template:
+        name: "cl-sa-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb_columnar"
+            mappings:
+              properties:
+                host.name:
+                  type: "keyword"
+
+  - do:
+      indices.put_index_template:
+        name: "cl-sa-template"
+        body:
+          index_patterns: [ "logs-cl-sa-test" ]
+          priority: 1000
+          data_stream: {}
+          composed_of: [ "cl-sa-mappings" ]
+      allowed_warnings:
+        - "index template [cl-sa-template] has index patterns [logs-cl-sa-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-sa-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: "logs-cl-sa-test"
+  - is_true: acknowledged
+
+  - do:
+      bulk:
+        index: "logs-cl-sa-test"
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": "2024-01-01T00:00:00Z"
+            host.name: "charlie"
+          - create: {}
+          - "@timestamp": "2024-01-01T00:00:01Z"
+            host.name: "alpha"
+          - create: {}
+          - "@timestamp": "2024-01-01T00:00:02Z"
+            host.name: "echo"
+          - create: {}
+          - "@timestamp": "2024-01-01T00:00:03Z"
+            host.name: "bravo"
+          - create: {}
+          - "@timestamp": "2024-01-01T00:00:04Z"
+            host.name: "delta"
+
+---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: "logs-cl-sa-test"
+  - do:
+      indices.delete_index_template:
+        name: "cl-sa-template"
+  - do:
+      cluster.delete_component_template:
+        name: "cl-sa-mappings"
+
+---
+"search_after paginates logsdb_columnar keyword sort correctly":
+  - do:
+      search:
+        index: "logs-cl-sa-test"
+        body:
+          size: 2
+          sort:
+            - host.name: asc
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields.host\.name.0: "alpha" }
+  - match: { hits.hits.1.fields.host\.name.0: "bravo" }
+  - set: { hits.hits.1.sort.0: after_bravo }
+
+  - do:
+      search:
+        index: "logs-cl-sa-test"
+        body:
+          size: 2
+          sort:
+            - host.name: asc
+          search_after: [ "$after_bravo" ]
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields.host\.name.0: "charlie" }
+  - match: { hits.hits.1.fields.host\.name.0: "delta" }
+  - set: { hits.hits.1.sort.0: after_delta }
+
+  - do:
+      search:
+        index: "logs-cl-sa-test"
+        body:
+          size: 2
+          sort:
+            - host.name: asc
+          search_after: [ "$after_delta" ]
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.host\.name.0: "echo" }
+
+---
+"top-N returns sorted results from logsdb_columnar keyword sort":
+  - do:
+      search:
+        index: "logs-cl-sa-test"
+        body:
+          size: 3
+          sort:
+            - host.name: asc
+
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0.fields.host\.name.0: "alpha" }
+  - match: { hits.hits.1.fields.host\.name.0: "bravo" }
+  - match: { hits.hits.2.fields.host\.name.0: "charlie" }

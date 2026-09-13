@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.searchafter;
 
+import org.apache.lucene.search.BinarySortField;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -147,6 +148,8 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource) {
             return ((IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource()).reducedType();
         } else if (sortField instanceof SortedSetSortField) {
+            return SortField.Type.STRING;
+        } else if (sortField instanceof BinarySortField) {
             return SortField.Type.STRING;
         } else if (sortField instanceof SortedNumericSortField) {
             return ((SortedNumericSortField) sortField).getNumericType();

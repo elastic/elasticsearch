@@ -14,6 +14,7 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -71,18 +72,38 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
 
     @Override
     public SortField indexSort(IndexVersion indexCreatedVersion, @Nullable Object missingValue, MultiValueMode sortMode, boolean reverse) {
-        Object luceneMissingValue = XFieldComparatorSource.sortMissingLast(missingValue) ^ reverse
-            ? SortField.STRING_LAST
-            : SortField.STRING_FIRST;
-        boolean maxMode = sortMode == MultiValueMode.MAX;
-        return new MultiValuedBinaryDocValuesSortField(getFieldName(), reverse, luceneMissingValue, maxMode, binaryFormat);
+        return binaryDocValuesSortField(missingValue, sortMode, reverse);
     }
 
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        // Falls back to: FieldComparator.TermValComparator which works with binary doc values.
+        if (nested == null && isStandardMissingSentinel(missingValue) && canUseBinaryDocValuesSortField()) {
+            return binaryDocValuesSortField(missingValue, sortMode, reverse);
+        }
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
         return new SortField(getFieldName(), source, reverse);
+    }
+
+    private MultiValuedBinaryDocValuesSortField binaryDocValuesSortField(Object missingValue, MultiValueMode sortMode, boolean reverse) {
+        Object luceneMissingValue = XFieldComparatorSource.sortMissingLast(missingValue) ^ reverse
+            ? SortField.STRING_LAST
+            : SortField.STRING_FIRST;
+        return new MultiValuedBinaryDocValuesSortField(
+            getFieldName(),
+            reverse,
+            luceneMissingValue,
+            sortMode == MultiValueMode.MAX,
+            binaryFormat
+        );
+    }
+
+    private static boolean isStandardMissingSentinel(Object missingValue) {
+        return missingValue == null || "_first".equals(missingValue) || "_last".equals(missingValue);
+    }
+
+    private boolean canUseBinaryDocValuesSortField() {
+        return binaryFormat != BinaryDocValuesFormat.SEPARATE_COUNT
+            || indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
     }
 
     @Override

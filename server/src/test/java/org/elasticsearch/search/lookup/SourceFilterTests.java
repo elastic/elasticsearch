@@ -79,7 +79,7 @@ public class SourceFilterTests extends ESTestCase {
         assertFalse(filtered.source().containsKey("array_field"));
     }
 
-    public void testExcludeWithWildcardsUsesMap() {
+    public void testExcludeWithWildcardsUsesBytes() {
 
         Source s = new Source() {
             @Override
@@ -89,18 +89,17 @@ public class SourceFilterTests extends ESTestCase {
 
             @Override
             public Map<String, Object> source() {
-                return Map.of("field", "value", "array_field", List.of("value1", "value2"));
+                throw new AssertionError("SourceFilter with '*' in excludes list should filter on bytes");
             }
 
             @Override
             public BytesReference internalSourceRef() {
-                throw new AssertionError("SourceFilter with '*' in excludes list should filter on map");
+                return new BytesArray("{ \"field\" : \"value\", \"array_field\" : [ \"value1\" ] }");
             }
 
             @Override
             public Source filter(SourceFilter sourceFilter) {
-                // We call filterBytes explicitly here but the filter should re-route to
-                // using filterMap because it contains an exclude filter with a wildcard
+                // We call filterBytes explicitly here to verify wildcard excludes use the byte path
                 return sourceFilter.filterBytes(this);
             }
         };

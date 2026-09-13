@@ -32,6 +32,8 @@ tasks.named("yamlRestTest").configure {
   ArrayList<String> blacklist = [
     'index/10_with_id/Index with ID',
     'indices.get_alias/10_basic/Get alias against closed indices',
+    // Stateless-only shards_availability assertions
+    'health/50_stateless_shards_availability/*',
   ];
   if (buildParams.snapshotBuild == false) {
     blacklist += [

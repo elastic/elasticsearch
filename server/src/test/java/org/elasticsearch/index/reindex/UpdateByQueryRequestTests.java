@@ -12,10 +12,16 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.hamcrest.Matchers.containsString;
@@ -24,6 +30,13 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateByQueryRequestTests extends AbstractBulkByPaginatedSearchRequestTestCase<UpdateByQueryRequest> {
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
     public void testUpdateByQueryRequestImplementsIndicesRequestReplaceable() {
         int numIndices = between(1, 100);
         String[] indices = new String[numIndices];
@@ -93,19 +106,30 @@ public class UpdateByQueryRequestTests extends AbstractBulkByPaginatedSearchRequ
         assertEquals(original.getPipeline(), forSliced.getPipeline());
     }
 
-    // TODO: Implement standard to/from x-content parsing tests
-
     @Override
     protected UpdateByQueryRequest createTestInstance() {
-        return newRequest();
+        UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest();
+        if (randomBoolean()) {
+            updateByQueryRequest.setScript(mockScript(randomAlphaOfLength(5)));
+        }
+        if (randomBoolean()) {
+            updateByQueryRequest.setMaxDocs(randomIntBetween(1, 1000));
+        }
+        if (randomBoolean()) {
+            updateByQueryRequest.setAbortOnVersionConflict(false);
+        }
+        if (randomBoolean()) {
+            updateByQueryRequest.setBatchSize(randomIntBetween(1, 1000));
+        }
+        if (randomBoolean()) {
+            updateByQueryRequest.setQuery(new TermQueryBuilder("foo", "fooval"));
+        }
+        return updateByQueryRequest;
     }
 
     @Override
     protected UpdateByQueryRequest doParseInstance(XContentParser parser) throws IOException {
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != null) {
-        }
-        return newRequest();
+        return UpdateByQueryRequest.fromXContent(parser, Predicates.never());
     }
 
     @Override
@@ -114,5 +138,11 @@ public class UpdateByQueryRequestTests extends AbstractBulkByPaginatedSearchRequ
     }
 
     @Override
-    protected void assertEqualInstances(UpdateByQueryRequest expectedInstance, UpdateByQueryRequest newInstance) {}
+    protected void assertEqualInstances(UpdateByQueryRequest expectedInstance, UpdateByQueryRequest newInstance) {
+        assertNotSame(newInstance, expectedInstance);
+        assertEquals(expectedInstance.getSearchRequest(), newInstance.getSearchRequest());
+        assertEquals(expectedInstance.getMaxDocs(), newInstance.getMaxDocs());
+        assertEquals(expectedInstance.isAbortOnVersionConflict(), newInstance.isAbortOnVersionConflict());
+        assertEquals(expectedInstance.getScript(), newInstance.getScript());
+    }
 }

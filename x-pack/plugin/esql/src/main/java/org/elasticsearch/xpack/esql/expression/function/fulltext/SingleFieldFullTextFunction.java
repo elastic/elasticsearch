@@ -227,7 +227,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      * declaration as attribute metadata. {@link AnalyzedTextExpression} covers both forms.
      */
     @Nullable
-    protected String valuesAnalyzerName() {
+    public String valuesAnalyzerName() {
         return AnalyzedTextExpression.valuesAnalyzerOf(field());
     }
 

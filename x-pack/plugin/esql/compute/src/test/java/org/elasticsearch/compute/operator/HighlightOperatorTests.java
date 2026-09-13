@@ -785,6 +785,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
+    // Runs the operator with one input block per ON field.
     private Page highlightFields(HighlightConfig config, Query query, List<String> fieldNames, BytesRefBlock... fields) {
         return highlightFields(config, query, fieldNames, namedAnalyzers(new StandardAnalyzer(), fieldNames.size()), fields);
     }

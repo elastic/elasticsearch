@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical.highlight;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -73,13 +72,12 @@ public final class HighlightSupport {
 
     /** The leaf's {@code analyzer} option, or {@code null} if absent, not foldable, or unsupported on that leaf type. */
     private static String analyzerNameOf(Expression fullTextLeaf) {
+        // Supported HIGHLIGHT leaves have options; anything else (KNN, future full-text functions) is not unexpected,
+        // just unsupported, so return null and let verifyQueryStructure report the real error.
         Expression options = switch (fullTextLeaf) {
             case SingleFieldFullTextFunction single -> single.options();
             case QueryString queryString -> queryString.options();
-            case Kql kql -> null;
-            default -> throw new IllegalStateException(
-                "analyzerNameOf: unexpected full-text leaf [" + fullTextLeaf.getClass().getSimpleName() + "]"
-            );
+            default -> null;
         };
         return foldedOption(options, ANALYZER_FIELD.getPreferredName());
     }
@@ -131,6 +129,16 @@ public final class HighlightSupport {
             addIfPresent(names, analyzerNameOf(leaf));
             addIfPresent(names, quoteAnalyzerNameOf(leaf));
         });
+        return names;
+    }
+
+    /**
+     * The {@code QSTR} {@code quote_analyzer} names alone. Unlike {@code analyzer}, a quote analyzer has no per-field
+     * counterpart in the runtime context, so the query builder keeps it and the name must stay resolvable there.
+     */
+    public static Set<String> quoteAnalyzerNamesOf(Expression query) {
+        Set<String> names = new LinkedHashSet<>();
+        query.forEachDown(FullTextFunction.class, leaf -> addIfPresent(names, quoteAnalyzerNameOf(leaf)));
         return names;
     }
 
@@ -203,17 +211,9 @@ public final class HighlightSupport {
         return field == null ? null : Expressions.name(field);
     }
 
-    /** The field a single-field leaf ({@code MATCH}/{@code MATCH_PHRASE}) queries, or {@code null} for {@code QSTR}/{@code KQL}. */
+    /** The field a single-field leaf queries, or {@code null} for field-less or unsupported leaves. */
     private static Expression leafField(Expression fullTextLeaf) {
-        return switch (fullTextLeaf) {
-            case Match match -> match.field();
-            case MatchPhrase matchPhrase -> matchPhrase.field();
-            case QueryString queryString -> null;
-            case Kql kql -> null;
-            default -> throw new IllegalStateException(
-                "leafField: unexpected full-text leaf [" + fullTextLeaf.getClass().getSimpleName() + "]"
-            );
-        };
+        return fullTextLeaf instanceof SingleFieldFullTextFunction single ? single.field() : null;
     }
 
     /**
@@ -228,8 +228,7 @@ public final class HighlightSupport {
         if (option != null) {
             return option;
         }
-        Expression field = leafField(fullTextLeaf);
-        return field == null ? null : AnalyzedTextExpression.valuesAnalyzerOf(field);
+        return fullTextLeaf instanceof SingleFieldFullTextFunction single ? single.valuesAnalyzerName() : null;
     }
 
     /**

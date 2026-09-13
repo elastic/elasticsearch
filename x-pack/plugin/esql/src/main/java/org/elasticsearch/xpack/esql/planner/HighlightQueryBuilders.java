@@ -13,8 +13,11 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -121,11 +124,32 @@ public final class HighlightQueryBuilders {
             case And and -> QueryBuilders.boolQuery().must(build(and.left())).must(build(and.right()));
             case Or or -> QueryBuilders.boolQuery().should(build(or.left())).should(build(or.right()));
             case Not not -> QueryBuilders.boolQuery().mustNot(build(not.field()));
-            case Match match -> match.asLexicalQueryBuilder(fieldName(match.field()));
-            case MatchPhrase matchPhrase -> matchPhrase.asLexicalQueryBuilder(fieldName(matchPhrase.field()));
-            case QueryString queryString -> pushdownQueryBuilder(queryString);
+            case Match match -> withoutLeafAnalyzer(match.asLexicalQueryBuilder(fieldName(match.field())));
+            case MatchPhrase matchPhrase -> withoutLeafAnalyzer(matchPhrase.asLexicalQueryBuilder(fieldName(matchPhrase.field())));
+            case QueryString queryString -> withoutLeafAnalyzer(pushdownQueryBuilder(queryString));
             case Kql kql -> pushdownQueryBuilder(kql);
             default -> throw new IllegalStateException("Unexpected expression [" + expr.sourceText() + "] in HIGHLIGHT");
+        };
+    }
+
+    /**
+     * Drops the leaf {@code analyzer} option so the builder analyzes the query text with the field's
+     * {@link org.elasticsearch.index.mapper.TextSearchInfo} analyzer - the same one HIGHLIGHT indexes the document
+     * with. Honouring the leaf option instead lets the two sides disagree and silently produce empty snippets.
+     *
+     * <p>Nothing is lost by dropping it: {@link HighlightSupport#fieldAnalyzers} has already folded each leaf's
+     * effective analyzer into its field's analyzer, or replaced it with the command {@code WITH {"analyzer"}} when the
+     * user set one. {@code quote_analyzer} is kept because the runtime context has no per-field quote analyzer for it
+     * to fall back to.
+     */
+    private static QueryBuilder withoutLeafAnalyzer(QueryBuilder builder) {
+        return switch (builder) {
+            case MatchQueryBuilder match -> match.analyzer(null);
+            case MatchPhraseQueryBuilder phrase -> phrase.analyzer(null);
+            case QueryStringQueryBuilder qstr -> qstr.analyzer(null);
+            // Unreachable: the three leaf types above produce exactly these builders. Throwing keeps a future builder
+            // change from silently restoring the query/document analyzer mismatch this method exists to prevent.
+            default -> throw new IllegalStateException("Unexpected query builder [" + builder.getName() + "] in HIGHLIGHT");
         };
     }
 
@@ -142,18 +166,21 @@ public final class HighlightQueryBuilders {
         return context.toQuery(builder).query();
     }
 
-    /** Per-field context plus extra analyzer names ({@code quote_analyzer}, off-ON leaf analyzers) when a registry is present. */
+    /**
+     * Per-field context plus the {@code quote_analyzer} names the builders still resolve by name. Leaf {@code analyzer}
+     * options never reach the builders (see {@link #withoutLeafAnalyzer}), so they need no registration here.
+     */
     private static RuntimeSearchExecutionContext runtimeContext(
         Expression queryExpr,
         Map<String, NamedAnalyzer> fieldAnalyzers,
         boolean lenientFields,
         @Nullable AnalysisRegistry analysisRegistry
     ) {
-        return RuntimeSearchExecutionContext.create(
-            fieldAnalyzers,
-            resolveExtraAnalyzers(HighlightSupport.leafAnalyzerNamesOf(queryExpr), analysisRegistry),
-            lenientFields
+        Map<String, NamedAnalyzer> quoteAnalyzers = resolveExtraAnalyzers(
+            HighlightSupport.quoteAnalyzerNamesOf(queryExpr),
+            analysisRegistry
         );
+        return RuntimeSearchExecutionContext.create(fieldAnalyzers, quoteAnalyzers, lenientFields);
     }
 
     /** Resolves {@code extraAnalyzerNames} through {@code analysisRegistry}, or an empty map when either is empty. */
@@ -207,23 +234,18 @@ public final class HighlightQueryBuilders {
         boolean implicit,
         @Nullable AnalysisRegistry analysisRegistry
     ) {
-        List<String> fields = List.copyOf(fieldAnalyzers.keySet());
         String literal = queryTextIfLiteral(queryExpr);
         if (literal == null) {
-            verifyQueryStructure(queryExpr, enforceOnFields ? fields : null);
+            verifyQueryStructure(queryExpr, enforceOnFields ? List.copyOf(fieldAnalyzers.keySet()) : null);
         }
         try {
-            translate(queryExpr, fields, runtimeContext(queryExpr, fieldAnalyzers, implicit, analysisRegistry));
+            translateResolved(queryExpr, fieldAnalyzers, implicit, analysisRegistry);
         } catch (RuntimeException e) {
             String prefix = implicit
                 ? "Invalid query derived from WHERE for HIGHLIGHT: "
                 : "Invalid query [" + (literal != null ? literal : queryExpr.sourceText()) + "] in HIGHLIGHT: ";
             throw new IllegalArgumentException(prefix + e.getMessage(), e);
         }
-    }
-
-    private static void translate(Expression queryExpr, List<String> fieldNames, RuntimeSearchExecutionContext context) {
-        toLuceneQuery(toQueryBuilder(queryExpr, fieldNames), context);
     }
 
     /**
@@ -236,9 +258,17 @@ public final class HighlightQueryBuilders {
         Map<String, String> fieldAnalyzerNames,
         @Nullable AnalysisRegistry analysisRegistry
     ) {
-        Map<String, NamedAnalyzer> fieldAnalyzers = resolveFieldAnalyzers(fieldAnalyzerNames, analysisRegistry);
-        List<String> fieldNames = List.copyOf(fieldAnalyzerNames.keySet());
-        RuntimeSearchExecutionContext context = runtimeContext(queryExpr, fieldAnalyzers, true, analysisRegistry);
+        return translateResolved(queryExpr, resolveFieldAnalyzers(fieldAnalyzerNames, analysisRegistry), true, analysisRegistry);
+    }
+
+    private static TranslatedQuery translateResolved(
+        Expression queryExpr,
+        Map<String, NamedAnalyzer> fieldAnalyzers,
+        boolean lenient,
+        @Nullable AnalysisRegistry analysisRegistry
+    ) {
+        List<String> fieldNames = List.copyOf(fieldAnalyzers.keySet());
+        RuntimeSearchExecutionContext context = runtimeContext(queryExpr, fieldAnalyzers, lenient, analysisRegistry);
         String literal = queryTextIfLiteral(queryExpr);
         String queryText = literal != null ? literal : queryExpr.sourceText();
         Query query = toLuceneQuery(toQueryBuilder(queryExpr, fieldNames), context);

@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -35,12 +34,15 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
@@ -423,44 +425,15 @@ public class Highlight extends UnaryPlan
 
     /**
      * Message when a borrowed WHERE analyzer is not a registered analyzer. Covers ON-field primaries, off-ON leaf
-     * analyzers, and {@code quote_analyzer}. A name the user typed in {@code WITH} keeps the raw failure. That is why we
-     * track {@link #analyzerProvenance}. Without it a user-written {@code WITH {"analyzer": "x"}} whose name also labels a
-     * borrowed leaf would be framed as coming from WHERE even though the user typed it.
-     * {@code commandAnalyzerName} is the effective {@code WITH} analyzer, user-written or synthesized, or
-     * {@code null} when absent or not a string.
+     * analyzers, and {@code quote_analyzer}.
      */
-    private String unresolvedAnalyzerMessage(String fallback, String commandAnalyzerName) {
-        if (implicitQuery == false || isUserWrittenAnalyzerFailure(fallback, commandAnalyzerName)) {
-            return fallback;
-        }
-        for (String name : HighlightSupport.leafAnalyzerNamesOf(query)) {
-            if (isUnregisteredAnalyzer(fallback, name)) {
-                return borrowedUnresolvedAnalyzerMessage(name);
-            }
-        }
-        return fallback;
-    }
-
-    private boolean isUserWrittenAnalyzerFailure(String fallback, String commandAnalyzerName) {
-        return analyzerProvenance == AnalyzerProvenance.NOT_DERIVED
-            && commandAnalyzerName != null
-            && isUnregisteredAnalyzer(fallback, commandAnalyzerName);
-    }
-
-    private static boolean isUnregisteredAnalyzer(String message, String name) {
-        return message.contains("[" + name + "] is not a registered analyzer");
-    }
-
     private static String borrowedUnresolvedAnalyzerMessage(String name) {
-        // WITH cannot rescue this: it sets the field's highlight analyzer, but the borrowed leaf's own analyzer option
-        // is still resolved to translate the query (see HighlightQueryBuilders#runtimeContext). Only replacing the
-        // borrowed query with an explicit one that omits the custom analyzer avoids the lookup.
         return "HIGHLIGHT derived its query from a preceding WHERE, but that query refers to analyzer ["
             + name
             + "], which is not a registered analyzer. Per-index custom analyzers cannot be used in HIGHLIGHT. "
             + "Provide an explicit HIGHLIGHT query that does not use analyzer ["
             + name
-            + "]; WITH analyzer does not override it.";
+            + "].";
     }
 
     private void verifyQuery(
@@ -469,11 +442,7 @@ public class Highlight extends UnaryPlan
         Failures failures,
         AnalysisRegistry analysisRegistry
     ) {
-        Map<String, NamedAnalyzer> fieldAnalyzers;
-        try {
-            fieldAnalyzers = HighlightQueryBuilders.resolveFieldAnalyzers(fieldAnalyzerNames, analysisRegistry);
-        } catch (InvalidArgumentException e) {
-            failures.add(fail(this, "{}", unresolvedAnalyzerMessage(e.getMessage(), commandAnalyzerName)));
+        if (verifyAnalyzerNames(fieldAnalyzerNames, commandAnalyzerName, failures, analysisRegistry)) {
             return;
         }
         try {
@@ -481,7 +450,7 @@ public class Highlight extends UnaryPlan
             // query translates leniently so a predicate naming a non-ON field becomes match-none rather than failing.
             HighlightQueryBuilders.verify(
                 query,
-                fieldAnalyzers,
+                HighlightQueryBuilders.resolveFieldAnalyzers(fieldAnalyzerNames, analysisRegistry),
                 implicitQuery == false && derivedFields == false,
                 implicitQuery,
                 analysisRegistry
@@ -489,7 +458,65 @@ public class Highlight extends UnaryPlan
         } catch (IllegalArgumentException e) {
             // Attach to the query node, not this Highlight node: failures dedupe by node, so pinning it here would let a
             // co-located option/analyzer failure on this node swallow the query error (see VerifierTests#testHighlightAnalyzerOption).
-            failures.add(fail(query, "{}", unresolvedAnalyzerMessage(e.getMessage(), commandAnalyzerName)));
+            failures.add(fail(query, "{}", e.getMessage()));
+        }
+    }
+
+    /**
+     * Resolves every analyzer name this command needs, one name at a time, so a failure is reported with the offending
+     * name in hand rather than recovered from another class's exception text. Returns {@code true} when a failure was
+     * recorded, in which case the query is not verified further: with an analyzer missing, any query error it then
+     * raises is a consequence of that and only distracts from the real problem.
+     *
+     * <p>{@code commandAnalyzerName} is the effective {@code WITH} analyzer - user-written or synthesized by
+     * {@code ResolveHighlight} - or {@code null} when absent or not a string.
+     */
+    private boolean verifyAnalyzerNames(
+        Map<String, String> fieldAnalyzerNames,
+        String commandAnalyzerName,
+        Failures failures,
+        AnalysisRegistry analysisRegistry
+    ) {
+        String commandFailure = unresolvableMessage(commandAnalyzerName, analysisRegistry);
+        if (commandFailure != null) {
+            // A name the user typed keeps the raw failure even when the same name also labels a borrowed leaf; a name
+            // synthesized from a borrowed WHERE is really that leaf's analyzer, so it gets the derived-from-WHERE
+            // framing. The synthesis also runs for an explicit query, where there is no WHERE to blame.
+            boolean borrowed = implicitQuery && analyzerProvenance != AnalyzerProvenance.NOT_DERIVED;
+            failures.add(fail(this, "{}", borrowed ? borrowedUnresolvedAnalyzerMessage(commandAnalyzerName) : commandFailure));
+            return true;
+        }
+        Set<String> names = new LinkedHashSet<>(fieldAnalyzerNames.values());
+        // Quote analyzers reach the query builders by name whatever else is set, so they must always resolve.
+        names.addAll(HighlightSupport.quoteAnalyzerNamesOf(query));
+        if (implicitQuery == false || commandAnalyzerName == null) {
+            // A command analyzer replaces the leaf analyzer options on both the query and the document side (see
+            // HighlightQueryBuilders#withoutLeafAnalyzer), so an unresolvable name on a borrowed leaf is harmless -
+            // that is what lets WITH rescue a WHERE that used a per-index custom analyzer. A name the user wrote in
+            // the HIGHLIGHT query itself is still reported, overridden or not.
+            names.addAll(HighlightSupport.leafAnalyzerNamesOf(query));
+        }
+        names.remove(commandAnalyzerName);
+        for (String name : names) {
+            String failure = unresolvableMessage(name, analysisRegistry);
+            if (failure != null) {
+                failures.add(fail(this, "{}", implicitQuery ? borrowedUnresolvedAnalyzerMessage(name) : failure));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The failure message from resolving {@code name}, or {@code null} when it resolves or is absent. */
+    private static String unresolvableMessage(String name, AnalysisRegistry analysisRegistry) {
+        if (name == null) {
+            return null;
+        }
+        try {
+            PlannerUtils.resolveAnalyzer(name, analysisRegistry);
+            return null;
+        } catch (InvalidArgumentException e) {
+            return e.getMessage();
         }
     }
 

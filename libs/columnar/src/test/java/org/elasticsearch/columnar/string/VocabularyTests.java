@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -136,16 +137,85 @@ public class VocabularyTests extends ColumnarStringTestCase {
         assertEquals("coverage is kept as given", 1.0, known.coverage(), 0.0);
     }
 
+    public void testCoverageIsByteWeighted() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        final String[] frequent = { "alpha", "bravo", "char.", "delta", "echo." };
+        for (int i = 0; i < 1000; i++) {
+            values.add(new BytesRef(frequent[i % frequent.length]));
+        }
+        // 1000 unique 50-byte values, each seen once: all dropped by keepMostFrequent.
+        for (int i = 0; i < 1000; i++) {
+            final byte[] escape = new byte[50];
+            escape[0] = (byte) (i & 0xff);
+            escape[1] = (byte) ((i >> 8) & 0xff);
+            values.add(new BytesRef(escape));
+        }
+        // 1000 covered values x 5 bytes = 5000 covered bytes out of 55000 total (~9%).
+        // By value count the ratio is 50%, which would pass minCoverage=0.5 and accept the dictionary
+        // even though 91% of column bytes are in the escape stream and gain nothing from it.
+        final Vocabulary.Terms surveyed = survey(values, ROOMY);
+        assertNotNull(surveyed);
+        assertEquals(5, surveyed.size());
+        assertThat("byte coverage is ~9%, not the 50% value-count ratio", surveyed.coverage(), lessThan(0.5));
+        assertFalse(ROOMY.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes()));
+    }
+
     public void testCoverageNeverOverstates() throws IOException {
         final List<BytesRef> values = zipfish();
         final Map<String, Integer> actual = tally(values);
         final Vocabulary.Terms surveyed = survey(values, ROOMY);
         assertNotNull(surveyed);
-        long truly = 0;
-        for (String term : termsOf(surveyed)) {
-            truly += actual.get(term);
+        long totalBytes = 0;
+        for (BytesRef v : values) {
+            totalBytes += v.length;
         }
-        assertThat("coverage", surveyed.coverage(), lessThanOrEqualTo((double) truly / values.size() + 1e-9));
+        long trulyBytes = 0;
+        for (String term : termsOf(surveyed)) {
+            trulyBytes += (long) actual.get(term) * term.length();
+        }
+        assertThat("coverage", surveyed.coverage(), lessThanOrEqualTo((double) trulyBytes / totalBytes + 1e-9));
+    }
+
+    /** Long covered values, short escapes: byte coverage is high even when value-count coverage is modest. */
+    public void testCoverageWhenCoveredValuesAreLong() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        // Five 50-byte terms, 200 occurrences each: 1000 values, 50000 covered bytes.
+        final byte[] term = new byte[50];
+        for (int t = 0; t < 5; t++) {
+            term[0] = (byte) t;
+            final BytesRef ref = new BytesRef(term.clone());
+            for (int i = 0; i < 200; i++) {
+                values.add(ref);
+            }
+        }
+        // 1000 unique 5-byte singletons: all escape after keepMostFrequent.
+        for (int i = 0; i < 1000; i++) {
+            final byte[] escape = new byte[5];
+            escape[0] = (byte) (i & 0xff);
+            escape[1] = (byte) ((i >> 8) & 0xff);
+            values.add(new BytesRef(escape));
+        }
+        // By value count: 1000/2000 = 50%, same as the regression case.
+        // By bytes: 50000/55000 ~= 91%; the dictionary is well worth keeping.
+        final Vocabulary.Terms surveyed = survey(values, ROOMY);
+        assertNotNull(surveyed);
+        assertEquals(5, surveyed.size());
+        assertThat("byte coverage is ~91%, well above 0.5", surveyed.coverage(), lessThanOrEqualTo(1.0));
+        assertTrue(ROOMY.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes()));
+    }
+
+    /** All values in the dictionary: coverage is 1.0 and the policy accepts trivially. */
+    public void testCoverageIsOneWhenAllValuesCovered() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        final String[] terms = { "alpha", "bravo", "char.", "delta", "echo." };
+        for (int i = 0; i < 2000; i++) {
+            values.add(new BytesRef(terms[i % terms.length]));
+        }
+        final Vocabulary.Terms surveyed = survey(values, ROOMY);
+        assertNotNull(surveyed);
+        assertEquals(5, surveyed.size());
+        assertEquals("every byte is covered", 1.0, surveyed.coverage(), 1e-9);
+        assertTrue(ROOMY.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes()));
     }
 
     /**
@@ -207,6 +277,6 @@ public class VocabularyTests extends ColumnarStringTestCase {
     }
 
     private static Vocabulary.Terms survey(List<BytesRef> values, DictionaryPolicy policy) throws IOException {
-        return Vocabulary.survey(cursor(values.toArray(BytesRef[]::new)), policy, values.size());
+        return Vocabulary.survey(cursor(values.toArray(BytesRef[]::new)), policy);
     }
 }

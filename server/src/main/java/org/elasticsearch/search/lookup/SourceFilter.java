@@ -51,12 +51,14 @@ public final class SourceFilter {
      * @param excludes  an array of fields to exclude (may be null)
      */
     public SourceFilter(String[] includes, String[] excludes) {
-        this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
-        this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
+        this.includes = normalizeFilters(includes);
+        this.excludes = normalizeFilters(excludes);
         // TODO: Remove this once we upgrade to Jackson 2.14. There is currently a bug
         // in exclude filtering if one of the excludes contains a wildcard '*'.
         // see https://github.com/FasterXML/jackson-core/pull/729
-        this.canFilterBytes = CollectionUtils.isEmpty(excludes) || Arrays.stream(excludes).noneMatch(field -> field.contains("*"));
+        this.canFilterBytes = Arrays.stream(this.excludes).noneMatch(field -> field.contains("*"))
+            && Arrays.stream(this.includes).noneMatch(field -> field.contains("\\."))
+            && Arrays.stream(this.excludes).noneMatch(field -> field.contains("\\."));
         this.empty = CollectionUtils.isEmpty(this.includes) && CollectionUtils.isEmpty(this.excludes);
     }
 
@@ -184,6 +186,37 @@ public final class SourceFilter {
                 throw new UncheckedIOException(e);
             }
         };
+    }
+
+    private static String[] normalizeFilters(String[] filters) {
+        if (filters == null) {
+            return Strings.EMPTY_ARRAY;
+        }
+        return Arrays.stream(filters).map(SourceFilter::normalizeFilter).toArray(String[]::new);
+    }
+
+    /**
+     * Normalize escaped dots once so map filtering, byte filtering and path checks use the same patterns. Preserve
+     * standalone backslash segments and runs of literal backslashes. Patterns that still contain {@code \.} use map
+     * filtering because {@link org.elasticsearch.xcontent.support.filtering.FilterPath} would interpret it as an escaped dot.
+     */
+    private static String normalizeFilter(String filter) {
+        if (filter.contains("\\.") == false) {
+            return filter;
+        }
+        StringBuilder normalized = new StringBuilder(filter.length());
+        for (int i = 0; i < filter.length(); i++) {
+            if (filter.charAt(i) == '\\'
+                && i > 0
+                && filter.charAt(i - 1) != '.'
+                && filter.charAt(i - 1) != '\\'
+                && i + 1 < filter.length()
+                && filter.charAt(i + 1) == '.') {
+                continue;
+            }
+            normalized.append(filter.charAt(i));
+        }
+        return normalized.toString();
     }
 
     public boolean excludesAll() {

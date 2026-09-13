@@ -70,7 +70,7 @@ public class SortedNumericDocValuesSyntheticFieldLoaderLayer implements Composit
     }
 
     @Override
-    public long valueCount() {
+    public long valueCount() throws IOException {
         return docValues.count();
     }
 
@@ -125,22 +125,28 @@ public class SortedNumericDocValuesSyntheticFieldLoaderLayer implements Composit
     }
 
     private SingletonDocValuesLoader buildSingletonDocValuesLoader(NumericDocValues singleton, int[] docIdsInLeaf) throws IOException {
+        // Advance to the first doc to fire a prefetch for its block. If the first doc has a value
+        // the iterator is safely positioned at docIdsInLeaf[0] and we can defer the bulk read.
+        if (singleton.advanceExact(docIdsInLeaf[0])) {
+            return new SingletonDocValuesLoader(docIdsInLeaf, singleton);
+        }
+        // First doc has no value; the iterator may have advanced past docIdsInLeaf[0]
+        // so fall through to eager reads for the remaining docs scanning forward.
         long[] values = new long[docIdsInLeaf.length];
         boolean[] hasValue = new boolean[docIdsInLeaf.length];
+        return bulkLoad(singleton, docIdsInLeaf, 1, values, hasValue) ? new SingletonDocValuesLoader(docIdsInLeaf, values, hasValue) : null;
+    }
+
+    private static boolean bulkLoad(NumericDocValues dv, int[] docIds, int startIdx, long[] values, boolean[] hasValue) throws IOException {
         boolean found = false;
-        for (int d = 0; d < docIdsInLeaf.length; d++) {
-            if (false == singleton.advanceExact(docIdsInLeaf[d])) {
-                hasValue[d] = false;
-                continue;
+        for (int d = startIdx; d < docIds.length; d++) {
+            hasValue[d] = dv.advanceExact(docIds[d]);
+            if (hasValue[d]) {
+                values[d] = dv.longValue();
+                found = true;
             }
-            hasValue[d] = true;
-            values[d] = singleton.longValue();
-            found = true;
         }
-        if (found == false) {
-            return null;
-        }
-        return new SingletonDocValuesLoader(docIdsInLeaf, values, hasValue);
+        return found;
     }
 
     /**
@@ -148,21 +154,40 @@ public class SortedNumericDocValuesSyntheticFieldLoaderLayer implements Composit
      * disk and cpu-friendly than {@link ImmediateDocValuesLoader} because
      * it resolves the values all at once, always scanning forwards on
      * the disk.
+     *
+     * <p>For implementations that fire an async prefetch from {@code advanceExact()},
+     * the lazy constructor defers the bulk read until the first {@link #advanceToDoc} call.
+     * By that point all fields' prefetches have been issued, so region downloads for
+     * different fields can overlap.
      */
     private class SingletonDocValuesLoader implements DocValuesLoader, Values {
         private final int[] docIdsInLeaf;
-        private final long[] values;
-        private final boolean[] hasValue;
+        private final NumericDocValues singleton;
+        private long[] values;
+        private boolean[] hasValue;
         private int idx = -1;
 
+        /** Lazy constructor: {@code singleton} is positioned at {@code docIdsInLeaf[0]}. */
+        private SingletonDocValuesLoader(int[] docIdsInLeaf, NumericDocValues singleton) {
+            this.docIdsInLeaf = docIdsInLeaf;
+            this.singleton = singleton;
+        }
+
+        /** Eager constructor: values already bulk-loaded. */
         private SingletonDocValuesLoader(int[] docIdsInLeaf, long[] values, boolean[] hasValue) {
             this.docIdsInLeaf = docIdsInLeaf;
+            this.singleton = null;
             this.values = values;
             this.hasValue = hasValue;
         }
 
         @Override
-        public boolean advanceToDoc(int docId) {
+        public boolean advanceToDoc(int docId) throws IOException {
+            if (values == null) {
+                values = new long[docIdsInLeaf.length];
+                hasValue = new boolean[docIdsInLeaf.length];
+                bulkLoad(singleton, docIdsInLeaf, 0, values, hasValue);
+            }
             idx++;
             if (docIdsInLeaf[idx] != docId) {
                 throw new IllegalArgumentException(

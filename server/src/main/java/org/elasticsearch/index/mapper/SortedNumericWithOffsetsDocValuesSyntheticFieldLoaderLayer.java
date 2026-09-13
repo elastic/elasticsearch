@@ -53,7 +53,7 @@ public class SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer implemen
     }
 
     @Override
-    public long valueCount() {
+    public long valueCount() throws IOException {
         if (docValuesLoader != null) {
             return docValuesLoader.count();
         } else {

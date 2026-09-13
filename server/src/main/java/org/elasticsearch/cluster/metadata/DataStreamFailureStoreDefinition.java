@@ -64,6 +64,7 @@ public class DataStreamFailureStoreDefinition {
             // Always start with the hidden settings for a backing index.
             .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
             .put(FAILURE_STORE_DEFINITION_VERSION_SETTING.getKey(), FAILURE_STORE_DEFINITION_VERSION)
+            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .build();
 
         try {
@@ -215,6 +216,13 @@ public class DataStreamFailureStoreDefinition {
         if (refreshInterval != null) {
             builder.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval);
         }
+
+        if (builder.keys().contains(IndexMetadata.SETTING_NUMBER_OF_REPLICAS) == false
+            && builder.keys().contains(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS) == false) {
+
+            builder.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
+        }
+
         return builder;
     }
 

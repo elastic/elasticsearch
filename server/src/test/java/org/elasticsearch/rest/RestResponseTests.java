@@ -47,6 +47,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
@@ -505,6 +507,34 @@ public class RestResponseTests extends ESTestCase {
             "401",
             "unauthorized"
         );
+    }
+
+    public void testAddReleasableReleasesOnClose() {
+        AtomicBoolean releasedAtCreation = new AtomicBoolean();
+        RestResponse response = RestResponse.chunked(
+            RestStatus.OK,
+            ChunkedRestResponseBodyPart.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator()),
+            () -> releasedAtCreation.set(true)
+        );
+        AtomicBoolean releasedAfterwards = new AtomicBoolean();
+        response.addReleasable(() -> releasedAfterwards.set(true));
+
+        response.close();
+
+        assertTrue("the releasable passed at creation time must still be released", releasedAtCreation.get());
+        assertTrue("a releasable added afterwards must also be released", releasedAfterwards.get());
+    }
+
+    public void testAddReleasableSupportsMultipleAdditions() {
+        RestResponse response = new RestResponse(RestStatus.OK, "test");
+        AtomicInteger releaseCount = new AtomicInteger();
+        response.addReleasable(releaseCount::incrementAndGet);
+        response.addReleasable(releaseCount::incrementAndGet);
+        response.addReleasable(releaseCount::incrementAndGet);
+
+        response.close();
+
+        assertThat(releaseCount.get(), equalTo(3));
     }
 
     private void assertLogging(

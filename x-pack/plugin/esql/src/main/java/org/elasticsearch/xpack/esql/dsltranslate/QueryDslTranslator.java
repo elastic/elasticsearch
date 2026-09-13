@@ -81,7 +81,8 @@ import java.util.function.Supplier;
  * function from a field name to the {@link Expression} that stands for that field on the source being translated
  * against. A present field binds to its attribute; a missing field binds to {@link Literal#NULL}. Because every leaf
  * predicate the translator emits is two-valued (never returns null — {@code mv_contains}, {@code mv_intersects},
- * {@code mv_in_range}, {@code mv_greater}, {@code mv_less} and {@code IS NOT NULL} all have {@code Nullability.FALSE}),
+ * {@code mv_in_range}, {@code mv_greater}, {@code mv_less}, {@code mv_like}, {@code mv_rlike} and {@code IS NOT NULL}
+ * all have {@code Nullability.FALSE}),
  * plain {@code AND}/{@code OR}/{@code NOT} composition over a null-bound leaf reproduces the DSL leniency rules for
  * free, negation included.
  *
@@ -91,8 +92,9 @@ import java.util.function.Supplier;
  *
  * <p>The supported subset is the structural floor: {@code bool}, {@code term}, {@code terms}, {@code range},
  * {@code exists}, {@code match_all}/{@code match_none}, {@code prefix}/{@code wildcard}/{@code regexp} as pattern
- * matching on an exact-typed field, {@code match}/{@code match_phrase}/{@code multi_match} as equality on one, and
- * {@code constant_score}/{@code boosting}/{@code dis_max}, which only decide a score.
+ * matching on an exact-typed field, {@code match}/{@code match_phrase}/{@code multi_match} as equality on one,
+ * {@code constant_score}/{@code boosting}, which only decide a score, and {@code dis_max}, which matches the union of
+ * its arms.
  * We never mis-translate anything outside it — an unhonored option, or an analyzed
  * {@code text}-field construct. {@link #translate} is a <em>collecting walk</em>: every unsupported leaf is recorded
  * rather than thrown. The translator only reports; the caller picks what happens next (fail the query, emit a warning,

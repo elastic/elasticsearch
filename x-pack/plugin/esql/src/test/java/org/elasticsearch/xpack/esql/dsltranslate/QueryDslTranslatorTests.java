@@ -373,6 +373,18 @@ public class QueryDslTranslatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * boolean and text were in the set the old whole-number rule rejected, but neither is a coverage gain: mv_in_range
+     * has no boolean signature at all ("a range over booleans is not meaningful") and text is analyzed, so both still
+     * degrade — now through checkedLeaf rather than the bound rule. Pinned so a later signature change cannot start
+     * emitting an unresolved leaf unnoticed.
+     */
+    public void testRangeOnBooleanAndTextStillDegrades() {
+        assertFalse("boolean", translateResult(QueryBuilders.rangeQuery("active").gt(false).lt(true)).isComplete());
+        assertFalse("boolean inclusive", translateResult(QueryBuilders.rangeQuery("active").gte(false).lte(true)).isComplete());
+        assertFalse("text", translateResult(QueryBuilders.rangeQuery("body").gt("a").lt("z")).isComplete());
+    }
+
     /** One exclusive end spells out only that end; the other keeps mv_in_range's inclusive default. */
     public void testOneExclusiveBoundSpellsOutOnlyThatBound() {
         assertEquals(Map.of("include_lower", false), optionsOf((MvInRange) translate(QueryBuilders.rangeQuery("score").gt(1.5).lte(9.5))));

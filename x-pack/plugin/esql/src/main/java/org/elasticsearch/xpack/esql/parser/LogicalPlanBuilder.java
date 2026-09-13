@@ -1501,18 +1501,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<Attribute> generatedFields = derivedFields ? List.of() : Highlight.generatedAttributesFor(source, prefix, fields);
         return p -> applyHighlightOptions(
             // COMMAND at parse time. ResolveHighlight sets WHERE if it copies the analyzer from WHERE.
-            new Highlight(
-                source,
-                p,
-                prefix,
-                query,
-                false,
-                derivedFields,
-                Highlight.AnalyzerOrigin.COMMAND,
-                fields,
-                null,
-                generatedFields
-            ),
+            new Highlight(source, p, prefix, query, false, derivedFields, Highlight.AnalyzerOrigin.COMMAND, fields, null, generatedFields),
             ctx.commandNamedParameters()
         );
     }

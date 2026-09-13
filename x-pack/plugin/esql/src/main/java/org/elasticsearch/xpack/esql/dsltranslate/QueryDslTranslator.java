@@ -887,12 +887,9 @@ public final class QueryDslTranslator {
     /**
      * {@code dis_max} matches the union of its arms — the tie breaker only picks a score among the arms that matched.
      * It is all-or-nothing: dropping one arm would exclude rows that matched only that arm, a tighter filter than the
-     * original. An empty arm list is the index's match-no-docs.
+     * original. An empty arm list falls out of {@link #orAll} as {@code false}, which is the index's match-no-docs.
      */
     private Expression disMax(DisMaxQueryBuilder disMax) {
-        if (disMax.innerQueries().isEmpty()) {
-            return Literal.FALSE;
-        }
         List<Expression> disjuncts = new ArrayList<>(disMax.innerQueries().size());
         for (QueryBuilder inner : disMax.innerQueries()) {
             disjuncts.add(dispatch(inner));

@@ -409,10 +409,23 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         assertSelectsSameRows(
             QueryBuilders.boostingQuery(QueryBuilders.termQuery("status", 300), QueryBuilders.termQuery("tags", "t1")).negativeBoost(0.1f)
         );
+    }
+
+    /**
+     * dis_max is NOT a score-only wrapper — it matches the union of its arms, and the tie breaker only picks a score
+     * among the arms that already matched. The arms here overlap, so a union is distinguishable from either alone.
+     */
+    public void testDisMaxIsTheUnionOfItsArms() {
         assertSelectsSameRows(
             QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery("status", 300)).add(QueryBuilders.termQuery("tags", "t1"))
         );
         assertSelectsSameRows(QueryBuilders.disMaxQuery().add(QueryBuilders.termQuery("status", 300)));
+        // An arm that is itself a bool: the strict walk these run under needs its own bool arm to translate it.
+        assertSelectsSameRows(
+            QueryBuilders.disMaxQuery()
+                .add(QueryBuilders.termQuery("tags", "t1"))
+                .add(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 300)))
+        );
     }
 
     /** A wrapper nests and composes: the inner bool still reports per leaf, so only the fuzzy clause is dropped. */

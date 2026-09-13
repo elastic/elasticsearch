@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.esql.dsltranslate;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
-import org.elasticsearch.common.Numbers;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -449,7 +449,77 @@ public class QueryDslTranslatorTests extends ESTestCase {
     public void testMalformedRegexpIsCollectedNotThrown() {
         var result = translateResult(QueryBuilders.regexpQuery("tags", "["));
         assertFalse(result.isComplete());
-        assertEquals("MvRLike[pattern]", result.unsupported().get(0).construct());
+        assertEquals("regexp[pattern]", result.unsupported().get(0).construct());
+    }
+
+    /**
+     * The warning quotes these names back to whoever wrote the filter, and it introduces them as Query DSL
+     * constructs — so every one of them must BE a Query DSL construct. A leaf-level failure knows only its reason
+     * ("on analyzed text"), and it is the clause that supplies the name; reporting the ES|QL function that happened
+     * to be under construction names something the DSL has no word for.
+     */
+    public void testReportedConstructsAreQueryDslNames() {
+        var cases = List.of(
+            new Object[] { QueryBuilders.wildcardQuery("body", "a*"), "wildcard[on analyzed text]" },
+            new Object[] { QueryBuilders.prefixQuery("body", "a"), "prefix[on analyzed text]" },
+            new Object[] { QueryBuilders.regexpQuery("body", "a."), "regexp[on analyzed text]" },
+            new Object[] { QueryBuilders.termQuery("body", "a"), "term[on analyzed text]" },
+            new Object[] { QueryBuilders.wildcardQuery("status", "2*"), "wildcard[on integer]" },
+            new Object[] { QueryBuilders.regexpQuery("release", "1.*"), "regexp[on version]" },
+            new Object[] { QueryBuilders.regexpQuery("tags", "["), "regexp[pattern]" }
+        );
+        for (Object[] c : cases) {
+            var result = translateResult((org.elasticsearch.index.query.QueryBuilder) c[0]);
+            assertFalse("expected " + c[1] + " to degrade", result.isComplete());
+            assertEquals(c[1], result.unsupported().get(0).construct());
+        }
+    }
+
+    /**
+     * A rewrite method that only picks how the expanded terms are scored cannot change which rows match, so it
+     * crosses unchanged; the top_terms_* family keeps only the N best-scoring terms, so the index matches a subset of
+     * the pattern and applying all of it would be an unhonoured option. An unparseable method degrades rather than
+     * raising the query-killing failure the index raises.
+     */
+    public void testPatternRewriteThatChangesMatchingDegrades() {
+        for (String rewrite : List.of("top_terms_1", "top_terms_boost_2", "top_terms_blended_freqs_3", "not_a_method")) {
+            assertFalse(rewrite, translateResult(QueryBuilders.wildcardQuery("tags", "t*").rewrite(rewrite)).isComplete());
+            assertFalse(rewrite, translateResult(QueryBuilders.prefixQuery("tags", "t").rewrite(rewrite)).isComplete());
+            assertFalse(rewrite, translateResult(QueryBuilders.regexpQuery("tags", "t.*").rewrite(rewrite)).isComplete());
+        }
+        // The score-only methods, and no method at all, still translate — so the assertions above are not vacuous.
+        for (String rewrite : List.of("constant_score", "scoring_boolean", "constant_score_boolean", "constant_score_blended")) {
+            assertThat(rewrite, translate(QueryBuilders.wildcardQuery("tags", "t*").rewrite(rewrite)), instanceOf(MvLike.class));
+        }
+        assertThat(translate(QueryBuilders.wildcardQuery("tags", "t*")), instanceOf(MvLike.class));
+    }
+
+    /**
+     * dis_max matches the union of its arms, so an arm may be a bool like any other clause. The strict walk it runs
+     * under had no bool arm at all, which dropped the whole filter and reported the unsupported construct as "bool".
+     */
+    public void testDisMaxOverBoolArms() {
+        var disMax = QueryBuilders.disMaxQuery()
+            .add(QueryBuilders.termQuery("tags", "a"))
+            .add(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("tags", "b")));
+        assertTrue("a bool arm translates", translateResult(disMax).isComplete());
+        assertThat(translate(disMax), instanceOf(Or.class));
+        // Nested one level further, and through a score-only wrapper, on the same strict path.
+        assertTrue(
+            translateResult(
+                QueryBuilders.disMaxQuery()
+                    .add(QueryBuilders.termQuery("tags", "a"))
+                    .add(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("tags", "b"))))
+            ).isComplete()
+        );
+        // An arm that cannot translate at all still drops the whole dis_max — the union is all-or-nothing — and it
+        // reports the clause that actually failed rather than the bool that contained it.
+        var withBadArm = QueryBuilders.disMaxQuery()
+            .add(QueryBuilders.termQuery("tags", "a"))
+            .add(QueryBuilders.boolQuery().must(QueryBuilders.fuzzyQuery("tags", "b")));
+        var result = translateResult(withBadArm);
+        assertFalse(result.isComplete());
+        assertEquals("fuzzy", result.unsupported().get(0).construct());
     }
 
     /** A pattern over a MISSING field stays null-bound and folds to false, like every other leaf. */

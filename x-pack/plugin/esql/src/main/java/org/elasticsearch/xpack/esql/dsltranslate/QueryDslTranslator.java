@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.dsltranslate;
 
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -30,6 +33,7 @@ import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -167,7 +171,9 @@ public final class QueryDslTranslator {
         try {
             return dispatch(query);
         } catch (TranslationUnsupportedException e) {
-            unsupported.add(new UnsupportedClause(query, e.construct()));
+            // constructFor, not construct: a leaf-level failure knows only its reason, and this is the point that
+            // knows which DSL clause raised it. The warning quotes this back to whoever wrote the filter.
+            unsupported.add(new UnsupportedClause(query, e.constructFor(query)));
             return null;
         }
     }
@@ -267,6 +273,18 @@ public final class QueryDslTranslator {
     }
 
     private Expression dispatch(QueryBuilder query) {
+        // A bool reaches the strict walk only from inside an all-or-nothing context (a dis_max arm, or a wrapper
+        // within one). The collecting walk's bool logic is the same at every depth, so reuse it and then demand that
+        // it dropped nothing: a looser bool is exactly what these contexts cannot accept. Reporting the arm's own
+        // construct rather than "bool" keeps the warning about the clause the user actually wrote.
+        if (query instanceof BoolQueryBuilder bool) {
+            List<UnsupportedClause> armUnsupported = new ArrayList<>();
+            Expression translated = collectingBool(bool, armUnsupported);
+            if (armUnsupported.isEmpty() == false) {
+                throw new TranslationUnsupportedException(armUnsupported.get(0).construct());
+            }
+            return translated;
+        }
         if (query instanceof TermQueryBuilder term) {
             return term(term);
         }
@@ -887,6 +905,7 @@ public final class QueryDslTranslator {
         if (prefix.caseInsensitive()) {
             throw new TranslationUnsupportedException("prefix[case_insensitive]");
         }
+        checkRewrite("prefix", prefix.rewrite());
         return wildcardLeaf(fieldBinder.apply(prefix.fieldName()), StringUtils.escapeWildcardLiteral(prefix.value()) + "*");
     }
 
@@ -894,7 +913,31 @@ public final class QueryDslTranslator {
         if (wildcard.caseInsensitive()) {
             throw new TranslationUnsupportedException("wildcard[case_insensitive]");
         }
+        checkRewrite("wildcard", wildcard.rewrite());
         return wildcardLeaf(fieldBinder.apply(wildcard.fieldName()), wildcard.value());
+    }
+
+    /**
+     * Rejects a {@code rewrite} that changes which documents match. Most of the methods only choose how the expanded
+     * terms are scored or executed, which a filter does not observe — but the {@code top_terms_*} family keeps only the
+     * N highest-scoring terms, so the index matches a SUBSET of the pattern while we would apply all of it. That is an
+     * unhonoured option in the same sense as {@code regexp[max_determinized_states]}, and it degrades for the same
+     * reason. An unparseable method degrades too, rather than escaping as the query-killing failure the index raises.
+     */
+    private static void checkRewrite(String construct, String rewrite) {
+        if (rewrite == null) {
+            return;
+        }
+        MultiTermQuery.RewriteMethod method;
+        try {
+            // The index's own call, so the two agree on every spelling this accepts, deprecated ones included.
+            method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
+        } catch (IllegalArgumentException unparseable) {
+            throw new TranslationUnsupportedException(construct + "[rewrite]");
+        }
+        if (method instanceof TopTermsRewrite) {
+            throw new TranslationUnsupportedException(construct + "[rewrite=" + rewrite + "]");
+        }
     }
 
     /**
@@ -915,6 +958,7 @@ public final class QueryDslTranslator {
         if (regexp.maxDeterminizedStates() != RegexpQueryBuilder.DEFAULT_MAX_DETERMINIZED_STATES) {
             throw new TranslationUnsupportedException("regexp[max_determinized_states]");
         }
+        checkRewrite("regexp", regexp.rewrite());
         Expression field = fieldBinder.apply(regexp.fieldName());
         return checkedLeaf(field, validated(new MvRLike(Source.EMPTY, field, Literal.keyword(Source.EMPTY, regexp.value()))));
     }
@@ -957,7 +1001,7 @@ public final class QueryDslTranslator {
         Failures failures = new Failures();
         patternLeaf.postOptimizationVerification(failures);
         if (failures.hasFailures()) {
-            throw new TranslationUnsupportedException(patternLeaf.nodeName() + "[pattern]");
+            throw TranslationUnsupportedException.forLeaf("pattern");
         }
         return patternLeaf;
     }
@@ -1012,10 +1056,10 @@ public final class QueryDslTranslator {
             // than answer a different question. (exists is analysis-independent and does not pass through here, so
             // IS NOT NULL over a text field stays valid.)
             if (type == DataType.TEXT) {
-                throw new TranslationUnsupportedException(leaf.nodeName() + "[on analyzed " + type.typeName() + "]");
+                throw TranslationUnsupportedException.forLeaf("on analyzed " + type.typeName());
             }
             if (leaf.resolved() == false) {
-                throw new TranslationUnsupportedException(leaf.nodeName() + "[on " + type.typeName() + "]");
+                throw TranslationUnsupportedException.forLeaf("on " + type.typeName());
             }
         }
         return leaf;

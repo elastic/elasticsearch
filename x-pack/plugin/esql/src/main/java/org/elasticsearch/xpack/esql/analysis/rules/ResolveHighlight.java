@@ -44,7 +44,7 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
 
         Expression query = highlight.query();
         boolean implicit = highlight.implicitQuery();
-        Highlight.AnalyzerProvenance analyzerProvenance = highlight.analyzerProvenance();
+        Highlight.AnalyzerOrigin analyzerOrigin = highlight.analyzerOrigin();
         MapExpression options = highlight.options();
         String derivedAnalyzer = null;
         if (query == null) {
@@ -58,9 +58,9 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
         }
         MapExpression withAnalyzer = withDerivedAnalyzer(highlight.source(), options, derivedAnalyzer);
         // withDerivedAnalyzer returns the same instance when it adds nothing because the user already set one.
-        // A new instance means we synthesized the analyzer from WHERE. Track that so verification uses the right error.
+        // A new instance means we copied the analyzer from WHERE. Track that so verification uses the right error.
         if (withAnalyzer != options) {
-            analyzerProvenance = Highlight.AnalyzerProvenance.DERIVED_FROM_WHERE;
+            analyzerOrigin = Highlight.AnalyzerOrigin.WHERE;
         }
         options = withAnalyzer;
 
@@ -99,10 +99,10 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
         if (query == highlight.query()
             && fields == highlight.fields()
             && Objects.equals(options, highlight.options())
-            && analyzerProvenance == highlight.analyzerProvenance()) {
+            && analyzerOrigin == highlight.analyzerOrigin()) {
             return highlight;
         }
-        return highlight.withResolved(query, implicit, analyzerProvenance, fields, generated, options);
+        return highlight.withResolved(query, implicit, analyzerOrigin, fields, generated, options);
     }
 
     /**

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.ExternalReadCounters;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -25,7 +26,7 @@ import java.util.concurrent.Executor;
  * <p>
  * Simple formats: implement only {@link #read(StorageObject, FormatReadContext)} (sync) -
  * async wrapping is automatic.
- * Async-capable formats: override {@link #readAsync(StorageObject, FormatReadContext, Executor, ActionListener)}
+ * Async-capable formats: override {@link #readAsync(StorageObject, FormatReadContext, Executor, ExternalReadCounters, ActionListener)}
  * for native async behavior.
  * <p>
  * The output is ESQL's native Page format rather than Arrow to avoid
@@ -159,17 +160,22 @@ public interface FormatReader extends Closeable {
      * Asynchronously reads data from the given storage object using the provided context.
      * <p>
      * The default wraps the synchronous {@link #read(StorageObject, FormatReadContext)} in the
-     * provided executor. Formats with native async support should override this.
+     * provided executor and records off-thread CPU in {@code readCounters}. Formats with native
+     * async support should override this and call {@code readCounters.meteredCpu()}
+     * on their async thread wrapping the read but before calling {@code listener.onResponse()}, or
+     * use {@code readCounters.add()} to account for the CPU time spent in the async read off-thread.
      */
     default void readAsync(
         StorageObject object,
         FormatReadContext context,
         Executor executor,
+        ExternalReadCounters readCounters,
         ActionListener<CloseableIterator<Page>> listener
     ) {
         executor.execute(() -> {
             try {
-                listener.onResponse(read(object, context));
+                CloseableIterator<Page> pages = readCounters.meteredCpu(() -> read(object, context), false);
+                listener.onResponse(pages);
             } catch (Exception e) {
                 listener.onFailure(e);
             }

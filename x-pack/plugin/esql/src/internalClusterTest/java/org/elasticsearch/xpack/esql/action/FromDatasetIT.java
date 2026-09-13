@@ -5158,8 +5158,16 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
 
-        // employees + employees_alt = 3 + 2 = 5
+        // Off (the default): the wildcard reaches neither dataset. Every part of the pattern carries a
+        // wildcard, so no concrete index was requested and the query is an empty success rather than an error.
         try (var response = run(syncEsqlQueryRequest("FROM employees* | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
+        }
+
+        // On: employees + employees_alt = 3 + 2 = 5
+        try (var response = run(syncEsqlQueryRequest("SET dataset_wildcards = true; FROM employees* | STATS c = COUNT(*)"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(5L));
@@ -5171,8 +5179,22 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
 
-        // employees* matches both, exclusion of employees_alt leaves only employees (3 rows)
-        try (var response = run(syncEsqlQueryRequest("FROM employees*,-employees_alt | STATS c = COUNT(*)"), TIMEOUT)) {
+        // Off (the default): the wildcard reaches neither dataset. Unlike the bare-wildcard case, the
+        // exclusion carries no wildcard of its own, so a concrete index counts as requested and a pattern
+        // matching nothing is fatal rather than empty.
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM employees*,-employees_alt | STATS c = COUNT(*)"), TIMEOUT).close()
+        );
+        assertThat(e.getMessage(), containsString("Unknown index [employees*,-employees_alt]"));
+
+        // On: employees* matches both, exclusion of employees_alt leaves only employees (3 rows)
+        try (
+            var response = run(
+                syncEsqlQueryRequest("SET dataset_wildcards = true; FROM employees*,-employees_alt | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
@@ -5320,8 +5342,15 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataSource("local_ds", Map.of());
         registerDataset("logs_dataset", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
-        // logs_* expands to logs_index (empty) + logs_dataset (3 rows) = 3 total
+        // Off (the default): logs_* reaches logs_index only, which is empty.
         try (var response = run(syncEsqlQueryRequest("FROM logs_* | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
+        }
+
+        // On: logs_* expands to logs_index (empty) + logs_dataset (3 rows) = 3 total
+        try (var response = run(syncEsqlQueryRequest("SET dataset_wildcards = true; FROM logs_* | STATS c = COUNT(*)"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));

@@ -979,13 +979,6 @@ public final class QueryDslTranslator {
     }
 
     /**
-     * Rejects a {@code rewrite} that changes which documents match. Most of the methods only choose how the expanded
-     * terms are scored or executed, which a filter does not observe — but the {@code top_terms_*} family keeps only the
-     * N highest-scoring terms, so the index matches a SUBSET of the pattern while we would apply all of it. That is an
-     * unhonoured option in the same sense as {@code regexp[max_determinized_states]}, and it degrades for the same
-     * reason. An unparseable method degrades too, rather than escaping as the query-killing failure the index raises.
-     */
-    /**
      * The pattern clauses all take a {@code case_insensitive} flag and none of them can honour it: neither
      * {@code mv_like} nor {@code mv_rlike} takes a case-insensitivity option, and an automaton match has no
      * field-side {@code TO_LOWER} equivalent that preserves the pattern's meaning.
@@ -996,6 +989,13 @@ public final class QueryDslTranslator {
         }
     }
 
+    /**
+     * Rejects a {@code rewrite} that changes which documents match. Most of the methods only choose how the expanded
+     * terms are scored or executed, which a filter does not observe — but the {@code top_terms_*} family keeps only the
+     * N highest-scoring terms, so the index matches a SUBSET of the pattern while we would apply all of it. That is an
+     * unhonoured option in the same sense as {@code regexp[max_determinized_states]}, and it degrades for the same
+     * reason. An unparseable method degrades too, rather than escaping as the query-killing failure the index raises.
+     */
     private static void checkRewrite(String construct, String rewrite) {
         if (rewrite == null) {
             return;
@@ -1183,10 +1183,10 @@ public final class QueryDslTranslator {
             return exact < 0 ? null : NumericUtils.asLongUnsigned(BigInteger.valueOf(exact));
         }
         if (value instanceof BigInteger big) {
-            // Not reached from a request: AbstractQueryBuilder.maybeConvertToBytesRef turns a BigInteger into a
-            // BytesRef when the builder is constructed, and value()/values()/from()/to() hand back a String. The arm
-            // mirrors parseTerm's anyway, because dropping it would route an in-range big value into the Number arm
-            // below and match nothing — tighter than the index, the one direction this translator may never take.
+            // Reached through match and multi_match, which keep the value exactly as it was handed to the builder.
+            // term, terms and range do not: AbstractQueryBuilder.maybeConvertToBytesRef turns a BigInteger into a
+            // BytesRef when one of those is constructed and their accessors hand back a String, so a big value
+            // arrives there as text and takes the string arm below.
             return NumericUtils.isUnsignedLong(big) ? NumericUtils.asLongUnsigned(big) : null;
         }
         if (value instanceof Number) {

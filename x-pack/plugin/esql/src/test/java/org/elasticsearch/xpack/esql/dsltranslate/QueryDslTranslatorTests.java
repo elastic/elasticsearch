@@ -74,6 +74,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
         case "client_ip" -> new ReferenceAttribute(Source.EMPTY, "client_ip", DataType.IP);
         case "quota" -> new ReferenceAttribute(Source.EMPTY, "quota", DataType.UNSIGNED_LONG);
         case "release" -> new ReferenceAttribute(Source.EMPTY, "release", DataType.VERSION);
+        case "location" -> new ReferenceAttribute(Source.EMPTY, "location", DataType.GEO_POINT);
         default -> Literal.NULL;
     };
 
@@ -97,7 +98,8 @@ public class QueryDslTranslatorTests extends ESTestCase {
         "body",
         "client_ip",
         "quota",
-        "release"
+        "release",
+        "location"
     );
 
     private static Expression translate(QueryBuilder qb) {
@@ -587,17 +589,26 @@ public class QueryDslTranslatorTests extends ESTestCase {
      */
     /**
      * A value above Long.MAX_VALUE is the one an unsigned_long exists for, and JSON hands it to the builder as a
-     * BigInteger. It does not arrive here as one: AbstractQueryBuilder.maybeConvertToBytesRef turns a BigInteger into
-     * a BytesRef at construction and value() converts that back with maybeConvertToString, so the translator is
-     * handed the decimal string and takes the Long.parseUnsignedLong arm — the same one the index's parseTerm takes
-     * for the same query. What matters is the answer, which is why the assertions are on the emitted expression.
+     * BigInteger. Which arm reads it depends on the clause: a term does not receive it as a BigInteger, because
+     * AbstractQueryBuilder.maybeConvertToBytesRef turns one into a BytesRef at construction and value() converts that
+     * back with maybeConvertToString, so the translator is handed the decimal string. A match keeps the value exactly
+     * as given (MatchQueryBuilder.value returns the field unconverted), so the same number arrives as a BigInteger.
+     * Both must answer the same thing, which is why the assertions are on the emitted expression.
      */
     public void testUnsignedLongTermAboveLongMaxValue() {
         assertThat(translate(QueryBuilders.termQuery("quota", new BigInteger("18446744073709551615"))), instanceOf(MvContains.class));
         assertEquals(Literal.FALSE, translate(QueryBuilders.termQuery("quota", new BigInteger("18446744073709551616"))));
         assertEquals(Literal.FALSE, translate(QueryBuilders.termQuery("quota", new BigInteger("-1"))));
-        // The shape the builder actually delivers, asserted directly so the claim above is not taken on faith.
+        // The shapes the two builders actually deliver, asserted directly so the claim above is not taken on faith.
         assertEquals("18446744073709551615", QueryBuilders.termQuery("quota", new BigInteger("18446744073709551615")).value());
+        assertEquals(
+            new BigInteger("18446744073709551615"),
+            QueryBuilders.matchQuery("quota", new BigInteger("18446744073709551615")).value()
+        );
+        // The BigInteger arm itself, reached through match: in range it is the value, out of range it matches nothing.
+        assertThat(translate(QueryBuilders.matchQuery("quota", new BigInteger("18446744073709551615"))), instanceOf(MvContains.class));
+        assertEquals(Literal.FALSE, translate(QueryBuilders.matchQuery("quota", new BigInteger("18446744073709551616"))));
+        assertEquals(Literal.FALSE, translate(QueryBuilders.matchQuery("quota", new BigInteger("-1"))));
     }
 
     /**
@@ -817,6 +828,46 @@ public class QueryDslTranslatorTests extends ESTestCase {
             assertFalse("[" + msm + "] cannot be honoured", result.isComplete());
             assertEquals("bool[minimum_should_match=" + msm + "]", result.unsupported().get(0).construct());
         }
+    }
+
+    /**
+     * A multi_match reaches an ip column alongside columns that cannot hold the value at all. Under leniency the
+     * others fold to false, and the ip arm of the union must still select the block rather than folding with them —
+     * which is what the fieldless form does over a whole schema (covered end to end by the conformance differential,
+     * since a fieldless multi_match over this fixture's analyzed text field degrades before it reaches ip).
+     */
+    public void testMultiMatchOnACidrBlockKeepsTheBlockArm() {
+        Expression e = translate(QueryBuilders.multiMatchQuery("10.0.0.0/29", "client_ip", "status").lenient(true));
+        assertThat(e, instanceOf(Or.class));
+        // By arm, not by side: multi_match holds its fields in a map, so which arm lands left is not fixed.
+        assertEquals("only the ip arm survives, and it survives as a block range", 1, e.collect(n -> n instanceof MvInRange).size());
+        assertEquals("the integer arm folds to false under leniency", 1, e.collect(Literal.FALSE::equals).size());
+    }
+
+    /** A boosting wrapper is unwrapped inside the collecting walk too, so an inner bool still reports one leaf. */
+    public void testBoostingContentsReportPerLeaf() {
+        var result = translateResult(
+            QueryBuilders.boostingQuery(
+                QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).must(QueryBuilders.fuzzyQuery("tags", "x")),
+                QueryBuilders.termQuery("tags", "t1")
+            )
+        );
+        assertFalse(result.isComplete());
+        assertEquals(1, result.unsupported().size());
+        assertEquals("fuzzy", result.unsupported().get(0).construct());
+        assertThat(result.applied(), instanceOf(MvContains.class));
+    }
+
+    /**
+     * A type the translator has no encoding for is rejected rather than guessed at: handing the evaluator a value it
+     * cannot read would answer a different question, and over-returning is the only safe direction.
+     */
+    public void testLiteralOnATypeWithNoEncodingDegrades() {
+        assertEquals("term[literal on geo_point]", constructOf(QueryBuilders.termQuery("location", "POINT (1 2)")));
+        assertEquals("terms[literal on geo_point]", constructOf(QueryBuilders.termsQuery("location", List.of("POINT (1 2)"))));
+        assertEquals("match[literal on geo_point]", constructOf(QueryBuilders.matchQuery("location", "POINT (1 2)")));
+        // Leniency does not buy an encoding: the capability is missing, which is not a malformed value.
+        assertFalse(translateResult(QueryBuilders.matchQuery("location", "POINT (1 2)").lenient(true)).isComplete());
     }
 
     /** A terms-lookup has no values to translate (and values() is null — it used to NPE). */

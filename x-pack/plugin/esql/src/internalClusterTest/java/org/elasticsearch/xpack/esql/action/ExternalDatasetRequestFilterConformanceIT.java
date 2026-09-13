@@ -342,6 +342,8 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         assertSelectsSameRows(QueryBuilders.matchQuery("client_ip", "10.0.0.0/29"));
         assertSelectsSameRows(QueryBuilders.termsQuery("client_ip", List.of("10.0.0.0/30", "10.0.0.20")));
         assertSelectsSameRows(QueryBuilders.termsQuery("client_ip", List.of("10.0.0.0/30", "10.1.0.0/30")));
+        // The shape that reaches the ip column without naming it, and the one the lenient fold used to empty.
+        assertSelectsSameRows(QueryBuilders.multiMatchQuery("10.0.0.0/29"));
         // The block selects part of the data rather than none of it or all of it, so the agreement above is not vacuous.
         assertEquals(List.of(0, 1, 2, 3, 4, 5, 6, 7), selectedIds(INDEX, QueryBuilders.termQuery("client_ip", "10.0.0.0/29")));
     }

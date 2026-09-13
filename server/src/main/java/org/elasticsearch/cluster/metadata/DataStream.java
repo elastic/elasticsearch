@@ -64,6 +64,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -624,6 +625,52 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             }
         }
         return null;
+    }
+
+    /**
+     * Returns the distinct set of backing indices that cover the given nanosecond epoch timestamps.
+     * For each timestamp, {@link #selectTimeSeriesWriteIndex} is called; if a timestamp falls outside
+     * all known time ranges the current write index is used as a fallback (matching the single-document
+     * behaviour in {@link #getWriteIndex(IndexRequest, ProjectMetadata)}).
+     *
+     * @param timestampsNanos nanosecond epoch timestamps of the documents in the batch
+     * @param project         project metadata used to read backing-index time ranges
+     * @return distinct {@link Index} instances, in the order first encountered
+     */
+    public Set<Index> selectTimeSeriesWriteIndices(long[] timestampsNanos, ProjectMetadata project) {
+        if (timestampsNanos.length == 0) {
+            return Set.of();
+        }
+        long min = timestampsNanos[0];
+        long max = timestampsNanos[0];
+        for (long nanos : timestampsNanos) {
+            if (nanos < min) min = nanos;
+            if (nanos > max) max = nanos;
+        }
+        Index minIndex = selectTimeSeriesWriteIndex(Instant.ofEpochMilli(min / 1_000_000L), project);
+        if (minIndex == null) minIndex = getWriteIndex();
+        if (min == max) {
+            return Set.of(minIndex);
+        }
+        Index maxIndex = selectTimeSeriesWriteIndex(Instant.ofEpochMilli(max / 1_000_000L), project);
+        if (maxIndex == null) maxIndex = getWriteIndex();
+        // Backing index time ranges don't overlap, so if min and max resolve to the same index all timestamps do.
+        if (minIndex == maxIndex) {
+            return Set.of(minIndex);
+        }
+        Set<Index> result = new LinkedHashSet<>();
+        Index last = null;
+        for (long nanos : timestampsNanos) {
+            Index index = selectTimeSeriesWriteIndex(Instant.ofEpochMilli(nanos / 1_000_000L), project);
+            if (index == null) {
+                index = getWriteIndex();
+            }
+            if (index != last) {
+                result.add(index);
+                last = index;
+            }
+        }
+        return result;
     }
 
     /**

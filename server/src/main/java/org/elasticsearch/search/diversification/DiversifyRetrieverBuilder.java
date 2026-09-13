@@ -59,6 +59,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     public static final NodeFeature RETRIEVER_RESULT_DIVERSIFICATION_MMR_FEATURE = new NodeFeature("retriever.result_diversification_mmr");
     public static final NodeFeature MMR_NULL_DENSE_VECTOR_FIX = new NodeFeature("retriever.mmr_null_dense_vector_fix");
+    public static final NodeFeature MMR_ENCODED_SOURCE_VECTOR_FIX = new NodeFeature("retriever.mmr_encoded_source_vector_fix");
     public static final NodeFeature DIVERSIFY_INCOMPATIBLE_EMBEDDINGS_FIELD_ERROR = new NodeFeature(
         "retriever.diversify_incompatible_embeddings_field_error"
     );
@@ -487,6 +488,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
      *       vector and returned as a singleton list. Throws if any element is not a {@link Number}.</li>
      *   <li><em>List of {@code float[]} vectors</em> (one entry per chunk for chunked {@code semantic_text} fields):
      *       each element is converted to a {@link VectorData} independently.</li>
+     *   <li><em>Single hex or base64 string</em> ({@code dense_vector} stored in {@code _source} as an encoded string
+     *       when {@code index.mapping.exclude_source_vectors} is false): decoded to a byte vector.</li>
      * </ul>
      * Returns an empty list when the values are absent, null, or of an unrecognized type.
      *
@@ -504,6 +507,9 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             case float[] ignored ->
                 // Each element is a separate dense embedding (e.g. one float[] per chunk for semantic_text).
                 parseInferenceFieldValue(values);
+            case String encoded ->
+                // Hex/base64 string from stored _source (byte/bit dense_vector with exclude_source_vectors false).
+                parseEncodedVectorValue(encoded);
             default ->
                 // Silently return an empty list for any other value type. This handles the BwC path where an older node serializes the
                 // embeddings field request as a plain fields entry (without the embeddings format), and the field values arrive in an
@@ -511,6 +517,11 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 // can produce embeddings, so this branch is never reached in steady-state.
                 List.of();
         };
+    }
+
+    private List<VectorData> parseEncodedVectorValue(String encoded) {
+        VectorData decoded = VectorData.tryDecodeEncodedVector(encoded);
+        return decoded == null ? List.of() : List.of(decoded);
     }
 
     private List<VectorData> parseDenseVectorValue(List<Object> values) {

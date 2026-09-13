@@ -238,6 +238,27 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
         return encoded == null ? null : new VectorData(null, null, encoded);
     }
 
+    /**
+     * Decodes a hex or base64 encoded vector from stored {@code _source} when field type
+     * information is not available. Prefers hex when the string is valid hex, matching
+     * dense_vector indexing. Returns a byte vector, or {@code null} if the string is not
+     * valid hex or base64.
+     */
+    public static VectorData tryDecodeEncodedVector(String encoded) {
+        if (encoded == null || encoded.isEmpty()) {
+            return null;
+        }
+        byte[] hexBytes = tryParseHex(encoded);
+        if (hexBytes != null) {
+            return VectorData.fromBytes(hexBytes);
+        }
+        byte[] base64Bytes = tryParseBase64(encoded);
+        if (base64Bytes != null) {
+            return VectorData.fromBytes(base64Bytes);
+        }
+        return null;
+    }
+
     private static String readOptionalStringVector(StreamInput in) throws IOException {
         if (in.getTransportVersion().supports(QUERY_VECTOR_BASE64)) {
             return in.readOptionalString();

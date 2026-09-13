@@ -100,6 +100,8 @@ Once your changes and tests are ready to submit for review:
 
     Push your local changes to your forked copy of the repository and [submit a pull request](https://help.github.com/articles/using-pull-requests). In the pull request, choose a title which sums up the changes that you have made, and in the body provide more details about what your changes do. Also mention the number of the issue where discussion has taken place, eg "Closes #123".
 
+    The description of your PR must be concise and provide necessary context for the reviewers and future readers. For example, include implementation trade-offs that were considered, unobvious interactions between components, testing notes. Do not paste the output of LLM-based tools verbatim in a PR description. These tools tend to be very verbose, use confusing jargon, and otherwise dilute the attention of the readers. Do not use LLM-based tools for communication with maintainers.
+
 Then sit back and wait. There will probably be discussion about the pull request and, if any changes are needed, we would love to work with you to get your pull request merged into Elasticsearch. A yaml changelog entry will be automatically created, there is no need for external contributors to manually edit it, unless requested by the reviewer.
 
 Please adhere to the general guideline that you should never force push
@@ -915,14 +917,16 @@ avoid this, but there are some basic steps you can take to reduce the chances
 of rejection. Follow the guidelines listed above when preparing your changes.
 You should add tests that correspond with your changes, and your PR should pass
 affected test suites too. It makes it much easier to review if your code is
-formatted correctly and does not include unnecessary extra changes. The 
-description of your PR should be concise and provide necessary context for the 
-reviewers and future readers. For example, include implementation trade-offs 
-that were considered, unobvious interactions between components, testing notes. 
-Do not paste the output of LLM-based tools verbatim in a PR description. These 
-tools tend to be very verbose, use confusing jargon, and otherwise dilute the 
-attention of the readers. Do not use LLM-based tools for communication with 
-maintainers.
+formatted correctly and does not include unnecessary extra changes.
+
+We typically reject PRs that appear to have come fairly directly from a LLM, or
+where any follow-up conversation appears to be copied fairly directly from a
+LLM. This includes cases where the PR description is overly verbose or
+otherwise hard to interpret, as seems to be common for LLM-driven
+contributions. You may use LLMs to assist with your contribution, but you must
+add value to the contribution yourself too. If we wanted to work with a LLM to
+make a change then we would do so ourselves, without needing you to act as a
+proxy to the LLM.
 
 We sometimes reject contributions if we find ourselves performing many review
 iterations without making enough progress. Some iteration is expected,

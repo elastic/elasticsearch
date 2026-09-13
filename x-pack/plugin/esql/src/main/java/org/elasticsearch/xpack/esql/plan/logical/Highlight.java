@@ -109,9 +109,9 @@ public class Highlight extends UnaryPlan
     private final boolean derivedFields;
 
     /**
-     * Source of the effective {@code analyzer} option. This is analysis-only provenance.
+     * Source of the effective {@code analyzer} option. This is analysis-only.
      * {@link #postAnalysisVerification(AnalysisRegistry, Failures)} uses it to pick the error for an unresolved
-     * analyzer. A user-written name keeps the raw failure. A name derived from WHERE uses the borrowed-from-WHERE
+     * analyzer. A user-written name keeps the raw failure. A name copied from WHERE uses the borrowed-from-WHERE
      * framing. The field is not serialized and is not part of {@link #equals}. It does not affect execution. It
      * only changes the coordinator-side error message.
      * <p>
@@ -120,14 +120,14 @@ public class Highlight extends UnaryPlan
      * boolean can never be distinct from the other two, so generation spins until the suite times out. A two-value
      * enum does not collide with the remaining booleans, so generation finishes.
      */
-    public enum AnalyzerProvenance {
+    public enum AnalyzerOrigin {
         /** The {@code analyzer} option was written by the user in {@code WITH}, or is absent. */
-        NOT_DERIVED,
-        /** {@link org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlight} synthesized it from the borrowed WHERE. */
-        DERIVED_FROM_WHERE
+        COMMAND,
+        /** {@link org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlight} copied it from the borrowed WHERE. */
+        WHERE
     }
 
-    private final AnalyzerProvenance analyzerProvenance;
+    private final AnalyzerOrigin analyzerOrigin;
     private final List<NamedExpression> fields;
     private final MapExpression options;
     /**
@@ -144,7 +144,7 @@ public class Highlight extends UnaryPlan
         Expression query,
         boolean implicitQuery,
         boolean derivedFields,
-        AnalyzerProvenance analyzerProvenance,
+        AnalyzerOrigin analyzerOrigin,
         List<NamedExpression> fields,
         MapExpression options,
         List<Attribute> generatedFields
@@ -154,7 +154,7 @@ public class Highlight extends UnaryPlan
         this.query = query;
         this.implicitQuery = implicitQuery;
         this.derivedFields = derivedFields;
-        this.analyzerProvenance = analyzerProvenance;
+        this.analyzerOrigin = analyzerOrigin;
         this.fields = fields;
         this.options = options;
         this.generatedFields = generatedFields;
@@ -168,8 +168,8 @@ public class Highlight extends UnaryPlan
             in.readOptionalNamedWriteable(Expression.class),
             in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) ? in.readBoolean() : false,
             in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) ? in.readBoolean() : false,
-            // Analyzer provenance is analysis-only and is not serialized. Peers do not re-verify.
-            AnalyzerProvenance.NOT_DERIVED,
+            // Analyzer origin is analysis-only and is not serialized. Peers do not re-verify.
+            AnalyzerOrigin.COMMAND,
             in.readNamedWriteableCollectionAsList(NamedExpression.class),
             // MapExpression is registered under the Expression category, not its own, so read it as an Expression.
             (MapExpression) in.readOptionalNamedWriteable(Expression.class),
@@ -222,8 +222,8 @@ public class Highlight extends UnaryPlan
         return derivedFields;
     }
 
-    public AnalyzerProvenance analyzerProvenance() {
-        return analyzerProvenance;
+    public AnalyzerOrigin analyzerOrigin() {
+        return analyzerOrigin;
     }
 
     public List<NamedExpression> fields() {
@@ -262,7 +262,7 @@ public class Highlight extends UnaryPlan
             query,
             implicitQuery,
             derivedFields,
-            analyzerProvenance,
+            analyzerOrigin,
             fields,
             options,
             generatedFields
@@ -284,7 +284,7 @@ public class Highlight extends UnaryPlan
     public Highlight withResolved(
         Expression newQuery,
         boolean newImplicitQuery,
-        AnalyzerProvenance newAnalyzerProvenance,
+        AnalyzerOrigin newAnalyzerOrigin,
         List<NamedExpression> newFields,
         List<Attribute> newGeneratedFields,
         MapExpression newOptions
@@ -296,7 +296,7 @@ public class Highlight extends UnaryPlan
             newQuery,
             newImplicitQuery,
             derivedFields,
-            newAnalyzerProvenance,
+            newAnalyzerOrigin,
             newFields,
             newOptions,
             newGeneratedFields
@@ -329,7 +329,7 @@ public class Highlight extends UnaryPlan
             query,
             implicitQuery,
             derivedFields,
-            analyzerProvenance,
+            analyzerOrigin,
             fields,
             options,
             generatedFields
@@ -495,7 +495,7 @@ public class Highlight extends UnaryPlan
             // A name the user typed keeps the raw failure even when the same name also labels a borrowed leaf; a name
             // synthesized from a borrowed WHERE is really that leaf's analyzer, so it gets the derived-from-WHERE
             // framing. The synthesis also runs for an explicit query, where there is no WHERE to blame.
-            boolean borrowed = implicitQuery && analyzerProvenance != AnalyzerProvenance.NOT_DERIVED;
+            boolean borrowed = implicitQuery && analyzerOrigin == AnalyzerOrigin.WHERE;
             failures.add(fail(this, "{}", borrowed ? borrowedUnresolvedAnalyzerMessage(commandAnalyzerName) : commandFailure));
             return true;
         }
@@ -586,7 +586,7 @@ public class Highlight extends UnaryPlan
             return false;
         }
         Highlight other = (Highlight) o;
-        // analyzerProvenance is excluded. It is analysis-only provenance for error messages, not identity.
+        // analyzerOrigin is excluded. It is analysis-only, for error messages, not identity.
         return Objects.equals(prefix, other.prefix)
             && Objects.equals(query, other.query)
             && implicitQuery == other.implicitQuery

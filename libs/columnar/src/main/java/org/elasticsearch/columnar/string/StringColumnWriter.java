@@ -114,10 +114,7 @@ public final class StringColumnWriter {
         Vocabulary.Terms surveyed = null;
         if (policy.enabled()) {
             // A merge that worked out the vocabulary from what its inputs recorded does not survey again.
-            // Nulls are named by a reserved ordinal, not by a term, so they are no part of what a dictionary
-            // could cover. Counting them in the denominator would cost a column its dictionary on the
-            // strength of slots no dictionary was ever going to name.
-            surveyed = known != null ? known : Vocabulary.survey(cursors.get(), policy, numValues - numNullSlots);
+            surveyed = known != null ? known : Vocabulary.survey(cursors.get(), policy);
             // Coverage is a lower bound, so a column admitted here covers at least as much as it claims.
             if (surveyed != null && policy.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes())) {
                 return withSummary(

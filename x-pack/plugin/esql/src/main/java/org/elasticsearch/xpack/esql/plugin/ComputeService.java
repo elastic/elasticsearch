@@ -23,17 +23,16 @@ import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.MatcherWatchdog;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -215,16 +214,10 @@ public class ComputeService {
                 null
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
-            try (
-                var computeListener = new ComputeListener(
-                    transportService.getThreadPool(),
-                    cancelQueryOnFailure,
-                    listener.map(completionInfo -> {
-                        updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
-                        return new Result(physicalPlan.output(), collectedPages, completionInfo, execInfo);
-                    })
-                )
-            ) {
+            try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
+                updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
+                return new Result(physicalPlan.output(), collectedPages, completionInfo, execInfo);
+            }))) {
                 runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
                 return;
             }
@@ -249,23 +242,16 @@ public class ComputeService {
         var exchangeSource = new ExchangeSourceHandler(queryPragmas.exchangeBufferSize(), searchExecutor);
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
-        try (
-            var computeListener = new ComputeListener(
-                transportService.getThreadPool(),
-                cancelQueryOnFailure,
-                listener.delegateFailureAndWrap((l, completionInfo) -> {
-                    failIfAllShardsFailed(execInfo, collectedPages);
-                    execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
-                    l.onResponse(new Result(outputAttributes, collectedPages, completionInfo, execInfo));
-                })
-            )
-        ) {
+        try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
+            failIfAllShardsFailed(execInfo, collectedPages);
+            execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
+            l.onResponse(new Result(outputAttributes, collectedPages, completionInfo, execInfo));
+        }))) {
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
                 final AtomicBoolean localClusterWasInterrupted = new AtomicBoolean();
                 try (
                     var localListener = new ComputeListener(
-                        transportService.getThreadPool(),
                         cancelQueryOnFailure,
                         computeListener.acquireCompute().delegateFailure((l, completionInfo) -> {
                             if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER)) {
@@ -465,13 +451,7 @@ public class ComputeService {
         List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts().size());
         for (int i = 0; i < context.searchContexts().size(); i++) {
             SearchContext searchContext = context.searchContexts().get(i);
-            var searchExecutionContext = new SearchExecutionContext(searchContext.getSearchExecutionContext()) {
-
-                @Override
-                public SourceProvider createSourceProvider() {
-                    return new ReinitializingSourceProvider(super::createSourceProvider);
-                }
-            };
+            var searchExecutionContext = new EsqlSearchExecutionContext(searchContext.getSearchExecutionContext(), QueryWarnings.EMIT);
             searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);
             contexts.add(
                 new EsPhysicalOperationProviders.DefaultShardContext(i, searchExecutionContext, searchContext.request().getAliasFilter())
@@ -481,7 +461,8 @@ public class ComputeService {
             context.foldCtx(),
             contexts,
             searchService.getIndicesService().getAnalysis(),
-            physicalSettings
+            physicalSettings,
+            QueryWarnings.EMIT
         );
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(

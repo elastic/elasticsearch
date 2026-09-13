@@ -32,7 +32,6 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -100,7 +99,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             // 3 -> [] -> []
             // 4 -> [a3] -> [3]
             // 5 -> [] -> []
-            var warnings = Warnings.createWarnings(DriverContext.WarningsMode.IGNORE, 0, 0, "test enrich");
+            var warnings = Warnings.NOOP_WARNINGS;
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                 blockFactory,
                 128,
@@ -162,7 +161,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 inputTerms
             );
             int maxPageSize = between(1, 256);
-            var warnings = Warnings.createWarnings(DriverContext.WarningsMode.IGNORE, 0, 0, "test enrich");
+            var warnings = Warnings.NOOP_WARNINGS;
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                 blockFactory,
                 maxPageSize,
@@ -212,7 +211,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             // 3 -> [] -> []
             // 4 -> [a3] -> [3]
             // 5 -> [a3, a2, z2, xx] -> []
-            var warnings = Warnings.createWarnings(DriverContext.WarningsMode.IGNORE, 0, 0, "test lookup");
+            var warnings = Warnings.NOOP_WARNINGS;
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                 blockFactory,
                 128,

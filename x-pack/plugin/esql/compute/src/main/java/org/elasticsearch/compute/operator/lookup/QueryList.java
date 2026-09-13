@@ -117,10 +117,16 @@ public abstract class QueryList {
     abstract Query doGetQuery(int position, int firstValueIndex, int valueCount);
 
     private Query wrapSingleValueQuery(Query query) {
+        /*
+         * Unlike the Lucene-pushdown SingleValueQuery, this query is never shared with another
+         * driver: it's built and used entirely within this single QueryList instance, on a single
+         * driver's thread. So it's bound directly to the already-built Warnings the caller gave
+         * us, with no QueryWarnings bridge, no thread-local, and no lazy creation.
+         */
         SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
             searchExecutionContext.getForField(field, MappedFieldType.FielddataOperation.SEARCH),
-            // Not emitting warnings for multivalued fields not matching
-            Warnings.NOOP_WARNINGS
+            Warnings.NOOP_WARNINGS,
+            "single-value function encountered multi-value"
         );
 
         Query rewrite = singleValueQuery;

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -149,7 +150,7 @@ public interface EvaluatorMapper {
                 throw new UnsupportedOperationException();
             }
         }, CircuitBreaker.REQUEST).withCircuitBreaking();
-        DriverContext driverCtx = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        DriverContext driverCtx = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
 
         /*
          * Finally we can call toEvaluator on ourselves! It'll fold our children,
@@ -162,6 +163,17 @@ public interface EvaluatorMapper {
         Block block = toEvaluator(foldChildren).get(driverCtx).eval(new Page(1));
         if (block.getPositionCount() != 1) {
             throw new IllegalStateException("generated odd block from fold [" + block + "]");
+        }
+        /*
+         * Constant folding runs synchronously on the coordinator's planning thread,
+         * outside any Driver that would ship a DriverCompletionInfo back to the
+         * response. We don't have a fancy place to stick the warnings, so we use
+         * the thread context for now. But one day we'll plumb a warnings accumulator
+         * in here too and can get rid of the spooky thread local.
+         */
+        driverCtx.finish();
+        for (String warning : driverCtx.warnings()) {
+            HeaderWarning.addWarning(warning);
         }
         return toJavaObject(block, 0);
     }

@@ -65,6 +65,7 @@ import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.ShuffleDocsOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
@@ -596,7 +597,8 @@ public class OperatorTests extends MapperServiceTestCase {
             randomIntBetween(1, 10),
             randomPageSize(),
             limit,
-            false // no scoring
+            false, // no scoring
+            QueryWarnings.EMIT
         );
     }
 
@@ -608,7 +610,8 @@ public class OperatorTests extends MapperServiceTestCase {
             randomFrom(DataPartitioning.values()),
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             randomIntBetween(1, 10),
-            LuceneOperator.NO_LIMIT
+            LuceneOperator.NO_LIMIT,
+            QueryWarnings.EMIT
         );
     }
 }

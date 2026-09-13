@@ -61,6 +61,14 @@ public abstract class AsyncOperator<Fetched> implements Operator {
     );
 
     /**
+     * The {@link DriverContext} of the driver running this operator. Subclasses that fetch results from another
+     * driver (e.g. enrich lookup) use this to replay warnings from the inner driver into this driver.
+     */
+    protected final DriverContext driverContext() {
+        return driverContext;
+    }
+
+    /**
      * Create an operator that performs an external computation
      *
      * @param maxOutstandingRequests the maximum number of outstanding requests

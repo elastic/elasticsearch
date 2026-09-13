@@ -311,13 +311,10 @@ public class EvaluatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("warnings");
         builder.addModifiers(Modifier.PRIVATE).returns(WARNINGS);
         builder.beginControlFlow("if (warnings == null)");
-        builder.addStatement("""
-            this.warnings = Warnings.createWarnings(
-                driverContext.warningsMode(),
-                source.source().getLineNumber(),
-                source.source().getColumnNumber(),
-                source.text()
-            )""");
+        builder.addStatement(
+            "this.warnings = driverContext.createWarnings(source.source().getLineNumber(), source.source().getColumnNumber(), "
+                + "source.text())"
+        );
         builder.endControlFlow();
         builder.addStatement("return warnings");
         return builder.build();

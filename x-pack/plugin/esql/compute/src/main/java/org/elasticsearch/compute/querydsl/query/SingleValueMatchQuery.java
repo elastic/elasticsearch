@@ -25,7 +25,9 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
@@ -48,6 +50,17 @@ import java.util.Objects;
  *     "almost" matches in some fairly lucene-specific ways then it *might* emit
  *     a warning.
  * </p>
+ * <p>
+ *     A query can be built one of two ways. When the same {@link Query}/{@link Weight} might be
+ *     scored concurrently by more than one driver -- the Lucene-pushdown path shared across a
+ *     shard's slices -- it's bound to a {@link QueryWarnings} bridge plus a
+ *     {@link WarningSourceLocation}, and warnings are dispatched to whichever driver is currently
+ *     bound on the calling thread; see {@link QueryWarnings} for why that bridge exists at all.
+ *     When a query is instead privately owned by exactly one driver/thread for its whole lifetime
+ *     -- e.g. {@link org.elasticsearch.compute.operator.lookup.QueryList} -- it can instead be
+ *     bound directly to an already-built {@link Warnings} instance, with no bridge, no
+ *     thread-local, and no lazy creation.
+ * </p>
  */
 public final class SingleValueMatchQuery extends Query {
 
@@ -56,15 +69,83 @@ public final class SingleValueMatchQuery extends Query {
      * This avoids reporting warnings when queries are not matching multi-values
      */
     private static final int MULTI_VALUE_MATCH_COST = 1000;
-    private static final IllegalArgumentException MULTI_VALUE_EXCEPTION = new IllegalArgumentException(
-        "single-value function encountered multi-value"
-    );
     private final IndexFieldData<?> fieldData;
-    private final Warnings warnings;
+    private final WarningsTarget warningsTarget;
+    private final String multiValueExceptionMessage;
 
-    public SingleValueMatchQuery(IndexFieldData<?> fieldData, Warnings warnings) {
+    /**
+     * Where {@link #registerMultiValueException()} sends its warning: either a {@link QueryWarnings}
+     * bridge dispatching by calling-thread identity, or a concrete {@link Warnings} instance known
+     * up front.
+     */
+    private interface WarningsTarget {
+        void registerException(SingleValueMatchQuery query, Class<? extends Exception> exceptionClass, String message);
+
+        @Nullable
+        WarningSourceLocation source();
+    }
+
+    private record BridgedWarningsTarget(QueryWarnings warnings, WarningSourceLocation source) implements WarningsTarget {
+        @Override
+        public void registerException(SingleValueMatchQuery query, Class<? extends Exception> exceptionClass, String message) {
+            warnings.registerException(query, exceptionClass, message);
+        }
+    }
+
+    private record DirectWarningsTarget(Warnings warnings) implements WarningsTarget {
+        @Override
+        public void registerException(SingleValueMatchQuery query, Class<? extends Exception> exceptionClass, String message) {
+            warnings.registerException(exceptionClass, message);
+        }
+
+        @Override
+        public WarningSourceLocation source() {
+            return null;
+        }
+    }
+
+    /**
+     * Build, bound to a {@link QueryWarnings} bridge that resolves the calling driver's
+     * {@link Warnings} by thread identity. Use this when the same query/{@link Weight} might be
+     * scored concurrently by more than one driver.
+     *
+     * @param warnings bridge used to resolve the calling driver's {@link Warnings} for this query
+     *                 node; see {@link QueryWarnings} for why this can't just be a plain
+     *                 {@code Warnings} field
+     * @param source   the location that produced this query, used to build a {@code Warnings}
+     *                 instance per driver
+     */
+    public SingleValueMatchQuery(
+        IndexFieldData<?> fieldData,
+        QueryWarnings warnings,
+        WarningSourceLocation source,
+        String multiValueExceptionMessage
+    ) {
         this.fieldData = fieldData;
-        this.warnings = warnings;
+        this.warningsTarget = new BridgedWarningsTarget(warnings, source);
+        this.multiValueExceptionMessage = multiValueExceptionMessage;
+    }
+
+    /**
+     * Build, bound directly to an already-built {@link Warnings} instance, with no bridge, no
+     * thread-local, and no lazy creation. Use this when the query is privately owned by exactly one
+     * driver/thread for its whole lifetime, e.g.
+     * {@link org.elasticsearch.compute.operator.lookup.QueryList}.
+     */
+    public SingleValueMatchQuery(IndexFieldData<?> fieldData, Warnings warnings, String multiValueExceptionMessage) {
+        this.fieldData = fieldData;
+        this.warningsTarget = new DirectWarningsTarget(warnings);
+        this.multiValueExceptionMessage = multiValueExceptionMessage;
+    }
+
+    /**
+     * The location that produced this query, if bound via the {@link QueryWarnings} bridge. Used by
+     * {@code LuceneOperator} to build a driver-local {@link Warnings} for this node. {@code null}
+     * when this query was bound directly to a {@link Warnings} instance.
+     */
+    @Nullable
+    public WarningSourceLocation source() {
+        return warningsTarget.source();
     }
 
     @Override
@@ -149,7 +230,7 @@ public final class SingleValueMatchQuery extends Query {
                         return false;
                     }
                     if (sortedNumerics.docValueCount() != 1) {
-                        warnings.registerException(MULTI_VALUE_EXCEPTION);
+                        registerMultiValueException();
                         return false;
                     }
                     return true;
@@ -186,7 +267,7 @@ public final class SingleValueMatchQuery extends Query {
                         return false;
                     }
                     if (sortedSetDocValues.docValueCount() != 1) {
-                        warnings.registerException(MULTI_VALUE_EXCEPTION);
+                        registerMultiValueException();
                         return false;
                     }
                     return true;
@@ -217,7 +298,7 @@ public final class SingleValueMatchQuery extends Query {
                         return false;
                     }
                     if (sortedBinaryDocValues.docValueCount() != 1) {
-                        warnings.registerException(MULTI_VALUE_EXCEPTION);
+                        registerMultiValueException();
                         return false;
                     }
                     return true;
@@ -225,6 +306,10 @@ public final class SingleValueMatchQuery extends Query {
                 return new PredicateScorerSupplier(weight, boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
             }
         };
+    }
+
+    private void registerMultiValueException() {
+        warningsTarget.registerException(this, IllegalArgumentException.class, multiValueExceptionMessage);
     }
 
     @Override

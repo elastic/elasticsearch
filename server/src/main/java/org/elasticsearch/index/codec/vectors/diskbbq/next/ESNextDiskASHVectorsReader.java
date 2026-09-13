@@ -93,7 +93,8 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
         int size = values.size();
         assert esAcceptDocs == null
             || entry.numSlices >= 0 && esAcceptDocs.sliceOrd() >= 0
-            || entry.numSlices == -1 && esAcceptDocs.sliceOrd() == -1;
+            || entry.numSlices == -1 && esAcceptDocs.sliceOrd() == -1
+            : "slice ordinal [" + esAcceptDocs.sliceOrd() + "] does not match segment slice layout [" + entry.numSlices + "]";
         if (entry.numSlices > 0) {
             long fp = centroidSlice.getFilePointer();
             final int bitsRequired = DirectWriter.bitsRequired(entry.maxSliceSize);
@@ -265,6 +266,38 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
         IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(indexInput);
         unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
 
+        if (entry.numSlices == 0) {
+            // Sliced segment without per-slice centroid structure (e.g. flushed before merge).
+            // Uses SlicedAshPostingsVisitor which translates ordinals to doc IDs and restricts
+            // scoring to the target slice's doc range.
+            int startDoc;
+            int endDoc;
+            if (acceptDocs == null) {
+                // Plain Lucene AcceptDocs (e.g. CheckIndex) carry no slice information: search the whole segment.
+                startDoc = 0;
+                endDoc = values.ordToDoc(values.size() - 1) + 1;
+            } else {
+                // Sliced segments are only ever searched by sliced queries, which always carry a slice ordinal.
+                assert acceptDocs.sliceOrd() >= 0 : "sliced segment searched without a slice ordinal";
+                ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = acceptDocs.sliceAcceptDocs();
+                startDoc = sliceAcceptDocs.startDoc();
+                endDoc = sliceAcceptDocs.endDoc();
+            }
+            return AshPostingsVisitor.createSliced(
+                ashMatrix.wT(),
+                dimension,
+                target,
+                fieldInfo.getVectorSimilarityFunction(),
+                unwrappedInput,
+                needsScoring,
+                entry.ashBitsPerDim(),
+                queryBitsPerDim,
+                centroidReader,
+                values,
+                startDoc,
+                endDoc
+            );
+        }
         return AshPostingsVisitor.create(
             ashMatrix.wT(),
             dimension,
@@ -346,6 +379,27 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             }
         }
         return offsets;
+    }
+
+    /**
+     * Calls {@link #getPostingVisitor} directly for a named float-vector field, bypassing
+     * {@link #getNumberOfVectors} and its assertion. Used in tests to exercise the
+     * {@code acceptDocs} handling in the {@code numSlices == 0} branch in isolation.
+     */
+    // package-private for testing
+    PostingVisitor getPostingVisitorForTest(String field, float[] query, ESAcceptDocs acceptDocs) throws IOException {
+        FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
+        ASHFieldEntry entry = fields.get(fieldInfo.number);
+        KnnVectorValues values = getFloatVectorValues(field);
+        return getPostingVisitor(
+            fieldInfo,
+            values,
+            entry.postingListSlice(ivfClusters.clone()),
+            new QueryTarget.FloatQuery(query),
+            null,
+            entry.centroidSlice(ivfCentroids.clone()),
+            acceptDocs
+        );
     }
 
     /**

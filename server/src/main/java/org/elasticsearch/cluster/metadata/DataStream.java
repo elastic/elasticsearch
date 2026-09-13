@@ -638,11 +638,37 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @return distinct {@link Index} instances, in the order first encountered
      */
     public Set<Index> selectTimeSeriesWriteIndices(long[] timestampsNanos, ProjectMetadata project) {
-        Set<Index> result = new LinkedHashSet<>();
+        if (timestampsNanos.length == 0) {
+            return Set.of();
+        }
+        long min = timestampsNanos[0];
+        long max = timestampsNanos[0];
         for (long nanos : timestampsNanos) {
-            Instant ts = Instant.ofEpochMilli(nanos / 1_000_000L);
-            Index index = selectTimeSeriesWriteIndex(ts, project);
-            result.add(index != null ? index : getWriteIndex());
+            if (nanos < min) min = nanos;
+            if (nanos > max) max = nanos;
+        }
+        Index minIndex = selectTimeSeriesWriteIndex(Instant.ofEpochMilli(min / 1_000_000L), project);
+        if (minIndex == null) minIndex = getWriteIndex();
+        if (min == max) {
+            return Set.of(minIndex);
+        }
+        Index maxIndex = selectTimeSeriesWriteIndex(Instant.ofEpochMilli(max / 1_000_000L), project);
+        if (maxIndex == null) maxIndex = getWriteIndex();
+        // Backing index time ranges don't overlap, so if min and max resolve to the same index all timestamps do.
+        if (minIndex == maxIndex) {
+            return Set.of(minIndex);
+        }
+        Set<Index> result = new LinkedHashSet<>();
+        Index last = null;
+        for (long nanos : timestampsNanos) {
+            Index index = selectTimeSeriesWriteIndex(Instant.ofEpochMilli(nanos / 1_000_000L), project);
+            if (index == null) {
+                index = getWriteIndex();
+            }
+            if (index != last) {
+                result.add(index);
+                last = index;
+            }
         }
         return result;
     }

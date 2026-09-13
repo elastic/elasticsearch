@@ -58,6 +58,16 @@ public class MlJobIT extends ESRestTestCase {
             ).equals(warnings) == false
         )
         .build();
+    private static final RequestOptions FLUSH_OPTIONS = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(
+            warnings -> Collections.singletonList(
+                "Forcing any buffered data to be processed is deprecated, "
+                    + "in a future major version it will be compulsory to use a datafeed"
+            ).equals(warnings) == false
+        )
+        .build();
+    private static final String SHARED_RESULTS_FIRST_INDEX = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX
+        + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
 
     @Override
     protected Settings restClientSettings() {
@@ -73,6 +83,20 @@ public class MlJobIT extends ESRestTestCase {
         Response response = createFarequoteJob("given-farequote-config-job");
         String responseAsString = EntityUtils.toString(response.getEntity());
         assertThat(responseAsString, containsString("\"job_id\":\"given-farequote-config-job\""));
+        assertThat(responseAsString, containsString("\"results_index_name\":\"shared\""));
+
+        ensureGreen(SHARED_RESULTS_FIRST_INDEX);
+
+        String aliasesResponseAsString = getAliases();
+        LogManager.getLogger(MlRestTestStateCleaner.class).warn(aliasesResponseAsString);
+        assertThat(
+            aliasesResponseAsString,
+            containsString(
+                "\".ml-anomalies-shared-000001\":{\"aliases\":"
+                    + "{\".ml-anomalies-.write-given-farequote-config-job\":"
+                    + "{\"is_hidden\":true},\".ml-anomalies-given-farequote-config-job\""
+            )
+        );
     }
 
     public void testGetJob_GivenNoSuchJob() {
@@ -361,6 +385,8 @@ public class MlJobIT extends ESRestTestCase {
         String byFieldName2 = "cpu-usage";
 
         putJob(jobId1, Strings.format(jobTemplate, byFieldName1));
+
+        ensureGreen(SHARED_RESULTS_FIRST_INDEX);
 
         // Check the index mapping contains the first by_field_name
         Request getResultsMappingRequest = new Request(

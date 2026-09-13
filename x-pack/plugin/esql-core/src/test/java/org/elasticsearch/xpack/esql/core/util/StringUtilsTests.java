@@ -86,6 +86,18 @@ public class StringUtilsTests extends ESTestCase {
         assertThat(luceneWildcardToRegExp("foo\\\\bar"), is("foo\\\\bar"));
         assertThat(luceneWildcardToRegExp("foo*bar?baz"), is("foo.*bar.baz"));
         assertThat(luceneWildcardToRegExp("foo\\*bar"), is("foo\\*bar"));
+
+        // An escaped character is a literal, so a RegExp metacharacter must stay escaped once the wildcard escape is
+        // consumed. Emitting it raw made the ESCAPED form looser than the unescaped one: `\\.` became `.`, any char.
+        for (char reserved : "\"$()+.[]^{|}#&<>~@".toCharArray()) {
+            assertThat(
+                "escaped [" + reserved + "]",
+                luceneWildcardToRegExp("a\\" + reserved + "b"),
+                is(luceneWildcardToRegExp("a" + reserved + "b"))
+            );
+        }
+        // Escaping something RegExp does not reserve is dropped, as WildcardQuery#toAutomaton drops it.
+        assertThat(luceneWildcardToRegExp("foo\\-bar"), is("foo-bar"));
         assertThat(luceneWildcardToRegExp("foo\\?bar\\?"), is("foo\\?bar\\?"));
         assertThat(luceneWildcardToRegExp("foo\\?bar\\"), is("foo\\?bar\\\\"));
         // reserved characters

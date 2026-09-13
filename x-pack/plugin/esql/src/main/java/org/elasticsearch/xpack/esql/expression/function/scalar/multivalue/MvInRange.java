@@ -83,8 +83,8 @@ public class MvInRange extends EsqlScalarFunction implements OptionalArgument, T
 
     private static final String SUPPORTED_TYPES = "a numeric, date, ip, version or string type";
 
-    private static final String INCLUDE_LOWER = "include_lower";
-    private static final String INCLUDE_UPPER = "include_upper";
+    public static final String INCLUDE_LOWER = "include_lower";
+    public static final String INCLUDE_UPPER = "include_upper";
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(INCLUDE_LOWER, DataType.BOOLEAN, INCLUDE_UPPER, DataType.BOOLEAN);
 
     private final Expression field;

@@ -7,41 +7,65 @@
 
 package org.elasticsearch.xpack.esql.dsltranslate;
 
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.network.CIDRUtils;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.BoostingQueryBuilder;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRegexMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -60,7 +84,8 @@ import java.util.function.Supplier;
  * function from a field name to the {@link Expression} that stands for that field on the source being translated
  * against. A present field binds to its attribute; a missing field binds to {@link Literal#NULL}. Because every leaf
  * predicate the translator emits is two-valued (never returns null — {@code mv_contains}, {@code mv_intersects},
- * {@code mv_in_range}, {@code mv_greater}, {@code mv_less} and {@code IS NOT NULL} all have {@code Nullability.FALSE}),
+ * {@code mv_in_range}, {@code mv_greater}, {@code mv_less}, {@code mv_like}, {@code mv_rlike} and {@code IS NOT NULL}
+ * all have {@code Nullability.FALSE}),
  * plain {@code AND}/{@code OR}/{@code NOT} composition over a null-bound leaf reproduces the DSL leniency rules for
  * free, negation included.
  *
@@ -69,8 +94,11 @@ import java.util.function.Supplier;
  * {@code date} column must become a {@code datetime} literal here or the evaluator is handed the wrong block type.
  *
  * <p>The supported subset is the structural floor: {@code bool}, {@code term}, {@code terms}, {@code range},
- * {@code exists}, {@code match_all}/{@code match_none}, and {@code match}/{@code match_phrase}/{@code multi_match} as
- * equality on an exact-typed field. We never mis-translate anything outside it — an unhonored option, or an analyzed
+ * {@code exists}, {@code match_all}/{@code match_none}, {@code prefix}/{@code wildcard}/{@code regexp} as pattern
+ * matching on an exact-typed field, {@code match}/{@code match_phrase}/{@code multi_match} as equality on one,
+ * {@code constant_score}/{@code boosting}, which only decide a score, and {@code dis_max}, which matches the union of
+ * its arms.
+ * We never mis-translate anything outside it — an unhonored option, or an analyzed
  * {@code text}-field construct. {@link #translate} is a <em>collecting walk</em>: every unsupported leaf is recorded
  * rather than thrown. The translator only reports; the caller picks what happens next (fail the query, emit a warning,
  * or apply the translatable subset).
@@ -79,7 +107,7 @@ public final class QueryDslTranslator {
 
     /**
      * A DSL clause that could not be translated — the specific offending {@link QueryBuilder} node and the construct
-     * name. Reported at leaf granularity: if {@code C OR D} fails because {@code D} is a wildcard, the clause is
+     * name. Reported at leaf granularity: if {@code C OR D} fails because {@code D} is a {@code fuzzy}, the clause is
      * {@code D}, not {@code C OR D}.
      */
     public record UnsupportedClause(org.elasticsearch.index.query.QueryBuilder clause, String construct) {}
@@ -136,10 +164,21 @@ public final class QueryDslTranslator {
         if (query instanceof BoolQueryBuilder bool) {
             return collectingBool(bool, unsupported);
         }
+        // The score-only wrappers select exactly what their inner query selects, so unwrap them here rather than in
+        // dispatch: the contents then report at leaf granularity like any other clause, instead of the whole wrapper
+        // being collected because one leaf inside it failed.
+        if (query instanceof ConstantScoreQueryBuilder constantScore) {
+            return collectingDispatch(constantScore.innerQuery(), unsupported);
+        }
+        if (query instanceof BoostingQueryBuilder boosting) {
+            return collectingDispatch(boosting.positiveQuery(), unsupported);
+        }
         try {
             return dispatch(query);
         } catch (TranslationUnsupportedException e) {
-            unsupported.add(new UnsupportedClause(query, e.construct()));
+            // constructFor, not construct: a leaf-level failure knows only its reason, and this is the point that
+            // knows which DSL clause raised it. The warning quotes this back to whoever wrote the filter.
+            unsupported.add(new UnsupportedClause(query, e.constructFor(query)));
             return null;
         }
     }
@@ -239,6 +278,18 @@ public final class QueryDslTranslator {
     }
 
     private Expression dispatch(QueryBuilder query) {
+        // A bool reaches the strict walk only from inside an all-or-nothing context (a dis_max arm, or a wrapper
+        // within one). The collecting walk's bool logic is the same at every depth, so reuse it and then demand that
+        // it dropped nothing: a looser bool is exactly what these contexts cannot accept. Reporting the arm's own
+        // construct rather than "bool" keeps the warning about the clause the user actually wrote.
+        if (query instanceof BoolQueryBuilder bool) {
+            List<UnsupportedClause> armUnsupported = new ArrayList<>();
+            Expression translated = collectingBool(bool, armUnsupported);
+            if (armUnsupported.isEmpty() == false) {
+                throw new TranslationUnsupportedException(armUnsupported.get(0).construct());
+            }
+            return translated;
+        }
         if (query instanceof TermQueryBuilder term) {
             return term(term);
         }
@@ -265,6 +316,27 @@ public final class QueryDslTranslator {
         }
         if (query instanceof RangeQueryBuilder range) {
             return range(range);
+        }
+        if (query instanceof PrefixQueryBuilder prefix) {
+            return prefix(prefix);
+        }
+        if (query instanceof WildcardQueryBuilder wildcard) {
+            return wildcard(wildcard);
+        }
+        if (query instanceof RegexpQueryBuilder regexp) {
+            return regexp(regexp);
+        }
+        // constant_score wraps its filter in a ConstantScoreQuery and boosting wraps its positive clause in a
+        // FunctionScoreQuery; both replace the score and neither changes which documents match, so each is its inner
+        // query. (The collecting walk unwraps them earlier; this arm carries the all-or-nothing contexts.)
+        if (query instanceof ConstantScoreQueryBuilder constantScore) {
+            return dispatch(constantScore.innerQuery());
+        }
+        if (query instanceof BoostingQueryBuilder boosting) {
+            return dispatch(boosting.positiveQuery());
+        }
+        if (query instanceof DisMaxQueryBuilder disMax) {
+            return disMax(disMax);
         }
         throw new TranslationUnsupportedException(query.getName());
     }
@@ -351,8 +423,8 @@ public final class QueryDslTranslator {
      * value of the type can equal (a decimal or out-of-range number on an integral field) → {@code false}, matching the
      * index's match-no-docs; a value the field's type cannot even represent → degrade (the term precedent), unless the
      * caller is {@code lenient} <em>and</em> the type is one we fully encode, in which case a malformed value matches
-     * nothing (the index's {@code newLenientFieldQuery}). Analyzed {@code text} and types we cannot encode at all (ip,
-     * version, unsigned_long) always degrade — lenient's "skip a bad value" is not a licence to drop a whole capability.
+     * nothing (the index's {@code newLenientFieldQuery}). Analyzed {@code text} always degrades — lenient's "skip a bad
+     * value" is not a licence to drop a whole capability.
      */
     private Expression equality(Expression field, Object value, boolean lenient) {
         DataType type = field.dataType();
@@ -361,16 +433,62 @@ public final class QueryDslTranslator {
                 ? foldMalformedToFalse(() -> checkedLeaf(field, dateTermRange(field, type, value, null)))
                 : checkedLeaf(field, dateTermRange(field, type, value, null));
         }
-        if (type == DataType.INTEGER || type == DataType.LONG) {
+        if (isIntegral(type)) {
             return integralEquality(field, type, value, lenient);
         }
-        // keyword never fails to coerce; double/boolean fail only on a malformed value; the types coerce's default
-        // rejects (ip, version, unsigned_long) and analyzed text are capability gaps, so they never lenient-fold.
-        boolean encodable = type == DataType.KEYWORD || type == DataType.DOUBLE || type == DataType.BOOLEAN;
+        // An ip value carrying a '/' is a CIDR block, not an address, and the index matches the whole block.
+        if (type == DataType.IP && isCidr(value)) {
+            return lenient && isPresent(field)
+                ? foldMalformedToFalse(() -> checkedLeaf(field, ipBlock(field, value)))
+                : checkedLeaf(field, ipBlock(field, value));
+        }
+        // keyword, boolean and version never fail to coerce; double and ip fail only on a value their type cannot
+        // represent, which is exactly what a lenient match folds to false. Analyzed text stays out: it is a
+        // capability gap, and lenient's "skip a bad value" is not a licence to drop a whole capability.
+        boolean encodable = type == DataType.KEYWORD
+            || type == DataType.DOUBLE
+            || type == DataType.BOOLEAN
+            || type == DataType.IP
+            || type == DataType.VERSION;
         if (lenient && encodable && isPresent(field)) {
             return foldMalformedToFalse(() -> checkedLeaf(field, new MvContains(Source.EMPTY, field, literalFor(field, value))));
         }
         return checkedLeaf(field, new MvContains(Source.EMPTY, field, literalFor(field, value)));
+    }
+
+    /**
+     * Whether an ip value names a block rather than an address. This is the index's own test: every ip path —
+     * {@code IpFieldType.termQuery}, and {@code termsQuery} which falls back to a disjunction of term queries as soon
+     * as one value carries it — switches on the presence of a {@code /}, not on the value parsing as CIDR.
+     */
+    private static boolean isCidr(Object value) {
+        return String.valueOf(value).indexOf('/') >= 0;
+    }
+
+    /**
+     * The leaf for a CIDR block. {@code IpFieldType.termQuery} answers one with
+     * {@code InetAddressPoint.newPrefixQuery}, which matches every address in the block; the block is contiguous in
+     * the encoded ordering, so an inclusive {@code mv_in_range} over its first and last address selects exactly that
+     * set. The bounds come from {@link CIDRUtils#getLowerUpper}, the same masking the index's own CIDR paths use, and
+     * {@link CIDRUtils#encode} puts an IPv4 block into the IPv4-mapped form an {@code ip} literal holds. A malformed
+     * block degrades (or folds to false when the caller is lenient), exactly as a malformed address does.
+     */
+    private static Expression ipBlock(Expression field, Object value) {
+        BytesRef lower;
+        BytesRef upper;
+        try {
+            Tuple<byte[], byte[]> bounds = CIDRUtils.getLowerUpper(InetAddresses.parseCidr(String.valueOf(value)));
+            lower = new BytesRef(CIDRUtils.encode(bounds.v1()));
+            upper = new BytesRef(CIDRUtils.encode(bounds.v2()));
+        } catch (IllegalArgumentException malformed) {
+            throw TranslationUnsupportedException.forLeaf("literal on " + DataType.IP.typeName());
+        }
+        return new MvInRange(
+            Source.EMPTY,
+            field,
+            new Literal(Source.EMPTY, lower, DataType.IP),
+            new Literal(Source.EMPTY, upper, DataType.IP)
+        );
     }
 
     /** A lenient match over a value an encodable type cannot represent matches nothing, mirroring the index. */
@@ -389,24 +507,21 @@ public final class QueryDslTranslator {
      * malformed — a lenient match matches nothing, a strict one degrades (the term precedent, matching the index's 400).
      */
     private Expression integralEquality(Expression field, DataType type, Object value, boolean lenient) {
-        BigDecimal number;
+        Number literal;
         try {
-            // Trim a string value: the index parses integral bounds via Double.parseDouble, which ignores surrounding
-            // whitespace, so " 300" must resolve like "300" rather than degrading.
-            number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(String.valueOf(value).trim());
-        } catch (NumberFormatException e) {
+            literal = integralTermValue(type, value);
+        } catch (IllegalArgumentException e) {
+            // IllegalArgumentException, not just its NumberFormatException subclass: the index's own parse rejects an
+            // over-long numeric string with a bare IllegalArgumentException (Numbers.checkNumericStringLength). Letting
+            // that escape would take the whole query down, which is the one outcome the drop-and-warn policy forbids.
             if (lenient && isPresent(field)) {
                 return Literal.FALSE;
             }
             throw new TranslationUnsupportedException("match[integral value on " + type.typeName() + "]");
         }
-        BigDecimal min = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MIN_VALUE) : BigDecimal.valueOf(Long.MIN_VALUE);
-        BigDecimal max = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MAX_VALUE) : BigDecimal.valueOf(Long.MAX_VALUE);
-        if (number.stripTrailingZeros().scale() > 0 || number.compareTo(min) < 0 || number.compareTo(max) > 0) {
+        if (literal == null) {
             return Literal.FALSE;
         }
-        // Box each branch to Number separately — a bare int/long ternary would promote the int to long.
-        Number literal = type == DataType.INTEGER ? (Number) number.intValueExact() : (Number) number.longValueExact();
         return checkedLeaf(field, new MvContains(Source.EMPTY, field, new Literal(Source.EMPTY, literal, type)));
     }
 
@@ -534,20 +649,39 @@ public final class QueryDslTranslator {
         // every shape: a whole in-range value (including the string "300.0", which the index coerces to 300) becomes
         // that integer, and a value no value of the type can equal (a decimal, out of range) is dropped because it
         // matches nothing — as the index path's terms query does. If that empties the set, the clause matches nothing.
-        if (isPresent(field)) {
-            if (field.dataType() == DataType.INTEGER || field.dataType() == DataType.LONG) {
-                List<Object> narrowed = new ArrayList<>(values.size());
-                for (Object v : values) {
-                    Number n = narrowIntegralValue(field.dataType(), v);
-                    if (n != null) {
-                        narrowed.add(n);
-                    }
+        if (isPresent(field) && isIntegral(field.dataType())) {
+            List<Object> narrowed = new ArrayList<>(values.size());
+            for (Object v : values) {
+                Number n = narrowIntegralValue(field.dataType(), v);
+                if (n != null) {
+                    narrowed.add(n);
                 }
-                values = narrowed;
             }
-            if (values.isEmpty()) {
+            if (narrowed.isEmpty()) {
                 return Literal.FALSE;
             }
+            // Narrowing already produced the field's internal representation, so these go straight into the literal.
+            // coerce has no unsigned_long arm at all — it is the integral path that owns the type — so routing them
+            // back through it would degrade every unsigned_long terms clause.
+            return checkedLeaf(field, new MvIntersects(Source.EMPTY, field, new Literal(Source.EMPTY, narrowed, field.dataType())));
+        }
+        // One CIDR value in the list makes the index abandon its set query for a disjunction of term queries
+        // (IpFieldType.termsQuery), each of which matches a whole block. Mirror that: the blocks become ranges and
+        // whatever plain addresses remain stay one set-membership leaf, all of it unioned.
+        if (field.dataType() == DataType.IP && values.stream().anyMatch(QueryDslTranslator::isCidr)) {
+            List<Expression> disjuncts = new ArrayList<>(values.size());
+            List<Object> addresses = new ArrayList<>(values.size());
+            for (Object v : values) {
+                if (isCidr(v)) {
+                    disjuncts.add(checkedLeaf(field, ipBlock(field, v)));
+                } else {
+                    addresses.add(v);
+                }
+            }
+            if (addresses.isEmpty() == false) {
+                disjuncts.add(checkedLeaf(field, new MvIntersects(Source.EMPTY, field, listLiteralFor(field, addresses))));
+            }
+            return orAll(disjuncts);
         }
         // any-value set membership: the field's values intersect the term set
         return checkedLeaf(field, new MvIntersects(Source.EMPTY, field, listLiteralFor(field, values)));
@@ -598,6 +732,9 @@ public final class QueryDslTranslator {
         }
         Expression field = fieldBinder.apply(range.fieldName());
         DataType type = field.dataType();
+        // Compiling the pattern cannot fail here: RangeQueryBuilder.format compiles it eagerly when the builder is
+        // built ("this just ensure that the pattern is actually valid"), so a malformed one is already a 400 from
+        // request parsing and never reaches the translator.
         DateFormatter formatter = range.format() == null ? null : DateFormatter.forPattern(range.format());
 
         boolean hasLower = range.from() != null;
@@ -619,7 +756,7 @@ public final class QueryDslTranslator {
         // down, an exclusive whole bound nudges one — never truncate toward zero, which would silently over-match a
         // fractional bound (`gte 300.5` must not include 300). A MISSING field has NULL type, so it stays on the generic
         // path below and folds to false (leniency); only a present integral field takes this route.
-        if (type == DataType.INTEGER || type == DataType.LONG) {
+        if (isIntegral(type)) {
             return integralRange(field, type, range, hasLower, hasUpper);
         }
 
@@ -627,32 +764,19 @@ public final class QueryDslTranslator {
             // Both bounds: this must be ONE any-value range test. Splitting it into two independent existentials
             // (mv_max >= lo AND mv_min <= hi) is an ENVELOPE test, which is wrong on multivalue fields: [0,100]
             // would satisfy (40,60) even though no single value lies inside it. mv_in_range is the exact predicate,
-            // but it is closed/inclusive on both ends — so an exclusive bound is first normalized to the equivalent
-            // inclusive one, which is only exact on whole-number types (there is no predecessor for a double).
+            // and it carries each bound's inclusivity in its options — so an exclusive bound is passed through as
+            // itself rather than rewritten to the neighbouring inclusive one, which no non-whole type has.
             Object lower = coerce(field, range.from());
             Object upper = coerce(field, range.to());
-            // The exclusive→inclusive normalization only matters for a PRESENT field. A missing field is null-bound and
-            // the leaf folds to false regardless of the bounds, so skip it — otherwise an exclusive bound over a missing
-            // field would wrongly degrade (unfiltered) where the index path's unmapped-field range matches nothing.
-            if (isPresent(field) && (range.includeLower() == false || range.includeUpper() == false)) {
-                if (isWholeNumbered(type) == false) {
-                    throw new TranslationUnsupportedException("range[exclusive bound on " + type.typeName() + "]");
-                }
-                try {
-                    if (range.includeLower() == false) {
-                        lower = increment(lower, type, +1);
-                    }
-                    if (range.includeUpper() == false) {
-                        upper = increment(upper, type, -1);
-                    }
-                } catch (ArithmeticException overflow) {
-                    // The bound sits at the type's limit, so the open interval beyond it is empty.
-                    return Literal.FALSE;
-                }
-            }
             return checkedLeaf(
                 field,
-                new MvInRange(Source.EMPTY, field, new Literal(Source.EMPTY, lower, type), new Literal(Source.EMPTY, upper, type))
+                new MvInRange(
+                    Source.EMPTY,
+                    field,
+                    new Literal(Source.EMPTY, lower, type),
+                    new Literal(Source.EMPTY, upper, type),
+                    inRangeBoundOptions(range.includeLower(), range.includeUpper())
+                )
             );
         }
 
@@ -678,17 +802,15 @@ public final class QueryDslTranslator {
      * FALSE} — the index's match-no-docs.
      */
     private Expression integralRange(Expression field, DataType type, RangeQueryBuilder range, boolean hasLower, boolean hasUpper) {
-        BigDecimal min = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MIN_VALUE) : BigDecimal.valueOf(Long.MIN_VALUE);
-        BigDecimal max = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MAX_VALUE) : BigDecimal.valueOf(Long.MAX_VALUE);
-        BigDecimal lo = hasLower ? effectiveIntegralBound(type, range.from(), true, range.includeLower()) : min;
-        BigDecimal hi = hasUpper ? effectiveIntegralBound(type, range.to(), false, range.includeUpper()) : max;
-        lo = lo.max(min);
-        hi = hi.min(max);
+        BigDecimal min = integralMin(type);
+        BigDecimal max = integralMax(type);
+        BigDecimal lo = (hasLower ? effectiveIntegralBound(type, range.from(), true, range.includeLower()) : min).max(min);
+        BigDecimal hi = (hasUpper ? effectiveIntegralBound(type, range.to(), false, range.includeUpper()) : max).min(max);
         if (lo.compareTo(hi) > 0) {
             return Literal.FALSE; // the interval is empty — no value of the type lies inside it
         }
-        Number loValue = type == DataType.INTEGER ? (Number) lo.intValueExact() : (Number) lo.longValueExact();
-        Number hiValue = type == DataType.INTEGER ? (Number) hi.intValueExact() : (Number) hi.longValueExact();
+        Number loValue = integralLiteral(type, lo);
+        Number hiValue = integralLiteral(type, hi);
         return checkedLeaf(
             field,
             new MvInRange(Source.EMPTY, field, new Literal(Source.EMPTY, loValue, type), new Literal(Source.EMPTY, hiValue, type))
@@ -704,8 +826,18 @@ public final class QueryDslTranslator {
     private static BigDecimal effectiveIntegralBound(DataType type, Object value, boolean lower, boolean inclusive) {
         BigDecimal number;
         try {
-            number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(String.valueOf(value).trim());
-        } catch (NumberFormatException e) {
+            // integer/long bounds go through Double.parseDouble on the index, which ignores surrounding whitespace;
+            // an unsigned_long bound goes through Numbers.newBigDecimal, which rejects padding and over-long strings
+            // and fails the query. We cannot fail the query, so such a bound degrades instead of quietly meaning more.
+            if (type == DataType.UNSIGNED_LONG) {
+                // Exactly the index's own call: parseLowerRangeTerm/parseUpperRangeTerm stringify anything that is not
+                // an integral box and hand it to Numbers.newBigDecimal, whose length check throws IllegalArgumentException.
+                number = Numbers.newBigDecimal(String.valueOf(value));
+            } else {
+                String text = String.valueOf(value).trim();
+                number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(text);
+            }
+        } catch (IllegalArgumentException e) {
             throw new TranslationUnsupportedException("range[bound on " + type.typeName() + "]");
         }
         boolean hasDecimal = number.stripTrailingZeros().scale() > 0;
@@ -818,6 +950,161 @@ public final class QueryDslTranslator {
     }
 
     /**
+     * {@code dis_max} matches the union of its arms — the tie breaker only picks a score among the arms that matched.
+     * It is all-or-nothing: dropping one arm would exclude rows that matched only that arm, a tighter filter than the
+     * original. An empty arm list falls out of {@link #orAll} as {@code false}, which is the index's match-no-docs.
+     */
+    private Expression disMax(DisMaxQueryBuilder disMax) {
+        List<Expression> disjuncts = new ArrayList<>(disMax.innerQueries().size());
+        for (QueryBuilder inner : disMax.innerQueries()) {
+            disjuncts.add(dispatch(inner));
+        }
+        return orAll(disjuncts);
+    }
+
+    /**
+     * {@code prefix} is the wildcard pattern {@code <literal>*}. The literal is escaped first so a {@code *} or
+     * {@code ?} inside it stays a character rather than becoming a wildcard — {@code prefix} has no metacharacters.
+     */
+    private Expression prefix(PrefixQueryBuilder prefix) {
+        checkCaseSensitive("prefix", prefix.caseInsensitive());
+        checkRewrite("prefix", prefix.rewrite());
+        return wildcardLeaf(fieldBinder.apply(prefix.fieldName()), StringUtils.escapeWildcardLiteral(prefix.value()) + "*");
+    }
+
+    private Expression wildcard(WildcardQueryBuilder wildcard) {
+        checkCaseSensitive("wildcard", wildcard.caseInsensitive());
+        checkRewrite("wildcard", wildcard.rewrite());
+        return wildcardLeaf(fieldBinder.apply(wildcard.fieldName()), wildcard.value());
+    }
+
+    /**
+     * The pattern clauses all take a {@code case_insensitive} flag and none of them can honour it: neither
+     * {@code mv_like} nor {@code mv_rlike} takes a case-insensitivity option, and an automaton match has no
+     * field-side {@code TO_LOWER} equivalent that preserves the pattern's meaning.
+     */
+    private static void checkCaseSensitive(String construct, boolean caseInsensitive) {
+        if (caseInsensitive) {
+            throw new TranslationUnsupportedException(construct + "[case_insensitive]");
+        }
+    }
+
+    /**
+     * Rejects a {@code rewrite} that changes which documents match. Most of the methods only choose how the expanded
+     * terms are scored or executed, which a filter does not observe — but the {@code top_terms_*} family keeps only the
+     * N highest-scoring terms, so the index matches a SUBSET of the pattern while we would apply all of it. That is an
+     * unhonoured option in the same sense as {@code regexp[max_determinized_states]}, and it degrades for the same
+     * reason. An unparseable method degrades too, rather than escaping as the query-killing failure the index raises.
+     */
+    private static void checkRewrite(String construct, String rewrite) {
+        if (rewrite == null) {
+            return;
+        }
+        MultiTermQuery.RewriteMethod method;
+        try {
+            // The index's own call, so the two agree on every spelling this accepts, deprecated ones included.
+            method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
+        } catch (IllegalArgumentException unparseable) {
+            throw new TranslationUnsupportedException(construct + "[rewrite]");
+        }
+        if (method instanceof TopTermsRewrite) {
+            throw new TranslationUnsupportedException(construct + "[rewrite=" + rewrite + "]");
+        }
+    }
+
+    /**
+     * {@code regexp} is Lucene {@code RegExp} syntax, which is exactly what {@code mv_rlike} parses: both build the
+     * automaton with {@code RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT}, the value {@code RegexpFlag.ALL} carries and
+     * the builder's default. A narrowed flag set makes some of that syntax literal instead, which {@code mv_rlike}
+     * has no way to express, so it degrades rather than answering a differently-parsed pattern.
+     */
+    private Expression regexp(RegexpQueryBuilder regexp) {
+        checkCaseSensitive("regexp", regexp.caseInsensitive());
+        if (regexp.flags() != RegexpQueryBuilder.DEFAULT_FLAGS_VALUE) {
+            throw new TranslationUnsupportedException("regexp[flags]");
+        }
+        // Only an automaton-size budget, so it cannot change which rows match — but mv_rlike applies its own limit
+        // and cannot be told this one, so an explicitly chosen budget is an unhonoured option like any other.
+        if (regexp.maxDeterminizedStates() != RegexpQueryBuilder.DEFAULT_MAX_DETERMINIZED_STATES) {
+            throw new TranslationUnsupportedException("regexp[max_determinized_states]");
+        }
+        checkRewrite("regexp", regexp.rewrite());
+        Expression field = fieldBinder.apply(regexp.fieldName());
+        return checkedLeaf(field, validated(new MvRLike(Source.EMPTY, field, Literal.keyword(Source.EMPTY, regexp.value()))));
+    }
+
+    /**
+     * A Lucene wildcard pattern as an ES|QL predicate. {@code mv_like} speaks that same dialect — {@link
+     * WildcardPattern} builds its automaton with {@code WildcardQuery.toAutomaton}, the very call the index makes — so
+     * the pattern goes across verbatim, which also keeps the affix fast paths ({@code foo*}, the shape a {@code prefix}
+     * always takes). It is narrower in one place: ES|QL rejects a trailing backslash and an escape of anything other
+     * than {@code * ? \}, both of which Lucene reads leniently. Those spellings take {@code mv_rlike} through the
+     * total wildcard-to-RegExp conversion, so every pattern the index accepts translates rather than dropping the
+     * clause.
+     *
+     * <p>One residual, shared with every other string leaf here: on the index a {@code keyword} field may carry a
+     * {@code normalizer}, and {@code KeywordFieldType.wildcardQuery} runs it over the pattern's literal runs. A
+     * dataset column has no normalizer, so the two agree on a plain {@code keyword} field and diverge on a normalized
+     * one — the same gap the {@code case_insensitive} discussion on {@link #caseInsensitiveEquality} describes.
+     */
+    private Expression wildcardLeaf(Expression field, String luceneWildcard) {
+        if (luceneWildcard.isEmpty()) {
+            // The one spelling where the two dialects part company. WildcardQuery.toAutomaton on an empty pattern
+            // builds an automaton with an EMPTY language — it accepts no term at all, not even the empty string —
+            // while mv_like accepts the empty string (MvLike.patternPushable refuses the pattern for that very
+            // reason). Emitting the leaf would match rows holding "" where the index matches none, so answer the
+            // index's own result directly. prefix never reaches here: its pattern always ends in the appended "*".
+            return Literal.FALSE;
+        }
+        try {
+            new WildcardPattern(luceneWildcard);
+        } catch (InvalidArgumentException notEsqlSpelling) {
+            return checkedLeaf(
+                field,
+                validated(
+                    new MvRLike(Source.EMPTY, field, Literal.keyword(Source.EMPTY, StringUtils.luceneWildcardToRegExp(luceneWildcard)))
+                )
+            );
+        }
+        return checkedLeaf(field, validated(new MvLike(Source.EMPTY, field, Literal.keyword(Source.EMPTY, luceneWildcard))));
+    }
+
+    /**
+     * Builds the pattern's automaton here, where a failure can still degrade the clause. The rewrite inserts these
+     * leaves into the logical plan, so {@code MvRegexMatch.postOptimizationVerification} runs on them later and turns a
+     * malformed or over-complex pattern into a query failure — which is the one outcome an untranslatable DSL clause
+     * must not produce.
+     */
+    private static MvRegexMatch validated(MvRegexMatch patternLeaf) {
+        Failures failures = new Failures();
+        patternLeaf.postOptimizationVerification(failures);
+        if (failures.hasFailures()) {
+            throw TranslationUnsupportedException.forLeaf("pattern");
+        }
+        return patternLeaf;
+    }
+
+    /**
+     * The {@code mv_in_range} options carrying each bound's inclusivity, or {@code null} for the closed interval the
+     * function already defaults to. Only a bound that deviates from that default is spelled out, so the common closed
+     * range emits no options map at all.
+     */
+    private static Expression inRangeBoundOptions(boolean includeLower, boolean includeUpper) {
+        if (includeLower && includeUpper) {
+            return null;
+        }
+        List<Expression> entries = new ArrayList<>(4);
+        if (includeLower == false) {
+            entries.add(Literal.keyword(Source.EMPTY, MvInRange.INCLUDE_LOWER));
+            entries.add(new Literal(Source.EMPTY, false, DataType.BOOLEAN));
+        }
+        if (includeUpper == false) {
+            entries.add(Literal.keyword(Source.EMPTY, MvInRange.INCLUDE_UPPER));
+            entries.add(new Literal(Source.EMPTY, false, DataType.BOOLEAN));
+        }
+        return new MapExpression(Source.EMPTY, entries);
+    }
+
     /** Inclusive DSL bound → {@code include_bound: true}; exclusive omits options (default). */
     private static Expression includeBoundOptions(boolean includeBound) {
         if (includeBound == false) {
@@ -847,10 +1134,10 @@ public final class QueryDslTranslator {
             // than answer a different question. (exists is analysis-independent and does not pass through here, so
             // IS NOT NULL over a text field stays valid.)
             if (type == DataType.TEXT) {
-                throw new TranslationUnsupportedException(leaf.nodeName() + "[on analyzed " + type.typeName() + "]");
+                throw TranslationUnsupportedException.forLeaf("on analyzed " + type.typeName());
             }
             if (leaf.resolved() == false) {
-                throw new TranslationUnsupportedException(leaf.nodeName() + "[on " + type.typeName() + "]");
+                throw TranslationUnsupportedException.forLeaf("on " + type.typeName());
             }
         }
         return leaf;
@@ -862,6 +1149,102 @@ public final class QueryDslTranslator {
     }
 
     /**
+     * The value an integral field can equal, or {@code null} when no value of the type equals it — the index's
+     * match-no-docs. A value the index's own parse rejects throws {@link IllegalArgumentException} — a
+     * {@link NumberFormatException} for a non-numeric value, a bare one for an over-long numeric string — so each
+     * caller can apply its own policy.
+     *
+     * <p>{@code integer} and {@code long} follow {@code NumberFieldMapper}, which coerces: {@code "300.0"} and a padded
+     * {@code " 300"} are 300, and a fractional or out-of-range value matches nothing. {@code unsigned_long} has its own
+     * rule, below, and it is stricter.
+     */
+    private static Number integralTermValue(DataType type, Object value) {
+        if (type == DataType.UNSIGNED_LONG) {
+            return unsignedLongTermValue(value);
+        }
+        // Trim a string value: the index parses these via Double.parseDouble, which ignores surrounding whitespace.
+        BigDecimal number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(String.valueOf(value).trim());
+        if (number.stripTrailingZeros().scale() > 0 || number.compareTo(integralMin(type)) < 0 || number.compareTo(integralMax(type)) > 0) {
+            return null;
+        }
+        return integralLiteral(type, number);
+    }
+
+    /**
+     * Mirrors {@code UnsignedLongFieldType.parseTerm}, which does <em>not</em> coerce the way the other integral types
+     * do: its number arm accepts only an integral box or an in-range {@code BigInteger}, and its string arm only what
+     * {@code Long.parseUnsignedLong} reads. So a whole {@code Double}, the string {@code "42.0"} and a padded
+     * {@code " 42"} are well-formed numbers that no unsigned_long equals, and each matches nothing rather than 42.
+     * Only a string that is not a number at all is malformed, which is the one case that throws.
+     */
+    private static Number unsignedLongTermValue(Object value) {
+        if (value instanceof Long || value instanceof Integer || value instanceof Short || value instanceof Byte) {
+            long exact = ((Number) value).longValue();
+            return exact < 0 ? null : NumericUtils.asLongUnsigned(BigInteger.valueOf(exact));
+        }
+        if (value instanceof BigInteger big) {
+            // Reached through match and multi_match, which keep the value exactly as it was handed to the builder.
+            // term, terms and range do not: AbstractQueryBuilder.maybeConvertToBytesRef turns a BigInteger into a
+            // BytesRef when one of those is constructed and their accessors hand back a String, so a big value
+            // arrives there as text and takes the string arm below.
+            return NumericUtils.isUnsignedLong(big) ? NumericUtils.asLongUnsigned(big) : null;
+        }
+        if (value instanceof Number) {
+            return null; // a double, even a whole one: the index's number arm does not accept it
+        }
+        String text = String.valueOf(value);
+        Numbers.checkNumericStringLength(text);
+        try {
+            return NumericUtils.asLongUnsigned(new BigInteger(Long.toUnsignedString(Long.parseUnsignedLong(text))));
+        } catch (NumberFormatException notAnUnsignedLong) {
+            Double.parseDouble(text); // a well-formed number that is simply unmatchable; anything else rethrows
+            return null;
+        }
+    }
+
+    /**
+     * The integral types, the ones whose every value is a whole number in a fixed range. They share one path: a
+     * fractional or out-of-range value can equal no value of the type, and a bound is rounded inward rather than
+     * encoded as given. {@code unsigned_long} belongs here despite being stored biased — the bias is order-preserving,
+     * so the arithmetic is done on the true value and only the final literal is biased.
+     */
+    private static boolean isIntegral(DataType type) {
+        return type == DataType.INTEGER || type == DataType.LONG || type == DataType.UNSIGNED_LONG;
+    }
+
+    private static BigDecimal integralMin(DataType type) {
+        return switch (type) {
+            case INTEGER -> BigDecimal.valueOf(Integer.MIN_VALUE);
+            case LONG -> BigDecimal.valueOf(Long.MIN_VALUE);
+            case UNSIGNED_LONG -> BigDecimal.ZERO;
+            default -> throw new IllegalStateException("not an integral type [" + type + "]");
+        };
+    }
+
+    private static BigDecimal integralMax(DataType type) {
+        return switch (type) {
+            case INTEGER -> BigDecimal.valueOf(Integer.MAX_VALUE);
+            case LONG -> BigDecimal.valueOf(Long.MAX_VALUE);
+            case UNSIGNED_LONG -> new BigDecimal(NumericUtils.UNSIGNED_LONG_MAX);
+            default -> throw new IllegalStateException("not an integral type [" + type + "]");
+        };
+    }
+
+    /**
+     * The internal literal for a whole value already known to be in the type's range. Each branch is boxed to
+     * {@link Number} separately — a bare int/long ternary would promote the int to long — and {@code unsigned_long}
+     * takes the biased form {@code asLongUnsigned} produces, which is what its blocks hold.
+     */
+    private static Number integralLiteral(DataType type, BigDecimal number) {
+        return switch (type) {
+            case INTEGER -> (Number) number.intValueExact();
+            case LONG -> (Number) number.longValueExact();
+            case UNSIGNED_LONG -> (Number) NumericUtils.asLongUnsigned(number.toBigIntegerExact());
+            default -> throw new IllegalStateException("not an integral type [" + type + "]");
+        };
+    }
+
+    /**
      * Narrow one value against an integral field the way {@link #integralEquality} does, so {@code terms} and
      * {@code term} agree on every shape rather than only on numeric ones. Computed on {@link BigDecimal} so nothing is
      * lost: a whole in-range value — including a string like {@code "300.0"} or {@code " 300"}, which the index coerces
@@ -870,31 +1253,12 @@ public final class QueryDslTranslator {
      * malformed and degrades the clause, matching the term path.
      */
     private static Number narrowIntegralValue(DataType type, Object value) {
-        BigDecimal number;
         try {
-            number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(String.valueOf(value).trim());
-        } catch (NumberFormatException e) {
+            return integralTermValue(type, value);
+        } catch (IllegalArgumentException e) {
+            // See integralEquality: the over-long-string rejection is a bare IllegalArgumentException.
             throw new TranslationUnsupportedException("terms[integral value on " + type.typeName() + "]");
         }
-        BigDecimal min = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MIN_VALUE) : BigDecimal.valueOf(Long.MIN_VALUE);
-        BigDecimal max = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MAX_VALUE) : BigDecimal.valueOf(Long.MAX_VALUE);
-        if (number.stripTrailingZeros().scale() > 0 || number.compareTo(min) < 0 || number.compareTo(max) > 0) {
-            return null;
-        }
-        // Box each branch to Number separately — a bare int/long ternary would promote the int to long.
-        return type == DataType.INTEGER ? (Number) number.intValueExact() : (Number) number.longValueExact();
-    }
-
-    /** Whole-number types have an exact predecessor/successor, so an exclusive bound can be rewritten as inclusive. */
-    private static boolean isWholeNumbered(DataType type) {
-        return type == DataType.INTEGER || type == DataType.LONG || type == DataType.DATETIME || type == DataType.DATE_NANOS;
-    }
-
-    private static Object increment(Object value, DataType type, long delta) {
-        if (type == DataType.INTEGER) {
-            return Math.toIntExact(Math.addExact(((Number) value).longValue(), delta));
-        }
-        return Math.addExact(((Number) value).longValue(), delta);
     }
 
     private Literal literalFor(Expression field, Object value) {
@@ -937,13 +1301,25 @@ public final class QueryDslTranslator {
                 case INTEGER -> value instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(value));
                 case LONG -> value instanceof Number n ? n.longValue() : Long.parseLong(String.valueOf(value));
                 case DOUBLE -> value instanceof Number n ? n.doubleValue() : Double.parseDouble(String.valueOf(value));
-                // ip, version, unsigned_long, dates and friends have encodings we do not reproduce here; rejecting keeps
-                // us from handing the evaluator a value it cannot read.
-                default -> throw new TranslationUnsupportedException("literal on " + type.typeName());
+                // The planner's own encoders, so a dataset column of these types filters through the same leaves every
+                // other type uses. Both are reachable on a dataset: ip is declarable
+                // (DeclaredSchemaValidator.DECLARABLE_TYPES), and version arrives from a CSV typed-schema header
+                // (CsvFormatReader.parseDataType), which never consults that set.
+                case IP -> EsqlDataTypeConverter.stringToIP(String.valueOf(value));
+                case VERSION -> EsqlDataTypeConverter.stringToVersion(String.valueOf(value));
+                // Dates never reach here — term/terms/range on a date route through dateBound, which owns the date math
+                // and rounding. Neither does unsigned_long, which is integral: it is narrowed on the integral path,
+                // where a fractional or out-of-range value matches nothing instead of being truncated into a match.
+                // The remaining types have encodings we do not reproduce; rejecting keeps us from handing the
+                // evaluator a value it cannot read.
+                default -> throw TranslationUnsupportedException.forLeaf("literal on " + type.typeName());
             };
         } catch (IllegalArgumentException e) {
-            // An unparseable bound (a non-numeric string) cannot be translated faithfully.
-            throw new TranslationUnsupportedException("literal on " + type.typeName());
+            // A value the type cannot represent cannot be translated faithfully — an unparseable boolean, a malformed
+            // ip. Every encoder above reports that as an IllegalArgumentException. The reason alone is the failure:
+            // the clause that carried the literal supplies the name where it is caught, so the warning says
+            // term[literal on ip] rather than naming an encoder the caller never wrote.
+            throw TranslationUnsupportedException.forLeaf("literal on " + type.typeName());
         }
     }
 

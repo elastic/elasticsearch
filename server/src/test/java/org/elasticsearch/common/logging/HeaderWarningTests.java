@@ -216,6 +216,62 @@ public class HeaderWarningTests extends ESTestCase {
         assertThat(HeaderWarning.escapeBackslashesAndQuotes(s), equalTo(s));
     }
 
+    public void testUnescapeBackslashesAndQuotes() {
+        // exact inverse of testEscapeBackslashesAndQuotes cases
+        assertThat(HeaderWarning.unescapeBackslashesAndQuotes("\\\\"), equalTo("\\"));
+        assertThat(HeaderWarning.unescapeBackslashesAndQuotes("\\\""), equalTo("\""));
+        assertThat(HeaderWarning.unescapeBackslashesAndQuotes("\\\\\\\""), equalTo("\\\""));
+        assertThat(HeaderWarning.unescapeBackslashesAndQuotes("\\\"foo\\\\bar\\\""), equalTo("\"foo\\bar\""));
+        // no escaping needed
+        assertThat(HeaderWarning.unescapeBackslashesAndQuotes("hello world"), equalTo("hello world"));
+        assertThat(HeaderWarning.unescapeBackslashesAndQuotes(""), equalTo(""));
+        // round-trip: escape then unescape returns the original
+        String original = "evaluation of [to_ip(\"::1\")] failed";
+        assertThat(HeaderWarning.unescapeBackslashesAndQuotes(HeaderWarning.escapeBackslashesAndQuotes(original)), equalTo(original));
+        // round-trip with backslashes
+        String withBackslash = "path\\to\\\"file\"";
+        assertThat(
+            HeaderWarning.unescapeBackslashesAndQuotes(HeaderWarning.escapeBackslashesAndQuotes(withBackslash)),
+            equalTo(withBackslash)
+        );
+    }
+
+    public void testDecode() {
+        // inverse of testEncode cases
+        assertThat(HeaderWarning.decode("%0A"), equalTo("\n"));
+        assertThat(HeaderWarning.decode("%F0%9F%98%B1"), equalTo("😱"));
+        assertThat(HeaderWarning.decode("%E7%A6%8F%E5%B3%B6%E6%B7%B1%E9%9B%AA"), equalTo("福島深雪"));
+        assertThat(HeaderWarning.decode("100%25%0A"), equalTo("100%\n"));
+        // no encoding
+        assertThat(HeaderWarning.decode("hello world"), equalTo("hello world"));
+        assertThat(HeaderWarning.decode(""), equalTo(""));
+        // incomplete percent sequence left as-is
+        assertThat(HeaderWarning.decode("100%"), equalTo("100%"));
+        assertThat(HeaderWarning.decode("100%2"), equalTo("100%2"));
+    }
+
+    public void testDecodeAndUnescape() {
+        // the real-world case: PatternSyntaxException with a newline
+        String original = "java.util.regex.PatternSyntaxException: Unclosed group near index 1\n(";
+        String encoded = HeaderWarning.escapeAndEncode(original);
+        assertThat(HeaderWarning.decodeAndUnescape(encoded), equalTo(original));
+
+        // combined escaping and encoding
+        String withQuotes = "evaluation of [to_ip(\"::1\")] failed\ntreating as null";
+        String encoded2 = HeaderWarning.escapeAndEncode(withQuotes);
+        assertThat(HeaderWarning.decodeAndUnescape(encoded2), equalTo(withQuotes));
+    }
+
+    public void testDecodeAndUnescapeRoundTrips() {
+        // randomized round-trip: any string should survive escapeAndEncode → decodeAndUnescape
+        String chars = "\t\n !\"" + range(0x23, 0x24) + range(0x26, 0x5b) + "\\" + range(0x5d, 0x73) + range(0x80, 0xff);
+        for (int i = 0; i < 100; i++) {
+            String original = new CodepointSetGenerator(chars.toCharArray()).ofCodePointsLength(random(), 1, 32);
+            String encoded = HeaderWarning.escapeAndEncode(original);
+            assertThat("round-trip failed for [" + original + "]", HeaderWarning.decodeAndUnescape(encoded), equalTo(original));
+        }
+    }
+
     public void testEncode() {
         assertThat(HeaderWarning.encode("\n"), equalTo("%0A"));
         assertThat(HeaderWarning.encode("😱"), equalTo("%F0%9F%98%B1"));

@@ -22,7 +22,6 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -34,6 +33,7 @@ import org.elasticsearch.compute.lucene.query.LuceneSliceQueue.PartitioningStrat
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -78,7 +78,8 @@ public class LuceneSourceOperator extends LuceneOperator {
             int taskConcurrency,
             int maxPageSize,
             int limit,
-            boolean needsScore
+            boolean needsScore,
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 shardContexts,
@@ -91,7 +92,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 needsScore,
-                shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES
+                shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES,
+                singleValueQueryWarnings
             );
             this.refCounteds = shardContexts;
             this.maxPageSize = maxPageSize;
@@ -101,7 +103,16 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneSourceOperator(refCounteds, driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter, needsScore);
+            return new LuceneSourceOperator(
+                refCounteds,
+                driverContext,
+                maxPageSize,
+                sliceQueue,
+                limit,
+                limiter,
+                needsScore,
+                singleValueQueryWarnings
+            );
         }
 
         public int maxPageSize() {
@@ -218,14 +229,15 @@ public class LuceneSourceOperator extends LuceneOperator {
     @SuppressWarnings("this-escape")
     public LuceneSourceOperator(
         IndexedByShardId<? extends RefCounted> refCounteds,
-        BlockFactory blockFactory,
+        DriverContext driverContext,
         int maxPageSize,
         LuceneSliceQueue sliceQueue,
         int limit,
         Limiter limiter,
-        boolean needsScore
+        boolean needsScore,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(refCounteds, blockFactory, maxPageSize, sliceQueue);
+        super(refCounteds, driverContext, maxPageSize, sliceQueue, singleValueQueryWarnings);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
         this.limiter = limiter;

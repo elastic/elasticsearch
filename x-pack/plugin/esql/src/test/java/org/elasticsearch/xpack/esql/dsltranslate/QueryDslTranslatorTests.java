@@ -799,10 +799,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
         MvInRange e = (MvInRange) translate(
             QueryBuilders.rangeQuery("ts_nanos").gte("2020-06-15T12:00:00.123456789Z").lte("2020-06-15T12:00:01Z")
         );
-        assertEquals(
-            DateUtils.toLong(Instant.parse("2020-06-15T12:00:00.123456789Z")),
-            ((Literal) e.lower()).value()
-        );
+        assertEquals(DateUtils.toLong(Instant.parse("2020-06-15T12:00:00.123456789Z")), ((Literal) e.lower()).value());
     }
 
     /**

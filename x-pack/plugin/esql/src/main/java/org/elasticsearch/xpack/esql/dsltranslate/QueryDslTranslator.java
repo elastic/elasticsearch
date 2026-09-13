@@ -979,6 +979,14 @@ public final class QueryDslTranslator {
      * one — the same gap the {@code case_insensitive} discussion on {@link #caseInsensitiveEquality} describes.
      */
     private Expression wildcardLeaf(Expression field, String luceneWildcard) {
+        if (luceneWildcard.isEmpty()) {
+            // The one spelling where the two dialects part company. WildcardQuery.toAutomaton on an empty pattern
+            // builds an automaton with an EMPTY language — it accepts no term at all, not even the empty string —
+            // while mv_like accepts the empty string (MvLike.patternPushable refuses the pattern for that very
+            // reason). Emitting the leaf would match rows holding "" where the index matches none, so answer the
+            // index's own result directly. prefix never reaches here: its pattern always ends in the appended "*".
+            return Literal.FALSE;
+        }
         try {
             new WildcardPattern(luceneWildcard);
         } catch (InvalidArgumentException notEsqlSpelling) {

@@ -540,8 +540,8 @@ public class EsqlSession {
 
                     // Apply the out-of-band request filter to external-source (dataset) leaves, translated
                     // against each source's schema. Index leaves keep their existing filter path. Version-gated:
-                    // the translated predicate can contain mv_in_range (with its bound-inclusivity options),
-                    // mv_greater, mv_less, mv_like and mv_rlike, which older nodes cannot deserialize.
+                    // the translated predicate can contain mv_greater, mv_less, mv_like and mv_rlike, which
+                    // older nodes cannot deserialize.
                     // An untranslatable clause costs the caller that clause, not the query: the translatable
                     // subset is applied and the rest dropped with a warning naming each construct and its dataset.
                     // This callback runs outside the SubscribableListener chain below, so a synchronous throw here

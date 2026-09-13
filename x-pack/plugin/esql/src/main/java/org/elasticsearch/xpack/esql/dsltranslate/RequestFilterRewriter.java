@@ -41,9 +41,9 @@ import java.util.Set;
  * selects it in production, and no request parameter exposes it.
  *
  * <p>Version-gated on {@link #ESQL_DATASET_REQUEST_FILTER_PATTERNS}: the translated filter may contain
- * {@code mv_in_range} (with its bound-inclusivity options), {@code mv_greater}, {@code mv_less}, {@code mv_like} and
- * {@code mv_rlike}, which older nodes cannot deserialize. Below that version the rewrite is skipped, and the relation
- * is read unfiltered <em>with a warning</em> — never a silent drop.
+ * {@code mv_greater}, {@code mv_less}, {@code mv_like} and {@code mv_rlike}, none of which existed when the previous
+ * pin was allocated, so older nodes cannot deserialize them. Below this version the rewrite is skipped, and the
+ * relation is read unfiltered <em>with a warning</em> — never a silent drop.
  */
 public final class RequestFilterRewriter {
 

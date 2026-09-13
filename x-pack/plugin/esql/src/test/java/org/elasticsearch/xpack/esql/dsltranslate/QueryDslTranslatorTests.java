@@ -575,6 +575,24 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(Literal.FALSE, translate(QueryBuilders.termQuery("quota", new BigInteger("-1"))));
     }
 
+    /**
+     * The empty pattern is the one spelling where the wildcard dialects part company, so the verbatim crossing does
+     * not hold there. WildcardQuery.toAutomaton builds an EMPTY-language automaton for it — accepting no term, not
+     * even the empty string — while mv_like accepts the empty string, which is exactly why MvLike.patternPushable
+     * refuses the pattern. Emitting the leaf would match rows holding "" where the index matches none.
+     */
+    public void testEmptyWildcardPatternMatchesNothing() {
+        assertEquals(Literal.FALSE, translate(QueryBuilders.wildcardQuery("tags", "")));
+        // prefix cannot reach it: the appended "*" makes the pattern match every term, as it does on the index.
+        assertThat(translate(QueryBuilders.prefixQuery("tags", "")), instanceOf(MvLike.class));
+        assertEquals(
+            "*",
+            ((BytesRef) ((Literal) ((MvLike) translate(QueryBuilders.prefixQuery("tags", ""))).right()).value()).utf8ToString()
+        );
+        // An empty regexp needs no special case: RLikePattern and Lucene both read it as the empty string alone.
+        assertThat(translate(QueryBuilders.regexpQuery("tags", "")), instanceOf(MvRLike.class));
+    }
+
     /** A pattern over a MISSING field stays null-bound and folds to false, like every other leaf. */
     public void testPatternOnMissingFieldFoldsToFalse() {
         Expression e = translate(QueryBuilders.wildcardQuery("missing_field", "a*"));

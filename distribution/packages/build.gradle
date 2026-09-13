@@ -11,6 +11,7 @@ import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.OS
 import org.redline_rpm.header.Flags
+import org.redline_rpm.payload.Directive
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -114,7 +115,9 @@ def commonPackageConfig(String type, String architecture) {
     // Follow elasticsearch's file naming convention
     String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}${type}"
     destinationDirectory = file("${prefix}/build/distributions")
-    archiveFileName.value(project.provider({ "${packageName}-${project.version}-${archString}.${type}" }))
+    // capture the version at configuration time so the archive file name provider does not access Task.project at execution time (configuration cache)
+    String esVersion = project.version
+    archiveFileName.value(project.provider({ "${packageName}-${esVersion}-${archString}.${type}" }))
     String packagingFiles = "build/packaging/${type}"
 
     String scripts = "${packagingFiles}/scripts"
@@ -224,12 +227,12 @@ def commonPackageConfig(String type, String architecture) {
       permissionGroup 'elasticsearch'
       includeEmptyDirs = true
       createDirectoryEntry true
-      fileType CONFIG | NOREPLACE
+      fileType new Directive(Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE)
     }
     String envFile = expansionsForDistribution(type, false)['path.env']
     configurationFile envFile
     into(new File(envFile).getParent()) {
-      fileType CONFIG | NOREPLACE
+      fileType new Directive(Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE)
       permissionGroup 'elasticsearch'
       filePermissions {
         unix(0660)
@@ -245,14 +248,14 @@ def commonPackageConfig(String type, String architecture) {
       }
     }
     into('/usr/lib/systemd/system') {
-      fileType CONFIG | NOREPLACE
+      fileType new Directive(Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE)
       from "${packagingFiles}/systemd/elasticsearch.service"
       filePermissions {
         unix(0644)
       }
     }
     into('/usr/lib/sysctl.d') {
-      fileType CONFIG | NOREPLACE
+      fileType new Directive(Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE)
       from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"
       filePermissions {
         unix(0644)
@@ -334,7 +337,7 @@ Closure commonDebConfig(String architecture) {
     // ospackage silently ignores setting it. This is probably because `License`
     // is not actually a field in the Debian control file. So instead, we set
     // the license as "custom field".
-    customFields['License'] = 'Elastic-License'
+    customField('License', 'Elastic-License')
 
     archiveVersion = project.version.replace('-', '~')
     packageGroup = 'web'
@@ -502,8 +505,10 @@ subprojects {
 
     tasks.register("checkNotice") {
       dependsOn buildDist, "checkExtraction"
-      onlyIf("${project.name.contains('deb') ? 'dpkg' : 'rpm'} exists") {
-        (project.name.contains('deb') && dpkgExists.call(it)) || (project.name.contains('rpm') && rpmExists.call(it))
+      // capture whether this is a deb package at configuration time so the onlyIf spec does not access Task.project at execution time (configuration cache)
+      boolean isDeb = project.name.contains('deb')
+      onlyIf("${isDeb ? 'dpkg' : 'rpm'} exists") {
+        (isDeb && dpkgExists.call(it)) || (isDeb == false && rpmExists.call(it))
       }
       doLast {
         final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2024 Elasticsearch")

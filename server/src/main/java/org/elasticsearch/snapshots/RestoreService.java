@@ -219,6 +219,8 @@ public final class RestoreService implements ClusterStateApplier {
 
     private volatile boolean refreshRepositoryUuidOnRestore;
 
+    private volatile RestoreLifecycleListener lifecycleListener = RestoreLifecycleListener.NOOP;
+
     public RestoreService(
         ClusterService clusterService,
         RepositoriesService repositoriesService,
@@ -258,6 +260,17 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
+     * Registers the {@link RestoreLifecycleListener}, replacing any previous one. The listener runs
+     * inside master-service cluster-state updates and must not block or perform I/O.
+     */
+    public void setLifecycleListener(RestoreLifecycleListener listener) {
+        if (lifecycleListener != RestoreLifecycleListener.NOOP) {
+            throw new IllegalStateException("Lifecycle listener already set. Cannot change lifecycle listener");
+        }
+        this.lifecycleListener = Objects.requireNonNull(listener);
+    }
+
+    /**
      * Restores snapshot specified in the restore request.
      *
      * @param projectId project for the restore
@@ -287,6 +300,35 @@ public final class RestoreService implements ClusterStateApplier {
         final ActionListener<RestoreCompletionResponse> listener,
         final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
     ) {
+        restoreSnapshot(projectId, request, UUIDs.randomBase64UUID(), listener, updater);
+    }
+
+    /**
+     * Restores a snapshot using a caller-supplied restore UUID so the caller can correlate the restore
+     * with an external record (e.g. a persistent task). A UUID matching an existing
+     * {@link RestoreInProgress} entry is treated as an idempotent retry and applies nothing.
+     *
+     * @param projectId   project for the restore
+     * @param request     restore request
+     * @param restoreUUID caller-supplied UUID for the restore entry; must not be
+     *                    {@link SnapshotRecoverySource#NO_API_RESTORE_UUID}
+     * @param listener    restore listener
+     * @param updater     handler that allows callers to make modifications to {@link ProjectMetadata}
+     *                    in the same cluster state update as the restore operation
+     */
+    public void restoreSnapshot(
+        final ProjectId projectId,
+        final RestoreSnapshotRequest request,
+        final String restoreUUID,
+        final ActionListener<RestoreCompletionResponse> listener,
+        final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
+    ) {
+        Objects.requireNonNull(restoreUUID);
+        if (SnapshotRecoverySource.NO_API_RESTORE_UUID.equals(restoreUUID)) {
+            throw new IllegalArgumentException(
+                "restore UUID must not be the reserved value [" + SnapshotRecoverySource.NO_API_RESTORE_UUID + "]"
+            );
+        }
         assert Repository.assertSnapshotMetaThread();
 
         if (clusterService.state().metadata().hasProject(projectId) == false) {
@@ -352,6 +394,7 @@ public final class RestoreService implements ClusterStateApplier {
                     repositoryRef.get(),
                     request,
                     repositoryDataRef.get(),
+                    restoreUUID,
                     updater,
                     responseListener
                 )
@@ -389,6 +432,7 @@ public final class RestoreService implements ClusterStateApplier {
         Repository repository,
         RestoreSnapshotRequest request,
         RepositoryData repositoryData,
+        String restoreUUID,
         BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
         ActionListener<RestoreCompletionResponse> listener
     ) throws IOException {
@@ -534,8 +578,13 @@ public final class RestoreService implements ClusterStateApplier {
             projectBuilder = ProjectMetadata.builder(projectId);
             metadataBuilder.put(projectBuilder);
         }
+        // Repository identity and raw (pre-transform) metadata of each snapshot index, captured as we read it so that a restore over an
+        // existing data stream (below) can describe every backing/failure-store index of its snapshot-side destination without re-reading
+        // it from the repository. Every such index passes through this loop because it is part of requestedIndicesIncludingSystem.
+        final Map<String, DataStreamRestoreTarget.SnapshotIndex> snapshotIndicesByName = new HashMap<>();
         for (IndexId indexId : repositoryData.resolveIndices(requestedIndicesIncludingSystem).values()) {
             IndexMetadata snapshotIndexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
+            snapshotIndicesByName.put(indexId.getName(), new DataStreamRestoreTarget.SnapshotIndex(indexId, snapshotIndexMetaData));
             // Update the snapshot index metadata before adding it to the metadata
             snapshotIndexMetaData = indexMetadataRestoreTransformer.updateIndexMetadata(snapshotIndexMetaData);
             if (snapshotIndexMetaData.isSystem()) {
@@ -562,22 +611,58 @@ public final class RestoreService implements ClusterStateApplier {
             repositoryData
         );
 
-        // When explicitly requested, allow restoring over a destination that's currently open by resolving its exact current identity
-        // here and letting the per-index loop route it through validateExistingOpenIndexForRestore, instead of requiring the caller to
-        // close it first. The exact identity resolved here is a safety net: if the destination is deleted and recreated under the same
-        // name before this update is published, that validation rejects the stale identity rather than silently restoring onto the wrong
-        // index.
+        // When explicitly requested via RestoreSnapshotRequest#restoreOverExisting(), restore over destinations that already exist instead
+        // of failing because they exist. A destination that is a data stream is deleted (along with its backing/failure-store indices) and
+        // recreated from the snapshot in this same cluster-state update. A plain destination index that is currently open is restored over
+        // in place. Each destination's exact current identity is resolved here so that one deleted and recreated under the same name before
+        // this update is published is rejected rather than silently overwritten.
+        final List<DataStreamRestoreTarget> existingDataStreamTargets;
         final Map<String, Index> openIndexTargets;
         if (request.restoreOverExisting()) {
             final ProjectMetadata currentProject = clusterService.state().metadata().getProject(projectId);
+
+            // Here we build a delete-and-restore target for each snapshot data stream whose destination currently exists, and remember the
+            // snapshot-side index names it owns so the plain-index pass below does not also try to restore over them.
+            existingDataStreamTargets = new ArrayList<>();
+            final Set<String> dataStreamOwnedIndexNames = new HashSet<>();
+            for (Map.Entry<String, DataStream> entry : dataStreamsToRestore.entrySet()) {
+                final DataStream snapshotDataStream = entry.getValue();
+                // Every data stream's backing/failure indices are handled as part of their data stream, so keep them out of the plain
+                // open-index pass below regardless of whether the data stream itself becomes a restore_over_existing target.
+                Stream.concat(snapshotDataStream.getIndices().stream(), snapshotDataStream.getFailureIndices().stream())
+                    .map(Index::getName)
+                    .forEach(dataStreamOwnedIndexNames::add);
+                // System data streams are restored only as part of a feature state, which deletes and recreates them itself, so they are
+                // never restore_over_existing destinations; skip them here to avoid deleting them twice in the same update.
+                if (snapshotDataStream.isSystem()) {
+                    continue;
+                }
+                final DataStream currentDataStream = currentProject.dataStreams().get(entry.getKey());
+                if (currentDataStream == null) {
+                    continue;
+                }
+                final Map<String, DataStreamRestoreTarget.SnapshotIndex> snapshotIndices = new HashMap<>();
+                Stream.concat(snapshotDataStream.getIndices().stream(), snapshotDataStream.getFailureIndices().stream())
+                    .map(Index::getName)
+                    .forEach(indexName -> snapshotIndices.put(indexName, snapshotIndicesByName.get(indexName)));
+                existingDataStreamTargets.add(new DataStreamRestoreTarget(currentDataStream, snapshotDataStream, snapshotIndices));
+            }
+
+            // Here we build plain index destinations. We want to restore over any that are currently open, except a data stream's
+            // backing/failure-store indices, which the data-stream pass above already deletes and recreates. Routing such an index through
+            // the open-index path too would fail, because that deletion removes it before the open-index path validates it.
             openIndexTargets = new HashMap<>();
             for (String renamedIndexName : indicesToRestore.keySet()) {
+                if (dataStreamOwnedIndexNames.contains(renamedIndexName)) {
+                    continue;
+                }
                 final IndexMetadata currentIndexMetadata = currentProject.index(renamedIndexName);
                 if (currentIndexMetadata != null && currentIndexMetadata.getState() == IndexMetadata.State.OPEN) {
                     openIndexTargets.put(renamedIndexName, currentIndexMetadata.getIndex());
                 }
             }
         } else {
+            existingDataStreamTargets = List.of();
             openIndexTargets = Map.of();
         }
 
@@ -596,8 +681,8 @@ public final class RestoreService implements ClusterStateApplier {
                 dataStreamsToRestore.values(),
                 updater,
                 clusterService.getSettings(),
-                UUIDs.randomBase64UUID(),
-                List.of(),
+                restoreUUID,
+                existingDataStreamTargets,
                 openIndexTargets
             )
         );
@@ -1635,29 +1720,64 @@ public final class RestoreService implements ClusterStateApplier {
      */
     private volatile boolean cleanupInProgress = false;
 
+    /**
+     * Invokes {@link RestoreLifecycleListener#onRestoreInitialized} for a newly installed restore
+     * entry, or returns {@code state} unchanged when {@code entry} is {@code null}. Package-private for unit tests.
+     */
+    ClusterState applyRestoreInitializedListener(@Nullable RestoreInProgress.Entry entry, ClusterState state) {
+        return entry != null ? lifecycleListener.onRestoreInitialized(entry, state) : state;
+    }
+
+    /**
+     * Notifies the {@link RestoreLifecycleListener} for each completed {@link RestoreInProgress} entry,
+     * then removes those entries. The listener fires before removal so its writes publish atomically
+     * with the entry disappearing. Package-private for unit tests.
+     */
+    ClusterState executeRestoreCleanup(ClusterState currentState) {
+        RestoreInProgress.Builder restoreInProgressBuilder = new RestoreInProgress.Builder();
+        boolean changed = false;
+        for (RestoreInProgress.Entry entry : RestoreInProgress.get(currentState)) {
+            if (entry.state().completed()) {
+                logger.log(
+                    entry.quiet() ? Level.DEBUG : Level.INFO,
+                    "completed restore of snapshot [{}] with state [{}]",
+                    entry.snapshot(),
+                    entry.state()
+                );
+                // Notify the listener before the entry disappears from cluster state.
+                try {
+                    currentState = Objects.requireNonNull(
+                        lifecycleListener.onRestoreCompleted(entry, currentState),
+                        "restore lifecycle listener returned a null cluster state"
+                    );
+                    changed = true;
+                } catch (Exception e) {
+                    logger.warn(
+                        () -> format(
+                            "failed to notify restore lifecycle listener of completed restore [%s] of snapshot [%s]; "
+                                + "retaining the entry to retry",
+                            entry.uuid(),
+                            entry.snapshot()
+                        ),
+                        e
+                    );
+                    restoreInProgressBuilder.add(entry);
+                }
+            } else {
+                restoreInProgressBuilder.add(entry);
+            }
+        }
+        return changed == false
+            ? currentState
+            : ClusterState.builder(currentState).putCustom(RestoreInProgress.TYPE, restoreInProgressBuilder.build()).build();
+    }
+
     // run a cluster state update that removes all completed restores from the cluster state
     private void removeCompletedRestoresFromClusterState() {
         submitUnbatchedTask("clean up snapshot restore status", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                RestoreInProgress.Builder restoreInProgressBuilder = new RestoreInProgress.Builder();
-                boolean changed = false;
-                for (RestoreInProgress.Entry entry : RestoreInProgress.get(currentState)) {
-                    if (entry.state().completed()) {
-                        logger.log(
-                            entry.quiet() ? Level.DEBUG : Level.INFO,
-                            "completed restore of snapshot [{}] with state [{}]",
-                            entry.snapshot(),
-                            entry.state()
-                        );
-                        changed = true;
-                    } else {
-                        restoreInProgressBuilder.add(entry);
-                    }
-                }
-                return changed == false
-                    ? currentState
-                    : ClusterState.builder(currentState).putCustom(RestoreInProgress.TYPE, restoreInProgressBuilder.build()).build();
+                return executeRestoreCleanup(currentState);
             }
 
             @Override
@@ -2066,20 +2186,22 @@ public final class RestoreService implements ClusterStateApplier {
             }
 
             final ClusterState.Builder builder = ClusterState.builder(currentState);
+            final RestoreInProgress.Entry restoreEntry;
             if (shards.isEmpty() == false) {
+                restoreEntry = new RestoreInProgress.Entry(
+                    restoreUUID,
+                    snapshot,
+                    overallState(RestoreInProgress.State.INIT, shards),
+                    request.quiet(),
+                    List.copyOf(indicesToRestore.keySet()),
+                    Map.copyOf(shards)
+                );
                 builder.putCustom(
                     RestoreInProgress.TYPE,
-                    new RestoreInProgress.Builder(RestoreInProgress.get(currentState)).add(
-                        new RestoreInProgress.Entry(
-                            restoreUUID,
-                            snapshot,
-                            overallState(RestoreInProgress.State.INIT, shards),
-                            request.quiet(),
-                            List.copyOf(indicesToRestore.keySet()),
-                            Map.copyOf(shards)
-                        )
-                    ).build()
+                    new RestoreInProgress.Builder(RestoreInProgress.get(currentState)).add(restoreEntry).build()
                 );
+            } else {
+                restoreEntry = null;
             }
 
             applyDataStreamRestores(currentState, mdBuilder, projectId);
@@ -2101,13 +2223,15 @@ public final class RestoreService implements ClusterStateApplier {
             }
 
             updater.accept(currentState, mdBuilder.getProject(projectId));
-            final ClusterState updatedClusterState = builder.metadata(mdBuilder)
+            ClusterState updatedClusterState = builder.metadata(mdBuilder)
                 .blocks(blocks)
                 .putRoutingTable(projectId, rtBuilder.build())
                 .build();
             if (searchableSnapshotsIndices.isEmpty() == false) {
                 ensureSearchableSnapshotsRestorable(updatedClusterState, snapshotInfo, searchableSnapshotsIndices);
             }
+
+            updatedClusterState = applyRestoreInitializedListener(restoreEntry, updatedClusterState);
             return allocationService.reroute(updatedClusterState, "restored snapshot [" + snapshot + "]", listener.reroute());
         }
 

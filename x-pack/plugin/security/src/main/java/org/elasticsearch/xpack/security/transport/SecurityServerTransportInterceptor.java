@@ -44,9 +44,11 @@ import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_VALUE;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
@@ -59,6 +61,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final SecurityContext securityContext;
     private final Settings settings;
+    private final Map<String, Predicate<String>> contextConstrainedActions;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -68,7 +71,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SSLService sslService,
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
-        RemoteClusterTransportInterceptor remoteClusterTransportInterceptor
+        RemoteClusterTransportInterceptor remoteClusterTransportInterceptor,
+        Map<String, Predicate<String>> contextConstrainedActions
     ) {
         this.remoteClusterTransportInterceptor = remoteClusterTransportInterceptor;
         this.securityContext = securityContext;
@@ -76,6 +80,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.settings = settings;
         this.authcService = authcService;
         this.authzService = authzService;
+        this.contextConstrainedActions = contextConstrainedActions;
         final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
         this.profileFilters = initializeProfileFilters(profileConfigurations, destructiveOperations);
     }
@@ -134,6 +139,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
+                if (checkContextConstraint(connection, action, handler) == false) {
+                    return;
+                }
                 assert false == remoteClusterTransportInterceptor.hasRemoteClusterAccessHeadersInContext(securityContext)
                     : "remote cluster access headers should not be in security context";
                 final boolean isRemoteClusterConnection = remoteClusterTransportInterceptor.isRemoteClusterConnection(connection);
@@ -247,6 +255,42 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         } catch (Exception e) {
             handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
         }
+    }
+
+    /**
+     * Checks whether the action is context-constrained and, if so, whether the originating
+     * action in the thread context matches the allowed pattern.
+     *
+     * @return {@code true} if the action is allowed to proceed, {@code false} if it was denied
+     *         (in which case the handler has already been notified of the failure)
+     */
+    private <T extends TransportResponse> boolean checkContextConstraint(
+        Transport.Connection connection,
+        String action,
+        TransportResponseHandler<T> handler
+    ) {
+        final Predicate<String> allowedOriginatingActions = contextConstrainedActions.get(action);
+        if (allowedOriginatingActions == null) {
+            return true;
+        }
+        final String originatingAction = ORIGINATING_ACTION_VALUE.get(threadPool.getThreadContext());
+        if (originatingAction == null || allowedOriginatingActions.test(originatingAction) == false) {
+            handler.handleException(
+                new SendRequestTransportException(
+                    connection.getNode(),
+                    action,
+                    new IllegalStateException(
+                        "action ["
+                            + action
+                            + "] may only be executed as a child of a permitted originating action but originating action was ["
+                            + originatingAction
+                            + "]"
+                    )
+                )
+            );
+            return false;
+        }
+        return true;
     }
 
     // pkg-private method to allow overriding for tests

@@ -1,0 +1,23 @@
+
+apply plugin: 'elasticsearch.base-internal-es-plugin'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+esplugin {
+  name = 'context-constrained-test'
+  description = 'A test plugin that exposes a REST endpoint for context-constrained action testing'
+  classname = 'org.elasticsearch.xpack.security.contextconstrained.ContextConstrainedTestPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+  compileOnly project(':x-pack:plugin:core')
+  clusterPlugins project(':x-pack:plugin:security:qa:context-constrained-test-plugin')
+  clusterModules project(':x-pack:plugin:inference')
+  clusterModules project(':x-pack:plugin:ilm')
+  clusterModules project(':x-pack:plugin:ml')
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+}
+
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("to be triaged")
+}

@@ -11,6 +11,9 @@ package org.elasticsearch.repositories.azure;
 
 import fixture.azure.AzureHttpHandler;
 import fixture.azure.MockAzureBlobStore;
+import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
@@ -23,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -44,15 +48,21 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.CONTAINER_SETTING;
@@ -215,6 +225,102 @@ public class AzureBlobContainerMultipartContentTests extends ESTestCase {
         }, false, threadPool.generic());
 
         assertArrayEquals(expected, storedBytes(blobName));
+    }
+
+    /**
+     * Incident 3624: a 60s channel-write timeout resubscribes the Put Block body Flux ({@code toFlux} {@code reset()})
+     * while {@code repository_azure} is still in {@code SlicedInputStream.nextStream} opening slice 1. That race
+     * installs slice 1 at the mark shape ({@code nextSlice == 1}, offset 0); the retried Flux then skips the BCC
+     * header and still emits a full part.
+     * <p>
+     * {@code wrapInputStream} is not in this path: its single-reader assert is {@code -ea} only and would abort the
+     * overlapping retry that production runs with assertions off.
+     */
+    public void testToFluxRetryDuringSliceAdvanceDoesNotSkipHeader() throws Exception {
+        final byte[] header = randomByteArrayOfLength(randomIntBetween(20_000, 40_000));
+        header[0] = 'H';
+        final byte[] payload = randomByteArrayOfLength(Math.toIntExact(BLOCK_SIZE));
+        payload[0] = 'P';
+        final byte[] source = new byte[header.length + payload.length];
+        System.arraycopy(header, 0, source, 0, header.length);
+        System.arraycopy(payload, 0, source, header.length, payload.length);
+        final byte[] expectedPart0 = Arrays.copyOf(source, Math.toIntExact(BLOCK_SIZE));
+
+        final var enteredOpenSlice1 = new CountDownLatch(1);
+        final var resumeOpenSlice1 = new CountDownLatch(1);
+        final var enteredPayloadRead = new CountDownLatch(1);
+        final var resumePayloadRead = new CountDownLatch(1);
+        final var reader = new AtomicReference<Thread>();
+
+        final InputStream sliced = new SlicedInputStream(2) {
+            @Override
+            protected InputStream openSlice(int slice) throws IOException {
+                if (slice == 0) {
+                    return new ByteArrayInputStream(header);
+                }
+                reader.set(Thread.currentThread());
+                enteredOpenSlice1.countDown();
+                awaitLatch(resumeOpenSlice1, "openSlice(1)");
+                return new FilterInputStream(new ByteArrayInputStream(payload)) {
+                    private void parkIfReader() throws IOException {
+                        if (Thread.currentThread() == reader.get()) {
+                            enteredPayloadRead.countDown();
+                            awaitLatch(resumePayloadRead, "payload read");
+                        }
+                    }
+
+                    @Override
+                    public int read() throws IOException {
+                        parkIfReader();
+                        return super.read();
+                    }
+
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        parkIfReader();
+                        return super.read(b, off, len);
+                    }
+                };
+            }
+        };
+        final InputStream stream = Streams.limitStream(sliced, BLOCK_SIZE);
+        final Flux<ByteBuffer> flux = AzureBlobStore.toFlux(stream, BLOCK_SIZE, Math.toIntExact(ByteSizeUnit.KB.toBytes(64)));
+
+        final Disposable first = flux.subscribe();
+        try {
+            assertTrue(enteredOpenSlice1.await(10, TimeUnit.SECONDS));
+            stream.reset();
+            resumeOpenSlice1.countDown();
+
+            assertTrue(enteredPayloadRead.await(10, TimeUnit.SECONDS));
+            final byte[] retried = collect(flux).block();
+            assertNotNull(retried);
+            assertArrayEquals("retried Put Block skipped the header slice (incident-3624 fingerprint)", expectedPart0, retried);
+        } finally {
+            resumeOpenSlice1.countDown();
+            resumePayloadRead.countDown();
+            first.dispose();
+        }
+    }
+
+    private static Mono<byte[]> collect(Flux<ByteBuffer> flux) {
+        return flux.reduce(new ByteArrayOutputStream(), (out, buf) -> {
+            byte[] chunk = new byte[buf.remaining()];
+            buf.get(chunk);
+            out.writeBytes(chunk);
+            return out;
+        }).map(ByteArrayOutputStream::toByteArray);
+    }
+
+    private static void awaitLatch(CountDownLatch latch, String where) throws IOException {
+        try {
+            if (latch.await(10, TimeUnit.SECONDS) == false) {
+                throw new AssertionError("timed out waiting to resume " + where);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException(e);
+        }
     }
 
     private byte[] storedBytes(String blobName) throws IOException {

@@ -1018,7 +1018,8 @@ public class AzureBlobStore implements BlobStore {
      * @param length            the expected length in bytes of the input stream
      * @param byteBufferSize    the size of the ByteBuffers to be created
      **/
-    private static Flux<ByteBuffer> toFlux(InputStream stream, long length, final int byteBufferSize) {
+    // package-private so tests can resubscribe a part Flux the way the Azure SDK does after a write timeout
+    static Flux<ByteBuffer> toFlux(InputStream stream, long length, final int byteBufferSize) {
         assert stream.markSupported() : "input stream must support mark and reset";
         // always marks the input stream in case it needs to be retried
         stream.mark(Integer.MAX_VALUE);

@@ -10,6 +10,7 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -21,6 +22,9 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -194,6 +198,97 @@ public class SlicedInputStreamTests extends ESTestCase {
         assertThat(input.read(), equalTo(-1));
         input.close();
         streamsOpened.forEach(stream -> assertTrue(stream.closed));
+    }
+
+    /**
+     * Incident 3624: Azure {@code stageBlock} closes or {@code reset()}s a part stream from the Netty event loop
+     * while {@code toFlux} is still in {@code SlicedInputStream.nextStream} on {@code repository_azure}.
+     * {@code reset()} during {@code openSlice(1)} leaves {@code nextSlice == 1} and {@code currentSliceOffset == 0}
+     * with slice 1 installed; the next {@code reset()} then early-returns as if still at the mark, so the retried
+     * read skips slice 0 (the BCC header).
+     */
+    public void testConcurrentResetWhileAdvancingSliceDoesNotSkipFirstSlice() throws Exception {
+        final byte[] header = randomByteArrayOfLength(randomIntBetween(20_000, 40_000));
+        header[0] = 'H';
+        final byte[] payload = randomByteArrayOfLength(randomIntBetween(50_000, 100_000));
+        payload[0] = 'P';
+        final byte[] expected = new byte[header.length + payload.length];
+        System.arraycopy(header, 0, expected, 0, header.length);
+        System.arraycopy(payload, 0, expected, header.length, payload.length);
+
+        final var enteredOpenSlice1 = new CountDownLatch(1);
+        final var resumeOpenSlice1 = new CountDownLatch(1);
+        final var enteredPayloadRead = new CountDownLatch(1);
+        final var resumePayloadRead = new CountDownLatch(1);
+        final var reader = new AtomicReference<Thread>();
+
+        final var sliced = new SlicedInputStream(2) {
+            @Override
+            protected InputStream openSlice(int slice) throws IOException {
+                if (slice == 0) {
+                    return new ByteArrayInputStream(header);
+                }
+                enteredOpenSlice1.countDown();
+                awaitLatch(resumeOpenSlice1, "openSlice(1)");
+                return new FilterInputStream(new ByteArrayInputStream(payload)) {
+                    private void parkIfReader() throws IOException {
+                        if (Thread.currentThread() == reader.get()) {
+                            enteredPayloadRead.countDown();
+                            awaitLatch(resumePayloadRead, "payload read");
+                        }
+                    }
+
+                    @Override
+                    public int read() throws IOException {
+                        parkIfReader();
+                        return super.read();
+                    }
+
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        parkIfReader();
+                        return super.read(b, off, len);
+                    }
+                };
+            }
+        };
+        final InputStream stream = Streams.limitStream(sliced, expected.length);
+        stream.mark(Integer.MAX_VALUE);
+
+        final Thread readerThread = new Thread(() -> {
+            try {
+                stream.readNBytes(header.length);
+                stream.read();
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }, "sliced-stream-reader");
+        reader.set(readerThread);
+        readerThread.start();
+
+        assertTrue(enteredOpenSlice1.await(10, TimeUnit.SECONDS));
+        stream.reset();
+        resumeOpenSlice1.countDown();
+
+        assertTrue(enteredPayloadRead.await(10, TimeUnit.SECONDS));
+        stream.reset();
+        final byte[] retried = stream.readAllBytes();
+        resumePayloadRead.countDown();
+        readerThread.join(TimeUnit.SECONDS.toMillis(10));
+        assertFalse("reader thread did not finish", readerThread.isAlive());
+
+        assertArrayEquals("retry after concurrent reset during slice advance skipped the first slice", expected, retried);
+    }
+
+    private static void awaitLatch(CountDownLatch latch, String where) throws IOException {
+        try {
+            if (latch.await(10, TimeUnit.SECONDS) == false) {
+                throw new AssertionError("timed out waiting to resume " + where);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException(e);
+        }
     }
 
     public void testMarkSkipResetInBigSlice() throws IOException {

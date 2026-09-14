@@ -1181,8 +1181,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                     // The translated plan does not produce this declared attribute; skip it.
                     // Only label columns are expected to be absent (e.g. `labels.__name__` after a
                     // name-dropping binary op). The value and step attributes are guaranteed.
-                    assert attr.id().equals(cmd.valueId()) == false && attr.id().equals(cmd.stepId()) == false
-                        : "value/step column [" + attr.name() + "] must be produced by the translated plan";
+                    if (attr.id().equals(cmd.valueId()) || attr.id().equals(cmd.stepId())) {
+                        throw new VerificationException("value/step column [{}] must be produced by the translated plan", attr.name());
+                    }
                     continue;
                 }
                 if (lookupAttr.semanticEquals(attr) == false) {

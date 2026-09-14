@@ -32,6 +32,12 @@ public final class ScalarConversionFunction extends PromqlFunctionCall {
     }
 
     @Override
+    public boolean dropsMetricName() {
+        // scalar() collapses to a scalar with no labels, so no metric name survives.
+        return true;
+    }
+
+    @Override
     public boolean isIdentityTransparent() {
         return true;
     }

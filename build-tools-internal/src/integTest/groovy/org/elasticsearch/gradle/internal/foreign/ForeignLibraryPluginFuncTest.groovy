@@ -82,8 +82,6 @@ class ForeignLibraryPluginFuncTest extends AbstractGradleInternalPluginFuncTest 
         file('fakeprocessor/src/main/resources/META-INF/services/javax.annotation.processing.Processor') <<
             'fake.MarkerProcessor'
 
-        // Consumer module: applies the plugin, annotates a class with @fake.Marker, and substitutes
-        // the dummy processor for the plugin's default :libs:foreign-library:processor dep.
         file('src/main/java/test/MainHelper.java') << """
             package test;
             public abstract class MainHelper {
@@ -93,6 +91,8 @@ class ForeignLibraryPluginFuncTest extends AbstractGradleInternalPluginFuncTest 
             }
         """.stripIndent()
 
+        // Consumer module: applies the plugin, annotates a class with @fake.Marker, and substitutes
+        // the dummy processor for the plugin's default :libs:foreign-library:processor dep.
         file('src/main/java/test/Lib.java') << """
             package test;
             @fake.Marker

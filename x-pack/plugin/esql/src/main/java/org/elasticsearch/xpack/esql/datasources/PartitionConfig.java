@@ -45,7 +45,11 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
     public static final String CONFIG_PARTITIONING_PATH = "partition_path";
     public static final String CONFIG_PARTITIONING_HIVE = "hive_partitioning";
 
-    /** Keys recognised by {@link #fromConfig}. */
+    /**
+     * Keys accepted by the dataset CRUD path. {@code hive_partitioning} is kept here so existing PUT requests
+     * and stored datasets are not rejected as unknown settings; it is a deprecated no-op and {@link #fromConfig}
+     * does not read it.
+     */
     public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_PARTITIONING_DETECTION, CONFIG_PARTITIONING_PATH, CONFIG_PARTITIONING_HIVE);
 
     public static final PartitionConfig DEFAULT = new PartitionConfig(Strategy.AUTO, null);
@@ -57,22 +61,18 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
     }
 
     /**
-     * Resolves the three partition settings into one strategy, leniently: this runs on every query against every
+     * Resolves the partition settings into one strategy, leniently: this runs on every query against every
      * already-stored dataset, so it never throws on a stored value. Contradictions are rejected at registration
      * instead — see {@link #validate}.
      *
      * <p>Resolution order: the strategy is parsed from {@code partition_detection}; an unparseable value, and an
-     * explicit {@code template} with nothing to templatise, fall back to {@code AUTO}; then
-     * {@code hive_partitioning: "false"} folds to {@code NONE} last and wins over everything. A
-     * {@code partition_path} does NOT promote {@code AUTO} to {@code TEMPLATE} — {@code AUTO} already means Hive
-     * first with the template as a fallback, which is what a dataset carrying only a {@code partition_path}
-     * resolved to before this setting reached the read path. The final fold is what keeps
-     * {@code {hive_partitioning: false, partition_path: ...}} resolving to "no partitions" as it always did.
+     * explicit {@code template} with nothing to templatise, fall back to {@code AUTO}. A {@code partition_path} does
+     * NOT promote {@code AUTO} to {@code TEMPLATE} — {@code AUTO} already means Hive first with the template as a
+     * fallback, which is what a dataset carrying only a {@code partition_path} resolved to before this setting reached
+     * the read path.
      *
-     * <p>Only the literal {@code "false"} disables detection, matching the boolean check this replaced — any other
-     * value (including {@code "yes"}, {@code 0} or a nonsense string) leaves detection enabled, because the setting
-     * is stored free-form and existing datasets rely on that reading. An explicit {@code true} carries no
-     * information: it is the default, so it is ignored rather than pinning the strategy to {@code HIVE}.
+     * <p>{@code hive_partitioning} is accepted but ignored — it is a deprecated no-op. A deprecation warning is
+     * emitted at CRUD time by {@code FileDataSourceValidator}; nothing reads the key here.
      */
     public static PartitionConfig fromConfig(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
@@ -108,23 +108,14 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
             strategy = Strategy.AUTO;
         }
 
-        if (hivePartitioningDisabled(config)) {
-            strategy = Strategy.NONE;
-        }
-
         return new PartitionConfig(strategy, template);
     }
 
-    /** Whether {@code hive_partitioning} is present and set to the literal {@code "false"}. */
-    private static boolean hivePartitioningDisabled(Map<String, Object> config) {
-        Object value = config.get(CONFIG_PARTITIONING_HIVE);
-        return value != null && "false".equalsIgnoreCase(value.toString());
-    }
-
     /**
-     * Registration-time validation. Rejects the combinations in which one of the three settings would be silently
-     * ignored, so a new dataset cannot be registered with a setting that does nothing. Deliberately stricter than
-     * {@link #fromConfig}, which must keep reading datasets that were stored before these checks existed.
+     * Registration-time validation. Rejects the combinations in which {@code partition_detection} or
+     * {@code partition_path} would be silently ignored, so a new dataset cannot be registered with a setting that
+     * does nothing. Deliberately stricter than {@link #fromConfig}, which must keep reading datasets that were
+     * stored before these checks existed.
      */
     public static void validate(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
@@ -145,22 +136,6 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
         Object templateValue = config.get(CONFIG_PARTITIONING_PATH);
         String template = templateValue != null ? templateValue.toString() : null;
         boolean hasTemplate = template != null && template.isEmpty() == false;
-
-        if (hivePartitioningDisabled(config) && declared != null && declared != Strategy.NONE) {
-            throw new IllegalArgumentException(
-                "["
-                    + CONFIG_PARTITIONING_HIVE
-                    + "] is false, which disables partition detection, but ["
-                    + CONFIG_PARTITIONING_DETECTION
-                    + "] is ["
-                    + declared.name().toLowerCase(Locale.ROOT)
-                    + "]; set ["
-                    + CONFIG_PARTITIONING_DETECTION
-                    + "] to [none] instead of using ["
-                    + CONFIG_PARTITIONING_HIVE
-                    + "]"
-            );
-        }
 
         if (declared == Strategy.TEMPLATE && hasTemplate == false) {
             throw new IllegalArgumentException(
@@ -191,7 +166,7 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
 
         // A template alongside anything that resolves to "no partitions" is the silent-drop this validation exists
         // to prevent: the template would be accepted, stored, and never used.
-        if (hasTemplate && (declared == Strategy.NONE || hivePartitioningDisabled(config))) {
+        if (hasTemplate && declared == Strategy.NONE) {
             throw new IllegalArgumentException(
                 "["
                     + CONFIG_PARTITIONING_PATH

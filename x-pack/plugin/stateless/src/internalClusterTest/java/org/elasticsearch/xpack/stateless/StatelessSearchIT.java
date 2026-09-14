@@ -1616,7 +1616,6 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
         }
         flush(indexName);
 
-        // OBJECT_STORE_PREFETCH_FEATURE_FLAG is enabled by default on snapshot builds (all CI runs).
         // When enabled, Lucene read-ahead hints (BlobCacheIndexInput.prefetch) schedule async blob-store
         // downloads that can complete before the actual readInternal call for the same range. If that
         // race is lost, tryRead() succeeds (fast path) and CacheFileReader.read() — the only site that

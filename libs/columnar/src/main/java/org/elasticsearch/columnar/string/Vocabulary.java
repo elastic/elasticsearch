@@ -113,8 +113,13 @@ public final class Vocabulary {
     /**
      * Surveys {@code values}, returning the terms worth a dictionary entry, or null when the column holds
      * nothing worth naming.
+     *
+     * @param numNonNullValues the slots a term could account for, which is every slot but the null ones. A
+     *                         null is named by a reserved ordinal rather than by a dictionary entry, so
+     *                         counting it here would hold a column's nulls against a dictionary that covers
+     *                         every value it actually has.
      */
-    public static Terms survey(StringColumnValues values, DictionaryPolicy policy, long numValues) throws IOException {
+    public static Terms survey(StringColumnValues values, DictionaryPolicy policy, long numNonNullValues) throws IOException {
         final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
         int[] counts = new int[64];
         long tableBytes = 0;
@@ -129,6 +134,13 @@ public final class Vocabulary {
             for (int i = 0, count = values.valueCount(); i < count; i++) {
                 values.nextValue();
                 final BytesRef value = values.value();
+                if (value == null) {
+                    // A null is named by an ordinal of its own, so it is not a term worth a dictionary entry
+                    // and its bytes are not bytes the column would otherwise store. Counting it would credit
+                    // the empty term with occurrences it does not have, and could win it an entry — or
+                    // displace a real term — on the strength of values that are not empty strings.
+                    continue;
+                }
                 columnBytes += value.length;
                 if (hasPrevious && previous.get().bytesEquals(value)) {
                     if (previousId != ABSENT) {
@@ -191,7 +203,8 @@ public final class Vocabulary {
             terms.get(id, scratch);
             keptBytes += scratch.length;
         }
-        return new Terms(terms, sortedIds, ordinalOfId, (double) covered / numValues, keptBytes, columnBytes, counts);
+        final double coverage = numNonNullValues == 0 ? 0.0 : (double) covered / numNonNullValues;
+        return new Terms(terms, sortedIds, ordinalOfId, coverage, keptBytes, columnBytes, counts);
     }
 
     /**

@@ -15,6 +15,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
+import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -154,6 +155,38 @@ public class ValueStreamTests extends ESTestCase {
                     assertEquals(label + " random at " + i, values.get(i), read);
                 }
             }
+        }
+    }
+
+    /**
+     * A block says which layout it took in its first byte, and a packed block says the width its lengths are
+     * written at in the same byte. The two share one space, so the widths a block can be packed at must stay
+     * clear of the values that name a layout, and nothing but arithmetic keeps them apart.
+     */
+    public void testPackedWidthsNeverCollideWithALayout() {
+        for (int max : new int[] { 0, 1, 0xFF, 0x100, 0xFFFF, 0x10000, 0xFFFFFF, 0x1000000, Integer.MAX_VALUE }) {
+            final int width = ByteArrayInts.widthFor(max);
+            assertNotEquals(
+                "a block of values up to " + max + " bytes packs its lengths at the width naming a run",
+                ValueStream.RUNS,
+                (byte) width
+            );
+            assertNotEquals(
+                "a block of values up to " + max + " bytes packs at the width naming an inline block",
+                ValueStream.INLINE,
+                (byte) width
+            );
+            assertTrue("width " + width + " is not a marker this stream writes", ValueStream.knownMarker((byte) width));
+        }
+    }
+
+    /** A marker no layout and no width takes is turned away rather than read as whichever shares its number. */
+    public void testUnknownLayoutMarkersAreNotAccepted() {
+        for (byte marker : new byte[] { ValueStream.INLINE, 1, 2, ValueStream.RUNS, 4 }) {
+            assertTrue("marker " + marker + " is one this stream writes", ValueStream.knownMarker(marker));
+        }
+        for (byte marker : new byte[] { 5, 6, 7, 42, -1, Byte.MIN_VALUE, Byte.MAX_VALUE }) {
+            assertFalse("marker " + marker + " names nothing this stream writes", ValueStream.knownMarker(marker));
         }
     }
 }

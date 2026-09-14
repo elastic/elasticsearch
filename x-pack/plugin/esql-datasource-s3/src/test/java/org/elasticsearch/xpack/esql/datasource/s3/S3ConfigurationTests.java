@@ -223,16 +223,16 @@ public class S3ConfigurationTests extends ESTestCase {
     }
 
     public void testEqualsWithAuth() {
-        S3Configuration config1 = S3Configuration.fromFields(null, null, "ep", null, "anonymous");
-        S3Configuration config2 = S3Configuration.fromFields(null, null, "ep", null, "anonymous");
+        S3Configuration config1 = S3Configuration.fromFields(null, null, "http://ep", null, "anonymous");
+        S3Configuration config2 = S3Configuration.fromFields(null, null, "http://ep", null, "anonymous");
         assertEquals(config1, config2);
         assertEquals(config1.hashCode(), config2.hashCode());
     }
 
     public void testNotEqualsWithDifferentAuth() {
         // Two resolvable configs differing only in auth: anonymous vs managed_identity (neither needs a secret).
-        S3Configuration config1 = S3Configuration.fromFields(null, null, "ep", null, "anonymous");
-        S3Configuration config2 = S3Configuration.fromFields(null, null, "ep", null, "managed_identity");
+        S3Configuration config1 = S3Configuration.fromFields(null, null, "http://ep", null, "anonymous");
+        S3Configuration config2 = S3Configuration.fromFields(null, null, "http://ep", null, "managed_identity");
         assertNotEquals(config1, config2);
     }
 
@@ -282,15 +282,15 @@ public class S3ConfigurationTests extends ESTestCase {
     }
 
     public void testEqualsWithSessionToken() {
-        S3Configuration config1 = S3Configuration.fromFields("ak", "sk", "tok", "ep", null, null);
-        S3Configuration config2 = S3Configuration.fromFields("ak", "sk", "tok", "ep", null, null);
+        S3Configuration config1 = S3Configuration.fromFields("ak", "sk", "tok", "http://ep", null, null);
+        S3Configuration config2 = S3Configuration.fromFields("ak", "sk", "tok", "http://ep", null, null);
         assertEquals(config1, config2);
         assertEquals(config1.hashCode(), config2.hashCode());
     }
 
     public void testNotEqualsWithDifferentSessionToken() {
-        S3Configuration config1 = S3Configuration.fromFields("ak", "sk", "tok1", "ep", null, null);
-        S3Configuration config2 = S3Configuration.fromFields("ak", "sk", "tok2", "ep", null, null);
+        S3Configuration config1 = S3Configuration.fromFields("ak", "sk", "tok1", "http://ep", null, null);
+        S3Configuration config2 = S3Configuration.fromFields("ak", "sk", "tok2", "http://ep", null, null);
         assertNotEquals(config1, config2);
     }
 
@@ -489,5 +489,70 @@ public class S3ConfigurationTests extends ESTestCase {
         assertTrue(config.isManagedIdentity());
         assertEquals("managed_identity", config.toMap().get("auth"));
         assertWarnings("auth value [workload_identity] is deprecated; the canonical value is [managed_identity]");
+    }
+
+    // --- addressing_style ---
+
+    public void testAddressingStyleAbsent() {
+        S3Configuration config = S3Configuration.fromFields("ak", "sk", "http://endpoint", "us-east-1");
+        assertNull(config.addressingStyle());
+    }
+
+    public void testAddressingStyleAuto() {
+        S3Configuration config = S3Configuration.fromMap(Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "auto"));
+        assertEquals("auto", config.addressingStyle());
+    }
+
+    public void testAddressingStylePath() {
+        S3Configuration config = S3Configuration.fromMap(Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "path"));
+        assertEquals("path", config.addressingStyle());
+    }
+
+    public void testAddressingStyleVirtualHosted() {
+        S3Configuration config = S3Configuration.fromMap(
+            Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "virtual_hosted")
+        );
+        assertEquals("virtual_hosted", config.addressingStyle());
+    }
+
+    public void testAddressingStyleMixedCase() {
+        S3Configuration config = S3Configuration.fromMap(
+            Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "VIRTUAL_HOSTED")
+        );
+        assertEquals("virtual_hosted", config.addressingStyle());
+    }
+
+    public void testAddressingStyleInvalidValueThrows() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> S3Configuration.fromMap(Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "bucket_style"))
+        );
+        assertThat(e.getMessage(), containsString("Unsupported addressing_style value [bucket_style]"));
+        assertThat(e.getMessage(), containsString("supported values: [auto, path, virtual_hosted]"));
+    }
+
+    // --- resolveAddressingStyle ---
+
+    public void testResolveAddressingStyleAbsentIsAuto() {
+        S3Configuration config = S3Configuration.fromFields("ak", "sk", null, "us-east-1");
+        assertEquals(S3Configuration.AddressingStyleMode.AUTO, config.resolveAddressingStyle());
+    }
+
+    public void testResolveAddressingStyleExplicitAutoIsAuto() {
+        S3Configuration config = S3Configuration.fromMap(Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "auto"));
+        assertEquals(S3Configuration.AddressingStyleMode.AUTO, config.resolveAddressingStyle());
+    }
+
+    public void testResolveAddressingStylePathIsPath() {
+        // PATH forces path-style even without an endpoint override.
+        S3Configuration config = S3Configuration.fromMap(Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "path"));
+        assertEquals(S3Configuration.AddressingStyleMode.PATH, config.resolveAddressingStyle());
+    }
+
+    public void testResolveAddressingStyleVirtualHostedIsVirtualHosted() {
+        S3Configuration config = S3Configuration.fromMap(
+            Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "virtual_hosted")
+        );
+        assertEquals(S3Configuration.AddressingStyleMode.VIRTUAL_HOSTED, config.resolveAddressingStyle());
     }
 }

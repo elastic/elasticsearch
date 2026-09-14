@@ -33,7 +33,7 @@ These settings control how many concurrent requests each node sends to external 
 
 | Setting | Default | Description |
 |---|---|---|
-| `esql.external.max_concurrent_requests` | `allocated processors * 3`, minimum 16 and maximum 100 | Maximum concurrent cloud API requests per storage scheme, per node. `0` removes the limit. Range 0–500. |
+| `esql.external.max_concurrent_requests` | `allocated processors * 3`, minimum 4 and maximum 100, further limited so concurrent 10 MiB reads stay within a quarter of heap (or half of `indices.breaker.request.limit` when tighter) | Maximum concurrent cloud API requests per storage scheme, per node. A positive value is still capped by that memory term, so an old explicit `16` cannot skip the budget. `0` removes the permit limit. Range 0–500. On tiny heaps the parse floor of 4 can exceed that memory term. Node-scoped: changing this setting, or tightening the request breaker, takes effect after a restart. |
 | `esql.external.throttle_max_retry_duration` | 30 | Maximum total time, in seconds, spent retrying throttled cloud API requests before failing the query. `0` removes the budget. Range 0–300 seconds. |
 | `esql.external.max_concurrent_segmenters` {applies_to}`stack: experimental 9.6+`<br>`esql.external.max_concurrent_segmentators` {applies_to}`stack: experimental =9.5` | `0` | Maximum number of file segmentation tasks that run concurrently. `0` derives the value automatically. Range 0–4096. |
 

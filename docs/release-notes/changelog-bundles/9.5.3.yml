@@ -1,6 +1,6 @@
 version: 9.5.3
-released: false
-generated: 2026-09-03T08:04:39.081731Z
+released: true
+generated: 2026-09-04T13:51:13.406491Z
 changelogs:
   - pr: 149429
     summary: Fix translog resource leaks and leftover upload tasks on node shutdown

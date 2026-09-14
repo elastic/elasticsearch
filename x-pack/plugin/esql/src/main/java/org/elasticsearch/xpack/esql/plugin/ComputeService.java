@@ -1718,16 +1718,11 @@ public class ComputeService {
     }
 
     /**
-     * Runs the coordinator plan of a source fan-in and every producer feeding it. Each producer is a child
-     * compute session holding a real exchange sink on every data node it dispatches to, so dispatch scales
-     * with the product of producers and assigned nodes: each producer runs its own per-node loop rather than
-     * batching into one request per node the way a multi-index {@code EsRelation} does. That per-producer
-     * cost is what {@link SourceFanInUnionAll#MAX_PRODUCERS} bounds.
-     * <p>
-     * On the coordinator a producer costs only a refcount lease on the query's single exchange source. Every
-     * lease is taken before any producer runs, because the source must not observe zero outstanding sinks
-     * while producers are still queued behind {@code sourceProducerRunner}: it would finish and drop the rows
-     * the queued producers have yet to write.
+     * Runs the coordinator plan of a source fan-in and every producer feeding it. Each producer is a
+     * child compute session with its own per-node dispatch, which is what
+     * {@link SourceFanInUnionAll#MAX_PRODUCERS} bounds. Coordinator-side, every producer takes a
+     * lease on the query's single exchange source before any of them run, so the source cannot
+     * observe zero outstanding sinks while producers are still queued.
      */
     private void executeSourceFanIn(
         String sessionId,

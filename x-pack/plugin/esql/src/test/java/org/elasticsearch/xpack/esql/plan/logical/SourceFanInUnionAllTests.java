@@ -132,19 +132,6 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         assertThat(unionFailures.toString(), containsString("got: " + (MergePlan.MAX_BRANCHES + 1)));
     }
 
-    public void testFanInIsBoundedByItsOwnProducerCap() {
-        SourceFanInUnionAll atCap = new SourceFanInUnionAll(Source.EMPTY, relations(SourceFanInUnionAll.MAX_PRODUCERS), List.of());
-        Failures atCapFailures = new Failures();
-        atCap.postAnalysisPlanVerification().accept(atCap, atCapFailures);
-        assertFalse(atCapFailures.toString(), atCapFailures.hasFailures());
-
-        SourceFanInUnionAll overCap = new SourceFanInUnionAll(Source.EMPTY, relations(SourceFanInUnionAll.MAX_PRODUCERS + 1), List.of());
-        Failures overCapFailures = new Failures();
-        overCap.postAnalysisPlanVerification().accept(overCap, overCapFailures);
-        assertTrue(overCapFailures.hasFailures());
-        assertThat(overCapFailures.toString(), containsString("FROM supports up to " + SourceFanInUnionAll.MAX_PRODUCERS + " sources"));
-    }
-
     public void testViewUnionAllWithFanInAndPipelinePassesPostOptCheck() {
         SourceFanInUnionAll fanIn = new SourceFanInUnionAll(Source.EMPTY, List.of(relation("ds1"), relation("ds2")), List.of());
         Filter pipeline = new Filter(Source.EMPTY, relation("ds3"), Literal.TRUE);

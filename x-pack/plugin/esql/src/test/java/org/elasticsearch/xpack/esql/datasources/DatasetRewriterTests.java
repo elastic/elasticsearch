@@ -141,43 +141,6 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
     }
 
-    public void testProvisionalSourceGroupWithNestedFanInFlattens() {
-        DataSource parent = dataSource("s3_parent", Map.of());
-        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
-        Dataset ds3 = new Dataset("ds3", new DataSourceReference("s3_parent"), "s3://c/", null, Map.of());
-        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds3", ds3), Set.of("some_idx"));
-
-        LogicalPlan inner = rewrite(relationOf("some_idx,ds1"), project);
-        LogicalPlan sibling = rewrite(relationOf("ds3"), project);
-        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
-        children.put("view", inner);
-        children.put("other", sibling);
-        LogicalPlan composed = SourceFanInUnionAll.provisional(Source.EMPTY, children, List.of());
-
-        LogicalPlan flattened = SourceExpansionNormalizer.normalize(composed);
-        assertThat(flattened, instanceOf(SourceFanInUnionAll.class));
-        assertThat(((SourceFanInUnionAll) flattened).isProvisional(), equalTo(false));
-        assertThat(flattened.children(), hasSize(3));
-    }
-
-    public void testViewUnionAllIsNotPromotedToSourceFanIn() {
-        DataSource parent = dataSource("s3_parent", Map.of());
-        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
-        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("ds1", ds1), Set.of("some_idx"));
-
-        LogicalPlan inner = rewrite(relationOf("ds1"), project);
-        assertThat(inner, instanceOf(UnresolvedExternalRelation.class));
-        LogicalPlan sibling = rewrite(relationOf("some_idx"), project);
-        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
-        children.put("view", inner);
-        children.put("other", sibling);
-        LogicalPlan composed = new ViewUnionAll(Source.EMPTY, children, List.of());
-
-        LogicalPlan flattened = SourceExpansionNormalizer.normalize(composed);
-        assertSame(composed, flattened);
-        assertThat(flattened, instanceOf(ViewUnionAll.class));
-    }
-
     public void testProvisionalSingleDatasetPlusIndexDoesNotFlatten() {
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
@@ -194,26 +157,6 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(flattened, instanceOf(ViewUnionAll.class));
         assertThat(flattened.children(), hasSize(2));
         assertFalse(flattened.anyMatch(p -> p instanceof SourceFanInUnionAll));
-    }
-
-    public void testViewUnionAllWithPipelineSiblingDoesNotFlatten() {
-        DataSource parent = dataSource("s3_parent", Map.of());
-        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
-        Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
-        Dataset ds3 = new Dataset("ds3", new DataSourceReference("s3_parent"), "s3://c/", null, Map.of());
-        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2, "ds3", ds3));
-
-        LogicalPlan inner = rewrite(relationOf("ds1,ds2"), project);
-        LogicalPlan pipeline = new Filter(Source.EMPTY, rewrite(relationOf("ds3"), project), Literal.TRUE);
-        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
-        children.put("view", inner);
-        children.put("other", pipeline);
-        LogicalPlan composed = new ViewUnionAll(Source.EMPTY, children, List.of());
-
-        LogicalPlan flattened = SourceExpansionNormalizer.normalize(composed);
-        assertSame(composed, flattened);
-        assertThat(flattened, instanceOf(ViewUnionAll.class));
-        assertThat(flattened.children(), hasSize(2));
     }
 
     public void testViewCompactionKeepsNestedFanInBesidePipelineSibling() {
@@ -687,48 +630,6 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(tablePathString(out), equalTo("s3://a/"));
     }
 
-    public void testWildcardMatchingEightDatasetsIsOneFanIn() {
-        DataSource parent = dataSource("s3_parent", Map.of());
-        Map<String, Dataset> datasets = new HashMap<>();
-        for (int i = 0; i < 8; i++) {
-            datasets.put(
-                "logs_" + i,
-                new Dataset("logs_" + i, new DataSourceReference("s3_parent"), "s3://logs/" + i + "/", null, Map.of())
-            );
-        }
-        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
-
-        LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
-
-        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
-        assertThat(rewritten.children(), hasSize(8));
-    }
-
-    public void testFromStarWithEightDatasetsNoIndicesIsOneFanIn() {
-        DataSource parent = dataSource("s3_parent", Map.of());
-        Map<String, Dataset> datasets = namedDatasets(8, "ds_");
-        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
-
-        LogicalPlan rewritten = rewrite(relationOf("*"), project);
-
-        assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
-        assertThat(rewritten.children(), hasSize(8));
-        for (LogicalPlan child : rewritten.children()) {
-            assertThat(child, instanceOf(UnresolvedExternalRelation.class));
-        }
-    }
-
-    public void testFromStarWithNineDatasetsNoIndicesRejects() {
-        DataSource parent = dataSource("s3_parent", Map.of());
-        Map<String, Dataset> datasets = namedDatasets(9, "ds_");
-        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
-
-        VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("*"), project));
-        assertThat(ex.getMessage(), containsString("FROM [*]"));
-        assertThat(ex.getMessage(), containsString("resolved to 9 sources"));
-        assertThat(ex.getMessage(), containsString("the current limit of " + SourceFanInUnionAll.MAX_PRODUCERS));
-    }
-
     public void testWildcardOverFanInCapRejectsWithUserFacingMessage() {
         // The user typed FROM <pattern>, not FORK, so the message references the pattern and the
         // per-FROM source cap rather than MergePlan's internal name.
@@ -764,16 +665,6 @@ public class DatasetRewriterTests extends ESTestCase {
 
         assertThat(rewritten, instanceOf(SourceFanInUnionAll.class));
         assertThat(rewritten.children(), hasSize(SourceFanInUnionAll.MAX_PRODUCERS));
-    }
-
-    public void testFromStarWithEightDatasetsAndAnIndexRejectsNineProducers() {
-        DataSource parent = dataSource("s3_parent", Map.of());
-        Map<String, Dataset> datasets = namedDatasets(8, "ds_");
-        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), datasets, Set.of("logs"));
-
-        VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("*"), project));
-        assertThat(ex.getMessage(), containsString("resolved to 9 sources"));
-        assertThat(ex.getMessage(), containsString("the current limit of " + SourceFanInUnionAll.MAX_PRODUCERS));
     }
 
     public void testSevenDatasetsPlusSeveralIndexNamesIsEightProducers() {

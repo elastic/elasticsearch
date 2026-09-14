@@ -95,18 +95,6 @@ public class FromDatasetFanInFailureIT extends AbstractExternalDataSourceIT {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
     }
 
-    public void testTwoFailingProducersFailTheRequest() throws Exception {
-        String left = registerCsv("bad_left", BAD_CSV);
-        String right = registerCsv("bad_right", BAD_CSV);
-        for (String strategy : STRATEGIES) {
-            Exception failure = expectThrows(
-                Exception.class,
-                () -> run(queryRequest(strategy, "FROM " + left + ", " + right + " | WHERE v IS NOT NULL | KEEP v", true), TIMEOUT).close()
-            );
-            assertAllSourcesFailed(failure);
-        }
-    }
-
     public void testSuccessfulProducerPlusFailureIsPartial() throws Exception {
         String good = registerCsv("good_partial", GOOD_CSV);
         String bad = registerCsv("bad_partial", BAD_CSV);

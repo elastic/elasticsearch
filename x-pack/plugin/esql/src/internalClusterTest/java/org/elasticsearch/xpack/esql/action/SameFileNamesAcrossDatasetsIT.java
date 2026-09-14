@@ -79,20 +79,17 @@ public class SameFileNamesAcrossDatasetsIT extends AbstractExternalDataSourceIT 
     }
 
     public void testEveryRecordIsReturnedExactlyOnceUnderItsOwnDataset() {
-        String query = "FROM " + String.join(", ", datasets) + " | KEEP rec | SORT rec ASC";
-        try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+        String from = "FROM " + String.join(", ", datasets);
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest(from + " | KEEP rec | SORT rec ASC"), TIMEOUT)) {
             List<Object> actual = getValuesList(response).stream().map(row -> row.getFirst()).toList();
             assertThat(actual, equalTo(allRecordsSorted()));
         }
-    }
-
-    /**
-     * Separates "wrong rows" from "right rows, wrong multiplicity": binding a split list onto the wrong relation
-     * duplicates reads, which moves {@code COUNT(*)} while leaving the distinct set intact.
-     */
-    public void testNoRecordIsDuplicatedOrDropped() {
-        String query = "FROM " + String.join(", ", datasets) + " | STATS total = COUNT(*), distinct = COUNT_DISTINCT(rec)";
-        try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+        try (
+            EsqlQueryResponse response = run(
+                syncEsqlQueryRequest(from + " | STATS total = COUNT(*), distinct = COUNT_DISTINCT(rec)"),
+                TIMEOUT
+            )
+        ) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertThat(((Number) rows.getFirst().get(0)).longValue(), equalTo((long) TOTAL_RECORDS));
@@ -138,6 +135,17 @@ public class SameFileNamesAcrossDatasetsIT extends AbstractExternalDataSourceIT 
      */
     public void testSharedFileIsReadOncePerReferencingDataset() throws Exception {
         registerSharedDirDatasets();
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest("FROM shared_one | KEEP rec | SORT rec ASC"), TIMEOUT)) {
+            List<Object> actual = getValuesList(response).stream().map(row -> row.getFirst()).toList();
+            assertThat(actual, equalTo(List.of("file1_record1", "file1_record2", "file1_record3")));
+        }
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest("FROM shared_two | KEEP rec | SORT rec ASC"), TIMEOUT)) {
+            List<Object> actual = getValuesList(response).stream().map(row -> row.getFirst()).toList();
+            assertThat(
+                actual,
+                equalTo(List.of("file1_record1", "file1_record2", "file1_record3", "file2_record1", "file2_record2", "file2_record3"))
+            );
+        }
         String query = "FROM shared_one, shared_two | STATS n = COUNT(*) BY rec | SORT rec ASC";
         try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
             List<List<Object>> expected = new ArrayList<>();
@@ -148,26 +156,6 @@ public class SameFileNamesAcrossDatasetsIT extends AbstractExternalDataSourceIT 
                 expected.add(List.of(1L, "file2_record" + record));
             }
             assertThat(getValuesList(response), equalTo(expected));
-        }
-    }
-
-    /** The one-file dataset must not pick up the second file, which only its sibling's glob covers. */
-    public void testSingleFileDatasetAloneReadsOnlyItsOwnFile() throws Exception {
-        registerSharedDirDatasets();
-        try (EsqlQueryResponse response = run(syncEsqlQueryRequest("FROM shared_one | KEEP rec | SORT rec ASC"), TIMEOUT)) {
-            List<Object> actual = getValuesList(response).stream().map(row -> row.getFirst()).toList();
-            assertThat(actual, equalTo(List.of("file1_record1", "file1_record2", "file1_record3")));
-        }
-    }
-
-    public void testTwoFileDatasetAloneReadsBothFiles() throws Exception {
-        registerSharedDirDatasets();
-        try (EsqlQueryResponse response = run(syncEsqlQueryRequest("FROM shared_two | KEEP rec | SORT rec ASC"), TIMEOUT)) {
-            List<Object> actual = getValuesList(response).stream().map(row -> row.getFirst()).toList();
-            assertThat(
-                actual,
-                equalTo(List.of("file1_record1", "file1_record2", "file1_record3", "file2_record1", "file2_record2", "file2_record3"))
-            );
         }
     }
 

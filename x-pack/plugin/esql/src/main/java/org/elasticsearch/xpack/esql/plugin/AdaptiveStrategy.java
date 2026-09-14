@@ -33,14 +33,10 @@ import java.util.function.Predicate;
  * is the query's only external read. An empty eligible-worker set, including an index-only cluster, returns
  * {@code LOCAL} so the coordinator runs the scan itself.
  * <p>
- * A single split is placed like any other once the query has several producers reading concurrently. Distributing one
- * split buys no parallelism and costs a transport hop, which is why a lone read stays put, but each producer of a
- * fan-in decides this on its own: applying the lone-read reasoning per producer would put every read of a query over
- * many small datasets on the coordinator at once, so the hop it saves stops being what limits the query.
- * <p>
- * Reduction is judged by {@link #reducesRowsWhenDistributed}, which unlike the gather rule also looks inside an
- * unresolved fragment. A fan-in producer carries its pushed-down aggregation as a logical plan, so judging it by its
- * physical nodes would find no reduction in any of them.
+ * A fan-in with several producers treats a single-split producer as distributable: placing every small
+ * producer on the coordinator would pile those reads onto one node. Reduction is judged by
+ * {@link #reducesRowsWhenDistributed}, which also looks inside an unresolved fragment so a pushed-down
+ * aggregation still counts.
  */
 public final class AdaptiveStrategy implements ExternalDistributionStrategy {
 
@@ -97,17 +93,10 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
 
     /**
      * Whether distributing this read would have a data node reduce rows before shipping them back.
-     *
-     * <p>Deliberately broader than {@link ExternalDistributionStrategy#needsGatherBoundary}, and asking a different
-     * question. That rule decides a correctness matter for a read that stays put: whether its operators may be
-     * replicated across the parallel drivers of a single node. It has to stay narrow, because it also governs whether
-     * a local read keeps its exchange. This one only decides whether distributing pays, so it can safely answer yes
-     * more often: distributing is correct either way, since a data node plans and gathers its own slice.
-     *
-     * <p>What it adds is the fan-in producer, which arrives here as an unresolved {@link FragmentExec} still holding
-     * its pushed-down aggregation as a logical {@link Aggregate}. No {@code AggregateExec} exists in the tree yet, so
-     * reading the physical nodes alone reports no reduction for precisely the producers that a query over many
-     * datasets consists of, and every one of them would be read on the coordinator.
+     * Broader than {@link ExternalDistributionStrategy#needsGatherBoundary}: that rule is a correctness
+     * check for a local read's operators, this one only decides whether distributing pays. A fan-in
+     * producer still holds its pushed-down aggregation as a logical {@link Aggregate} inside
+     * {@link FragmentExec}, so the physical tree alone would report no reduction.
      */
     private static boolean reducesRowsWhenDistributed(PhysicalPlan plan) {
         return ExternalDistributionStrategy.needsGatherBoundary(plan) || fragmentHolds(plan, AdaptiveStrategy::reducesRows);

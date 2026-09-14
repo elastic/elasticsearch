@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
-import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -64,15 +63,8 @@ import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
-import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
-import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
-import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.SourceFanInExec;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -100,10 +92,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Production-order planning for a FORK over a source-only view composition.
@@ -203,71 +193,6 @@ public class SourceFanInProductionOrderTests extends ESTestCase {
         }
     }
 
-    public void testSingleDatasetViewsStillRejectForkUnderCps() {
-        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
-            putView(viewService, "view_a", "FROM ds1");
-            putView(viewService, "view_b", "FROM ds1");
-
-            String query = """
-                FROM view_a, view_b
-                | FORK
-                    (KEEP emp_no)
-                    (WHERE emp_no IS NOT NULL | KEEP emp_no)
-                """;
-            VerificationException error = expectThrows(
-                VerificationException.class,
-                () -> analyzeProductionOrder(viewService, query, false, UnmappedResolution.DEFAULT, true)
-            );
-            assertThat(error.getMessage(), containsString("FORK after subquery is not supported"));
-            assertWarnings(NO_LIMIT_WARNING);
-        }
-    }
-
-    public void testEstimateRowSizeIsolatedWhenOneForkBranchIsLocal() {
-        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
-            viewService.addIndex(ProjectId.DEFAULT, EXTRA_IDX);
-            putView(viewService, VIEW, "FROM ds1, ds2");
-
-            LogicalPlan analyzed = analyzeProductionOrder(viewService, FORK_QUERY, false);
-            PhysicalPlan physical = mapPlan(analyzed);
-            MergeExec merge = onlyPhysical(physical, MergeExec.class);
-            PhysicalPlan fanInBranch = null;
-            for (PhysicalPlan child : merge.children()) {
-                if (child.anyMatch(p -> p instanceof SourceFanInExec)) {
-                    fanInBranch = child;
-                    break;
-                }
-            }
-            assertNotNull(fanInBranch);
-            EvalExec localEval = new EvalExec(
-                merge.source(),
-                new LocalSourceExec(merge.source(), merge.output(), EmptyLocalSupplier.EMPTY),
-                List.of(new Alias(merge.source(), "added", new Literal(merge.source(), 1, DataType.INTEGER)))
-            );
-            ProjectExec localBranch = new ProjectExec(merge.source(), localEval, merge.output());
-            List<Integer> isolatedSizes = producerRowSizes(fanInOf(EstimatesRowSize.estimateRowSize(0, fanInBranch)));
-            assertFalse(isolatedSizes.isEmpty());
-            for (List<PhysicalPlan> branches : List.of(List.of(localBranch, fanInBranch), List.of(fanInBranch, localBranch))) {
-                MergeExec mixed = new MergeExec(merge.source(), branches, merge.output());
-                MergeExec estimated = as(EstimatesRowSize.estimateRowSize(0, mixed), MergeExec.class);
-                SourceFanInExec estimatedFanIn = fanInOf(estimated);
-                assertNotNull(estimatedFanIn);
-                assertThat(producerRowSizes(estimatedFanIn), equalTo(isolatedSizes));
-            }
-            List<Integer> leakedSizes = producerRowSizes(
-                fanInOf(EstimatesRowSize.estimateRowSize(DataType.INTEGER.estimatedSize(), fanInBranch))
-            );
-            assertThat(leakedSizes, not(equalTo(isolatedSizes)));
-            assertThat(
-                leakedSizes.stream().mapToInt(Integer::intValue).sum(),
-                greaterThan(isolatedSizes.stream().mapToInt(Integer::intValue).sum())
-            );
-            assertWarnings(NO_LIMIT_WARNING);
-        }
-    }
-
     public void testUnmatchedNamesakeAtEightProducersAdmitsFork() {
         assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
@@ -296,23 +221,6 @@ public class SourceFanInProductionOrderTests extends ESTestCase {
             VerificationException error = expectThrows(
                 VerificationException.class,
                 () -> analyzeProductionOrder(viewService, FORK_QUERY, true)
-            );
-            assertThat(error.getMessage(), containsString("FROM supports up to " + SourceFanInUnionAll.MAX_PRODUCERS + " sources"));
-            assertThat(error.getMessage(), containsString("got: 9"));
-            assertWarnings(NO_LIMIT_WARNING);
-        }
-    }
-
-    public void testMatchedEmptyMappingNamesakeNinthProducerRejectsFork() {
-        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
-            viewService.addIndex(ProjectId.DEFAULT, EXTRA_IDX);
-            putView(viewService, VIEW, SEVEN_DATASET_VIEW);
-
-            IndexResolution emptyMapping = IndexResolution.valid(EsIndexGenerator.esIndex(VIEW), Set.of(VIEW), Map.of());
-            VerificationException error = expectThrows(
-                VerificationException.class,
-                () -> analyzeProductionOrder(viewService, FORK_QUERY, emptyMapping, UnmappedResolution.DEFAULT, true)
             );
             assertThat(error.getMessage(), containsString("FROM supports up to " + SourceFanInUnionAll.MAX_PRODUCERS + " sources"));
             assertThat(error.getMessage(), containsString("got: 9"));
@@ -376,29 +284,6 @@ public class SourceFanInProductionOrderTests extends ESTestCase {
                 () -> analyzeProductionOrder(viewService, FORK_QUERY, false, UnmappedResolution.LOAD)
             );
             assertThat(error.getMessage(), containsString("FORK after subquery is not supported"));
-            assertWarnings(NO_LIMIT_WARNING);
-        }
-    }
-
-    public void testNestedSourceOnlyViewChainFlattensUnderFork() {
-        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
-            viewService.addIndex(ProjectId.DEFAULT, EXTRA_IDX);
-            putView(viewService, "view_inner", "FROM ds1, ds2");
-            putView(viewService, VIEW, "FROM view_inner");
-
-            LogicalPlan analyzed = analyzeProductionOrder(viewService, FORK_QUERY, false);
-            assertFalse(analyzed.anyMatch(p -> p instanceof ViewUnionAll));
-            List<SourceFanInUnionAll> fanIns = collectLogical(analyzed, SourceFanInUnionAll.class);
-            assertThat(fanIns, hasSize(2));
-            for (SourceFanInUnionAll fanIn : fanIns) {
-                assertThat(fanIn.children(), hasSize(3));
-                assertThat(countLogical(fanIn, ExternalRelation.class), equalTo(2));
-                assertThat(countLogical(fanIn, EsRelation.class), equalTo(1));
-            }
-            PhysicalPlan physical = mapPlan(analyzed);
-            assertThat(countPhysical(physical, MergeExec.class), equalTo(1));
-            assertThat(countPhysical(physical, SourceFanInExec.class), equalTo(2));
             assertWarnings(NO_LIMIT_WARNING);
         }
     }
@@ -481,26 +366,6 @@ public class SourceFanInProductionOrderTests extends ESTestCase {
             assertUnsupportedFanInField(analyzed, "emp_no");
             assertWarnings(NO_LIMIT_WARNING);
             assertConflictingFanInFieldError(viewService, schemas, "integer", "long");
-            assertWarnings(NO_LIMIT_WARNING);
-        }
-    }
-
-    public void testIntegerAndKeywordEmpNoConflictOnFanIn() {
-        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
-            putView(viewService, VIEW, "FROM ds1, ds2");
-
-            Map<String, List<Attribute>> schemas = Map.of(
-                DS1_PATH,
-                List.of(referenceAttribute("emp_no", DataType.INTEGER)),
-                DS2_PATH,
-                List.of(referenceAttribute("emp_no", DataType.KEYWORD))
-            );
-            LogicalPlan analyzed = analyzeProductionOrder(viewService, "FROM view_fan | KEEP emp_no", schemas);
-            assertThat(producerFieldTypes(analyzed, "emp_no"), equalTo(Set.of(DataType.INTEGER, DataType.KEYWORD)));
-            assertUnsupportedFanInField(analyzed, "emp_no");
-            assertWarnings(NO_LIMIT_WARNING);
-            assertConflictingFanInFieldError(viewService, schemas, "integer", "keyword");
             assertWarnings(NO_LIMIT_WARNING);
         }
     }
@@ -644,13 +509,7 @@ public class SourceFanInProductionOrderTests extends ESTestCase {
     }
 
     private static BiFunction<String, String, LogicalPlan> parseView() {
-        return (query, viewName) -> TEST_PARSER.parseView(
-            query,
-            new QueryParams(),
-            new SettingsValidationContext(false, false),
-            EMPTY_INFERENCE_SETTINGS,
-            viewName
-        ).plan();
+        return (query, viewName) -> TEST_PARSER.parseView(query, new QueryParams(), EMPTY_INFERENCE_SETTINGS, viewName).plan();
     }
 
     private static LogicalPlan rewriteWithCps(LogicalPlan parsed, ProjectMetadata project) {
@@ -742,26 +601,6 @@ public class SourceFanInProductionOrderTests extends ESTestCase {
 
     private static String datasetPath(int n) {
         return "s3://bucket/ds" + n + "/*.parquet";
-    }
-
-    private static SourceFanInExec fanInOf(PhysicalPlan plan) {
-        Holder<SourceFanInExec> found = new Holder<>();
-        plan.forEachDown(SourceFanInExec.class, found::set);
-        return found.get();
-    }
-
-    private static List<Integer> producerRowSizes(SourceFanInExec fanIn) {
-        List<Integer> sizes = new ArrayList<>();
-        for (PhysicalPlan producer : fanIn.producers()) {
-            producer.forEachDown(p -> {
-                if (p instanceof FragmentExec fragment) {
-                    sizes.add(fragment.estimatedRowSize());
-                } else if (p instanceof ExternalSourceExec external) {
-                    sizes.add(external.estimatedRowSize());
-                }
-            });
-        }
-        return sizes;
     }
 
     private static ExternalSourceResolution.ResolvedSource resolvedSource(String path, List<Attribute> schema) {

@@ -5787,6 +5787,63 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Reproducer for https://github.com/elastic/elasticsearch/issues/149814.
+     * When {@code ST_CENTROID_AGG(location)} marks {@code location} for doc-values extraction, the
+     * {@code BinarySpatialFunction} scan in {@code SpatialDocValuesExtraction} also adds {@code city_location}
+     * to {@code foundAttributes} (because {@code ST_DISTANCE(location, city_location)} is a
+     * {@code BinarySpatialFunction} whose both {@code FieldAttribute} operands are eligible for doc-values).
+     * Both fields must therefore be extracted as {@code DOC_VALUES} and the {@code ST_DISTANCE} evaluator
+     * must use the {@code DocValuesAndDocValues} variant. Previously only {@code DocValuesAndSource} existed,
+     * so the right-hand {@code LongBlock} was incorrectly cast to {@code BytesRefBlock}, causing a
+     * {@code ClassCastException} at runtime.
+     */
+    public void testSpatialStDistanceBothFieldsDocValues() {
+        // AVG decomposes to SUM/COUNT + a final division EvalExec, so the physical plan has a
+        // ProjectExec -> EvalExec (division) -> LimitExec -> AggregateExec(FINAL) on top.
+        // Both location and city_location must be independently used by a spatial aggregation so that
+        // Phase 1 of SpatialDocValuesExtraction adds BOTH to foundAttributes. Only then does Phase 2
+        // call withDocValues(true, true) on ST_DISTANCE — the scenario that previously caused a crash.
+        var optimized = optimizedPlan(this.physicalPlan("""
+            FROM airports
+            | STATS centroid = ST_CENTROID_AGG(location), city_centroid = ST_CENTROID_AGG(city_location),
+                    avg_dist = AVG(ST_DISTANCE(location, city_location))
+            """, airports));
+
+        // Navigate past the AVG decomposition wrappers to the FINAL aggregation
+        var project = as(optimized, ProjectExec.class);
+        var evalDiv = as(project.child(), EvalExec.class);
+        var limit = as(evalDiv.child(), LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat("Outer aggregation is FINAL", agg.getMode(), equalTo(FINAL));
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);
+
+        var exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.DOC_VALUES);
+
+        // ST_DISTANCE(location, city_location) is pre-evaluated in an EvalExec before the aggregation.
+        // Both location and city_location must be extracted via doc-values because ST_DISTANCE is a
+        // BinarySpatialFunction whose both FieldAttribute operands get added to foundAttributes by the
+        // SpatialDocValuesExtraction rule. The DocValuesAndDocValues evaluator variant handles
+        // the resulting LongBlock+LongBlock case; without it a ClassCastException occurs at runtime.
+        var evalExec = as(agg.child(), EvalExec.class);
+        var fieldExtract = as(evalExec.child(), FieldExtractExec.class);
+        var dvNames = fieldExtract.docValuesAttributes().stream().map(Attribute::name).collect(Collectors.toSet());
+        assertThat("location extracted via doc-values", dvNames, hasItem("location"));
+        assertThat("city_location extracted via doc-values", dvNames, hasItem("city_location"));
+
+        // Verify that the ST_DISTANCE expression in the EvalExec has both leftDocValues and rightDocValues set.
+        // collectLeaves() skips ST_DISTANCE because it has children, so use forEachDown instead.
+        List<StDistance> stDistances = new ArrayList<>();
+        evalExec.fields().forEach(alias -> alias.forEachDown(StDistance.class, stDistances::add));
+        assertThat("ST_DISTANCE found in EvalExec fields", stDistances, is(not(empty())));
+        var stDist = stDistances.get(0);
+        assertTrue("ST_DISTANCE left field uses doc-values", stDist.leftDocValues());
+        assertTrue("ST_DISTANCE right field uses doc-values", stDist.rightDocValues());
+    }
+
+    /**
      * Before local optimizations:
      * <code>
      * LimitExec[1000[INTEGER]]

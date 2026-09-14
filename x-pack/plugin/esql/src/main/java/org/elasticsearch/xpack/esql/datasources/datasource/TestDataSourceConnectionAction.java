@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
 
 import java.io.IOException;
@@ -47,7 +48,7 @@ public class TestDataSourceConnectionAction extends ActionType<TestDataSourceCon
     }
 
     /** Request body: {@code {"type": "...", "settings": {...}}}. */
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements DataSourceRequestInfo {
         private static final ParseField TYPE = new ParseField("type");
         private static final ParseField SETTINGS = new ParseField("settings");
 
@@ -94,6 +95,16 @@ public class TestDataSourceConnectionAction extends ActionType<TestDataSourceCon
         }
 
         @Override
+        public String[] dataSourceNames() {
+            return new String[0];
+        }
+
+        @Override
+        public String dataSourceClusterActionName() {
+            return NAME;
+        }
+
+        @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
@@ -115,9 +126,10 @@ public class TestDataSourceConnectionAction extends ActionType<TestDataSourceCon
 
     /**
      * Result of a connection test. Use {@link #success()}, {@link #failure(String)}, or
-     * {@link #untestable()} to construct instances.
+     * {@link #untestable(String)} to construct instances.
      *
-     * <p>Wire format: {@code {"status": "success"|"failure"|"untestable"[, "error": "..."]}}
+     * <p>Wire format:
+     * {@code {"status": "success"|"failure"|"untestable"[, "error": "..."][, "message": "..."]}}
      */
     public static class Response extends ActionResponse implements ToXContentObject {
         private static final String STATUS_SUCCESS = "success";
@@ -127,10 +139,13 @@ public class TestDataSourceConnectionAction extends ActionType<TestDataSourceCon
         private final String status;
         @Nullable
         private final String error;
+        /** Optional user-visible explanation for {@code untestable} results. */
+        @Nullable
+        private final String message;
 
         /** Probe ran and the backend is reachable. */
         public static Response success() {
-            return new Response(STATUS_SUCCESS, null);
+            return new Response(STATUS_SUCCESS, null, null);
         }
 
         /**
@@ -139,17 +154,23 @@ public class TestDataSourceConnectionAction extends ActionType<TestDataSourceCon
          * @param error human-readable reason; must not be {@code null}
          */
         public static Response failure(String error) {
-            return new Response(STATUS_FAILURE, Objects.requireNonNull(error, "error"));
+            return new Response(STATUS_FAILURE, Objects.requireNonNull(error, "error"), null);
         }
 
-        /** Type is valid but has no connectivity probe. */
+        /** Type is valid but has no connectivity probe; no additional guidance. */
         public static Response untestable() {
-            return new Response(STATUS_UNTESTABLE, null);
+            return new Response(STATUS_UNTESTABLE, null, null);
         }
 
-        private Response(String status, @Nullable String error) {
+        /** Type is valid but has no connectivity probe; {@code message} carries user-visible guidance. */
+        public static Response untestable(@Nullable String message) {
+            return new Response(STATUS_UNTESTABLE, null, message);
+        }
+
+        private Response(String status, @Nullable String error, @Nullable String message) {
             this.status = Objects.requireNonNull(status, "status");
             this.error = error;
+            this.message = message;
         }
 
         public String status() {
@@ -159,6 +180,11 @@ public class TestDataSourceConnectionAction extends ActionType<TestDataSourceCon
         @Nullable
         public String error() {
             return error;
+        }
+
+        @Nullable
+        public String message() {
+            return message;
         }
 
         @Override
@@ -173,6 +199,9 @@ public class TestDataSourceConnectionAction extends ActionType<TestDataSourceCon
             if (error != null) {
                 builder.field("error", error);
             }
+            if (message != null) {
+                builder.field("message", message);
+            }
             builder.endObject();
             return builder;
         }
@@ -181,14 +210,14 @@ public class TestDataSourceConnectionAction extends ActionType<TestDataSourceCon
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o instanceof Response response) {
-                return status.equals(response.status) && Objects.equals(error, response.error);
+                return status.equals(response.status) && Objects.equals(error, response.error) && Objects.equals(message, response.message);
             }
             return false;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(status, error);
+            return Objects.hash(status, error, message);
         }
     }
 }

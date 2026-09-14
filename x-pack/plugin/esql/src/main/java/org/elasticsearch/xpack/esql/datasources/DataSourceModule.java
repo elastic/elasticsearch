@@ -65,12 +65,11 @@ public final class DataSourceModule implements Closeable {
     private final FormatReaderRegistry formatReaderRegistry;
     private final Map<String, ExternalSourceFactory> sourceFactories;
     /**
-     * Maps logical data-source type names (as accepted by PUT) to the primary URI scheme used to look up
-     * the corresponding {@link StorageProviderFactory} for test-connection. Populated from
-     * {@link DataSourcePlugin#testConnectionSchemes()} at construction time. Only needed when the type name
-     * differs from the URI scheme (e.g. {@code "gcs"→"gs"}, {@code "azure"→"wasbs"}).
+     * Pre-built delegating probes for types whose PUT name differs from the URI scheme
+     * (e.g. {@code "gcs"→gs factory}, {@code "azure"→wasbs factory}). Keyed by the user-facing PUT
+     * type name. Built at construction from {@link DataSourcePlugin#testConnectionSchemes()}.
      */
-    private final Map<String, String> testConnectionTypeToScheme;
+    private final Map<String, StorageProviderFactory> testConnectionStorageProbes;
     private final DataSourceCredentials credentials;
     // TODO(#142815): backward-compat bridge — remove once table functions land.
     private final Map<String, SourceOperatorFactoryProvider> pluginFactories;
@@ -224,6 +223,7 @@ public final class DataSourceModule implements Closeable {
                     throw new IllegalStateException("duplicate testConnectionSchemes entry for type [" + type + "]");
                 }
             });
+
             LazyPluginState state = new LazyPluginState(plugin, settings, executor, environment, resourceWatcherService);
 
             // A DataSourcePlugin's storageProviders(StorageProviderServices) may allocate node-level
@@ -369,7 +369,27 @@ public final class DataSourceModule implements Closeable {
         // factory's config-aware canHandle claims that same object whenever an explicit `format` is configured. With
         // an undefined order, which one resolves such a path would vary between nodes and restarts.
         this.sourceFactories = Collections.unmodifiableMap(new LinkedHashMap<>(sourceFactoryMap));
-        this.testConnectionTypeToScheme = Map.copyOf(tcTypeToScheme);
+        // Pre-build the test-connection probe map keyed by user-facing PUT type names.
+        // Each entry is a delegating StorageProviderFactory that resolves the scheme-registered
+        // factory lazily (the registry is fully populated by the time testConnection() is called).
+        Map<String, StorageProviderFactory> tcProbes = new LinkedHashMap<>();
+        tcTypeToScheme.forEach((type, scheme) -> tcProbes.put(type, new StorageProviderFactory() {
+            @Override
+            public StorageProvider create(Settings s) {
+                return storageProviderRegistry.getFactory(scheme).create(s);
+            }
+
+            @Override
+            public Configured<StorageProvider> createTrackingConsumedKeys(Settings s, Map<String, Object> config) {
+                return storageProviderRegistry.getFactory(scheme).createTrackingConsumedKeys(s, config);
+            }
+
+            @Override
+            public void testConnection(Map<String, Object> config) throws IOException {
+                storageProviderRegistry.getFactory(scheme).testConnection(config);
+            }
+        }));
+        this.testConnectionStorageProbes = Map.copyOf(tcProbes);
         this.pluginFactories = Map.copyOf(operatorFactoryProviders);
         this.managedCloseables = closeables;
     }
@@ -419,7 +439,7 @@ public final class DataSourceModule implements Closeable {
      * @param rawSettings raw settings map; may be empty but must not be {@code null}
      * @return {@link TestConnectionResult#SUCCESS} if the probe passed,
      *         {@link TestConnectionResult#UNTESTABLE} if the type is valid but has no probe,
-     *         or {@link TestConnectionResult#failure} if the probe ran but failed
+     *         or {@link TestConnectionResult.Failure} if the probe ran but failed
      * @throws IllegalArgumentException if no factory is registered for the data source type (HTTP 400)
      */
     public TestConnectionResult testConnection(String type, Map<String, Object> rawSettings) {
@@ -428,15 +448,12 @@ public final class DataSourceModule implements Closeable {
         ExternalSourceFactory extFactory = sourceFactories.get(type);
         StorageProviderFactory spFactory = null;
         if (extFactory == null) {
-            // Direct scheme lookup: works when the PUT type name matches the URI scheme (e.g. "s3", "http").
+            // Direct scheme lookup: works when the PUT type name matches the URI scheme (e.g. "s3").
             spFactory = storageProviderRegistry.getFactory(type);
             if (spFactory == null) {
-                // Mapped lookup: handles plugins where the PUT type name differs from the URI scheme
-                // (e.g. "gcs" → "gs", "azure" → "wasbs", "local" → "file").
-                String scheme = testConnectionTypeToScheme.get(type);
-                if (scheme != null) {
-                    spFactory = storageProviderRegistry.getFactory(scheme);
-                }
+                // Pre-built probe map: handles types whose PUT name differs from the URI scheme
+                // (e.g. "gcs" → gs factory, "azure" → wasbs factory, "local" → file factory).
+                spFactory = testConnectionStorageProbes.get(type);
             }
         }
         if (extFactory == null && spFactory == null) {
@@ -450,7 +467,7 @@ public final class DataSourceModule implements Closeable {
             }
             return TestConnectionResult.SUCCESS;
         } catch (TestConnectionNotSupportedException e) {
-            return TestConnectionResult.UNTESTABLE;
+            return new TestConnectionResult.Untestable(e.userReason());
         } catch (IOException | RuntimeException e) {
             String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getName();
             return TestConnectionResult.failure(msg);

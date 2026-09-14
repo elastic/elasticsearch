@@ -26,8 +26,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Accepts the full data source configuration in the request body and opens a live connection to verify
  * the settings are reachable. The data source does not need to exist in cluster state — this endpoint
  * is intended for validating a new configuration before saving it.
- * Returns {@code {"connected": true}} on success or {@code {"connected": false, "error": "..."}} on failure;
- * returns 400 for an unregistered data source type.
+ * Response: {@code {"status": "success"}}, {@code {"status": "failure", "error": "..."}}, or
+ * {@code {"status": "untestable"[, "message": "..."]}}. Returns 400 for an unregistered type.
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestTestDataSourceConnectionAction extends BaseRestHandler {

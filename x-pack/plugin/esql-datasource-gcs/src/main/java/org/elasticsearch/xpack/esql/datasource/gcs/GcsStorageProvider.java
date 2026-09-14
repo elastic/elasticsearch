@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.TestConnectionNotSupportedException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -157,7 +158,22 @@ public class GcsStorageProvider implements StorageProvider {
      * Called from the factory's {@code testConnection} on a GENERIC thread — blocking I/O is expected.
      */
     public void testConnection() {
-        storage().list(Storage.BucketListOption.pageSize(1));
+        try {
+            storage().list(Storage.BucketListOption.pageSize(1));
+        } catch (StorageException e) {
+            if (e.getCode() == 403) {
+                // A 403 on list-buckets means the credentials are valid but have bucket-scoped
+                // IAM policies that deny the account-wide listing call. This is not a connectivity
+                // failure — the credentials work, they just lack the list-all-buckets privilege.
+                // Under the false-negative avoidance principle, report UNTESTABLE with guidance
+                // rather than FAILURE, which would prompt the user to "fix" working credentials.
+                throw new TestConnectionNotSupportedException(
+                    "GCS returned 403 Forbidden on list-buckets; credentials may be bucket-scoped",
+                    "Bucket-scoped service accounts cannot be verified at the data source level; create a dataset to validate access."
+                );
+            }
+            throw e;
+        }
     }
 
     /**

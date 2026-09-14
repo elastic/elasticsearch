@@ -12,7 +12,8 @@ package org.elasticsearch.xpack.esql.datasources;
  * <ul>
  *   <li>{@link Success} — the probe ran and the backend is reachable.</li>
  *   <li>{@link Failure} — the probe ran but the backend rejected or was unreachable.</li>
- *   <li>{@link Untestable} — the type is registered and valid but has no connectivity probe.</li>
+ *   <li>{@link Untestable} — the type is registered and valid but has no connectivity probe.
+ *       Carries an optional human-readable {@link Untestable#reason()} surfaced in the API response.</li>
  * </ul>
  */
 public sealed interface TestConnectionResult permits TestConnectionResult.Success, TestConnectionResult.Failure,
@@ -24,13 +25,22 @@ public sealed interface TestConnectionResult permits TestConnectionResult.Succes
     /** Probe ran but failed; carries a human-readable reason. */
     record Failure(String error) implements TestConnectionResult {}
 
-    /** Type is valid but cannot be probed. */
-    record Untestable() implements TestConnectionResult {}
+    /**
+     * Type is valid but cannot be probed.
+     *
+     * @param reason optional user-visible explanation for the API {@code message} field;
+     *               {@code null} when no additional guidance is available
+     */
+    record Untestable(@org.elasticsearch.core.Nullable String reason) implements TestConnectionResult {}
 
     TestConnectionResult SUCCESS = new Success();
-    TestConnectionResult UNTESTABLE = new Untestable();
+    TestConnectionResult UNTESTABLE = new Untestable(null);
 
     static TestConnectionResult failure(String error) {
         return new Failure(error);
+    }
+
+    static TestConnectionResult untestable(String reason) {
+        return new Untestable(reason);
     }
 }

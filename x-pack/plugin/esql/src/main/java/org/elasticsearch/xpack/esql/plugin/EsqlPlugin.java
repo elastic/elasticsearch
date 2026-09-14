@@ -125,6 +125,7 @@ import org.elasticsearch.xpack.esql.datasources.datasource.RestGetDataSourceActi
 import org.elasticsearch.xpack.esql.datasources.datasource.RestPutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.RestTestDataSourceConnectionAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestDataSourceConnectionAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestDataSourceNodeAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportDeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportGetDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportPutDataSourceAction;
@@ -720,6 +721,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
             new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
             new ActionHandler(TestDataSourceConnectionAction.INSTANCE, TransportTestDataSourceConnectionAction.class),
+            new ActionHandler(TestDataSourceNodeAction.TYPE, TestDataSourceNodeAction.TransportAction.class),
             new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class),
             new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class),
             new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)

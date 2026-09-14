@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.vector.quantization;
 
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.benchmark.vector.VectorizationInfo;
 import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborHood;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -45,6 +46,7 @@ public class ComputeNeighboursBenchmark {
 
     static {
         BenchmarkLogging.configure();
+        VectorizationInfo.printOnce();
     }
 
     @Param({ "1000", "2000", "3000", "5000", "10000", "20000", "50000" })

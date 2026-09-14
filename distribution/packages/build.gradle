@@ -75,13 +75,13 @@ plugins {
 
     doLast {
       // create empty dirs, we set the permissions when configuring the packages
-      mkdir "${packagingFiles}/var/log/elasticsearch"
-      mkdir "${packagingFiles}/var/lib/elasticsearch"
-      mkdir "${packagingFiles}/usr/share/elasticsearch/plugins"
+      new File(packagingFiles, 'var/log/elasticsearch').mkdirs()
+      new File(packagingFiles, 'var/lib/elasticsearch').mkdirs()
+      new File(packagingFiles, 'usr/share/elasticsearch/plugins').mkdirs()
 
       // bare empty dir for /etc/elasticsearch and /etc/elasticsearch/jvm.options.d
-      mkdir "${packagingFiles}/elasticsearch"
-      mkdir "${packagingFiles}/elasticsearch/jvm.options.d"
+      new File(packagingFiles, 'elasticsearch').mkdirs()
+      new File(packagingFiles, 'elasticsearch/jvm.options.d').mkdirs()
     }
   }
 }

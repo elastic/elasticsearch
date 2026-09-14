@@ -78,14 +78,15 @@ public class FeatureMetricTests extends ESTestCase {
         assertTrue(bitset.get(FeatureMetric.FORK.ordinal()));
     }
 
-    public void testPlainUnionAllSetsForkBit() {
+    public void testPlainUnionAllDoesNotSetForkBit() {
         UnionAll union = new UnionAll(Source.EMPTY, List.of(relation("a"), relation("b")), List.of());
         BitSet bitset = new BitSet();
         FeatureMetric.set(union, bitset);
-        assertTrue(bitset.get(FeatureMetric.FORK.ordinal()));
+        assertTrue(bitset.isEmpty());
+        assertFalse(bitset.get(FeatureMetric.FORK.ordinal()));
     }
 
-    public void testViewUnionAllKeepsForkClassification() {
+    public void testViewUnionAllDoesNotSetForkBit() {
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put("v1", relation("a"));
         children.put("v2", relation("b"));
@@ -93,10 +94,11 @@ public class FeatureMetricTests extends ESTestCase {
 
         BitSet bitset = new BitSet();
         FeatureMetric.set(viewUnion, bitset);
-        assertTrue(bitset.get(FeatureMetric.FORK.ordinal()));
+        assertTrue(bitset.isEmpty());
+        assertFalse(bitset.get(FeatureMetric.FORK.ordinal()));
     }
 
-    public void testProvisionalSourceFanInKeepsForkClassification() {
+    public void testProvisionalSourceFanInDoesNotSetForkBit() {
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put("v1", relation("a"));
         children.put("v2", relation("b"));
@@ -104,7 +106,8 @@ public class FeatureMetricTests extends ESTestCase {
 
         BitSet bitset = new BitSet();
         FeatureMetric.set(provisional, bitset);
-        assertTrue(bitset.get(FeatureMetric.FORK.ordinal()));
+        assertTrue(bitset.isEmpty());
+        assertFalse(bitset.get(FeatureMetric.FORK.ordinal()));
     }
 
     private static UnresolvedRelation relation(String name) {

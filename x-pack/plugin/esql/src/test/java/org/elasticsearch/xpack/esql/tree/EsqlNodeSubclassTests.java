@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
@@ -198,6 +199,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         Concat.class,
         CIDRMatch.class,
         Fork.class,
+        SourceFanInUnionAll.class,
         UnionAll.class,
         ViewUnionAll.class
     );
@@ -585,7 +587,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             // ResolvingProject's ctor asserts at most one $$unmapped_fields in the child output. randomResolvedExpression can draw
             // UnmappedFieldsAttribute for any Attribute arg, letting the random tree stack two — a shape the analyzer never builds.
             return randomEsRelation();
-        } else if (List.of(Fork.class, MergeExec.class, UnionAll.class, ViewUnionAll.class).contains(toBuildClass)
+        } else if (List.of(Fork.class, MergeExec.class, SourceFanInUnionAll.class, UnionAll.class, ViewUnionAll.class)
+            .contains(toBuildClass)
             && argType == LogicalPlan.class) {
                 // limit recursion of plans, in order to prevent stackoverflow errors
                 return randomEsRelation();
@@ -776,6 +779,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     private static int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
         if (CompoundOutputEval.class.isAssignableFrom(toBuildClass) || CompoundOutputEvalExec.class.isAssignableFrom(toBuildClass)) {
             // subclasses of CompoundOutputEval/Exec must have map and list that match in size
+            return 4;
+        }
+        if (toBuildClass == SourceFanInUnionAll.class) {
+            // Provisional construction requires one branch key per child, so the random
+            // children and branchKeys lists must share a length.
             return 4;
         }
 

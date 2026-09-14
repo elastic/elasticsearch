@@ -187,15 +187,10 @@ public class PromqlBuiltinFunctionDefinitions {
         .description("Sorts instant-vector series by sample value in ascending order. NaN values are sorted last.")
         .example("sort(http_requests_total)")
         .extendedDescription(
-            "Ordering is observable only on instant queries. After a range query the Prometheus engine re-sorts "
-                + "the matrix by label set, so the sort has no effect on the returned series order."
+            "Ordering is observable only on instant queries. Range queries return the series in their input order, "
+                + "without applying the requested ordering."
         )
-        .differenceFromPrometheus(
-            "A range vector argument is rejected with `expected type instant_vector in call to function [sort], "
-                + "got range_vector`, which differs from Prometheus's wording. Range queries emit an HTTP warning "
-                + "`sort: ordering is discarded for range queries`; Prometheus silently discards the order and "
-                + "emits no warning. The warning is an HTTP `Warning` header, not the Prometheus JSON `warnings` array."
-        )
+        .differenceFromPrometheus("Range queries emit a warning that the ordering is discarded. Prometheus discards it silently.")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .name("sort");
 
@@ -205,15 +200,10 @@ public class PromqlBuiltinFunctionDefinitions {
         .description("Sorts instant-vector series by sample value in descending order. NaN values are sorted last.")
         .example("sort_desc(http_requests_total)")
         .extendedDescription(
-            "Ordering is observable only on instant queries. After a range query the Prometheus engine re-sorts "
-                + "the matrix by label set, so the sort has no effect on the returned series order."
+            "Ordering is observable only on instant queries. Range queries return the series in their input order, "
+                + "without applying the requested ordering."
         )
-        .differenceFromPrometheus(
-            "A range vector argument is rejected with `expected type instant_vector in call to function [sort_desc], "
-                + "got range_vector`, which differs from Prometheus's wording. Range queries emit an HTTP warning "
-                + "`sort_desc: ordering is discarded for range queries`; Prometheus silently discards the order and "
-                + "emits no warning. The warning is an HTTP `Warning` header, not the Prometheus JSON `warnings` array."
-        )
+        .differenceFromPrometheus("Range queries emit a warning that the ordering is discarded. Prometheus discards it silently.")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .name("sort_desc");
 

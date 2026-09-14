@@ -2,7 +2,7 @@
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "result_ordering",
   "name" : "sort_desc",
-  "description" : "Sorts instant-vector series by sample value in descending order. NaN values are sorted last. Ordering is observable only on instant queries. After a range query the Prometheus engine re-sorts the matrix by label set, so the sort has no effect on the returned series order.",
+  "description" : "Sorts instant-vector series by sample value in descending order. NaN values are sorted last. Ordering is observable only on instant queries. Range queries return the series in their input order, without applying the requested ordering.",
   "signatures" : [
     {
       "params" : [

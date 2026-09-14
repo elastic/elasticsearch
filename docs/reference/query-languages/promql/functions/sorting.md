@@ -10,7 +10,7 @@ products:
 
 # Sorting functions [promql-sorting-functions]
 
-These functions order the series of an instant vector by sample value. Ordering is observable only on instant queries; range queries keep the input order.
+These functions order the series of an instant vector by sample value. Ordering is observable only on instant queries. Range queries return the series in their input order, without applying the requested ordering.
 
 :::{include} ../_snippets/generated/x-pack-esql/functions/lists/sorting.md
 :::

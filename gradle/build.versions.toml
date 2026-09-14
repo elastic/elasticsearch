@@ -9,6 +9,7 @@ nmcp = "1.6.2"
 ant = "org.apache.ant:ant:1.10.12"
 antlrst4 = "org.antlr:ST4:4.3.4"
 apache-compress = "org.apache.commons:commons-compress:1.26.1"
+apache-lang3 = "org.apache.commons:commons-lang3:3.18.0"
 apache-rat = "org.apache.rat:apache-rat:0.11"
 archunit = "com.tngtech.archunit:archunit:1.5.0"
 asm = { group = "org.ow2.asm", name="asm", version.ref="asm" }
@@ -23,6 +24,7 @@ hamcrest = "org.hamcrest:hamcrest:3.0"
 httpcore5 = "org.apache.httpcomponents.core5:httpcore5:5.4.3"
 httpclient5 = "org.apache.httpcomponents.client5:httpclient5:5.6.4"
 idea-ext = "gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:1.1.4"
+jdeb = "org.vafer:jdeb:1.14"
 javaparser = "com.github.javaparser:javaparser-core:3.27.0"
 json-schema-validator = "com.networknt:json-schema-validator:1.0.72"
 json-assert = "org.skyscreamer:jsonassert:1.5.0"
@@ -40,6 +42,7 @@ maven-model = "org.apache.maven:maven-model:3.6.2"
 mockito-core = "org.mockito:mockito-core:1.9.5"
 nmcp = { group = "com.gradleup.nmcp", name = "nmcp", version.ref="nmcp" }
 nebula-info = "com.netflix.nebula:gradle-info-plugin:11.3.3"
+redline = "org.redline-rpm:redline:1.2.10"
 reflections = "org.reflections:reflections:0.9.12"
 shadow-plugin = "com.gradleup.shadow:shadow-gradle-plugin:9.0.1"
 snakeyaml = { group = "org.yaml", name = "snakeyaml", version = { strictly = "2.5" } }
@@ -52,5 +55,4 @@ wiremock = "com.github.tomakehurst:wiremock-jre8-standalone:2.23.2"
 xmlunit-core = "org.xmlunit:xmlunit-core:2.8.2"
 
 [plugins]
-ospackage = { id = "com.netflix.nebula.ospackage-base", version = "12.1.0" }
 nmcp-aggregation = { id = "com.gradleup.nmcp.aggregation", version.ref="nmcp" }

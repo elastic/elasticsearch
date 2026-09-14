@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
@@ -27,6 +28,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -47,17 +49,22 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.ESAcceptDocs.SliceAcceptDocs;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 
+import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat.MAX_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat.MIN_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -67,8 +74,81 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests for {@link ESNextDiskASHVectorsFormat}.
+ * Extends the standard Lucene vector format compliance test suite.
  */
-public class ESNextDiskASHVectorsFormatTests extends ESTestCase {
+public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestCase {
+
+    KnnVectorsFormat format;
+
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
+    }
+
+    @Override
+    protected VectorSimilarityFunction randomSimilarity() {
+        return randomFrom(
+            VectorSimilarityFunction.DOT_PRODUCT,
+            VectorSimilarityFunction.EUCLIDEAN,
+            VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
+        );
+    }
+
+    @Override
+    protected VectorEncoding randomVectorEncoding() {
+        return VectorEncoding.FLOAT32;
+    }
+
+    @Override
+    public void testSearchWithVisitedLimit() {
+        // IVF doesn't enforce visitation limit
+    }
+
+    @Override
+    public void testAdvance() {
+        // TODO re-enable with hierarchical IVF, clustering as it is is flaky
+    }
+
+    @Override
+    protected Codec getCodec() {
+        if (format == null) {
+            if (rarely()) {
+                int vectorPerCluster = random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
+                format = new ESNextDiskASHVectorsFormat(
+                    vectorPerCluster,
+                    random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                    null
+                );
+            } else {
+                // run with low numbers to force many clusters with parents
+                int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER);
+                format = new ESNextDiskASHVectorsFormat(
+                    vectorPerCluster,
+                    random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                    null
+                );
+            }
+        }
+        return TestUtil.alwaysKnnVectorsFormat(format);
+    }
+
+    @Override
+    protected void assertOffHeapByteSize(LeafReader r, String fieldName) throws IOException {
+        var fieldInfo = r.getFieldInfos().fieldInfo(fieldName);
+
+        if (r instanceof CodecReader codecReader) {
+            KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
+            if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                knnVectorsReader = fieldsReader.getFieldReader(fieldName);
+            }
+            var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
+            long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
+            assertThat(offHeap, aMapWithSize(3));
+            assertThat(totalByteSize, greaterThanOrEqualTo(0L));
+        } else {
+            throw new AssertionError("unexpected:" + r.getClass());
+        }
+    }
 
     public void testAshIndexAndSearch() throws IOException {
         int dimensions = 64;
@@ -173,7 +253,7 @@ public class ESNextDiskASHVectorsFormatTests extends ESTestCase {
             for (int i = 0; i < numDocs; i++) {
                 Document doc = new Document();
                 doc.add(SortedDocValuesField.indexedField(sliceField, new BytesRef("" + random().nextInt(5))));
-                doc.add(new KnnFloatVectorField(vectorField, randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                doc.add(new KnnFloatVectorField(vectorField, randomUnitRangeVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
                 w.addDocument(doc);
             }
             w.commit();
@@ -194,7 +274,7 @@ public class ESNextDiskASHVectorsFormatTests extends ESTestCase {
                         assertThat(centroidData, notNullValue());
                         assertThat(centroidData.numCentroids(), equalTo(1));
                     }
-                    float[] vector = randomVector(dimensions);
+                    float[] vector = randomUnitRangeVector(dimensions);
                     KnnCollector collector = new TopKnnCollector(leafReader.maxDoc(), Integer.MAX_VALUE);
                     leafReader.searchNearestVectors(vectorField, vector, collector, AcceptDocs.fromLiveDocs(null, leafReader.maxDoc()));
                     Set<Integer> docIds = new HashSet<>();
@@ -229,7 +309,7 @@ public class ESNextDiskASHVectorsFormatTests extends ESTestCase {
             for (int slice = 0; slice < slices; slice++) {
                 Document doc = new Document();
                 doc.add(SortedDocValuesField.indexedField(sliceField, new BytesRef("" + slice)));
-                doc.add(new KnnFloatVectorField(vectorField, randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                doc.add(new KnnFloatVectorField(vectorField, randomUnitRangeVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
                 w.addDocument(doc);
             }
             w.commit();
@@ -308,7 +388,7 @@ public class ESNextDiskASHVectorsFormatTests extends ESTestCase {
                     if (filterMatch) {
                         docsPerSliceFiltered[slice]++;
                     }
-                    doc.add(new KnnFloatVectorField(vectorField, randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                    doc.add(new KnnFloatVectorField(vectorField, randomUnitRangeVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
                 }
                 doc.add(new StoredField(sliceField, new BytesRef("" + slice)));
                 w.addDocument(doc);
@@ -338,7 +418,7 @@ public class ESNextDiskASHVectorsFormatTests extends ESTestCase {
             } else if (random().nextBoolean()) {
                 w.forceMerge(1);
             }
-            float[] vector = randomVector(dimensions);
+            float[] vector = randomUnitRangeVector(dimensions);
             try (IndexReader reader = DirectoryReader.open(w)) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 Weight filterWeight = null;
@@ -423,7 +503,7 @@ public class ESNextDiskASHVectorsFormatTests extends ESTestCase {
         }
     }
 
-    private static float[] randomVector(int dims) {
+    private static float[] randomUnitRangeVector(int dims) {
         float[] v = new float[dims];
         for (int i = 0; i < dims; i++) {
             v[i] = random().nextFloat() * 2 - 1;

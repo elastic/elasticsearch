@@ -59,17 +59,14 @@ public final class NumericPipeline {
      * which a field's own values do not, and a field would pay to look for them on every block it decodes.
      *
      * <p>Run comes first, since a run is a property of the values as they arrive and delta would leave
-     * nothing of it; Patched comes last, so it narrows what the terminal is about to pack. Stateless
-     * transforms are shared singletons; the terminal, Run and Patched own scratch and stay per-pipeline.
+     * nothing of it; Patched comes last, so it narrows what the terminal is about to pack. Gcd is not here:
+     * a stream of ordinals shares no factor worth dividing out, so it only costs the pass that looks for
+     * one. Stateless transforms are shared singletons; the terminal, Run and Patched own scratch and stay
+     * per-pipeline.
      */
     public static NumericPipeline ordinalPipeline(int blockSize) {
         return new NumericPipeline(
-            new BlockTransform[] {
-                new RunTransform(blockSize),
-                DeltaTransform.INSTANCE,
-                OffsetTransform.INSTANCE,
-                GcdTransform.INSTANCE,
-                new PatchedTransform() },
+            new BlockTransform[] { new RunTransform(blockSize), DeltaTransform.INSTANCE, OffsetTransform.INSTANCE, new PatchedTransform() },
             new ForTerminal(blockSize),
             blockSize
         );

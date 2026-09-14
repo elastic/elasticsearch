@@ -1050,16 +1050,17 @@ public class ExternalSourceResolver {
                 // one-file listing, on the anchor metadata). That per-file harvest is what split
                 // discovery uses to skip a second footer open when readableUnitCount is 1.
                 StoragePath path = listing.path(i);
+                SchemaCacheEntry cached = schemaCacheEntry(path, listing.lastModifiedMillis(i), config);
                 Map<String, DataType> inferred = inferredTypesByPath.get(path);
                 if (inferred == null) {
-                    inferred = inferredTypesFromCache(path, listing.lastModifiedMillis(i), config);
+                    inferred = inferredTypesFromCache(cached);
                 }
                 perFileInfo.put(
                     path,
                     new SchemaReconciliation.FileSchemaInfo(
                         fileSchema,
                         mapping,
-                        fileStatisticsForFirstFileWins(listing, i, extMetadata, config),
+                        fileStatisticsForFirstFileWins(listing, extMetadata, cached),
                         inferred
                     )
                 );
@@ -1073,20 +1074,19 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Per-file harvest for the FIRST_FILE_WINS schema map. Prefers the schema-cache entry for this
-     * path (populated by an eager gather or a previous resolve). A one-file listing falls back to
-     * the anchor metadata: that harvest is the file's own, not a cross-file fold.
+     * Per-file harvest for the FIRST_FILE_WINS schema map. Prefers {@code cached} (populated by an
+     * eager gather or a previous resolve). A one-file listing falls back to the anchor metadata:
+     * that harvest is the file's own, not a cross-file fold.
      */
     @Nullable
-    private SourceStatistics fileStatisticsForFirstFileWins(
+    private static SourceStatistics fileStatisticsForFirstFileWins(
         FileList listing,
-        int index,
         ExternalSourceMetadata extMetadata,
-        @Nullable Map<String, Object> config
+        @Nullable SchemaCacheEntry cached
     ) {
-        SourceStatistics cached = fileStatisticsFromCache(listing.path(index), listing.lastModifiedMillis(index), config);
-        if (cached != null) {
-            return cached;
+        SourceStatistics fromCache = fileStatisticsFromCache(cached);
+        if (fromCache != null) {
+            return fromCache;
         }
         if (listing.fileCount() == 1) {
             return SourceStatisticsSerializer.fromSource(extMetadata);
@@ -1095,13 +1095,11 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Reconstructs this file's harvest from the schema cache, or null when the cache is off or
-     * this path has no entry. Zero I/O: a miss leaves FileSchemaInfo.statistics null and split
-     * discovery opens the footer.
+     * Harvest stored on {@code entry}, or null when the caller had no cache hit. Zero I/O: a miss
+     * leaves FileSchemaInfo.statistics null and split discovery opens the footer.
      */
     @Nullable
-    private SourceStatistics fileStatisticsFromCache(StoragePath path, long mtimeMillis, @Nullable Map<String, Object> config) {
-        SchemaCacheEntry entry = schemaCacheEntry(path, mtimeMillis, config);
+    private static SourceStatistics fileStatisticsFromCache(@Nullable SchemaCacheEntry entry) {
         if (entry == null) {
             return null;
         }
@@ -1109,13 +1107,12 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Footer types stored on the same schema-cache entry {@link #fileStatisticsFromCache} reads.
-     * The FIRST_FILE_WINS defer path never gathers {@code inferredTypesByPath}, so stamp-time
+     * Footer types stored on the same schema-cache entry the harvest is taken from. The
+     * FIRST_FILE_WINS defer path never gathers {@code inferredTypesByPath}, so stamp-time
      * alignment must recover the file's own types here or it will treat the pin as the found type.
      */
     @Nullable
-    private Map<String, DataType> inferredTypesFromCache(StoragePath path, long mtimeMillis, @Nullable Map<String, Object> config) {
-        SchemaCacheEntry entry = schemaCacheEntry(path, mtimeMillis, config);
+    private static Map<String, DataType> inferredTypesFromCache(@Nullable SchemaCacheEntry entry) {
         if (entry == null || entry.columnNames().length == 0) {
             return null;
         }

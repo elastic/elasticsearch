@@ -602,7 +602,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
         // No usable explicit format: the pattern must imply exactly one format. A missing resource
         // already recorded "[resource] is required"; do not pile on a format error naming null.
-        if (resource == null) {
+        // A resource that failed the scheme/URI check is the same: the URI is already rejected, and
+        // a second "cannot determine format" error would collapse distinct addressing failures onto
+        // the format message.
+        if (resource == null || errors.validationErrors().isEmpty() == false) {
             rejectUnknownFields(settings, COORDINATOR_DATASET_KEYS, errors);
             return COORDINATOR_DATASET_KEYS;
         }

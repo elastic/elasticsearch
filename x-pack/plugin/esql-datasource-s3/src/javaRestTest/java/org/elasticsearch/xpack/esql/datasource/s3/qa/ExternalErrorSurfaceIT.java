@@ -196,7 +196,12 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         // The store answers both with an identical 403 AccessDenied, so the message cannot tell them apart from
         // the response alone. Naming the configured auth mode would ("…AccessDenied, data source uses
         // auth=anonymous"), but that is local knowledge the storage object does not currently carry.
-        Set.of("wrong access key", "anonymous access against an authenticated endpoint")
+        Set.of("wrong access key", "anonymous access against an authenticated endpoint"),
+        // Both are "the pattern names no registered format". PUT fail-closes with the same
+        // cannot-determine-format message whether the object has no extension or an unknown one;
+        // naming the extension would distinguish them, but the dataset refuses either way until
+        // [format] is set.
+        Set.of("no extension and no explicit format", "unknown extension and no explicit format")
     );
 
     /**
@@ -299,18 +304,18 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("tsv object does not exist", "external_client_exception"),
         entry("tsv object is empty", "illegal_argument_exception"),
         entry("tsv declared as parquet", "illegal_argument_exception"),
-        entry("tsv under a data source with the wrong credentials", "illegal_argument_exception"),
+        entry("tsv under a data source with the wrong credentials", "external_client_exception"),
         entry("object key does not exist", "external_client_exception"),
         entry("bucket does not exist", "external_client_exception"),
         entry("key is a prefix, not an object", "external_client_exception"),
         entry("unsupported URI scheme", "validation_exception"),
-        entry("scheme with no host or key", "illegal_argument_exception"),
+        entry("scheme with no host or key", "validation_exception"),
         entry("URI with no scheme at all", "validation_exception"),
         entry("endpoint refuses connections", "external_unavailable_exception"),
         entry("wrong access key", "external_client_exception"),
         entry("anonymous access against an authenticated endpoint", "external_client_exception"),
-        entry("no extension and no explicit format", "illegal_argument_exception"),
-        entry("unknown extension and no explicit format", "unreadable_object_exception"),
+        entry("no extension and no explicit format", "validation_exception"),
+        entry("unknown extension and no explicit format", "validation_exception"),
         entry("explicit format contradicts the bytes (parquet declared, CSV content)", "illegal_argument_exception"),
         entry("unknown explicit format name", "validation_exception"),
         entry("parquet extension over non-parquet bytes", "illegal_argument_exception"),
@@ -475,14 +480,14 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             "s3://no-such-bucket-at-all/data/good.csv",
             null
         );
-        queryProbe(
+        queryProbeWithSettings(
             "addressing",
             "key is a prefix, not an object",
             "say the path addresses no object; suggest a glob if a prefix was meant",
             "prefix_not_object",
             "good_ds",
             s3("data"),
-            null
+            Map.of("format", "csv")
         );
         queryProbe(
             "addressing",
@@ -588,7 +593,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         queryProbe(
             "format",
             "unknown extension and no explicit format",
-            "name the unrecognized extension and list the known formats",
+            "say the format could not be determined and name the [format] setting",
             "unknown_ext",
             "good_ds",
             s3(UNKNOWN_EXTENSION),
@@ -806,7 +811,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             "say the pattern matched no objects and echo the pattern",
             "glob_empty",
             "good_ds",
-            s3("glob/*.avro"),
+            s3("glob/no-such-prefix/*.csv"),
             null
         );
         queryProbe(

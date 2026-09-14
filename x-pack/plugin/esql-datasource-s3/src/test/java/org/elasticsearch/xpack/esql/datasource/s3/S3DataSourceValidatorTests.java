@@ -1017,6 +1017,28 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), not(containsString("does not accept an ARN")));
     }
 
+    public void testValidateDatasetRejectsEmptyLocation() {
+        // s3:// matches the scheme check but names no bucket. Must fail as an incomplete location,
+        // not as "cannot determine a format" — that message is for a complete URI whose pattern
+        // implies no registered format.
+        var e = expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://", Map.of()));
+        assertThat(e.getMessage(), containsString("is not a complete object location"));
+        assertThat(e.getMessage(), not(containsString("cannot determine")));
+        var withSlash = expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3:///", Map.of()));
+        assertThat(withSlash.getMessage(), containsString("is not a complete object location"));
+    }
+
+    public void testFormatAwareValidatorEmptyLocationIsIncompleteNotFormat() {
+        FileDataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withResourceCheck(S3ResourceCheck::validate)
+            .withFormatConfigKeyResolver(CSV_RESOLVER)
+            .withFormatReaderRegistry(csvGzipRegistry());
+        var e = expectThrows(ValidationException.class, () -> v.validateDataset(Map.of(), "s3://", Map.of()));
+        assertThat(e.getMessage(), containsString("is not a complete object location"));
+        assertThat(e.getMessage(), not(containsString("cannot determine")));
+        assertEquals(1, e.validationErrors().size());
+    }
+
     public void testValidateDatasetRejectsAccessPointArn() {
         var e = expectThrows(
             ValidationException.class,

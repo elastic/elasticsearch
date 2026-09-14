@@ -15,8 +15,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -55,7 +57,7 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
     private final String fieldName;
     private final BinaryValues values;
     private final TermsLookup termsLookup;
-    private final Supplier<List<?>> supplier;
+    private final Supplier<BinaryValues> supplier;
 
     public TermsQueryBuilder(String fieldName, TermsLookup termsLookup) {
         this(fieldName, null, termsLookup);
@@ -164,7 +166,7 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         this.supplier = null;
     }
 
-    private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier) {
+    private TermsQueryBuilder(String fieldName, Supplier<BinaryValues> supplier) {
         this.fieldName = fieldName;
         this.values = null;
         this.termsLookup = null;
@@ -325,17 +327,7 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         }
         int maxTermsCount = context.getIndexSettings().getMaxTermsCount();
         if (values.size() > maxTermsCount) {
-            throw new IllegalArgumentException(
-                "The number of terms ["
-                    + values.size()
-                    + "] used in the Terms Query request has exceeded "
-                    + "the allowed maximum of ["
-                    + maxTermsCount
-                    + "]. "
-                    + "This maximum can be set by changing the ["
-                    + IndexSettings.MAX_TERMS_COUNT_SETTING.getKey()
-                    + "] index level setting."
-            );
+            throw tooManyTermsException(values.size(), maxTermsCount);
         }
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
@@ -344,17 +336,88 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         return fieldType.termsQuery(values, context);
     }
 
-    private static void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
-        GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
-        getRequest.preference("_local").routing(termsLookup.routing());
-        client.get(getRequest, actionListener.map(getResponse -> {
-            List<Object> terms = new ArrayList<>();
-            if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
+    private static IllegalArgumentException tooManyTermsException(int termsCount, int maxTermsCount) {
+        return new IllegalArgumentException(
+            "The number of terms ["
+                + termsCount
+                + "] used in the Terms Query request has exceeded "
+                + "the allowed maximum of ["
+                + maxTermsCount
+                + "]. "
+                + "This maximum can be set by changing the ["
+                + IndexSettings.MAX_TERMS_COUNT_SETTING.getKey()
+                + "] index level setting."
+        );
+    }
+
+    /**
+     * Resolves the {@code index.max_terms_count} limit to apply while rewriting on the coordinating node, which has no single
+     * index scope. The most permissive limit across the resolved local indices is returned so this early check never rejects a
+     * value list that a target shard would accept; each shard still enforces its own limit when the query is built. When no
+     * local index metadata is available, {@link Integer#MAX_VALUE} is returned, leaving enforcement to the shard-level check.
+     */
+    private static int resolveMaxTermsCount(QueryRewriteContext context) {
+        ResolvedIndices resolvedIndices = context.getResolvedIndices();
+        if (resolvedIndices == null) {
+            return Integer.MAX_VALUE;
+        }
+        Collection<IndexMetadata> localIndices = resolvedIndices.getConcreteLocalIndicesMetadata().values();
+        if (localIndices.isEmpty()) {
+            return Integer.MAX_VALUE;
+        }
+        int maxTermsCount = 0;
+        for (IndexMetadata indexMetadata : localIndices) {
+            maxTermsCount = Math.max(maxTermsCount, IndexSettings.MAX_TERMS_COUNT_SETTING.get(indexMetadata.getSettings()));
+        }
+        return maxTermsCount;
+    }
+
+    /**
+     * Resolves a {@code terms} lookup by fetching the referenced document and extracting the values at the lookup path.
+     * <p>
+     * Registered through {@link QueryRewriteContext#registerUniqueAsyncAction}: two lookups that reference the same document
+     * (same index, id, path and routing) are equal, so the document is fetched once and the resulting {@link BinaryValues}
+     * instance is shared by every clause. Sharing one instance means the values are parsed out of the document source and
+     * later serialized to the data nodes a single time, no matter how many clauses reference the same lookup.
+     */
+    private static final class TermsLookupFetch extends QueryRewriteAsyncAction<BinaryValues, TermsLookupFetch> {
+        private final TermsLookup termsLookup;
+        // The limit is the same for every clause of a request, so it is not part of the dedup identity below.
+        private final int maxTermsCount;
+
+        TermsLookupFetch(TermsLookup termsLookup, int maxTermsCount) {
+            this.termsLookup = termsLookup;
+            this.maxTermsCount = maxTermsCount;
+        }
+
+        @Override
+        protected void execute(Client client, ActionListener<BinaryValues> listener) {
+            GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
+            getRequest.preference("_local").routing(termsLookup.routing());
+            client.get(getRequest, listener.map(getResponse -> {
+                if (getResponse.isSourceEmpty()) {
+                    return new BinaryValues(List.of(), false);
+                }
+                // extracted values come straight from the document source, so they still need converting (unlike inline values,
+                // which are already converted while parsing the query)
                 List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
-                terms.addAll(extractedValues);
-            }
-            return terms;
-        }));
+                if (extractedValues.size() > maxTermsCount) {
+                    // reject here, during rewrite, before the values are copied into every clause and serialized to the data nodes
+                    throw tooManyTermsException(extractedValues.size(), maxTermsCount);
+                }
+                return new BinaryValues(extractedValues, true);
+            }));
+        }
+
+        @Override
+        public int doHashCode() {
+            return termsLookup.hashCode();
+        }
+
+        @Override
+        public boolean doEquals(TermsLookupFetch other) {
+            return termsLookup.equals(other.termsLookup);
+        }
     }
 
     @Override
@@ -375,11 +438,11 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         if (supplier != null) {
             return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get());
         } else if (this.termsLookup != null) {
-            SetOnce<List<?>> supplier = new SetOnce<>();
-            queryRewriteContext.registerAsyncAction((client, listener) -> fetch(termsLookup, client, listener.map(list -> {
-                supplier.set(list);
-                return null;
-            })));
+            SetOnce<BinaryValues> supplier = new SetOnce<>();
+            queryRewriteContext.registerUniqueAsyncAction(
+                new TermsLookupFetch(termsLookup, resolveMaxTermsCount(queryRewriteContext)),
+                supplier::set
+            );
             return new TermsQueryBuilder(this.fieldName, supplier::get);
         }
 

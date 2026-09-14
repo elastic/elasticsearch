@@ -3977,16 +3977,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         markAsRecovering(reason); // mark the shard as recovering on the cluster state thread
         ActionListener<Void> actionListener = ActionListener.wrap(
             ignored -> recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange()),
-            e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), failureStrategy(e))
+            e -> {
+                FailureStrategy result;
+                if (ExceptionsHelper.unwrap(e, IndexShardClosedException.class) != null) {
+                    result = FailureStrategy.ABORT;
+                } else {
+                    result = FAIL_SEND;
+                }
+                recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), result);
+            }
         );
         ActionListener.run(actionListener, action);
-    }
-
-    private FailureStrategy failureStrategy(Exception e) {
-        if (ExceptionsHelper.unwrap(e, IndexShardClosedException.class) != null) {
-            return FailureStrategy.ABORT;
-        }
-        return FAIL_SEND;
     }
 
     /**

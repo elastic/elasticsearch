@@ -296,6 +296,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         list.add(Map.entry("encoding", "UTF-99"));        // unknown charset
         list.add(Map.entry("multi_value_syntax", "bogus")); // unknown multi-value syntax
         list.add(Map.entry("max_field_size", "abc"));     // non-integer
+        list.add(Map.entry("max_field_size", -1));        // negative integer
         list.add(Map.entry("header_row", "banana"));      // non-boolean
         return list;
     }

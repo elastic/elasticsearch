@@ -812,7 +812,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         String nullValue = parseString(config.get(CONFIG_NULL_VALUE), baseline.nullValue());
         Charset encoding = parseEncoding(config.get(CONFIG_ENCODING), baseline.encoding());
         DateFormatter datetimeFormatter = parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), baseline.datetimeFormatter());
-        int maxFieldSize = parseInt(config.get(CONFIG_MAX_FIELD_SIZE), baseline.maxFieldSize());
+        int maxFieldSize = parseInt(CONFIG_MAX_FIELD_SIZE, config.get(CONFIG_MAX_FIELD_SIZE), baseline.maxFieldSize());
+        if (maxFieldSize < 0) {
+            throw new IllegalArgumentException(CONFIG_MAX_FIELD_SIZE + ": maxFieldSize must be non-negative, got: " + maxFieldSize);
+        }
         boolean headerRow = parseBooleanOption(CONFIG_HEADER_ROW, config.get(CONFIG_HEADER_ROW), baseline.headerRow());
         String columnPrefix = parseString(config.get(CONFIG_COLUMN_PREFIX), baseline.columnPrefix());
         boolean trimSpaces = parseBooleanOption(CONFIG_TRIM_SPACES, config.get(CONFIG_TRIM_SPACES), baseline.trimSpaces());
@@ -910,14 +913,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return value.toString();
     }
 
-    private static int parseInt(Object value, int defaultValue) {
+    private static int parseInt(String settingName, Object value, int defaultValue) {
         if (value == null) {
             return defaultValue;
         }
         try {
             return Integer.parseInt(value.toString());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid integer value [" + value + "]", e);
+            throw new IllegalArgumentException("Invalid integer value [" + value + "] for option [" + settingName + "]", e);
         }
     }
 
@@ -1224,7 +1227,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // Lenient char parsing (multi-char values truncate, as they always have): stored datasets
         // may carry such values from before the PUT-time gate; see parseChar.
         CsvFormatOptions parsed = parseOptionsFromConfig(config, options, false, true);
-        int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
+        int newSampleSize = parseInt(CONFIG_SCHEMA_SAMPLE_SIZE, config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
         Check.clientError(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);
         CsvFormatReader result = parsed != null ? withOptions(parsed) : this;

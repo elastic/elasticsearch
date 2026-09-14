@@ -985,7 +985,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     public void testValidateDatasourceRejectsBareWordEndpoint() {
         var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("endpoint", "notaurl")));
         assertThat(e.getMessage(), containsString("endpoint [notaurl]"));
-        assertThat(e.getMessage(), containsString("http"));
+        assertThat(e.getMessage(), containsString("must be an absolute http"));
     }
 
     public void testValidateDatasourceRejectsEndpointWithEmbeddedSpace() {
@@ -999,7 +999,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             () -> validator.validateDatasource(Map.of("endpoint", "//bucket.s3.amazonaws.com"))
         );
         assertThat(e.getMessage(), containsString("endpoint [//bucket.s3.amazonaws.com]"));
-        assertThat(e.getMessage(), containsString("http"));
+        assertThat(e.getMessage(), containsString("must be an absolute http"));
     }
 
     public void testValidateDatasourceRejectsNonHttpEndpoint() {
@@ -1008,7 +1008,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             () -> validator.validateDatasource(Map.of("endpoint", "ftp://s3-proxy.example.com"))
         );
         assertThat(e.getMessage(), containsString("endpoint [ftp://s3-proxy.example.com]"));
-        assertThat(e.getMessage(), containsString("http"));
+        assertThat(e.getMessage(), containsString("must be an absolute http"));
     }
 
     public void testValidateDatasourceAcceptsHttpEndpoint() {
@@ -1031,7 +1031,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         // "http:" has an empty scheme-specific part; URI.create throws, landing in the catch branch.
         var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("endpoint", "http:")));
         assertThat(e.getMessage(), containsString("endpoint [http:]"));
-        assertThat(e.getMessage(), containsString("http"));
+        assertThat(e.getMessage(), containsString("is not a valid URL"));
     }
 
     public void testValidateDatasourceRejectsUnderscoreHostEndpoint() {
@@ -1042,7 +1042,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             () -> validator.validateDatasource(Map.of("endpoint", "http://minio_s3:9000", "auth", "anonymous"))
         );
         assertThat(e.getMessage(), containsString("endpoint [http://minio_s3:9000]"));
-        assertThat(e.getMessage(), containsString("http"));
+        assertThat(e.getMessage(), containsString("must be an absolute http"));
     }
 
     public void testValidateDatasourceRejectsJunkPortEndpoint() {
@@ -1062,7 +1062,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             () -> validator.validateDatasource(Map.of("endpoint", "http:/path", "auth", "anonymous"))
         );
         assertThat(e.getMessage(), containsString("endpoint [http:/path]"));
-        assertThat(e.getMessage(), containsString("http"));
+        assertThat(e.getMessage(), containsString("must be an absolute http"));
     }
 
     public void testValidateDatasourceAcceptsUppercaseSchemeEndpoint() {
@@ -1082,7 +1082,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             )
         );
         assertThat(e.getMessage(), containsString("sts_endpoint [notaurl]"));
-        assertThat(e.getMessage(), containsString("http"));
+        assertThat(e.getMessage(), containsString("must be an absolute http"));
     }
 
     public void testValidateDatasourceAcceptsValidStsEndpoint() {

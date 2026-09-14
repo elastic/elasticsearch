@@ -113,8 +113,6 @@ public class S3Configuration extends FileDataSourceConfiguration {
                 errors.addValidationError("role_arn is required when federated authentication settings are configured");
             }
         }
-        DataSourceValidationUtils.validateHttpUrl(endpoint(), ENDPOINT.name(), errors);
-        DataSourceValidationUtils.validateHttpUrl(stsEndpoint(), STS_ENDPOINT.name(), errors);
     }
 
     @Override
@@ -129,6 +127,8 @@ public class S3Configuration extends FileDataSourceConfiguration {
                     + "]"
             );
         }
+        DataSourceValidationUtils.validateHttpUrl(endpoint(), ENDPOINT.name(), errors);
+        DataSourceValidationUtils.validateHttpUrl(stsEndpoint(), STS_ENDPOINT.name(), errors);
     }
 
     public static S3Configuration fromMap(Map<String, Object> raw) {

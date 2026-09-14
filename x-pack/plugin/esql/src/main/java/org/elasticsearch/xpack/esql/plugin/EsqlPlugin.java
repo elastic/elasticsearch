@@ -516,10 +516,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // FormatReaderRegistry. Iterate ALL FormatSpec declarations (including formats with no extra
         // config keys, e.g. orc) so every registered format is a valid "format" value.
         //
-        // NOTE: FormatReaderRegistry applies the same conflict rule at runtime (claimExtension
-        // rejects an extension already owned by another format, on both its eager and lazy write
-        // paths). Failing on conflicts here too surfaces the inconsistency at startup, before any
-        // reader materializes.
+        // NOTE: Cross-extension conflicts are caught earlier — DataSourceModule's constructor calls
+        // FormatReaderRegistry.claimExtension for every spec, which throws on the first duplicate.
         // DataSourceCapabilities.build (above) already throws on a duplicate format NAME, so divergent
         // config keys for one format name cannot arise and need no separate check here.
         Map<String, Set<String>> formatToConfigKeys = new HashMap<>();
@@ -537,12 +535,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                     if (normalized.startsWith(".") == false) {
                         normalized = "." + normalized;
                     }
-                    String existing = extToFormat.putIfAbsent(normalized, format);
-                    if (existing != null && existing.equals(format) == false) {
-                        throw new IllegalStateException(
-                            "conflicting formats for extension [" + normalized + "]: [" + existing + "] vs [" + format + "]"
-                        );
-                    }
+                    extToFormat.putIfAbsent(normalized, format);
                 }
             }
         }

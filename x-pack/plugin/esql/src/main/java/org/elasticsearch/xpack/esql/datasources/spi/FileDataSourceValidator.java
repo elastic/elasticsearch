@@ -946,12 +946,9 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
         /**
          * Returns the value validator for the named format, or {@code null} if the format has no value
-         * validator (values are accepted as-is, validated at query time). Default implementation returns
-         * {@code null}; overridden by the production resolver when validators are registered.
+         * validator (values are accepted as-is, validated at query time).
          */
         @Nullable
-        default FormatSpec.FormatConfigValidator validatorForFormat(String formatName) {
-            return null;
-        }
+        FormatSpec.FormatConfigValidator validatorForFormat(String formatName);
     }
 }

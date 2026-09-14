@@ -367,7 +367,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         }
     }
 
-    static long parseSegmentSize(Object value, long defaultValueBytes) {
+    private static long parseSegmentSize(Object value, long defaultValueBytes) {
         if (value == null) {
             return defaultValueBytes;
         }
@@ -377,7 +377,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return bytes;
     }
 
-    static DateFormatter parseDatetimeFormat(Object value, DateFormatter baseline) {
+    private static DateFormatter parseDatetimeFormat(Object value, DateFormatter baseline) {
         if (value == null || value.toString().isEmpty()) {
             return baseline;
         }

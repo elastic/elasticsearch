@@ -552,7 +552,7 @@ You can query datasets created through [{{esql}} Data Federation](/reference/que
 ## Query across {{serverless-short}} projects [ccq-cps]
 
 ```{applies_to}
-serverless: preview
+serverless: ga
 ```
 
 You can use cross-project search (CPS) to query across multiple linked serverless projects. To learn more, refer to [Query across {{serverless-short}} projects](esql-cross-serverless-projects.md).

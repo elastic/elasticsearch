@@ -71,8 +71,8 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
 
     private final Set<DiscoveryNodeRole> applicableRoles;
 
-    protected final FrequencyCappedAction logCanRemainMessage;
-    protected final FrequencyCappedAction logCanAllocateMessage;
+    private final FrequencyCappedAction logCanRemainMessage;
+    private final FrequencyCappedAction logCanAllocateMessage;
 
     /**
      * @param name              allocation-decider name passed to {@link RoutingAllocation#decision}

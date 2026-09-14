@@ -568,7 +568,7 @@ public final class SchemaReconciliation {
 
     /**
      * Maximum number of contributing file paths quoted in a single per-column warning detail.
-     * Keeps the warning header from blowing up on glob-of-thousands queries; the "+N more" suffix
+     * Keeps the notice from blowing up on glob-of-thousands queries; the "+N more" suffix
      * preserves the cardinality so users know the warning applies to more files than shown.
      */
     private static final int MAX_FILES_IN_WARNING_DETAIL = 3;

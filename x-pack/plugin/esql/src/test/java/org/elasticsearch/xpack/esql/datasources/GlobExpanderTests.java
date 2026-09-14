@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -2486,8 +2487,8 @@ public class GlobExpanderTests extends ESTestCase {
             assertTrue("enumerated a pruned file: " + enumerated, enumerated.contains("/year=2025/"));
         }
         assertEquals(
-            "one probe per walked level, no speculative descent",
-            List.of("s3://bucket/data/", "s3://bucket/data/year=2025/"),
+            "one probe per walked level plus a retroactive peek into the pruned year=2024/ subtree",
+            List.of("s3://bucket/data/", "s3://bucket/data/year=2025/", "s3://bucket/data/year=2024/"),
             provider.childListedPrefixes
         );
         assertEquals(
@@ -2515,7 +2516,11 @@ public class GlobExpanderTests extends ESTestCase {
         for (String enumerated : provider.enumeratedFiles) {
             assertTrue("enumerated a pruned file: " + enumerated, enumerated.contains("/year=2025/"));
         }
-        assertEquals(List.of("s3://bucket/data/", "s3://bucket/data/year=2025/"), provider.childListedPrefixes);
+        // Retroactive peek into the pruned year=2024/ fires when month is discovered as a new partition key.
+        assertEquals(
+            List.of("s3://bucket/data/", "s3://bucket/data/year=2025/", "s3://bucket/data/year=2024/"),
+            provider.childListedPrefixes
+        );
         assertEquals(List.of("s3://bucket/data/year=2025/month=01/", "s3://bucket/data/year=2025/month=06/"), provider.listedPrefixes);
     }
 
@@ -2737,6 +2742,120 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand("s3://bucket/data/**" + "/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals(List.of("s3://bucket/data/month=06/a.parquet", "s3://bucket/data/month=6/b.parquet"), paths(result));
+    }
+
+    /**
+     * A kind mismatch at every folder keeps {@code prunedColumns} empty, so the walk falls back to the flat listing
+     * rather than accepting a partial result. This keeps the partition column's detected type consistent: without
+     * the kind guard, an integer literal against a keyword-typed level would have compared {@code "abc" != "6"} and
+     * pruned {@code month=abc/} while keeping {@code month=06/} (whose alone-type is integer and satisfies
+     * {@code 6 == 6}), giving a walked listing that types {@code month} as integer — diverging from the flat
+     * listing's keyword. The one-probe listing count below proves the walk fell back.
+     */
+    public void testGlobstarMixedTypeSiblingsFallBackToFlatPreservingColumnType() throws IOException {
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(
+                entry("s3://bucket/data/month=06/a.parquet", 100),
+                entry("s3://bucket/data/month=abc/b.parquet", 100)
+            )
+        );
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
+
+        FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals(
+            List.of("s3://bucket/data/month=06/a.parquet", "s3://bucket/data/month=abc/b.parquet"),
+            paths(result)
+        );
+        // One probe listing (walk found kind mismatch, nothing pruned, fell back) then one flat listing.
+        assertEquals(List.of("s3://bucket/data/"), provider.childListedPrefixes);
+        assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
+    }
+
+    /**
+     * Type consistency when the kind mismatch fires across different year subtrees. Without the kind guard,
+     * {@code month=abc/} (under year=2025) would compare {@code "abc" != "6"} and be pruned, while
+     * {@code month=06/} (under year=2026) would survive via its alone-type (integer 6 == 6). The walk would
+     * return only year=2026's file and detect {@code month} as integer — diverging from the flat listing's keyword.
+     * The kind guard makes an integer literal against a keyword-typed level undecidable for every folder, so both
+     * month subtrees survive and the walked listing detects {@code month} as keyword, consistent with flat.
+     */
+    public void testGlobstarDeepKindMismatchKeepsBothSiblingsForTypeConsistency() throws IOException {
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(
+                entry("s3://bucket/data/year=2024/month=06/a.parquet", 100),
+                entry("s3://bucket/data/year=2025/month=abc/b.parquet", 100),
+                entry("s3://bucket/data/year=2026/month=06/c.parquet", 100)
+            )
+        );
+        var hints = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2025),
+            hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6)
+        );
+
+        FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
+
+        // year=2024 pruned; month=abc (under 2025) kept despite the integer hint — kind guard, not dropped.
+        assertEquals(
+            List.of("s3://bucket/data/year=2025/month=abc/b.parquet", "s3://bucket/data/year=2026/month=06/c.parquet"),
+            paths(result)
+        );
+        // Year probe, then one listChildren per surviving year — kind guard keeps both month dirs.
+        // Retroactive peek into pruned year=2024/ fires when month is discovered as a new partition key.
+        assertEquals(
+            List.of("s3://bucket/data/", "s3://bucket/data/year=2025/", "s3://bucket/data/year=2026/", "s3://bucket/data/year=2024/"),
+            provider.childListedPrefixes
+        );
+        // Each month survivor finished with a recursive listing.
+        assertEquals(
+            List.of("s3://bucket/data/year=2025/month=abc/", "s3://bucket/data/year=2026/month=06/"),
+            provider.listedPrefixes
+        );
+    }
+
+    /**
+     * Type consistency when a pruned subtree is the sole source of a type-widening folder value for a non-pruned
+     * column. Without the fallback, the walk would return only {@code b.parquet} (under the surviving
+     * {@code year=2024}) and detect {@code month} as integer — because the only seen value is {@code "06"}. With
+     * the fallback, the walk's retroactive peek into the pruned {@code year=2023/} discovers {@code month=abc/},
+     * which widens the inferred type to keyword. The type mismatch is detected and the walk falls back to a flat
+     * listing that returns both files with {@code month} correctly typed as keyword.
+     */
+    public void testGlobstarPrunedSubtreeSoleSourceOfTypeWideningCausesFlat() throws IOException {
+        // year=2023/month=abc/ is pruned by the year hint. The walked listing sees only month=06 (INTEGER),
+        // but the flat listing sees both "06" and "abc" — widening month to KEYWORD. The walk must fall back.
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(
+                entry("s3://bucket/data/year=2023/month=abc/a.parquet", 100),
+                entry("s3://bucket/data/year=2024/month=06/b.parquet", 100)
+            )
+        );
+        // Two hints so the walk continues past the year level into the month level, where newKeyLevel==true fires
+        // the retroactive peek into year=2023/ and discovers month=abc/.
+        var hints = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2024),
+            hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6)
+        );
+
+        FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
+
+        // Flat fallback: both files with month typed KEYWORD (abc widens 06 from INTEGER).
+        assertEquals(
+            List.of("s3://bucket/data/year=2023/month=abc/a.parquet", "s3://bucket/data/year=2024/month=06/b.parquet"),
+            paths(result)
+        );
+        assertEquals(DataType.KEYWORD, result.partitionMetadata().partitionColumns().get("month"));
+
+        // Walk listings (listChildren): root year level + month level + retroactive peek into year=2023/.
+        assertEquals(
+            List.of("s3://bucket/data/", "s3://bucket/data/year=2024/", "s3://bucket/data/year=2023/"),
+            provider.childListedPrefixes
+        );
+        // finishSurvivors listed year=2024/month=06/ recursively before type check rejected the walk; flat listing ran.
+        assertEquals(
+            List.of("s3://bucket/data/year=2024/month=06/", "s3://bucket/data/"),
+            provider.listedPrefixes
+        );
     }
 
     /**

@@ -220,7 +220,7 @@ public final class HivePartitionDetector implements PartitionDetector {
         }
     }
 
-    static DataType inferType(List<String> values) {
+    public static DataType inferType(List<String> values) {
         DataType integralType = tryAllIntegral(values);
         if (integralType != null) {
             return integralType;

@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.AutoPartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
@@ -436,25 +437,32 @@ public final class GlobExpander {
                     walked.sort(Comparator.comparing(e -> e.path().toString()));
                     PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig);
                     if (walkPruningProven(walk.prunedColumns(), walkedMetadata)) {
-                        // Counted pre-_file.*-filter, as the flat path counts.
-                        List<String> walkWarnings = walk.excludedCount() > 0
-                            ? List.of(
-                                exclusionWarning(
-                                    walk.excludedCount(),
-                                    walk.matched().size(),
-                                    prefix.toString(),
-                                    walk.excludedExample(),
-                                    walk.excludedExampleEntry()
+                        if (walkTypesConsistent(walk, walkedMetadata)) {
+                            // Counted pre-_file.*-filter, as the flat path counts.
+                            List<String> walkWarnings = walk.excludedCount() > 0
+                                ? List.of(
+                                    exclusionWarning(
+                                        walk.excludedCount(),
+                                        walk.matched().size(),
+                                        prefix.toString(),
+                                        walk.excludedExample(),
+                                        walk.excludedExampleEntry()
+                                    )
                                 )
-                            )
-                            : List.of();
-                        return new GenericFileList(walked, pattern, walkedMetadata, walkWarnings);
+                                : List.of();
+                            return new GenericFileList(walked, pattern, walkedMetadata, walkWarnings);
+                        }
+                        logger.debug(
+                            "Walked listing of [{}] would narrow the type of non-pruned partition columns; re-listing flat",
+                            pattern
+                        );
+                    } else {
+                        logger.debug(
+                            "Walked listing of [{}] does not detect the pruned-on partition columns {}; re-listing flat",
+                            pattern,
+                            walk.prunedColumns()
+                        );
                     }
-                    logger.debug(
-                        "Walked listing of [{}] does not detect the pruned-on partition columns {}; re-listing flat",
-                        pattern,
-                        walk.prunedColumns()
-                    );
                 }
             }
         }
@@ -615,13 +623,47 @@ public final class GlobExpander {
      * A folder prune is trusted only when the pruned listing itself detects the pruned-on column as a partition
      * column. A stray file outside the {@code key=value} structure breaks detection and makes the column a data
      * column whose values could live anywhere; this check turns that from silently dropped rows into a flat
-     * re-listing.
+     * re-listing. Passes only on the pruned columns; non-pruned column types are verified by
+     * {@link #walkTypesConsistent}.
      */
     private static boolean walkPruningProven(Set<String> prunedColumns, @Nullable PartitionMetadata metadata) {
         if (prunedColumns.isEmpty()) {
             return true;
         }
         return metadata != null && metadata.partitionColumns().keySet().containsAll(prunedColumns);
+    }
+
+    /**
+     * Verifies that the walk did not narrow the type of any non-pruned partition column relative to what the full
+     * value set (including values inside pruned subtrees) would produce. A pruned subtree may be the sole source of
+     * a type-widening folder value for another column: e.g. {@code year=2023/month=abc} (widening {@code month} to
+     * keyword) pruned by {@code year >= 2024} — the walked listing sees only {@code month=06} and detects
+     * {@code month} as integer, while the flat listing would detect it as keyword. No file is dropped, but the
+     * declared schema would differ. The walk addresses this by peeking one level into pruned dirs to capture shadow
+     * values (see {@code PartitionPruningWalk}); this method checks whether those shadow values change any
+     * non-pruned column's inferred type relative to what the walked file set alone would produce.
+     *
+     * <p><b>Residual limitation.</b> The peek is one level deep: if the type-widening value is more than one
+     * level inside the pruned subtree (e.g. {@code a=1/b=x/month=abc} pruned at {@code a}), the divergence in
+     * {@code month}'s type is not detected. Such cases are unusual (consistent partition layouts rarely vary type
+     * across different parent subtrees) and a flat re-listing is the safe fallback for any undetected case.
+     */
+    private static boolean walkTypesConsistent(PartitionPruningWalk.WalkResult walk, @Nullable PartitionMetadata metadata) {
+        if (metadata == null || walk.prunedColumns().isEmpty()) {
+            return true;
+        }
+        Map<String, DataType> fullTypes = walk.columnFullTypes();
+        for (Map.Entry<String, DataType> e : metadata.partitionColumns().entrySet()) {
+            String col = e.getKey();
+            if (walk.prunedColumns().contains(col)) {
+                continue; // pruned-column types are validated by walkPruningProven
+            }
+            DataType fullType = fullTypes.get(col);
+            if (fullType != null && fullType != e.getValue()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

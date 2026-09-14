@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasources.glob;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.PartitionValueMatcher;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
@@ -72,14 +74,18 @@ final class PartitionPruningWalk {
 
     /**
      * A walked listing: the matched files (unsorted), the columns folders were pruned on (which the caller must
-     * validate against the detected partition columns), and the exclusion tally for the user-facing warning.
+     * validate against the detected partition columns), the exclusion tally for the user-facing warning, and the
+     * type inferred for each partition key from all values seen during the walk (including a one-level retroactive
+     * peek into pruned dirs — see {@link #walk}). The caller compares these types against the types detected in the
+     * walked file set to catch cases where a pruned subtree was the sole source of a type-widening folder value.
      */
     record WalkResult(
         List<StorageEntry> matched,
         Set<String> prunedColumns,
         int excludedCount,
         String excludedExample,
-        String excludedExampleEntry
+        String excludedExampleEntry,
+        Map<String, DataType> columnFullTypes
     ) {}
 
     /**
@@ -132,12 +138,20 @@ final class PartitionPruningWalk {
         boolean anyLevelHinted = false;
         List<StoragePath> dirs = List.of(prefix);
         int listings = 0;
+        // All raw values seen for each partition key, used to infer the "full" column type. Populated from normal
+        // walk listings AND from retroactive peeks into pruned dirs (see below).
+        Map<String, List<String>> seenValues = new LinkedHashMap<>();
+        // Pruned dirs from the previous level, candidates for a one-level retroactive peek. A peek fires only when
+        // the current level introduces a new partition key (confirming a multi-level layout): peeking into a pruned
+        // dir whose direct children are files (single-level layout) would pollute the test's enumeration tracking
+        // without adding any partition-key information.
+        List<StoragePath> pendingPeeks = List.of();
 
         while (dirs.isEmpty() == false) {
             if (pending.isEmpty() || listings + dirs.size() > MAX_DIRECTORY_LISTINGS) {
                 // No hint can narrow a deeper level (or the budget is spent): finish each surviving subtree with
                 // one recursive listing, unless one flat listing of the whole prefix is cheaper.
-                return finishSurvivors(collector, provider, dirs, prunedColumns, listings);
+                return finishSurvivors(collector, provider, dirs, prunedColumns, listings, inferColumnTypes(seenValues));
             }
 
             List<StoragePath> shapedDirs = new ArrayList<>();
@@ -174,25 +188,29 @@ final class PartitionPruningWalk {
                 keep[i] = true;
             }
             boolean hintedLevel = false;
+            boolean newKeyLevel = false;
             Map<String, List<Integer>> byKey = new LinkedHashMap<>();
             for (int i = 0; i < shapedKeys.size(); i++) {
                 byKey.computeIfAbsent(shapedKeys.get(i), k -> new ArrayList<>()).add(i);
             }
             for (Map.Entry<String, List<Integer>> group : byKey.entrySet()) {
                 String key = group.getKey();
+                List<String> values = new ArrayList<>(group.getValue().size());
+                for (int i : group.getValue()) {
+                    values.add(shapedValues.get(i));
+                }
+                // Track ALL values for this key across all current dirs (before the seenKeys guard).
+                seenValues.computeIfAbsent(key, k -> new ArrayList<>()).addAll(values);
                 if (seenKeys.add(key) == false) {
                     continue;
                 }
+                newKeyLevel = true;
                 pending.remove(key);
                 List<PartitionFilterHint> keyHints = PartitionValueMatcher.hintsFor(key, hints);
                 if (keyHints.isEmpty()) {
                     continue;
                 }
                 hintedLevel = true;
-                List<String> values = new ArrayList<>(group.getValue().size());
-                for (int i : group.getValue()) {
-                    values.add(shapedValues.get(i));
-                }
                 boolean[] matches = PartitionValueMatcher.matchesFolders(values, keyHints);
                 for (int j = 0; j < matches.length; j++) {
                     if (matches[j] == false) {
@@ -202,11 +220,33 @@ final class PartitionPruningWalk {
                 }
             }
 
+            // Retroactive peek: a new partition key at this level confirms a multi-level layout, so it is now
+            // safe to list the direct children of dirs pruned at the previous level. Any key=value dirs found
+            // contribute shadow values to seenValues, letting the caller detect whether a pruned subtree was the
+            // sole source of a type-widening value for a non-pruned column.
+            if (newKeyLevel && pendingPeeks.isEmpty() == false) {
+                int updated = processPendingPeeks(provider, pendingPeeks, seenValues, listings);
+                if (updated < 0) {
+                    return null; // budget or buffer limit hit during peek
+                }
+                listings = updated;
+                pendingPeeks = List.of();
+            }
+
+            // Partition surviving dirs and collect pruned dirs as candidates for the next level's retroactive peek.
+            List<StoragePath> newPeeks = null;
             for (int i = 0; i < keep.length; i++) {
                 if (keep[i]) {
                     next.add(shapedDirs.get(i));
+                } else {
+                    if (newPeeks == null) {
+                        newPeeks = new ArrayList<>();
+                    }
+                    newPeeks.add(shapedDirs.get(i));
                 }
             }
+            pendingPeeks = newPeeks != null ? newPeeks : List.of();
+
             if (hintedLevel == false) {
                 if (anyLevelHinted == false) {
                     // No level has matched a hint yet — typically a data-column filter, where walking on would
@@ -218,12 +258,56 @@ final class PartitionPruningWalk {
                 // deeper partition key or a data column is unknowable without listing every level in between — a
                 // LIST per directory — and `WHERE <partition> AND <data column>` is the everyday shape. Keep the
                 // pruning already done and finish here.
-                return finishSurvivors(collector, provider, next, prunedColumns, listings);
+                return finishSurvivors(collector, provider, next, prunedColumns, listings, inferColumnTypes(seenValues));
             }
             anyLevelHinted = true;
             dirs = next;
         }
-        return collector.result(prunedColumns);
+        return collector.result(prunedColumns, inferColumnTypes(seenValues));
+    }
+
+    /**
+     * Lists the direct children of each pruned dir in {@code peeks}, adding any {@code key=value} directory
+     * entries to {@code seenValues} as shadow values for type-divergence detection. Returns the updated listings
+     * count, or {@code -1} when a peek could not complete (budget exhausted or directory too wide to buffer) —
+     * the caller should return {@code null} (fall back to flat listing) in that case.
+     */
+    private static int processPendingPeeks(
+        StorageProvider provider,
+        List<StoragePath> peeks,
+        Map<String, List<String>> seenValues,
+        int listings
+    ) throws IOException {
+        for (StoragePath pruned : peeks) {
+            if (listings >= MAX_DIRECTORY_LISTINGS) {
+                return -1;
+            }
+            listings++;
+            StorageChildren peekChildren = provider.listChildren(pruned, MAX_LISTED_CHILDREN);
+            if (peekChildren == null) {
+                return -1;
+            }
+            for (StoragePath sub : peekChildren.directories()) {
+                String key = PartitionValueMatcher.folderKey(sub.objectName());
+                if (key != null) {
+                    seenValues.computeIfAbsent(key, k -> new ArrayList<>())
+                        .add(PartitionValueMatcher.folderValue(sub.objectName()));
+                }
+            }
+        }
+        return listings;
+    }
+
+    /** Infers the {@link DataType} for each partition key from all values collected during the walk. */
+    private static Map<String, DataType> inferColumnTypes(Map<String, List<String>> seenValues) {
+        if (seenValues.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, DataType> types = new LinkedHashMap<>();
+        for (Map.Entry<String, List<String>> e : seenValues.entrySet()) {
+            types.put(e.getKey(), HivePartitionDetector.inferType(e.getValue()));
+        }
+        return types;
     }
 
     /**
@@ -237,7 +321,8 @@ final class PartitionPruningWalk {
         StorageProvider provider,
         List<StoragePath> dirs,
         Set<String> prunedColumns,
-        int listings
+        int listings,
+        Map<String, DataType> columnFullTypes
     ) throws IOException {
         if (prunedColumns.isEmpty() || dirs.size() > MAX_DIRECTORY_LISTINGS - listings) {
             return null;
@@ -245,7 +330,7 @@ final class PartitionPruningWalk {
         for (StoragePath dir : dirs) {
             collector.addRecursively(provider, dir);
         }
-        return collector.result(prunedColumns);
+        return collector.result(prunedColumns, columnFullTypes);
     }
 
     /**
@@ -300,8 +385,8 @@ final class PartitionPruningWalk {
             }
         }
 
-        WalkResult result(Set<String> prunedColumns) {
-            return new WalkResult(matched, prunedColumns, excludedCount, excludedExample, excludedExampleEntry);
+        WalkResult result(Set<String> prunedColumns, Map<String, DataType> columnFullTypes) {
+            return new WalkResult(matched, prunedColumns, excludedCount, excludedExample, excludedExampleEntry, columnFullTypes);
         }
     }
 }

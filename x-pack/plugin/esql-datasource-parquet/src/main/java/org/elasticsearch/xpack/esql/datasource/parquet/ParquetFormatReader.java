@@ -83,11 +83,13 @@ import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrate
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -1698,41 +1700,56 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        // The synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} flows through the regular
-        // read path: {@link #buildProjectedAttributes} types it as LONG and {@link #buildColumnInfos}
-        // recognises the slot, so the iterator emits per-row file-global identities the same way
-        // it emits any other column. Pushed filters, late materialization, page skipping, and
-        // row-group skipping all stay on — each surviving row carries its identity, and the
-        // matching extractor binds those identities back to the file's full footer.
-        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(
-            object,
-            footerBytes,
-            blockFactory.breaker(),
-            ioWatermark
-        );
-        long footerStartNanos = System.nanoTime();
-        ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, readOptionsBuilder().build());
-        counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), reader.getFooter().getBlocks().size());
-        return buildIterator(
-            object,
-            parquetInputFile,
-            reader,
-            context.projectedColumns(),
-            context.batchSize(),
-            context.rowLimit(),
-            context.readSchema(),
-            // For full-file reads the iterator's footer is the file's footer; the deferred
-            // extractor scopes itself to the same set of row groups. {@link #readRange} below
-            // threads the unranged footer separately so the extractor can address rows in the
-            // file's full address space even on a range-restricted scan.
-            reader.getFooter(),
-            // Full-file reads need no per-block file-global offset override — the iterator's
-            // own row-group ordering already matches the file footer.
-            null,
-            filter -> openParquetFileCached(object, parquetInputFile, readOptionsBuilder().withRecordFilter(filter).build()),
-            resolveErrorPolicy(context.errorPolicy()),
-            context.informationalWarningSink()
-        );
+        long startNanos = System.nanoTime();
+        long startCpuNanos = ThreadCpuTimer.currentNanos();
+        try {
+            // The synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} flows through the regular
+            // read path: {@link #buildProjectedAttributes} types it as LONG and {@link #buildColumnInfos}
+            // recognises the slot, so the iterator emits per-row file-global identities the same way
+            // it emits any other column. Pushed filters, late materialization, page skipping, and
+            // row-group skipping all stay on — each surviving row carries its identity, and the
+            // matching extractor binds those identities back to the file's full footer.
+            ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(
+                object,
+                footerBytes,
+                blockFactory.breaker(),
+                ioWatermark
+            );
+            long footerStartNanos = System.nanoTime();
+            ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, readOptionsBuilder().build());
+            counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), reader.getFooter().getBlocks().size());
+            return buildIterator(
+                object,
+                parquetInputFile,
+                reader,
+                context.projectedColumns(),
+                context.batchSize(),
+                context.rowLimit(),
+                context.readSchema(),
+                // For full-file reads the iterator's footer is the file's footer; the deferred
+                // extractor scopes itself to the same set of row groups. {@link #readRange} below
+                // threads the unranged footer separately so the extractor can address rows in the
+                // file's full address space even on a range-restricted scan.
+                reader.getFooter(),
+                // Full-file reads need no per-block file-global offset override — the iterator's
+                // own row-group ordering already matches the file footer.
+                null,
+                filter -> openParquetFileCached(object, parquetInputFile, readOptionsBuilder().withRecordFilter(filter).build()),
+                resolveErrorPolicy(context.errorPolicy()),
+                context.informationalWarningSink(),
+                context.sharedErrorBudget()
+            );
+        } finally {
+            // This covers only the synchronous open/setup phase (footer, row-group filtering,
+            // index/dictionary/bloom prefetch dispatch). The returned iterator's own hasNext()/
+            // next() time its row-group transitions and per-page decode separately (see
+            // ParquetColumnIterator / OptimizedParquetColumnIterator), accumulating into the same
+            // counter so read_nanos covers the reader's full producer-thread lifecycle.
+            if (startCpuNanos >= 0) {
+                counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+            }
+            counters.addTotalReadNanos(System.nanoTime() - startNanos);
+        }
     }
 
     @Override
@@ -2141,7 +2158,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 filterBlocksByRange(fullFooter, rangeStart, rangeEnd)
             ),
             resolveErrorPolicy(context.errorPolicy()),
-            context.informationalWarningSink()
+            context.informationalWarningSink(),
+            context.sharedErrorBudget()
         );
     }
 
@@ -2199,7 +2217,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         long[] rangeBlockGlobalOffsets,
         FilteredReopener reopener,
         ErrorPolicy errorPolicy,
-        @Nullable Consumer<String> warningSink
+        @Nullable Consumer<String> warningSink,
+        @Nullable SharedErrorBudget sharedErrorBudget
     ) throws IOException {
         counters.setLateMaterializationEnabled(true);
         try {
@@ -2268,7 +2287,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     rangeBlockGlobalOffsets,
                     fullFooter,
                     errorPolicy,
-                    warningSink
+                    warningSink,
+                    sharedErrorBudget
                 );
             }
             return new ParquetColumnIterator(
@@ -2286,7 +2306,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 declaredDateFormats,
                 declaredTypeColumns,
                 errorPolicy,
-                warningSink
+                warningSink,
+                sharedErrorBudget
             );
         } catch (Throwable t) {
             reader.close();
@@ -2308,7 +2329,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         long[] rowGroupFirstRowGlobalOverride,
         ParquetMetadata fullFooter,
         ErrorPolicy errorPolicy,
-        @Nullable Consumer<String> warningSink
+        @Nullable Consumer<String> warningSink,
+        @Nullable SharedErrorBudget sharedErrorBudget
     ) {
         if (inputFile instanceof ParquetStorageObjectAdapter == false) {
             throw new ElasticsearchException(
@@ -2477,7 +2499,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 resolveDynamicThresholdColumn(fileSchema, dynamicThreshold),
                 counters,
                 errorPolicy,
-                warningSink
+                warningSink,
+                sharedErrorBudget
             );
             // Constructor succeeded — iterator now owns preloadedMetadata. Set the flag after
             // construction so that a throw inside the constructor does not suppress cleanup.
@@ -3526,12 +3549,21 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             Map<String, String> declaredDateFormats,
             Set<String> declaredTypeColumns,
             ErrorPolicy errorPolicy,
-            @Nullable Consumer<String> warningSink
+            @Nullable Consumer<String> warningSink,
+            @Nullable SharedErrorBudget sharedErrorBudget
         ) {
             this.errorPolicy = errorPolicy;
             this.warningSink = warningSink;
-            this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(errorPolicy, fileLocation, warningSink);
-            this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
+            this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(
+                errorPolicy,
+                fileLocation,
+                warningSink,
+                false,
+                sharedErrorBudget
+            );
+            this.rowDropHelper = sharedErrorBudget != null
+                ? ColumnarRowDropHelper.forSharedBudget(sharedErrorBudget)
+                : ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
             this.reader = reader;
             this.projectedSchema = projectedSchema;
             this.attributes = attributes;

@@ -407,17 +407,7 @@ public record DriverCompletionInfo(
         if (in.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
             warnings = Collections.unmodifiableSet(in.readCollection(LinkedHashSet::new, (stream, set) -> set.add(stream.readString())));
         } else {
-            List<String> headerWarnings = threadContext.takeResponseHeaders("Warning");
-            if (headerWarnings.isEmpty()) {
-                warnings = Set.of();
-            } else {
-                LinkedHashSet<String> parsed = new LinkedHashSet<>(headerWarnings.size());
-                for (String header : headerWarnings) {
-                    String extracted = HeaderWarning.extractWarningValueFromWarningHeader(header, false);
-                    parsed.add(HeaderWarning.decodeAndUnescape(extracted));
-                }
-                warnings = parsed;
-            }
+            warnings = HeaderWarning.readWarningsFromThreadContext(threadContext);
         }
         return new DriverCompletionInfo(
             documentsFound,

@@ -464,7 +464,7 @@ public final class StringColumnWriter {
                 replays.add(in);
                 return stagedOrdinals(cursors.get(), in);
             },
-                NumericPipeline.defaultPipeline(ORDINAL_BLOCK_SIZE),
+                NumericPipeline.ordinalPipeline(ORDINAL_BLOCK_SIZE),
                 BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                 // The ordinals build no skip index, so nothing is ever written to one.
                 null,

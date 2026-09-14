@@ -104,36 +104,19 @@ public abstract class PartitionedBlockHashTestCase extends ComputeTestCase {
             Block[] blocks = new Block[groups.size() + 1];
             int positionCount = between(1, 1_000);
             for (int g = 0; g < groups.size(); g++) {
-                BlockHash.GroupSpec group = groups.get(g);
+                boolean vector = randomBoolean();
                 blocks[g] = RandomBlock.randomBlock(
                     blockFactory,
-                    group.elementType(),
+                    groups.get(g).elementType(),
                     positionCount,
-                    randomBoolean(),
+                    vector == false && randomBoolean(),
                     1,
-                    between(1, 3),
-                    1,
-                    between(1, 3)
+                    vector ? 1 : between(1, 3),
+                    0,
+                    vector ? 0 : between(0, 3)
                 ).block();
-
             }
-            try (var sums = blockFactory.newIntBlockBuilder(positionCount)) {
-                for (int p = 0; p < positionCount; p++) {
-                    int valueCount = between(0, 2);
-                    if (valueCount == 0) {
-                        sums.appendNull();
-                    } else if (valueCount == 1) {
-                        sums.appendInt(randomInt());
-                    } else {
-                        sums.beginPositionEntry();
-                        for (int v = 0; v < valueCount; v++) {
-                            sums.appendInt(randomInt());
-                        }
-                        sums.endPositionEntry();
-                    }
-                }
-                blocks[groups.size()] = sums.build();
-            }
+            blocks[groups.size()] = RandomBlock.randomBlock(blockFactory, ElementType.INT, positionCount, false, 0, 2, 0, 0).block();
             pages.add(new Page(blocks));
         }
         return pages;

@@ -120,6 +120,12 @@ String systemdOutputs = 'build/outputs/systemd'
 String integTestOutputs = 'build/outputs/integ-test-only'
 String externalTestOutputs = 'build/outputs/external-test'
 
+// absolute module directories for the packaging content mappings, which cannot resolve
+// project-relative paths of this project from the packages subproject
+File defaultModulesDirectory = file("${defaultOutputs}/modules")
+File systemdModulesDirectory = file("${systemdOutputs}/modules")
+File externalTestModulesDirectory = file("${externalTestOutputs}/modules")
+
 def processDefaultOutputsTaskProvider = tasks.register("processDefaultOutputs", Sync) {
   into defaultOutputs
 }
@@ -370,6 +376,49 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   project.ext {
 
     /*****************************************************************************
+     *          Content sources for the deb/rpm packaging tasks                  *
+     *****************************************************************************
+     *
+     * The os package tasks (see distribution/packages) are not copy tasks: they
+     * walk their sources directly to preserve symbolic links without relying on
+     * Gradle internal APIs, so they cannot consume the copySpec helpers below.
+     * These helpers expose the same content in data form: destination directory
+     * relative to /usr/share/elasticsearch/lib mapped to the source files.
+     */
+    packagingLibMappings = { os, architecture ->
+      def serverLauncherSources = files(configurations.libsServerLauncher)
+      if (os == 'linux') {
+        if (architecture == 'x64') {
+          serverLauncherSources = serverLauncherSources.plus(files(configurations.libsServerLauncherNativeX64))
+        } else if (architecture == 'aarch64') {
+          serverLauncherSources = serverLauncherSources.plus(files(configurations.libsServerLauncherNativeAarch64))
+        }
+      }
+      return [
+        [dir: '', source: configurations.libs],
+        [dir: 'java-version-checker', source: configurations.libsVersionChecker],
+        [dir: 'cli-launcher', source: configurations.libsCliLauncher],
+        [dir: 'tools/server-cli', source: configurations.libsServerCli],
+        [dir: 'tools/server-launcher', source: serverLauncherSources, executablePattern: 'server-launcher*'],
+        [dir: 'tools/windows-service-cli', source: configurations.libsWindowsServiceCli],
+        [dir: 'tools/geoip-cli', source: configurations.libsGeoIpCli],
+        [dir: 'tools/plugin-cli', source: configurations.libsPluginCli],
+        [dir: 'tools/keystore-cli', source: configurations.libsKeystoreCli],
+        [dir: 'tools/security-cli', source: configurations.libsSecurityCli],
+        [dir: 'tools/ansi-console', source: configurations.libsAnsiConsole],
+        [dir: 'platform', source: configurations.libsNative, includePattern: os + '-' + architecture + '/*'],
+        [dir: 'entitlement-agent', source: configurations.libsEntitlementAgent],
+        [dir: 'entitlement-bridge', source: configurations.libsEntitlementBridge],
+      ]
+    }
+
+    /** module trees for the packaging tasks: source directory plus the task producing it */
+    packagingDefaultModulesDir = files(defaultModulesDirectory).builtBy(processDefaultOutputsTaskProvider)
+    packagingSystemdModulesDir = files(systemdModulesDirectory).builtBy(processSystemdOutputsTaskProvider)
+    packagingExternalTestModulesDir = files(externalTestModulesDirectory).builtBy(processExternalTestOutputsTaskProvider)
+    packagingNoticeFile = buildDefaultNoticeTaskProvider
+
+    /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
     libFiles = { os, architecture ->
@@ -520,7 +569,11 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         // module provided bin files
         with copySpec {
-          eachFile { it.permissions.unix(0755) }
+          eachFile {
+            it.permissions {
+              unix(0755)
+            }
+          }
           from(testDistro ? integTestBinFiles : defaultBinFiles)
           if (distributionType != 'zip') {
             exclude '*.bat'

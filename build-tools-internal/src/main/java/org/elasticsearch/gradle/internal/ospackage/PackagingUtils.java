@@ -22,9 +22,6 @@
 
 package org.elasticsearch.gradle.internal.ospackage;
 
-import org.gradle.api.file.CopySpec;
-import org.gradle.api.file.FileCopyDetails;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -32,8 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Small helpers shared by the rpm and deb copy actions: path mapping, symlink relativization and
- * unix permission extraction.
+ * Symlink and permission helpers shared by the packaging walker and writers.
  */
 public final class PackagingUtils {
 
@@ -44,56 +40,27 @@ public final class PackagingUtils {
 
     private PackagingUtils() {}
 
-    /** A relativized symlink: {@link #path()} inside the package pointing at {@link #target()}. */
-    public record Symlink(String path, String target) {}
-
-    public static String getRootPath(FileCopyDetails details) {
-        return "/" + details.getPath();
-    }
-
     public static boolean isSymbolicLink(File file) {
         return Files.isSymbolicLink(file.toPath());
     }
 
-    /** Returns the closest ancestor directory that is a symbolic link, or null. */
-    public static File parentSymbolicLink(File file) {
-        File parent = file.getParentFile();
-        if (parent == null || isSymbolicLink(parent)) {
-            return parent;
-        }
-        return parentSymbolicLink(parent);
-    }
-
     /**
-     * Translates a symlink found in the copied file tree into a link entry within the package,
-     * provided the link target lies within the copied tree. Returns {@code null} when the link
-     * cannot be represented relative to the copied sources.
+     * Returns the raw link target when {@code file} is a symbolic link whose target resolves
+     * within {@code root} (and can therefore be represented as a package link entry), or
+     * {@code null} when the file is not a link or points outside the packaged tree (in which case
+     * the link target's content is packaged as a regular file, matching the original plugin).
      */
-    public static Symlink relativizeSymlink(FileCopyDetails details, File target) {
+    public static String relativeLinkTarget(Path root, File file) {
+        if (Files.isSymbolicLink(file.toPath()) == false) {
+            return null;
+        }
         try {
-            String sourcePath = details.getFile().getPath();
-            String sourceBasePath = sourcePath.substring(0, sourcePath.length() - details.getRelativeSourcePath().getPathString().length());
-            if (target.getPath().startsWith(sourceBasePath) == false) {
-                return null;
+            Path target = Files.readSymbolicLink(file.toPath());
+            Path resolved = file.getParentFile().toPath().resolve(target).normalize();
+            if (resolved.startsWith(root.normalize())) {
+                return target.toString();
             }
-            String sourceRelative = target.getPath().substring(sourceBasePath.length());
-            String sourceBase = details.getPath().substring(0, details.getPath().indexOf(sourceRelative));
-
-            File targetFile = Files.readSymbolicLink(target.toPath()).toFile();
-            String targetPath = targetFile.isAbsolute()
-                ? targetFile.getPath()
-                : new File(target.getParentFile(), targetFile.getPath()).getCanonicalPath();
-
-            if (targetPath.startsWith(sourceBasePath)) {
-                File sourceRoot = new File("/" + sourceBase, sourceRelative);
-                File targetRoot = new File("/" + sourceBase, targetPath.substring(sourceBasePath.length()));
-                Path relativeTarget = sourceRoot.isDirectory()
-                    ? sourceRoot.toPath().relativize(targetRoot.toPath())
-                    : sourceRoot.getParentFile().toPath().relativize(targetRoot.toPath());
-                return new Symlink(sourceRoot.getPath(), relativeTarget.toString());
-            } else {
-                return null;
-            }
+            return null;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -104,52 +71,18 @@ public final class PackagingUtils {
      * always reflecting executable bits of the underlying file by falling back to filesystem-level
      * checks in that case.
      */
-    public static int getUnixPermission(FileCopyDetails details) {
-        int newApiMode = details.getPermissions().toUnixNumeric();
-        try {
-            File file = details.getFile();
-            if (file != null && file.canExecute() && (newApiMode & EXECUTE_MASK) == 0) {
-                boolean readable = file.canRead();
-                boolean writable = file.canWrite();
-                if (readable && writable) {
-                    return OWNER_RWX_GROUP_RX_OTHER_RX;
-                } else if (readable) {
-                    return ALL_READ_EXECUTE;
-                } else {
-                    return DEFAULT_FILE_PERMISSION;
-                }
+    public static int getUnixPermission(int apiMode, File file) {
+        if (file != null && file.canExecute() && (apiMode & EXECUTE_MASK) == 0) {
+            boolean readable = file.canRead();
+            boolean writable = file.canWrite();
+            if (readable && writable) {
+                return OWNER_RWX_GROUP_RX_OTHER_RX;
+            } else if (readable) {
+                return ALL_READ_EXECUTE;
+            } else {
+                return DEFAULT_FILE_PERMISSION;
             }
-        } catch (UnsupportedOperationException e) {
-            // filtered copies cannot expose the backing file; fall through to the API value
         }
-        return newApiMode;
-    }
-
-    /**
-     * Returns explicitly configured file permissions of a spec, or {@code null} when the spec uses
-     * defaults. Permissions equal to 0644 are only considered explicit when the spec shows other
-     * signs of dedicated configuration (include or exclude patterns).
-     */
-    public static Integer getFileMode(CopySpec spec) {
-        if (spec == null || spec.getFilePermissions().isPresent() == false) {
-            return null;
-        }
-        int numeric = spec.getFilePermissions().get().toUnixNumeric();
-        boolean hasExplicitConfiguration = spec.getIncludes().isEmpty() == false || spec.getExcludes().isEmpty() == false;
-        if (hasExplicitConfiguration || numeric != DEFAULT_FILE_PERMISSION) {
-            return numeric;
-        }
-        return null;
-    }
-
-    /**
-     * Returns explicitly configured directory permissions of a spec, or {@code null} when the spec
-     * uses defaults.
-     */
-    public static Integer getDirMode(CopySpec spec) {
-        if (spec == null || spec.getDirPermissions().isPresent() == false) {
-            return null;
-        }
-        return spec.getDirPermissions().get().toUnixNumeric();
+        return apiMode;
     }
 }

@@ -13,80 +13,108 @@ import org.apache.commons.compress.archivers.ar.ArArchiveInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
-import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
-import org.gradle.api.Plugin
+import org.elasticsearch.gradle.fixtures.AbstractJavaGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 import org.redline_rpm.ReadableChannelWrapper
 import org.redline_rpm.Scanner
 import org.redline_rpm.header.Header
 
 import java.nio.channels.Channels
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Path
 
 /**
- * Covers the parts of the extracted ospackage plugin the Elasticsearch distribution build relies
- * on: project wide defaults via the {@code ospackage} extension, per copy-spec packaging
- * attributes (owner, group, setgid, directory entries) and registering additional directory
- * entries from {@code eachFile} callbacks at execution time — all under the configuration cache
- * (the base test fixture runs every build with configuration cache compatibility checking).
+ * Covers the behavior of the packaging tasks the Elasticsearch distribution build relies on:
+ * declarative content mappings with ownership/mode metadata, package-owned parent and empty
+ * directory entries, config file handling and preservation of in-tree symbolic links — all
+ * exercised under configuration cache compatibility checking (the base fixture runs every build
+ * twice with the configuration cache enabled).
  */
-class OsPackageBasePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
-
-    Class<? extends Plugin> pluginClassUnderTest = OsPackageBasePlugin.class
+class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
 
     def setup() {
+        settingsFile.text = """
+        plugins {
+            id 'elasticsearch.java-toolchain'
+        }
+
+        toolchainManagement {
+          jvm {
+            javaRepositories {
+              repository('bundledOracleOpendJdk') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+              }
+              repository('adoptiumJdks') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
+              }
+              repository('archivedOracleJdks') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
+              }
+            }
+          }
+        }
+        """ + settingsFile.text
+
         file('files/bin/run.sh') << "#!/bin/bash\necho hello\n"
         file('files/conf/app.conf') << "setting: value\n"
         file('files/conf/sub/nested.conf') << "nested: value\n"
+        file('files/lib/real.txt') << "real content\n"
+        Path link = file('files/lib/link.txt').toPath()
+        Files.deleteIfExists(link)
+        Files.createSymbolicLink(link, Path.of('real.txt'))
+
         buildFile << """
         import org.elasticsearch.gradle.internal.ospackage.deb.Deb
         import org.elasticsearch.gradle.internal.ospackage.rpm.Rpm
+        import org.redline_rpm.payload.Directive
 
-        ospackage {
+        plugins {
+          // bring build-tools-internal onto the classpath
+          id 'elasticsearch.global-build-info'
+        }
+
+        def commonConfig = {
+            packageName = 'test-pkg'
+            version = '1.2.3'
+            destinationDirectory = file('build/dists')
             maintainer = 'Test <test@example.org>'
             summary = 'a test package'
             packageDescription = 'longer description'
             url = 'https://example.org'
             user = 'root'
             permissionGroup = 'root'
-            fileMode = 0644
-            dirMode = 0755
-        }
-
-        def commonConfig = {
-            def packagingTask = delegate
-            packageName = 'test-pkg'
-            version = '1.2.3'
-            arch = 'NOARCH'
-            destinationDirectory = file('build/dists')
-            into('/opt/test') {
-                into('bin') {
-                    from('files/bin') {
-                        filePermissions { unix(0755) }
-                    }
-                    eachFile { details ->
-                        // registering directory entries while the task is executing must work
-                        packagingTask.directory('/opt/test/registered', 0750)
-                    }
-                }
-                into('conf') {
-                    from('files/conf') {
-                        user 'testuser'
-                        permissionGroup 'testgroup'
-                        setgid true
-                        createDirectoryEntry true
-                        filePermissions { unix(0660) }
-                        dirPermissions { unix(0750) }
-                    }
-                }
-            }
-            configurationFile '/opt/test/app.conf'
             requires 'coreutils'
             conflicts 'other-pkg'
+
+            from('files/bin') {
+                into '/opt/test/bin'
+                fileMode 0755
+                ownParentDirectories '/opt/test'
+            }
+            from('files/lib') {
+                into '/opt/test/lib'
+                fileMode 0644
+                ownParentDirectories '/opt/test'
+            }
+            from('files/conf') {
+                into '/opt/test/conf'
+                user 'testuser'
+                permissionGroup 'testgroup'
+                setgid true
+                ownDirectories true
+                fileMode 0660
+                dirMode 0750
+                fileType Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE
+            }
+            configurationFile '/opt/test/conf/app.conf'
+            directory('/var/log/test-pkg', 0750, 'testuser', 'testgroup', true)
         }
 
         tasks.register('buildRpm', Rpm) {
             configure(commonConfig)
             archiveFileName = 'test-pkg-1.2.3.noarch.rpm'
+            arch = 'NOARCH'
             packageGroup = 'Application/Test'
             license = 'Test License'
         }
@@ -101,7 +129,7 @@ class OsPackageBasePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         """
     }
 
-    def "builds rpm with packaging attributes and execution time directory entries"() {
+    def "builds rpm with packaging metadata, directory entries and symlinks"() {
         when:
         def result = gradleRunner('buildRpm').build()
 
@@ -121,14 +149,19 @@ class OsPackageBasePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         files['/opt/test/conf/app.conf'].user == 'testuser'
         files['/opt/test/conf/app.conf'].group == 'testgroup'
         (files['/opt/test/conf/app.conf'].mode & 0777) == 0660
-        // directory entry with setgid bit from the copy spec attributes
+        // directory entry with setgid bit from the mapping metadata
         (files['/opt/test/conf/sub'].mode & 07777) == 02750
-        // directory entry registered from the eachFile callback at execution time
-        files.containsKey('/opt/test/registered')
-        (files['/opt/test/registered'].mode & 0777) == 0750
+        // package-owned parent directories below /opt/test
+        files.containsKey('/opt/test/bin')
+        (files['/opt/test/bin'].mode & 0777) == 0755
+        // explicitly declared empty directory
+        (files['/var/log/test-pkg'].mode & 07777) == 02750
+        files['/var/log/test-pkg'].user == 'testuser'
+        // in-tree symlink preserved as a link entry
+        files['/opt/test/lib/link.txt'].linkTarget == 'real.txt'
     }
 
-    def "builds deb with packaging attributes and custom control fields"() {
+    def "builds deb with packaging metadata, directory entries and symlinks"() {
         when:
         def result = gradleRunner('buildDeb').build()
 
@@ -142,7 +175,7 @@ class OsPackageBasePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         control.contains('Version: 1.2.3')
         // the XB- prefixed custom field is rendered without the prefix in the binary control file
         control.contains('License: Test-License')
-        readDebControlFile(deb, './conffiles').contains('/opt/test/app.conf')
+        readDebControlFile(deb, './conffiles').contains('/opt/test/conf/app.conf')
 
         def entries = readDebDataEntries(deb)
         entries['/opt/test/bin/run.sh'].userName == 'root'
@@ -151,6 +184,10 @@ class OsPackageBasePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         entries['/opt/test/conf/app.conf'].groupName == 'testgroup'
         (entries['/opt/test/conf/app.conf'].mode & 0777) == 0660
         (entries['/opt/test/conf/sub'].mode & 07777) == 02750
+        (entries['/var/log/test-pkg'].mode & 07777) == 02750
+        // in-tree symlink preserved as a link entry
+        entries['/opt/test/lib/link.txt'].isSymbolicLink()
+        entries['/opt/test/lib/link.txt'].linkName == 'real.txt'
     }
 
     private static Header readRpmHeader(File rpm) {
@@ -171,10 +208,16 @@ class OsPackageBasePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         List modes = headerValues(header, 'FILEMODES')
         List users = headerValues(header, 'FILEUSERNAME')
         List groups = headerValues(header, 'FILEGROUPNAME')
+        List linkTargets = headerValues(header, 'FILELINKTOS')
         Map<String, Map> result = [:]
         for (int i = 0; i < baseNames.size(); i++) {
             String path = "${dirNames[dirIndexes[i] as int]}${baseNames[i]}"
-            result[path] = [mode: (modes[i] as int) & 07777, user: users[i], group: groups[i]]
+            result[path] = [
+                mode: (modes[i] as int) & 07777,
+                user: users[i],
+                group: groups[i],
+                linkTarget: linkTargets ? (linkTargets[i] ?: '') : ''
+            ]
         }
         return result
     }
@@ -183,7 +226,7 @@ class OsPackageBasePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         String content = null
         eachDebTarEntry(deb, "control.tar.gz") { TarArchiveEntry entry, TarArchiveInputStream tar ->
             if (entry.name == name) {
-                content = new String(tar.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+                content = new String(tar.readAllBytes(), StandardCharsets.UTF_8)
             }
         }
         return content

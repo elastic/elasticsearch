@@ -40,15 +40,10 @@ import java.util.Arrays;
  *
  * <p>A block records its values one of three ways, chosen per block by what the values in it look like.
  * <b>Inline</b> puts each length beside its own value, where a length and its value compress together as one
- * pattern. <b>Packed</b> puts the lengths bit-packed at one fixed bit width at the block's head and the
- * values contiguously after them, where the exact bit count is narrower than a whole byte and the value bytes
- * are uninterrupted. <b>Runs</b> stores each distinct value once with how many values in a row hold it, for a
- * block whose values repeat — the shape a column sorted on this field takes. The block's first byte says which
- * of the three was picked.
- *
- * <p>A stream's {@link Layouts} controls which layouts it may use. {@link Layouts#CONTIGUOUS_VALUES} forbids
- * inline, so every block keeps its value bytes contiguous — nothing interleaved between them — which both
- * tightens the length header and gives a compressor an unbroken run of value bytes to match against.
+ * pattern. <b>Packed</b> puts the lengths bit-packed at their exact bit width at the block's head and the
+ * values contiguously after them; the bit count is as narrow as the widest length needs. <b>Runs</b> stores
+ * each distinct value once with how many values in a row hold it, for a block whose values repeat — the shape
+ * a column sorted on this field takes. The block's first byte says which of the three was picked.
  *
  * <p>Blocks and chunks are separate on purpose. A block of long values and a block of short ones are the same
  * count of values and nothing like the same number of bytes, so the unit that is addressed cannot also be the
@@ -92,28 +87,8 @@ public final class ValueStream {
         }
     }
 
-    /** Mean value length below which a block keeps its lengths inline, when the stream allows it. */
+    /** Mean value length below which a block keeps its lengths inline rather than packed. */
     private static final int INLINE_MEAN_LENGTH = 32;
-
-    /**
-     * The block layouts a stream may write.
-     *
-     * <p>A stream can be restricted to {@link #CONTIGUOUS_VALUES} at construction time, which keeps every
-     * block's value bytes together behind one length header. Blocks that repeat naturally still take
-     * {@link BlockLayout#RUNS} regardless of which layouts is set.
-     */
-    public enum Layouts {
-        /**
-         * All three layouts: inline, packed and runs. A block of short values keeps each length beside
-         * its own value, where the two repeat as one pattern a compressor matches whole.
-         */
-        ANY,
-        /**
-         * Runs and packed only, so every block's values sit contiguously behind one length header.
-         * Removing the interleaved lengths gives a compressor an unbroken run of value bytes to match.
-         */
-        CONTIGUOUS_VALUES
-    }
 
     /**
      * What a written stream records about itself.
@@ -178,7 +153,6 @@ public final class ValueStream {
         private final IndexOutput data;
         private final MonotonicWriter offsets;
         private final int valuesPerBlock;
-        private final Layouts layouts;
         private long count = 0;
         private long valueBytes = 0;
         private boolean closed = false;
@@ -205,11 +179,9 @@ public final class ValueStream {
             Directory dir,
             IOContext ctx,
             String prefix,
-            IndexOutput data,
-            Layouts layouts
+            IndexOutput data
         ) throws IOException {
             this.valuesPerBlock = valuesPerBlock;
-            this.layouts = layouts;
             this.data = data;
             this.pending = new int[valuesPerBlock];
             // Both hold a temporary file of their own. Whichever opens first is closed here if the one after
@@ -246,28 +218,21 @@ public final class ValueStream {
         }
 
         /**
-         * Emits the buffered block in whichever of the allowed layouts fits it.
+         * Emits the buffered block in whichever layout fits it best.
          *
          * <p><b>Runs</b> stores each distinct value once with how many values in a row hold it. It is taken
          * first and only where it is genuinely smaller, sized against what the stream would otherwise write.
          *
+         * <p><b>Inline</b> keeps each length in front of its own value. It suits short values because the
+         * length and the value then repeat as one pattern that a compressor matches whole — splitting them
+         * apart costs more than the packing saves.
+         *
          * <p><b>Packed</b> bit-packs the lengths at their exact bit width ahead of the bytes, so a block
          * whose values are long or dissimilar keeps them contiguous and hands a compressor an unbroken run.
-         *
-         * <p><b>Inline</b> keeps each length in front of its own value. It suits short repeated values when
-         * {@link Layouts#ANY} is set, because the length and the value then repeat as one pattern that a
-         * compressor matches whole — splitting them apart costs more than the packing saves. A stream set to
-         * {@link Layouts#CONTIGUOUS_VALUES} never writes inline, so all its value bytes sit together.
          */
         private void flushBlock() throws IOException {
             chunks.boundary();
             offsets.add(chunks.uncompressedLength());
-            // max and its bit width feed both runsAreSmaller (for sizing) and writePacked.
-            int max = 0;
-            for (int i = 0; i < pendingCount; i++) {
-                max = Math.max(max, pending[i]);
-            }
-            final int bits = ByteArrayInts.bitsRequired(max);
             // A run of equal values is stored once with a repeat, which is what a column sorted on this
             // field is made of. Worth it only where the runs are long enough to pay for the repeats, so the
             // two forms are sized against each other rather than guessed at.
@@ -275,7 +240,7 @@ public final class ValueStream {
             // the sizing and the write both read.
             final int runCount = stageRuns();
             runs += runCount;
-            if (runsAreSmaller(runCount, bits)) {
+            if (runsAreSmaller(runCount)) {
                 writeRuns(runCount);
                 pendingCount = 0;
                 pendingLength = 0;
@@ -285,10 +250,14 @@ public final class ValueStream {
             // choose between them. What separates them is how long the values are: short ones repeat
             // together with their length as a single pattern, and splitting the two apart costs more than
             // the walk saves. The threshold is where the measured shapes turn over.
-            if (layouts == Layouts.ANY && pendingLength < pendingCount * INLINE_MEAN_LENGTH) {
+            if (pendingLength < pendingCount * INLINE_MEAN_LENGTH) {
                 writeInline();
             } else {
-                writePacked(bits);
+                int max = 0;
+                for (int i = 0; i < pendingCount; i++) {
+                    max = Math.max(max, pending[i]);
+                }
+                writePacked(ByteArrayInts.bitsRequired(max));
             }
             pendingCount = 0;
             pendingLength = 0;
@@ -336,7 +305,7 @@ public final class ValueStream {
             return runs;
         }
 
-        private boolean runsAreSmaller(int runCount, int bits) {
+        private boolean runsAreSmaller(int runCount) {
             if (runCount == pendingCount) {
                 return false;
             }
@@ -344,17 +313,8 @@ public final class ValueStream {
             for (int r = 0; r < runCount; r++) {
                 runBytes += runLens[r];
             }
-            // Compare runs against whichever layout the stream would actually write. Inline costs one vint
-            // per value; packed costs a bitsPerValue byte plus the bit-packed header. Sizing against inline
-            // when the stream cannot write it would over-favour runs on short-value blocks.
-            final long alternative;
-            if (layouts == Layouts.ANY && pendingLength < pendingCount * INLINE_MEAN_LENGTH) {
-                alternative = pendingLength + pendingCount; // inline: ~one byte of vint per value
-            } else {
-                alternative = pendingLength + 1L + ByteArrayInts.bitPackedLength(pendingCount, bits); // packed
-            }
-            // Two vints a run against whatever the other form costs, plus the bytes each actually stores.
-            return runBytes + 2L * runCount < alternative;
+            // Two vints a run against one a value, plus the bytes each form actually stores.
+            return runBytes + 2L * runCount < pendingLength + pendingCount;
         }
 
         /** Each distinct value once, preceded by its length and how many documents in a row hold it. */

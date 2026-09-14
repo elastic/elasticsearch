@@ -21,8 +21,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.lessThan;
-
 /**
  * The byte sequence a string column stores its values in, on its own: whatever is written reads back, at
  * every block layout and every bit width a packed length takes.
@@ -31,7 +29,7 @@ public class ValueStreamTests extends ESTestCase {
 
     private static final String FILE = "stream.bin";
 
-    /** Values short enough that a block keeps each length beside its own value with the ANY layout. */
+    /** Values short enough that a block keeps each length beside its own value. */
     public void testInlineLengths() throws IOException {
         assertRoundTrip(values(between(200, 2000), 0, 20));
     }
@@ -91,80 +89,7 @@ public class ValueStreamTests extends ESTestCase {
     /** A value larger than the bytes a chunk holds, which a chunk has to grow past rather than split. */
     public void testValueLargerThanAChunk() throws IOException {
         final List<BytesRef> values = values(between(4, 30), 600, 1200);
-        assertRoundTrip(values, randomFrom(8, 32, 128), randomChunkCodec(), 256, randomLayouts());
-    }
-
-    /**
-     * A stream restricted to contiguous values never writes the inline layout, even when the values are
-     * short enough that a stream set to {@link ValueStream.Layouts#ANY} would choose inline. The on-disk
-     * size with an identity codec (no compression) confirms packed was chosen: packed at a few bits per
-     * value uses a shorter header than one vint per value.
-     */
-    public void testContiguousValuesNeverWritesInline() throws IOException {
-        // Values short enough that ANY would choose inline (mean < INLINE_MEAN_LENGTH = 32).
-        // CONTIGUOUS_VALUES must use packed instead.
-        final List<BytesRef> values = new ArrayList<>();
-        for (int i = 0; i < 256; i++) {
-            values.add(new BytesRef(randomAlphaOfLength(15)));
-        }
-        assertRoundTrip(values, 128, ChunkCodec.IDENTITY, 1024 * 1024, ValueStream.Layouts.CONTIGUOUS_VALUES);
-
-        // Packed at bitsRequired(15) = 4 bits writes 64 bytes of length header per 128-value block.
-        // Inline writes ~128 vint bytes. The identity codec removes compression from the equation, so
-        // the difference in file size is purely the layout — packed should be smaller.
-        try (Directory dir = newDirectory()) {
-            final long anyBytes;
-            try (IndexOutput out = dir.createOutput("any.bin", IOContext.DEFAULT)) {
-                try (
-                    ValueStream.Writer writer = new ValueStream.Writer(
-                        ChunkCodec.IDENTITY,
-                        1024 * 1024,
-                        128,
-                        values.size(),
-                        dir,
-                        IOContext.DEFAULT,
-                        "x",
-                        out,
-                        ValueStream.Layouts.ANY
-                    )
-                ) {
-                    for (BytesRef value : values) {
-                        writer.add(value);
-                    }
-                    writer.finish();
-                }
-            }
-            anyBytes = dir.fileLength("any.bin");
-
-            final long contigBytes;
-            try (IndexOutput out = dir.createOutput("contig.bin", IOContext.DEFAULT)) {
-                try (
-                    ValueStream.Writer writer = new ValueStream.Writer(
-                        ChunkCodec.IDENTITY,
-                        1024 * 1024,
-                        128,
-                        values.size(),
-                        dir,
-                        IOContext.DEFAULT,
-                        "x",
-                        out,
-                        ValueStream.Layouts.CONTIGUOUS_VALUES
-                    )
-                ) {
-                    for (BytesRef value : values) {
-                        writer.add(value);
-                    }
-                    writer.finish();
-                }
-            }
-            contigBytes = dir.fileLength("contig.bin");
-
-            assertThat(
-                "packed (4 bits/value) should write a smaller header than inline (1 vint/value) for uniform 15-byte values",
-                contigBytes,
-                lessThan(anyBytes)
-            );
-        }
+        assertRoundTrip(values, randomFrom(8, 32, 128), randomChunkCodec(), 256);
     }
 
     private static List<BytesRef> values(int count, int minLength, int maxLength) {
@@ -179,32 +104,13 @@ public class ValueStreamTests extends ESTestCase {
         return randomFrom(ChunkCodec.IDENTITY, ChunkCodec.ZSTD);
     }
 
-    private static ValueStream.Layouts randomLayouts() {
-        return randomFrom(ValueStream.Layouts.values());
-    }
-
     private void assertRoundTrip(List<BytesRef> values) throws IOException {
-        assertRoundTrip(values, randomFrom(8, 32, 128, 512), randomChunkCodec(), randomFrom(64, 512, 4096, 64 * 1024), randomLayouts());
+        assertRoundTrip(values, randomFrom(8, 32, 128, 512), randomChunkCodec(), randomFrom(64, 512, 4096, 64 * 1024));
     }
 
     /** Writes the values, reads every one back in order, backwards, and at random. */
-    private void assertRoundTrip(
-        List<BytesRef> values,
-        int valuesPerBlock,
-        ChunkCodec codec,
-        int targetChunkBytes,
-        ValueStream.Layouts layouts
-    ) throws IOException {
-        final String label = "codec="
-            + codec
-            + " perBlock="
-            + valuesPerBlock
-            + " chunk="
-            + targetChunkBytes
-            + " layouts="
-            + layouts
-            + " n="
-            + values.size();
+    private void assertRoundTrip(List<BytesRef> values, int valuesPerBlock, ChunkCodec codec, int targetChunkBytes) throws IOException {
+        final String label = "codec=" + codec + " perBlock=" + valuesPerBlock + " chunk=" + targetChunkBytes + " n=" + values.size();
         try (Directory dir = newDirectory()) {
             final ValueStream.Metadata metadata;
             try (IndexOutput out = dir.createOutput(FILE, IOContext.DEFAULT)) {
@@ -217,8 +123,7 @@ public class ValueStreamTests extends ESTestCase {
                         dir,
                         IOContext.DEFAULT,
                         "stream",
-                        out,
-                        layouts
+                        out
                     )
                 ) {
                     for (BytesRef value : values) {

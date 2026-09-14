@@ -102,6 +102,11 @@ public class MergeReaderWrapper extends FlatVectorsReader {
     }
 
     @Override
+    public int getVectorCount(FieldInfo fieldInfo) throws IOException {
+        return mainReader.getVectorCount(fieldInfo);
+    }
+
+    @Override
     public void close() throws IOException {
         IOUtils.close(mainReader, mergeReader);
     }

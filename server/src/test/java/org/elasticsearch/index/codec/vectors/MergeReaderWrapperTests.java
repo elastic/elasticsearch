@@ -12,8 +12,13 @@ package org.elasticsearch.index.codec.vectors;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
@@ -33,6 +38,8 @@ public class MergeReaderWrapperTests extends ESTestCase {
     private static class RecordingReader extends FlatVectorsReader {
         int getMergeInstanceCalls;
         int finishMergeCalls;
+        int getVectorCountCalls;
+        int vectorCount;
         final FlatVectorsReader mergeInstance;
 
         RecordingReader(FlatVectorsReader mergeInstance) {
@@ -95,7 +102,36 @@ public class MergeReaderWrapperTests extends ESTestCase {
         }
 
         @Override
+        public int getVectorCount(FieldInfo fieldInfo) {
+            getVectorCountCalls++;
+            return vectorCount;
+        }
+
+        @Override
         public void close() {}
+    }
+
+    private static FieldInfo fieldInfo() {
+        return new FieldInfo(
+            "field",
+            0,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
+            -1,
+            Map.of(),
+            0,
+            0,
+            0,
+            8,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.DOT_PRODUCT,
+            false,
+            false
+        );
     }
 
     public void testGetMergeInstanceIsDelegatedToTheMergeReader() throws IOException {
@@ -122,5 +158,24 @@ public class MergeReaderWrapperTests extends ESTestCase {
 
         assertEquals(1, mergeReader.finishMergeCalls);
         assertEquals("the search reader takes no part in the merge", 0, mainReader.finishMergeCalls);
+    }
+
+    /**
+     * getVectorCount() must read from the reader serving searches, not the (possibly stale, or not yet
+     * finished) merge reader.
+     */
+    public void testGetVectorCountIsDelegatedToTheMainReader() throws IOException {
+        RecordingReader mergeReader = new RecordingReader(null);
+        mergeReader.vectorCount = 99;
+        RecordingReader mainReader = new RecordingReader(null);
+        mainReader.vectorCount = 42;
+        FieldInfo fieldInfo = fieldInfo();
+
+        try (MergeReaderWrapper wrapper = new MergeReaderWrapper(mainReader, mergeReader)) {
+            assertEquals(42, wrapper.getVectorCount(fieldInfo));
+        }
+
+        assertEquals(1, mainReader.getVectorCountCalls);
+        assertEquals("counting vectors must not touch the merge reader", 0, mergeReader.getVectorCountCalls);
     }
 }

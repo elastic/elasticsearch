@@ -142,22 +142,21 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<
 
     @Override
     protected BlockedRecoveries createNodeContext() {
-        final Set<String> queuedAllocationIds = throttlingRecoveryService.queuedAllocationIds();
         final BlockedState blockedState = throttlingRecoveryService.blockedState();
-        return new BlockedRecoveries(blockedState, queuedAllocationIds, threadPool.relativeTimeInMillis());
+        final long blockedForMillis;
+        if (blockedState == null) {
+            blockedForMillis = ShardRecoveryInfo.NOT_BLOCKED_MILLIS;
+        } else {
+            blockedForMillis = threadPool.relativeTimeInMillis() - blockedState.sinceRelativeMillis();
+        }
+        return new BlockedRecoveries(blockedState, throttlingRecoveryService.queuedAllocationIds(), blockedForMillis);
     }
 
     /// Captures the recoveries that are blocked by a recovery gate.
-    record BlockedRecoveries(@Nullable BlockedState blockedState, Set<String> allocationIds, long currentRelativeTimeMillis) {
+    record BlockedRecoveries(@Nullable BlockedState blockedState, Set<String> allocationIds, long blockedForMillis) {
         BlockedRecoveries {
             allocationIds = Set.copyOf(allocationIds);
-        }
-
-        long blockedForMillis() {
-            assert blockedState != null;
-            final long blockedForMillis = currentRelativeTimeMillis - blockedState.sinceRelativeMillis();
-            assert blockedForMillis >= 0L;
-            return blockedForMillis;
+            assert blockedState == null ? blockedForMillis == ShardRecoveryInfo.NOT_BLOCKED_MILLIS : blockedForMillis >= 0L;
         }
     }
 

@@ -22,7 +22,9 @@ import java.util.Objects;
 /// Combines a shard's recovery state with a snapshot of the recovery gate that may be blocking it.
 public final class ShardRecoveryInfo implements Writeable {
 
-    public static final TransportVersion GATE_IN_RECOVERY_RESPONSE = TransportVersion.fromName("gate_in_recovery_response");
+    public static final TransportVersion GATE_IN_RECOVERY_RESPONSE_TRANSPORT_VERSION = TransportVersion.fromName(
+        "gate_in_recovery_response"
+    );
 
     /// Sentinel duration used when the recovery is not blocked by a gate.
     public static final long NOT_BLOCKED_MILLIS = -1L;
@@ -45,7 +47,7 @@ public final class ShardRecoveryInfo implements Writeable {
 
     public ShardRecoveryInfo(StreamInput in) throws IOException {
         recoveryState = RecoveryState.readRecoveryState(in);
-        if (in.getTransportVersion().supports(GATE_IN_RECOVERY_RESPONSE)) {
+        if (in.getTransportVersion().supports(GATE_IN_RECOVERY_RESPONSE_TRANSPORT_VERSION)) {
             gate = in.readOptionalString();
             blockedForMillis = gate == null ? NOT_BLOCKED_MILLIS : in.readVLong();
         } else {
@@ -54,14 +56,14 @@ public final class ShardRecoveryInfo implements Writeable {
         }
     }
 
-    public RecoveryState recoveryState() {
+    RecoveryState recoveryState() {
         return recoveryState;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         recoveryState.writeTo(out);
-        if (out.getTransportVersion().supports(GATE_IN_RECOVERY_RESPONSE)) {
+        if (out.getTransportVersion().supports(GATE_IN_RECOVERY_RESPONSE_TRANSPORT_VERSION)) {
             final String blockedByGate = blockedByGate();
             out.writeOptionalString(blockedByGate);
             if (blockedByGate != null) {
@@ -72,7 +74,7 @@ public final class ShardRecoveryInfo implements Writeable {
 
     /// Returns the blocking recovery gate only while the recovery is still queued in the `CREATED` stage.
     @Nullable
-    public String blockedByGate() {
+    String blockedByGate() {
         if (gate != null && recoveryState.getStage() == RecoveryState.Stage.CREATED) {
             return gate;
         }

@@ -21,14 +21,9 @@ public class TransportRecoveryActionTests extends ESTestCase {
     public void testBlockedForMillis() {
         final String allocationId = randomIdentifier();
         final String gate = randomIdentifier();
-        final long sinceRelativeMillis = randomLongBetween(0L, 1_000_000L);
         final long blockedForMillis = randomLongBetween(0L, 1_000_000L);
-        final BlockedState blockedState = new BlockedState(gate, sinceRelativeMillis);
-        final var blockedRecoveries = new TransportRecoveryAction.BlockedRecoveries(
-            blockedState,
-            Set.of(allocationId),
-            sinceRelativeMillis + blockedForMillis
-        );
+        final BlockedState blockedState = new BlockedState(gate, randomLongBetween(0L, 1_000_000L));
+        final var blockedRecoveries = new TransportRecoveryAction.BlockedRecoveries(blockedState, Set.of(allocationId), blockedForMillis);
 
         assertThat(blockedRecoveries.blockedState(), equalTo(blockedState));
         assertThat(blockedRecoveries.allocationIds(), equalTo(Set.of(allocationId)));

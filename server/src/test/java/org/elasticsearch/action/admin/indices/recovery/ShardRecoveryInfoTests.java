@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESTestCase;
@@ -41,7 +43,7 @@ public class ShardRecoveryInfoTests extends ESTestCase {
 
             final ShardRecoveryInfo copy = serializeDeserialize(
                 recoveryInfo,
-                TransportVersionUtils.randomVersionSupporting(ShardRecoveryInfo.GATE_IN_RECOVERY_RESPONSE)
+                TransportVersionUtils.randomVersionSupporting(ShardRecoveryInfo.GATE_IN_RECOVERY_RESPONSE_TRANSPORT_VERSION)
             );
             assertEquals(stage, copy.recoveryState().getStage());
             assertEquals(isBlocked ? gate : null, copy.blockedByGate());
@@ -68,10 +70,30 @@ public class ShardRecoveryInfoTests extends ESTestCase {
     public void testGateOmittedForUnsupportedTransportVersion() throws IOException {
         final ShardRecoveryInfo copy = serializeDeserialize(
             new ShardRecoveryInfo(createRecoveryState(), randomIdentifier(), randomNonNegativeLong()),
-            TransportVersionUtils.getPreviousVersion(ShardRecoveryInfo.GATE_IN_RECOVERY_RESPONSE)
+            TransportVersionUtils.getPreviousVersion(ShardRecoveryInfo.GATE_IN_RECOVERY_RESPONSE_TRANSPORT_VERSION)
         );
         assertNull(copy.blockedByGate());
         assertEquals(ShardRecoveryInfo.NOT_BLOCKED_MILLIS, copy.blockedForMillis());
+    }
+
+    public void testCanBeReadAsRecoveryStateByUnsupportedTransportVersion() throws IOException {
+        final TransportVersion version = TransportVersionUtils.getPreviousVersion(
+            ShardRecoveryInfo.GATE_IN_RECOVERY_RESPONSE_TRANSPORT_VERSION
+        );
+        final RecoveryState recoveryState = createRecoveryState();
+        final ShardRecoveryInfo recoveryInfo = new ShardRecoveryInfo(recoveryState, randomIdentifier(), randomNonNegativeLong());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            recoveryInfo.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setTransportVersion(version);
+                final RecoveryState copy = RecoveryState.readRecoveryState(in);
+                assertEquals(recoveryState.getShardId(), copy.getShardId());
+                assertEquals(recoveryState.getStage(), copy.getStage());
+                assertEquals(0, in.available());
+            }
+        }
     }
 
     private static void advanceToStage(RecoveryState recoveryState, RecoveryState.Stage stage) {

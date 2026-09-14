@@ -85,6 +85,9 @@ public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedTo
                     for (ShardRecoveryInfo recoveryInfo : entry.getValue()) {
                         b.startObject();
                         recoveryInfo.recoveryState().toXContent(b, p);
+                        // recoveryState may be mutable for shard on the coordination node, retrieving the blocking recovery gate
+                        // after recoveryState so it is consistent with recoveryState (i.e. there can be no blocking gate for started or
+                        // completed recoveries)
                         String gate = recoveryInfo.blockedByGate();
                         if (gate != null) {
                             b.field("gate", gate);

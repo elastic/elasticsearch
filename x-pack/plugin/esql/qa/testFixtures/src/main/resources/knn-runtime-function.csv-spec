@@ -186,3 +186,147 @@ id:integer | label:keyword | _score:double
 0          | x             | 1.0
 3          | xy            | 0.8535534143447876
 ;
+
+// Test 9: the vector_similarity option replaces the default cosine metric. Hamming counts differing bits over
+// the byte encoding of each dimension and is normalized into the fraction of the 24 bits that match:
+//   id=0 [64,0,0]     0 bits differ  -> 24/24 = 1.0
+//   id=1 [0,64,0]     2 bits differ  -> 22/24
+//   id=2 [0,0,64]     2 bits differ  -> 22/24
+//   id=3 [45,45,0]    9 bits differ  -> 15/24
+//   id=4 [57,29,0]    9 bits differ  -> 15/24
+//   id=5 [32,39,39]  10 bits differ  -> 14/24
+knnRuntimeWithHammingSimilarity
+required_capability: knn_runtime_field
+required_capability: fn_knn_runtime_vector_similarity
+pragma: knn_runtime_field=true
+
+FROM knn_hex_vectors METADATA _score
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0], {"vector_similarity": "v_hamming"})
+| SORT id ASC
+| KEEP id, _score
+| LIMIT 10
+;
+
+id:integer | _score:double
+0          | 1.0
+1          | 0.9166666666666666
+2          | 0.9166666666666666
+3          | 0.625
+4          | 0.625
+5          | 0.5833333333333334
+;
+
+// Test 10: L1 norm is a distance, so it is normalized as 1 / (1 + distance) to make closer vectors score higher.
+//   id=0 [64,0,0]    distance 0    -> 1.0
+//   id=1 [0,64,0]    distance 128  -> 1/129
+//   id=2 [0,0,64]    distance 128  -> 1/129
+//   id=3 [45,45,0]   distance 64   -> 1/65
+//   id=4 [57,29,0]   distance 36   -> 1/37
+//   id=5 [32,39,39]  distance 110  -> 1/111
+knnRuntimeWithL1NormSimilarity
+required_capability: knn_runtime_field
+required_capability: fn_knn_runtime_vector_similarity
+pragma: knn_runtime_field=true
+
+FROM knn_hex_vectors METADATA _score
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0], {"vector_similarity": "v_l1_norm"})
+| SORT id ASC
+| KEEP id, _score
+| LIMIT 10
+;
+
+id:integer | _score:double
+0          | 1.0
+1          | 0.007751937984496124
+2          | 0.007751937984496124
+3          | 0.015384615384615385
+4          | 0.02702702702702703
+5          | 0.009009009009009009
+;
+
+// Test 11: v_dot_product carries the same precondition as the dot_product mapping similarity - the raw value only
+// falls in [-1, 1], and so the score only falls in [0, 1], when both vectors are unit-length. Nothing normalizes a
+// runtime expression's vectors, so these deliberately non-unit vectors score well above 1. The ranking is still
+// correct, which is why the raw value is not clamped.
+knnRuntimeWithDotProductSimilarityOnNonUnitVectors
+required_capability: knn_runtime_field
+required_capability: fn_knn_runtime_vector_similarity
+pragma: knn_runtime_field=true
+
+FROM knn_hex_vectors METADATA _score
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0], {"vector_similarity": "v_dot_product"})
+| SORT id ASC
+| KEEP id, _score
+| LIMIT 10
+;
+
+id:integer | _score:double
+0          | 2048.5
+1          | 0.5
+2          | 0.5
+3          | 1440.5
+4          | 1824.5
+5          | 1024.5
+;
+
+// Test 12: v_dot_product on unit-length vectors, where the score does land in [0, 1]: the vectors are 36.87
+// degrees apart, so the dot product is 0.8 and the score (1 + 0.8) / 2.
+knnRuntimeWithDotProductSimilarityOnUnitVectors
+required_capability: knn_runtime_field
+required_capability: fn_knn_runtime_vector_similarity
+pragma: knn_runtime_field=true
+
+ROW dv = to_dense_vector([0.8, 0.6, 0.0])
+| WHERE knn(dv, [1.0, 0.0, 0.0], {"vector_similarity": "v_dot_product", "similarity": 0.5})
+| KEEP dv
+| LIMIT 10
+;
+
+dv:dense_vector
+[0.800000011920929, 0.6000000238418579, 0.0]
+;
+
+// Test 13: the similarity threshold is applied in the normalized score space, so for a distance metric it reads as
+// "at most this far" rather than "at least this similar". A L2 threshold of 50 keeps the vectors within euclidean
+// distance 50 of the query: id=0 (0), id=4 (29.83) and id=3 (48.85), but not id=5 (63.77) or id=1/id=2 (90.51).
+knnRuntimeWithL2NormSimilarityAndThreshold
+required_capability: knn_runtime_field
+required_capability: fn_knn_runtime_vector_similarity
+pragma: knn_runtime_field=true
+
+FROM knn_hex_vectors
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0], {"vector_similarity": "v_l2_norm", "similarity": 50.0})
+| SORT id ASC
+| KEEP id
+| LIMIT 10
+;
+
+id:integer
+0
+3
+4
+;
+
+// Test 14: the option value is case insensitive.
+knnRuntimeWithUppercaseSimilarityName
+required_capability: knn_runtime_field
+required_capability: fn_knn_runtime_vector_similarity
+pragma: knn_runtime_field=true
+
+FROM knn_hex_vectors
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0], {"vector_similarity": "V_L1_Norm", "similarity": 64})
+| SORT id ASC
+| KEEP id
+| LIMIT 10
+;
+
+id:integer
+0
+3
+4
+;

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityMetric;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -3661,20 +3662,66 @@ public class VerifierTests extends AnalyzerTestCase {
         checkOptionDataTypes(Match.ALLOWED_OPTIONS, "FROM test | WHERE match(title, \"Jean\", {\"%s\": %s})");
         checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"title: Jean\", {\"%s\": %s})");
         checkOptionDataTypes(MatchPhrase.ALLOWED_OPTIONS, "FROM test | WHERE MATCH_PHRASE(title, \"Jean\", {\"%s\": %s})");
-        checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"%s\": %s})");
+        // vector_similarity is left out: it only accepts the names of the similarity metrics, and only when knn
+        // runs on a runtime expression, so a random keyword on an indexed field is an error rather than a success.
+        // testKnnVectorSimilarityOption covers it instead.
+        checkOptionDataTypes(
+            Knn.ALLOWED_OPTIONS,
+            "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"%s\": %s})",
+            Set.of(Knn.VECTOR_SIMILARITY_METRIC_OPTION)
+        );
         if (EsqlCapabilities.Cap.KQL_FUNCTION_OPTIONS.isEnabled()) {
             checkOptionDataTypes(Kql.ALLOWED_OPTIONS, "FROM test | WHERE KQL(\"title: Jean\", {\"%s\": %s})");
         }
     }
 
     /**
-     * Check all data types for available options. When conversion is not possible, checks that it's an error
+     * The {@code vector_similarity} option overrides the metric knn compares vectors with, but only on the runtime
+     * search path - an indexed field is compared with the similarity from its mapping, so accepting the option
+     * there would silently ignore it. The accepted values are the {@link VectorSimilarityMetric} names; the runtime
+     * path itself is covered by knn-runtime-function.csv-spec, which can turn the pragma gating it on.
      */
+    public void testKnnVectorSimilarityOption() throws Exception {
+        fullText().error(
+            "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"vector_similarity\": \"v_l2_norm\"})",
+            containsString("[KNN] option [vector_similarity] is only supported when [vector] is a non-index-mapped field or expression")
+        );
+
+        for (VectorSimilarityMetric metric : VectorSimilarityMetric.values()) {
+            fullText().error(
+                "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"vector_similarity\": \"" + metric.optionValue() + "\"})",
+                containsString("[KNN] option [vector_similarity] is only supported")
+            );
+        }
+
+        // An unknown metric fails on the option value itself, before the plan is ever verified
+        fullText().error(
+            "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"vector_similarity\": \"cosine\"})",
+            allOf(
+                containsString("Invalid option [vector_similarity]"),
+                containsString("expected one of [v_cosine, v_dot_product, v_hamming, v_l1_norm, v_l2_norm]")
+            )
+        );
+    }
+
     private void checkOptionDataTypes(Map<String, DataType> allowedOptionsMap, String queryTemplate) {
+        checkOptionDataTypes(allowedOptionsMap, queryTemplate, Set.of());
+    }
+
+    /**
+     * Check all data types for available options. When conversion is not possible, checks that it's an error.
+     *
+     * @param skippedOptions options that constrain their value beyond its data type, so that a value of the right
+     *                       type is not necessarily accepted; those need their own test
+     */
+    private void checkOptionDataTypes(Map<String, DataType> allowedOptionsMap, String queryTemplate, Set<String> skippedOptions) {
         DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
         for (Map.Entry<String, DataType> allowedOptions : allowedOptionsMap.entrySet()) {
             String optionName = allowedOptions.getKey();
             DataType optionType = allowedOptions.getValue();
+            if (skippedOptions.contains(optionName)) {
+                continue;
+            }
 
             // Check every possible type for the option - we'll try to convert it to the expected type
             for (DataType currentType : optionTypes) {

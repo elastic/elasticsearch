@@ -598,7 +598,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarity.getValue(),
                     indexOptions.getValue(),
                     meta.getValue(),
-                    context.isSourceSynthetic(),
+                    context.isSourceSynthetic() || isExcludeSourceVectorsFinal,
                     postFilterSelectivityThreshold
                 ),
                 builderParams(this, context),
@@ -3278,7 +3278,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final VectorSimilarity similarity;
         private final IndexVersion indexVersionCreated;
         private final DenseVectorIndexOptions indexOptions;
-        private final boolean isSyntheticSource;
+        private final boolean sourceExcludesVectors; // If _source does not supply the vector
         // The post-filter selectivity threshold is an index-scoped setting, so it is captured here at mapping
         // time rather than threaded in per query. If it is ever promoted to a Search API parameter it should
         // instead be passed through createKnnQuery so it can vary per request.
@@ -3293,7 +3293,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             VectorSimilarity similarity,
             DenseVectorIndexOptions indexOptions,
             Map<String, String> meta,
-            boolean isSyntheticSource
+            boolean sourceExcludesVectors
         ) {
             this(
                 name,
@@ -3304,7 +3304,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 similarity,
                 indexOptions,
                 meta,
-                isSyntheticSource,
+                sourceExcludesVectors,
                 PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
             );
         }
@@ -3318,7 +3318,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             VectorSimilarity similarity,
             DenseVectorIndexOptions indexOptions,
             Map<String, String> meta,
-            boolean isSyntheticSource,
+            boolean sourceExcludesVectors,
             float postFilterSelectivityThreshold
         ) {
             super(name, indexed ? IndexType.vectors() : IndexType.docValuesOnly(), false, meta);
@@ -3328,7 +3328,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.similarity = similarity;
             this.indexVersionCreated = indexVersionCreated;
             this.indexOptions = indexOptions;
-            this.isSyntheticSource = isSyntheticSource;
+            this.sourceExcludesVectors = sourceExcludesVectors;
             this.postFilterSelectivityThreshold = postFilterSelectivityThreshold;
         }
 
@@ -3349,9 +3349,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return ValueFetcher.EMPTY;
             }
 
-            if (isSyntheticSource && (indexed || hasDocValues())) {
-                // TODO: Get from doc values when excludeSourceVectors == true
-                // Synthetic source would rebuild the field's value from these same doc values, so read them directly instead.
+            if (sourceExcludesVectors && (indexed || hasDocValues())) {
+                // _source holds no vector here, it would itself be rebuilt from these same doc values, so read them directly instead.
                 return new DenseVectorDocValuesValueFetcher(
                     context.getForField(this, FielddataOperation.SEARCH),
                     docValueFormat(format, null)
@@ -4057,8 +4056,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
 
-            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
-                // TODO: Get from doc values when excludeSourceVectors == true
+            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || sourceExcludesVectors)) {
                 return new DenseVectorFromBinaryBlockLoader(name(), dims, indexVersionCreated, element.elementType());
             }
             return new BlockSourceReader.DenseVectorBlockLoader(

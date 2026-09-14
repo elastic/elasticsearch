@@ -68,7 +68,12 @@ public class PotentiallyUnmappedNonLoadableEsFieldTests extends AbstractEsFieldT
             new EsField("name", dataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
 
-        for (TransportVersion version : List.of(TransportVersion.current(), TransportVersionUtils.randomVersion())) {
+        TransportVersion random = dataType == DataType.AGGREGATE_METRIC_DOUBLE
+            ? TransportVersionUtils.randomVersionSupporting(
+                DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION
+            )
+            : TransportVersionUtils.randomVersion();
+        for (TransportVersion version : List.of(TransportVersion.current(), random)) {
             assertThat(field.getWriteableName(version), equalTo("PotentiallyUnmappedNonLoadableEsField"));
             EsField copy = copy(field, version);
             assertThat(copy, instanceOf(PotentiallyUnmappedNonLoadableEsField.class));

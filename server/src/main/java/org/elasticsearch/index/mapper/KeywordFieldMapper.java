@@ -1988,7 +1988,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
                 valueSeenThisDoc = true;
 
-
                 if (fieldType().ignoreAbove().isIgnored(binaryValue)) {
                     if (ignoredThisDoc) {
                         // More than one ignore_above-exceeded value in this document: bail so ShardBatchMapper

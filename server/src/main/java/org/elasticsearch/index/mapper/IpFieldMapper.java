@@ -1057,7 +1057,6 @@ public class IpFieldMapper extends FieldMapper {
 
                 valueSeenThisDoc = true;
 
-
                 // encodeIp throws UnsupportedOperationException on malformed input, which makes
                 // ShardBatchMapper fall back to the row path for the whole batch.
                 values.setString(currentDoc, encodeIp(utf8Value));

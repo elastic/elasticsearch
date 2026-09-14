@@ -84,6 +84,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.when;
 
 public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase {
@@ -1824,6 +1825,11 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.getSettings()).thenReturn(nodeSettings);
         when(clusterService.state()).thenReturn(clusterState);
+        // Mock states return false for clusterRecovered() by default; stub to true so guards in the service don't short-circuit.
+        // Real ClusterState instances (built without STATE_NOT_RECOVERED_BLOCK) already return true naturally.
+        if (mockingDetails(clusterState).isMock()) {
+            when(clusterState.clusterRecovered()).thenReturn(true);
+        }
         doReturn(mock(MasterServiceTaskQueue.class)).when(clusterService).createTaskQueue(anyString(), any(Priority.class), any());
         doNothing().when(clusterService).addListener(any());
         doNothing().when(clusterService).removeListener(any());

@@ -127,26 +127,4 @@ public class ClusterSettingsTests extends ESTestCase {
         assertThat(settingValue.get(), equalTo("default_value"));
     }
 
-    public void testAddSettingsUpdateConsumerIfRegisteredWithRegisteredSetting() {
-        final AtomicReference<String> settingValue = new AtomicReference<>("initial_value");
-        final Setting<String> setting = Setting.simpleString("cluster.setting", Setting.Property.NodeScope, Setting.Property.Dynamic);
-        final Settings nodeSettings = Settings.builder().put("cluster.setting", "initial_value").build();
-        final ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, Set.of(setting));
-
-        clusterSettings.addSettingsUpdateConsumerIfRegistered(setting, settingValue::set);
-        clusterSettings.applySettings(Settings.builder().put("cluster.setting", "updated_value").build());
-        assertThat(settingValue.get(), equalTo("updated_value"));
-    }
-
-    public void testAddSettingsUpdateConsumerIfRegisteredWithUnregisteredSetting() {
-        final AtomicReference<String> settingValue = new AtomicReference<>("initial_value");
-        final Setting<String> setting = Setting.simpleString("cluster.setting", Setting.Property.NodeScope, Setting.Property.Dynamic);
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of());
-
-        // Does nothing when the setting is not registered
-        assertThrows(IllegalArgumentException.class, () -> clusterSettings.addSettingsUpdateConsumer(setting, settingValue::set));
-        clusterSettings.addSettingsUpdateConsumerIfRegistered(setting, settingValue::set);
-        clusterSettings.applySettings(Settings.builder().put("cluster.setting", "updated_value").build());
-        assertThat(settingValue.get(), equalTo("initial_value"));
-    }
 }

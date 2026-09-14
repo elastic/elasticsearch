@@ -37,7 +37,6 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -140,21 +139,18 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
             .setMaximumWeight(MAX_CANCELLATIONS_CACHE_SIZE)
             .setExpireAfterWrite(CANCELLATION_CACHE_TTL)
             .build();
-        final Settings nodeSettings = clusterService.getSettings();
-        this.enableDirectRecoveryCancellations = ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING.get(nodeSettings);
-        this.enableDirectCancellationsForSnapshots = ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING.get(nodeSettings);
     }
 
     @Override
     protected void doStart() {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        clusterSettings.addSettingsUpdateConsumerIfRegistered(
+        clusterSettings.initializeAndWatchIfRegistered(
             ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
             value -> this.enableDirectRecoveryCancellations = value
         );
-        clusterSettings.addSettingsUpdateConsumerIfRegistered(ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING, enabled -> {
+        clusterSettings.initializeAndWatchIfRegistered(ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING, enabled -> {
             enableDirectCancellationsForSnapshots = enabled;
-            if (enabled && clusterService.state().nodes().isLocalNodeElectedMaster()) {
+            if (lifecycle.started() && enabled && clusterService.state().nodes().isLocalNodeElectedMaster()) {
                 cancelRecoveriesBlockingSnapshots();
             }
         });

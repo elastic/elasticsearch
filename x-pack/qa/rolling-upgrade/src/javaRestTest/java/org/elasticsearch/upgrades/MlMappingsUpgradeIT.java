@@ -52,14 +52,13 @@ public class MlMappingsUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = buildCluster();
 
-    public MlMappingsUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
-        super(upgradedNodes);
-    }
-
-    @Override
-    protected ElasticsearchCluster getUpgradeCluster() {
-        return cluster;
-    }
+    /**
+     * Mirrors {@code MlIndexTemplateRegistry#ML_INDEX_TEMPLATE_VERSION}; kept here because rolling-upgrade
+     * tests cannot depend on the ML plugin module.
+     */
+    private static final int ML_INDEX_TEMPLATE_VERSION = 10000003 + AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
+        + NotificationsIndex.NOTIFICATIONS_INDEX_MAPPINGS_VERSION + MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
+        + NotificationsIndex.NOTIFICATIONS_INDEX_TEMPLATE_VERSION;
 
     @BeforeClass
     public static void maybeSkip() {
@@ -103,6 +102,25 @@ public class MlMappingsUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
             assertLegacyIndicesRollover();
             assertAnomalyIndicesRollover();
             assertNotificationsIndexAliasCreated();
+                assertBusy(
+                    () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
+                        client(),
+                        ".ml-anomalies-",
+                        ML_INDEX_TEMPLATE_VERSION,
+                        List.of(".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*", ".reindexed-v8-ml-anomalies-*")
+                    )
+                );
+                assertBusy(
+                    () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
+                        client(),
+                        ".ml-state",
+                        ML_INDEX_TEMPLATE_VERSION,
+                        Arrays.asList(AnomalyDetectorsIndex.jobStateIndexPatterns())
+                    )
+                );
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
     }
 

@@ -144,11 +144,6 @@ public class Max extends UnaryAggregateFunction
     }
 
     @Override
-    public Max withFilter(Expression filter) {
-        return new Max(source(), field(), filter, window());
-    }
-
-    @Override
     protected NodeInfo<Max> info() {
         return NodeInfo.create(this, Max::new, field(), filter(), window());
     }

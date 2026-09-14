@@ -78,10 +78,6 @@ public class Variance extends NumericAggregate {
         return new Variance(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
-    public Variance withFilter(Expression filter) {
-        return new Variance(source(), field(), filter, window());
-    }
-
     @Override
     protected AggregatorFunctionSupplier longSupplier() {
         return new StdDevLongAggregatorFunctionSupplier(false);

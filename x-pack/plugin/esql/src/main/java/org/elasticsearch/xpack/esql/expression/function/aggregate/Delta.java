@@ -112,11 +112,6 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
     }
 
     @Override
-    public Delta withFilter(Expression filter) {
-        return new Delta(source(), field(), timestamp, filter, window());
-    }
-
-    @Override
     public DataType dataType() {
         return DataType.DOUBLE;
     }

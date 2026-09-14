@@ -84,10 +84,6 @@ public class StdDev extends NumericAggregate {
         return new StdDev(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
-    public StdDev withFilter(Expression filter) {
-        return new StdDev(source(), field(), filter, window());
-    }
-
     @Override
     protected AggregatorFunctionSupplier longSupplier() {
         return new StdDevLongAggregatorFunctionSupplier(true);

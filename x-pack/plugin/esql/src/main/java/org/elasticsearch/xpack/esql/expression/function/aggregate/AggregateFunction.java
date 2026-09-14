@@ -138,11 +138,6 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         return filter;
     }
 
-    /**
-     * Attach a filter to the aggregate function.
-     */
-    public abstract AggregateFunction withFilter(Expression filter);
-
     public static Expression withFilter(Expression expression, Expression filter) {
         return expression.transformDown(AggregateFunction.class, af -> af.withFilter(filter));
     }
@@ -218,6 +213,13 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
             return this;
         }
         return (AggregateFunction) replaceChildren(buildChildren(newFields, filter, window, parameters));
+    }
+
+    public AggregateFunction withFilter(Expression newFilter) {
+        if (newFilter == this.filter) {
+            return this;
+        }
+        return (AggregateFunction) replaceChildren(buildChildren(fields, newFilter, window, parameters));
     }
 
     public AggregateFunction withWindow(Expression newWindow) {

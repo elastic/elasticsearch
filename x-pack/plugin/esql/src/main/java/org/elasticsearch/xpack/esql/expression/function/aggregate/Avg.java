@@ -147,11 +147,6 @@ public class Avg extends UnaryAggregateFunction implements SurrogateExpression, 
     }
 
     @Override
-    public Avg withFilter(Expression filter) {
-        return new Avg(source(), field(), filter, window(), summationMode);
-    }
-
-    @Override
     public Expression surrogate() {
         var s = source();
         var field = field();

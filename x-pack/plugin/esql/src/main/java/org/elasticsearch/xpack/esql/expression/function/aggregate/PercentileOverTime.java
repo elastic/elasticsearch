@@ -139,11 +139,6 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public PercentileOverTime withFilter(Expression filter) {
-        return new PercentileOverTime(source(), field(), timestamp, filter, window(), percentile());
-    }
-
-    @Override
     public AggregatorFunctionSupplier supplier() {
         return ((ToAggregator) perTimeSeriesAggregation()).supplier();
     }

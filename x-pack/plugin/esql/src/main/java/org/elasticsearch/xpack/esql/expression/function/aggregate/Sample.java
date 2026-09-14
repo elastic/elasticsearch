@@ -189,11 +189,6 @@ public class Sample extends UnaryAggregateFunction implements ToAggregator, Post
         };
     }
 
-    @Override
-    public Sample withFilter(Expression filter) {
-        return new Sample(source(), field(), filter, window(), limitField(), uuid());
-    }
-
     Expression limitField() {
         return parameters().get(0);
     }

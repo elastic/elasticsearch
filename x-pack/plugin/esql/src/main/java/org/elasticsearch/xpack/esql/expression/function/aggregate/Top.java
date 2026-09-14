@@ -191,11 +191,6 @@ public class Top extends AggregateFunction
     }
 
     @Override
-    public Top withFilter(Expression filter) {
-        return new Top(source(), field(), outputField(), filter, window(), limitField(), orderField());
-    }
-
-    @Override
     public String getWriteableName() {
         return ENTRY.name;
     }

@@ -110,11 +110,6 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public MaxOverTime withFilter(Expression filter) {
-        return new MaxOverTime(source(), field(), timestamp, filter, window());
-    }
-
-    @Override
     protected NodeInfo<MaxOverTime> info() {
         return NodeInfo.create(this, MaxOverTime::new, field(), timestamp, filter(), window());
     }

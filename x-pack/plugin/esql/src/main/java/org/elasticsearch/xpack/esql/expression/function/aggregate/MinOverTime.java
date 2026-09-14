@@ -110,11 +110,6 @@ public class MinOverTime extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public MinOverTime withFilter(Expression filter) {
-        return new MinOverTime(source(), field(), timestamp, filter, window());
-    }
-
-    @Override
     protected NodeInfo<MinOverTime> info() {
         return NodeInfo.create(this, MinOverTime::new, field(), timestamp, filter(), window());
     }

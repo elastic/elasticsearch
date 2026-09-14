@@ -193,11 +193,6 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
     }
 
     @Override
-    public Latest withFilter(Expression filter) {
-        return new Latest(source(), field(), timestamp(), filter, window());
-    }
-
-    @Override
     public String toString() {
         return "latest(" + field() + ", " + timestamp() + ")";
     }

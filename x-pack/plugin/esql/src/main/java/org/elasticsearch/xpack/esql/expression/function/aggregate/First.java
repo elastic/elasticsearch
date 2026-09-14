@@ -190,11 +190,6 @@ public class First extends AggregateFunction implements ToAggregator {
         return new First(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
-    @Override
-    public First withFilter(Expression filter) {
-        return new First(source(), field(), sort(), filter, window());
-    }
-
     public Expression field() {
         return fields().get(0);
     }

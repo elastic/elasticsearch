@@ -125,11 +125,6 @@ public class FromPartial extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    public FromPartial withFilter(Expression filter) {
-        return new FromPartial(source(), field(), filter, window(), function);
-    }
-
-    @Override
     public AggregatorFunctionSupplier supplier() {
         final AggregatorFunctionSupplier supplier = ((ToAggregator) function).supplier();
         return new AggregatorFunctionSupplier() {

@@ -157,11 +157,6 @@ public class DeltaOnlyHistogramMergeOverTime extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public DeltaOnlyHistogramMergeOverTime withFilter(Expression filter) {
-        return new DeltaOnlyHistogramMergeOverTime(source(), field(), filter, window(), temporality);
-    }
-
-    @Override
     public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (type == DataType.EXPONENTIAL_HISTOGRAM) {

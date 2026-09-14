@@ -170,11 +170,6 @@ public class Increase extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public Increase withFilter(Expression filter) {
-        return new Increase(source(), field(), timestamp, filter, window(), temporality);
-    }
-
-    @Override
     public DataType dataType() {
         return DataType.DOUBLE;
     }

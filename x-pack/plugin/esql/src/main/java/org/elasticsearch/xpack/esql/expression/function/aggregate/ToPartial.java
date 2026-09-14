@@ -133,11 +133,6 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    public ToPartial withFilter(Expression filter) {
-        return new ToPartial(source(), field(), filter, window(), function);
-    }
-
-    @Override
     public List<Attribute> aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
         // `function` is the wrapped aggregate, so its references already cover every input channel the inner
         // aggregator reads. The base implementation would additionally add the function parameter (the same wrapped

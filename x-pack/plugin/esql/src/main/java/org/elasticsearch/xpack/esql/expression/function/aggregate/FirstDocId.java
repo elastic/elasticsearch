@@ -53,11 +53,6 @@ public class FirstDocId extends UnaryAggregateFunction implements ToAggregator, 
     }
 
     @Override
-    public FirstDocId withFilter(Expression filter) {
-        return new FirstDocId(source(), field(), filter, window());
-    }
-
-    @Override
     public DataType dataType() {
         return DataType.DOC_DATA_TYPE;
     }

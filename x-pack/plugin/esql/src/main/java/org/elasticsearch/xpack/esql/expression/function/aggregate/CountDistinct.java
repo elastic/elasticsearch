@@ -203,11 +203,6 @@ public class CountDistinct extends UnaryAggregateFunction implements OptionalArg
     }
 
     @Override
-    public CountDistinct withFilter(Expression filter) {
-        return new CountDistinct(source(), field(), filter, window(), precision);
-    }
-
-    @Override
     public DataType dataType() {
         return DataType.LONG;
     }

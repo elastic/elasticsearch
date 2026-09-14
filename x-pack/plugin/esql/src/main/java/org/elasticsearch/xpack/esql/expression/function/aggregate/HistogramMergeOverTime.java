@@ -165,11 +165,6 @@ public class HistogramMergeOverTime extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public HistogramMergeOverTime withFilter(Expression filter) {
-        return new HistogramMergeOverTime(source(), field(), timestamp, filter, window(), temporality);
-    }
-
-    @Override
     public boolean requiredTimeSeriesSource() {
         return true;
     }

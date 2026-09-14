@@ -94,14 +94,6 @@ public class PackDimsAgg extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    public PackDimsAgg withFilter(Expression filter) {
-        if (filter instanceof Literal l && l.value() == Boolean.TRUE) {
-            return this;
-        }
-        throw new UnsupportedOperationException("Packed dimension values do not support filters");
-    }
-
-    @Override
     public DataType dataType() {
         return DataType.SOURCE;
     }

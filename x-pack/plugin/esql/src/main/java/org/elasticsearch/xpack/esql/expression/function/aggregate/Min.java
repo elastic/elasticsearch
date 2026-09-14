@@ -154,11 +154,6 @@ public class Min extends UnaryAggregateFunction
     }
 
     @Override
-    public Min withFilter(Expression filter) {
-        return new Min(source(), field(), filter, window());
-    }
-
-    @Override
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
             field(),

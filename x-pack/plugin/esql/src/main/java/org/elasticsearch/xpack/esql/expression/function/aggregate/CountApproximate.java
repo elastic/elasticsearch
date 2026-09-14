@@ -71,11 +71,6 @@ public class CountApproximate extends UnaryAggregateFunction implements ToAggreg
     }
 
     @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new CountApproximate(source(), field(), filter, window());
-    }
-
-    @Override
     public CountApproximate replaceChildren(List<Expression> newChildren) {
         return new CountApproximate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }

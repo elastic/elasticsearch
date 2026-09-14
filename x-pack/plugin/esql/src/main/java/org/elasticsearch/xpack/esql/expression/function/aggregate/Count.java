@@ -217,11 +217,6 @@ public class Count extends UnaryAggregateFunction
     }
 
     @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new Count(source(), field(), filter, window(), bucket());
-    }
-
-    @Override
     public Count replaceChildren(List<Expression> newChildren) {
         return new Count(
             source(),

@@ -121,11 +121,6 @@ public class Present extends UnaryAggregateFunction implements ToAggregator, Agg
     }
 
     @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new Present(source(), field(), filter, window());
-    }
-
-    @Override
     public Present replaceChildren(List<Expression> newChildren) {
         return new Present(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }

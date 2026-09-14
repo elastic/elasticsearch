@@ -166,11 +166,6 @@ public class Irate extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public Irate withFilter(Expression filter) {
-        return new Irate(source(), field(), timestamp, filter, window(), temporality);
-    }
-
-    @Override
     public DataType dataType() {
         return DataType.DOUBLE;
     }

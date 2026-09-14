@@ -193,11 +193,6 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
     }
 
     @Override
-    public Earliest withFilter(Expression filter) {
-        return new Earliest(source(), field(), timestamp(), filter, window());
-    }
-
-    @Override
     public String toString() {
         return "earliest(" + field() + ", " + timestamp() + ")";
     }

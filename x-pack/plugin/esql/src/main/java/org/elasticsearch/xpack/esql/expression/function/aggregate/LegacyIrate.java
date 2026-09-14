@@ -110,11 +110,6 @@ public class LegacyIrate extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public LegacyIrate withFilter(Expression filter) {
-        return new LegacyIrate(source(), field(), timestamp, filter, window(), temporality);
-    }
-
-    @Override
     public DataType dataType() {
         return DataType.DOUBLE;
     }

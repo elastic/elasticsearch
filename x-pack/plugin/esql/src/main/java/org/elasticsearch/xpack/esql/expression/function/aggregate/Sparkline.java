@@ -299,8 +299,4 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
         );
     }
 
-    @Override
-    public Sparkline withFilter(Expression filter) {
-        return new Sparkline(source(), field(), key(), filter, window(), buckets(), from(), to());
-    }
 }

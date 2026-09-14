@@ -132,11 +132,6 @@ public class WeightedAvg extends AggregateFunction implements OnlySurrogateExpre
     }
 
     @Override
-    public WeightedAvg withFilter(Expression filter) {
-        return new WeightedAvg(source(), field(), weight(), filter, window());
-    }
-
-    @Override
     public Expression surrogate() {
         var s = source();
         var field = field();

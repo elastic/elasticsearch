@@ -168,11 +168,6 @@ public class Rate extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public Rate withFilter(Expression filter) {
-        return new Rate(source(), field(), timestamp, filter, window(), temporality);
-    }
-
-    @Override
     public DataType dataType() {
         return DataType.DOUBLE;
     }

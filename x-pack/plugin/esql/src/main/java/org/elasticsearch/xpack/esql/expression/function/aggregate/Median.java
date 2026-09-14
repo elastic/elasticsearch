@@ -127,11 +127,6 @@ public class Median extends UnaryAggregateFunction implements SurrogateExpressio
     }
 
     @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new Median(source(), field(), filter, window());
-    }
-
-    @Override
     public Expression surrogate() {
         var s = source();
         var field = field();

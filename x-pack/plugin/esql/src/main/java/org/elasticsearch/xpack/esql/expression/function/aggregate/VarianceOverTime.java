@@ -100,11 +100,6 @@ public class VarianceOverTime extends TimeSeriesAggregateFunction implements ToA
     }
 
     @Override
-    public VarianceOverTime withFilter(Expression filter) {
-        return new VarianceOverTime(source(), field(), filter, window());
-    }
-
-    @Override
     public AggregatorFunctionSupplier supplier() {
         return ((ToAggregator) perTimeSeriesAggregation()).supplier();
     }

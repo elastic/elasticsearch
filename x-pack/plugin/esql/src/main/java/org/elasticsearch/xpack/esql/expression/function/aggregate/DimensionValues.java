@@ -74,14 +74,6 @@ public class DimensionValues extends UnaryAggregateFunction implements ToAggrega
     }
 
     @Override
-    public DimensionValues withFilter(Expression filter) {
-        if (filter instanceof Literal l && l.value() == Boolean.TRUE) {
-            return this;
-        }
-        throw new UnsupportedOperationException("Dimension values do not support filters");
-    }
-
-    @Override
     public DataType dataType() {
         return field().dataType().noText();
     }

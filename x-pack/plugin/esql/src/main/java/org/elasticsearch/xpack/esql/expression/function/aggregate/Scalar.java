@@ -58,11 +58,6 @@ public class Scalar extends UnaryAggregateFunction implements SurrogateExpressio
     }
 
     @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new Scalar(source(), field(), filter, window());
-    }
-
-    @Override
     public Scalar replaceChildren(List<Expression> newChildren) {
         return new Scalar(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }

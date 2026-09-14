@@ -124,11 +124,6 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
     }
 
     @Override
-    public AbsentOverTime withFilter(Expression filter) {
-        return new AbsentOverTime(source(), field(), filter, window());
-    }
-
-    @Override
     protected NodeInfo<AbsentOverTime> info() {
         return NodeInfo.create(this, AbsentOverTime::new, field(), filter(), window());
     }

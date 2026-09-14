@@ -151,11 +151,6 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
     }
 
     @Override
-    public LastOverTime withFilter(Expression filter) {
-        return new LastOverTime(source(), field(), timestamp, filter, window());
-    }
-
-    @Override
     public DataType dataType() {
         return field().dataType().noCounter().noText();
     }

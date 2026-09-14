@@ -156,11 +156,6 @@ public class PromqlHistogramFraction extends AggregateFunction implements ToAggr
     }
 
     @Override
-    public PromqlHistogramFraction withFilter(Expression filter) {
-        return new PromqlHistogramFraction(source(), field(), upperBound(), filter, window(), lower(), upper());
-    }
-
-    @Override
     public AggregatorFunctionSupplier supplier() {
         return new PromqlHistogramFractionAggregatorFunctionSupplier(source(), boundValue(lower()), boundValue(upper()));
     }

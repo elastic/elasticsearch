@@ -51,14 +51,6 @@ public class DefaultTimeSeriesAggregateFunction extends TimeSeriesAggregateFunct
     }
 
     @Override
-    public AggregateFunction withFilter(Expression filter) {
-        if (filter == filter()) {
-            return this;
-        }
-        return new DefaultTimeSeriesAggregateFunction(source(), field(), timestamp, filter, window());
-    }
-
-    @Override
     public DataType dataType() {
         return delegate.dataType();
     }

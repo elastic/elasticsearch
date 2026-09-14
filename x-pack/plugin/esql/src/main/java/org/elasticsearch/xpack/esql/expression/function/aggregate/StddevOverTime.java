@@ -100,11 +100,6 @@ public class StddevOverTime extends TimeSeriesAggregateFunction implements ToAgg
     }
 
     @Override
-    public StddevOverTime withFilter(Expression filter) {
-        return new StddevOverTime(source(), field(), filter, window());
-    }
-
-    @Override
     public AggregatorFunctionSupplier supplier() {
         return ((ToAggregator) perTimeSeriesAggregation()).supplier();
     }

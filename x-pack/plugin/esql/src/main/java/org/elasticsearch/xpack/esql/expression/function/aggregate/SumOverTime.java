@@ -95,11 +95,6 @@ public class SumOverTime extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public SumOverTime withFilter(Expression filter) {
-        return new SumOverTime(source(), field(), timestamp, filter, window());
-    }
-
-    @Override
     protected NodeInfo<SumOverTime> info() {
         return NodeInfo.create(this, SumOverTime::new, field(), timestamp, filter(), window());
     }

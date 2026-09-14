@@ -95,10 +95,6 @@ public class HistogramMerge extends UnaryAggregateFunction implements ToAggregat
         return new HistogramMerge(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
-    public HistogramMerge withFilter(Expression filter) {
-        return new HistogramMerge(source(), field(), filter, window());
-    }
-
     @Override
     public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();

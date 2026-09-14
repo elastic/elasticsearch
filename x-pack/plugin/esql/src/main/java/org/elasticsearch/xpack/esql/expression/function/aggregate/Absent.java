@@ -120,11 +120,6 @@ public class Absent extends UnaryAggregateFunction implements SurrogateExpressio
     }
 
     @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new Absent(source(), field(), filter, window());
-    }
-
-    @Override
     public Absent replaceChildren(List<Expression> newChildren) {
         return new Absent(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }

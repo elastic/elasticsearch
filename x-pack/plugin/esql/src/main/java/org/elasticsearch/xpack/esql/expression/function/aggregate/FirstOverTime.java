@@ -149,11 +149,6 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
     }
 
     @Override
-    public FirstOverTime withFilter(Expression filter) {
-        return new FirstOverTime(source(), field(), timestamp, filter, window());
-    }
-
-    @Override
     public DataType dataType() {
         return field().dataType().noCounter().noText();
     }

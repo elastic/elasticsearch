@@ -115,11 +115,6 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public AvgOverTime withFilter(Expression filter) {
-        return new AvgOverTime(source(), field(), timestamp, filter, window());
-    }
-
-    @Override
     public Expression surrogate() {
         if (field().dataType() == EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
             var mergeOverTime = new HistogramMergeOverTime(source(), field(), timestamp, filter(), window());

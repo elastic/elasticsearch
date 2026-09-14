@@ -109,11 +109,6 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
     }
 
     @Override
-    public CountDistinctOverTime withFilter(Expression filter) {
-        return new CountDistinctOverTime(source(), field(), filter, window(), precision);
-    }
-
-    @Override
     protected NodeInfo<CountDistinctOverTime> info() {
         return NodeInfo.create(this, CountDistinctOverTime::new, field(), filter(), window(), precision);
     }

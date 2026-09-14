@@ -107,11 +107,6 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, 
     }
 
     @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new Deriv(source(), field(), timestamp, filter, window());
-    }
-
-    @Override
     public DataType dataType() {
         return DataType.DOUBLE;
     }

@@ -189,11 +189,6 @@ public class PromqlHistogramQuantile extends AggregateFunction implements ToAggr
     }
 
     @Override
-    public PromqlHistogramQuantile withFilter(Expression filter) {
-        return new PromqlHistogramQuantile(source(), field(), upperBound(), filter, window(), quantile());
-    }
-
-    @Override
     public AggregatorFunctionSupplier supplier() {
         return new PromqlHistogramQuantileAggregatorFunctionSupplier(source(), quantileValue());
     }

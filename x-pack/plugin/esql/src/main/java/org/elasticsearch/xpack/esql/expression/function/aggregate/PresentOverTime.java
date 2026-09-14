@@ -126,11 +126,6 @@ public class PresentOverTime extends TimeSeriesAggregateFunction implements Aggr
     }
 
     @Override
-    public PresentOverTime withFilter(Expression filter) {
-        return new PresentOverTime(source(), field(), filter, window());
-    }
-
-    @Override
     protected NodeInfo<PresentOverTime> info() {
         return NodeInfo.create(this, PresentOverTime::new, field(), filter(), window());
     }

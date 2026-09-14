@@ -174,11 +174,6 @@ public class Values extends UnaryAggregateFunction implements ToAggregator, AnyN
     }
 
     @Override
-    public Values withFilter(Expression filter) {
-        return new Values(source(), field(), filter, window());
-    }
-
-    @Override
     public DataType dataType() {
         return field().dataType().noText();
     }

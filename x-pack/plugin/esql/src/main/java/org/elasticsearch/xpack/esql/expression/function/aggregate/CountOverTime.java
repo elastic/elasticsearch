@@ -117,11 +117,6 @@ public class CountOverTime extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public CountOverTime withFilter(Expression filter) {
-        return new CountOverTime(source(), field(), timestamp, filter, window());
-    }
-
-    @Override
     protected NodeInfo<CountOverTime> info() {
         return NodeInfo.create(this, CountOverTime::new, field(), timestamp, filter(), window());
     }

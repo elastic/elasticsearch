@@ -114,11 +114,6 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
     }
 
     @Override
-    public Idelta withFilter(Expression filter) {
-        return new Idelta(source(), field(), timestamp, filter, window());
-    }
-
-    @Override
     public DataType dataType() {
         return DataType.DOUBLE;
     }

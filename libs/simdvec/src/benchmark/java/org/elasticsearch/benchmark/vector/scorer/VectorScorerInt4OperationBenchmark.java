@@ -10,6 +10,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.benchmark.vector.VectorizationInfo;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -50,6 +51,7 @@ public class VectorScorerInt4OperationBenchmark {
 
     static {
         BenchmarkLogging.configure();
+        VectorizationInfo.printOnce();
     }
 
     private int packedLen;

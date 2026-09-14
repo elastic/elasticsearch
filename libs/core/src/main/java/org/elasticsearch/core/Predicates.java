@@ -9,6 +9,7 @@
 
 package org.elasticsearch.core;
 
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
@@ -109,5 +110,24 @@ public enum Predicates {
      */
     public static BooleanSupplier once() {
         return new OnceTrue();
+    }
+
+    /**
+     * Returns a predicate that tests the supplied predicates in iteration order, stopping when one returns {@code true}.
+     * An empty collection produces a predicate that always returns {@code false}.
+     *
+     * @param predicates the predicates to test
+     * @param <T> the input type
+     * @return a predicate that returns {@code true} if any supplied predicate matches
+     */
+    public static <T> Predicate<T> any(Collection<? extends Predicate<T>> predicates) {
+        return value -> {
+            for (var p : predicates) {
+                if (p.test(value)) {
+                    return true;
+                }
+            }
+            return false;
+        };
     }
 }

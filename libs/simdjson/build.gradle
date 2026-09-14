@@ -8,12 +8,14 @@
  */
 
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+import org.elasticsearch.gradle.internal.test.TestUtil
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.foreign-library'
 apply plugin: 'elasticsearch.foreign-api'
 apply plugin: 'elasticsearch.native-library-build'
+apply plugin: 'elasticsearch.jmh'
 
 dependencies {
   api project(':libs:foreign-library')
@@ -24,6 +26,10 @@ dependencies {
   testImplementation(testFixtures(project(':libs:simdvec'))) {
     exclude group: 'org.elasticsearch', module: 'simdjson'
   }
+
+  // SimdJsonParserBenchmark measures simdjson through the EscfEncoder pipeline, so the benchmark
+  // source set needs :server for the escf, sourcebatch and bytes classes.
+  benchmarkImplementation project(':server')
 }
 
 tasks.named('compileJava').configure {
@@ -49,6 +55,14 @@ tasks.named('processForeignAnnotations').configure {
 tasks.named('javadoc').configure {
   options.addStringOption("-add-modules", "jdk.incubator.vector")
   options.addStringOption("-add-reads", "org.elasticsearch.simdjson=jdk.incubator.vector")
+}
+
+tasks.named('benchmark').configure {
+  dependsOn ':libs:native:native-libraries:extractLibs'
+  jvmArgs '--add-modules=jdk.incubator.vector', '--enable-native-access=ALL-UNNAMED'
+  // The benchmark bodies run in JMH's forked VMs; `es.nativelibs.path` needs to be passed as
+  // a system property so it get passed down to the fork.
+  systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file('../native/libraries/build/platform/').toString())
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {

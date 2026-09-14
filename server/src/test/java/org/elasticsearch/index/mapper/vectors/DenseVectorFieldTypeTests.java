@@ -315,9 +315,12 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
+        // TODO: Update test to be more comprehensive
+        List<Float> vector = List.of(0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 6.0f);
+
         DenseVectorFieldType fft = createFloatFieldType();
-        List<Double> vector = List.of(0.0, 1.0, 2.0, 3.0, 4.0, 6.0);
         assertEquals(vector, fetchSourceValue(fft, vector));
+
         DenseVectorFieldType bft = createByteFieldType();
         assertEquals(vector, fetchSourceValue(bft, vector));
     }

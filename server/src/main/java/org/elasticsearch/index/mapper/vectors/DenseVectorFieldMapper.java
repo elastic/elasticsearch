@@ -649,8 +649,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         final int vectorComponentCount(int dims) {
-            assert dims % Byte.SIZE == 0;
-            return this == BIT ? dims / Byte.SIZE : dims;
+            if (this == BIT) {
+                assert dims % Byte.SIZE == 0;
+                return dims / Byte.SIZE;
+            } else {
+                return dims;
+            }
         }
 
         final int dims(int vectorComponentCount) {

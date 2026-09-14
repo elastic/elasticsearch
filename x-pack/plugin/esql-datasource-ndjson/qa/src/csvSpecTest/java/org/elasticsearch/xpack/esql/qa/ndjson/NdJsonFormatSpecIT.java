@@ -72,12 +72,15 @@ public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
         super.shouldSkipTest(testName);
     }
 
+    // The ndjson- owner prefix is globbed, so a new ndjson-*.csv-spec is picked up without touching
+    // this factory. The shared datasources/external-* picks stay curated: each suite names the files
+    // its reader and fixtures can serve rather than globbing that directory wholesale.
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
         return readExternalSpecTests(
             BWC_MATRIX_POLICY,
             "/datasources/external-basic.csv-spec",
-            "/ndjson-declared-schema.csv-spec",
+            "/ndjson-*.csv-spec",
             "/datasources/external-declared-schema.csv-spec",
             "/datasources/external-heavy-aggregates.csv-spec",
             "/datasources/external-multifile.csv-spec",

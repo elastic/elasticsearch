@@ -47,11 +47,6 @@ public class ParquetFormatSpecIT extends AbstractParquetExternalSpecTestCase {
         return BWC_MATRIX_POLICY;
     }
 
-    // Migrated specs run via FROM <dataset> on S3 and via the rebuilt EXTERNAL query on the other backends.
-    // The reader: "java" this IT injects is redundant with the .parquet extension default (FormatNameResolver
-    // maps a .parquet resource to the Java reader with no reader key), so FROM-on-S3 still uses the Java reader;
-    // the explicit reader injection stays exercised on the rebuilt-EXTERNAL backends.
-
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
         return readExternalSpecTests(BWC_MATRIX_POLICY, "/datasources/external-*.csv-spec", "/parquet-*.csv-spec");

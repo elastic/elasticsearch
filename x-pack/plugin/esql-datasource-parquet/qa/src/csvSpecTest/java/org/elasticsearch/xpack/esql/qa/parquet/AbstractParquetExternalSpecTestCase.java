@@ -62,6 +62,14 @@ abstract class AbstractParquetExternalSpecTestCase extends AbstractExternalSourc
         return true;
     }
 
+    /**
+     * Inert for the csv-spec suites below this class: every one of their specs is dataset-backed, so it
+     * runs as {@code FROM <dataset>} on every backend and never reaches the raw-{@code EXTERNAL} path
+     * that injects this reader. The result is the same reader either way —
+     * {@link FormatNameResolver} maps a {@code .parquet} resource to the Java reader with no
+     * {@code reader} key, and the internal codec of a compressed fixture does not change the extension.
+     * Kept for the next Parquet suite that does drive a raw {@code EXTERNAL} query.
+     */
     @Override
     protected String readerName() {
         return FormatNameResolver.READER_JAVA;

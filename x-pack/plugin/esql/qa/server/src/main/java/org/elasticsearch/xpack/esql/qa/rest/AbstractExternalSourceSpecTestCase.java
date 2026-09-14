@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -209,7 +210,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      *
      * <p>A current-version run keeps the whole Cartesian product. A BWC run keeps every base spec
      * tuple on the policy's corpus backend and codec, then adds one explicitly named representative for
-     * every additional backend and codec.
+     * every additional backend and codec, and finally checks the result still carries every guard cell
+     * the policy reaches (see {@link #verifyGuardCellCoverage}).
      */
     private static List<Object[]> expandExternalSpecTests(List<Object[]> baseTests, List<String> extraParams) {
         return expandExternalSpecTests(baseTests, extraParams, BACKENDS, null);
@@ -249,20 +251,86 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             for (StorageBackend backend : backends) {
                 addParameterizedTest(parameterizedTests, representative, null, backend);
             }
-            return List.copyOf(parameterizedTests.values());
+        } else {
+            String corpusExtra = corpusExtra(extraParams, policy);
+            for (Object[] baseTest : baseTests) {
+                addParameterizedTest(parameterizedTests, baseTest, corpusExtra, policy.corpusBackend());
+            }
+            for (StorageBackend backend : backends) {
+                addParameterizedTest(parameterizedTests, representative, corpusExtra, backend);
+            }
+            for (String extra : extraParams) {
+                addParameterizedTest(parameterizedTests, representative, extra, policy.corpusBackend());
+            }
+        }
+        List<Object[]> expanded = List.copyOf(parameterizedTests.values());
+        verifyGuardCellCoverage(expanded, extraParams, backends, policy);
+        return expanded;
+    }
+
+    /**
+     * Asserts that a BWC expansion carries every deterministic guard cell its policy reaches over
+     * {@code backends}, and that it reaches at least one.
+     *
+     * <p>Both terms are load-bearing. Set equality alone passes vacuously for a policy whose reachable
+     * guard set is empty — an uncompressed policy reduced to no guard backend via
+     * {@link BwcMatrixPolicy#withGuardBackends} — while non-emptiness alone would not notice an
+     * expansion that stopped emitting the representative on one backend or codec. Together they are the
+     * only evidence that a guard cell exists at all: {@link #shouldRunBwcReaderProfileGuard} can only
+     * ever see the cells this factory produced, so a narrowed expansion would otherwise shrink guard
+     * coverage silently while the task stayed green.
+     *
+     * <p>This reads no coordinator state, so a current-coordinator task expands and verifies exactly the
+     * same guard cells as its old-coordinator twin; only the guard <em>bodies</em> are gated on the
+     * coordinator direction.
+     */
+    static void verifyGuardCellCoverage(
+        List<Object[]> parameterizedTests,
+        List<String> extraParams,
+        List<StorageBackend> backends,
+        BwcMatrixPolicy policy
+    ) {
+        Set<String> reachable = new LinkedHashSet<>();
+        for (StorageBackend backend : backends) {
+            if (extraParams.isEmpty()) {
+                addGuardCell(reachable, policy, backend, null);
+            } else {
+                for (String extra : extraParams) {
+                    addGuardCell(reachable, policy, backend, extra);
+                }
+            }
+        }
+        if (reachable.isEmpty()) {
+            throw new IllegalStateException("BWC policy [" + policy + "] reaches no guard cell over backends " + backends);
         }
 
-        String corpusExtra = corpusExtra(extraParams, policy);
-        for (Object[] baseTest : baseTests) {
-            addParameterizedTest(parameterizedTests, baseTest, corpusExtra, policy.corpusBackend());
+        Set<String> produced = new LinkedHashSet<>();
+        for (Object[] parameterizedTest : parameterizedTests) {
+            StorageBackend backend = (StorageBackend) parameterizedTest[parameterizedTest.length - 1];
+            String extra = extraParams.isEmpty() ? null : (String) parameterizedTest[parameterizedTest.length - 2];
+            addGuardCell(produced, policy, backend, extra);
         }
-        for (StorageBackend backend : backends) {
-            addParameterizedTest(parameterizedTests, representative, corpusExtra, backend);
+        if (produced.equals(reachable) == false) {
+            Set<String> missing = new LinkedHashSet<>(reachable);
+            missing.removeAll(produced);
+            Set<String> unexpected = new LinkedHashSet<>(produced);
+            unexpected.removeAll(reachable);
+            throw new IllegalStateException(
+                "BWC expansion for policy ["
+                    + policy
+                    + "] does not carry its guard cells; missing "
+                    + missing
+                    + ", unexpected "
+                    + unexpected
+            );
         }
-        for (String extra : extraParams) {
-            addParameterizedTest(parameterizedTests, representative, extra, policy.corpusBackend());
+    }
+
+    private static void addGuardCell(Set<String> guardCells, BwcMatrixPolicy policy, StorageBackend backend, String extra) {
+        String codec = matrixCodecIdentity(extra);
+        if (policy.isGuardCell(backend, codec)) {
+            guardCells.add(backend + ":" + codec);
         }
-        return List.copyOf(parameterizedTests.values());
     }
 
     private static void validatePolicyShape(BwcMatrixPolicy policy, List<String> extraParams) {
@@ -334,6 +402,22 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             .filter(extra -> EsqlDataSourceCodecEligibility.normalizeCodecToken(extra).equals(policy.corpusCodec()))
             .findFirst()
             .orElseThrow(() -> new IllegalStateException("Corpus codec [" + policy.corpusCodec() + "] is not in " + extraParams));
+    }
+
+    /**
+     * Codec identity of a produced parameter tuple, {@code none} for a matrix with no codec column.
+     * <p>
+     * Must agree with {@link #guardCodecIdentity()} and its overrides, since the two decide whether the
+     * same cell is a guard cell — this one in the factory, that one in the test instance. It does for all
+     * three shapes: an uncompressed suite passes a dotless format, on which {@code textCodecIdentity}
+     * also yields {@code none}; a text compressed suite passes {@code csv.gz}, which both
+     * {@code normalizeCodecToken} and {@code textCodecIdentity} map to {@code gzip}; and the two Parquet
+     * compressed suites, whose codec column is a bare internal codec name that
+     * {@code textCodecIdentity} would read as {@code none}, override {@link #guardCodecIdentity()} to
+     * {@code normalizeCodecToken} for exactly that reason.
+     */
+    static String matrixCodecIdentity(String extra) {
+        return extra == null ? "none" : EsqlDataSourceCodecEligibility.normalizeCodecToken(extra);
     }
 
     private static Object[] findBwcRepresentative(List<Object[]> baseTests, BwcMatrixPolicy policy) {
@@ -468,19 +552,19 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * explicitly. The cluster-side delete is skipped when the test clusters are already known broken, but
      * the static caches are always cleared (in a {@code finally}) so a broken cluster — or a cleanup that
      * throws partway — cannot poison a later suite sharing this JVM fork.
+     * <p>
+     * The guard-coverage invariant deliberately does NOT live here: it is checked once, statically, by
+     * {@link #verifyGuardCellCoverage} in the parameter factory. A teardown assertion on the completed
+     * set could only be satisfied by a full suite run, so a CI {@code REPRODUCE WITH -Dtests.method=...}
+     * line pinned to a non-guard cell would turn a green reproduction red at teardown, and a setup
+     * {@code fail()} (which leaves {@code testClustersOk} set) would stack a bogus second failure onto
+     * the real one.
      */
     @AfterClass
     public static void cleanupRegisteredDatasets() throws IOException {
         try {
             if (testClustersOk) {
                 DatasetRegistry.cleanup(adminClient());
-            }
-            if (EsqlDataSourceMixedClusterTestSupport.isBwcTest()
-                && EsqlDataSourceMixedClusterTestSupport.oldCoordinator()
-                && testClustersOk) {
-                synchronized (COMPLETED_BWC_PROFILE_GUARDS) {
-                    assertFalse("no mixed-version reader/profile guard ran", COMPLETED_BWC_PROFILE_GUARDS.isEmpty());
-                }
             }
         } finally {
             DatasetRegistry.clearCaches();
@@ -756,7 +840,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return format.contains(".") ? format.substring(0, format.indexOf('.')) : format;
     }
 
-    /** Codec identity carried by this instance's deterministic guard cell. */
+    /**
+     * Codec identity carried by this instance's deterministic guard cell. Must agree with
+     * {@link #matrixCodecIdentity}, which answers the same question for the parameter factory — see its
+     * javadoc for the contract and why the Parquet compressed suites override this method.
+     */
     protected String guardCodecIdentity() {
         return EsqlDataSourceCodecEligibility.textCodecIdentity(format);
     }

@@ -156,8 +156,8 @@ emp_no:integer | job_positions:keyword
 // Native-MV format readers (Parquet repetition levels / ORC list columns / NDJSON arrays) decode it
 // directly; CSV reader under the new multi_value_syntax: none default cannot. The opt-in
 // `multi_value_syntax: brackets` would let CSV read it, but is rejected by non-CSV readers
-// (ConfigKeyValidator). So these stay external-multi-value-only, gated out of EsqlSpecTestCase
-// by the fileName-based assumeFalseLogging on this spec.
+// (ConfigKeyValidator). So these stay external-multi-value-only; the generic EsqlSpecTestCase families
+// never reach them, for the reason given in the file header.
 
 # requires further guards, TODO
 completion-Ignore

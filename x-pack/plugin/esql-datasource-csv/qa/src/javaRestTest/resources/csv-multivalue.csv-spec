@@ -5,10 +5,11 @@
 // the row has more columns than the schema and is rejected per the error policy.
 //
 // Authored as FROM <dataset>: the per-query CSV options that used to live in EXTERNAL ... WITH {...}
-// now live in `dataset:` directives. The external-source CSV format IT registers the dataset on every
-// storage backend and runs FROM verbatim; the general single/mixed/multi-cluster EsqlSpecTestCase families
-// that read this shared file have no fixture to back the dataset and skip it. Dataset names are distinct per
-// option set so each query's settings are unambiguous.
+// now live in `dataset:` directives. CsvFormatSpecIT selects this file through its /csv-*.csv-spec glob and
+// CsvCompressedFormatSpecIT names it explicitly; both register the dataset on every storage backend and run
+// FROM verbatim. The file is CSV-module-local, so neither the TSV suites nor the generic
+// single/mixed/multi-cluster EsqlSpecTestCase families (which glob the esql:qa:testFixtures resource root)
+// see it. Dataset names are distinct per option set so each query's settings are unambiguous.
 
 csvBracketsParsesMultiValue
 required_capability: dataset_in_from_command
@@ -75,9 +76,9 @@ c:long
 // ---- Relocated from external-basic.csv-spec ----
 // These queries assert ES|QL multi-value behavior on the bracket-MV employees fixture.
 // multi_value_syntax: brackets is declared explicitly per query so the spec carries its
-// own contract — no harness magic. Runs under datasource-csv ITs (CSV/TSV) and the general
-// EsqlSpecTestCase family (single-node, mixed-cluster, multi-cluster, multi-node) — all of
-// which read the local bracket-MV employees.csv when {{employees}} is resolved.
+// own contract — no harness magic. Runs under the CSV format ITs only (CsvFormatSpecIT and
+// CsvCompressedFormatSpecIT), which resolve {{employees}} to the bracket-MV employees.csv
+// fixture on every storage backend. The TSV suites read tsv-multivalue.csv-spec instead.
 //
 // SISTER FILE: datasources/external-multivalue.csv-spec at esql:qa:testFixtures carries the identical
 // employees query shapes WITHOUT the multi_value_syntax opt-in, for the non-CSV format ITs (Parquet,

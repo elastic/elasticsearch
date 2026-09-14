@@ -194,6 +194,70 @@ public class AbstractExternalSourceSpecTestCaseTests extends ESTestCase {
         );
     }
 
+    /**
+     * A policy that reaches no guard cell must be rejected rather than expanded: set equality alone
+     * passes vacuously when both sides are empty. Uncompressed with an emptied guard-backend set is the
+     * only shape that can reach none -- a compressed policy guards every cell on its corpus backend
+     * whatever the guard backends are, and corpus-backend tuples are always emitted.
+     */
+    public void testBwcExpansionRejectsAPolicyThatReachesNoGuardCell() {
+        configureBwcRun();
+        BwcMatrixPolicy policy = uncompressedPolicy().withGuardBackends(Set.of());
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> AbstractExternalSourceSpecTestCase.expandExternalSpecTests(
+                baseTests(),
+                List.of(),
+                List.of(AbstractExternalSourceSpecTestCase.StorageBackend.S3, AbstractExternalSourceSpecTestCase.StorageBackend.HTTP),
+                policy
+            )
+        );
+        assertThat(e.getMessage(), containsString("reaches no guard cell"));
+    }
+
+    /**
+     * The other half of the invariant: an expansion that stopped emitting the representative on a guard
+     * backend must be named. Only reachable through the check's own entry point -- the factory cannot
+     * produce such a matrix, which is why the check is separable from it.
+     */
+    public void testGuardCellCoverageNamesADroppedBackendRepresentative() {
+        configureBwcRun();
+        BwcMatrixPolicy policy = uncompressedPolicy();
+        List<AbstractExternalSourceSpecTestCase.StorageBackend> backends = List.of(
+            AbstractExternalSourceSpecTestCase.StorageBackend.S3,
+            AbstractExternalSourceSpecTestCase.StorageBackend.GCS
+        );
+        List<Object[]> expanded = AbstractExternalSourceSpecTestCase.expandExternalSpecTests(baseTests(), List.of(), backends, policy);
+        List<Object[]> withoutGcs = expanded.stream()
+            .filter(tuple -> tuple[6] != AbstractExternalSourceSpecTestCase.StorageBackend.GCS)
+            .toList();
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> AbstractExternalSourceSpecTestCase.verifyGuardCellCoverage(withoutGcs, List.of(), backends, policy)
+        );
+        assertThat(e.getMessage(), containsString("missing [GCS:none]"));
+    }
+
+    /**
+     * The factory and the test instance must agree on a cell's codec identity, or the factory would
+     * verify a guard cell the instance never recognises. The Parquet compressed suites are why the
+     * instance side stays overridable: their codec column is a bare internal codec name, which has no
+     * extension for {@code textCodecIdentity} to read.
+     */
+    public void testMatrixCodecIdentityAgreesWithTheInstanceSideIdentity() {
+        assertEquals("gzip", AbstractExternalSourceSpecTestCase.matrixCodecIdentity("csv.gz"));
+        assertEquals("gzip", EsqlDataSourceCodecEligibility.normalizeCodecToken("csv.gz"));
+        assertEquals("gzip", EsqlDataSourceCodecEligibility.textCodecIdentity("csv.gz"));
+
+        assertEquals("snappy", AbstractExternalSourceSpecTestCase.matrixCodecIdentity("snappy"));
+        assertEquals("snappy", EsqlDataSourceCodecEligibility.normalizeCodecToken("snappy"));
+        assertEquals("none", EsqlDataSourceCodecEligibility.textCodecIdentity("snappy"));
+
+        assertEquals("none", AbstractExternalSourceSpecTestCase.matrixCodecIdentity(null));
+        assertEquals("none", EsqlDataSourceCodecEligibility.textCodecIdentity("parquet"));
+    }
+
     public void testCodecIdentitiesAndStableAliasTieBreak() {
         for (String format : List.of("csv", "tsv", "ndjson", "parquet", "orc")) {
             assertEquals("none", EsqlDataSourceCodecEligibility.textCodecIdentity(format));

@@ -43,6 +43,10 @@ public class TsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
         return BWC_MATRIX_POLICY;
     }
 
+    // The tsv- owner prefix is globbed, so a new tsv-*.csv-spec is picked up without touching this
+    // factory. The cross-format picks stay curated: not every csv-*.csv-spec parses as TSV, and the
+    // shared datasources/external-* files are selected per suite rather than wholesale.
+    //
     // external-basic.csv-spec is dropped for TSV: its multi-value queries (MV_EXPAND / MV_COUNT on the
     // employees bracket columns) assume brackets parsing, which is no longer the default. Scalar
     // coverage comes from csv-basic.csv-spec (bracket-free employees twin) and multi-value coverage
@@ -60,7 +64,7 @@ public class TsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
             "/datasources/external-heavy-aggregates.csv-spec",
             "/datasources/external-multifile.csv-spec",
             "/datasources/external-multifile-resolution.csv-spec",
-            "/tsv-multivalue.csv-spec"
+            "/tsv-*.csv-spec"
         );
     }
 }

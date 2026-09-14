@@ -386,8 +386,8 @@ setting can bring them back.
 
 | Setting | Default (CSV / TSV) | Description |
 |---|---|---|
-| `delimiter` | `,` / `\t` | The field separator. Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
-| `mode` | `quoted` / `plain` | A preset bundling quoting and escaping into one choice. Valid values: `"quoted"`, `"escaped"`, `"plain"`. Using `mode: escaped` with an explicit `quote` setting is rejected at registration time, because it silently turns quoting on and disables the escaped-mode decode. {applies_to}`stack: experimental 9.6+` |
+| `delimiter` | `,` / `\t` | The field separator. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
+| `mode` | `quoted` / `plain` | A preset bundling quoting and escaping into one choice. Valid values: `"quoted"`, `"escaped"`, `"plain"`. <br> Using `mode: escaped` with an explicit `quote` setting is rejected at registration time, because it silently turns quoting on and disables the escaped-mode decode. {applies_to}`stack: experimental 9.6+` |
 | `header_row` | `true` | Whether the first row names the columns. |
 | `null_value` | `""` (empty) | The token read as null (for example `NULL`, `NA`, `\N`). |
 | `encoding` | `UTF-8` | The file's character encoding. |

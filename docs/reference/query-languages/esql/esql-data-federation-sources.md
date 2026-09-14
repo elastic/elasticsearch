@@ -219,7 +219,7 @@ The following settings are available for `s3` data sources:
 | Setting | Required | Description |
 |---|---|---|
 | `region` | No | The bucket's AWS region, for example `us-east-1`. Defaults to `us-east-1` if omitted. Set it to match the bucket's region, otherwise requests to the bucket fail. |
-| `endpoint` | No | An explicit Amazon S3 endpoint override. Must be an absolute `http` or `https` URL with a host, for example `https://minio.example.com:9000`; a value without a scheme, or with a host the URL syntax does not allow (such as an underscore or a non-numeric port), is rejected when the data source is created. {applies_to}`stack: experimental 9.6+` |
+| `endpoint` | No | An explicit Amazon S3 endpoint override. Must be an absolute `http` or `https` URL with a host, for example `https://minio.example.com:9000`. <br> A value without a scheme, or with a host the URL syntax does not allow (such as an underscore or a non-numeric port), is rejected when the data source is created. {applies_to}`stack: experimental 9.6+` |
 | `addressing_style` {applies_to}`stack: experimental 9.6+` | No | URL addressing style. `auto` (default) uses path-style when `endpoint` is set and SDK-default otherwise. `path` always uses path-style. `virtual_hosted` lets the SDK decide (bare-IP endpoints fall back to path-style). Use `virtual_hosted` for AWS FIPS, dual-stack, or VPC interface endpoints that require virtual-hosted addressing. |
 
 :::{tip}
@@ -235,7 +235,7 @@ A data source connects to a single region. To query buckets in more than one reg
 | `role_arn` | Yes (federated identity) | The ARN of the IAM role {{es}} assumes via STS. Used with `auth: federated_identity`. |
 | `jwt_audience` | No | Overrides the JWT audience claim sent to STS. Defaults to `sts.amazonaws.com`. Used with `auth: federated_identity`. |
 | `role_session_name` | No | A label for the assumed-role session. Defaults to `elasticsearch-esql-datasource`. Used with `auth: federated_identity`. |
-| `sts_endpoint` | No | A custom STS endpoint URL. Used with `auth: federated_identity`. Subject to the same URL requirements as `endpoint`. {applies_to}`stack: experimental 9.6+` |
+| `sts_endpoint` | No | A custom STS endpoint URL. Used with `auth: federated_identity` (Subject to the same URL requirements as `endpoint`. {applies_to}`stack: experimental 9.6+`) |
 | `sts_region` | No | The AWS region of the STS endpoint. Defaults to the bucket's region. Used with `auth: federated_identity`. |
 | `auth` | Yes | Authentication mode. Set it to `anonymous`, `static_credentials`, `managed_identity`, or `federated_identity`. |
 

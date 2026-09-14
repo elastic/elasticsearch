@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -111,11 +112,7 @@ public class SlicedBlockRangeTests extends ESTestCase {
     private static KnnVectorValues sequentialVectorValues(int numVectors, int dimensions) throws IOException {
         List<float[]> vectors = new ArrayList<>(numVectors);
         for (int i = 0; i < numVectors; i++) {
-            float[] v = new float[dimensions];
-            for (int d = 0; d < dimensions; d++) {
-                v[d] = random().nextFloat();
-            }
-            vectors.add(v);
+            vectors.add(VectorTestUtils.randomFloatVector(dimensions));
         }
         return FloatVectorValues.fromFloats(vectors, dimensions);
     }

@@ -1,1 +1,0 @@
-FROM languages METADATA _index | EVAL viewC_index = _index

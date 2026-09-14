@@ -204,14 +204,15 @@ import java.util.function.Consumer;
  * but escaping stays on (harmless on data without backslash sequences; for fully-literal reading use
  * {@code mode: plain}, or also pass {@code escape: none}).
  * <p>
- * Two response {@code Warning} headers (the channel the query author actually sees, not a DEBUG log)
- * guard the escape-decode foot-guns. (1) When decoding is off and a sampled value is the whole-field
- * {@code \N} null marker — {@code plain}, or {@code quoted} with {@code escape: none}, where the
- * marker reaches the sample literally — a data-driven warning nudges toward {@code mode: escaped}.
- * (2) When {@code mode: escaped} is combined with a {@code quote} override (resolving to
- * {@code (true, true)}, which hands the escape char to Jackson so {@code \N} is rewritten before the
- * sample exists and the data scan can't see it), a deterministic config-time warning states that the
- * decode was disabled.
+ * Two client-facing notices (the channel the query author actually sees, not a DEBUG log) guard the
+ * escape-decode foot-guns. (1) When decoding is off and a sampled value is the whole-field {@code \N}
+ * null marker — {@code plain}, or {@code quoted} with {@code escape: none}, where the marker reaches
+ * the sample literally — a data-driven hint on {@link SourceMetadata#warnings()} nudges toward
+ * {@code mode: escaped}. (2) When {@code mode: escaped} is combined with a {@code quote} override
+ * (resolving to {@code (true, true)}, which hands the escape char to Jackson so {@code \N} is
+ * rewritten before the sample exists and the data scan can't see it), a deterministic notice on
+ * {@link #configWarnings()} states that the decode was disabled. Both are decided off the request
+ * thread, so the resolver buffers them onto the resolution instead of writing headers here.
  *
  * <h2>Bracket multi-value syntax</h2>
  * When {@code multi_value_syntax} is {@code brackets}, array-like values support:

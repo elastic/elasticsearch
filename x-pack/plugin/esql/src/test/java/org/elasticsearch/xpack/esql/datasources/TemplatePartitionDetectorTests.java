@@ -47,7 +47,7 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
      * Standard metadata names are dedicated: a template placeholder claiming one (here
      * {@code {_index}}) surfaces under the {@code _partition.} prefix — the same contract the
      * Hive detector enforces — so {@code METADATA _index} keeps its spec meaning while the
-     * layout's value stays queryable. Each rename is disclosed via a {@code Warning} header at
+     * layout's value stays queryable. Each rename is disclosed on the caller's warning sink at
      * detection time.
      */
     public void testReservedPlaceholderSurfacesUnderPartitionPrefix() {

@@ -231,16 +231,15 @@ public final class AsymmetricHashingQuantizer {
     }
 
     private float[] learnedTraining(float[] xTraining, int nTraining, int originalDim, int nDims) {
-        // PCA initialization: extract top nDims right singular vectors via power iteration
+        // PCA initialization: extract top nDims right singular vectors as columns (originalDim x nDims)
         // This is much faster than full SVD when nDims << originalDim
-        float[] topVectors = SvdUtil.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed);
-
-        // P = top nDims right singular vectors transposed: rows of topVectors are the vectors
-        // topVectors shape: (nDims x originalDim); P shape: (originalDim x nDims)
-        float[] p = ESVectorUtil.transposeMatrix(topVectors, nDims, originalDim);
+        float[] p = SvdUtil.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed);
 
         // Project training data: X_ld = xTraining @ P (nTraining x nDims)
         float[] xLd = ESVectorUtil.matrixMultiply(xTraining, p, nTraining, originalDim, nDims);
+
+        // Pre-transpose X_ld so that X_ld^T @ X_enc can use sequential memory access
+        float[] xLdT = ESVectorUtil.transposeMatrix(xLd, nTraining, nDims);
 
         // Initialize random M (nDims x nDims)
         float[] m = SvdUtil.randomGaussians(new Random(seed), nDims * nDims);
@@ -268,8 +267,8 @@ public final class AsymmetricHashingQuantizer {
                         }
                     }
                 }
-                // M = X_ld.T @ X_enc (nDims x nDims)
-                m = ESVectorUtil.matrixMultiplyTA(xLd, xEnc, nTraining, nDims, nDims);
+                // M = X_ld^T @ X_enc (nDims x nDims) — uses pre-transposed X_ld for sequential access
+                m = ESVectorUtil.matrixMultiply(xLdT, xEnc, nDims, nTraining, nDims);
             }
         }
 

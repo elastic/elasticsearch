@@ -447,6 +447,7 @@ toc:
           - file: esql/esql-metadata-fields.md
           - file: esql/esql-null-values.md
           - file: esql/esql-multivalued-fields.md
+          - file: esql/esql-histogram-fields.md
           - file: esql/esql-unmapped-fields.md
       - file: esql/esql-examples.md
         children:

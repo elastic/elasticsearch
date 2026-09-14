@@ -184,7 +184,7 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testUnionBranchLimit() {
-        // A union chain is translated into a single UnionAll, which supports up to Fork.MAX_BRANCHES (8) branches.
+        // A union chain is translated into a single UnionAll, which supports up to MergePlan.MAX_BRANCHES (8) branches.
         String maxOperands = String.join(" or ", Collections.nCopies(8, "network.bytes_in"));
         assertTrue(tsdb.query("PROMQL index=test step=5m " + maxOperands).resolved());
 

@@ -247,7 +247,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
         }
 
         if (isHighWatermarkEnabled() == false) {
-            return allocation.debugDecision() ? canRemainDisabledDecision : Decision.YES;
+            return canRemainDisabledDecision;
         }
 
         final NodeHeapMetrics nodeHeapMetrics = allocation.clusterInfo().getNodeHeapMetrics().get(node.nodeId());
@@ -305,11 +305,11 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
      */
     private @Nullable Decision guardDecision(RoutingNode node, RoutingAllocation allocation) {
         if (isEnabled() == false) {
-            return allocation.debugDecision() ? disabledDecision : Decision.YES;
+            return disabledDecision;
         }
 
         if (node.node().getRoles().stream().noneMatch(applicableRoles::contains)) {
-            return allocation.debugDecision() ? notApplicableToNodeDecision : Decision.YES;
+            return notApplicableToNodeDecision;
         }
 
         final NodeHeapMetrics nodeHeapMetrics = allocation.clusterInfo().getNodeHeapMetrics().get(node.nodeId());

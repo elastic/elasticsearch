@@ -10,6 +10,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.benchmark.vector.VectorizationInfo;
 import org.elasticsearch.simdvec.BBQTestUtils;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -56,6 +57,7 @@ public class VectorScorerD2Q4StripedOperationBenchmark {
 
     static {
         BenchmarkLogging.configure();
+        VectorizationInfo.printOnce();
     }
 
     @Param({ "128", "256", "512", "1024", "1536", "2048" })

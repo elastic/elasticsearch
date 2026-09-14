@@ -9,14 +9,16 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.elasticsearch.index.mapper.SourceLoader;
+
 import java.io.IOException;
 import java.util.List;
 
-public interface DenseVectorDocValuesFieldLoader {
+public interface DenseVectorSyntheticFieldLoader extends SourceLoader.SyntheticFieldLoader {
     /**
      * Get the vector value as a list.
      *
      * @param convertToFloat whether to convert dimensions to {@code Float}
      */
-    List<?> vectorAsList(boolean convertToFloat) throws IOException;
+    List<Object> vectorAsList(boolean convertToFloat) throws IOException;
 }

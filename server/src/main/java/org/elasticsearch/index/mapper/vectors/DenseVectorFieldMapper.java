@@ -3349,6 +3349,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return ValueFetcher.EMPTY;
             }
 
+            if (isSyntheticSource && (indexed || hasDocValues())) {
+                // TODO: Get from doc values when excludeSourceVectors == true
+                // Synthetic source would rebuild the field's value from these same doc values, so read them directly instead.
+                DenseVectorSyntheticFieldLoader loader = indexed
+                    ? new IndexedSyntheticFieldLoader(this, null)
+                    : new DocValuesSyntheticFieldLoader(this, null);
+                return new DenseVectorDocValuesValueFetcher(loader, element.elementType(), vectorFormat);
+            }
+
             return new DenseVectorSourceValueFetcher(name(), context, element.elementType(), dims, vectorFormat);
         }
 
@@ -4049,6 +4058,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
+                // TODO: Get from doc values when excludeSourceVectors == true
                 return new DenseVectorFromBinaryBlockLoader(name(), dims, indexVersionCreated, element.elementType());
             }
             return new BlockSourceReader.DenseVectorBlockLoader(
@@ -4375,12 +4385,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         // the vector lives: the vector index when the field is indexed, binary doc values otherwise.
         if (fieldType().indexed) {
             return new SyntheticVectorsPatchFieldLoader<>(
-                () -> new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity),
+                () -> new IndexedSyntheticFieldLoader(fieldType(), leafName()),
                 l -> l.vectorAsList(false)
             );
         }
         return new SyntheticVectorsPatchFieldLoader<>(
-            () -> new DocValuesSyntheticFieldLoader(indexCreatedVersion),
+            () -> new DocValuesSyntheticFieldLoader(fieldType(), leafName()),
             l -> l.vectorAsList(false)
         );
     }
@@ -4389,14 +4399,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(
             () -> fieldType().indexed
-                ? new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity)
-                : new DocValuesSyntheticFieldLoader(indexCreatedVersion)
+                ? new IndexedSyntheticFieldLoader(fieldType(), leafName())
+                : new DocValuesSyntheticFieldLoader(fieldType(), leafName())
         );
     }
 
-    private class IndexedSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader
+    private static class IndexedSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader
         implements
-            DenseVectorDocValuesFieldLoader {
+            DenseVectorSyntheticFieldLoader {
         private FloatVectorValues floatValues;
         private ByteVectorValues byteValues;
         private NumericDocValues magnitudeReader;
@@ -4405,27 +4415,27 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private boolean hasMagnitude;
         private int ord;
 
-        private final IndexVersion indexCreatedVersion;
-        private final VectorSimilarity vectorSimilarity;
+        private final DenseVectorFieldType fieldType;
+        private final String leafName;
         private final Thread creationThread;
 
-        private IndexedSyntheticFieldLoader(IndexVersion indexCreatedVersion, VectorSimilarity vectorSimilarity) {
-            this.indexCreatedVersion = indexCreatedVersion;
-            this.vectorSimilarity = vectorSimilarity;
+        private IndexedSyntheticFieldLoader(DenseVectorFieldType fieldType, String leafName) {
+            this.fieldType = fieldType;
+            this.leafName = leafName;
             this.creationThread = Thread.currentThread();
         }
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            floatValues = reader.getFloatVectorValues(fullPath());
+            floatValues = reader.getFloatVectorValues(fieldType.name());
             if (floatValues != null) {
                 if (shouldNormalize()) {
-                    magnitudeReader = reader.getNumericDocValues(fullPath() + COSINE_MAGNITUDE_FIELD_SUFFIX);
+                    magnitudeReader = reader.getNumericDocValues(fieldType.name() + COSINE_MAGNITUDE_FIELD_SUFFIX);
                 }
                 return createLoader(floatValues.iterator(), true);
             }
 
-            byteValues = reader.getByteVectorValues(fullPath());
+            byteValues = reader.getByteVectorValues(fieldType.name());
             if (byteValues != null) {
                 return createLoader(byteValues.iterator(), false);
             }
@@ -4434,7 +4444,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         private boolean shouldNormalize() {
-            return indexCreatedVersion.onOrAfter(NORMALIZE_COSINE) && VectorSimilarity.COSINE.equals(vectorSimilarity);
+            return fieldType.indexVersionCreated.onOrAfter(NORMALIZE_COSINE) && VectorSimilarity.COSINE.equals(fieldType.similarity);
         }
 
         private DocValuesLoader createLoader(KnnVectorValues.DocIndexIterator iterator, boolean checkMagnitude) {
@@ -4466,7 +4476,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return;
             }
             float magnitude = hasMagnitude ? Float.intBitsToFloat((int) magnitudeReader.longValue()) : Float.NaN;
-            b.startArray(leafName());
+            b.startArray(leafName);
             if (floatValues != null) {
                 for (float v : floatValues.vectorValue(ord)) {
                     b.value(hasMagnitude ? v * magnitude : v);
@@ -4487,7 +4497,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
          * @throws IOException if reading fails
          */
         @Override
-        public List<?> vectorAsList(boolean convertToFloat) throws IOException {
+        public List<Object> vectorAsList(boolean convertToFloat) throws IOException {
             assert hasValue : "vector is null for ord=" + ord;
             if (floatValues != null) {
                 float[] raw = floatValues.vectorValue(ord);
@@ -4515,24 +4525,26 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public String fieldName() {
-            return fullPath();
+            return fieldType.name();
         }
     }
 
-    private class DocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader
+    private static class DocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader
         implements
-            DenseVectorDocValuesFieldLoader {
+            DenseVectorSyntheticFieldLoader {
         private BinaryDocValues values;
         private boolean hasValue;
-        private final IndexVersion indexCreatedVersion;
+        private final DenseVectorFieldType fieldType;
+        private final String leafName;
 
-        private DocValuesSyntheticFieldLoader(IndexVersion indexCreatedVersion) {
-            this.indexCreatedVersion = indexCreatedVersion;
+        private DocValuesSyntheticFieldLoader(DenseVectorFieldType fieldType, String leafName) {
+            this.fieldType = fieldType;
+            this.leafName = leafName;
         }
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            values = leafReader.getBinaryDocValues(fullPath());
+            values = leafReader.getBinaryDocValues(fieldType.name());
             if (values == null) {
                 return null;
             }
@@ -4558,11 +4570,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (false == hasValue) {
                 return;
             }
-            b.startArray(leafName());
+            b.startArray(leafName);
             ByteBuffer byteBuffer = byteBuffer();
-            int vectorLength = fieldType().element.elementType().vectorLength(fieldType().dims);
+            int vectorLength = fieldType.element.elementType().vectorLength(fieldType.dims);
             for (int i = 0; i < vectorLength; i++) {
-                fieldType().element.readAndWriteValue(byteBuffer, b);
+                fieldType.element.readAndWriteValue(byteBuffer, b);
             }
             b.endArray();
         }
@@ -4570,20 +4582,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private ByteBuffer byteBuffer() throws IOException {
             BytesRef ref = values.binaryValue();
             ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
-            if (indexCreatedVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
+            if (fieldType.indexVersionCreated.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
                 byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
             }
             return byteBuffer;
         }
 
         @Override
-        public List<?> vectorAsList(boolean convertToFloat) throws IOException {
+        public List<Object> vectorAsList(boolean convertToFloat) throws IOException {
             assert hasValue : "vector is null";
             ByteBuffer byteBuffer = byteBuffer();
-            int vectorLength = fieldType().element.elementType().vectorLength(fieldType().dims);
+            int vectorLength = fieldType.element.elementType().vectorLength(fieldType.dims);
             List<Object> values = new ArrayList<>(vectorLength);
             for (int i = 0; i < vectorLength; i++) {
-                Number value = fieldType().element.readValue(byteBuffer);
+                Number value = fieldType.element.readValue(byteBuffer);
                 values.add(convertToFloat ? value.floatValue() : value);
             }
             return values;
@@ -4591,7 +4603,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public String fieldName() {
-            return fullPath();
+            return fieldType.name();
         }
     }
 

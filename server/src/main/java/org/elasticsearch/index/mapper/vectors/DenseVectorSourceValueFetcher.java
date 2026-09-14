@@ -136,7 +136,7 @@ class DenseVectorSourceValueFetcher extends SourceValueFetcher {
      * Encodes source values as base64 using the canonical binary form for {@code elementType}: one byte per
      * component for byte and bit vectors, four big-endian bytes otherwise.
      */
-    private static String encodeBase64(List<?> values, ElementType elementType) {
+    static String encodeBase64(List<?> values, ElementType elementType) {
         return switch (elementType) {
             case BYTE, BIT -> {
                 byte[] encoded = new byte[values.size()];

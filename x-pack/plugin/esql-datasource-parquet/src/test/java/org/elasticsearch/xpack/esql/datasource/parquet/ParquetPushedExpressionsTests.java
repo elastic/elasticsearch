@@ -50,6 +50,7 @@ import static org.apache.parquet.schema.LogicalTypeAnnotation.dateType;
 import static org.apache.parquet.schema.LogicalTypeAnnotation.decimalType;
 import static org.apache.parquet.schema.LogicalTypeAnnotation.float16Type;
 import static org.apache.parquet.schema.LogicalTypeAnnotation.timestampType;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.DOUBLE;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FLOAT;
@@ -1129,6 +1130,58 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         FilterPredicate fp = pushed.toFilterPredicate(schema);
         assertNotNull(fp);
         assertThat(fp.toString(), containsString("42"));
+    }
+
+    public void testToFilterPredicateDateLiteralOnDateNanosColumnDeclines() {
+        MessageType schema = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
+        Expression expr = new Equals(Source.EMPTY, attr("ts", DataType.DATE_NANOS), datetimeLit(1_700_000_000_000L), null);
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+    }
+
+    public void testToFilterPredicateDateRangeOnDateNanosColumnDeclines() {
+        MessageType schema = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
+        Expression expr = new Range(
+            Source.EMPTY,
+            attr("ts", DataType.DATE_NANOS),
+            datetimeLit(1_000L),
+            true,
+            datetimeLit(2_000L),
+            true,
+            ZoneOffset.UTC
+        );
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+    }
+
+    public void testToFilterPredicateDateNanosLiteralOnDateColumnDeclines() {
+        MessageType schema = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS));
+        Expression expr = new Equals(
+            Source.EMPTY,
+            attr("ts", DataType.DATETIME),
+            lit(1_700_000_000_000_000_000L, DataType.DATE_NANOS),
+            null
+        );
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+    }
+
+    public void testToFilterPredicateMatchingDateNanosOnMicrosStillScales() {
+        MessageType schema = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS));
+        long nanos = 1_700_000_000_123_456_000L;
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("ts", DataType.DATE_NANOS, nanos))).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(nanos / 1_000)));
+        assertThat(fp.toString(), not(containsString(String.valueOf(nanos))));
+    }
+
+    public void testToFilterPredicateIntegerLessThanDoubleDeclines() {
+        MessageType schema = Types.buildMessage().required(INT32).named("id").named("test");
+        Expression expr = new LessThan(Source.EMPTY, attr("id", DataType.INTEGER), lit(5.5, DataType.DOUBLE), null);
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+    }
+
+    public void testToFilterPredicateIntegerLessThanOrEqualLongDeclines() {
+        MessageType schema = Types.buildMessage().required(INT32).named("id").named("test");
+        Expression expr = new LessThanOrEqual(Source.EMPTY, attr("id", DataType.INTEGER), lit(3_000_000_000L, DataType.LONG), null);
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
     }
 
     public void testToFilterPredicateLessThanOrEqualDatetime() {
@@ -2343,25 +2396,44 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertNull(ParquetPushedExpressions.resolveNestedPrimitive(schema, "event"));
     }
 
+    public void testResolveNestedPrimitiveRepeatedLeafReturnsNull() {
+        MessageType schema = new MessageType("test", Types.repeated(INT32).named("Int32_list"));
+        assertNull(ParquetPushedExpressions.resolveNestedPrimitive(schema, "Int32_list"));
+    }
+
+    public void testResolveNestedPrimitiveRepeatedAncestorReturnsNull() {
+        // Leaf may be OPTIONAL; parquet-mr still refuses the path because maxRepLevel > 0.
+        MessageType schema = Types.buildMessage()
+            .repeatedGroup()
+            .optional(DOUBLE)
+            .named("lat")
+            .optional(DOUBLE)
+            .named("lon")
+            .named("addr")
+            .named("test");
+        assertNull(ParquetPushedExpressions.resolveNestedPrimitive(schema, "addr.lat"));
+    }
+
     // --- helpers ---
 
-    // IS NULL / IS NOT NULL over a top-level list must NOT push a predicate (esql-planning#1056): the
-    // attribute name resolves to a LIST group, so notEq(column("tags"), null) names a leaf-absent
-    // column that parquet-mr drops. They decline so the multivalue-safe null-mask evaluator answers.
-    // (Value predicates — comparisons/IN/LIKE — are NOT declined here; their evaluator is not MV-safe.)
+    // List / repeated leaves must NOT push (esql-planning#1056): a 3-level LIST attribute is a
+    // group; a 2-level repeated leaf is a primitive that parquet-mr still rejects. Both decline
+    // so the MV-safe evaluator answers.
 
     private static MessageType intListSchema() {
         return new MessageType("test", Types.optionalList().optionalElement(INT32).named("ints"));
     }
 
     private static MessageType stringListSchema() {
-        return new MessageType(
-            "test",
-            Types.optionalList()
-                .optionalElement(PrimitiveType.PrimitiveTypeName.BINARY)
-                .as(LogicalTypeAnnotation.stringType())
-                .named("tags")
-        );
+        return new MessageType("test", Types.optionalList().optionalElement(BINARY).as(LogicalTypeAnnotation.stringType()).named("tags"));
+    }
+
+    private static MessageType repeatedIntSchema() {
+        return new MessageType("test", Types.repeated(INT32).named("Int32_list"));
+    }
+
+    private static MessageType repeatedStringSchema() {
+        return new MessageType("test", Types.repeated(BINARY).as(LogicalTypeAnnotation.stringType()).named("String_list"));
     }
 
     public void testTopLevelListIsNotNullDeclines() {
@@ -2372,6 +2444,38 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     public void testTopLevelStringListIsNotNullDeclines() {
         Expression expr = new IsNotNull(Source.EMPTY, attr("tags", DataType.KEYWORD));
         assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(stringListSchema()));
+    }
+
+    public void testRepeatedPrimitiveIsNullDeclines() {
+        Expression expr = new IsNull(Source.EMPTY, attr("Int32_list", DataType.INTEGER));
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(repeatedIntSchema()));
+    }
+
+    public void testRepeatedPrimitiveIsNotNullDeclines() {
+        Expression expr = new IsNotNull(Source.EMPTY, attr("Int32_list", DataType.INTEGER));
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(repeatedIntSchema()));
+    }
+
+    public void testRepeatedPrimitiveEqualsDeclines() {
+        assertNull(new ParquetPushedExpressions(List.of(eq("Int32_list", DataType.INTEGER, 4))).toFilterPredicate(repeatedIntSchema()));
+    }
+
+    public void testRepeatedStringIsNullDeclines() {
+        Expression expr = new IsNull(Source.EMPTY, attr("String_list", DataType.KEYWORD));
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(repeatedStringSchema()));
+    }
+
+    public void testRepeatedStringIsNotNullDeclines() {
+        Expression expr = new IsNotNull(Source.EMPTY, attr("String_list", DataType.KEYWORD));
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(repeatedStringSchema()));
+    }
+
+    public void testRepeatedStringEqualsDeclines() {
+        assertNull(
+            new ParquetPushedExpressions(List.of(eq("String_list", DataType.KEYWORD, new BytesRef("x")))).toFilterPredicate(
+                repeatedStringSchema()
+            )
+        );
     }
 
     public void testFlatColumnStillPushesControl() {

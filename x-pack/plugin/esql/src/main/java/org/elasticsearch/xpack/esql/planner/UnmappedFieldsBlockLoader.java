@@ -30,10 +30,11 @@ import java.util.Set;
  * Block loader for the synthetic {@code _unmapped_fields} column produced by
  * {@code SET unmapped_fields="LOAD_ALL"}.
  *
- * <p>For each document it reads {@code _source}, retains only top-level keys
- * that match the {@link UnmappedFieldsPattern} (matching at least one pattern in every include
- * group and not matching any exclude pattern) and hold a value, and re-serialises the surviving
- * key/value pairs as a JSON object. Documents where nothing survives get a null.
+ * group and not matching any exclude pattern) and hold a value, and re-serialises the surviving key/value
+ * <p>For each document it reads {@code _source} and re-serialises the surviving top-level key/value pairs as a JSON object, which the
+ * coordinator later flattens into per-leaf columns. A scalar key survives when it satisfies the full UnmappedFieldsPattern#matches
+ * and hold a value; an object or array key ships more leniently ({@link UnmappedFieldsPattern#objectSubfieldsCouldMatch})
+ * because it flattens to descendant leaves the coordinator filters per name. Documents where nothing survives get a null.
  *
  * <p>Pruning the value-less parts here rather than on the coordinator keeps them off the wire entirely, and is what lets the
  * coordinator turn every key it receives into an output column without producing one that is null in every row - see
@@ -114,16 +115,23 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
                     .v2();
                 try (XContentBuilder json = XContentFactory.jsonBuilder()) {
                     json.startObject();
-                    boolean keep = false;
+                    boolean anyMatch = false;
                     for (Map.Entry<String, Object> entry : sourceMap.entrySet()) {
-                        if (pattern.matches(entry.getKey()) && prune(entry.getValue())) {
-                            keep = true;
-                            json.field(entry.getKey(), entry.getValue());
+                        // A scalar becomes its own leaf column and must match the full pattern; an object or array can flatten to dotted
+                        // descendant leaves the coordinator filters per name, so it ships leniently (see objectSubfieldsCouldMatch).
+                        Object value = entry.getValue();
+                        boolean matched = value instanceof Map || value instanceof List
+                            ? pattern.objectSubfieldsCouldMatch(entry.getKey())
+                            : pattern.matches(entry.getKey());
+                        // The pattern decides whether the key is wanted; prune decides whether what is under it says anything at all.
+                        if (matched && prune(value)) {
+                            anyMatch = true;
+                            json.field(entry.getKey(), value);
                         }
                     }
                     json.endObject();
                     // An empty object would carry no more information than a null, and the coordinator treats the two the same.
-                    if (keep) {
+                    if (anyMatch) {
                         ((BytesRefBuilder) builder).appendBytesRef(BytesReference.bytes(json).toBytesRef());
                     } else {
                         builder.appendNull();

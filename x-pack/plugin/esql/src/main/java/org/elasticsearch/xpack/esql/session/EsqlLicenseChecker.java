@@ -50,6 +50,26 @@ public class EsqlLicenseChecker {
     }
 
     /**
+     * Whether this cluster may approximate, without throwing. For an operator-supplied default an unlicensed cluster
+     * runs the query exactly rather than failing it, so the caller needs the answer rather than an exception. Records
+     * feature usage on success, as {@link #checkQueryApproximation} does — on this path the feature genuinely is in
+     * use, because a query is about to be approximated. The operator-warning path must not use this; see
+     * {@link #isQueryApproximationAllowedWithoutTracking}.
+     */
+    public static boolean isQueryApproximationAllowed(XPackLicenseState licenseState) {
+        return licenseState != null && QUERY_APPROXIMATION_FEATURE.check(licenseState);
+    }
+
+    /**
+     * Whether approximation is licensed, <b>without</b> recording feature usage. For the operator-warning path, which
+     * asks on every license transition and on every settings update: those are not the feature being used, and
+     * counting them would report approximation as in use on a cluster that never approximated a query.
+     */
+    public static boolean isQueryApproximationAllowedWithoutTracking(XPackLicenseState licenseState) {
+        return licenseState != null && QUERY_APPROXIMATION_FEATURE.checkWithoutTracking(licenseState);
+    }
+
+    /**
      * @param licenseState existing license state. Need to extract info on the current installed license.
      * @throws ElasticsearchStatusException if query approximation is not supported.
      */

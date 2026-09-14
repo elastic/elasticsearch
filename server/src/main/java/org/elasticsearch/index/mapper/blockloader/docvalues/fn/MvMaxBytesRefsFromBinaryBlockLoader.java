@@ -10,6 +10,8 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
@@ -18,6 +20,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFro
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueColumnarPayloadBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
@@ -25,6 +28,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNum
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
 public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
@@ -38,6 +42,26 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        return switch (binaryFormat) {
+            case COLUMNAR_PAYLOAD -> {
+                // The count travels in the blob, so there is no companion column to load or advance on.
+                TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+                yield binary == null ? ConstantNull.COLUMN_READER : new MvMaxBytesRefsFromColumnarPayload(binary);
+            }
+            case ARRAY_ORDER_INLINE_NULL -> withCounts(breaker, context, MvMaxBytesRefsFromArrayOrderInlineNull::new);
+            case SEPARATE_COUNT -> withCounts(breaker, context, MvMaxBytesRefsFromBinarySeparateCount::new);
+        };
+    }
+
+    /**
+     * Resolves the binary column and its {@code .counts} companion, which both companion-carrying framings need, and
+     * hands them to {@code reader}. A field with no counts column is single-valued, so its maximum is the value itself.
+     */
+    private ColumnAtATimeReader withCounts(
+        CircuitBreaker breaker,
+        LeafReaderContext context,
+        BiFunction<TrackingBinaryDocValues, TrackingNumericDocValues, ColumnAtATimeReader> reader
+    ) throws IOException {
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
@@ -45,15 +69,53 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
         if (bc.counts() == null) {
             return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
         }
-        if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
-            return new MvMaxBytesRefsFromArrayOrderInlineNull(bc.binary(), bc.counts());
-        }
-        return new MvMaxBytesRefsFromBinarySeparateCount(bc.binary(), bc.counts());
+        return reader.apply(bc.binary(), bc.counts());
     }
 
     @Override
     public Builder builder(BlockFactory factory, int expectedCount) {
         return factory.bytesRefs(expectedCount);
+    }
+
+    /** Reader for the columnar codec's payload, which carries its own slot count and needs no companion column. */
+    private static class MvMaxBytesRefsFromColumnarPayload extends AbstractBytesRefsFromBinaryReader {
+        private final MultiValueColumnarPayloadBinaryDocValuesReader reader = new MultiValueColumnarPayloadBinaryDocValuesReader();
+
+        private final BytesRef scratch = new BytesRef();
+
+        MvMaxBytesRefsFromColumnarPayload(TrackingBinaryDocValues values) {
+            super(values);
+        }
+
+        /**
+         * The extreme value of the document, taken from the column where there is one.
+         *
+         * <p>A dictionary column decides it over ordinals: the dictionary is in term order, so the extreme ordinal a
+         * document holds names its extreme value, and only that one is resolved to a term. Otherwise the payload is
+         * decoded and its values compared, as it is for a segment arriving as an overlay rather than as a column.
+         */
+        @Override
+        public void read(int doc, BytesRefBuilder builder) throws IOException {
+            if (false == docValues.docValues().advanceExact(doc)) {
+                builder.appendNull();
+                return;
+            }
+            if (docValues.docValues() instanceof StringColumnSource columnar) {
+                final BytesRef extreme = columnar.extreme(true, scratch);
+                if (extreme == null) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(extreme);
+                }
+                return;
+            }
+            reader.readMax(docValues.docValues().binaryValue(), builder);
+        }
+
+        @Override
+        public String toString() {
+            return "MvMaxBytesRefsFromColumnarPayload";
+        }
     }
 
     private static class MvMaxBytesRefsFromBinarySeparateCount extends AbstractBytesRefsFromBinaryReader {

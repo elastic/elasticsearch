@@ -126,6 +126,7 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
     private Map<String, List<ActionListener<Void>>> completionHandlers;
     private List<SnapshotDeletionsInProgress.Entry> startedDeletions;
     private DiscoveryNode localNode;
+    private RestoreSourceProtection restoreSourceProtection;
 
     @Before
     public void createServices() {
@@ -219,6 +220,7 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
         snapshotEndNotifications = new HashSet<>();
         completionHandlers = new HashMap<>();
         startedDeletions = new ArrayList<>();
+        restoreSourceProtection = RestoreSourceProtection.NOOP;
 
         batcher = new SnapshotDeletionStartBatcher(
             repositoriesService,
@@ -247,7 +249,9 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
                 assertEquals(ProjectId.DEFAULT, projectId);
                 assertEquals(repoName, repositoryName);
                 startedDeletions.add(deleteEntry);
-            }
+            },
+            // indirection so that a test can install its protection after the batcher is constructed
+            (state, projectId, repositoryName) -> restoreSourceProtection.protectedSnapshots(state, projectId, repositoryName)
         );
 
         logger.info("----> services all created");
@@ -999,6 +1003,118 @@ public class SnapshotDeletionStartBatcherTests extends ESTestCase {
         assertTrue(snapshotAbortNotifications.isEmpty());
         assertTrue(startedDeletions.isEmpty());
         assertTrue(completionHandlers.isEmpty());
+    }
+
+    /**
+     * A {@link RestoreInProgress} entry is removed before a recovery implementation has durably recorded the restore's outcome, so a
+     * {@link RestoreSourceProtection} must be able to keep the source snapshot protected across that window even though no
+     * {@link RestoreInProgress} entry references it any more.
+     */
+    public void testRejectsDeletionOfSnapshotProtectedWithoutRestoreInProgress() {
+        final var snapshot = randomSnapshot();
+        addCompleteSnapshot(snapshot);
+
+        final var restoreUuid = randomUUID();
+        restoreSourceProtection = (state, projectId, repositoryName) -> Map.of(snapshot.getSnapshotId(), restoreUuid);
+
+        assertTrue(RestoreInProgress.get(clusterService.state()).isEmpty());
+
+        final var deletionFuture = startDeletion(snapshot.getSnapshotId().getName());
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+        assertTrue(deletionFuture.isDone());
+        assertThat(
+            safeAwaitFailure(deletionFuture).getMessage(),
+            allOf(
+                containsString(snapshot.toString()),
+                containsString("cannot delete snapshot because restore [" + restoreUuid + "] from it may still be in progress")
+            )
+        );
+
+        assertTrue(snapshotEndNotifications.isEmpty());
+        assertTrue(snapshotAbortNotifications.isEmpty());
+        assertTrue(startedDeletions.isEmpty());
+        assertTrue(completionHandlers.isEmpty());
+    }
+
+    /**
+     * The protection is resolved for the batcher's own project and repository, and only the snapshots it names are protected, so a
+     * deletion of some other snapshot in the same repository still proceeds.
+     */
+    public void testProtectionIsScopedToItsRepositoryAndNamedSnapshots() {
+        final var snapshot = randomSnapshot();
+        addCompleteSnapshot(snapshot);
+
+        final var observedProjectIds = new HashSet<ProjectId>();
+        final var observedRepositoryNames = new HashSet<String>();
+        restoreSourceProtection = (state, projectId, repositoryName) -> {
+            observedProjectIds.add(projectId);
+            observedRepositoryNames.add(repositoryName);
+            // protects a snapshot which is not the one being deleted
+            return Map.of(new SnapshotId(randomIdentifier("other-"), randomUUID()), randomUUID());
+        };
+
+        final var deletionFuture = startDeletion(snapshot.getSnapshotId().getName());
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+        assertFalse(deletionFuture.isDone());
+
+        assertEquals(Set.of(ProjectId.DEFAULT), observedProjectIds);
+        assertEquals(Set.of(repoName), observedRepositoryNames);
+
+        assertThat(startedDeletions, hasSize(1));
+        assertThat(startedDeletions.getFirst().snapshots(), contains(snapshot.getSnapshotId()));
+
+        final var deletionsInProgress = SnapshotDeletionsInProgress.get(clusterService.state());
+        assertThat(deletionsInProgress.getEntries(), hasSize(1));
+        final var deletionEntry = deletionsInProgress.getEntries().getFirst();
+        assertEquals(STARTED, deletionEntry.state());
+        assertThat(deletionEntry.snapshots(), contains(snapshot.getSnapshotId()));
+
+        final var listeners = Objects.requireNonNull(completionHandlers.get(deletionEntry.uuid()));
+        listeners.getFirst().onResponse(null);
+        assertTrue(deletionFuture.isDone());
+        safeAwait(deletionFuture);
+    }
+
+    /**
+     * If the protection cannot be determined then deleting is unsafe, so a throwing {@link RestoreSourceProtection} must reject the whole
+     * batch rather than let any deletion through: every item in the batch fails, including those whose snapshots the protection would
+     * never have named. The failure surfaces to each caller unwrapped.
+     */
+    public void testRejectsWholeBatchWhenProtectionThrows() {
+        final var snapshots = new Snapshot[3];
+        for (int i = 0; i < snapshots.length; i++) {
+            snapshots[i] = randomSnapshot();
+            addCompleteSnapshot(snapshots[i]);
+        }
+
+        final var failure = new IllegalStateException("simulated protection failure");
+        final var protectionCalls = new ArrayList<ClusterState>();
+        restoreSourceProtection = (state, projectId, repositoryName) -> {
+            protectionCalls.add(state);
+            throw failure;
+        };
+
+        final var futures = new ArrayList<SubscribableListener<Void>>();
+        for (final Snapshot snapshot : snapshots) {
+            futures.add(startDeletion(snapshot.getSnapshotId().getName()));
+        }
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+
+        for (final var future : futures) {
+            assertTrue(future.isDone());
+            assertSame(failure, safeAwaitFailure(future));
+        }
+        // the protection is consulted once per batch, so fewer calls than items proves that a batch holding several items was rejected
+        assertTrue(
+            "expected at least one multi-item batch but protection was consulted " + protectionCalls.size() + " times",
+            protectionCalls.size() < snapshots.length
+        );
+
+        assertTrue(snapshotEndNotifications.isEmpty());
+        assertTrue(snapshotAbortNotifications.isEmpty());
+        assertTrue(startedDeletions.isEmpty());
+        assertTrue(completionHandlers.isEmpty());
+        assertTrue(SnapshotDeletionsInProgress.get(clusterService.state()).getEntries().isEmpty());
     }
 
     public void testIgnoresRestoreSourceInOtherRepositories() {

@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.provider.XContentImplUtils;
+import org.yaml.snakeyaml.LoaderOptions;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,7 +46,9 @@ public final class YamlXContentImpl implements XContent {
     }
 
     static {
-        yamlFactory = XContentImplUtils.configure(YAMLFactory.builder());
+        LoaderOptions loaderOptions = new LoaderOptions();
+        loaderOptions.setCodePointLimit(Integer.MAX_VALUE);
+        yamlFactory = XContentImplUtils.configure(YAMLFactory.builder().loaderOptions(loaderOptions));
         // YAMLFactory.builder() differs from new YAMLFactory() in that builder() does not set the default yaml parser feature flags.
         // So set the only default feature flag, EMPTY_STRING_AS_NULL, here.
         yamlFactory.configure(YAMLParser.Feature.EMPTY_STRING_AS_NULL, true);

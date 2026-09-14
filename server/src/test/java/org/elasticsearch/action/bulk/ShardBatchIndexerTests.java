@@ -21,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
@@ -86,7 +87,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
 
     private final ShardBatchIndexer shardBatchIndexer = new ShardBatchIndexer(
         new BatchIndexingEnabled(ClusterSettings.createBuiltInClusterSettings()),
-        BytesRefRecycler.NON_RECYCLING_INSTANCE
+        new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
     );
 
     private final List<IndexShard> trackedShards = new ArrayList<>();
@@ -176,8 +177,6 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         return EscfEncoder.encode(sources, XContentType.JSON);
     }
 
-    // TODO(columnar): add testBatchIndexOnPrimaryStoredSource once stored source mode enables the
-    // columnar path; add tests for long, date, double, etc. once those mappers support columnar.
     public void testBatchIndexOnPrimaryAbortedItem() throws Exception {
         IndexShard shard = newMappedPrimaryShard();
 
@@ -626,6 +625,48 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
                 assertThat(searcher.getIndexReader().numDocs(), equalTo(numDocs));
             }
         }
+
+        closeShards(shard);
+    }
+
+    public void testBatchIndexColumnarNumericFields_noLeak() throws Exception {
+        String numericMapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "count":  { "type": "integer" },
+                "score":  { "type": "double" }
+              }
+            }""";
+        IndexShard shard = newColumnarPrimaryShardWithMapping(numericMapping);
+
+        int numDocs = randomIntBetween(2, 20);
+        BulkItemRequest[] items = new BulkItemRequest[numDocs];
+        List<BytesReference> sources = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            items[i] = new BulkItemRequest(i, new IndexRequest("index").id(Integer.toString(i)));
+            sources.add(new BytesArray("{\"count\":" + i + ",\"score\":" + (i * 1.5) + "}"));
+        }
+
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            items
+        );
+        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
+
+        try (EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            shardBatchIndexer.performBatchIndexOnPrimary(items, batch, context, future);
+            future.actionGet();
+        }
+
+        assertFalse(context.hasMoreOperationsToExecute());
+        for (int i = 0; i < numDocs; i++) {
+            assertFalse("doc " + i + " should not have failed", items[i].getPrimaryResponse().isFailed());
+        }
+        // MockPageCacheRecycler.ensureAllPagesAreReleased() is called automatically by ESTestCase.after().
 
         closeShards(shard);
     }

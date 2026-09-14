@@ -11,9 +11,11 @@ import org.apache.parquet.io.SeekableInputStream;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.UninitializedArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -48,6 +50,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     private final FooterByteCache footerBytes;
     private final int windowSize;
     private final CircuitBreaker breaker;
+    @Nullable
+    private final ParquetIoWatermark ioWatermark;
 
     /**
      * Optional pre-warmed cache installed before {@code RowGroupFilter} runs. When set, reads
@@ -69,8 +73,11 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     /** Default window size (4MB) for the sliding range cache. */
     static final int DEFAULT_WINDOW_SIZE = 4 * 1024 * 1024;
 
-    /** Maximum window size (16MB). Caps adaptive window hints to prevent unbounded memory allocation. */
-    static final int MAX_WINDOW_SIZE = 16 * 1024 * 1024;
+    /**
+     * Maximum window size (10MB). Caps adaptive window hints so large {@code forRange} splits do not allocate
+     * 16 MiB arrays; matches {@link ExternalSourceSettings#BLOB_STORE_GET_SIZE_BYTES}.
+     */
+    static final int MAX_WINDOW_SIZE = ExternalSourceSettings.BLOB_STORE_GET_SIZE_BYTES;
 
     /**
      * Creates an adapter with the default 4MB sliding window charged to the given circuit breaker.
@@ -80,7 +87,16 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      *                    splits, streams, and derived readers) share one cache
      */
     public ParquetStorageObjectAdapter(StorageObject storageObject, FooterByteCache footerBytes, CircuitBreaker breaker) {
-        this(storageObject, footerBytes, DEFAULT_WINDOW_SIZE, breaker);
+        this(storageObject, footerBytes, DEFAULT_WINDOW_SIZE, breaker, null);
+    }
+
+    ParquetStorageObjectAdapter(
+        StorageObject storageObject,
+        FooterByteCache footerBytes,
+        CircuitBreaker breaker,
+        ParquetIoWatermark ioWatermark
+    ) {
+        this(storageObject, footerBytes, DEFAULT_WINDOW_SIZE, breaker, ioWatermark);
     }
 
     /**
@@ -101,18 +117,37 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         CircuitBreaker breaker
     ) {
         int windowSize = (int) Math.min(Math.max(rangeBytes, DEFAULT_WINDOW_SIZE), MAX_WINDOW_SIZE);
-        return new ParquetStorageObjectAdapter(storageObject, footerBytes, windowSize, breaker);
+        return new ParquetStorageObjectAdapter(storageObject, footerBytes, windowSize, breaker, null);
     }
 
-    private ParquetStorageObjectAdapter(StorageObject storageObject, FooterByteCache footerBytes, int windowSize, CircuitBreaker breaker) {
+    static ParquetStorageObjectAdapter forRange(
+        StorageObject storageObject,
+        long rangeBytes,
+        FooterByteCache footerBytes,
+        CircuitBreaker breaker,
+        ParquetIoWatermark ioWatermark
+    ) {
+        int windowSize = (int) Math.min(Math.max(rangeBytes, DEFAULT_WINDOW_SIZE), MAX_WINDOW_SIZE);
+        return new ParquetStorageObjectAdapter(storageObject, footerBytes, windowSize, breaker, ioWatermark);
+    }
+
+    private ParquetStorageObjectAdapter(
+        StorageObject storageObject,
+        FooterByteCache footerBytes,
+        int windowSize,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark
+    ) {
         if (storageObject == null) {
             throw new QlIllegalArgumentException("storageObject cannot be null");
         }
         this.storageObject = storageObject;
         this.footerBytes = footerBytes;
         this.breaker = breaker;
+        this.ioWatermark = ioWatermark;
         try {
             this.length = storageObject.length();
+            this.cacheKey = FooterByteCache.Key.keyFor(storageObject);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path() + "]", e);
         }
@@ -120,7 +155,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         // (pos >= length). For length > 0 this equals min(requested, length), so
         // length <= windowSize iff the object fits in the window (whole-file fill below).
         this.windowSize = (int) Math.min(windowSize, Math.max(1L, this.length));
-        this.cacheKey = FooterByteCache.Key.keyFor(storageObject, this.length);
     }
 
     /**
@@ -161,6 +195,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             length,
             windowSize,
             breaker,
+            ioWatermark,
             this::currentPreWarmedChunks
         );
     }
@@ -210,6 +245,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         private final long length;
         private final int windowSize;
         private final CircuitBreaker breaker;
+        @Nullable
+        private final ParquetIoWatermark ioWatermark;
         private final byte[] window;
 
         /**
@@ -233,6 +270,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             long length,
             int windowSize,
             CircuitBreaker breaker,
+            @Nullable ParquetIoWatermark ioWatermark,
             Supplier<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> preWarmedChunksSupplier
         ) {
             this.storageObject = storageObject;
@@ -241,11 +279,18 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             this.length = length;
             this.windowSize = windowSize;
             this.breaker = LocalCircuitBreaker.forAsyncIo(breaker);
+            this.ioWatermark = ioWatermark;
             this.breaker.addEstimateBytesAndMaybeBreak(windowSize, WINDOW_BREAKER_LABEL);
+            if (this.ioWatermark != null) {
+                this.ioWatermark.forceAdd(windowSize);
+            }
             byte[] allocated;
             try {
                 allocated = UninitializedArrays.newByteArray(windowSize);
             } catch (Throwable t) {
+                if (this.ioWatermark != null) {
+                    this.ioWatermark.release(windowSize);
+                }
                 this.breaker.addWithoutBreaking(-windowSize);
                 throw t;
             }
@@ -564,6 +609,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 windowStart = -1;
                 windowLength = 0;
                 breaker.addWithoutBreaking(-windowSize);
+                if (ioWatermark != null) {
+                    ioWatermark.release(windowSize);
+                }
             }
         }
 

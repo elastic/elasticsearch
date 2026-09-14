@@ -76,6 +76,8 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
 
+    public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
+
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
     public static final Setting<MappedFieldType.FieldExtractPreference> FIELD_EXTRACT_PREFERENCE = Setting.enumSetting(
@@ -220,7 +222,9 @@ public final class QueryPragmas implements Writeable {
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
-        KNN_RUNTIME_FIELD
+        PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
+        KNN_RUNTIME_FIELD,
+        SINGLE_NODE_OPTIMIZATIONS
 
     ).map(Setting::getKey).toList();
 
@@ -326,6 +330,13 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
+     * Disable or enable the single node optimizations in case the query executes against a single node
+     */
+    public boolean singleNodeOptimizations() {
+        return SINGLE_NODE_OPTIMIZATIONS.get(settings);
+    }
+
+    /**
      * The maximum amount of memory we can use for {@link Expression#fold} during planing. This
      * defaults to 5% of memory available on the current node. If this method is called on the
      * coordinating node, this is 5% of the coordinating node's memory. If it's called on a data
@@ -396,6 +407,19 @@ public final class QueryPragmas implements Writeable {
     public double partialAggregationEmitUniquenessThreshold(double defaultThreshold) {
         if (settings.hasValue(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey())) {
             return PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.get(settings);
+        }
+        return defaultThreshold;
+    }
+
+    public int aggregationPartitioningCountThreshold(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey())) {
+            final String v = settings.get(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey());
+            try {
+                // allow smaller value for the threshold in tests than the min setting in the production
+                return Integer.parseInt(v);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("invalid aggregation partitioning threshold [" + v + "]", e);
+            }
         }
         return defaultThreshold;
     }

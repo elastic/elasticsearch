@@ -49,11 +49,11 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
      * Must stay in sync with {@code CsvFormatReader.RECOGNIZED_KEYS}; verified
      * by {@code CsvFormatReaderRecognizedKeysTests.testFormatSpecConfigKeysMatchRecognizedKeys}.
      *
-     * <p>Note: {@code schema_sample_size} also appears as a base dataset field in
-     * {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator} —
-     * this duplication is intentional to maintain symmetry with the reader's
-     * {@code RECOGNIZED_KEYS}. At CRUD time, the base-field validation path handles it
-     * (with range checking); it is not passed through as a raw format option.
+     * <p>{@code schema_sample_size} is present here but absent from Parquet's equivalent set —
+     * sampling is only meaningful for text formats. At PUT time,
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator} only admits it
+     * via this format-specific key set: it is rejected for Parquet when the format is known, and
+     * rejected with a pin-the-{@code format} hint when the format cannot be determined.
      */
     static final Set<String> FORMAT_CONFIG_KEYS = Set.of(
         "delimiter",
@@ -88,7 +88,20 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Set<FormatSpec> formatSpecs() {
-        return Set.of(FormatSpec.of("csv", ".csv", FORMAT_CONFIG_KEYS), FormatSpec.of("tsv", ".tsv", FORMAT_CONFIG_KEYS));
+        return Set.of(
+            new FormatSpec(
+                "csv",
+                Set.of(".csv"),
+                FORMAT_CONFIG_KEYS,
+                config -> CsvFormatReader.validateConfig(config, CsvFormatOptions.DEFAULT)
+            ),
+            new FormatSpec(
+                "tsv",
+                Set.of(".tsv"),
+                FORMAT_CONFIG_KEYS,
+                config -> CsvFormatReader.validateConfig(config, CsvFormatOptions.TSV)
+            )
+        );
     }
 
     /**

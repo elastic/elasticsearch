@@ -176,6 +176,4 @@ public interface ESVectorUtilSupport {
     void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result);
 
     float[] matrixMultiply(float[] a, float[] b, int m, int k, int n);
-
-    float[] matrixMultiplyTA(float[] aT, float[] b, int m, int k, int n);
 }

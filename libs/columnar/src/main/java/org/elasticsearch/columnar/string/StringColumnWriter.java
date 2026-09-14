@@ -14,7 +14,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.ReadOnceHint;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -461,7 +460,7 @@ public final class StringColumnWriter {
 
             final String staged = ordinalTempName;
             final NumericColumnMetadata ordinals = NumericColumnWriter.write(numDocsWithField, numDocsWithField, numValues, () -> {
-                final IndexInput in = directory.openInput(staged, context.withHints(ReadOnceHint.INSTANCE));
+                final IndexInput in = directory.openInput(staged, IOContext.READONCE);
                 replays.add(in);
                 return stagedOrdinals(cursors.get(), in);
             },
@@ -514,7 +513,7 @@ public final class StringColumnWriter {
             return ValueStream.Metadata.empty();
         }
         try (
-            IndexInput staged = directory.openInput(name, context.withHints(ReadOnceHint.INSTANCE));
+            IndexInput staged = directory.openInput(name, IOContext.READONCE);
             ValueStream.Writer writer = new ValueStream.Writer(
                 chunkCodec,
                 targetChunkBytes,

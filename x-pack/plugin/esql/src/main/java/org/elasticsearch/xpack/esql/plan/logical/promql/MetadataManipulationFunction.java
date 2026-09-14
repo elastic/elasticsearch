@@ -80,7 +80,8 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
 
     @Override
     public boolean dropsMetricName() {
-        // the input series relabeled: the metric name stays, unless the destination label overwrites it
+        // The input series pass through relabeled: the metric name is kept with its existing value, or rewritten when
+        // the destination itself is `__name__`. Either way it is never dropped.
         return false;
     }
 

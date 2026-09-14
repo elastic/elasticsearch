@@ -156,6 +156,12 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     }
 
     @Override
+    public boolean dropsMetricName() {
+        // Aggregations group series away: the result carries only grouping labels, never the metric name.
+        return true;
+    }
+
+    @Override
     public boolean isIdentityTransparent() {
         // Aggregates across series into a grouped result: a relabel below it must be part of this grouping's identity.
         return false;

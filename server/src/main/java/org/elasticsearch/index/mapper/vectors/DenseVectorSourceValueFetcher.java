@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
@@ -37,15 +36,14 @@ class DenseVectorSourceValueFetcher extends SourceValueFetcher {
 
     private final Set<String> sourcePaths;
     private final ElementType elementType;
-    @Nullable
-    private final Integer dims;
+    private final int dims;
     private final VectorFormat format;
 
     DenseVectorSourceValueFetcher(
         String fieldName,
         SearchExecutionContext context,
         ElementType elementType,
-        @Nullable Integer dims,
+        int dims,
         VectorFormat format
     ) {
         super(fieldName, context);
@@ -96,9 +94,6 @@ class DenseVectorSourceValueFetcher extends SourceValueFetcher {
                 return values;
             }
             case String s -> {
-                if (dims == null) {
-                    throw new IllegalStateException("dimensions are unknown because no document has been indexed yet");
-                }
                 return DecodedVector.decode(s, elementType, dims, parseHexStrings()).toFloatList();
             }
             default -> throw unsupportedSourceValue(sourceValue);
@@ -115,9 +110,6 @@ class DenseVectorSourceValueFetcher extends SourceValueFetcher {
                 return List.of(encodeBase64(v, elementType));
             }
             case String s -> {
-                if (dims == null) {
-                    throw new IllegalStateException("dimensions are unknown because no document has been indexed yet");
-                }
                 return List.of(DecodedVector.decode(s, elementType, dims, parseHexStrings()).toBase64());
             }
             default -> throw unsupportedSourceValue(sourceValue);

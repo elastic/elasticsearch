@@ -3361,7 +3361,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            VectorFormat vectorFormat = format == null ? VectorFormat.ARRAY : parseFormat(format, EnumSet.allOf(VectorFormat.class));
+            VectorFormat vectorFormat = format == null ? VectorFormat.ARRAY : parseFormat(format);
+            if (dims == null) {
+                // No values indexed
+                return ValueFetcher.EMPTY;
+            }
+
             return new DenseVectorSourceValueFetcher(name(), context, element.elementType(), dims, vectorFormat);
         }
 
@@ -3370,15 +3375,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (format == null) {
                 return DocValueFormat.DENSE_VECTOR;
             }
-            return switch (parseFormat(format, EnumSet.allOf(VectorFormat.class))) {
+            return switch (parseFormat(format)) {
                 case ARRAY -> DocValueFormat.DENSE_VECTOR;
                 case BINARY -> DocValueFormat.BINARY;
             };
         }
 
-        private VectorFormat parseFormat(String format, Set<VectorFormat> supported) {
+        private VectorFormat parseFormat(String format) {
             return VectorFormat.fromString(format)
-                .filter(supported::contains)
                 .orElseThrow(
                     () -> new IllegalArgumentException(
                         "Field ["
@@ -3388,7 +3392,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             + "] doesn't support format ["
                             + format
                             + "]. Supported formats are "
-                            + supported
+                            + Arrays.toString(VectorFormat.values())
                             + "."
                     )
                 );

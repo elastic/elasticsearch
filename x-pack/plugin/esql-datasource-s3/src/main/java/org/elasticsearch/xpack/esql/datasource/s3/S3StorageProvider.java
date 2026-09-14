@@ -112,13 +112,14 @@ public class S3StorageProvider implements StorageProvider {
     // The max-connections value for the async client, stored so buildRetryAsyncClient can rebuild it
     // at a discovered region.
     private final int maxConnections;
-    // Clients rebuilt at the region discovered via HeadBucket. Set at most once per provider instance
-    // (all callers discover the same region for the same endpoint). newObject() uses these when set,
-    // so reads are signed with the correct region even when the dataset omits it.
+    // Clients rebuilt at the region discovered via HeadBucket. Set at most once per provider instance.
+    // Stored as a single volatile record so both fields are always read and written atomically: a reader
+    // can never observe a sync/async pair from two different discovery events.
     @Nullable
-    private volatile S3Client discoveredRegionS3Client;
-    @Nullable
-    private volatile S3AsyncClient discoveredRegionS3AsyncClient;
+    private volatile DiscoveredClients discoveredClients;
+
+    private record DiscoveredClients(S3Client sync, S3AsyncClient async) {}
+
     // Owned only on the federated (keyless) workload-identity path; null otherwise. Closed by close().
     private final StsAsyncClient stsAsyncClient;
     private final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
@@ -272,15 +273,37 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     /**
-     * Caches a sync+async client pair built for the discovered region, set-once. After the first
-     * discovery all subsequent callers (same endpoint, same bucket) see the same region, so the
-     * guard lets the clients be shared across list/exists/newObject without rebuilding each time.
+     * Caches a sync+async client pair built for the discovered region, set-once, and returns the cached pair.
+     * After the first discovery all subsequent callers see the same region, so clients are shared across
+     * list/exists/newObject without rebuilding each time. Callers must use the returned pair rather than
+     * calling {@link #buildRetryClient} again to avoid building a throwaway third client.
      */
-    private synchronized void cacheDiscoveredClients(String region) {
-        if (discoveredRegionS3Client == null) {
-            discoveredRegionS3Client = buildRetryClient(region);
-            discoveredRegionS3AsyncClient = buildRetryAsyncClient(region);
+    private synchronized DiscoveredClients cacheDiscoveredClients(String region) {
+        if (discoveredClients == null) {
+            discoveredClients = new DiscoveredClients(buildRetryClient(region), buildRetryAsyncClient(region));
         }
+        return discoveredClients;
+    }
+
+    /**
+     * Returns the discovered-region client pair for {@code bucket}, triggering a HeadBucket region probe
+     * if discovery has not run yet and {@link #shouldAttemptRegionRetry()} is true. Called by
+     * {@link #newObject} so exact-path datasets (which never go through {@link #listObjects} or
+     * {@link #exists}) also benefit from region discovery without an extra round-trip per call.
+     */
+    @Nullable
+    private DiscoveredClients resolveClientsForBucket(String bucket) {
+        DiscoveredClients dc = discoveredClients;
+        if (dc != null) {
+            return dc;
+        }
+        if (shouldAttemptRegionRetry()) {
+            String region = discoverRegionViaHeadBucket(s3Client, bucket);
+            if (region != null) {
+                return cacheDiscoveredClients(region);
+            }
+        }
+        return null;
     }
 
     /**
@@ -592,8 +615,9 @@ public class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        S3Client sync = discoveredRegionS3Client != null ? discoveredRegionS3Client : s3Client;
-        S3AsyncClient async = discoveredRegionS3AsyncClient != null ? discoveredRegionS3AsyncClient : s3AsyncClient;
+        DiscoveredClients dc = resolveClientsForBucket(bucket);
+        S3Client sync = dc != null ? dc.sync() : s3Client;
+        S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
         return new S3StorageObject(sync, async, bucket, key, path);
     }
 
@@ -602,8 +626,9 @@ public class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        S3Client sync = discoveredRegionS3Client != null ? discoveredRegionS3Client : s3Client;
-        S3AsyncClient async = discoveredRegionS3AsyncClient != null ? discoveredRegionS3AsyncClient : s3AsyncClient;
+        DiscoveredClients dc = resolveClientsForBucket(bucket);
+        S3Client sync = dc != null ? dc.sync() : s3Client;
+        S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
         return new S3StorageObject(sync, async, bucket, key, path, length);
     }
 
@@ -612,8 +637,9 @@ public class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        S3Client sync = discoveredRegionS3Client != null ? discoveredRegionS3Client : s3Client;
-        S3AsyncClient async = discoveredRegionS3AsyncClient != null ? discoveredRegionS3AsyncClient : s3AsyncClient;
+        DiscoveredClients dc = resolveClientsForBucket(bucket);
+        S3Client sync = dc != null ? dc.sync() : s3Client;
+        S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
         return new S3StorageObject(sync, async, bucket, key, path, length, lastModified);
     }
 
@@ -627,18 +653,18 @@ public class S3StorageProvider implements StorageProvider {
             keyPrefix += StoragePath.PATH_SEPARATOR;
         }
 
+        // Prefer the already-discovered client when available; fall back to s3Client for the first call.
+        DiscoveredClients dcNow = discoveredClients;
+        S3Client initialClient = dcNow != null ? dcNow.sync() : s3Client;
         // When retry is applicable, provide a factory so the iterator can rebuild the client on
-        // AuthorizationHeaderMalformed (wrong signing region against a custom endpoint).
-        // The factory is called at most once; capture s3Client and bucket by reference.
-        // Side-effect: also cache the discovered-region clients on the provider so newObject() reads
-        // are signed with the correct region without an additional HeadBucket round-trip.
-        Function<String, S3Client> retryClientFactory = shouldAttemptRegionRetry() ? discoveredRegion -> {
-            cacheDiscoveredClients(discoveredRegion);
-            return buildRetryClient(discoveredRegion);
-        } : null;
+        // AuthorizationHeaderMalformed. Returns the cached client (cacheDiscoveredClients is set-once),
+        // so the iterator does not close it — ownership stays with the provider.
+        Function<String, S3Client> retryClientFactory = shouldAttemptRegionRetry()
+            ? discoveredRegion -> cacheDiscoveredClients(discoveredRegion).sync()
+            : null;
         // S3 is a flat namespace — ListObjectsV2 is inherently prefix-based and recursive.
         // The recursive flag is effectively ignored.
-        return new S3StorageIterator(s3Client, bucket, keyPrefix, prefix, regionHint(), retryClientFactory);
+        return new S3StorageIterator(initialClient, bucket, keyPrefix, prefix, regionHint(), retryClientFactory);
     }
 
     @Override
@@ -646,7 +672,9 @@ public class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        return existsWithClient(s3Client, bucket, key, path, true);
+        DiscoveredClients dc = discoveredClients;
+        S3Client initialClient = dc != null ? dc.sync() : s3Client;
+        return existsWithClient(initialClient, bucket, key, path, true);
     }
 
     private boolean existsWithClient(S3Client client, String bucket, String key, StoragePath path, boolean allowRegionRetry)
@@ -661,13 +689,7 @@ public class S3StorageProvider implements StorageProvider {
             if (allowRegionRetry && shouldAttemptRegionRetry() && isAuthorizationHeaderMalformed(e)) {
                 String discoveredRegion = discoverRegionViaHeadBucket(client, bucket);
                 if (discoveredRegion != null) {
-                    cacheDiscoveredClients(discoveredRegion);
-                    S3Client retryClient = buildRetryClient(discoveredRegion);
-                    try {
-                        return existsWithClient(retryClient, bucket, key, path, false);
-                    } finally {
-                        retryClient.close();
-                    }
+                    return existsWithClient(cacheDiscoveredClients(discoveredRegion).sync(), bucket, key, path, false);
                 }
             }
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
@@ -751,12 +773,13 @@ public class S3StorageProvider implements StorageProvider {
 
     @Override
     public void close() throws IOException {
+        DiscoveredClients dc = discoveredClients;
         List<Closeable> closeables = new ArrayList<>(5 + ownedManagedIdentityProviders.size());
         closeables.add(asCloseable(s3Client));
         closeables.add(asCloseable(s3AsyncClient));
         closeables.add(asCloseable(stsAsyncClient));
-        closeables.add(asCloseable(discoveredRegionS3Client));
-        closeables.add(asCloseable(discoveredRegionS3AsyncClient));
+        closeables.add(dc != null ? asCloseable(dc.sync()) : null);
+        closeables.add(dc != null ? asCloseable(dc.async()) : null);
         for (SdkAutoCloseable provider : ownedManagedIdentityProviders) {
             closeables.add(asCloseable(provider));
         }
@@ -827,8 +850,6 @@ public class S3StorageProvider implements StorageProvider {
          */
         @Nullable
         private Function<String, S3Client> retryClientFactory;
-        @Nullable
-        private S3Client ownedRetryClient;
 
         S3StorageIterator(
             S3Client s3Client,
@@ -884,9 +905,7 @@ public class S3StorageProvider implements StorageProvider {
 
         @Override
         public void close() throws IOException {
-            if (ownedRetryClient != null) {
-                ownedRetryClient.close();
-            }
+            // The retry client (when used) is cached and owned by the enclosing S3StorageProvider; do not close here.
         }
 
         private void fetchNextBatch() {
@@ -909,9 +928,7 @@ public class S3StorageProvider implements StorageProvider {
                     retryClientFactory = null; // consume — no second retry
                     String discoveredRegion = discoverRegionViaHeadBucket(s3Client, bucket);
                     if (discoveredRegion != null) {
-                        S3Client retryClient = factory.apply(discoveredRegion);
-                        ownedRetryClient = retryClient;
-                        s3Client = retryClient;
+                        s3Client = factory.apply(discoveredRegion);
                         fetchNextBatch();
                         return;
                     }

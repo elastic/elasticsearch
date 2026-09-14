@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.SdkHttpResponse;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
@@ -175,28 +176,30 @@ public class S3StorageProviderFailureTests extends ESTestCase {
             HeadObjectResponse.builder().contentLength(42L).build()
         );
 
-        S3StorageProvider provider = retryCapableProvider(wrongRegionClient, correctRegionClient);
-        assertTrue(provider.exists(PATH));
+        try (S3StorageProvider provider = retryCapableProvider(wrongRegionClient, correctRegionClient)) {
+            assertTrue(provider.exists(PATH));
 
-        verify(wrongRegionClient).headBucket(any(HeadBucketRequest.class));
-        verify(correctRegionClient).headObject(any(HeadObjectRequest.class));
+            verify(wrongRegionClient).headBucket(any(HeadBucketRequest.class));
+            verify(correctRegionClient).headObject(any(HeadObjectRequest.class));
+        }
     }
 
     /**
      * {@code SignatureDoesNotMatch} (wrong credentials) must NOT trigger a HeadBucket
      * region-discovery attempt — only {@code AuthorizationHeaderMalformed} should.
      */
-    public void testSignatureDoesNotMatchDoesNotTriggerHeadBucket() {
+    public void testSignatureDoesNotMatchDoesNotTriggerHeadBucket() throws IOException {
         S3Client client = mock(S3Client.class);
         S3Exception sigFailure = s3FailureWithErrorCode(400, "SignatureDoesNotMatch", null);
         when(client.headObject(any(HeadObjectRequest.class))).thenThrow(sigFailure);
 
-        S3StorageProvider provider = retryCapableProvider(client, null);
-        IOException thrown = expectThrows(IOException.class, () -> provider.exists(PATH));
+        try (S3StorageProvider provider = retryCapableProvider(client, null)) {
+            IOException thrown = expectThrows(IOException.class, () -> provider.exists(PATH));
 
-        verify(client, never()).headBucket(any(HeadBucketRequest.class));
-        assertThat(thrown.getCause(), instanceOf(S3Exception.class));
-        assertSame(sigFailure, thrown.getCause());
+            verify(client, never()).headBucket(any(HeadBucketRequest.class));
+            assertThat(thrown.getCause(), instanceOf(S3Exception.class));
+            assertSame(sigFailure, thrown.getCause());
+        }
     }
 
     /**
@@ -217,13 +220,15 @@ public class S3StorageProviderFailureTests extends ESTestCase {
             ListObjectsV2Response.builder().contents(java.util.List.of()).isTruncated(false).build()
         );
 
-        S3StorageProvider provider = retryCapableProvider(wrongRegionClient, correctRegionClient);
-        try (StorageIterator iterator = provider.listObjects(PREFIX, true)) {
+        try (
+            S3StorageProvider provider = retryCapableProvider(wrongRegionClient, correctRegionClient);
+            StorageIterator iterator = provider.listObjects(PREFIX, true)
+        ) {
             assertFalse(iterator.hasNext());
-        }
 
-        verify(wrongRegionClient).headBucket(any(HeadBucketRequest.class));
-        verify(correctRegionClient).listObjectsV2(any(ListObjectsV2Request.class));
+            verify(wrongRegionClient).headBucket(any(HeadBucketRequest.class));
+            verify(correctRegionClient).listObjectsV2(any(ListObjectsV2Request.class));
+        }
     }
 
     /**
@@ -231,21 +236,22 @@ public class S3StorageProviderFailureTests extends ESTestCase {
      * that rejects wrong-region signing but does not implement that header), the provider must
      * not retry and must propagate the original IOException with the region hint.
      */
-    public void testHeadBucketWithNoRegionHeaderPropagatesOriginalError() {
+    public void testHeadBucketWithNoRegionHeaderPropagatesOriginalError() throws IOException {
         S3Client client = mock(S3Client.class);
         S3Exception authMalformed = s3FailureWithErrorCode(400, "AuthorizationHeaderMalformed", null /* no region hint */);
         when(client.headObject(any(HeadObjectRequest.class))).thenThrow(authMalformed);
         // HeadBucket also returns AuthorizationHeaderMalformed but carries no x-amz-bucket-region.
         when(client.headBucket(any(HeadBucketRequest.class))).thenThrow(s3FailureWithErrorCode(400, "AuthorizationHeaderMalformed", null));
 
-        S3StorageProvider provider = retryCapableProvider(client, null);
-        IOException thrown = expectThrows(IOException.class, () -> provider.exists(PATH));
+        try (S3StorageProvider provider = retryCapableProvider(client, null)) {
+            IOException thrown = expectThrows(IOException.class, () -> provider.exists(PATH));
 
-        verify(client).headBucket(any(HeadBucketRequest.class));
-        // buildRetryClient must not be called (retryCapableProvider throws AssertionError if it is)
-        assertThat(thrown.getCause(), instanceOf(S3Exception.class));
-        assertSame(authMalformed, thrown.getCause());
-        assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString("set [region] on the dataset"));
+            verify(client).headBucket(any(HeadBucketRequest.class));
+            // buildRetryClient must not be called (retryCapableProvider throws AssertionError if it is)
+            assertThat(thrown.getCause(), instanceOf(S3Exception.class));
+            assertSame(authMalformed, thrown.getCause());
+            assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString("set [region] on the dataset"));
+        }
     }
 
     /**
@@ -293,6 +299,11 @@ public class S3StorageProviderFailureTests extends ESTestCase {
                     throw new AssertionError("buildRetryClient should not have been called");
                 }
                 return retryClient;
+            }
+
+            @Override
+            S3AsyncClient buildRetryAsyncClient(String region) {
+                return null; // async client not exercised by these unit tests
             }
         };
     }

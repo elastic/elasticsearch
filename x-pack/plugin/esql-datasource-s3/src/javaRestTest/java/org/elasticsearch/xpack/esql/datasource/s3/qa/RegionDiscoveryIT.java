@@ -60,6 +60,7 @@ public class RegionDiscoveryIT extends ESRestTestCase {
 
     private static final String DATA_SOURCE = "region_discovery_ds";
     private static final String DATASET = "region_discovery_data";
+    private static final String EXACT_DATASET = "region_discovery_exact_data";
 
     private static final SeedingS3HttpFixture s3HttpFixture = new SeedingS3HttpFixture(
         BUCKET,
@@ -103,11 +104,13 @@ public class RegionDiscoveryIT extends ESRestTestCase {
 
     @After
     public void cleanup() throws IOException {
-        Request delDs = new Request("DELETE", "/_query/dataset/" + DATASET);
-        delDs.setOptions(delDs.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
-        try {
-            client().performRequest(delDs);
-        } catch (Exception ignored) {}
+        for (String dataset : new String[] { DATASET, EXACT_DATASET }) {
+            Request del = new Request("DELETE", "/_query/dataset/" + dataset);
+            del.setOptions(del.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
+            try {
+                client().performRequest(del);
+            } catch (Exception ignored) {}
+        }
         Request delDatasource = new Request("DELETE", "/_query/data_source/" + DATA_SOURCE);
         delDatasource.setOptions(delDatasource.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
         try {
@@ -140,6 +143,31 @@ public class RegionDiscoveryIT extends ESRestTestCase {
         assertThat(body, containsString("Berlin"));
     }
 
+    /**
+     * Verifies region discovery on the exact-path (non-glob) dataset code path.
+     *
+     * <p>An exact-path resource bypasses {@code listObjects} entirely and goes through
+     * {@code probeFileMetadata → newObject}. Before this fix, {@code newObject} used the
+     * wrong-region client and the subsequent HeadObject/GET would fail with
+     * {@code AuthorizationHeaderMalformed}. The fix makes {@code newObject} trigger a
+     * HeadBucket probe (via {@code resolveClientsForBucket}) when no region has been
+     * discovered yet, so the exact-path case also succeeds without a prior glob listing.
+     */
+    public void testExactPathQuerySucceedsAfterRegionDiscovery() throws IOException {
+        putDataSource();
+        putExactPathDataset();
+
+        Request req = new Request("POST", "/_query");
+        req.setJsonEntity("{\"query\":\"FROM " + EXACT_DATASET + " | SORT id | LIMIT 10\"}");
+        req.setOptions(req.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
+        Response response = client().performRequest(req);
+
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        String body = EntityUtils.toString(response.getEntity());
+        assertThat(body, containsString("Vienna"));
+        assertThat(body, containsString("Berlin"));
+    }
+
     private void putDataSource() throws IOException {
         Request req = new Request("PUT", "/_query/data_source/" + DATA_SOURCE);
         req.setOptions(req.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
@@ -162,6 +190,16 @@ public class RegionDiscoveryIT extends ESRestTestCase {
         // AuthorizationHeaderMalformed retry and HeadBucket discovery wired up.
         req.setJsonEntity(Strings.format("""
             {"data_source":"%s","resource":"s3://%s/data/*.csv"}""", DATA_SOURCE, BUCKET));
+        assertThat(client().performRequest(req).getStatusLine().getStatusCode(), equalTo(200));
+    }
+
+    private void putExactPathDataset() throws IOException {
+        Request req = new Request("PUT", "/_query/dataset/" + EXACT_DATASET);
+        req.setOptions(req.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
+        // Exact path: planning calls newObject directly (no listObjects), so region discovery must
+        // happen inside newObject via resolveClientsForBucket.
+        req.setJsonEntity(Strings.format("""
+            {"data_source":"%s","resource":"s3://%s/data/test.csv","settings":{"format":"csv"}}""", DATA_SOURCE, BUCKET));
         assertThat(client().performRequest(req).getStatusLine().getStatusCode(), equalTo(200));
     }
 }

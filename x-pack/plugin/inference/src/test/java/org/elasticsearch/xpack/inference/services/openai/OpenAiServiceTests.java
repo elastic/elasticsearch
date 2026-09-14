@@ -943,6 +943,9 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                             "service": "openai",
                             "name": "OpenAI",
                             "task_types": ["text_embedding", "completion", "chat_completion", "embedding"],
+                            "features": {
+                                "supports_non_streaming_chat": true
+                            },
                             "configurations": {
                                 "api_key": {
                                     "description": "The OpenAI API authentication key. For more details about generating OpenAI API keys, refer to the https://platform.openai.com/account/api-keys. You must provide exactly one of API key or OAuth2 client secret.",

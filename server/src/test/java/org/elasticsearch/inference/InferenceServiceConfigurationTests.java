@@ -9,24 +9,122 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.inference.InferenceServiceConfiguration.Builder;
+import org.elasticsearch.inference.InferenceServiceConfiguration.Features;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.inference.InferenceServiceConfigurationTestUtils.getRandomServiceConfiguration;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
-public class InferenceServiceConfigurationTests extends ESTestCase {
+public class InferenceServiceConfigurationTests extends AbstractBWCSerializationTestCase<InferenceServiceConfiguration> {
+
+    @Override
+    protected InferenceServiceConfiguration createTestInstance() {
+        return InferenceServiceConfigurationTestUtils.getRandomServiceConfigurationField();
+    }
+
+    @Override
+    protected InferenceServiceConfiguration doParseInstance(XContentParser parser) throws IOException {
+        return InferenceServiceConfiguration.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // configurations values are parsed as raw maps; injecting unknown fields inside
+        // them would make parsed.toXContent differ from expected.toXContent
+        return field -> field.startsWith("configurations");
+    }
+
+    @Override
+    protected Writeable.Reader<InferenceServiceConfiguration> instanceReader() {
+        return InferenceServiceConfiguration::new;
+    }
+
+    @Override
+    protected void assertEqualInstances(InferenceServiceConfiguration expected, InferenceServiceConfiguration actual) {
+        // fromXContent parses configurations as raw Map<String, Object>, so equals() fails.
+        // Check all typed fields directly; configurations equivalence is covered by the
+        // assertToXContentEquivalent pass that the framework runs in the same test loop.
+        assertNotSame(expected, actual);
+        assertThat(actual.getService(), is(expected.getService()));
+        assertThat(actual.getName(), is(expected.getName()));
+        assertThat(actual.getTaskTypes(), is(expected.getTaskTypes()));
+        assertThat(actual.getFeatures(), is(expected.getFeatures()));
+    }
+
+    @Override
+    protected InferenceServiceConfiguration mutateInstance(InferenceServiceConfiguration instance) {
+        var service = instance.getService();
+        var name = instance.getName();
+        var taskTypes = instance.getTaskTypes();
+        var configurations = instance.getConfigurations();
+        var features = instance.getFeatures();
+
+        return switch (randomInt(4)) {
+            case 0 -> new Builder().setService(randomValueOtherThan(service, () -> randomAlphaOfLength(10)))
+                .setName(name)
+                .setTaskTypes(taskTypes)
+                .setConfigurations(configurations)
+                .setFeatures(features)
+                .build();
+            case 1 -> new Builder().setService(service)
+                .setName(randomValueOtherThan(name, () -> randomAlphaOfLength(6)))
+                .setTaskTypes(taskTypes)
+                .setConfigurations(configurations)
+                .setFeatures(features)
+                .build();
+            case 2 -> new Builder().setService(service)
+                .setName(name)
+                .setTaskTypes(randomValueOtherThan(taskTypes, InferenceServiceConfigurationTestUtils::getRandomTaskTypes))
+                .setConfigurations(configurations)
+                .setFeatures(features)
+                .build();
+            case 3 -> new Builder().setService(service)
+                .setName(name)
+                .setTaskTypes(taskTypes)
+                .setConfigurations(randomValueOtherThan(configurations, () -> getRandomServiceConfiguration(5)))
+                .setFeatures(features)
+                .build();
+            case 4 -> new Builder().setService(service)
+                .setName(name)
+                .setTaskTypes(taskTypes)
+                .setConfigurations(configurations)
+                .setFeatures(randomValueOtherThan(features, InferenceServiceConfigurationFeaturesTests::randomInstance))
+                .build();
+            default -> throw new AssertionError("unexpected");
+        };
+    }
+
+    @Override
+    protected InferenceServiceConfiguration mutateInstanceForVersion(InferenceServiceConfiguration instance, TransportVersion version) {
+        return instance;
+    }
+
     public void testToXContent() throws IOException {
-        String content = XContentHelper.stripWhitespace("""
+        var content = XContentHelper.stripWhitespace("""
             {
                "service": "some_provider",
                "name": "Some Provider",
@@ -53,21 +151,18 @@ public class InferenceServiceConfigurationTests extends ESTestCase {
             }
             """);
 
-        InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
-            new BytesArray(content),
-            XContentType.JSON
-        );
+        var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
-        BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        var originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
         InferenceServiceConfiguration parsed;
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+        try (var parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
             parsed = InferenceServiceConfiguration.fromXContent(parser);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
     public void testToXContent_EmptyTaskTypes() throws IOException {
-        String content = XContentHelper.stripWhitespace("""
+        var content = XContentHelper.stripWhitespace("""
             {
                "service": "some_provider",
                "name": "Some Provider",
@@ -94,26 +189,139 @@ public class InferenceServiceConfigurationTests extends ESTestCase {
             }
             """);
 
-        InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
-            new BytesArray(content),
-            XContentType.JSON
-        );
+        var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
-        BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        var originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
         InferenceServiceConfiguration parsed;
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+        try (var parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
             parsed = InferenceServiceConfiguration.fromXContent(parser);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
+    public void testToXContent_WithFeatures() throws IOException {
+        var content = XContentHelper.stripWhitespace("""
+            {
+               "service": "openai",
+               "name": "OpenAI",
+               "task_types": ["completion"],
+               "configurations": {},
+               "features": {"supports_non_streaming_chat": true}
+            }
+            """);
+
+        var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        assertThat(configuration.getFeatures(), is(new Features(true)));
+        boolean humanReadable = true;
+        var originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        InferenceServiceConfiguration parsed;
+        try (var parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+            parsed = InferenceServiceConfiguration.fromXContent(parser);
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+    }
+
+    public void testToXContent_OmitsFeaturesWhenNull() throws IOException {
+        var configuration = new Builder().setService("s").setName("n").build();
+        boolean humanReadable = true;
+        BytesReference bytes = toXContent(configuration, XContentType.JSON, humanReadable);
+        assertThat(bytes.utf8ToString(), not(containsString("features")));
+    }
+
+    public void testFromXContent_FeaturesIsOptional() throws IOException {
+        var content = XContentHelper.stripWhitespace("""
+            {
+               "service": "some_provider",
+               "name": "Some Provider",
+               "task_types": [],
+               "configurations": {}
+            }
+            """);
+        var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        assertNull(configuration.getFeatures());
+    }
+
+    public void testFromXContent_FeaturesWithSupportsNonStreamingChatFalse() throws IOException {
+        var content = XContentHelper.stripWhitespace("""
+            {
+               "service": "openai",
+               "name": "OpenAI",
+               "task_types": ["completion"],
+               "configurations": {},
+               "features": {"supports_non_streaming_chat": false}
+            }
+            """);
+        var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        assertThat(configuration.getFeatures(), is(new Features(false)));
+    }
+
     public void testToMap() {
-        InferenceServiceConfiguration configField = InferenceServiceConfigurationTestUtils.getRandomServiceConfigurationField();
-        Map<String, Object> configFieldAsMap = configField.toMap();
+        var configField = InferenceServiceConfigurationTestUtils.getRandomServiceConfigurationField();
+        var configFieldAsMap = configField.toMap();
 
         assertThat(configFieldAsMap.get("service"), equalTo(configField.getService()));
         assertThat(configFieldAsMap.get("name"), equalTo(configField.getName()));
         assertThat(configFieldAsMap.get("task_types"), equalTo(configField.getTaskTypes()));
         assertThat(configFieldAsMap.get("configurations"), equalTo(configField.getConfigurations()));
+        if (configField.getFeatures() != null) {
+            assertThat(configFieldAsMap.get("features"), equalTo(configField.getFeatures().toMap()));
+        } else {
+            assertFalse(configFieldAsMap.containsKey("features"));
+        }
+    }
+
+    public void testToMap_IncludesFeaturesWhenPresent() {
+        var configuration = new Builder().setService("s").setName("n").setFeatures(new Features(true)).build();
+        var map = configuration.toMap();
+        assertThat(map.get("features"), is(Map.of("supports_non_streaming_chat", true)));
+    }
+
+    public void testToMap_OmitsFeaturesWhenNull() {
+        var configuration = new Builder().setService("s").setName("n").build();
+        var map = configuration.toMap();
+        assertFalse(map.containsKey("features"));
+    }
+
+    public void testBuild_ThrowsWhenServiceIsNull() {
+        expectThrows(NullPointerException.class, () -> new Builder().setName("n").build());
+    }
+
+    public void testBuild_ThrowsWhenNameIsNull() {
+        expectThrows(NullPointerException.class, () -> new Builder().setService("s").build());
+    }
+
+    public void testBuild_ThrowsWhenConfigurationsIsNull() {
+        expectThrows(NullPointerException.class, () -> new Builder().setService("s").setName("n").setConfigurations(null).build());
+    }
+
+    public void testBuild_SucceedsWithNullFeatures() {
+        var configuration = new Builder().setService("s").setName("n").setFeatures(null).build();
+        assertNull(configuration.getFeatures());
+    }
+
+    public void testBuilderDefaults_EmptyTaskTypesAndConfigurations() {
+        var configuration = new Builder().setService("s").setName("n").build();
+        assertThat(configuration.getTaskTypes(), is(java.util.EnumSet.noneOf(TaskType.class)));
+        assertThat(configuration.getConfigurations(), is(anEmptyMap()));
+    }
+
+    public void testGetConfigurations_ReturnsDefensiveCopy() {
+        var configuration = InferenceServiceConfigurationTestUtils.getRandomServiceConfigurationField();
+        assertNotSame(configuration.getConfigurations(), configuration.getConfigurations());
+    }
+
+    public void testGetConfigurations_MutatingReturnedMapDoesNotAffectInstance() {
+        var configuration = new Builder().setService("s").setName("n").setConfigurations(getRandomServiceConfiguration(1)).build();
+        // ensure at least one entry
+        if (configuration.getConfigurations().isEmpty()) {
+            configuration = new Builder().setService("s")
+                .setName("n")
+                .setConfigurations(Map.of("key", SettingsConfigurationTestUtils.getRandomSettingsConfigurationField()))
+                .build();
+        }
+        var returned = configuration.getConfigurations();
+        var originalSize = returned.size();
+        returned.clear();
+        assertThat(configuration.getConfigurations().size(), is(originalSize));
     }
 }

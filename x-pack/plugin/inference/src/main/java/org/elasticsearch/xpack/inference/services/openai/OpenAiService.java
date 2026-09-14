@@ -532,6 +532,7 @@ public class OpenAiService extends SenderService<OpenAiModel> {
                     .setName(SERVICE_NAME)
                     .setTaskTypes(SUPPORTED_TASK_TYPES_FOR_SERVICES_API)
                     .setConfigurations(configurationMap)
+                    .setFeatures(new InferenceServiceConfiguration.Features(true))
                     .build();
             }
         );

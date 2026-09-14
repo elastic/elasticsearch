@@ -317,6 +317,24 @@ public class FormatNameResolverTests extends ESTestCase {
         assertThat(braceErr.getMessage(), containsString("implied formats"));
     }
 
+    public void testDatasetFormatParquetGzThenCsvPropagatesWrapVeto() {
+        FormatReaderRegistry registry = csvAndParquetRegistry();
+        String resource = "s3://b/a.parquet.gz,s3://b/b.csv";
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FormatNameResolver.datasetFormat(null, resource, registry)
+        );
+        assertThat(e.getMessage(), containsString("does not support whole-file compression"));
+        assertThat(e.getMessage(), not(containsString("implied formats")));
+    }
+
+    public void testDatasetFormatFromExtensionMapWithoutRegistry() {
+        assertEquals("parquet", FormatNameResolver.datasetFormat(null, "s3://b/path/" + "*.parquet", candidate -> {
+            String ext = FormatNameResolver.extractCleanExtension(candidate);
+            return "parquet".equals(ext) ? "parquet" : null;
+        }));
+    }
+
     public void testWrapForObjectReusesConfiguredReader() {
         FormatReaderRegistry registry = csvAndParquetRegistry();
         FormatReader configured = registry.byName("csv");

@@ -59,7 +59,11 @@ public class DatasetOneFormatIT extends AbstractExternalDataSourceIT {
         assertThat(e.getMessage(), containsString("csv"));
     }
 
-    public void testMixedCommaListWithoutFormatFailsAtQuery() throws Exception {
+    /**
+     * Type {@code test} ITs skip {@code FileDataSourceValidator}, so PUT acks. Query-time
+     * {@code datasetFormat} still returns 400. Production PUT is {@code DataSourceCrudRestIT}.
+     */
+    public void testMixedCommaListWithoutFormatRejected() throws Exception {
         Path dir = createTempDir();
         Path csv = dir.resolve("a.csv");
         Path parquet = dir.resolve("b.parquet");
@@ -77,11 +81,15 @@ public class DatasetOneFormatIT extends AbstractExternalDataSourceIT {
     }
 
     public void testGzipThenPlainCsvReturnsBothFiles() throws Exception {
-        assertGzipAndPlainCsvBothRows(true);
+        assertGzipAndPlainCsvBothRows(true, Map.of("format", "csv"));
     }
 
     public void testPlainThenGzipCsvReturnsBothFiles() throws Exception {
-        assertGzipAndPlainCsvBothRows(false);
+        assertGzipAndPlainCsvBothRows(false, Map.of("format", "csv"));
+    }
+
+    public void testGzipThenPlainCsvInfersCsvWithoutFormat() throws Exception {
+        assertGzipAndPlainCsvBothRows(true, Map.of());
     }
 
     public void testHomogeneousParquetGlobStillReads() throws Exception {
@@ -98,7 +106,7 @@ public class DatasetOneFormatIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    private void assertGzipAndPlainCsvBothRows(boolean gzipFirst) throws Exception {
+    private void assertGzipAndPlainCsvBothRows(boolean gzipFirst, Map<String, Object> settings) throws Exception {
         Path dir = createTempDir();
         Path plain = dir.resolve("plain.csv");
         Path gzipped = dir.resolve("gzipped.csv.gz");
@@ -108,7 +116,10 @@ public class DatasetOneFormatIT extends AbstractExternalDataSourceIT {
             ? StoragePath.fileUri(gzipped) + "," + StoragePath.fileUri(plain)
             : StoragePath.fileUri(plain) + "," + StoragePath.fileUri(gzipped);
         String name = gzipFirst ? "csv_gz_then_plain" : "csv_plain_then_gz";
-        registerDataset(name, resource, Map.of("format", "csv"));
+        if (settings.isEmpty()) {
+            name = name + "_inferred";
+        }
+        registerDataset(name, resource, settings);
 
         try (var response = run(syncEsqlQueryRequest("FROM " + name + " | SORT n | KEEP n"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);

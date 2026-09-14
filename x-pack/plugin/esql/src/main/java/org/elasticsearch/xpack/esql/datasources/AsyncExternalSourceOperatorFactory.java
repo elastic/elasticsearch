@@ -2344,9 +2344,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         // Batch-read path is gated on partitionColumnNames.isEmpty() in {@link #batchReadCapable},
         // so dataProjectedColumns() returns the full attribute list and no virtual-column wrapping
-        // is needed.
+        // is needed. Wrap the unwrapped factory reader with the first claimed object's codec so a
+        // future homogeneous gzip batch decompresses. Mixed gzip+plain in one batch still cannot
+        // share one RangeAwareFormatReader — keep batchReadCapable false until readAll is per-split.
         List<String> cols = dataProjectedColumns();
-        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) readerWithDynamicThreshold(formatReader);
+        String firstObjectName = objectNameOf(splitRefs.get(0).object());
+        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) readerWithDynamicThreshold(
+            wrapForObject(formatReader, firstObjectName)
+        );
         CloseableIterator<Page> pages = null;
         try {
             pages = rangeReader.readAll(splitRefs, cols, batchSize);

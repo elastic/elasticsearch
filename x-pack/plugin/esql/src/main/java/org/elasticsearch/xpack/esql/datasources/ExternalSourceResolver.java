@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
@@ -680,13 +681,17 @@ public class ExternalSourceResolver {
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);
         try {
-            String datasetFormat = FormatNameResolver.datasetFormat(config, path, dataSourceModule.formatReaderRegistry());
-            FormatNameResolver.rejectConflictingObjectFormat(storagePath, datasetFormat, dataSourceModule.formatReaderRegistry());
+            String datasetFormat = appliesFileDatasetFormat(path, config) ? fileDatasetFormat(path, config) : null;
+            final Map<String, Object> fileConfig = datasetFormat != null ? withImpliedFormat(config, datasetFormat) : config;
+            if (datasetFormat != null) {
+                FormatNameResolver.rejectConflictingObjectFormat(storagePath, datasetFormat, dataSourceModule.formatReaderRegistry());
+            }
             // Strict declaration is the entire schema: build directly from the declaration (one bounded
             // anchor footer read for columnar coercibility), no inference. The non-strict overlay is
-            // applied by the caller after this returns.
-            if (isDeclaredSchema(declaredMapping)) {
-                listener.onResponse(resolveStrictSingleFile(path, storagePath, provider, config, declaredMapping));
+            // applied by the caller after this returns. Connector/catalog sources skip the file-format
+            // stamp and keep the factory's sourceType (e.g. flight).
+            if (isDeclaredSchema(declaredMapping) && datasetFormat != null) {
+                listener.onResponse(resolveStrictSingleFile(path, storagePath, provider, fileConfig, declaredMapping, datasetFormat));
                 return;
             }
 
@@ -697,33 +702,34 @@ public class ExternalSourceResolver {
                 // Warm path is zero-I/O: the file-metadata cache holds {length, mtime} within the schema TTL, so a warm
                 // single-file resolve never touches a live object (fileMetadataOf). mtime is the cache key's version token;
                 // length + mtime rebuild the singleton FileList.
-                FileMetadata meta = fileMetadataOf(storagePath, provider, config);
+                FileMetadata meta = fileMetadataOf(storagePath, provider, fileConfig);
                 String formatType = detectFormatType(storagePath);
                 SchemaCacheKey schemaKey = SchemaCacheKey.build(
                     storagePath.toString(),
                     meta.mtimeMillis(),
                     formatType,
-                    storageConfig(config)
+                    storageConfig(fileConfig)
                 );
                 SourceStatistics[] computedStatistics = new SourceStatistics[1];
                 SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                    SourceMetadata metadata = resolveSingleSource(path, config);
+                    SourceMetadata metadata = resolveSingleSource(path, fileConfig);
                     computedStatistics[0] = metadata.statistics().orElse(null);
                     return stampInferredReadConfig(SchemaCacheEntry.from(metadata));
                 });
                 harvestedStatistics = computedStatistics[0];
                 List<Attribute> schema = schemaEntry.toAttributes();
-                extMetadata = buildMetadataFromCache(schemaEntry, schema, config, harvestedStatistics);
+                extMetadata = buildMetadataFromCache(schemaEntry, schema, fileConfig, harvestedStatistics);
                 storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
             } else {
-                SourceMetadata metadata = resolveSingleSource(path, config);
+                SourceMetadata metadata = resolveSingleSource(path, fileConfig);
                 // Read the statistics off the reader's metadata before wrapping: wrapAsExternalSourceMetadata folds
                 // them into sourceMetadata() but does not override statistics(), so they are unreachable afterwards.
                 harvestedStatistics = metadata.statistics().orElse(null);
-                extMetadata = wrapAsExternalSourceMetadata(metadata, config, declaredReadSpecOf(declaredMapping));
+                extMetadata = wrapAsExternalSourceMetadata(metadata, fileConfig, declaredReadSpecOf(declaredMapping));
                 StorageObject object = provider.newObject(storagePath);
                 storageEntry = new StorageEntry(storagePath, object.length(), object.lastModified());
             }
+            extMetadata = withSourceType(extMetadata, datasetFormat);
 
             // Capture the raw file schema: schemaMap describes the physical schema each reader actually
             // sees, not the user-facing projection. _file.* columns are no longer glued onto the schema
@@ -770,25 +776,26 @@ public class ExternalSourceResolver {
         // returns it when the anchor read is issued; cachedResolveSingleSourceAsync /
         // resolveSingleSourceAsync re-borrow and must not capture this provider.
         try {
-            // Strict declaration is the whole schema for every file, so inference (FIRST_FILE_WINS / reconciliation) is
-            // skipped entirely — only the glob listing plus, for columnar formats, one anchor footer read to validate
-            // declared-type coercibility. The non-strict overlay is applied by the caller after this returns.
-            if (isDeclaredSchema(declaredMapping)) {
-                listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, config, declaredMapping));
-                return;
-            }
-
             FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
             boolean cacheable = isCacheable(provider);
 
-            String datasetFormat = FormatNameResolver.datasetFormat(config, path, dataSourceModule.formatReaderRegistry());
-            FileList listing = listAndRecord(path, storagePath, provider, hints, config, cacheable);
+            String datasetFormat = appliesFileDatasetFormat(path, config) ? fileDatasetFormat(path, config) : null;
+            final Map<String, Object> fileConfig = datasetFormat != null ? withImpliedFormat(config, datasetFormat) : config;
+            // Strict declaration is the whole schema for every file, so inference is skipped — listing plus,
+            // for columnar formats, one anchor footer read. The non-strict overlay is applied by the caller.
+            if (isDeclaredSchema(declaredMapping) && datasetFormat != null) {
+                listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, fileConfig, declaredMapping));
+                return;
+            }
+            FileList listing = listAndRecord(path, storagePath, provider, hints, fileConfig, cacheable);
             if (listing.fileCount() == 0) {
                 throw new IllegalArgumentException("Glob pattern matched no files: " + path);
             }
-            FormatNameResolver.rejectConflictingListedFormats(listing, datasetFormat, dataSourceModule.formatReaderRegistry());
+            if (datasetFormat != null) {
+                FormatNameResolver.rejectConflictingListedFormats(listing, datasetFormat, dataSourceModule.formatReaderRegistry());
+            }
             if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-                resolveMultiFileWithReconciliation(listing, config, schemaResolution, cacheable, listener);
+                resolveMultiFileWithReconciliation(listing, fileConfig, schemaResolution, cacheable, datasetFormat, listener);
                 return;
             }
 
@@ -807,19 +814,32 @@ public class ExternalSourceResolver {
             ListingHint anchorHint = new ListingHint(listing.size(0), anchorMtime);
             final FileList finalListing = listing;
             ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
-                anchorMetadata -> completeFirstFileWins(anchorMetadata, finalListing, config, requiresStats, cacheable, listener),
+                anchorMetadata -> completeFirstFileWins(
+                    anchorMetadata,
+                    finalListing,
+                    fileConfig,
+                    requiresStats,
+                    cacheable,
+                    datasetFormat,
+                    listener
+                ),
                 listener::onFailure
             );
             if (cacheable) {
                 // cachedResolveSingleSourceAsync always completes with the ExternalSourceMetadata built by
                 // buildMetadataFromCache, so the cast is safe.
-                cachedResolveSingleSourceAsync(anchorPath, anchorHint, config, anchorListener.map(meta -> (ExternalSourceMetadata) meta));
+                cachedResolveSingleSourceAsync(
+                    anchorPath,
+                    anchorHint,
+                    fileConfig,
+                    anchorListener.map(meta -> (ExternalSourceMetadata) meta)
+                );
             } else {
                 resolveSingleSourceAsync(
                     anchorPath.toString(),
                     anchorHint,
-                    config,
-                    anchorListener.map(meta -> wrapAsExternalSourceMetadata(meta, config, declaredReadSpecOf(declaredMapping)))
+                    fileConfig,
+                    anchorListener.map(meta -> wrapAsExternalSourceMetadata(meta, fileConfig, declaredReadSpecOf(declaredMapping)))
                 );
             }
         } finally {
@@ -838,10 +858,11 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         boolean requiresStats,
         boolean cacheable,
+        @Nullable String datasetFormat,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
         try {
-            final ExternalSourceMetadata base = enrichWithFileCount(anchorMetadata, listing.fileCount());
+            final ExternalSourceMetadata base = withSourceType(enrichWithFileCount(anchorMetadata, listing.fileCount()), datasetFormat);
             if (listing.fileCount() > 1 && requiresStats) {
                 // For multi-file FIRST_FILE_WINS, read all files' metadata during Phase 1 to aggregate statistics
                 // across all files. This allows aggregate pushdown (COUNT/MIN/MAX) to use accurate global stats and
@@ -1530,6 +1551,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         FormatReader.SchemaResolution schemaResolution,
         boolean cacheable,
+        @Nullable String datasetFormat,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
         long startNanos = System.nanoTime();
@@ -1564,6 +1586,7 @@ public class ExternalSourceResolver {
 
                 List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
                 SourceMetadata firstMeta = allMetadata.get(firstFile);
+                String formatForStats = datasetFormat != null ? datasetFormat : firstMeta.sourceType();
                 // Aggregate from the per-file metadata already fetched by readAllFileMetadata —
                 // no second cache or storage hit per file. Each file's stats are in its OWN unit/representation;
                 // normalize every file's min/max to the reconciled unified type (temporal rescale, or safe-miss
@@ -1583,7 +1606,7 @@ public class ExternalSourceResolver {
                 // Under SKIP_ROW a narrow-read parse failure on a pinned column drops the whole row, so a pinned
                 // file's cached row count is untrustworthy too; NULL_FIELD keeps the row (only the cell nulls) and
                 // FAIL_FAST aborts the read cold before it can cache, so both keep the row count.
-                boolean dropPinnedRowCount = resolvesToSkipRow(firstMeta.sourceType(), config);
+                boolean dropPinnedRowCount = resolvesToSkipRow(formatForStats, config);
                 Map<String, Object> aggregatedStats = aggregateFileStatistics(
                     fileList,
                     allMetadata,
@@ -1591,7 +1614,7 @@ public class ExternalSourceResolver {
                     reconciledTypes,
                     perFilePinnedColumns,
                     dropPinnedRowCount,
-                    foldsAbsentColumnAsImplicitNull(firstMeta.sourceType())
+                    foldsAbsentColumnAsImplicitNull(formatForStats)
                 );
                 Map<String, String> pathToReadConfig = new HashMap<>(allMetadata.size());
                 for (Map.Entry<StoragePath, SourceMetadata> e : allMetadata.entrySet()) {
@@ -1602,7 +1625,10 @@ public class ExternalSourceResolver {
                     }
                 }
                 aggregatedStats = applyDatasetAggregate(pathToReadConfig, datasetPrefetch, aggregatedStats, fileList, firstMeta, config);
-                ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats);
+                ExternalSourceMetadata extMetadata = withSourceType(
+                    buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats),
+                    datasetFormat
+                );
 
                 // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats
                 // marking is gated on fileCount > 1 (single-file globs have no "other file" missing stats).
@@ -2341,6 +2367,100 @@ public class ExternalSourceResolver {
     }
 
     /**
+     * File-format inference applies when the first claiming factory is {@link FileSourceFactory},
+     * or when nothing claimed (mixed/unrecognized patterns must still fail closed). Connector and
+     * catalog factories (Flight, Iceberg, …) keep their own {@code sourceType}.
+     */
+    private boolean appliesFileDatasetFormat(String path, Map<String, Object> config) {
+        for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
+            if (factory.canHandle(path, config) == false) {
+                continue;
+            }
+            if (factory instanceof FileSourceFactory) {
+                return true;
+            }
+            // Catalog factories (Iceberg) claim extensionless object-store prefixes, including globs
+            // and comma lists. Those still list files — keep fail-closed format inference. Connectors
+            // (Flight) keep their own sourceType even if the URI looks like a pattern.
+            if (GlobExpander.isMultiFile(path) && (factory instanceof ConnectorFactory) == false) {
+                return true;
+            }
+            return false;
+        }
+        try {
+            ExternalSourceFactory byScheme = dataSourceModule.sourceFactories().get(StoragePath.of(path).scheme());
+            if (byScheme != null && (byScheme instanceof FileSourceFactory) == false) {
+                if (GlobExpander.isMultiFile(path) && (byScheme instanceof ConnectorFactory) == false) {
+                    return true;
+                }
+                return false;
+            }
+        } catch (IllegalArgumentException ignored) {
+            // Not a parseable URI — still a file-pattern problem.
+        }
+        return true;
+    }
+
+    private String fileDatasetFormat(String path, Map<String, Object> config) {
+        return FormatNameResolver.datasetFormat(config, path, dataSourceModule.formatReaderRegistry());
+    }
+
+    private static Map<String, Object> withImpliedFormat(Map<String, Object> config, String datasetFormat) {
+        if (FormatNameResolver.parseExplicitFormat(config == null ? null : config.get(FormatNameResolver.CONFIG_FORMAT)) != null) {
+            return config;
+        }
+        Map<String, Object> copy = config == null || config.isEmpty() ? new HashMap<>() : new HashMap<>(config);
+        copy.put(FormatNameResolver.CONFIG_FORMAT, datasetFormat);
+        return copy;
+    }
+
+    /**
+     * Stamps exec {@code sourceType} from the dataset format already computed from the resource
+     * pattern, so pushdown and operator-factory dispatch cannot drift to an anchor reader's type.
+     */
+    private static ExternalSourceMetadata withSourceType(ExternalSourceMetadata metadata, @Nullable String sourceType) {
+        if (metadata == null || sourceType == null || sourceType.equals(metadata.sourceType())) {
+            return metadata;
+        }
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return metadata.location();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return metadata.schema();
+            }
+
+            @Override
+            public String sourceType() {
+                return sourceType;
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return metadata.sourceMetadata();
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return metadata.config();
+            }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return metadata.statistics();
+            }
+
+            @Override
+            public Optional<List<String>> partitionColumns() {
+                return metadata.partitionColumns();
+            }
+        };
+    }
+
+    /**
      * Returns a wrapper that delegates everything to {@code metadata} except {@code schema()},
      * which is replaced by the provided schema. Used by the schema-enrichment helpers so each
      * caller doesn't have to spell out a fresh anonymous {@link ExternalSourceMetadata}.
@@ -2652,7 +2772,8 @@ public class ExternalSourceResolver {
         StoragePath storagePath,
         StorageProvider provider,
         Map<String, Object> config,
-        DatasetMapping declaredMapping
+        DatasetMapping declaredMapping,
+        String sourceType
     ) throws Exception {
         // Same warm-probe amortization as the inferred single-file rail (resolveSingleFileSource): a cacheable
         // provider serves {length, mtime} from the file-metadata cache within the schema TTL, so a warm strict
@@ -2662,11 +2783,6 @@ public class ExternalSourceResolver {
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
-        // sourceType drives operator-factory dispatch (OperatorFactoryRegistry keys on it). Derive it from
-        // the resource pattern ({@link FormatNameResolver#datasetFormat}), not the last path segment, so a
-        // comma list or glob cannot be keyed on the wrong leaf. Then fail closed if this object's inferred
-        // format exists and differs.
-        String sourceType = FormatNameResolver.datasetFormat(config, path, dataSourceModule.formatReaderRegistry());
         FormatNameResolver.rejectConflictingObjectFormat(storagePath, sourceType, dataSourceModule.formatReaderRegistry());
         // Cheap no-I/O guard first (no partitions on a single file), then the columnar coercibility check which reads
         // this file's footer (cached when the provider is).

@@ -18,6 +18,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 
 /**
  * Single source of truth for resolving format names from dataset configuration.
@@ -153,37 +154,45 @@ public final class FormatNameResolver {
         return resolveReader(config, objectName, registry).formatName();
     }
 
-    /**
-     * The single format a dataset will read. Explicit {@code reader}/{@code format} wins (same precedence as
-     * {@link #resolveReader}). Otherwise the resource pattern must imply exactly one registered format:
-     * top-level comma segments via {@link GlobExpander#commaSegments}, then brace expansion of each segment's
-     * object name that keeps {@code *}/{@code ?}/{@code [}. An unrecognized name (no extension, or an extension
-     * the registry does not claim) counts as no format for that candidate. Zero or two-plus implied formats throw
-     * {@link IllegalArgumentException} telling the caller to set {@code format} or split datasets.
-     * <p>
-     * Detection never walks a listing to vote. After listing, {@link #rejectConflictingListedFormats} still
-     * fail-closes when a listed object maps to a different registered format than this result.
-     */
     public static String datasetFormat(Map<String, Object> config, String resource, FormatReaderRegistry registry) {
+        return datasetFormat(config, resource, candidate -> {
+            if (registry == null) {
+                return null;
+            }
+            try {
+                return resolveFormatName(null, candidate, registry);
+            } catch (FormatReaderRegistry.UnreadableObjectException e) {
+                return null;
+            }
+        });
+    }
+
+    public static String datasetFormat(Map<String, Object> config, String resource, Function<String, String> impliedFormatOfObjectName) {
         String explicit = explicitFormatName(config);
         if (explicit != null) {
             return explicit;
         }
-        if (registry == null) {
-            throw new IllegalArgumentException(ambiguousDatasetFormatMessage(resource));
+        Set<String> implied = new TreeSet<>();
+        if (resource != null && resource.isEmpty() == false) {
+            for (String segment : resourceSegments(resource)) {
+                String objectName = objectNameOfSegment(segment);
+                if (objectName.isEmpty()) {
+                    continue;
+                }
+                for (String candidate : GlobExpander.expandBracesKeepingWildcards(objectName)) {
+                    String format = impliedFormatOfObjectName.apply(candidate);
+                    if (format != null) {
+                        implied.add(format);
+                    }
+                }
+            }
         }
-        Set<String> implied = impliedFormats(resource, registry);
         if (implied.size() != 1) {
             throw new IllegalArgumentException(ambiguousDatasetFormatMessage(resource, implied));
         }
         return implied.iterator().next();
     }
 
-    /**
-     * After listing, reject any object whose inferred format exists and differs from {@code datasetFormat}.
-     * Unrecognized names stay allowed under a declared format. Other registry vetoes (for example whole-file
-     * compression on parquet) propagate.
-     */
     public static void rejectConflictingListedFormats(FileList listing, String datasetFormat, FormatReaderRegistry registry) {
         if (listing == null || listing.isResolved() == false || registry == null) {
             return;
@@ -193,9 +202,6 @@ public final class FormatNameResolver {
         }
     }
 
-    /**
-     * Same check as {@link #rejectConflictingListedFormats} for a single concrete object (strict single-file).
-     */
     public static void rejectConflictingObjectFormat(StoragePath path, String datasetFormat, FormatReaderRegistry registry) {
         if (path == null || registry == null) {
             return;
@@ -214,7 +220,6 @@ public final class FormatNameResolver {
         }
     }
 
-    /** Message when a pattern implies zero formats or two-plus formats. */
     public static String ambiguousDatasetFormatMessage(String resource) {
         return "Cannot determine a single format for ["
             + resource
@@ -232,7 +237,6 @@ public final class FormatNameResolver {
             + "; set the dataset's [format] setting, or split mixed formats into separate datasets.";
     }
 
-    /** Message when a listed object maps to a different registered format than the dataset. */
     public static String listedFormatConflictMessage(String file, String inferred, String datasetFormat) {
         return "File ["
             + file
@@ -240,7 +244,7 @@ public final class FormatNameResolver {
             + inferred
             + "] which differs from the dataset format ["
             + datasetFormat
-            + "]; set the dataset's [format] setting, or split mixed formats into separate datasets.";
+            + "]; split mixed formats into separate datasets, or tighten the resource pattern.";
     }
 
     @Nullable
@@ -258,27 +262,6 @@ public final class FormatNameResolver {
             return formatName;
         }
         return parseExplicitFormat(config.get(CONFIG_FORMAT));
-    }
-
-    private static Set<String> impliedFormats(String resource, FormatReaderRegistry registry) {
-        Set<String> formats = new TreeSet<>();
-        if (resource == null || resource.isEmpty()) {
-            return formats;
-        }
-        for (String segment : resourceSegments(resource)) {
-            String objectName = objectNameOfSegment(segment);
-            if (objectName.isEmpty()) {
-                continue;
-            }
-            for (String candidate : GlobExpander.expandBracesKeepingWildcards(objectName)) {
-                try {
-                    formats.add(resolveFormatName(null, candidate, registry));
-                } catch (FormatReaderRegistry.UnreadableObjectException e) {
-                    // No format for this candidate (extensionless, or an unrecognized extension).
-                }
-            }
-        }
-        return formats;
     }
 
     /**

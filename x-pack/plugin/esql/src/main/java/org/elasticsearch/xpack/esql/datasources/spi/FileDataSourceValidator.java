@@ -373,7 +373,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         String format = explicitFormat(settings);
         if (format == null && resource != null) {
             try {
-                format = FormatNameResolver.datasetFormat(settings, resource, formatReaderRegistry);
+                format = impliedDatasetFormat(settings, resource);
             } catch (IllegalArgumentException e) {
                 // mixed/unknown pattern, or a registry veto (e.g. parquet.gz); leave format unresolved
             }
@@ -603,16 +603,38 @@ public class FileDataSourceValidator implements DataSourceValidator {
         // No usable explicit format: the pattern must imply exactly one format. A missing resource
         // already recorded "[resource] is required"; do not pile on a format error naming null.
         if (resource == null) {
+            rejectUnknownFields(settings, COORDINATOR_DATASET_KEYS, errors);
             return COORDINATOR_DATASET_KEYS;
         }
         try {
-            String impliedFormat = FormatNameResolver.datasetFormat(settings, resource, formatReaderRegistry);
+            String impliedFormat = impliedDatasetFormat(settings, resource);
             Set<String> formatKeys = formatConfigKeyResolver.configKeysForFormat(impliedFormat);
             return acceptForFormat(settings, impliedFormat, formatKeys != null ? formatKeys : Set.of(), errors);
         } catch (IllegalArgumentException e) {
             errors.addValidationError(e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Unique implied format for PUT/shape. Production always has a {@link FormatReaderRegistry};
+     * tests that wire only {@link FormatConfigKeyResolver} map clean extensions through that map
+     * so {@code *.parquet} still infers parquet without a live reader.
+     */
+    private String impliedDatasetFormat(Map<String, Object> settings, String resource) {
+        if (formatReaderRegistry != null) {
+            return FormatNameResolver.datasetFormat(settings, resource, formatReaderRegistry);
+        }
+        if (formatConfigKeyResolver == null) {
+            throw new IllegalArgumentException(FormatNameResolver.ambiguousDatasetFormatMessage(resource));
+        }
+        return FormatNameResolver.datasetFormat(settings, resource, candidate -> {
+            String ext = FormatNameResolver.extractCleanExtension(candidate);
+            if (ext == null) {
+                return null;
+            }
+            return formatConfigKeyResolver.formatForExtension("." + ext);
+        });
     }
 
     /**

@@ -37,7 +37,8 @@ import static org.hamcrest.Matchers.not;
  *       discarded the caller's config; {@code format} was honored for one concrete file and silently a no-op for
  *       every glob, leaving a dump like this unreadable under any configuration.</li>
  *   <li>without one, the query fails as a 400 telling the caller to set {@code format} — the glob
- *       {@code *.log.gz} implies no registered format. A declared {@code format} still reads those objects.</li>
+ *       {@code *.log.gz} implies no registered format. A declared {@code format} still reads those objects.
+ *       Type {@code test} ITs skip {@code FileDataSourceValidator}, so PUT acks; production PUT is REST CRUD.</li>
  * </ul>
  */
 public class DatasetUnrecognizedExtensionIT extends AbstractExternalDataSourceIT {
@@ -103,6 +104,10 @@ public class DatasetUnrecognizedExtensionIT extends AbstractExternalDataSourceIT
         }
     }
 
+    /**
+     * Type {@code test} ITs skip {@code FileDataSourceValidator}, so PUT acks. Query-time
+     * {@code datasetFormat} still returns 400. Production PUT is {@code DataSourceCrudRestIT}.
+     */
     public void testGlobOfUnrecognizedExtensionWithoutFormatFailsAsBadRequest() throws Exception {
         String glob = writeFlowLogDump();
 

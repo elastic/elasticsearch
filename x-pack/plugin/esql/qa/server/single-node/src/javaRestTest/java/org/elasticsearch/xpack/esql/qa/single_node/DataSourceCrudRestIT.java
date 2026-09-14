@@ -339,14 +339,14 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         final String parent = "dir_exclusion_parent";
         final String dataset = "dir_exclusion_child";
         putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
-        putDataset(dataset, parent, "s3://bucket/data/**/*.parquet", Map.of("file_exclusions", List.of("**/backup_2024/**")));
+        putDataset(dataset, parent, "s3://bucket/data/" + "**/*.parquet", Map.of("file_exclusions", List.of("**/backup_2024/" + "**")));
 
         Map<String, Object> got = getDataset(dataset);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> hits = (List<Map<String, Object>>) got.get("datasets");
         @SuppressWarnings("unchecked")
         Map<String, Object> settings = (Map<String, Object>) hits.get(0).get("settings");
-        assertThat(settings.get("file_exclusions"), equalTo(List.of("**/backup_2024/**")));
+        assertThat(settings.get("file_exclusions"), equalTo(List.of("**/backup_2024/" + "**")));
 
         deleteDataset(dataset);
         deleteDataSource(parent);
@@ -409,7 +409,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         ResponseException prefix = expectThrows(
             ResponseException.class,
-            () -> putDataset("prefix_no_format_child", parent, "s3://bucket/data/**", Map.of())
+            () -> putDataset("prefix_no_format_child", parent, "s3://bucket/data/" + "**", Map.of())
         );
         assertThat(prefix.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(EntityUtils.toString(prefix.getResponse().getEntity()), containsString("set the dataset's [format] setting"));
@@ -421,7 +421,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         assertThat(mixed.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(EntityUtils.toString(mixed.getResponse().getEntity()), containsString("implied formats"));
 
-        putDataset("prefix_with_format_child", parent, "s3://bucket/data/**", Map.of("format", "csv"));
+        putDataset("prefix_with_format_child", parent, "s3://bucket/data/" + "**", Map.of("format", "csv"));
         deleteDataset("prefix_with_format_child");
         deleteDataSource(parent);
     }

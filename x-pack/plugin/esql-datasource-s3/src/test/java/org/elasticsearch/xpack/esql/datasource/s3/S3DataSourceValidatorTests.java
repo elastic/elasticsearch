@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.datasources.DecompressionCodecRegistry;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractDataSourceValidatorTests;
@@ -928,42 +929,38 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testUnknownFormatWithFormatSettingGivesSetFormatHint() {
-        // No explicit format, unknown extension, format-specific setting present: targeted hint.
+        // No explicit format, unknown extension: fail closed. Format-specific keys are not diagnosed
+        // separately once the pattern itself cannot imply a format.
         var e = expectThrows(
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("delimiter", "|"))
         );
-        assertEquals(List.of(FileDataSourceValidator.cannotDetermineFormatError("s3://test", Set.of("delimiter"))), e.validationErrors());
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
     }
 
     public void testUnknownFormatGenuineTypoReportedAsUnknownSetting() {
-        // No explicit format, unknown extension, a key no registered format recognises: this is a real
-        // typo and must read as an unknown setting, not a misleading "set format" hint.
+        // Prefix without format is refused before per-key checks, so a typo is not reported as unknown setting.
         var e = expectThrows(
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("not_a_setting", "x"))
         );
-        assertThat(e.validationErrors(), hasSize(1));
-        assertThat(e.validationErrors().get(0), containsString("unknown setting [not_a_setting]"));
-        assertThat(e.validationErrors().get(0), containsString("file_sort_by"));
-        assertThat(e.validationErrors().get(0), containsString("file_order"));
-        assertThat(e.getMessage(), not(containsString("cannot determine format")));
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
     }
 
     public void testUnknownFormatMixedKeysReportBothDiagnoses() {
-        // A real format-specific key gets the "set format" hint; a genuine typo gets "unknown setting".
         var e = expectThrows(
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("delimiter", "|", "not_a_setting", "x"))
         );
-        assertThat(e.validationErrors(), hasItem(FileDataSourceValidator.cannotDetermineFormatError("s3://test", Set.of("delimiter"))));
-        assertThat(e.validationErrors(), hasItem(containsString("unknown setting [not_a_setting]")));
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
     }
 
     public void testUnknownFormatBaseSettingsOnlyAccepted() {
-        // No explicit format, unknown extension, only base settings -> accepted (resolves per-file at query).
-        var result = formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("partition_detection", "hive"));
-        assertEquals("hive", result.get("partition_detection"));
+        var e = expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("partition_detection", "hive"))
+        );
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
     }
 
     public void testFormatAutoFallsBackToExtension() {

@@ -1486,9 +1486,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     resolution.resolvedSource(glob).metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
                 );
 
-                SchemaCacheKey key = resolver.datasetAggregateKey(GlobExpander.fileListOf(listing, glob), config);
+                // Resolve stamps the inferred format onto config so unrecognized listed objects still use
+                // the dataset reader. Lookup keys must use that same map.
+                Map<String, Object> effectiveConfig = new HashMap<>(config);
+                effectiveConfig.put(FormatNameResolver.CONFIG_FORMAT, "ndjson");
+                SchemaCacheKey key = resolver.datasetAggregateKey(GlobExpander.fileListOf(listing, glob), effectiveConfig);
                 assertNotNull("[" + strategy + "] the resolve must have minted a dataset key", key);
-                String fingerprint = SchemaCacheKey.buildFormatConfig(config);
+                String fingerprint = SchemaCacheKey.buildFormatConfig(effectiveConfig);
 
                 // Counts harvested under a different resolved read configuration measured a different set of rows;
                 // summing them for this dataset would be a wrong COUNT(*). Mtime and config fingerprint both match

@@ -851,6 +851,27 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         FieldStorageVerifier.forField("field", doc.rootDoc()).expectIgnoreMalformed().verify();
     }
 
+    /**
+     * A strict-columnar index whose {@code created-version} predates {@link IndexVersions#MALFORMED_VALUES_IN_ON_FAILURE_COLUMN}
+     * must still write malformed values to the {@code ._ignore_malformed} column on the write path — the same column the old read
+     * path expects. This is the write-path BWC counterpart to
+     * {@code CompositeSyntheticFieldLoaderTests#testAddFallbackLayersUsesIgnoreMalformedColumnForPreMergeStrictColumnarIndex}.
+     */
+    public void testIgnoreMalformedInPreMergeColumnarIndexWritesToIgnoreMalformedColumn() throws Exception {
+        IndexVersion preMerge = IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            preMerge,
+            settings,
+            () -> true,
+            fieldMapping(b -> b.field("type", "integer").field("ignore_malformed", true))
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-number")));
+
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectIgnoreMalformed().verify();
+    }
+
     public void testOnFailureIgnoreNullabilityViolationStorageUniqueness() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(

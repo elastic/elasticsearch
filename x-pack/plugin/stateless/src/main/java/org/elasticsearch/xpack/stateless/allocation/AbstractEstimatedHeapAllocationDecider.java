@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.stateless.allocation;
 
 import org.elasticsearch.cluster.NodeHeapMetrics;
-import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -197,7 +196,9 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
             );
         }
 
-        final long additionalBytes = getProjectedAdditionalBytes(shardRouting, node, shardAndIndexHeapUsage);
+        // Include index overhead only when the node does not already host the index, to avoid double-counting.
+        final long additionalBytes = (node.hasIndex(shardRouting.index()) ? 0L : shardAndIndexHeapUsage.indexHeapUsageBytes())
+            + shardAndIndexHeapUsage.shardHeapUsageBytes();
         final double projectedUsagePercent = 100.0 * (currentUsageBytes + additionalBytes) / capacityBytes;
 
         if (projectedUsagePercent > lowWatermarkPercent) {
@@ -334,11 +335,4 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
         return null;
     }
 
-    /**
-     * Returns the bytes that allocating this shard would add to total heap on {@code node}.
-     * Index-overhead bytes are included only when the node does not yet host the index (to avoid double-counting).
-     */
-    private long getProjectedAdditionalBytes(ShardRouting shard, RoutingNode node, ShardAndIndexHeapUsage usage) {
-        return (node.hasIndex(shard.index()) ? 0L : usage.indexHeapUsageBytes()) + usage.shardHeapUsageBytes();
-    }
 }

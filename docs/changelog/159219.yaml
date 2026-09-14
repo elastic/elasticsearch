@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159219
+summary: Add TOPK, BOTTOMK and LIMITK aggregation functions (ES|QL analogues of PromQL topk/bottomk/limitk)
+type: enhancement

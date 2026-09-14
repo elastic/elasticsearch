@@ -1690,14 +1690,58 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoadAllModeLoadsUnmappedInSubqueryLeftKeyWithSubqueryInFromOnRhs() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         expectInSubqueryLeftKeyResolvedLoadAll("unmapped_message", """
             FROM partial_mapping_sample_data
             | WHERE unmapped_message IN
                 (FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message),
-                      (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.3!" | KEEP unmapped_message)
+                      (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.3!")
                  | KEEP unmapped_message)
             | KEEP message, unmapped_message
+            """);
+    }
+
+    public void testLoadAllModeLoadsUnmappedInSubqueryLeftKeyInsideSubqueryInFrom() {
+        expectInSubqueryLeftKeyResolvedLoadAll("unmapped_message", """
+            FROM (FROM partial_mapping_sample_data
+                  | WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
+                  | KEEP message, unmapped_message),
+                 (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.3!")
+            """);
+    }
+
+    public void testLoadAllModeLoadsUnmappedInSubqueryLeftKeyAfterFork() {
+        expectInSubqueryLeftKeyResolvedLoadAll("unmapped_message", """
+            FROM partial_mapping_sample_data
+            | FORK (WHERE message == "42")
+                   (WHERE message == "Connected to 10.1.0.3!")
+            | WHERE unmapped_message IN (FROM partial_mapping_sample_data
+                                         | WHERE message == "42" OR message == "Connected to 10.1.0.3!"
+                                         | KEEP unmapped_message)
+            | KEEP message, unmapped_message
+            """);
+    }
+
+    public void testLoadAllModeLoadsUnmappedInSubqueryLeftKeyInsideFork() {
+        expectInSubqueryLeftKeyResolvedLoadAll("unmapped_message", """
+            FROM partial_mapping_sample_data
+            | FORK (WHERE unmapped_message IN (FROM partial_mapping_sample_data
+                                               | WHERE message == "42"
+                                               | KEEP unmapped_message)
+                    | KEEP message, unmapped_message)
+                   (WHERE message == "Connected to 10.1.0.3!" | KEEP message)
+            """);
+    }
+
+    public void testLoadAllModeBroadcastsOuterRefAcrossSiblingUnionsWhenRhsHidesName() {
+        expectInSubqueryLeftKeyResolvedLoadAll("unmapped_message", """
+            FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+                 (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+            | WHERE message IN
+                (FROM (FROM partial_mapping_sample_data | KEEP message),
+                      (FROM partial_mapping_sample_data | KEEP message)
+                 | KEEP message)
+            | EVAL y = unmapped_message
+            | KEEP message, y, unmapped_message
             """);
     }
 

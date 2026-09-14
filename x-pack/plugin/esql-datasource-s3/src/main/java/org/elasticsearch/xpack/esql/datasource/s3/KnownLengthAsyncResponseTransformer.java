@@ -163,8 +163,15 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
             // any published owner before delivering failure.
             sub.fail(error);
         } else {
-            // No subscriber was wired yet (pre-stream failure); this is the only completer.
+            // No subscriber was wired yet (pre-stream failure); complete the future, then re-read
+            // subscriber: onStream may have raced us between the null check above and here, wired a
+            // subscriber, and had onSubscribe allocate a buffer. Driving fail() on the raced subscriber
+            // releases that buffer; fail() is idempotent so a concurrent terminal signal is safe.
             resultFuture.completeExceptionally(error);
+            ChunkCopyingSubscriber racedSub = subscriber;
+            if (racedSub != null) {
+                racedSub.fail(error);
+            }
         }
     }
 

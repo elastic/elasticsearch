@@ -12,7 +12,13 @@ import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.http.SdkHttpResponse;
+import software.amazon.awssdk.retries.api.AcquireInitialTokenRequest;
+import software.amazon.awssdk.retries.api.AcquireInitialTokenResponse;
 import software.amazon.awssdk.retries.api.BackoffStrategy;
+import software.amazon.awssdk.retries.api.RecordSuccessRequest;
+import software.amazon.awssdk.retries.api.RecordSuccessResponse;
+import software.amazon.awssdk.retries.api.RefreshRetryTokenRequest;
+import software.amazon.awssdk.retries.api.RefreshRetryTokenResponse;
 import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -30,6 +36,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -45,7 +52,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -652,12 +658,42 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             return completeTransformer(transformer, response, PAYLOAD);
         });
 
-        // Use immediate backoff so the test does not actually sleep for the suggested delay.
-        RetryStrategy immediateBackoff = AwsRetryStrategy.standardRetryStrategy()
-            .toBuilder()
-            .throttlingBackoffStrategy(BackoffStrategy.retryImmediately())
-            .build();
-        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, immediateBackoff, BUCKET, KEY, PATH);
+        // Wrap the standard strategy to capture the suggestedDelay passed for the throttling failure,
+        // and return immediate (zero) delay so the test does not actually sleep.
+        AtomicReference<Duration> capturedSuggestedDelay = new AtomicReference<>();
+        RetryStrategy capturingStrategy = new RetryStrategy() {
+            private final RetryStrategy delegate = AwsRetryStrategy.standardRetryStrategy()
+                .toBuilder()
+                .throttlingBackoffStrategy(BackoffStrategy.retryImmediately())
+                .build();
+
+            @Override
+            public AcquireInitialTokenResponse acquireInitialToken(AcquireInitialTokenRequest request) {
+                return delegate.acquireInitialToken(request);
+            }
+
+            @Override
+            public RefreshRetryTokenResponse refreshRetryToken(RefreshRetryTokenRequest request) {
+                capturedSuggestedDelay.set(request.suggestedDelay().orElse(null));
+                return delegate.refreshRetryToken(request);
+            }
+
+            @Override
+            public RecordSuccessResponse recordSuccess(RecordSuccessRequest request) {
+                return delegate.recordSuccess(request);
+            }
+
+            @Override
+            public int maxAttempts() {
+                return delegate.maxAttempts();
+            }
+
+            @Override
+            public Builder<?, ?> toBuilder() {
+                return delegate.toBuilder();
+            }
+        };
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, capturingStrategy, BUCKET, KEY, PATH);
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
@@ -676,6 +712,11 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertEquals("throttled request must be retried once", 2, calls.get());
+        assertEquals(
+            "Retry-After: 1 must be passed to the strategy as a 1-second suggested delay",
+            Duration.ofSeconds(1),
+            capturedSuggestedDelay.get()
+        );
         try (DirectReadBuffer buf = result.get()) {
             assertNotNull("read must succeed after retry", buf);
         }
@@ -725,7 +766,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         cancel.close();
 
         assertTrue("listener must be notified promptly on cancel, not after the backoff delay", listenerCalled.await(1, TimeUnit.SECONDS));
-        assertThat(error.get(), instanceOf(CancellationException.class));
+        assertThat(error.get(), instanceOf(TaskCancelledException.class));
     }
 
     /**
@@ -767,9 +808,9 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         // Cancel while the getObject future is pending.
         cancel.close();
 
-        // FutureUtils.cancel completes the future with CancellationException, which flows to the listener.
+        // FutureUtils.cancel completes the future with CancellationException; the cancel path delivers TaskCancelledException.
         assertTrue("listener must be notified after in-flight cancel", listenerCalled.await(5, TimeUnit.SECONDS));
-        assertThat(error.get(), instanceOf(CancellationException.class));
+        assertThat(error.get(), instanceOf(TaskCancelledException.class));
     }
 
     /**

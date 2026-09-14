@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -55,6 +56,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -214,6 +216,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         if (cause instanceof ExternalObjectChangedException changed) {
             return changed;
         }
+        if (cause instanceof CancellationException || cause instanceof TaskCancelledException) {
+            return new TaskCancelledException("read cancelled");
+        }
         CircuitBreakingException breakerTrip = unwrapBreakerTrip(cause, context, path);
         if (breakerTrip != null) {
             return breakerTrip;
@@ -241,6 +246,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         }
         if (cause instanceof S3Exception precondition && precondition.statusCode() == 412) {
             return new ExternalObjectChangedException(cause, "Object changed during read of [{}]", path);
+        }
+        if (cause instanceof S3Exception clockSkew
+            && clockSkew.awsErrorDetails() != null
+            && "RequestTimeTooSkewed".equals(clockSkew.awsErrorDetails().errorCode())) {
+            return new IOException(
+                "S3 request rejected due to clock skew reading ["
+                    + path
+                    + "]: the server clock differs too much from S3. Check that the host clock is NTP-synchronized.",
+                cause
+            );
         }
         if (cause instanceof S3Exception denied && denied.statusCode() == 403) {
             // Follows the listing-403 wording in S3StorageProvider: name what was refused, then what to change.
@@ -824,7 +839,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             // Otherwise (cancel between leaveBackoff and here), we notify now.
             if (handle.tryCompleteListener()) {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
-                listener.onFailure(mapReadFailure("Failed to read object from", new CancellationException("read cancelled")));
+                listener.onFailure(new TaskCancelledException("read cancelled"));
             }
             return;
         }
@@ -859,8 +874,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 // recordSuccess() failing is not expected in practice, but close the buffer now to
                 // avoid a breaker-charge leak — deliverRead would have transferred ownership.
                 buffer.close();
-                counters.addRequest(System.nanoTime() - startNanos, 0L);
-                listener.onFailure(mapReadFailure("Failed to read object from", e));
+                if (handle.tryCompleteListener()) {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    listener.onFailure(mapReadFailure("Failed to read object from", e));
+                }
                 return;
             }
 
@@ -871,7 +888,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 } catch (ExternalObjectChangedException e) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     buffer.close();
-                    listener.onFailure(e);
+                    if (handle.tryCompleteListener()) {
+                        listener.onFailure(e);
+                    }
                     return;
                 }
                 if (cachedLastModified == null) {
@@ -885,7 +904,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 }
             }
 
-            deliverRead(listener, buffer, startNanos);
+            if (handle.tryCompleteListener()) {
+                deliverRead(listener, buffer, startNanos);
+            } else {
+                buffer.close();
+            }
         });
     }
 
@@ -911,16 +934,29 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             // consume retry budget or schedule another attempt.
             if (handle.tryCompleteListener()) {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
-                listener.onFailure(mapReadFailure("Failed to read object from", unwrapCompletionWrappers(throwable)));
+                listener.onFailure(new TaskCancelledException("read cancelled"));
             }
             return;
         }
+        Throwable unwrapped = unwrapCompletionWrappers(throwable);
         // If the request sent If-Match and the store does not support it, retry once without the
         // header. This matches the sync path's fallback and does not consume retry budget.
-        if (request.ifMatch() != null && isIfMatchUnsupported(unwrapCompletionWrappers(throwable))) {
+        if (request.ifMatch() != null && isIfMatchUnsupported(unwrapped)) {
             ifMatchUnsupported = true;
             logger.debug("S3 If-Match not implemented for [{}]; retrying without it", path);
             scheduleReadAttempt(Duration.ZERO, unpinned(request), length, factory, executor, listener, retryToken, startNanos, handle);
+            return;
+        }
+        // RequestTimeTooSkewed: retrying without clock adjustment cannot succeed; give up immediately
+        // with a diagnostic message rather than burning the retry budget and then misreporting it as
+        // access denied (403 falls into the credential-check branch of mapReadFailure).
+        if (unwrapped instanceof S3Exception clockSkew
+            && clockSkew.awsErrorDetails() != null
+            && "RequestTimeTooSkewed".equals(clockSkew.awsErrorDetails().errorCode())) {
+            if (handle.tryCompleteListener()) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                listener.onFailure(mapReadFailure("Failed to read object from", clockSkew));
+            }
             return;
         }
         RefreshRetryTokenResponse refresh;
@@ -936,12 +972,14 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             // TokenAcquisitionFailedException: non-retryable failure, attempts exhausted, or the retry
             // token bucket circuit-broke. Anything else is unexpected but equally terminal — surface
             // the read failure either way so the listener is always completed.
-            counters.addRequest(System.nanoTime() - startNanos, 0L);
-            Exception mapped = mapReadFailure("Failed to read object from", unwrapCompletionWrappers(throwable));
+            Exception mapped = mapReadFailure("Failed to read object from", unwrapped);
             if (giveUp instanceof TokenAcquisitionFailedException == false) {
                 mapped.addSuppressed(giveUp);
             }
-            listener.onFailure(mapped);
+            if (handle.tryCompleteListener()) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                listener.onFailure(mapped);
+            }
             return;
         }
         logger.debug("retrying async read for [{}] after [{}]ms: [{}]", path, refresh.delay().toMillis(), throwable.getMessage());
@@ -976,7 +1014,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         Executor rejectionSafeExecutor = command -> {
             try {
                 executor.execute(command);
-            } catch (Exception rejected) {
+            } catch (RejectedExecutionException rejected) {
                 if (handle.tryCompleteListener()) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     listener.onFailure(mapReadFailure("Failed to read object from", rejected));
@@ -993,7 +1031,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         }, CompletableFuture.delayedExecutor(delay.toMillis(), TimeUnit.MILLISECONDS, rejectionSafeExecutor));
         handle.enterBackoff(delayFuture, () -> {
             counters.addRequest(System.nanoTime() - startNanos, 0L);
-            listener.onFailure(mapReadFailure("Failed to read object from", new CancellationException("read cancelled")));
+            listener.onFailure(new TaskCancelledException("read cancelled"));
         });
     }
 

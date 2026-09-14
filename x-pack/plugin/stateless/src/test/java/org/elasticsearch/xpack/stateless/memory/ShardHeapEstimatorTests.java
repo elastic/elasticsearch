@@ -313,7 +313,7 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         long selfReportedOverhead = randomLongBetween(1, 10_000_000); // defined, but self-reported is disabled
         ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ZERO, 0.0, 0L, false);
         var m = metrics(0, 0, 0, postings, 0, 0, selfReportedOverhead, MetricQuality.EXACT);
-        assertThat(estimator.computeShardHeapUsage(m).postingsHeapUsage(), equalTo(postings));
+        assertThat(estimator.computeShardHeapUsage(m).postingsHeapUsageBytes(), equalTo(postings));
     }
 
     public void testEffectivePostingsReturnedWhenSelfReportedEnabledButUndefined() {
@@ -321,7 +321,7 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         long postings = randomLongBetween(1, 1_000_000);
         ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ZERO, 0.0, 0L, true);
         var m = metrics(0, 0, 0, postings, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, MetricQuality.EXACT);
-        assertThat(estimator.computeShardHeapUsage(m).postingsHeapUsage(), equalTo(postings));
+        assertThat(estimator.computeShardHeapUsage(m).postingsHeapUsageBytes(), equalTo(postings));
     }
 
     public void testEffectivePostingsZeroWhenSelfReportedAvailable() {
@@ -330,7 +330,7 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         long selfReportedOverhead = randomLongBetween(1, 10_000_000);
         ShardHeapEstimator estimator = new ShardHeapEstimator(ByteSizeValue.ZERO, 0.0, 0L, true);
         var m = metrics(0, 0, 0, postings, 0, 0, selfReportedOverhead, MetricQuality.EXACT);
-        assertThat(estimator.computeShardHeapUsage(m).postingsHeapUsage(), equalTo(0L));
+        assertThat(estimator.computeShardHeapUsage(m).postingsHeapUsageBytes(), equalTo(0L));
     }
 
     // --- helpers ---

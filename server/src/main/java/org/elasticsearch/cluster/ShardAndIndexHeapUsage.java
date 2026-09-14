@@ -19,7 +19,7 @@ import java.io.IOException;
 /**
  * Tracks a shard's heap usage, as well as any index-level heap usage overhead that should be deduplicated per node.
  */
-public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsageBytes, long postingsHeapUsage) implements Writeable {
+public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsageBytes, long postingsHeapUsageBytes) implements Writeable {
 
     public static final TransportVersion INCLUDE_POSTINGS_IN_SHARD_AND_INDEX_HEAP = TransportVersion.fromName(
         "include_postings_in_shard_and_index_heap"
@@ -31,7 +31,7 @@ public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsa
     public ShardAndIndexHeapUsage {
         assert shardHeapUsageBytes >= 0;
         assert indexHeapUsageBytes >= 0;
-        assert postingsHeapUsage >= 0;
+        assert postingsHeapUsageBytes >= 0;
     }
 
     public ShardAndIndexHeapUsage(StreamInput in) throws IOException {
@@ -43,12 +43,12 @@ public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsa
         out.writeLong(this.shardHeapUsageBytes);
         out.writeLong(this.indexHeapUsageBytes);
         if (out.getTransportVersion().supports(INCLUDE_POSTINGS_IN_SHARD_AND_INDEX_HEAP)) {
-            out.writeLong(this.postingsHeapUsage);
+            out.writeLong(this.postingsHeapUsageBytes);
         }
     }
 
     public long shardHeapUsageBytesExcludingPostings() {
-        return shardHeapUsageBytes - postingsHeapUsage;
+        return shardHeapUsageBytes - postingsHeapUsageBytes;
     }
 
     @Override
@@ -58,8 +58,8 @@ public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsa
             + shardHeapUsageBytes
             + ", indexHeapUsageBytes="
             + indexHeapUsageBytes
-            + ", postingsHeapUsage="
-            + postingsHeapUsage
+            + ", postingsHeapUsageBytes="
+            + postingsHeapUsageBytes
             + "}";
     }
 }

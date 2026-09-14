@@ -145,9 +145,9 @@ tasks.named('javaRestTest') {
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 
-// GenerativeIT picks its query from a seed rather than from the change under test, so a failure cannot be
-// attributed to the pull request that hit it. This task exists so the suite can run on a schedule instead,
-// with all GenerativeFeature variants unmuted (-Ptests.mutes.enabled=false).
+// These suites pick their queries from a seed rather than from the change under test, so a failure cannot
+// be attributed to the pull request that hit it. This task exists so they can run on a schedule instead,
+// with everything unmuted (-Ptests.mutes.enabled=false).
 // Deliberately not wired into 'check': the scheduled pipeline invokes it by name.
 // See .buildkite/pipelines/periodic-esql-generative.yml.
 tasks.register('generativeTests', StandaloneRestIntegTestTask) {
@@ -156,7 +156,10 @@ tasks.register('generativeTests', StandaloneRestIntegTestTask) {
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs
   classpath = sourceSets.javaRestTest.runtimeClasspath
   filter {
+    // Listed one by one rather than as a glob, so a future generative suite has to opt in deliberately.
     includeTestsMatching 'org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT'
+    includeTestsMatching 'org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT'
+    includeTestsMatching 'org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT'
   }
 }
 

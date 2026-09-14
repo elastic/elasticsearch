@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -317,7 +318,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
     /**
      * {@code mode: escaped} combined with an explicit quote character is rejected at PUT time
      * (the combination turns quoting on, silently disabling C-style decoding). At query time the
-     * reader keeps it as a warning rather than an error (stored datasets that predate the gate keep
+     * reader keeps it as a config notice rather than an error (stored datasets that predate the gate keep
      * reading), so validator and reader diverge intentionally here.
      */
     public void testEscapedModeWithExplicitQuoteRejectedByValidatorNotByReader() {
@@ -333,13 +334,16 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("escaped"));
         assertThat(e.getMessage(), containsString("quote"));
 
-        // Reader accepts the combination at query time (and emits a HeaderWarning).
+        // Reader accepts the combination at query time and records the notice for the resolver to deliver.
         CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, "csv", List.of(".csv"));
-        reader.withConfigTrackingConsumedKeys(Map.of("mode", "escaped", "quote", "\""));
-        assertWarnings(
-            "Mode [escaped] with a quote override turns quoting on, which disables the escaped-mode decode "
-                + "(\\N to null, \\t to tab). To keep decoding, do not set quote; "
-                + "keep it to parse quoted fields instead."
+        FormatReader configured = reader.withConfigTrackingConsumedKeys(Map.of("mode", "escaped", "quote", "\"")).value();
+        assertThat(
+            configured.configWarnings(),
+            contains(
+                "Mode [escaped] with a quote override turns quoting on, which disables the escaped-mode decode "
+                    + "(\\N to null, \\t to tab). To keep decoding, do not set quote; "
+                    + "keep it to parse quoted fields instead."
+            )
         );
     }
 

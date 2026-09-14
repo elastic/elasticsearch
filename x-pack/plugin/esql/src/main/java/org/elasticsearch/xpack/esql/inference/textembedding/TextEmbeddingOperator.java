@@ -12,6 +12,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOutputBuilder;
@@ -23,39 +24,55 @@ import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOutputBuilder;
  */
 public class TextEmbeddingOperator extends InferenceOperator {
 
+    private final int batchSize;
+
     TextEmbeddingOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
         String inferenceId,
         ExpressionEvaluator inputEvaluator,
-        TimeValue timeout
+        int batchSize,
+        TimeValue timeout,
+        Source source,
+        boolean tolerateFailures
     ) {
         super(
             driverContext,
             inferenceService,
-            new TextEmbeddingRequestIterator.Factory(inferenceId, TaskType.TEXT_EMBEDDING, inputEvaluator, timeout),
-            new EmbeddingOutputBuilder(driverContext.blockFactory())
+            new TextEmbeddingRequestIterator.Factory(inferenceId, TaskType.TEXT_EMBEDDING, inputEvaluator, batchSize, timeout),
+            new EmbeddingOutputBuilder(driverContext.blockFactory(), tolerateFailures),
+            source,
+            tolerateFailures
         );
+        this.batchSize = batchSize;
     }
 
     @Override
     public String toString() {
-        return "TextEmbeddingOperator[inference_id=[" + inferenceId() + "]]";
+        return "TextEmbeddingOperator[inference_id=[" + inferenceId() + "], batch_size=[" + batchSize + "]]";
     }
 
     /**
      * Factory for creating {@link TextEmbeddingOperator} instances.
+     *
+     * @param batchSize The maximum number of input texts coalesced into a single embedding inference request.
+     * @param source The source location used for per-row failure warnings (only relevant when {@code tolerateFailures} is true).
+     * @param tolerateFailures When true, a failed inference request warns, nulls that row and continues, instead of failing the query.
+     *                         Set by the DENSE_VECTOR command; the fold-based TEXT_EMBEDDING function leaves it false (fail-fast).
      */
     public record Factory(
         InferenceService inferenceService,
         String inferenceId,
         ExpressionEvaluator.Factory textEvaluatorFactory,
-        TimeValue timeout
+        int batchSize,
+        TimeValue timeout,
+        Source source,
+        boolean tolerateFailures
     ) implements OperatorFactory {
 
         @Override
         public String describe() {
-            return "TextEmbeddingOperator[inference_id=[" + inferenceId + "]]";
+            return "TextEmbeddingOperator[inference_id=[" + inferenceId + "], batch_size=[" + batchSize + "]]";
         }
 
         @Override
@@ -65,7 +82,10 @@ public class TextEmbeddingOperator extends InferenceOperator {
                 inferenceService,
                 inferenceId,
                 textEvaluatorFactory.get(driverContext),
-                timeout
+                batchSize,
+                timeout,
+                source,
+                tolerateFailures
             );
         }
     }

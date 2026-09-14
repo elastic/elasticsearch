@@ -25,6 +25,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.PrimitiveIterator;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,6 +59,21 @@ public class PrefetchedPageReadStoreTests extends ESTestCase {
             assertThat(store.getPageReader(a), sameInstance(readerA));
             assertThat(store.getPageReader(b), sameInstance(readerB));
             assertThat(store.getRowCount(), equalTo(22L));
+            assertTrue(store.getRowIndexes().isEmpty());
+        }
+    }
+
+    public void testExposesFreshSelectedRowIndexIterators() {
+        RowRanges ranges = RowRanges.ofSorted(new long[] { 1, 4 }, new long[] { 3, 5 }, 6);
+        try (PrefetchedPageReadStore store = new PrefetchedPageReadStore(Map.of(), 6, ranges)) {
+            PrimitiveIterator.OfLong first = store.getRowIndexes().orElseThrow();
+            assertEquals(1L, first.nextLong());
+            assertEquals(2L, first.nextLong());
+            assertEquals(4L, first.nextLong());
+            assertFalse(first.hasNext());
+
+            PrimitiveIterator.OfLong second = store.getRowIndexes().orElseThrow();
+            assertEquals(1L, second.nextLong());
         }
     }
 

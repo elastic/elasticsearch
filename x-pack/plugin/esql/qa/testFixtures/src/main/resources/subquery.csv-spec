@@ -900,6 +900,7 @@ required_capability: completion
 required_capability: match_operator_colon
 required_capability: subquery_in_from_command
 required_capability: routing_function_update
+skip_columnar: queries a completion field, which cannot be reconstructed from doc values in columnar mode
 
 FROM sample_data, (FROM books metadata _score
                                    | WHERE title:"war and peace" AND author:"Tolstoy"

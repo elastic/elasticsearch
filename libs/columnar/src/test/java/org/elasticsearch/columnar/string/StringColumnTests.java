@@ -228,6 +228,91 @@ public class StringColumnTests extends ColumnarStringTestCase {
         assertColumn(mixed);
     }
 
+    /** A spread of slot counts per document, which is what puts a value-address table on the column at all. */
+    public void testMultiValuedColumn() throws IOException {
+        assertSlots(randomDocSlots(between(200, 2000), 8, false, false));
+    }
+
+    /** Multi-valued and sparse at once: a document may hold several slots, or none at all. */
+    public void testSparseMultiValuedColumn() throws IOException {
+        assertSlots(randomDocSlots(between(200, 2000), 6, true, false));
+    }
+
+    /** Null slots interleaved with values, including beside the empty string the length bias exists to separate. */
+    public void testNullSlots() throws IOException {
+        assertSlots(randomDocSlots(between(200, 2000), 6, randomBoolean(), true));
+
+        final BytesRef empty = new BytesRef("");
+        final BytesRef[][] beside = new BytesRef[between(50, 400)][];
+        for (int d = 0; d < beside.length; d++) {
+            beside[d] = new BytesRef[] { null, empty, new BytesRef("v" + d), empty, null };
+        }
+        assertSlots(beside);
+    }
+
+    /** A document holding nothing but nulls save one value — the least a document can carry and still be written. */
+    public void testAlmostAllNullDocument() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[between(20, 200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            final BytesRef[] slots = new BytesRef[between(2, 12)];
+            slots[between(0, slots.length - 1)] = new BytesRef("only-" + d);
+            docSlots[d] = slots;
+        }
+        assertSlots(docSlots);
+    }
+
+    /**
+     * A document whose slots straddle a block boundary, and one holding more slots than a whole block, with the
+     * block size pinned so both happen rather than depending on the seed.
+     */
+    public void testDocumentSlotsAcrossBlockBoundaries() throws IOException {
+        final int blockSize = ColumNARDocValuesFormat.MIN_BLOCK_SIZE;
+        for (int slotsInBigDoc : new int[] { blockSize - 1, blockSize, blockSize + 1, 3 * blockSize + 7 }) {
+            final BytesRef[][] docSlots = new BytesRef[between(3, 12)][];
+            for (int d = 0; d < docSlots.length; d++) {
+                docSlots[d] = new BytesRef[] { new BytesRef("small-" + d) };
+            }
+            final BytesRef[] big = new BytesRef[slotsInBigDoc];
+            for (int s = 0; s < big.length; s++) {
+                big[s] = new BytesRef("big-" + s);
+            }
+            docSlots[between(0, docSlots.length - 1)] = big;
+            withColumn(docSlots, blockSize, (metadata, reader) -> assertSlots(docSlots, metadata, reader));
+        }
+    }
+
+    /** Writes {@code docSlots} as a string column, reads it back, and asserts every slot round-trips in order. */
+    private void assertSlots(BytesRef[][] docSlots) throws IOException {
+        withColumn(docSlots, (metadata, reader) -> assertSlots(docSlots, metadata, reader));
+    }
+
+    private static void assertSlots(BytesRef[][] docSlots, StringColumnMetadata metadata, StringColumnReader reader) throws IOException {
+        assertEquals("recorded layout", StringColumnLayout.PLAIN, metadata.layout());
+        assertEquals("numValues", numValues(docSlots), reader.numValues());
+        assertEquals("numNullSlots", numNullSlots(docSlots), metadata.numNullSlots());
+        assertEquals("multi-valued", numValues(docSlots) > numDocsWithField(docSlots), metadata.multiValued());
+
+        int seenDocs = 0;
+        ColumnIterator iterator = reader.iterator();
+        for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+            final int rank = iterator.rank();
+            final BytesRef[] expected = docSlots[doc];
+            assertEquals("slot count at doc " + doc, expected.length, reader.valueCount(rank));
+            final long first = reader.firstValueAddress(rank);
+            for (int slot = 0; slot < expected.length; slot++) {
+                final long address = first + slot;
+                if (expected[slot] == null) {
+                    assertTrue("doc " + doc + " slot " + slot + " is null", reader.isNullSlot(address));
+                } else {
+                    assertFalse("doc " + doc + " slot " + slot + " is a value", reader.isNullSlot(address));
+                    assertEquals("doc " + doc + " slot " + slot, expected[slot], reader.valueAt(address));
+                }
+            }
+            seenDocs++;
+        }
+        assertEquals("documents with a value", numDocsWithField(docSlots), seenDocs);
+    }
+
     /** Writes {@code docValues} as a string column, reads it back, and asserts every value round-trips in order. */
     private void assertColumn(BytesRef[] docValues) throws IOException {
         assertColumn(docValues, randomValidBlockSize());
@@ -240,7 +325,8 @@ public class StringColumnTests extends ColumnarStringTestCase {
     private void assertColumn(BytesRef[] docValues, int blockSize, ChunkCodec chunkCodec, int targetChunkBytes) throws IOException {
         final int numDocsWithField = numDocsWithField(docValues);
         withColumn(docValues, blockSize, chunkCodec, targetChunkBytes, (metadata, reader) -> {
-            assertFalse("string columns are single-valued for now", metadata.multiValued());
+            assertFalse("one value per document", metadata.multiValued());
+            assertFalse("no null slots", metadata.hasNullSlots());
             assertEquals("recorded layout", StringColumnLayout.PLAIN, metadata.layout());
             assertEquals("numValues", numDocsWithField, reader.numValues());
 

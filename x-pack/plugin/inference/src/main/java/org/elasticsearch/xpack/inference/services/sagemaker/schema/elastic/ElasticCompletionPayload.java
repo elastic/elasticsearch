@@ -19,9 +19,10 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.DequeUtils;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedStreamingProcessor;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
@@ -57,7 +58,7 @@ public class ElasticCompletionPayload implements SageMakerStreamSchemaPayload, E
      * }
      */
     @Override
-    public ChatCompletionResults responseBody(SageMakerModel model, InvokeEndpointResponse response) throws Exception {
+    public CompletionResults responseBody(SageMakerModel model, InvokeEndpointResponse response) throws Exception {
         try (var p = jsonXContent.createParser(XContentParserConfiguration.EMPTY, response.body().asInputStream())) {
             return Completion.PARSER.apply(p, null);
         }
@@ -76,7 +77,7 @@ public class ElasticCompletionPayload implements SageMakerStreamSchemaPayload, E
      * }
      */
     @Override
-    public StreamingChatCompletionResults.Results streamResponseBody(SageMakerModel model, SdkBytes response) throws Exception {
+    public StreamingCompletionResults.Results streamResponseBody(SageMakerModel model, SdkBytes response) throws Exception {
         try (var p = jsonXContent.createParser(XContentParserConfiguration.EMPTY, response.asInputStream())) {
             return StreamCompletion.PARSER.apply(p, null);
         }
@@ -95,11 +96,7 @@ public class ElasticCompletionPayload implements SageMakerStreamSchemaPayload, E
         var responseData = response.asUtf8String();
         try {
             var results = OpenAiUnifiedStreamingProcessor.parse(parserConfig, responseData)
-                .collect(
-                    () -> new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(),
-                    ArrayDeque::offer,
-                    ArrayDeque::addAll
-                );
+                .collect(() -> new ArrayDeque<ChatCompletionChunkResponse>(), ArrayDeque::offer, ArrayDeque::addAll);
             return new StreamingUnifiedChatCompletionResults.Results(results);
         } catch (Exception e) {
             throw OpenAiUnifiedChatCompletionResponseHandler.buildMidStreamError(model.getInferenceEntityId(), responseData, e);
@@ -108,39 +105,39 @@ public class ElasticCompletionPayload implements SageMakerStreamSchemaPayload, E
 
     private static class Completion {
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<ChatCompletionResults, Void> PARSER = new ConstructingObjectParser<>(
-            ChatCompletionResults.class.getSimpleName(),
+        private static final ConstructingObjectParser<CompletionResults, Void> PARSER = new ConstructingObjectParser<>(
+            CompletionResults.class.getSimpleName(),
             IGNORE_UNKNOWN_FIELDS,
-            args -> new ChatCompletionResults((List<ChatCompletionResults.Result>) args[0])
+            args -> new CompletionResults((List<CompletionResults.Result>) args[0])
         );
-        private static final ConstructingObjectParser<ChatCompletionResults.Result, Void> RESULT_PARSER = new ConstructingObjectParser<>(
-            ChatCompletionResults.Result.class.getSimpleName(),
+        private static final ConstructingObjectParser<CompletionResults.Result, Void> RESULT_PARSER = new ConstructingObjectParser<>(
+            CompletionResults.Result.class.getSimpleName(),
             IGNORE_UNKNOWN_FIELDS,
-            args -> new ChatCompletionResults.Result((String) args[0])
+            args -> new CompletionResults.Result((String) args[0])
         );
 
         static {
-            RESULT_PARSER.declareString(constructorArg(), new ParseField(ChatCompletionResults.Result.RESULT));
-            PARSER.declareObjectArray(constructorArg(), RESULT_PARSER::apply, new ParseField(ChatCompletionResults.COMPLETION));
+            RESULT_PARSER.declareString(constructorArg(), new ParseField(CompletionResults.Result.RESULT));
+            PARSER.declareObjectArray(constructorArg(), RESULT_PARSER::apply, new ParseField(CompletionResults.COMPLETION));
         }
     }
 
     private static class StreamCompletion {
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<StreamingChatCompletionResults.Results, Void> PARSER = new ConstructingObjectParser<>(
-            StreamingChatCompletionResults.Results.class.getSimpleName(),
+        private static final ConstructingObjectParser<StreamingCompletionResults.Results, Void> PARSER = new ConstructingObjectParser<>(
+            StreamingCompletionResults.Results.class.getSimpleName(),
             IGNORE_UNKNOWN_FIELDS,
-            args -> new StreamingChatCompletionResults.Results((Deque<StreamingChatCompletionResults.Result>) args[0])
+            args -> new StreamingCompletionResults.Results((Deque<StreamingCompletionResults.Result>) args[0])
         );
-        private static final ConstructingObjectParser<StreamingChatCompletionResults.Result, Void> RESULT_PARSER =
+        private static final ConstructingObjectParser<StreamingCompletionResults.Result, Void> RESULT_PARSER =
             new ConstructingObjectParser<>(
-                StreamingChatCompletionResults.Result.class.getSimpleName(),
+                StreamingCompletionResults.Result.class.getSimpleName(),
                 IGNORE_UNKNOWN_FIELDS,
-                args -> new StreamingChatCompletionResults.Result((String) args[0])
+                args -> new StreamingCompletionResults.Result((String) args[0])
             );
 
         static {
-            RESULT_PARSER.declareString(constructorArg(), new ParseField(StreamingChatCompletionResults.Result.RESULT));
+            RESULT_PARSER.declareString(constructorArg(), new ParseField(StreamingCompletionResults.Result.RESULT));
             PARSER.declareField(constructorArg(), (p, c) -> {
                 var currentToken = p.currentToken();
 
@@ -151,7 +148,7 @@ public class ElasticCompletionPayload implements SageMakerStreamSchemaPayload, E
                     return DequeUtils.of(RESULT_PARSER.apply(p, c));
                 }
 
-                var deque = new ArrayDeque<StreamingChatCompletionResults.Result>();
+                var deque = new ArrayDeque<StreamingCompletionResults.Result>();
                 XContentParser.Token token;
                 while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
                     if (token.isValue() || token == XContentParser.Token.VALUE_NULL || token == XContentParser.Token.START_OBJECT) {
@@ -161,7 +158,7 @@ public class ElasticCompletionPayload implements SageMakerStreamSchemaPayload, E
                     }
                 }
                 return deque;
-            }, new ParseField(ChatCompletionResults.COMPLETION), ObjectParser.ValueType.OBJECT_ARRAY);
+            }, new ParseField(CompletionResults.COMPLETION), ObjectParser.ValueType.OBJECT_ARRAY);
         }
     }
 }

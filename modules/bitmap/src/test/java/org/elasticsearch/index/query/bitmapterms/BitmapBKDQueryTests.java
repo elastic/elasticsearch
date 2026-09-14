@@ -28,6 +28,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
@@ -131,7 +132,7 @@ public class BitmapBKDQueryTests extends ESTestCase {
 
         abstract SortField.Type sortType();
 
-        /** Boxed as the type {@link SortField#setMissingValue} demands for this type. */
+        /** Boxed as the type {@link SortField} constructors demand for this type. */
         abstract Object missingValue(long value);
 
         /** Adds the point plus the doc values the index sort and the streaming scan's skip both read. */
@@ -293,22 +294,23 @@ public class BitmapBKDQueryTests extends ESTestCase {
     }
 
     /**
-     * Cross-checks the merge scan against {@link IntPoint#newSetQuery}/{@link LongPoint#newSetQuery} —
-     * the traditional way to express this query — over random data, sweeping term counts from 1 to 100
-     * where an off-by-one in a hand-written merge is most likely to show.
-     * <p>
-     * Compares the matched document ids rather than just how many matched: two queries can agree on a
-     * count while disagreeing on which documents, and that would be a silent correctness bug.
+     * Correctness cross-check against {@link org.apache.lucene.search.PointInSetQuery} over two layouts:
+     * <ol>
+     *   <li>Random values in a wide range, possibly multi-segment — the general case.</li>
+     *   <li>Dense consecutive values in a single segment, queried with a full-range bitmap — the shape
+     *       that makes cells covering more than one distinct value reachable as {@code CELL_INSIDE_QUERY}.</li>
+     * </ol>
      */
     public void testAgreesWithPointSetQuery() throws IOException {
         for (NumberType type : NumberType.values()) {
             long bound = type == NumberType.INT ? Integer.MAX_VALUE : Long.MAX_VALUE;
+            // Layout 1: random values, possibly multi-segment.
             try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
                 int docCount = randomIntBetween(50, 300);
                 long[] indexed = new long[docCount];
                 for (int i = 0; i < docCount; i++) {
                     // Draw some values from a deliberately narrow range so several documents share one
-                    // value, exercising the bulk-add and CELL_INSIDE_QUERY paths.
+                    // value, exercising the bulk-add and single-value CELL_INSIDE_QUERY path.
                     indexed[i] = randomLongBetween(0, randomBoolean() ? 50 : bound);
                     Document doc = new Document();
                     type.addField(doc, indexed[i]);
@@ -324,6 +326,37 @@ public class BitmapBKDQueryTests extends ESTestCase {
                             equalTo(matchingDocs(searcher, type.pointSetQuery(queried), docCount))
                         );
                     }
+                }
+            }
+            // Layout 2: dense consecutive values, single segment so BKD leaves are predictable.
+            // A bitmap covering [0, docCount) spans every leaf, exercising CELL_INSIDE_QUERY for
+            // cells holding more than one distinct value.
+            int docCount = 2000;
+            long[] run = new long[docCount];
+            for (int i = 0; i < docCount; i++) {
+                run[i] = i;
+            }
+            try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+                for (long value : run) {
+                    Document doc = new Document();
+                    type.addField(doc, value);
+                    w.addDocument(doc);
+                }
+                w.forceMerge(1);
+                try (IndexReader reader = w.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    assertThat(
+                        "type=" + type + " full run",
+                        matchingDocs(searcher, query(type, run), docCount),
+                        equalTo(matchingDocs(searcher, type.pointSetQuery(run), docCount))
+                    );
+                    // Also query the first half to cover inner cells, not only the root.
+                    long[] half = Arrays.copyOf(run, docCount / 2);
+                    assertThat(
+                        "type=" + type + " half run",
+                        matchingDocs(searcher, query(type, half), docCount),
+                        equalTo(matchingDocs(searcher, type.pointSetQuery(half), docCount))
+                    );
                 }
             }
         }
@@ -399,10 +432,13 @@ public class BitmapBKDQueryTests extends ESTestCase {
      */
     private static RandomIndexWriter sortedWriter(NumberType type, Directory dir, Long missingValue) throws IOException {
         IndexWriterConfig config = newIndexWriterConfig();
-        SortedNumericSortField sortField = new SortedNumericSortField(FIELD, type.sortType());
-        if (missingValue != null) {
-            sortField.setMissingValue(type.missingValue(missingValue));
-        }
+        SortedNumericSortField sortField = new SortedNumericSortField(
+            FIELD,
+            type.sortType(),
+            false,
+            SortedNumericSelector.Type.MIN,
+            missingValue == null ? null : type.missingValue(missingValue)
+        );
         config.setIndexSort(new Sort(sortField));
         return new RandomIndexWriter(random(), dir, config);
     }

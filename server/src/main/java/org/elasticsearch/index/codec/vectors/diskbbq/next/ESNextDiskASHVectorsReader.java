@@ -15,6 +15,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LongValues;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.FlatCentroidIndex;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
+import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 
 import java.io.IOException;
@@ -257,12 +259,18 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             centroidInput.readFloats(centroidBuf, 0, dimension);
             return centroidBuf;
         };
-        return new AshPostingsVisitor(
+        // Unwrap once so the scorer and visitor share the same IndexInput object.
+        // This mirrors how the BBQ MemorySegmentPostingsVisitor passes a single input
+        // to both the ES940OSQVectorsScorer and the visitor's own correction reads.
+        IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(indexInput);
+        unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+
+        return AshPostingsVisitor.create(
             ashMatrix.wT(),
             dimension,
             target,
             fieldInfo.getVectorSimilarityFunction(),
-            indexInput,
+            unwrappedInput,
             needsScoring,
             entry.ashBitsPerDim(),
             queryBitsPerDim,

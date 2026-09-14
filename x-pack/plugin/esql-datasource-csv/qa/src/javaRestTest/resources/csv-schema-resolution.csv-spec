@@ -5,7 +5,7 @@
 //   multifile_ubn_b.csv — typed header [age:long, name:keyword, city:keyword];
 //                          rows: 50,charlie,paris / 60,dave,london
 //
-// Under FIRST_FILE_WINS, the anchor (lex-smallest = multifile_ubn_a.csv) determines the schema:
+// Under FIRST_FILE_WINS, the anchor (lex-smallest = multifile_ubn_a.csv, file_sort_by=name) determines the schema:
 // [name:keyword, age:integer]. File B has 3 columns vs anchor's 2; with error_mode=skip_row the
 // reader skips File B's rows entirely (and emits one warning per skipped row plus a one-time summary).
 //
@@ -18,7 +18,7 @@ required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row"}
+dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "skip_row"}
 
 FROM employees_multifile_ubn_ffw_skip
 | SORT name ASC;
@@ -35,7 +35,7 @@ required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row"}
+dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "skip_row"}
 
 FROM employees_multifile_ubn_ffw_skip
 | STATS count = COUNT(*);
@@ -51,7 +51,7 @@ required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row"}
+dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "skip_row"}
 
 FROM employees_multifile_ubn_ffw_skip
 | WHERE age IS NOT NULL
@@ -70,7 +70,7 @@ bob          | 40
 //   multifile_type_drift_b.csv — untyped header [id,col,note]; sampler infers col as KEYWORD
 //                                 rows: (4,abc,beta), (5,def,epsilon), (6,ghi,zeta)
 //
-// Under FFW the anchor (multifile_type_drift_a.csv) schema is used: col:INTEGER.
+// Under FFW the anchor (multifile_type_drift_a.csv, file_sort_by=name) schema is used: col:INTEGER.
 // File B's col values ("abc","def","ghi") cannot be parsed as INTEGER; with error_mode=null_field
 // they are null-filled and the row is kept (one warning per null-filled field plus a one-time summary).
 
@@ -79,7 +79,7 @@ required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field"}
+dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "null_field"}
 
 FROM employees_type_drift_ffw_null
 | SORT id ASC;
@@ -100,7 +100,7 @@ required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field"}
+dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "null_field"}
 
 FROM employees_type_drift_ffw_null
 | WHERE col IS NOT NULL
@@ -119,7 +119,7 @@ required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field"}
+dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "null_field"}
 
 FROM employees_type_drift_ffw_null
 | STATS count = COUNT(*), non_null_col = COUNT(col);

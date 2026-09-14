@@ -339,8 +339,8 @@ final class SvdUtil {
         qrOrthogonalize(v, n, k);
 
         for (int iter = 0; iter < iters; iter++) {
-            float[] w = matrixMultiply(a, v, m, n, k);          // W = A @ V (m x k)
-            float[] vNew = matrixMultiplyTA(a, w, m, n, k); // V_new = A^T @ W (n x k)
+            float[] w = ESVectorUtil.matrixMultiply(a, v, m, n, k);          // W = A @ V (m x k)
+            float[] vNew = ESVectorUtil.matrixMultiplyTA(a, w, m, n, k); // V_new = A^T @ W (n x k)
             qrOrthogonalize(vNew, n, k);
             v = vNew;
         }
@@ -359,50 +359,18 @@ final class SvdUtil {
         qrOrthogonalize(u, m, k);
 
         for (int iter = 0; iter < iters; iter++) {
-            float[] w = matrixMultiplyTA(a, u, m, n, k);   // W = A^T @ U (n x k)
-            float[] uNew = matrixMultiply(a, w, m, n, k);  // U_new = A @ W (m x k)
+            float[] w = ESVectorUtil.matrixMultiplyTA(a, u, m, n, k);   // W = A^T @ U (n x k)
+            float[] uNew = ESVectorUtil.matrixMultiply(a, w, m, n, k);  // U_new = A @ W (m x k)
             qrOrthogonalize(uNew, m, k);
             u = uNew;
         }
 
         // Recover right singular vectors: V = A^T U (n x k), normalize each column
-        float[] v = matrixMultiplyTA(a, u, m, n, k);
+        float[] v = ESVectorUtil.matrixMultiplyTA(a, u, m, n, k);
         for (int j = 0; j < k; j++) {
             normalizeColumn(v, j, k, n);
         }
         return transposeMatrix(v, n, k);
-    }
-
-    /**
-     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
-     * Result C is (m x n).
-     */
-    static float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
-        float[] c = new float[m * n];
-        for (int i = 0; i < m; i++) {
-            int aBase = i * k;
-            int cBase = i * n;
-            for (int l = 0; l < k; l++) {
-                ESVectorUtil.linearCombination(a[aBase + l], b, l * n, c, cBase, n);
-            }
-        }
-        return c;
-    }
-
-    /**
-     * Computes {@code C = A^T @ B} where A is (m x k) and B is (m x n), both row-major.
-     * Result C is (k x n).
-     */
-    static float[] matrixMultiplyTA(float[] aT, float[] b, int m, int k, int n) {
-        float[] c = new float[k * n];
-        for (int l = 0; l < m; l++) {
-            int aBase = l * k;
-            int bBase = l * n;
-            for (int i = 0; i < k; i++) {
-                ESVectorUtil.linearCombination(aT[aBase + i], b, bBase, c, i * n, n);
-            }
-        }
-        return c;
     }
 
     /**

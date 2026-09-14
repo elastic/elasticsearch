@@ -398,8 +398,8 @@ setting can bring them back.
 
 | Setting | Default (CSV / TSV) | Description |
 |---|---|---|
-| `quote` | `"` / none | The quote character, or `"none"` to turn quoting off. An explicit value overrides the `mode` preset. Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
-| `escape` | `\` / none | The escape character, or `"none"` to turn escaping off. An explicit value overrides the `mode` preset. Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
+| `quote` | `"` / none | The quote character, or `"none"` to turn quoting off. An explicit value overrides the `mode` preset. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
+| `escape` | `\` / none | The escape character, or `"none"` to turn escaping off. An explicit value overrides the `mode` preset. <br> Must be a single character (or one of `\t`, `\n`, `\r`, `\\`). {applies_to}`stack: experimental 9.6+` |
 | `comment` | `//` | Lines beginning with this prefix are skipped. |
 | `column_prefix` | `col` | Prefix for generated column names when `header_row` is `false`. |
 | `datetime_format` | ISO-8601 | The pattern used to parse date and time values. |

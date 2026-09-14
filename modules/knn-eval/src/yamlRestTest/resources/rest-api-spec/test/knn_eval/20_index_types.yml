@@ -308,7 +308,7 @@ setup:
 
   - match: { baseline.exact: true }
   - match: { baseline_vector_ops_kind: "full_precision_scan" }
-  - match: { baseline_vector_ops.sum: 300 }
+  - match: { baseline_vector_ops.mean: 30.0 }
   - match: { results.0.recall: 1.0 }
 
   - do:

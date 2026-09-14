@@ -9,77 +9,36 @@
 
 package org.elasticsearch.index.knneval;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
-import org.elasticsearch.action.admin.indices.segments.IndexSegments;
-import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
-import org.elasticsearch.action.admin.indices.segments.ShardSegments;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
-import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
-import org.elasticsearch.search.profile.SearchProfileResults;
-import org.elasticsearch.search.profile.SearchProfileShardResult;
-import org.elasticsearch.search.profile.query.QueryProfileShardResult;
-import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
-import org.elasticsearch.search.vectors.KnnSearchBuilder;
-import org.elasticsearch.search.vectors.RescoreVectorBuilder;
-import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.function.Consumer;
 
 /**
  * Estimates ANN recall without brute-force ground truth: each query runs under the baseline knobs and then under each candidate, and
@@ -96,14 +55,9 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
     /** Held for the whole sweep -- every batch of every pass -- and never refreshed. */
     static final TimeValue POINT_IN_TIME_KEEP_ALIVE = TimeValue.timeValueMinutes(5);
 
-    /** For the metadata lookups behind the reported environment, whose result is a nice-to-have. */
-    private static final TimeValue MASTER_TIMEOUT = TimeValue.timeValueSeconds(30);
-
-    /** Any positive value makes an exact query score on the real vectors rather than the quantized ones. */
-    private static final float EXACT_SCORING_OVERSAMPLE = 1.0f;
-
     private final Client client;
     private final ClusterService clusterService;
+    private final KnnEvalEnvironmentResolver environmentResolver;
 
     @Inject
     public TransportKnnEvalAction(
@@ -121,6 +75,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         );
         this.client = client;
         this.clusterService = clusterService;
+        this.environmentResolver = new KnnEvalEnvironmentResolver(client, clusterService);
     }
 
     @Override
@@ -145,25 +100,11 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         );
     }
 
-    /** Everything derived from the field's mapping and the cluster, each part {@code null} when its source was unavailable. */
-    record FieldContext(
-        @Nullable KnnEvalFidelity fidelity,
-        @Nullable KnnEvalRescore rescore,
-        @Nullable KnnEvalEnvironment.FieldSummary field,
-        @Nullable KnnEvalEnvironment environment
-    ) {
-        static final FieldContext EMPTY = new FieldContext(null, null, null, null);
-
-        FieldContext withEnvironment(KnnEvalEnvironment environment) {
-            return new FieldContext(fidelity, rescore, field, environment);
-        }
-    }
-
     /**
      * Reads the field's mapping, which the similarity-based metrics, the resolved candidate windows and the knob compatibility checks
      * all need. It requires {@code view_index_metadata}, so a failed lookup drops those rather than failing the request.
      */
-    private void resolveField(KnnEvalRequest request, ActionListener<FieldContext> listener) {
+    private void resolveField(KnnEvalRequest request, ActionListener<KnnEvalFieldContext> listener) {
         KnnEvalSpec spec = request.getKnnEvalSpec();
         String field = spec.getField();
         GetFieldMappingsRequest mappingsRequest = new GetFieldMappingsRequest().indices(request.indices())
@@ -176,7 +117,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
                 ActionListener.run(listener, l -> l.onResponse(fieldContextOf(response)));
             }
 
-            private FieldContext fieldContextOf(GetFieldMappingsResponse response) {
+            private KnnEvalFieldContext fieldContextOf(GetFieldMappingsResponse response) {
                 Map<String, Object> fieldMapping = null;
                 for (Map<String, FieldMappingMetadata> indexMappings : response.mappings().values()) {
                     FieldMappingMetadata metadata = indexMappings.get(field);
@@ -197,9 +138,9 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
                 }
                 // a mapping that is present but wrong is a caller error, unlike one we could not read
                 KnnEvalFidelity fidelity = spec.isIncludeFidelity()
-                    ? KnnEvalFidelity.fromFieldMapping(field, fieldMapping, rescore, baselineOversample(spec.getBaseline()))
+                    ? KnnEvalFidelity.fromFieldMapping(field, fieldMapping, rescore, KnnEvalSearches.baselineOversample(spec.getBaseline()))
                     : null;
-                return new FieldContext(fidelity, rescore, fieldSummary(fieldMapping), null);
+                return new KnnEvalFieldContext(fidelity, rescore, fieldSummary(fieldMapping), null);
             }
 
             @SuppressWarnings("unchecked") // a field mapping body and its index_options are string-keyed objects
@@ -225,24 +166,27 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
                 if (spec.isIncludeFidelity()) {
                     // asked for by name, and not computable without the mapping
                     listener.onResponse(
-                        new FieldContext(KnnEvalFidelity.unavailable("field mapping unavailable: " + e.getMessage()), null, null, null)
+                        new KnnEvalFieldContext(
+                            KnnEvalFidelity.unavailable("field mapping unavailable: " + e.getMessage()),
+                            null,
+                            null,
+                            null
+                        )
                     );
                     return;
                 }
                 logger.debug(() -> "could not read the mapping of field [" + field + "]; omitting the derived knob fields", e);
-                listener.onResponse(FieldContext.EMPTY);
+                listener.onResponse(KnnEvalFieldContext.EMPTY);
             }
         });
     }
 
-    /** An exact baseline scores on the real vectors, so it lifts the rescoring guard just as an explicit knob does. */
-    @Nullable
-    private static Float baselineOversample(KnnEvalKnobs baseline) {
-        // boxed: a float branch would unbox the null one
-        return baseline.isExact() ? Float.valueOf(EXACT_SCORING_OVERSAMPLE) : baseline.getOversample();
-    }
-
-    private void openPointInTime(Task task, KnnEvalRequest request, FieldContext fieldContext, ActionListener<KnnEvalResponse> listener) {
+    private void openPointInTime(
+        Task task,
+        KnnEvalRequest request,
+        KnnEvalFieldContext fieldContext,
+        ActionListener<KnnEvalResponse> listener
+    ) {
         OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(request.indices()).indicesOptions(request.indicesOptions())
             .keepAlive(POINT_IN_TIME_KEEP_ALIVE);
         client.execute(TransportOpenPointInTimeAction.TYPE, openRequest, listener.delegateFailureAndWrap((delegate, openResponse) -> {
@@ -251,7 +195,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             ActionListener<KnnEvalResponse> closingListener = ActionListener.runAfter(delegate, () -> closePointInTime(pointInTimeId));
             ActionListener.run(
                 closingListener,
-                l -> resolveEnvironment(
+                l -> environmentResolver.resolve(
                     request,
                     fieldContext,
                     l.delegateFailureAndWrap(
@@ -275,122 +219,10 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         });
     }
 
-    /**
-     * Describes what the sweep is about to measure on. Segment layout and index version both need {@code monitor} privileges, so each
-     * is dropped on failure rather than costing the caller their recall numbers.
-     */
-    private void resolveEnvironment(KnnEvalRequest request, FieldContext fieldContext, ActionListener<FieldContext> listener) {
-        boolean allowExpensiveQueries = clusterService.getClusterSettings().get(SearchService.ALLOW_EXPENSIVE_QUERIES);
-        client.execute(
-            IndicesSegmentsAction.INSTANCE,
-            new IndicesSegmentsRequest(request.indices()).indicesOptions(request.indicesOptions()),
-            withoutFailing(
-                logger,
-                "index segments",
-                segments -> resolveIndexVersions(
-                    request,
-                    versions -> listener.onResponse(
-                        fieldContext.withEnvironment(
-                            new KnnEvalEnvironment(indexSummary(segments), fieldContext.field(), versions, allowExpensiveQueries)
-                        )
-                    )
-                )
-            )
-        );
-    }
-
-    private void resolveIndexVersions(KnnEvalRequest request, Consumer<List<String>> onVersions) {
-        GetSettingsRequest settingsRequest = new GetSettingsRequest(MASTER_TIMEOUT).indices(request.indices())
-            .indicesOptions(request.indicesOptions())
-            .names(IndexMetadata.SETTING_VERSION_CREATED);
-        client.execute(GetSettingsAction.INSTANCE, settingsRequest, withoutFailing(logger, "index settings", settings -> {
-            if (settings == null) {
-                onVersions.accept(List.of());
-                return;
-            }
-            Set<String> versions = new TreeSet<>();
-            for (Settings indexSettings : settings.getIndexToSettings().values()) {
-                String version = indexSettings.get(IndexMetadata.SETTING_VERSION_CREATED);
-                if (version != null) {
-                    versions.add(version);
-                }
-            }
-            onVersions.accept(List.copyOf(versions));
-        }));
-    }
-
-    /**
-     * A listener that hands {@code null} to {@code onResponse} instead of failing, for a call whose result is a nice-to-have.
-     */
-    private static <T> ActionListener<T> withoutFailing(Logger logger, String what, Consumer<T> onResponse) {
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(T response) {
-                onResponse.accept(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.debug(() -> "could not read " + what + "; omitting it from the reported environment", e);
-                onResponse.accept(null);
-            }
-        };
-    }
-
-    @Nullable
-    private static KnnEvalEnvironment.IndexSummary indexSummary(@Nullable IndicesSegmentResponse response) {
-        if (response == null) {
-            return null;
-        }
-        List<Long> segmentDocs = new ArrayList<>();
-        long liveDocs = 0;
-        long deletedDocs = 0;
-        long storeSize = 0;
-        int shards = 0;
-        for (IndexSegments indexSegments : response.getIndices().values()) {
-            for (IndexShardSegments shardSegments : indexSegments) {
-                for (ShardSegments shard : shardSegments) {
-                    // primaries only: a replica's segments are the same documents counted twice
-                    if (shard.getShardRouting().primary() == false) {
-                        continue;
-                    }
-                    shards++;
-                    for (Segment segment : shard) {
-                        segmentDocs.add((long) segment.getNumDocs());
-                        liveDocs += segment.getNumDocs();
-                        deletedDocs += segment.getDeletedDocs();
-                        storeSize += segment.getSize() == null ? 0 : segment.getSize().getBytes();
-                    }
-                }
-            }
-        }
-        Collections.sort(segmentDocs);
-        int count = segmentDocs.size();
-        return new KnnEvalEnvironment.IndexSummary(
-            response.getIndices().size(),
-            shards,
-            liveDocs,
-            deletedDocs,
-            count,
-            count == 0 ? 0 : segmentDocs.get(0),
-            median(segmentDocs),
-            count == 0 ? 0 : segmentDocs.get(count - 1),
-            storeSize
-        );
-    }
-
-    private static long median(List<Long> sorted) {
-        if (sorted.isEmpty()) {
-            return 0;
-        }
-        int middle = sorted.size() / 2;
-        return sorted.size() % 2 == 1 ? sorted.get(middle) : (sorted.get(middle - 1) + sorted.get(middle)) / 2;
-    }
-
     private void resolveQueries(
         Task task,
         KnnEvalRequest request,
-        FieldContext fieldContext,
+        KnnEvalFieldContext fieldContext,
         BytesReference pointInTimeId,
         ActionListener<KnnEvalResponse> listener
     ) {
@@ -400,18 +232,21 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             evaluate(task, spec, spec.getQueries(), false, fieldContext, pointInTimeId, listener);
             return;
         }
-        client.search(buildSampleRequest(spec, sample, pointInTimeId), listener.delegateFailureAndWrap((delegate, searchResponse) -> {
-            List<KnnEvalQuery> sampledQueries = extractSampledQueries(searchResponse, spec.getField());
-            if (sampledQueries.isEmpty()) {
-                // a recall of zero would read as a catastrophic candidate rather than an empty index or a wrong field name
-                throw new IllegalArgumentException(
-                    "sampling query vectors from field ["
-                        + spec.getField()
-                        + "] returned no documents; check that the indices contain documents with that dense_vector field"
-                );
-            }
-            evaluate(task, spec, sampledQueries, true, fieldContext, pointInTimeId, delegate);
-        }));
+        client.search(
+            KnnEvalSearches.buildSampleRequest(spec, sample, pointInTimeId),
+            listener.delegateFailureAndWrap((delegate, searchResponse) -> {
+                List<KnnEvalQuery> sampledQueries = KnnEvalSearches.extractSampledQueries(searchResponse, spec.getField());
+                if (sampledQueries.isEmpty()) {
+                    // a recall of zero would read as a catastrophic candidate rather than an empty index or a wrong field name
+                    throw new IllegalArgumentException(
+                        "sampling query vectors from field ["
+                            + spec.getField()
+                            + "] returned no documents; check that the indices contain documents with that dense_vector field"
+                    );
+                }
+                evaluate(task, spec, sampledQueries, true, fieldContext, pointInTimeId, delegate);
+            })
+        );
     }
 
     private void evaluate(
@@ -419,7 +254,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         KnnEvalSpec spec,
         List<KnnEvalQuery> queries,
         boolean excludeQueryDocument,
-        FieldContext fieldContext,
+        KnnEvalFieldContext fieldContext,
         BytesReference pointInTimeId,
         ActionListener<KnnEvalResponse> listener
     ) {
@@ -448,9 +283,9 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         }
         int to = Math.min(from + state.spec.getMaxQueriesPerBatch(), queries.size());
         List<KnnEvalQuery> batch = queries.subList(from, to);
-        MultiSearchRequest msearchRequest = newMultiSearchRequest(state.spec);
+        MultiSearchRequest msearchRequest = KnnEvalSearches.newMultiSearchRequest(state.spec);
         for (KnnEvalQuery query : batch) {
-            msearchRequest.add(buildSearch(state.spec, query, state.spec.getBaseline(), state.searchSize, pointInTimeId));
+            msearchRequest.add(KnnEvalSearches.buildSearch(state.spec, query, state.spec.getBaseline(), state.searchSize, pointInTimeId));
         }
         client.multiSearch(msearchRequest, listener.delegateFailureAndWrap((delegate, msearchResponse) -> {
             state.addBaselineBatch(msearchResponse, batch);
@@ -495,9 +330,9 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         int to = Math.min(from + state.spec.getMaxQueriesPerBatch(), queries.size());
         List<KnnEvalQuery> batch = queries.subList(from, to);
         KnnEvalKnobs candidate = state.spec.getKnnSettings().get(candidateIndex);
-        MultiSearchRequest msearchRequest = newMultiSearchRequest(state.spec);
+        MultiSearchRequest msearchRequest = KnnEvalSearches.newMultiSearchRequest(state.spec);
         for (KnnEvalQuery query : batch) {
-            msearchRequest.add(buildSearch(state.spec, query, candidate, state.searchSize, pointInTimeId));
+            msearchRequest.add(KnnEvalSearches.buildSearch(state.spec, query, candidate, state.searchSize, pointInTimeId));
         }
         client.multiSearch(msearchRequest, listener.delegateFailureAndWrap((delegate, msearchResponse) -> {
             state.addCandidateBatch(candidateIndex, msearchResponse, batch);
@@ -513,517 +348,4 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         return false;
     }
 
-    private static MultiSearchRequest newMultiSearchRequest(KnnEvalSpec spec) {
-        MultiSearchRequest msearchRequest = new MultiSearchRequest();
-        // defaults to 1, so each reported took is one search's shard time rather than contention with its siblings
-        msearchRequest.maxConcurrentSearchRequests(spec.getMaxConcurrentSearches());
-        return msearchRequest;
-    }
-
-    /**
-     * Samples query vectors from the corpus, which keeps the query distribution matched to the indexed one. It runs through the same
-     * point-in-time, so a sampled document is searchable in every pass. {@link KnnEvalSpec#getFilter()} is deliberately not applied:
-     * drawing queries from the filtered subset would make a restrictive filter look harmless.
-     */
-    private static SearchRequest buildSampleRequest(KnnEvalSpec spec, KnnEvalSample sample, BytesReference pointInTimeId) {
-        RandomScoreFunctionBuilder randomScore = new RandomScoreFunctionBuilder();
-        if (sample.getSeed() != null) {
-            // `field` is compulsory once a seed is set, and `_seq_no` is unique per document within a shard
-            randomScore.seed(sample.getSeed()).setField(SeqNoFieldMapper.NAME);
-        }
-        SearchSourceBuilder source = new SearchSourceBuilder().query(
-            QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery(), randomScore)
-        ).size(sample.getSize()).fetchSource(false).fetchField(spec.getField()).pointInTimeBuilder(new PointInTimeBuilder(pointInTimeId));
-        return new SearchRequest().source(source);
-    }
-
-    /** Read eagerly: the response's pooled hits are released as soon as this callback returns. */
-    private static List<KnnEvalQuery> extractSampledQueries(SearchResponse searchResponse, String field) {
-        SearchHit[] hits = searchResponse.getHits().getHits();
-        List<KnnEvalQuery> queries = new ArrayList<>(hits.length);
-        for (SearchHit hit : hits) {
-            float[] vector = extractVector(hit, field);
-            if (vector != null) {
-                queries.add(new KnnEvalQuery(hit.getId(), VectorData.fromFloats(vector)));
-            }
-        }
-        return queries;
-    }
-
-    /** @return {@code null} for a document with no vector, which is simply not usable as a query */
-    @Nullable
-    private static float[] extractVector(SearchHit hit, String field) {
-        DocumentField documentField = hit.field(field);
-        if (documentField == null) {
-            return null;
-        }
-        List<Object> values = documentField.getValues();
-        if (values.isEmpty()) {
-            return null;
-        }
-        float[] vector = new float[values.size()];
-        for (int i = 0; i < vector.length; i++) {
-            if (values.get(i) instanceof Number number) {
-                vector[i] = number.floatValue();
-            } else {
-                throw new IllegalArgumentException(
-                    "field [" + field + "] of document [" + hit.getId() + "] is not a numeric vector; is it a dense_vector field?"
-                );
-            }
-        }
-        return vector;
-    }
-
-    /** No indices or indices options: {@link SearchRequest#validate()} rejects either alongside a point-in-time. */
-    private static SearchRequest buildSearch(
-        KnnEvalSpec spec,
-        KnnEvalQuery query,
-        KnnEvalKnobs knobs,
-        int searchSize,
-        BytesReference pointInTimeId
-    ) {
-        if (knobs.isExact()) {
-            return new SearchRequest().source(
-                // exact_knn is not profiled, so vector ops = matched docs: one full-precision comparison each
-                new SearchSourceBuilder().query(exactQuery(spec, query))
-                    .size(searchSize)
-                    .fetchSource(false)
-                    .trackTotalHitsUpTo(Integer.MAX_VALUE)
-                    .pointInTimeBuilder(new PointInTimeBuilder(pointInTimeId))
-            );
-        }
-        // num_candidates is validated against k, but a sampled query's extra hit pushes the window one past it
-        Integer numCandidates = knobs.getNumCandidates() == null ? null : Math.max(knobs.getNumCandidates(), searchSize);
-        KnnSearchBuilder.Builder knnSearch = new KnnSearchBuilder.Builder().field(spec.getField())
-            .queryVector(query.getQueryVector())
-            .k(searchSize)
-            .numCandidates(numCandidates)
-            .visitPercentage(knobs.getVisitPercentage())
-            // null leaves the field mapping's own rescoring in force
-            .rescoreVectorBuilder(knobs.getOversample() == null ? null : new RescoreVectorBuilder(knobs.getOversample()));
-        if (spec.getFilter() != null) {
-            knnSearch.addFilterQueries(List.of(spec.getFilter()));
-        }
-        // The knn section rather than the equivalent knn query: only the dfs-phase path records vector_operations_count, which is why
-        // profile is on. Builder.build(size) applies the same 1.5 * k num_candidates default the query form would.
-        SearchSourceBuilder source = new SearchSourceBuilder().knnSearch(List.of(knnSearch.build(searchSize)))
-            .size(searchSize)
-            .fetchSource(false)
-            .profile(true)
-            .pointInTimeBuilder(new PointInTimeBuilder(pointInTimeId));
-        return new SearchRequest().source(source);
-    }
-
-    /**
-     * Brute force over every document with a vector. The oversample argument oversamples nothing here -- it only selects scoring
-     * fidelity, so passing it explicitly keeps an exact baseline full precision even where the mapping has rescoring off.
-     * {@link ExactKnnQueryBuilder} carries no filter of its own, hence the bool wrapper.
-     */
-    private static QueryBuilder exactQuery(KnnEvalSpec spec, KnnEvalQuery query) {
-        QueryBuilder exactKnn = new ExactKnnQueryBuilder(query.getQueryVector(), spec.getField(), null, EXACT_SCORING_OVERSAMPLE);
-        if (spec.getFilter() == null) {
-            return exactKnn;
-        }
-        return new BoolQueryBuilder().must(exactKnn).filter(spec.getFilter());
-    }
-
-    /**
-     * A query's reference result, carried from the baseline pass into every candidate pass. {@code keys} is built while the live hits
-     * still expose their index name, since the overlap is keyed on {@code _index}/{@code _id} and not on {@code _id} alone.
-     */
-    record BaselineResult(List<KnnEvalResponse.Hit> hits, Set<String> keys) {}
-
-    /** The live hits do not outlive the msearch callback, so the reference is captured here. */
-    static BaselineResult baselineOf(SearchHit[] baselineHits) {
-        Set<String> keys = Sets.newHashSetWithExpectedSize(baselineHits.length);
-        for (SearchHit hit : baselineHits) {
-            keys.add(key(hit));
-        }
-        return new BaselineResult(toHits(baselineHits), keys);
-    }
-
-    private static String key(SearchHit hit) {
-        return hit.getIndex() + "/" + hit.getId();
-    }
-
-    /**
-     * Scores a candidate run against the stored baseline and annotates each hit with its baseline rank, which is what turns a bare
-     * recall number into something actionable. {@code relevant} is the baseline hit count rather than {@code k}, so a shard that cannot
-     * return {@code k} documents yields 1.0 rather than a misleading fraction.
-     */
-    static KnnEvalResponse.QueryDetail recallOf(
-        String queryId,
-        SearchHit[] candidateHits,
-        BaselineResult baseline,
-        @Nullable KnnEvalFidelity fidelity,
-        int k,
-        double valueTolerance
-    ) {
-        int relevant = baseline.keys().size();
-        int relevantRetrieved = 0;
-        for (SearchHit hit : candidateHits) {
-            if (baseline.keys().contains(key(hit))) {
-                relevantRetrieved++;
-            }
-        }
-        double recall = relevant > 0 ? (double) relevantRetrieved / relevant : 0.0;
-        Map<String, Integer> baselineRanks = Maps.newMapWithExpectedSize(baseline.hits().size());
-        for (int rank = 0; rank < baseline.hits().size(); rank++) {
-            baselineRanks.putIfAbsent(baseline.hits().get(rank).id(), rank);
-        }
-        List<KnnEvalResponse.RankedHit> annotatedHits = new ArrayList<>(candidateHits.length);
-        Set<String> returnedIds = Sets.newHashSetWithExpectedSize(candidateHits.length);
-        for (SearchHit hit : candidateHits) {
-            annotatedHits.add(new KnnEvalResponse.RankedHit(hit.getId(), hit.getScore(), baselineRanks.get(hit.getId())));
-            returnedIds.add(hit.getId());
-        }
-        List<KnnEvalResponse.RankedHit> missed = new ArrayList<>();
-        for (int rank = 0; rank < baseline.hits().size(); rank++) {
-            KnnEvalResponse.Hit baselineHit = baseline.hits().get(rank);
-            if (returnedIds.contains(baselineHit.id()) == false) {
-                missed.add(new KnnEvalResponse.RankedHit(baselineHit.id(), baselineHit.score(), rank));
-            }
-        }
-        assert relevant - relevantRetrieved == missed.size()
-            : "missed [" + missed.size() + "] does not account for " + relevant + " - " + relevantRetrieved;
-
-        // both lists are score-ordered, so rank i is comparable with rank i without matching ids
-        List<Double> epsilonProfile = List.of();
-        boolean incomplete = false;
-        if (fidelity != null && fidelity.isSkipped() == false) {
-            List<Double> profile = new ArrayList<>(k);
-            for (int rank = 0; rank < k; rank++) {
-                if (rank >= baseline.hits().size()) {
-                    // the reference never reached this rank, so there is nothing to have lost
-                    profile.add(null);
-                } else if (rank >= candidateHits.length) {
-                    profile.add(null);
-                    incomplete = true;
-                } else {
-                    Double epsilon = fidelity.epsilonAtRank(baseline.hits().get(rank).score(), candidateHits[rank].getScore());
-                    profile.add(epsilon);
-                    incomplete |= epsilon == null;
-                }
-            }
-            epsilonProfile = profile;
-        }
-        // shares the id recall's denominator, so the gap between the two is meaningful
-        Double recallValue = null;
-        long valueMatches = 0;
-        if (fidelity != null && fidelity.isSkipped() == false && baseline.hits().isEmpty() == false) {
-            float baselineWorstScore = baseline.hits().get(baseline.hits().size() - 1).score();
-            for (SearchHit hit : candidateHits) {
-                if (fidelity.isValueMatch(baselineWorstScore, hit.getScore(), valueTolerance)) {
-                    valueMatches++;
-                }
-            }
-            recallValue = (double) Math.min(valueMatches, baseline.hits().size()) / baseline.hits().size();
-        }
-        return new KnnEvalResponse.QueryDetail(
-            recall,
-            relevantRetrieved,
-            relevant,
-            annotatedHits,
-            missed,
-            epsilonProfile,
-            incomplete,
-            recallValue,
-            valueMatches
-        );
-    }
-
-    private static List<KnnEvalResponse.Hit> toHits(SearchHit[] hits) {
-        List<KnnEvalResponse.Hit> result = new ArrayList<>(hits.length);
-        for (SearchHit hit : hits) {
-            result.add(new KnnEvalResponse.Hit(hit.getId(), hit.getScore()));
-        }
-        return result;
-    }
-
-    /** Both runs are trimmed identically, so the overlap is over comparable windows. */
-    static SearchHit[] topKExcluding(SearchHit[] hits, @Nullable String excludedId, int k) {
-        List<SearchHit> kept = new ArrayList<>(Math.min(hits.length, k));
-        for (SearchHit hit : hits) {
-            if (excludedId != null && excludedId.equals(hit.getId())) {
-                continue;
-            }
-            kept.add(hit);
-            if (kept.size() == k) {
-                break;
-            }
-        }
-        return kept.toArray(new SearchHit[0]);
-    }
-
-    /**
-     * Everything one request accumulates, keyed by query id so that a query dropped by a baseline failure does not shift the rest.
-     * Per-query values are kept across batches and summarised once in {@link #buildResponse()}, since batches differ in size and in how
-     * many of their queries succeeded.
-     */
-    static class KnnEvalState {
-
-        final KnnEvalSpec spec;
-        final boolean excludeQueryDocument;
-        final List<KnnEvalQuery> queries;
-        /** A sampled query's own document is dropped from both lists, so one extra hit is requested to still leave a full top-k. */
-        final int searchSize;
-
-        private final Map<String, Exception> failures = new HashMap<>();
-        private final Map<String, BaselineResult> baselines = new HashMap<>();
-        private final List<List<Double>> candidateRecalls;
-        private final List<List<Double>> candidateValueRecalls;
-        @Nullable
-        private final KnnEvalFidelity fidelity;
-        private final FieldContext fieldContext;
-        private final List<List<Double>> candidateMaxEpsilons;
-        private final long[] candidateInfiniteCounts;
-        private final List<double[]> candidateRankEpsilonSums;
-        private final List<int[]> candidateRankEpsilonCounts;
-        private final List<Map<String, KnnEvalResponse.QueryDetail>> details;
-        private final List<Long> baselineTookMillis = new ArrayList<>();
-        private final List<List<Long>> candidateTookMillis;
-        private final List<Long> baselineVectorOps = new ArrayList<>();
-        private final List<List<Long>> candidateVectorOps;
-
-        private List<KnnEvalQuery> evaluableQueries;
-
-        KnnEvalState(KnnEvalSpec spec, boolean excludeQueryDocument, List<KnnEvalQuery> queries, FieldContext fieldContext) {
-            this.spec = spec;
-            this.fieldContext = fieldContext;
-            this.fidelity = fieldContext.fidelity();
-            this.excludeQueryDocument = excludeQueryDocument;
-            this.queries = queries;
-            this.searchSize = excludeQueryDocument ? spec.getK() + 1 : spec.getK();
-            int numCandidates = spec.getKnnSettings().size();
-            this.candidateRecalls = new ArrayList<>(numCandidates);
-            this.candidateValueRecalls = new ArrayList<>(numCandidates);
-            this.candidateMaxEpsilons = new ArrayList<>(numCandidates);
-            this.candidateInfiniteCounts = new long[numCandidates];
-            this.candidateRankEpsilonSums = new ArrayList<>(numCandidates);
-            this.candidateRankEpsilonCounts = new ArrayList<>(numCandidates);
-            this.details = new ArrayList<>(numCandidates);
-            this.candidateTookMillis = new ArrayList<>(numCandidates);
-            this.candidateVectorOps = new ArrayList<>(numCandidates);
-            for (int c = 0; c < numCandidates; c++) {
-                details.add(new HashMap<>());
-                candidateRecalls.add(new ArrayList<>());
-                candidateValueRecalls.add(new ArrayList<>());
-                candidateMaxEpsilons.add(new ArrayList<>());
-                candidateRankEpsilonSums.add(new double[spec.getK()]);
-                candidateRankEpsilonCounts.add(new int[spec.getK()]);
-                candidateTookMillis.add(new ArrayList<>());
-                candidateVectorOps.add(new ArrayList<>());
-            }
-        }
-
-        /** Copies out everything needed: the response owns its pooled hits and releases them once the caller returns. */
-        void addBaselineBatch(MultiSearchResponse multiSearchResponse, List<KnnEvalQuery> batch) {
-            Item[] items = multiSearchResponse.getResponses();
-            assert items.length == batch.size() : items.length + " != " + batch.size();
-            for (int q = 0; q < batch.size(); q++) {
-                KnnEvalQuery query = batch.get(q);
-                Item item = items[q];
-                if (item.isFailure()) {
-                    failures.put(query.getId(), item.getFailure());
-                    continue;
-                }
-                baselineTookMillis.add(item.getResponse().getTook().millis());
-                baselineVectorOps.add(baselineVectorOperations(item.getResponse()));
-                SearchHit[] baselineHits = topKExcluding(
-                    item.getResponse().getHits().getHits(),
-                    excludeQueryDocument ? query.getId() : null,
-                    spec.getK()
-                );
-                baselines.put(query.getId(), baselineOf(baselineHits));
-            }
-        }
-
-        /** The queries with a reference result, in request order; fixed once the baseline pass has finished. */
-        List<KnnEvalQuery> evaluableQueries() {
-            if (evaluableQueries == null) {
-                List<KnnEvalQuery> surviving = new ArrayList<>(baselines.size());
-                for (KnnEvalQuery query : queries) {
-                    if (baselines.containsKey(query.getId())) {
-                        surviving.add(query);
-                    }
-                }
-                evaluableQueries = surviving;
-            }
-            return evaluableQueries;
-        }
-
-        void addCandidateBatch(int candidateIndex, MultiSearchResponse multiSearchResponse, List<KnnEvalQuery> batch) {
-            Item[] items = multiSearchResponse.getResponses();
-            assert items.length == batch.size() : items.length + " != " + batch.size();
-            for (int q = 0; q < batch.size(); q++) {
-                KnnEvalQuery query = batch.get(q);
-                Item item = items[q];
-                if (item.isFailure()) {
-                    failures.putIfAbsent(query.getId(), item.getFailure());
-                    continue;
-                }
-                candidateTookMillis.get(candidateIndex).add(item.getResponse().getTook().millis());
-                candidateVectorOps.get(candidateIndex).add(vectorOperationsCount(item.getResponse()));
-                SearchHit[] candidateHits = topKExcluding(
-                    item.getResponse().getHits().getHits(),
-                    excludeQueryDocument ? query.getId() : null,
-                    spec.getK()
-                );
-                KnnEvalResponse.QueryDetail detail = recallOf(
-                    query.getId(),
-                    candidateHits,
-                    baselines.get(query.getId()),
-                    fidelity,
-                    spec.getK(),
-                    spec.getValueTolerance()
-                );
-                candidateRecalls.get(candidateIndex).add(detail.recall());
-                if (detail.recallValue() != null) {
-                    candidateValueRecalls.get(candidateIndex).add(detail.recallValue());
-                }
-                addFidelity(candidateIndex, detail);
-                if (spec.isIncludeDetails()) {
-                    details.get(candidateIndex).put(query.getId(), detail);
-                }
-            }
-        }
-
-        /** A query with an unbounded loss is counted separately: clamping would drag the percentiles towards the chosen bound. */
-        private void addFidelity(int candidateIndex, KnnEvalResponse.QueryDetail detail) {
-            if (detail.epsilonProfile().isEmpty()) {
-                return;
-            }
-            if (detail.incomplete()) {
-                candidateInfiniteCounts[candidateIndex]++;
-            }
-            double maxEpsilon = 0.0;
-            double[] sums = candidateRankEpsilonSums.get(candidateIndex);
-            int[] counts = candidateRankEpsilonCounts.get(candidateIndex);
-            for (int rank = 0; rank < detail.epsilonProfile().size(); rank++) {
-                Double epsilon = detail.epsilonProfile().get(rank);
-                if (epsilon == null) {
-                    continue;
-                }
-                sums[rank] += epsilon;
-                counts[rank]++;
-                maxEpsilon = Math.max(maxEpsilon, epsilon);
-            }
-            if (detail.incomplete() == false) {
-                candidateMaxEpsilons.get(candidateIndex).add(maxEpsilon);
-            }
-        }
-
-        @Nullable
-        private KnnEvalResponse.Fidelity fidelityOf(int candidateIndex) {
-            if (fidelity == null) {
-                return null;
-            }
-            if (fidelity.isSkipped()) {
-                return KnnEvalResponse.Fidelity.skipped(fidelity.skippedReason());
-            }
-            double[] sums = candidateRankEpsilonSums.get(candidateIndex);
-            int[] counts = candidateRankEpsilonCounts.get(candidateIndex);
-            List<Double> meanByRank = new ArrayList<>(sums.length);
-            for (int rank = 0; rank < sums.length; rank++) {
-                meanByRank.add(counts[rank] == 0 ? null : sums[rank] / counts[rank]);
-            }
-            return KnnEvalResponse.Fidelity.of(
-                KnnEvalResponse.DoubleStats.of(candidateMaxEpsilons.get(candidateIndex)),
-                candidateInfiniteCounts[candidateIndex],
-                meanByRank
-            );
-        }
-
-        /** An exact run counts the documents it scanned; an approximate one is profiled. */
-        private long baselineVectorOperations(SearchResponse searchResponse) {
-            if (spec.getBaseline().isExact() == false) {
-                return vectorOperationsCount(searchResponse);
-            }
-            TotalHits totalHits = searchResponse.getHits().getTotalHits();
-            // the query document is scanned like any other; the exclusion is post-hoc
-            return totalHits == null ? 0L : totalHits.value();
-        }
-
-        /** Only the dfs-phase knn profile carries this, so a missing count contributes nothing rather than failing. */
-        private static long vectorOperationsCount(SearchResponse searchResponse) {
-            SearchProfileResults profileResults = searchResponse.getSearchProfileResults();
-            if (profileResults == null) {
-                return 0L;
-            }
-            long total = 0L;
-            for (SearchProfileShardResult shardResult : profileResults.getShardResults().values()) {
-                SearchProfileDfsPhaseResult dfsPhaseResult = shardResult.getSearchProfileDfsPhaseResult();
-                if (dfsPhaseResult == null || dfsPhaseResult.getQueryProfileShardResult() == null) {
-                    continue;
-                }
-                for (QueryProfileShardResult queryProfileShardResult : dfsPhaseResult.getQueryProfileShardResult()) {
-                    Long vectorOperations = queryProfileShardResult.getVectorOperationsCount();
-                    if (vectorOperations != null) {
-                        total += vectorOperations;
-                    }
-                }
-            }
-            return total;
-        }
-
-        /** Echoes what the search will actually do, when the mapping was readable and the run is not exact. */
-        private KnnEvalResponse.EffectiveKnobs effectiveKnobs(KnnEvalKnobs knobs) {
-            if (fieldContext.rescore() == null || knobs.isExact()) {
-                return KnnEvalResponse.EffectiveKnobs.of(knobs);
-            }
-            return new KnnEvalResponse.EffectiveKnobs(
-                knobs,
-                fieldContext.rescore().effectiveNumCandidates(searchSize, knobs.getNumCandidates(), knobs.getOversample()),
-                fieldContext.rescore().rescoreWindow(searchSize, knobs.getOversample())
-            );
-        }
-
-        KnnEvalResponse buildResponse() {
-            List<KnnEvalKnobs> candidates = spec.getKnnSettings();
-            List<KnnEvalResponse.KnnSettingsResult> results = new ArrayList<>(candidates.size());
-            for (int c = 0; c < candidates.size(); c++) {
-                // a candidate whose every query failed reports 0.0; the failures map is what says to distrust it
-                KnnEvalResponse.DoubleStats recallStats = KnnEvalResponse.DoubleStats.of(candidateRecalls.get(c));
-                KnnEvalResponse.DoubleStats valueStats = fidelity == null || fidelity.isSkipped()
-                    ? null
-                    : KnnEvalResponse.DoubleStats.of(candidateValueRecalls.get(c));
-                results.add(
-                    new KnnEvalResponse.KnnSettingsResult(
-                        effectiveKnobs(candidates.get(c)),
-                        recallStats.mean(),
-                        recallStats,
-                        spec.isIncludeHistogram() ? KnnEvalResponse.RecallBucket.histogram(candidateRecalls.get(c), spec.getK()) : null,
-                        spec.isIncludeHistogram() && KnnEvalResponse.RecallBucket.isBinned(spec.getK())
-                            ? KnnEvalResponse.RecallBucket.BIN_WIDTH
-                            : null,
-                        valueStats == null ? null : valueStats.mean(),
-                        valueStats,
-                        fidelity != null && fidelity.isSkipped() ? fidelity.skippedReason() : null,
-                        fidelityOf(c),
-                        KnnEvalResponse.LongStats.of(candidateTookMillis.get(c)),
-                        KnnEvalResponse.LongStats.of(candidateVectorOps.get(c)),
-                        details.get(c)
-                    )
-                );
-            }
-            Map<String, KnnEvalResponse.BaselineDetail> baselineDetails = Map.of();
-            if (spec.isIncludeDetails()) {
-                baselineDetails = Maps.newMapWithExpectedSize(baselines.size());
-                for (Map.Entry<String, BaselineResult> baseline : baselines.entrySet()) {
-                    baselineDetails.put(baseline.getKey(), new KnnEvalResponse.BaselineDetail(baseline.getValue().hits()));
-                }
-            }
-            return new KnnEvalResponse(
-                effectiveKnobs(spec.getBaseline()),
-                KnnEvalResponse.LongStats.of(baselineTookMillis),
-                KnnEvalResponse.LongStats.of(baselineVectorOps),
-                spec.getBaseline().isExact() ? KnnEvalResponse.FULL_PRECISION_SCAN : KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE,
-                baselineDetails,
-                fieldContext.environment(),
-                fidelity == null ? null : spec.getValueTolerance(),
-                results,
-                failures
-            );
-        }
-    }
 }

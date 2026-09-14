@@ -9,13 +9,23 @@
 
 package org.elasticsearch.index.knneval;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Inverts {@code _score} back into the similarity the fidelity metric is defined on: {@code epsilon_i = max(0, s(i)/t(i) - 1)} for the
@@ -23,7 +33,7 @@ import java.util.Map;
  * applies a non-linear transform, so a score ratio is not a similarity ratio. The inversions mirror {@code VectorSimilarity#score},
  * which is not visible outside its own package. For {@code l2_norm} the quantity is a distance, so the ratio flips.
  */
-record KnnEvalFidelity(VectorSimilarity similarity, @Nullable String skippedReason) {
+public record KnnEvalFidelity(VectorSimilarity similarity, @Nullable String skippedReason) {
 
     static final String TYPE_FIELD = "type";
     static final String SIMILARITY_FIELD = "similarity";
@@ -144,5 +154,80 @@ record KnnEvalFidelity(VectorSimilarity similarity, @Nullable String skippedReas
             return null;
         }
         return Math.max(0.0, baseline / candidate - 1.0);
+    }
+
+    /**
+     * How much similarity was given up on the documents that were returned. Recall counts documents; this measures the gap, separating
+     * a near-miss from something unrelated. Zero loss at every rank is equivalent to recall 1.0.
+     * <p>
+     * The reference is the {@code baseline}, so zero means "as good as the baseline" and not "optimal", and the metric is skipped --
+     * {@link #skipped} carries the reason -- when the field's scores are quantized estimates.
+     *
+     * @param maxEpsilon        per-query worst loss; {@code p95} is the usual dashboard scalar
+     * @param infiniteCount     queries excluded from {@code maxEpsilon} rather than clamped
+     * @param meanEpsilonByRank {@code null} at a rank no query reached
+     */
+    public record Summary(@Nullable String skipped, @Nullable KnnEvalStats maxEpsilon, long infiniteCount, List<Double> meanEpsilonByRank)
+        implements
+            Writeable,
+            ToXContentObject {
+
+        static final ParseField SKIPPED_FIELD = new ParseField("skipped");
+        static final ParseField MAX_EPSILON_FIELD = new ParseField("max_epsilon");
+        static final ParseField INFINITE_COUNT_FIELD = new ParseField("infinite_count");
+        static final ParseField MEAN_EPSILON_BY_RANK_FIELD = new ParseField("mean_epsilon_by_rank");
+
+        public static Summary skipped(String reason) {
+            return new Summary(Objects.requireNonNull(reason), null, 0, List.of());
+        }
+
+        public static Summary of(KnnEvalStats maxEpsilon, long infiniteCount, List<Double> meanEpsilonByRank) {
+            return new Summary(null, Objects.requireNonNull(maxEpsilon), infiniteCount, meanEpsilonByRank);
+        }
+
+        public Summary(@Nullable String skipped, @Nullable KnnEvalStats maxEpsilon, long infiniteCount, List<Double> meanEpsilonByRank) {
+            this.skipped = skipped;
+            this.maxEpsilon = maxEpsilon;
+            this.infiniteCount = infiniteCount;
+            // nulls are meaningful here, so this cannot be List#copyOf
+            this.meanEpsilonByRank = Collections.unmodifiableList(new ArrayList<>(meanEpsilonByRank));
+        }
+
+        Summary(StreamInput in) throws IOException {
+            this(
+                in.readOptionalString(),
+                in.readOptionalWriteable(KnnEvalStats::new),
+                in.readVLong(),
+                in.readCollectionAsList(StreamInput::readOptionalDouble)
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(skipped);
+            out.writeOptionalWriteable(maxEpsilon);
+            out.writeVLong(infiniteCount);
+            out.writeCollection(meanEpsilonByRank, StreamOutput::writeOptionalDouble);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (skipped != null) {
+                builder.field(SKIPPED_FIELD.getPreferredName(), skipped);
+                builder.endObject();
+                return builder;
+            }
+            builder.field(MAX_EPSILON_FIELD.getPreferredName());
+            maxEpsilon.toXContent(builder, params);
+            builder.field(INFINITE_COUNT_FIELD.getPreferredName(), infiniteCount);
+            builder.startArray(MEAN_EPSILON_BY_RANK_FIELD.getPreferredName());
+            for (Double epsilon : meanEpsilonByRank) {
+                builder.value(epsilon);
+            }
+            builder.endArray();
+            builder.endObject();
+            return builder;
+        }
     }
 }

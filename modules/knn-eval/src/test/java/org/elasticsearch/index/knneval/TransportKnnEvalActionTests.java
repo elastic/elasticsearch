@@ -102,16 +102,16 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         SearchHit[] baselineHits = searchHits("a", "b", "c", "d", "e");
         SearchHit[] candidateHits = searchHits("a", "b", "c", "x", "y");
         try {
-            KnnEvalResponse.QueryDetail detail = recall(candidateHits, baselineHits);
+            KnnEvalDetails.QueryDetail detail = recall(candidateHits, baselineHits);
             assertEquals(0.6, detail.recall(), 0.0);
             assertEquals(3L, detail.relevantRetrieved());
             assertEquals(5L, detail.relevant());
             assertEquals(List.of("a", "b", "c", "x", "y"), ids(detail.hits()));
             // the ids the baseline returned carry its rank; the invented ones carry none
-            assertEquals(Arrays.asList(0, 1, 2, null, null), detail.hits().stream().map(KnnEvalResponse.RankedHit::baselineRank).toList());
+            assertEquals(Arrays.asList(0, 1, 2, null, null), detail.hits().stream().map(KnnEvalDetails.RankedHit::baselineRank).toList());
             assertEquals(List.of("d", "e"), ids(detail.missed()));
             // a missed hit carries the baseline's own score and rank, so it needs no join against baseline_details
-            assertEquals(Arrays.asList(3, 4), detail.missed().stream().map(KnnEvalResponse.RankedHit::baselineRank).toList());
+            assertEquals(Arrays.asList(3, 4), detail.missed().stream().map(KnnEvalDetails.RankedHit::baselineRank).toList());
             assertEquals(baselineHits[3].getScore(), detail.missed().get(0).score(), 0.0f);
             assertEquals(baselineHits[4].getScore(), detail.missed().get(1).score(), 0.0f);
             assertDetailInvariants(detail);
@@ -126,7 +126,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         SearchHit[] baselineHits = searchHits("a", "b", "c");
         SearchHit[] candidateHits = searchHits("a", "b", "c");
         try {
-            KnnEvalResponse.QueryDetail detail = recall(candidateHits, baselineHits);
+            KnnEvalDetails.QueryDetail detail = recall(candidateHits, baselineHits);
             assertEquals(1.0, detail.recall(), 0.0);
             assertEquals(List.of(), detail.missed());
             assertDetailInvariants(detail);
@@ -140,10 +140,10 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         SearchHit[] baselineHits = searchHits("a", "b", "c");
         SearchHit[] candidateHits = searchHits("c", "b", "a");
         try {
-            KnnEvalResponse.QueryDetail detail = recall(candidateHits, baselineHits);
+            KnnEvalDetails.QueryDetail detail = recall(candidateHits, baselineHits);
             assertEquals(1.0, detail.recall(), 0.0);
             // a reordered window is a perfect recall, but the ranks record the disagreement
-            assertEquals(Arrays.asList(2, 1, 0), detail.hits().stream().map(KnnEvalResponse.RankedHit::baselineRank).toList());
+            assertEquals(Arrays.asList(2, 1, 0), detail.hits().stream().map(KnnEvalDetails.RankedHit::baselineRank).toList());
             assertDetailInvariants(detail);
         } finally {
             releaseScratchHits(baselineHits);
@@ -155,12 +155,12 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         SearchHit[] baselineHits = searchHits("a", "b");
         SearchHit[] candidateHits = searchHits("x", "y");
         try {
-            KnnEvalResponse.QueryDetail detail = recall(candidateHits, baselineHits);
+            KnnEvalDetails.QueryDetail detail = recall(candidateHits, baselineHits);
             assertEquals(0.0, detail.recall(), 0.0);
             assertEquals(0L, detail.relevantRetrieved());
             assertEquals(2L, detail.relevant());
             assertEquals(List.of("a", "b"), ids(detail.missed()));
-            assertEquals(Arrays.asList(0, 1), detail.missed().stream().map(KnnEvalResponse.RankedHit::baselineRank).toList());
+            assertEquals(Arrays.asList(0, 1), detail.missed().stream().map(KnnEvalDetails.RankedHit::baselineRank).toList());
             assertDetailInvariants(detail);
         } finally {
             releaseScratchHits(baselineHits);
@@ -173,7 +173,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         SearchHit[] baselineHits = searchHits("a", "b");
         SearchHit[] candidateHits = searchHits("a", "b");
         try {
-            KnnEvalResponse.QueryDetail detail = recall(candidateHits, baselineHits);
+            KnnEvalDetails.QueryDetail detail = recall(candidateHits, baselineHits);
             assertEquals(1.0, detail.recall(), 0.0);
             assertEquals(2L, detail.relevant());
         } finally {
@@ -186,7 +186,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         SearchHit[] baselineHits = searchHits("a", "b", "c");
         SearchHit[] candidateHits = searchHits("a", "b", "c");
         try {
-            KnnEvalResponse.QueryDetail detail = recall(candidateHits, baselineHits);
+            KnnEvalDetails.QueryDetail detail = recall(candidateHits, baselineHits);
             assertFalse(detail.incomplete());
             // the two ranks past the reference depth were never reachable
             assertEquals(Arrays.asList(0.0, 0.0, 0.0, null, null), detail.epsilonProfile());
@@ -202,7 +202,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         // searchHits scores by list length, so give the shared document the baseline's score
         candidateHits[0].score(baselineHits[0].getScore());
         try {
-            KnnEvalResponse.QueryDetail detail = recall(candidateHits, baselineHits);
+            KnnEvalDetails.QueryDetail detail = recall(candidateHits, baselineHits);
             // nothing at ranks 1 and 2, so the loss there is unbounded rather than zero
             assertTrue(detail.incomplete());
             assertEquals(Arrays.asList(0.0, null, null, null, null), detail.epsilonProfile());
@@ -216,7 +216,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         SearchHit[] baselineHits = searchHits("a", "b", "c");
         SearchHit[] candidateHits = searchHits("a", "b", "c");
         try {
-            KnnEvalResponse.QueryDetail detail = recallWithoutFidelity(candidateHits, baselineHits);
+            KnnEvalDetails.QueryDetail detail = recallWithoutFidelity(candidateHits, baselineHits);
             assertEquals(List.of(), detail.epsilonProfile());
             assertFalse(detail.incomplete());
             // the same guard covers value recall
@@ -231,13 +231,13 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         SearchHit[] hits = searchHits("q", "a", "b", "c", "d", "e");
         try {
             // dropping the sampled document from the k + 1 requested hits still leaves a full window of k
-            assertEquals(List.of("a", "b", "c", "d", "e"), hitIds(TransportKnnEvalAction.topKExcluding(hits, "q", 5)));
+            assertEquals(List.of("a", "b", "c", "d", "e"), hitIds(KnnEvalRecall.topKExcluding(hits, "q", 5)));
             // ... and with nothing excluded the extra hit is truncated
-            assertEquals(List.of("q", "a", "b", "c", "d"), hitIds(TransportKnnEvalAction.topKExcluding(hits, null, 5)));
+            assertEquals(List.of("q", "a", "b", "c", "d"), hitIds(KnnEvalRecall.topKExcluding(hits, null, 5)));
             // exclusion can also happen part way down the list
-            assertEquals(List.of("q", "a", "b", "d", "e"), hitIds(TransportKnnEvalAction.topKExcluding(hits, "c", 5)));
+            assertEquals(List.of("q", "a", "b", "d", "e"), hitIds(KnnEvalRecall.topKExcluding(hits, "c", 5)));
             // a shorter list than k comes back unchanged
-            assertEquals(List.of("q", "a", "b", "c", "d", "e"), hitIds(TransportKnnEvalAction.topKExcluding(hits, null, 10)));
+            assertEquals(List.of("q", "a", "b", "c", "d", "e"), hitIds(KnnEvalRecall.topKExcluding(hits, null, 10)));
         } finally {
             releaseScratchHits(hits);
         }
@@ -368,7 +368,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertFalse(client.baselineProfiled);
         KnnEvalResponse response = future.actionGet();
         assertEquals(KnnEvalResponse.FULL_PRECISION_SCAN, response.getBaselineVectorOpsKind());
-        assertEquals(TOTAL_HITS, response.getBaselineVectorOps().sum());
+        assertEquals(TOTAL_HITS, response.getBaselineVectorOps().max(), 0.0);
         // the knob sets are unaffected: they are what is being measured
         assertNull(client.candidateQuery);
         assertFalse(client.candidateKnnSearchEmpty);
@@ -704,11 +704,11 @@ public class TransportKnnEvalActionTests extends ESTestCase {
     }
 
     /** The scratch hits' scores are not meant to satisfy the cosine transform exactly. */
-    private static KnnEvalResponse.QueryDetail recall(SearchHit[] candidateHits, SearchHit[] baselineHits) {
-        return TransportKnnEvalAction.recallOf(
+    private static KnnEvalDetails.QueryDetail recall(SearchHit[] candidateHits, SearchHit[] baselineHits) {
+        return KnnEvalRecall.recallOf(
             "q1",
             candidateHits,
-            TransportKnnEvalAction.baselineOf(baselineHits),
+            KnnEvalRecall.baselineOf(baselineHits),
             new KnnEvalFidelity(VectorSimilarity.COSINE, null),
             5,
             0.0
@@ -716,11 +716,11 @@ public class TransportKnnEvalActionTests extends ESTestCase {
     }
 
     /** Fidelity is not computed when the field's scores are quantized estimates. */
-    private static KnnEvalResponse.QueryDetail recallWithoutFidelity(SearchHit[] candidateHits, SearchHit[] baselineHits) {
-        return TransportKnnEvalAction.recallOf(
+    private static KnnEvalDetails.QueryDetail recallWithoutFidelity(SearchHit[] candidateHits, SearchHit[] baselineHits) {
+        return KnnEvalRecall.recallOf(
             "q1",
             candidateHits,
-            TransportKnnEvalAction.baselineOf(baselineHits),
+            KnnEvalRecall.baselineOf(baselineHits),
             new KnnEvalFidelity(VectorSimilarity.COSINE, KnnEvalFidelity.RESCORING_DISABLED),
             5,
             0.0
@@ -728,7 +728,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
     }
 
     /** With no tolerance an id match is also a value match, so value recall is never the lower of the two. */
-    private static void assertValueRecallIsNotWorse(KnnEvalResponse.QueryDetail detail) {
+    private static void assertValueRecallIsNotWorse(KnnEvalDetails.QueryDetail detail) {
         assertNotNull(detail.recallValue());
         assertTrue(
             "value recall [" + detail.recallValue() + "] is below id recall [" + detail.recall() + "]",
@@ -737,7 +737,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
     }
 
     /** The counts and the lists have to agree, or two readers draw different conclusions from one response. */
-    private static void assertDetailInvariants(KnnEvalResponse.QueryDetail detail) {
+    private static void assertDetailInvariants(KnnEvalDetails.QueryDetail detail) {
         long ranked = detail.hits().stream().filter(hit -> hit.baselineRank() != null).count();
         assertEquals("hits with a baseline rank are exactly the retrieved relevant ones", detail.relevantRetrieved(), ranked);
         assertEquals(
@@ -758,8 +758,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         return hits;
     }
 
-    private static List<String> ids(List<KnnEvalResponse.RankedHit> hits) {
-        return hits.stream().map(KnnEvalResponse.RankedHit::id).toList();
+    private static List<String> ids(List<KnnEvalDetails.RankedHit> hits) {
+        return hits.stream().map(KnnEvalDetails.RankedHit::id).toList();
     }
 
     private static List<String> hitIds(SearchHit[] hits) {

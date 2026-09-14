@@ -176,16 +176,16 @@ teardown:
   - match: { results.0.took_ms.count: 10 }
   - gte: { baseline_took_ms.mean: 0.0 }
   - gte: { results.0.took_ms.mean: 0.0 }
-  - gte: { results.0.took_ms.p50: 0 }
-  - gte: { results.0.took_ms.p95: 0 }
-  - gte: { results.0.took_ms.max: 0 }
-  - set: { baseline_vector_ops.sum: baseline_vector_ops_sum }
+  - gte: { results.0.took_ms.p50: 0.0 }
+  - gte: { results.0.took_ms.p95: 0.0 }
+  - gte: { results.0.took_ms.max: 0.0 }
+  - set: { baseline_vector_ops.mean: baseline_vector_ops_mean }
   - match: { baseline_vector_ops.count: 10 }
   - match: { results.0.vector_ops.count: 10 }
-  - gt: { results.0.vector_ops.sum: 0 }
-  - gt: { baseline_vector_ops.sum: 0 }
+  - gt: { results.0.vector_ops.mean: 0.0 }
+  - gt: { baseline_vector_ops.mean: 0.0 }
   # the knob set re-runs the baseline, so it must do exactly the same work
-  - match: { results.0.vector_ops.sum: $baseline_vector_ops_sum }
+  - match: { results.0.vector_ops.mean: $baseline_vector_ops_mean }
 
 ---
 "Sweep a low visit_percentage against the baseline":
@@ -221,7 +221,7 @@ teardown:
   - match: { baseline_vector_ops.count: 30 }
   - match: { results.0.vector_ops.count: 30 }
   - match: { results.1.vector_ops.count: 30 }
-  - gt: { results.0.vector_ops.sum: 0 }
+  - gt: { results.0.vector_ops.mean: 0.0 }
   - gte: { results.0.recall: 0.0 }
   - lte: { results.0.recall: 1.0 }
   - length: { results.0.details: 30 }
@@ -449,10 +449,10 @@ teardown:
   # other; the exclusion is post-hoc.
   - match: { baseline_vector_ops_kind: "full_precision_scan" }
   - match: { baseline_vector_ops.count: 10 }
-  - match: { baseline_vector_ops.max: 30 }
-  - match: { baseline_vector_ops.sum: 300 }
+  - match: { baseline_vector_ops.max: 30.0 }
+  - match: { baseline_vector_ops.mean: 30.0 }
   # a knob set is an ordinary knn search, whose mostly 1-bit operations the codec counts
-  - gt: { results.0.vector_ops.sum: 0 }
+  - gt: { results.0.vector_ops.mean: 0.0 }
 
 ---
 "exact is rejected on a candidate":

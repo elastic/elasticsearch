@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.xcontent;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.simdjson.SimdJsonParserPool;
@@ -33,6 +34,7 @@ import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -78,17 +80,16 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * <p><strong>Running.</strong> Defaults cover two document shapes; {@code otel_nested} and other
  * parameters are available via {@code -p}.
  * <pre>{@code
- * cd benchmarks
  * # Single-threaded (default):
- * ../gradlew run --args "org.elasticsearch.benchmark.xcontent.SimdJsonParserBenchmark \
+ * ./gradlew :libs:simdjson:benchmark --args "SimdJsonParserBenchmark \
  *   -rf json -rff build/jmh-result.json" | tee /tmp/bench/simdjson_vs_jackson
  *
  * # Multi-threaded (8 threads):
- * ../gradlew run --args "org.elasticsearch.benchmark.xcontent.SimdJsonParserBenchmark \
+ * ./gradlew :libs:simdjson:benchmark --args "SimdJsonParserBenchmark \
  *   -t 8 -rf json -rff build/jmh-result.json" | tee /tmp/bench/simdjson_vs_jackson_mt
  *
  * # All shapes, single bulk size:
- * ../gradlew run --args "org.elasticsearch.benchmark.xcontent.SimdJsonParserBenchmark \
+ * ./gradlew :libs:simdjson:benchmark --args "SimdJsonParserBenchmark \
  *   -p shape=clickbench_flat,otel_nested,small_sparse -p docCount=1000"
  * }</pre>
  */
@@ -143,14 +144,22 @@ public class SimdJsonParserBenchmark {
             totalLen += raw.length;
         }
 
+        printSetupSummary(minLen, totalLen / docCount, maxLen);
+    }
+
+    @SuppressForbidden(
+        reason = "setup summary for the benchmark run; nativeStage1 tells the reader whether simdjson was actually exercised"
+    )
+    private void printSetupSummary(int minLen, long avgLen, int maxLen) {
         System.out.printf(
+            Locale.ROOT,
             "[setup] thread=%s shape=%s docCount=%d shardCount=%d docSize min=%d avg=%d max=%d nativeStage1=%s maxSimdDocBytes=%d%n",
             Thread.currentThread().getName(),
             shape,
             docCount,
             shardCount,
             minLen,
-            totalLen / docCount,
+            avgLen,
             maxLen,
             SimdJsonSupport.isSupported(),
             SimdJsonParserPool.getDefault().maxDocumentBytes()
@@ -207,54 +216,56 @@ public class SimdJsonParserBenchmark {
     }
 
     private static String generateClickBenchFlat(Random random) {
-        return """
-            {
-              "WatchID": %d, "JavaEnable": %d, "Title": "%s",
-              "GoodEvent": %d, "EventTime": %d, "EventDate": %d,
-              "CounterID": %d, "ClientIP": %d, "ClientIP6": "%s",
-              "RegionID": %d, "UserID": %d,
-              "CounterClass": %d, "OS": %d, "UserAgent": %d,
-              "URL": "https://example.com/%s", "Referer": "https://ref.example.com/%s",
-              "URLDomain": "example.com", "RefererDomain": "ref.example.com",
-              "Refresh": %d, "IsRobot": %d, "RefererCategories": %d,
-              "URLCategories": %d, "URLRegions": %d, "RefererRegions": %d,
-              "ResolutionWidth": %d, "ResolutionHeight": %d, "ResolutionDepth": %d,
-              "FlashMajor": %d, "FlashMinor": %d, "FlashMinor2": "%d",
-              "NetMajor": %d, "NetMinor": %d, "UserAgentMajor": %d,
-              "UserAgentMinor": %d, "CookieEnable": %d, "JavascriptEnable": %d,
-              "IsMobile": %d, "MobilePhone": %d, "MobilePhoneModel": "%s",
-              "Params": "", "IPNetworkID": %d,
-              "TraficSourceID": %d, "SearchEngineID": %d,
-              "SearchPhrase": "%s",
-              "AdvEngineID": %d, "IsArtifical": %d, "WindowClientWidth": %d,
-              "WindowClientHeight": %d, "ClientTimeZone": %d,
-              "ClientEventTime": %d, "SilverlightVersion1": %d, "SilverlightVersion2": %d,
-              "SilverlightVersion3": %d, "SilverlightVersion4": %d,
-              "PageCharset": "UTF-8", "CodeVersion": %d, "IsLink": %d,
-              "IsDownload": %d, "IsNotBounce": %d, "FUniqID": %d,
-              "HID": %d, "IsOldCounter": %d, "IsEvent": %d,
-              "IsParameter": %d, "DontCountHits": %d, "WithHash": %d,
-              "HitColor": "W", "UTCEventTime": %d,
-              "Age": %d, "Sex": %d, "Income": %d,
-              "Interests": %d, "Robotness": %d, "GeneralInterests": %d,
-              "RemoteIP": %d, "RemoteIP6": "%s",
-              "WindowName": %d, "OpenerName": %d, "HistoryLength": %d,
-              "BrowserLanguage": "en", "BrowserCountry": "US",
-              "SocialNetwork": "", "SocialAction": "", "HTTPError": %d,
-              "SendTiming": %d, "DNSTiming": %d, "ConnectTiming": %d,
-              "ResponseStartTiming": %d, "ResponseEndTiming": %d,
-              "FetchTiming": %d, "RedirectTiming": %d, "DOMInteractiveTiming": %d,
-              "ContentLoadTiming": %d, "OnLoadTiming": %d,
-              "RequestNum": %d, "RequestTry": %d,
-              "NetErrorCode": %d, "SocialShareNetwork": "", "SocialSharePage": "",
-              "ParamPrice": %d, "ParamOrderID": "", "ParamCurrency": "USD",
-              "ParamCurrencyID": %d,
-              "GoalsReached": %d, "OpenstatServiceName": "", "OpenstatCampaignID": "",
-              "OpenstatAdID": "", "OpenstatSourceID": "",
-              "UTMSource": "", "UTMMedium": "", "UTMCampaign": "", "UTMContent": "", "UTMTerm": "",
-              "FromTag": "", "HasGCLID": %d, "RefererHash": %d, "URLHash": %d,
-              "CLID": %d, "YCLID": %d, "ShareService": "", "ShareURL": "", "ShareTitle": ""
-            }""".formatted(
+        return String.format(
+            Locale.ROOT,
+            """
+                {
+                  "WatchID": %d, "JavaEnable": %d, "Title": "%s",
+                  "GoodEvent": %d, "EventTime": %d, "EventDate": %d,
+                  "CounterID": %d, "ClientIP": %d, "ClientIP6": "%s",
+                  "RegionID": %d, "UserID": %d,
+                  "CounterClass": %d, "OS": %d, "UserAgent": %d,
+                  "URL": "https://example.com/%s", "Referer": "https://ref.example.com/%s",
+                  "URLDomain": "example.com", "RefererDomain": "ref.example.com",
+                  "Refresh": %d, "IsRobot": %d, "RefererCategories": %d,
+                  "URLCategories": %d, "URLRegions": %d, "RefererRegions": %d,
+                  "ResolutionWidth": %d, "ResolutionHeight": %d, "ResolutionDepth": %d,
+                  "FlashMajor": %d, "FlashMinor": %d, "FlashMinor2": "%d",
+                  "NetMajor": %d, "NetMinor": %d, "UserAgentMajor": %d,
+                  "UserAgentMinor": %d, "CookieEnable": %d, "JavascriptEnable": %d,
+                  "IsMobile": %d, "MobilePhone": %d, "MobilePhoneModel": "%s",
+                  "Params": "", "IPNetworkID": %d,
+                  "TraficSourceID": %d, "SearchEngineID": %d,
+                  "SearchPhrase": "%s",
+                  "AdvEngineID": %d, "IsArtifical": %d, "WindowClientWidth": %d,
+                  "WindowClientHeight": %d, "ClientTimeZone": %d,
+                  "ClientEventTime": %d, "SilverlightVersion1": %d, "SilverlightVersion2": %d,
+                  "SilverlightVersion3": %d, "SilverlightVersion4": %d,
+                  "PageCharset": "UTF-8", "CodeVersion": %d, "IsLink": %d,
+                  "IsDownload": %d, "IsNotBounce": %d, "FUniqID": %d,
+                  "HID": %d, "IsOldCounter": %d, "IsEvent": %d,
+                  "IsParameter": %d, "DontCountHits": %d, "WithHash": %d,
+                  "HitColor": "W", "UTCEventTime": %d,
+                  "Age": %d, "Sex": %d, "Income": %d,
+                  "Interests": %d, "Robotness": %d, "GeneralInterests": %d,
+                  "RemoteIP": %d, "RemoteIP6": "%s",
+                  "WindowName": %d, "OpenerName": %d, "HistoryLength": %d,
+                  "BrowserLanguage": "en", "BrowserCountry": "US",
+                  "SocialNetwork": "", "SocialAction": "", "HTTPError": %d,
+                  "SendTiming": %d, "DNSTiming": %d, "ConnectTiming": %d,
+                  "ResponseStartTiming": %d, "ResponseEndTiming": %d,
+                  "FetchTiming": %d, "RedirectTiming": %d, "DOMInteractiveTiming": %d,
+                  "ContentLoadTiming": %d, "OnLoadTiming": %d,
+                  "RequestNum": %d, "RequestTry": %d,
+                  "NetErrorCode": %d, "SocialShareNetwork": "", "SocialSharePage": "",
+                  "ParamPrice": %d, "ParamOrderID": "", "ParamCurrency": "USD",
+                  "ParamCurrencyID": %d,
+                  "GoalsReached": %d, "OpenstatServiceName": "", "OpenstatCampaignID": "",
+                  "OpenstatAdID": "", "OpenstatSourceID": "",
+                  "UTMSource": "", "UTMMedium": "", "UTMCampaign": "", "UTMContent": "", "UTMTerm": "",
+                  "FromTag": "", "HasGCLID": %d, "RefererHash": %d, "URLHash": %d,
+                  "CLID": %d, "YCLID": %d, "ShareService": "", "ShareURL": "", "ShareTitle": ""
+                }""",
             random.nextLong(),
             random.nextInt(2),
             randomWord(random),
@@ -355,34 +366,36 @@ public class SimdJsonParserBenchmark {
     }
 
     private static String generateOtelNested(Random random) {
-        return """
-            {
-              "@timestamp": "2025-09-23T%02d:%02d:%02dZ",
-              "resource": {
-                "service.name": "%s",
-                "service.version": "1.%d.0",
-                "host.name": "host-%d",
-                "deployment.environment": "%s"
-              },
-              "scope": {
-                "name": "%s-logger",
-                "version": "2.%d.0"
-              },
-              "severity_text": "%s",
-              "severity_number": %d,
-              "body": "%s",
-              "trace_id": "%s",
-              "span_id": "%s",
-              "trace_flags": %d,
-              "attributes": {
-                "http.method": "%s",
-                "http.status_code": %d,
-                "http.url": "https://api.example.com/%s",
-                "user.id": %d,
-                "db.system": "postgresql",
-                "db.statement": "SELECT * FROM %s WHERE id = %d"
-              }
-            }""".formatted(
+        return String.format(
+            Locale.ROOT,
+            """
+                {
+                  "@timestamp": "2025-09-23T%02d:%02d:%02dZ",
+                  "resource": {
+                    "service.name": "%s",
+                    "service.version": "1.%d.0",
+                    "host.name": "host-%d",
+                    "deployment.environment": "%s"
+                  },
+                  "scope": {
+                    "name": "%s-logger",
+                    "version": "2.%d.0"
+                  },
+                  "severity_text": "%s",
+                  "severity_number": %d,
+                  "body": "%s",
+                  "trace_id": "%s",
+                  "span_id": "%s",
+                  "trace_flags": %d,
+                  "attributes": {
+                    "http.method": "%s",
+                    "http.status_code": %d,
+                    "http.url": "https://api.example.com/%s",
+                    "user.id": %d,
+                    "db.system": "postgresql",
+                    "db.statement": "SELECT * FROM %s WHERE id = %d"
+                  }
+                }""",
             random.nextInt(24),
             random.nextInt(60),
             random.nextInt(60),
@@ -409,8 +422,10 @@ public class SimdJsonParserBenchmark {
 
     private static String generateSmallSparse(Random random, int docIndex) {
         return switch (docIndex % 3) {
-            case 0 -> """
-                {"type":"A","id":%d,"ts":%d,"val":%.4f,"label":"%s","active":%b,"count":%d}""".formatted(
+            case 0 -> String.format(
+                Locale.ROOT,
+                """
+                    {"type":"A","id":%d,"ts":%d,"val":%.4f,"label":"%s","active":%b,"count":%d}""",
                 random.nextLong(),
                 random.nextLong(),
                 random.nextDouble(),
@@ -418,16 +433,20 @@ public class SimdJsonParserBenchmark {
                 random.nextBoolean(),
                 random.nextInt(10000)
             );
-            case 1 -> """
-                {"type":"B","uid":"%s","score":%.3f,"tags":%d,"region":"%s","retries":%d}""".formatted(
+            case 1 -> String.format(
+                Locale.ROOT,
+                """
+                    {"type":"B","uid":"%s","score":%.3f,"tags":%d,"region":"%s","retries":%d}""",
                 randomWord(random),
                 random.nextDouble() * 100,
                 random.nextInt(50),
                 randomWord(random),
                 random.nextInt(5)
             );
-            default -> """
-                {"type":"C","key":%d,"name":"%s","bytes":%d,"ok":%b,"lat":%.2f,"code":%d}""".formatted(
+            default -> String.format(
+                Locale.ROOT,
+                """
+                    {"type":"C","key":%d,"name":"%s","bytes":%d,"ok":%b,"lat":%.2f,"code":%d}""",
                 random.nextLong(),
                 randomWord(random),
                 random.nextLong(),

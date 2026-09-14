@@ -51,6 +51,9 @@ final class OrcPushdownFilters {
      * remaining expressions stay in FilterExec via RECHECK semantics).
      */
     static boolean canConvert(Expression expr) {
+        if (PushdownPredicates.allPushdownLiteralsAgree(expr) == false) {
+            return false;
+        }
         if (expr instanceof EsqlBinaryComparison bc) {
             return PushdownPredicates.isComparison(bc, TYPE_SUPPORTED);
         }

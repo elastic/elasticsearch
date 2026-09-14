@@ -51,6 +51,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfColumnTransforms;
 import org.elasticsearch.escf.LuceneBinaryColumn;
@@ -895,10 +896,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
             Automaton a = Automata.makeString(key + FlattenedFieldParser.SEPARATOR);
             if (caseInsensitive) {
-                a = Operations.concatenate(a, AutomatonQueries.caseInsensitivePrefix(prefix));
+                a = Operations.concatenate(List.of(a, AutomatonQueries.caseInsensitivePrefix(prefix)));
             } else {
-                a = Operations.concatenate(a, Automata.makeString(prefix));
-                a = Operations.concatenate(a, Automata.makeAnyString());
+                a = Operations.concatenate(List.of(a, Automata.makeString(prefix), Automata.makeAnyString()));
             }
             assert a.isDeterministic();
 
@@ -1939,75 +1939,78 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             cursorDocs[k] = cursor.nextDoc();
         }
 
-        final EscfColumnBuilder keyed = mergeStringColumn();
-        final EscfColumnBuilder counts = mergeLongColumn();
         final BytesRef nullValueBytes = builder.nullValue.get() != null ? new BytesRef(builder.nullValue.get()) : null;
 
-        final BytesRefBuilder docBlob = new BytesRefBuilder();
-        int seedEstimate = 0;
-        for (int k = 0; k < columnCount; k++) {
-            if (cursorDocs[k] != DocIdSetIterator.NO_MORE_DOCS) {
-                final BytesRef first = cursors.get(k).value();
-                seedEstimate += MultiValuedBinaryDocValuesField.VINT_MAX_BYTES + keyPrefixes[k].length + (first == null ? 0 : first.length);
-            }
-        }
-        // ~1.25x headroom for documents a little wider than the first.
-        docBlob.grow(seedEstimate + (seedEstimate >> 2));
-
-        for (int doc = 0; doc < docCount; doc++) {
-            int slotCount = 0;
-            int pos = 0;
-            // Column-minor within a document: all of key[0]'s values, then key[1]'s, ... See the slot-order note above.
+        try (EscfColumnBuilder keyed = mergeStringColumn(); EscfColumnBuilder counts = mergeLongColumn()) {
+            final BytesRefBuilder docBlob = new BytesRefBuilder();
+            int seedEstimate = 0;
             for (int k = 0; k < columnCount; k++) {
-                final BytesRef keyPrefix = keyPrefixes[k];
-                final ObjectTupleCursor<BytesRef> cursor = cursors.get(k);
-                while (cursorDocs[k] == doc) {
-                    BytesRef value = cursor.value();
-                    if (value == null && nullValueBytes != null) {
-                        // null_value substitution, mirroring FlattenedFieldParser#addNull.
-                        value = nullValueBytes;
-                    }
-                    if (value != null) {
-                        if (fieldType().ignoreAbove().isIgnored(value)) {
-                            throw new UnsupportedOperationException(
-                                "mapColumnGroupBatch: value for key ["
-                                    + relativeKeys[k]
-                                    + "] of flattened field ["
-                                    + fullPath()
-                                    + "] in doc ["
-                                    + doc
-                                    + "] exceeds ignore_above; the ignored-values channel is not yet supported"
-                            );
-                        }
-                        if (keyPrefix.length + value.length > IndexWriter.MAX_TERM_LENGTH) {
-                            throw immenseKeyedValueException(relativeKeys[k], value.length);
-                        }
-                    }
+                if (cursorDocs[k] != DocIdSetIterator.NO_MORE_DOCS) {
+                    final BytesRef first = cursors.get(k).value();
+                    seedEstimate += MultiValuedBinaryDocValuesField.VINT_MAX_BYTES + keyPrefixes[k].length + (first == null
+                        ? 0
+                        : first.length);
+                }
+            }
+            // ~1.25x headroom for documents a little wider than the first.
+            docBlob.grow(seedEstimate + (seedEstimate >> 2));
 
-                    pos = MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.appendSlot(docBlob, pos, keyPrefix, value);
-                    slotCount++;
+            for (int doc = 0; doc < docCount; doc++) {
+                int slotCount = 0;
+                int pos = 0;
+                // Column-minor within a document: all of key[0]'s values, then key[1]'s, ... See the slot-order note above.
+                for (int k = 0; k < columnCount; k++) {
+                    final BytesRef keyPrefix = keyPrefixes[k];
+                    final ObjectTupleCursor<BytesRef> cursor = cursors.get(k);
+                    while (cursorDocs[k] == doc) {
+                        BytesRef value = cursor.value();
+                        if (value == null && nullValueBytes != null) {
+                            // null_value substitution, mirroring FlattenedFieldParser#addNull.
+                            value = nullValueBytes;
+                        }
+                        if (value != null) {
+                            if (fieldType().ignoreAbove().isIgnored(value)) {
+                                throw new UnsupportedOperationException(
+                                    "mapColumnGroupBatch: value for key ["
+                                        + relativeKeys[k]
+                                        + "] of flattened field ["
+                                        + fullPath()
+                                        + "] in doc ["
+                                        + doc
+                                        + "] exceeds ignore_above; the ignored-values channel is not yet supported"
+                                );
+                            }
+                            if (keyPrefix.length + value.length > IndexWriter.MAX_TERM_LENGTH) {
+                                throw immenseKeyedValueException(relativeKeys[k], value.length);
+                            }
+                        }
 
-                    // The value's bytes are already in docBlob, so advancing past it is safe.
-                    cursorDocs[k] = cursor.nextDoc();
+                        pos = MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.appendSlot(docBlob, pos, keyPrefix, value);
+                        slotCount++;
+
+                        // The value's bytes are already in docBlob, so advancing past it is safe.
+                        cursorDocs[k] = cursor.nextDoc();
+                    }
+                }
+
+                if (slotCount > 0) {
+                    // Unlike the non-keyed ArrayOrderInlineNull, an all-null document still writes a blob: its null slots carry keys.
+                    keyed.setString(doc, docBlob.bytes(), 0, pos);
+                    counts.setLong(doc, slotCount);
                 }
             }
 
-            if (slotCount > 0) {
-                // Unlike the non-keyed ArrayOrderInlineNull, an all-null document still writes a blob: its null slots carry keys.
-                keyed.setString(doc, docBlob.bytes(), 0, pos);
-                counts.setLong(doc, slotCount);
+            if (keyed.isEmpty()) {
+                return;
             }
-        }
 
-        if (keyed.isEmpty()) {
-            counts.discard();
-            keyed.discard();
-            return;
+            final String keyedFieldName = fieldType().name() + KEYED_FIELD_SUFFIX;
+            // Both builders own recycler-backed buffers; register their output for release with the batch.
+            final EscfColumnData keyedData = keyed.finish(docCount);
+            ctx.addColumn(LuceneBinaryColumn.of(keyedData, keyedFieldName, CustomDocValuesField.TYPE), keyedData);
+            final EscfColumnData countsData = counts.finish(docCount);
+            ctx.addColumn(LuceneLongColumn.counts(countsData, keyedFieldName), countsData);
         }
-
-        final String keyedFieldName = fieldType().name() + KEYED_FIELD_SUFFIX;
-        ctx.addColumn(LuceneBinaryColumn.of(keyed.finish(docCount), keyedFieldName, CustomDocValuesField.TYPE));
-        ctx.addColumn(LuceneLongColumn.counts(counts.finish(docCount), keyedFieldName));
     }
 
     // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.

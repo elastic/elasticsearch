@@ -273,7 +273,8 @@ The following settings apply to all file-based data sources:
 | Setting | Default | Description |
 |---|---|---|
 | `format` | Auto-detect from extension | Override format detection. Valid values: `"parquet"`, `"csv"`, `"tsv"`, `"ndjson"`. |
-| `partition_detection` | `auto` | Partition detection mode. Valid values: `"auto"`, `"hive"`, `"none"`. |
+| `partition_detection` | `auto` | Partition detection mode. Valid values: `"auto"`, `"hive"`, `"template"`, `"none"`. `auto` (default) tries Hive `key=value` directory names first; if a `partition_path` is also set, falls back to the template for paths that do not use `key=value`. `hive` reads `key=value` directory names only and rejects `partition_path`. `template` uses `partition_path` to name partition columns and is rejected without it. `none` disables partition detection entirely. Refer to [brace groups and partition placeholders](esql-data-federation-patterns.md#brace-groups-and-partition-placeholders). |
+| `partition_path` | (none) | Template naming partition columns for paths that do not use `key=value` directories. Use `{column}` placeholders to label each partition path segment: for example, `{year}/{month}` extracts `year` and `month` columns from a two-level path. Setting `partition_path` without an explicit `partition_detection` leaves detection on `auto`, which tries Hive first and falls back to the template — a valid and common configuration. `partition_path` is rejected with `partition_detection: hive` or `none`. Refer to [brace groups and partition placeholders](esql-data-federation-patterns.md#brace-groups-and-partition-placeholders). |
 | `schema_resolution` | `union_by_name` | How schemas are reconciled across multiple files. Valid values: `"first_file_wins"`, `"strict"`, `"union_by_name"`. Refer to [schema merge strategies](#schema-merge-strategies). |
 | `error_mode` | `fail_fast` | How malformed rows are handled. Valid values: `"fail_fast"`, `"skip_row"`, `"null_field"`. For Parquet, `skip_row` fills affected columns with null instead of skipping the entire row. For CSV, TSV, and NDJSON, `null_field` fills only individual value failures with null. Rows whose structure cannot be parsed (for example, an unparsable JSON line or a malformed CSV row) are still dropped. |
 | `max_errors` | unbounded | Maximum malformed rows allowed before the query fails. Ignored when `error_mode` is `fail_fast`. |
@@ -284,6 +285,8 @@ The following settings apply to all file-based data sources:
 | `file_exclusions` {applies_to}`stack: experimental 9.6+` | `["**/_*", "**/.*", "**/_temporary/**", "**/_delta_log/**"]` | Patterns naming objects to drop from wildcard discovery, written in the same [pattern language](esql-data-federation-patterns.md) as `resource` and matched against the object's path relative to the listing prefix. The default skips file names beginning with `_` or `.` and the contents of `_temporary` and `_delta_log` directories. Refer to [excluding non-data objects](#excluding-non-data-objects). |
 | `file_sort_by` {applies_to}`stack: experimental 9.6+` | `list` (when `first_file_wins`) | What to order files by before taking the first-file-wins schema. Valid values: `"list"`, `"name"`, `"mtime"`. Only valid with `"schema_resolution": "first_file_wins"`. Refer to [first-file-wins file order](#first-file-wins-file-order). |
 | `file_order` {applies_to}`stack: experimental 9.6+` | `asc` (when `first_file_wins`) | Sort direction for `file_sort_by`. Valid values: `"asc"`, `"desc"`. Always applied; `"list"` + `"desc"` reverses declaration or listing order. Only valid with `"schema_resolution": "first_file_wins"`. |
+
+% hive_partitioning intentionally omitted — being deprecated to a warn-only no-op in https://github.com/elastic/esql-planning/issues/1881
 
 :::{note}
 `max_split_probes` and `split_probe_window` are independent. The first defines how many record-boundary searches a query runs. The second defines how many bytes each one reads. Their product is the bytes a query can read while searching, which cannot exceed 4 GB. With the default values, it is 1000 searches of `256kb`, or around 250 MB. Size the window from the dataset's longest record and the count from the number of splits the scan needs. Lower one of them if the pair is rejected. The budget covers searches at fixed offsets: a sequentially scanned file (quoted or escaped CSV and TSV) is bounded by `external_max_record_size` rather than by either key.
@@ -384,10 +387,9 @@ setting can bring them back.
 
 **Advanced:**
 
-% schema_sample_size (default 20000) hidden until https://github.com/elastic/elasticsearch/issues/155636 is resolved
-
 | Setting | Default (CSV / TSV) | Description |
 |---|---|---|
+| `schema_sample_size` {applies_to}`stack: experimental 9.6+` | `20000` | Rows sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
 | `quote` | `"` / none | The quote character, or `"none"` to turn quoting off. An explicit value overrides the `mode` preset. |
 | `escape` | `\` / none | The escape character, or `"none"` to turn escaping off. An explicit value overrides the `mode` preset. |
 | `comment` | `//` | Lines beginning with this prefix are skipped. |
@@ -399,11 +401,13 @@ setting can bring them back.
 
 ### NDJSON settings
 
-% **Commonly changed:** table hidden — schema_sample_size was the only row.
-% Restore when https://github.com/elastic/elasticsearch/issues/155636 is resolved:
-% | Setting | Default | Description |
-% |---|---|---|
-% | `schema_sample_size` | `20000` | Lines sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
+**Commonly changed:**
+
+| Setting | Default | Description |
+|---|---|---|
+| `schema_sample_size` {applies_to}`stack: experimental 9.6+` | `20000` | Lines sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
+
+**Advanced:**
 
 | Setting | Default | Description |
 |---|---|---|

@@ -9,6 +9,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.esql-csv-spec-tests'
+apply plugin: 'elasticsearch.esql-datasource-bwc'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -107,7 +108,7 @@ csvToOrcFixtures.each { baseName ->
 
 // Multifile-split fixtures: 3-way split of employees.csv into multifile_split/employees_{00,01,02}.orc.
 // Used by the shared external-multifile.csv-spec and external-multifile-resolution.csv-spec, which the
-// OrcFormatSpecIT picks up via the readExternalSpecTests("/external-*.csv-spec") glob.
+// OrcFormatSpecIT picks up via the readExternalSpecTests("/datasources/external-*.csv-spec") glob.
 def multifileSplitDir = file("${orcFixtureOutputDir}/multifile_split")
 def multifileSplitCsv = project(xpackModule('esql:qa:testFixtures')).file("src/main/resources/data/employees.csv")
 tasks.register('generateMultifileSplitOrc_employees', JavaExec) {
@@ -195,3 +196,11 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
 }
 
 tasks.named('check').configure { dependsOn csvSpecTests }
+
+esqlDataSourceBwc {
+  minimumVersion '9.5.0'
+  classFilter 'org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT'
+  coordinators 'old', 'current'
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+}

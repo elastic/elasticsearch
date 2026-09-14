@@ -13,23 +13,26 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-public final class DirectExchange {
+/**
+ * An exchange whose sinks and sources run on the same node and share a single buffer.
+ */
+public final class LocalExchange {
     private final ExchangeBuffer buffer;
     private final AtomicInteger pendingSinks = new AtomicInteger(0);
     private final AtomicInteger pendingSources = new AtomicInteger(0);
 
-    public DirectExchange(int bufferSize) {
+    public LocalExchange(int bufferSize) {
         this.buffer = new ExchangeBuffer(bufferSize);
     }
 
     public ExchangeSource exchangeSource() {
-        return new DirectExchangeSource();
+        return new LocalExchangeSource();
     }
 
-    final class DirectExchangeSource implements ExchangeSource {
+    final class LocalExchangeSource implements ExchangeSource {
         private boolean finished = false;
 
-        DirectExchangeSource() {
+        LocalExchangeSource() {
             pendingSources.incrementAndGet();
         }
 
@@ -40,9 +43,11 @@ public final class DirectExchange {
 
         @Override
         public void finish() {
-            finished = true;
-            if (pendingSources.decrementAndGet() == 0) {
-                buffer.finish(true);
+            if (finished == false) {
+                finished = true;
+                if (pendingSources.decrementAndGet() == 0) {
+                    buffer.finish(true);
+                }
             }
         }
 
@@ -62,27 +67,32 @@ public final class DirectExchange {
         }
     }
 
-    public ExchangeSink exchangeSink() {
-        return new DirectExchangeSink();
+    public ExchangeSink exchangeSink(Runnable onPageAdded) {
+        return new LocalExchangeSink(onPageAdded);
     }
 
-    final class DirectExchangeSink implements ExchangeSink {
+    final class LocalExchangeSink implements ExchangeSink {
+        private final Runnable onPageAdded;
         private boolean finished = false;
 
-        DirectExchangeSink() {
+        LocalExchangeSink(Runnable onPageAdded) {
+            this.onPageAdded = onPageAdded;
             pendingSinks.incrementAndGet();
         }
 
         @Override
         public void addPage(Page page) {
+            onPageAdded.run();
             buffer.addPage(page);
         }
 
         @Override
         public void finish() {
-            finished = true;
-            if (pendingSinks.decrementAndGet() == 0) {
-                buffer.finish(false);
+            if (finished == false) {
+                finished = true;
+                if (pendingSinks.decrementAndGet() == 0) {
+                    buffer.finish(false);
+                }
             }
         }
 
@@ -100,5 +110,27 @@ public final class DirectExchange {
         public IsBlockedResult waitForWriting() {
             return buffer.waitForWriting();
         }
+    }
+
+    /**
+     * Stops accepting pages, optionally discarding queued pages.
+     * @param drainingPages whether to discard queued pages
+     */
+    public void finish(boolean drainingPages) {
+        buffer.finish(drainingPages);
+    }
+
+    /**
+     * Adds a listener that is notified when the exchange finishes.
+     */
+    public void addCompletionListener(ActionListener<Void> listener) {
+        buffer.addCompletionListener(listener);
+    }
+
+    /**
+     * Returns whether the exchange is finished.
+     */
+    public boolean isFinished() {
+        return buffer.isFinished();
     }
 }

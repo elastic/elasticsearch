@@ -72,12 +72,20 @@ def supportedVersion = bwcVersion -> {
   return bwcVersion.onOrAfter(Version.fromString("8.13.0")) && bwcVersion != currentVersion
 }
 
+def dataSourcesBwcVersion = Version.fromString("9.5.0")
+def federatedDataBwcTestPattern = "org.elasticsearch.xpack.esql.ccq.FederatedDataBwcIT"
+
 buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
   def newToOld = tasks.register("${baseName}#newToOld", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.version.remote_cluster", bwcVersion)
     systemProperty("tests.version.local_cluster", currentVersion)
     maxParallelForks = 1
+    if (bwcVersion.before(dataSourcesBwcVersion)) {
+      filter {
+        excludeTestsMatching federatedDataBwcTestPattern
+      }
+    }
   }
 
   def oldToNew = tasks.register("${baseName}#oldToNew", StandaloneRestIntegTestTask) {
@@ -85,6 +93,11 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     systemProperty("tests.version.local_cluster", bwcVersion)
     systemProperty("tests.version.remote_cluster", currentVersion)
     maxParallelForks = 1
+    if (bwcVersion.before(dataSourcesBwcVersion)) {
+      filter {
+        excludeTestsMatching federatedDataBwcTestPattern
+      }
+    }
   }
 
   def csvSpecTestsNewToOld = tasks.register("v${bwcVersion}#csvSpecTests#newToOld", StandaloneRestIntegTestTask) {

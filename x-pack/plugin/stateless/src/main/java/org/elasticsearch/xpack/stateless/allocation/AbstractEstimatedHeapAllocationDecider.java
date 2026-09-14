@@ -139,14 +139,6 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
      */
     protected abstract long getCurrentUsageBytes(NodeHeapMetrics metrics);
 
-    /**
-     * Returns the bytes that allocating this shard would add to total heap on {@code node}.
-     * Index-overhead bytes are included only when the node does not yet host the index (to avoid double-counting).
-     */
-    private long getProjectedAdditionalBytes(ShardRouting shard, RoutingNode node, ShardAndIndexHeapUsage usage) {
-        return (node.hasIndex(shard.index()) ? 0L : usage.indexHeapUsageBytes()) + usage.shardHeapUsageBytes();
-    }
-
     // --- Template methods ---
 
     @Override
@@ -340,5 +332,13 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
         }
 
         return null;
+    }
+
+    /**
+     * Returns the bytes that allocating this shard would add to total heap on {@code node}.
+     * Index-overhead bytes are included only when the node does not yet host the index (to avoid double-counting).
+     */
+    private long getProjectedAdditionalBytes(ShardRouting shard, RoutingNode node, ShardAndIndexHeapUsage usage) {
+        return (node.hasIndex(shard.index()) ? 0L : usage.indexHeapUsageBytes()) + usage.shardHeapUsageBytes();
     }
 }

@@ -22,15 +22,14 @@
 
 package org.elasticsearch.gradle.internal.ospackage;
 
-import org.elasticsearch.gradle.internal.ospackage.deb.Deb;
-import org.elasticsearch.gradle.internal.ospackage.rpm.Rpm;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.BasePlugin;
 
 /**
  * Provides the {@code ospackage} extension holding project-wide packaging defaults and applies
- * those defaults to every {@link Rpm} and {@link Deb} task of the project.
+ * those defaults to every {@link org.elasticsearch.gradle.internal.ospackage.rpm.Rpm} and
+ * {@link org.elasticsearch.gradle.internal.ospackage.deb.Deb} task of the project.
  * <p>
  * This plugin and its supporting classes are a trimmed-down, configuration-cache compatible Java
  * extraction of the parts of the nebula gradle-ospackage-plugin that the Elasticsearch
@@ -44,9 +43,11 @@ public abstract class OsPackageBasePlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(BasePlugin.class);
-        project.getExtensions().create(EXTENSION_NAME, ProjectPackagingExtension.class, project.copySpec());
+        ProjectPackagingExtension extension = project.getExtensions()
+            .create(EXTENSION_NAME, ProjectPackagingExtension.class, project.copySpec());
 
-        project.getTasks().withType(Rpm.class).configureEach(task -> task.applyConventions(project));
-        project.getTasks().withType(Deb.class).configureEach(task -> task.applyConventions(project));
+        project.getTasks()
+            .withType(SystemPackagingTask.class)
+            .configureEach(task -> task.initDefaults(extension, project.getVersion().toString()));
     }
 }

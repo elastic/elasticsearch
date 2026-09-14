@@ -29,8 +29,8 @@ import org.elasticsearch.gradle.internal.ospackage.PackagingUtils;
 import org.elasticsearch.gradle.internal.ospackage.SpecAttributes;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
-import org.gradle.api.internal.file.copy.CopySpecInternal;
-import org.gradle.api.internal.file.copy.FileCopyDetailsInternal;
+import org.gradle.api.file.CopySpec;
+import org.gradle.api.file.FileCopyDetails;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.vafer.jdeb.Compression;
@@ -127,50 +127,50 @@ class DebCopyAction extends AbstractPackagingCopyAction<Deb> {
     }
 
     @Override
-    protected void visitFile(FileCopyDetailsInternal fileDetails, CopySpecInternal spec) {
+    protected void visitFile(FileCopyDetails fileDetails, CopySpec spec) {
         logger.debug("adding file {}", fileDetails.getRelativePath().getPathString());
 
         File inputFile = extractFile(fileDetails);
 
-        String user = lookupOrDefault(spec, SpecAttributes.USER, task.getUser());
-        String group = lookupOrDefault(spec, SpecAttributes.PERMISSION_GROUP, task.getPermissionGroup());
-        int uid = task.getExten().getUid().getOrElse(0);
-        int gid = task.getExten().getGid().getOrElse(0);
+        String user = lookupOrDefault(spec, SpecAttributes.USER, taskUser());
+        String group = lookupOrDefault(spec, SpecAttributes.PERMISSION_GROUP, taskGroup());
 
         Integer explicitMode = PackagingUtils.getFileMode(spec);
         int fileMode = explicitMode != null ? explicitMode : PackagingUtils.getUnixPermission(fileDetails);
 
-        debFileVisitorStrategy.addFile(fileDetails, inputFile, user, uid, group, gid, fileMode);
+        debFileVisitorStrategy.addFile(fileDetails, inputFile, user, 0, group, 0, fileMode);
     }
 
     @Override
-    protected void visitDir(FileCopyDetailsInternal dirDetails, CopySpecInternal spec) {
-        boolean createDirectoryEntry = lookupOrDefault(
-            spec,
-            SpecAttributes.CREATE_DIRECTORY_ENTRY,
-            task.getExten().getCreateDirectoryEntry().get()
-        );
+    protected void visitDir(FileCopyDetails dirDetails, CopySpec spec) {
+        boolean createDirectoryEntry = lookupOrDefault(spec, SpecAttributes.CREATE_DIRECTORY_ENTRY, false);
         if (createDirectoryEntry == false) {
             return;
         }
         logger.debug("adding directory {}", dirDetails.getRelativePath().getPathString());
 
-        String user = lookupOrDefault(spec, SpecAttributes.USER, task.getUser());
-        String group = lookupOrDefault(spec, SpecAttributes.PERMISSION_GROUP, task.getPermissionGroup());
-        int uid = task.getExten().getUid().getOrElse(0);
-        int gid = task.getExten().getGid().getOrElse(0);
+        String user = lookupOrDefault(spec, SpecAttributes.USER, taskUser());
+        String group = lookupOrDefault(spec, SpecAttributes.PERMISSION_GROUP, taskGroup());
 
         Integer explicitDirMode = PackagingUtils.getDirMode(spec);
         int dirMode = explicitDirMode != null ? explicitDirMode : PackagingUtils.getUnixPermission(dirDetails);
-        boolean setgid = lookupOrDefault(spec, SpecAttributes.SETGID, task.getExten().getSetgid().get());
+        boolean setgid = lookupOrDefault(spec, SpecAttributes.SETGID, false);
         if (setgid) {
             dirMode = dirMode | SETGID_BIT;
         }
-        debFileVisitorStrategy.addDirectory(dirDetails, user, uid, group, gid, dirMode);
+        debFileVisitorStrategy.addDirectory(dirDetails, user, 0, group, 0, dirMode);
+    }
+
+    private String taskUser() {
+        return task.getResolvedUser().getOrNull();
+    }
+
+    private String taskGroup() {
+        return task.getResolvedPermissionGroup().getOrNull();
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> T lookupOrDefault(CopySpecInternal spec, String key, T taskDefault) {
+    private static <T> T lookupOrDefault(CopySpec spec, String key, T taskDefault) {
         Object value = SpecAttributes.lookup(spec, key);
         return value != null ? (T) value : taskDefault;
     }
@@ -194,10 +194,10 @@ class DebCopyAction extends AbstractPackagingCopyAction<Deb> {
     protected void addDirectory(Directory directory) {
         dataProducers.add(
             new DataProducerPathTemplate(
-                new String[] { directory.getPath() },
+                new String[] { directory.path() },
                 null,
                 null,
-                new Mapper[] { new PermMapper(-1, -1, task.getUser(), task.getPermissionGroup(), directory.getPermissions(), -1, 0, null) }
+                new Mapper[] { new PermMapper(-1, -1, taskUser(), taskGroup(), directory.permissions(), -1, 0, null) }
             )
         );
     }
@@ -211,10 +211,10 @@ class DebCopyAction extends AbstractPackagingCopyAction<Deb> {
         maker.setControl(debianDir);
         maker.setDeb(debFile);
 
-        String signingKeyId = task.getExten().getSigningKeyId().getOrElse("");
-        String signingKeyPassphrase = task.getExten().getSigningKeyPassphrase().getOrElse("");
-        File signingKeyRingFile = task.getExten().getSigningKeyRingFile().isPresent()
-            ? task.getExten().getSigningKeyRingFile().get().getAsFile()
+        String signingKeyId = task.getResolvedSigningKeyId().getOrElse("");
+        String signingKeyPassphrase = task.getResolvedSigningKeyPassphrase().getOrElse("");
+        File signingKeyRingFile = task.getResolvedSigningKeyRingFile().isPresent()
+            ? task.getResolvedSigningKeyRingFile().get().getAsFile()
             : null;
         if (signingKeyId.isBlank() == false
             && signingKeyPassphrase.isBlank() == false
@@ -254,25 +254,24 @@ class DebCopyAction extends AbstractPackagingCopyAction<Deb> {
     }
 
     /**
-     * Assembles the context consumed by the debian control and maintainer script templates.
+     * Assembles the context consumed by the debian control and maintainer script templates. Keys
+     * without a corresponding task property are fixed to the values the Elasticsearch packages
+     * have always used.
      */
     private Map<String, Object> toContext() {
         Map<String, Object> context = new LinkedHashMap<>();
         context.put("name", task.getPackageName());
-        context.put("version", task.getArchiveVersion().get());
-        context.put("release", task.getRelease());
-        context.put("maintainer", task.getMaintainer());
-        context.put("uploaders", task.getExten().getUploaders().getOrElse(""));
-        context.put("priority", task.getExten().getPriority().getOrElse(""));
-        context.put("epoch", task.getExten().getEpoch().getOrElse(0));
-        context.put("description", task.getExten().getPackageDescription().getOrElse(""));
-        context.put("distribution", task.getDistribution());
-        context.put("summary", task.getExten().getSummary().getOrElse(""));
+        context.put("maintainer", task.getResolvedMaintainer().getOrElse(""));
+        context.put("uploaders", "");
+        context.put("priority", "optional");
+        context.put("description", task.getResolvedPackageDescription().getOrElse(""));
+        context.put("distribution", task.getExten().getDistribution().getOrElse(""));
+        context.put("summary", task.getResolvedSummary().getOrElse(""));
         context.put("section", task.getPackageGroup());
         context.put("time", new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.ROOT).format(new Date()));
         context.put("provides", "");
         context.put("depends", String.join(", ", dependencies));
-        context.put("url", task.getExten().getUrl().getOrElse(""));
+        context.put("url", task.getResolvedUrl().getOrElse(""));
         context.put("arch", task.getArchString());
         context.put("multiArch", "");
         context.put("conflicts", String.join(", ", conflicts));
@@ -285,7 +284,7 @@ class DebCopyAction extends AbstractPackagingCopyAction<Deb> {
         context.put("fullVersion", buildFullVersion());
         // in the deb control file, header XB-Foo becomes Foo in the binary package
         Map<String, String> customFields = new LinkedHashMap<>();
-        task.getAllCustomFields().forEach((key, value) -> customFields.put("XB-" + capitalize(key), value));
+        task.getCustomFields().getOrElse(Map.of()).forEach((key, value) -> customFields.put("XB-" + capitalize(key), value));
         context.put("customFields", customFields);
         context.put("dirs", installDirs.stream().map(dir -> Map.of("install", MaintainerScriptsGenerator.installLine(dir))).toList());
         return context;
@@ -296,12 +295,7 @@ class DebCopyAction extends AbstractPackagingCopyAction<Deb> {
     }
 
     private String buildFullVersion() {
-        StringBuilder fullVersion = new StringBuilder();
-        int epoch = task.getExten().getEpoch().getOrElse(0);
-        if (epoch != 0) {
-            fullVersion.append(epoch).append(':');
-        }
-        fullVersion.append(task.getVersion());
+        StringBuilder fullVersion = new StringBuilder(task.getVersion());
         if (task.getRelease() != null && task.getRelease().isEmpty() == false) {
             fullVersion.append('-').append(task.getRelease());
         }

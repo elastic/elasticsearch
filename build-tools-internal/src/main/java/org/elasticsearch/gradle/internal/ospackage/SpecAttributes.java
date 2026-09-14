@@ -25,7 +25,6 @@ package org.elasticsearch.gradle.internal.ospackage;
 import org.gradle.api.Action;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.FileCopyDetails;
-import org.gradle.api.internal.file.copy.CopySpecInternal;
 import org.gradle.api.internal.file.copy.CopySpecWrapper;
 import org.gradle.api.internal.file.copy.DefaultCopySpec;
 
@@ -54,7 +53,6 @@ public final class SpecAttributes implements Action<FileCopyDetails>, Serializab
     public static final String SETGID = "setgid";
     public static final String FILE_TYPE = "fileType";
     public static final String CREATE_DIRECTORY_ENTRY = "createDirectoryEntry";
-    public static final String ADD_PARENT_DIRS = "addParentDirs";
 
     private final Map<String, Object> values = new LinkedHashMap<>();
 
@@ -84,7 +82,7 @@ public final class SpecAttributes implements Action<FileCopyDetails>, Serializab
      * {@code null} when the attribute was not set on that spec; inheritance from the task-wide
      * defaults is handled by the callers.
      */
-    public static Object lookup(CopySpecInternal spec, String key) {
+    public static Object lookup(CopySpec spec, String key) {
         if (spec == null) {
             return null;
         }

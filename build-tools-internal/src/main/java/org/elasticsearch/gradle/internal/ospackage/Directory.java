@@ -23,52 +23,10 @@
 package org.elasticsearch.gradle.internal.ospackage;
 
 import java.io.Serializable;
-import java.util.Objects;
 
 /**
  * An explicitly registered directory entry. The Elasticsearch packaging build registers every
  * intermediate directory of the packaged files so the package managers own (and clean up) those
  * directories on uninstall.
  */
-public class Directory implements Serializable {
-    private static final long serialVersionUID = 1L;
-
-    private final String path;
-    private final int permissions;
-    private final boolean addParents;
-
-    public Directory(String path, int permissions, boolean addParents) {
-        this.path = path;
-        this.permissions = permissions;
-        this.addParents = addParents;
-    }
-
-    public String getPath() {
-        return path;
-    }
-
-    public int getPermissions() {
-        return permissions;
-    }
-
-    public boolean isAddParents() {
-        return addParents;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o instanceof Directory == false) {
-            return false;
-        }
-        Directory directory = (Directory) o;
-        return permissions == directory.permissions && addParents == directory.addParents && Objects.equals(path, directory.path);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(path, permissions, addParents);
-    }
-}
+public record Directory(String path, int permissions) implements Serializable {}

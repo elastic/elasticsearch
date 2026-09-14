@@ -23,7 +23,6 @@
 package org.elasticsearch.gradle.internal.ospackage.deb;
 
 import org.elasticsearch.gradle.internal.ospackage.SystemPackagingTask;
-import org.gradle.api.Project;
 import org.gradle.api.internal.file.copy.CopyAction;
 import org.gradle.work.DisableCachingByDefault;
 
@@ -41,39 +40,9 @@ public abstract class Deb extends SystemPackagingTask {
     }
 
     @Override
-    protected String assembleArchiveName() {
-        StringBuilder name = new StringBuilder(getPackageName());
-        if (getVersion() != null) {
-            name.append('_').append(getVersion());
-        }
-        if (getRelease() != null && getRelease().isEmpty() == false) {
-            name.append('-').append(getRelease());
-        }
-        if (getArchString() != null) {
-            name.append('_').append(getArchString());
-        }
-        String extension = getArchiveExtension().getOrNull();
-        if (extension != null) {
-            name.append('.').append(extension);
-        }
-        return name.toString();
-    }
-
-    @Override
     protected CopyAction createCopyAction() {
         // use the task-private temporary dir so parallel deb tasks of the same project cannot
         // overwrite each other's control files
         return new DebCopyAction(this, new File(getTemporaryDir(), "debian"));
-    }
-
-    @Override
-    public void applyConventions(Project project) {
-        super.applyConventions(project);
-        getExten().getUid().convention(parentOrValue(exten -> exten.getUid(), 0));
-        getExten().getGid().convention(parentOrValue(exten -> exten.getGid(), 0));
-        getExten().getPackageGroup().convention(parentOrValue(exten -> exten.getPackageGroup(), "java"));
-        getExten().getArchStr().convention(parentOrValue(exten -> exten.getArchStr(), "all"));
-        getExten().getMaintainer().convention(parentOrValue(exten -> exten.getMaintainer(), System.getProperty("user.name", "")));
-        getExten().getUploaders().convention(parentOrValue(exten -> exten.getUploaders(), ""));
     }
 }

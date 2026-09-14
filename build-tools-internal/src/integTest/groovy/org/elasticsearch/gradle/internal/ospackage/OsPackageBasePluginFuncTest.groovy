@@ -42,7 +42,6 @@ class OsPackageBasePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         import org.elasticsearch.gradle.internal.ospackage.rpm.Rpm
 
         ospackage {
-            packageName = 'test-pkg'
             maintainer = 'Test <test@example.org>'
             summary = 'a test package'
             packageDescription = 'longer description'
@@ -55,6 +54,7 @@ class OsPackageBasePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
         def commonConfig = {
             def packagingTask = delegate
+            packageName = 'test-pkg'
             version = '1.2.3'
             arch = 'NOARCH'
             destinationDirectory = file('build/dists')
@@ -86,12 +86,14 @@ class OsPackageBasePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
         tasks.register('buildRpm', Rpm) {
             configure(commonConfig)
+            archiveFileName = 'test-pkg-1.2.3.noarch.rpm'
             packageGroup = 'Application/Test'
             license = 'Test License'
         }
 
         tasks.register('buildDeb', Deb) {
             configure(commonConfig)
+            archiveFileName = 'test-pkg_1.2.3_all.deb'
             arch = 'all'
             packageGroup = 'test'
             customFields.put('License', 'Test-License')

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Auto-detecting partition detector that tries Hive-style detection first,
@@ -32,9 +33,10 @@ public final class AutoPartitionDetector implements PartitionDetector {
     }
 
     @Override
-    public PartitionMetadata detect(List<StorageEntry> files) {
+    public PartitionMetadata detect(List<StorageEntry> files, Consumer<String> warningSink) {
+        Objects.requireNonNull(warningSink, "warningSink: a null sink would fall back to HeaderWarning off the request thread");
         // Try Hive first
-        PartitionMetadata hiveResult = HivePartitionDetector.INSTANCE.detect(files);
+        PartitionMetadata hiveResult = HivePartitionDetector.INSTANCE.detect(files, warningSink);
         if (hiveResult.isEmpty() == false) {
             return hiveResult;
         }
@@ -45,7 +47,7 @@ public final class AutoPartitionDetector implements PartitionDetector {
         String template = partitionConfig.pathTemplate();
         if (template != null && TemplatePartitionDetector.parseTemplateColumns(template).isEmpty() == false) {
             TemplatePartitionDetector templateDetector = new TemplatePartitionDetector(template);
-            return templateDetector.detect(files);
+            return templateDetector.detect(files, warningSink);
         }
 
         return PartitionMetadata.EMPTY;

@@ -110,6 +110,14 @@ public class FileDataSourceValidator implements DataSourceValidator {
     private static final int SCHEMA_SAMPLE_SIZE_MAX = 20_000;
 
     /**
+     * Upper bound accepted for {@code skip_rows} at registration. Preambles are a handful of lines;
+     * a larger cap would outrun a 64MB first split and leak leftover preamble into split 1. Must stay
+     * equal to {@code CsvFormatReader.SKIP_ROWS_MAX}; pinned by {@code FileDataSourceValidatorSkipRowsBoundTests}.
+     */
+    static final int SKIP_ROWS_MAX = 1000;
+    static final String SKIP_ROWS = "skip_rows";
+
+    /**
      * Coordinator-level data-shape keys accepted on a dataset, sourced from each owning component's
      * own {@code CONFIG_KEYS} plus the {@code format} selector. This is exactly
      * {@code FileSourceFactory.COORDINATOR_KEYS} minus the EXTERNAL-only knob ({@code reader}) and the
@@ -430,6 +438,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
         // Only validate schema_sample_size when the resolved format claims it (CSV/NDJSON do; Parquet does not).
         if (acceptedFields.contains(SCHEMA_SAMPLE_SIZE)) {
             validateInt(settings, result, SCHEMA_SAMPLE_SIZE, 1, SCHEMA_SAMPLE_SIZE_MAX, errors);
+        }
+        // skip_rows is CSV/TSV-only. Not in DATASET_FIELDS: Parquet/NDJSON get the existing
+        // "not supported for format" rejection when the format claims the key.
+        if (acceptedFields.contains(SKIP_ROWS)) {
+            validateInt(settings, result, SKIP_ROWS, 0, SKIP_ROWS_MAX, errors);
         }
 
         // Strictly validate the data-shape coordinator keys by delegating to the very parsers the

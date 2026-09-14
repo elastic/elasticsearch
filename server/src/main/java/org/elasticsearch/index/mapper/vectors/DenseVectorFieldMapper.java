@@ -648,17 +648,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return defaultSimilarity;
         }
 
-        final int vectorComponentCount(int dims) {
-            if (this == BIT) {
-                assert dims % Byte.SIZE == 0;
-                return dims / Byte.SIZE;
-            } else {
-                return dims;
-            }
+        public final int vectorLength(int dims) {
+            return switch (this) {
+                case FLOAT, BFLOAT16, BYTE -> dims;
+                case BIT -> {
+                    assert dims % Byte.SIZE == 0;
+                    yield dims / Byte.SIZE;
+                }
+            };
         }
 
-        final int dims(int vectorComponentCount) {
-            return this == BIT ? vectorComponentCount * Byte.SIZE : vectorComponentCount;
+        public final int dims(int vectorLength) {
+            return switch (this) {
+                case FLOAT, BFLOAT16, BYTE -> vectorLength;
+                case BIT -> vectorLength * Byte.SIZE;
+            };
         }
 
         public static ElementType fromString(String name) {
@@ -4619,8 +4623,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             b.startArray(leafName());
             ByteBuffer byteBuffer = byteBuffer();
-            int dims = fieldType().element.elementType() == ElementType.BIT ? fieldType().dims / Byte.SIZE : fieldType().dims;
-            for (int dim = 0; dim < dims; dim++) {
+            int vectorLength = fieldType().element.elementType().vectorLength(fieldType().dims);
+            for (int i = 0; i < vectorLength; i++) {
                 fieldType().element.readAndWriteValue(byteBuffer, b);
             }
             b.endArray();
@@ -4641,9 +4645,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private List<?> copyVectorAsList() throws IOException {
             assert hasValue : "vector is null";
             ByteBuffer byteBuffer = byteBuffer();
-            int dims = fieldType().element.elementType() == ElementType.BIT ? fieldType().dims / Byte.SIZE : fieldType().dims;
-            List<Number> copyList = new ArrayList<>(dims);
-            for (int dim = 0; dim < dims; dim++) {
+            int vectorLength = fieldType().element.elementType().vectorLength(fieldType().dims);
+            List<Number> copyList = new ArrayList<>(vectorLength);
+            for (int i = 0; i < vectorLength; i++) {
                 copyList.add(fieldType().element.readValue(byteBuffer));
             }
             return copyList;

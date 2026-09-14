@@ -1197,9 +1197,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
                         MlDenseEmbeddingResults textEmbeddingResults = (MlDenseEmbeddingResults) inferenceResults;
                         float[] inference = textEmbeddingResults.getInferenceAsFloat();
-                        int dimensions = modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BIT
-                            ? inference.length * Byte.SIZE // Bit vectors encode 8 dimensions into each byte value
-                            : inference.length;
+                        int dimensions = modelSettings.elementType().dims(inference.length);
                         assert modelSettings.dimensions() != null
                             : "Model settings should have dimensions set by now for text embedding models";
                         if (dimensions != modelSettings.dimensions()) {

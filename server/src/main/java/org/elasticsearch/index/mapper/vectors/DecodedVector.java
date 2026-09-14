@@ -74,8 +74,8 @@ public final class DecodedVector {
      */
     public static DecodedVector decode(String encoded, ElementType elementType, int dims, boolean parseHex) {
         boolean isHex = parseHex && isHexString(encoded);
-        int hexComponents = encoded.length() / 2;
-        if (isHex && hexComponents == elementType.vectorComponentCount(dims)) {
+        int hexVectorLength = encoded.length() / 2;
+        if (isHex && hexVectorLength == elementType.vectorLength(dims)) {
             return new DecodedVector(HexFormat.of().parseHex(encoded), Layout.BYTES);
         }
 
@@ -94,7 +94,7 @@ public final class DecodedVector {
         if (isHex) {
             throw new IllegalArgumentException(
                 "failed to decode vector: hex-decoded vector has a different number of dimensions ["
-                    + elementType.dims(hexComponents)
+                    + elementType.dims(hexVectorLength)
                     + "] than the expected ["
                     + dims
                     + "]"
@@ -220,8 +220,7 @@ public final class DecodedVector {
 
     private static boolean matchesExpectedBase64Length(int length, ElementType elementType, int dims) {
         return switch (elementType) {
-            case BYTE -> length == dims;
-            case BIT -> length == dims / Byte.SIZE;
+            case BYTE, BIT -> length == elementType.vectorLength(dims);
             case FLOAT -> length == dims * Float.BYTES;
             case BFLOAT16 -> length == dims * Float.BYTES || length == dims * BFloat16.BYTES;
         };

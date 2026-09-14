@@ -475,12 +475,10 @@ public class RankVectorsFieldMapper extends FieldMapper {
             ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length).order(ByteOrder.LITTLE_ENDIAN);
             assert ref.length % fieldType().element.getNumBytes(fieldType().dims) == 0;
             int numVecs = ref.length / fieldType().element.getNumBytes(fieldType().dims);
+            int vectorLength = fieldType().element.elementType().vectorLength(fieldType().dims);
             for (int i = 0; i < numVecs; i++) {
                 b.startArray();
-                int dims = fieldType().element.elementType() == DenseVectorFieldMapper.ElementType.BIT
-                    ? fieldType().dims / Byte.SIZE
-                    : fieldType().dims;
-                for (int dim = 0; dim < dims; dim++) {
+                for (int j = 0; j < vectorLength; j++) {
                     fieldType().element.readAndWriteValue(byteBuffer, b);
                 }
                 b.endArray();
@@ -500,29 +498,26 @@ public class RankVectorsFieldMapper extends FieldMapper {
             assert ref.length % fieldType().element.getNumBytes(fieldType().dims) == 0;
             int numVecs = ref.length / fieldType().element.getNumBytes(fieldType().dims);
             List<List<?>> vectors = new ArrayList<>(numVecs);
+            int vectorLength = fieldType().element.elementType().vectorLength(fieldType().dims);
             for (int i = 0; i < numVecs; i++) {
-                int dims = fieldType().element.elementType() == DenseVectorFieldMapper.ElementType.BIT
-                    ? fieldType().dims / Byte.SIZE
-                    : fieldType().dims;
-
                 switch (fieldType().element.elementType()) {
                     case FLOAT -> {
-                        List<Float> vec = new ArrayList<>(dims);
-                        for (int dim = 0; dim < dims; dim++) {
+                        List<Float> vec = new ArrayList<>(vectorLength);
+                        for (int j = 0; j < vectorLength; j++) {
                             vec.add(byteBuffer.getFloat());
                         }
                         vectors.add(vec);
                     }
                     case BFLOAT16 -> {
-                        List<Float> vec = new ArrayList<>(dims);
-                        for (int dim = 0; dim < dims; dim++) {
+                        List<Float> vec = new ArrayList<>(vectorLength);
+                        for (int j = 0; j < vectorLength; j++) {
                             vec.add(BFloat16.bFloat16ToFloat(byteBuffer.getShort()));
                         }
                         vectors.add(vec);
                     }
                     case BYTE, BIT -> {
-                        List<Byte> vec = new ArrayList<>(dims);
-                        for (int dim = 0; dim < dims; dim++) {
+                        List<Byte> vec = new ArrayList<>(vectorLength);
+                        for (int j = 0; j < vectorLength; j++) {
                             vec.add(byteBuffer.get());
                         }
                         vectors.add(vec);

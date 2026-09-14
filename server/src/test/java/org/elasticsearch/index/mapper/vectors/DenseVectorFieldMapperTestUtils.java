@@ -41,13 +41,7 @@ public class DenseVectorFieldMapperTestUtils {
     }
 
     public static int getEmbeddingLength(DenseVectorFieldMapper.ElementType elementType, int dimensions) {
-        return switch (elementType) {
-            case FLOAT, BFLOAT16, BYTE -> dimensions;
-            case BIT -> {
-                assert dimensions % Byte.SIZE == 0;
-                yield dimensions / Byte.SIZE;
-            }
-        };
+        return elementType.vectorLength(dimensions);
     }
 
     public static int randomCompatibleDimensions(DenseVectorFieldMapper.ElementType elementType, int max) {

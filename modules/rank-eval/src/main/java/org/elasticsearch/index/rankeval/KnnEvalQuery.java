@@ -25,17 +25,12 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * One query vector in a {@code _knn_eval} request, together with the id that its results are reported under.
+ * One query vector and the id its results are reported under. An explicit id, rather than an array position, lets per-query numbers be
+ * lined up across the responses of a sweep; for a sampled query it is the source document's {@code _id}, which is also how
+ * {@link TransportKnnEvalAction} drops that document from the results.
  * <p>
- * An explicit id (rather than the position in the request array) is what lets a caller sweep several candidates against one baseline and
- * still line the per-query numbers up across responses. When the query set is sampled server-side the id is the {@code _id} of the
- * sampled document, which additionally lets the transport action drop the document from its own result list -- see
- * {@link TransportKnnEvalAction}.
- * <p>
- * {@code query_vector} accepts everything a {@code knn} search section accepts: a JSON array of numbers, or a hex or base64 encoded
- * string. Sweeping a few thousand high-dimensional queries is exactly the case the encoded forms exist for, so the vector is carried as
- * {@link VectorData} and handed to the kNN search untouched; an encoded string is only decoded once the field's element type and
- * dimensions are known.
+ * The vector is carried as {@link VectorData} and handed to the kNN search untouched, so an encoded string is decoded only once the
+ * field's element type and dimensions are known.
  */
 public class KnnEvalQuery implements Writeable, ToXContentObject {
 
@@ -66,8 +61,7 @@ public class KnnEvalQuery implements Writeable, ToXContentObject {
         if (Strings.hasText(id) == false) {
             throw new IllegalArgumentException("[" + ID_FIELD.getPreferredName() + "] must not be empty");
         }
-        // Only the decoded forms have a length to check here. An encoded string is validated when the mapper decodes it against the
-        // field's element type and dimensions, which surfaces as a failure for that one query rather than rejecting the whole sweep.
+        // an encoded string has no length to check here; the mapper's decode failure surfaces against that one query
         if (queryVector.isStringVector() == false && queryVector.size() == 0) {
             throw new IllegalArgumentException("[" + QUERY_VECTOR_FIELD.getPreferredName() + "] must not be empty for query [" + id + "]");
         }

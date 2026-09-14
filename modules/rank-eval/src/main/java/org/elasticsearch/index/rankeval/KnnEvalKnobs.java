@@ -25,15 +25,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * The set of approximate-search knobs that one {@code _knn_eval} run varies.
- * <p>
- * Recall estimation without brute-force ground truth works by running the <em>same</em> query vector against the <em>same</em> field
- * twice and only changing how much of the index the ANN search is allowed to look at. Everything that distinguishes the "baseline" run
- * from a "candidate" run therefore has to live in one small, self-contained object so that the two runs are provably identical in every
- * other respect. This class is that object.
- * <p>
- * Both knobs are optional; a {@code null} knob means "let the underlying kNN query apply its own default", which is what makes an
- * all-defaults candidate directly comparable to an all-defaults baseline.
+ * Everything that distinguishes one {@code _knn_eval} run from another, in one object so that two runs are provably identical in every
+ * other respect. A {@code null} knob means "let the kNN query apply its own default".
  *
  * @see KnnEvalSpec
  */
@@ -72,8 +65,7 @@ public class KnnEvalKnobs implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("[" + NUM_CANDIDATES_FIELD.getPreferredName() + "] must be greater than 0");
         }
         if (oversample != null && oversample < RescoreVectorBuilder.MIN_OVERSAMPLE) {
-            // RescoreVectorBuilder also accepts exactly 0, meaning "no rescoring", but a run whose scores are quantized estimates is
-            // not a useful reference, so the knob only takes real oversamples.
+            // RescoreVectorBuilder also accepts 0 ("no rescoring"), but a run scoring quantized estimates is no use as a reference
             throw new IllegalArgumentException(
                 "[" + OVERSAMPLE_FIELD.getPreferredName() + "] must be at least " + RescoreVectorBuilder.MIN_OVERSAMPLE
             );
@@ -103,14 +95,8 @@ public class KnnEvalKnobs implements Writeable, ToXContentObject {
     }
 
     /**
-     * Rescoring factor for this run: the approximate search collects {@code oversample * k} candidates on the quantized vectors and then
-     * rescores them on the real ones.
-     * <p>
-     * This is what lets a baseline be exact ground truth without a brute-force script_score. The mapping's default of 3 is not enough:
-     * on a 2000-query sweep a 100%-visit baseline at oversample 3 missed 31 of the exact top-100 documents, because the quantized top-300
-     * rescore window can drop a document whose true rank is inside k. At oversample 10 it missed none, so
-     * {@code {"visit_percentage": 100, "oversample": 10}} is a practical exact reference. Left unset, the field mapping's own setting
-     * applies.
+     * Rescore window of {@code oversample * k} quantized candidates; the mapping's default (3) drops true top-k documents whose
+     * quantized rank falls outside it, so a reference run wants a larger value. Unset applies the mapping's setting.
      */
     @Nullable
     public Float getOversample() {
@@ -118,11 +104,9 @@ public class KnnEvalKnobs implements Writeable, ToXContentObject {
     }
 
     /**
-     * Score every document with a vector rather than searching approximately, producing true ground truth for certification runs.
-     * <p>
-     * Only a baseline may do this, and only on its own -- the approximate knobs have nothing to tune when nothing is approximated. The
-     * cost is O(N x dims x 4 bytes) per query: roughly 95 ms per query over 500k 1024-dimensional vectors already in the page cache, and
-     * seconds per query once 10M vectors have to come off disk. Pair it with a small {@code sample.size}.
+     * Score every document with a vector, giving true ground truth. Baseline only and on its own, since the approximate knobs have
+     * nothing to tune. Costs O(N x dims x 4 bytes) per query -- about 95 ms over 500k 1024-d vectors in cache, seconds off disk -- so
+     * pair it with a small {@code sample.size}.
      */
     public boolean isExact() {
         return exact;
@@ -144,7 +128,7 @@ public class KnnEvalKnobs implements Writeable, ToXContentObject {
         return builder;
     }
 
-    /** The knob fields without their enclosing object, so that a response can render them alongside derived ones. */
+    /** Without the enclosing object, so a response can render these alongside derived fields. */
     XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (visitPercentage != null) {
             builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);

@@ -20,9 +20,9 @@ setup:
                 index_options:
                   type: bbq_disk
 
-  # Every document's vector is base + id * step for one fixed base and step, so all 30 vectors sit on a line and the L2 distance
-  # between documents i and j is exactly |i - j| * |step|. The nearest neighbour of document 1 is therefore document 2, with a clear
-  # margin over document 3, which keeps the expected hit ids below independent of any tie breaking.
+  # Every vector is base + id * step, so all 30 sit on a line and the L2 distance between i and j is exactly |i - j| * |step|. The
+  # nearest neighbour of document 1 is therefore document 2 with a clear margin over 3, so the expected hit ids below do not depend on
+  # tie breaking.
   - do:
       bulk:
         index: knn_eval_test
@@ -91,7 +91,7 @@ setup:
 
 ---
 teardown:
-  # runs whatever the outcome above, so a failed assertion cannot leave the cluster with expensive queries switched off
+  # runs whatever the outcome, so a failed assertion cannot leave expensive queries switched off
   - do:
       cluster.put_settings:
         body:
@@ -101,7 +101,7 @@ teardown:
 ---
 "The corpus the other sections sample from is fully indexed":
   # guards the rest of this file: a bbq_disk field silently rejects documents when its licensed plugin is missing, which would leave
-  # the sampled query set empty rather than producing a wrong recall figure
+  # the sampled query set empty
   - do:
       indices.stats:
         index: knn_eval_test
@@ -118,45 +118,43 @@ teardown:
           sample:
             size: 10
             seed: 42
+          include_histogram: true
           include_fidelity: true
           baseline:
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - visit_percentage: 100
 
   - match: { baseline.visit_percentage: 100.0 }
   - length: { results: 1 }
-  - match: { results.0.candidate.visit_percentage: 100.0 }
+  - match: { results.0.knn_settings.visit_percentage: 100.0 }
   - match: { results.0.recall: 1.0 }
-  # the headline recall is the mean of the per-query distribution, so an identical re-run tops out at 1.0 everywhere
   - match: { results.0.recall_stats.mean: 1.0 }
   - match: { results.0.recall_stats.max: 1.0 }
   - match: { results.0.recall_stats.min: 1.0 }
   - match: { results.0.recall_stats.count: 10 }
   - match: { baseline_vector_ops_kind: "quantized_visit_plus_rescore" }
-  # value based recall agrees with id based recall when nothing was substituted
   - match: { value_tolerance: 0.0 }
   - match: { results.0.recall_value: 1.0 }
   - match: { results.0.recall_value_stats.count: 10 }
   - match: { results.0.recall_value_stats.min: 1.0 }
   - is_false: results.0.recall_value_skipped
-  # every query recalled the baseline exactly, so the histogram collapses to a single observed value
   - length: { results.0.recall_histogram: 1 }
   - match: { results.0.recall_histogram.0.recall: 1.0 }
   - match: { results.0.recall_histogram.0.count: 10 }
-  # k is 10, so the histogram reports the exact observed values and carries no bin width
+  # k is 10, so the values are exact and there is no bin width
   - is_false: results.0.recall_histogram_bin_width
-  # an identical re-run gave up no similarity anywhere, so every epsilon is zero
+  # an identical re-run gave up no similarity, so every epsilon is zero
   - match: { results.0.fidelity.max_epsilon.max: 0.0 }
   - match: { results.0.fidelity.max_epsilon.p95: 0.0 }
   - match: { results.0.fidelity.max_epsilon.count: 10 }
   - match: { results.0.fidelity.infinite_count: 0 }
   - match: { results.0.fidelity.mean_epsilon_by_rank: [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ] }
   - length: { failures: 0 }
-  # details are off by default, at the top level as well as per candidate
+  # details are off by default, at the top level as well as per knob set
   - is_false: results.0.details
   - is_false: baseline_details
-  # one search per query per configuration, so both counts are the sample size
+  # one search per query per knob set, so both counts are the sample size
   - match: { baseline_took_ms.count: 10 }
   - match: { results.0.took_ms.count: 10 }
   - gte: { baseline_took_ms.mean: 0.0 }
@@ -169,12 +167,12 @@ teardown:
   - match: { results.0.vector_ops.count: 10 }
   - gt: { results.0.vector_ops.sum: 0 }
   - gt: { baseline_vector_ops.sum: 0 }
-  # the candidate is the baseline configuration re-run, so it must do exactly the same amount of work
+  # the knob set re-runs the baseline, so it must do exactly the same work
   - match: { results.0.vector_ops.sum: $baseline_vector_ops_sum }
 
 ---
 "Sweep a low visit_percentage against the baseline":
-  # sampling every document makes the query set the whole index, so the per-query details are keyed by ids known up front
+  # sampling every document makes the details keyed by ids known up front
   - do:
       knn_eval:
         index: knn_eval_test
@@ -185,19 +183,20 @@ teardown:
             size: 30
           include_details: true
           include_fidelity: true
-          # 30 queries in batches of 7 exercises the sequential batching that bounds the msearch fan-out
+          include_histogram: true
+          # exercises the sequential batching that bounds the msearch fan-out
           max_queries_per_batch: 7
-          # took_ms is meaningless at this concurrency, but the recall numbers below are unaffected
+          # took_ms is meaningless at this concurrency; the recall numbers are not
           max_concurrent_searches: 4
           baseline:
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - visit_percentage: 1
             - visit_percentage: 100
 
   - length: { results: 2 }
   - length: { failures: 0 }
-  - match: { results.0.candidate.visit_percentage: 1.0 }
+  - match: { results.0.knn_settings.visit_percentage: 1.0 }
   - match: { baseline_took_ms.count: 30 }
   - match: { results.0.took_ms.count: 30 }
   - match: { results.1.took_ms.count: 30 }
@@ -210,10 +209,9 @@ teardown:
   - lte: { results.0.recall: 1.0 }
   - length: { results.0.details: 30 }
   - length: { results.0.details.1.hits: 5 }
-  # the reference hit list is reported once at the top level rather than repeated under every candidate
+  # the reference hit list is reported once rather than per knob set
   - length: { baseline_details: 30 }
   - length: { baseline_details.1.hits: 5 }
-  # an identical re-run of the baseline must recover all of it
   - match: { results.1.recall: 1.0 }
   - match: { results.1.recall_stats.count: 30 }
   - match: { results.1.recall_stats.max: 1.0 }
@@ -222,18 +220,17 @@ teardown:
   - match: { results.1.fidelity.max_epsilon.max: 0.0 }
   - match: { results.1.fidelity.max_epsilon.count: 30 }
   - match: { results.1.fidelity.infinite_count: 0 }
-  # Every query is accounted for, either with a finite worst-case loss or as unbounded. On this 30 document fixture the cheap
-  # candidate still visits the single cluster, so all 30 land on the finite side; a candidate that dropped hits would move those
-  # queries into infinite_count instead, and the two would still sum to 30.
+  # This 30 document fixture is a single cluster, so even the cheap setting is exhaustive and all 30 queries land on the finite side;
+  # one that dropped hits would move them into infinite_count instead, still summing to 30.
   - match: { results.0.fidelity.max_epsilon.count: 30 }
   - match: { results.0.fidelity.infinite_count: 0 }
   - gte: { results.0.fidelity.max_epsilon.max: 0.0 }
-  # an id match is always a value match too, so the value based number can never be the lower of the pair
+  # an id match is also a value match, so the value based number is never the lower of the pair
   - gte: { results.0.recall_value: 1.0 }
   - match: { results.1.recall_value: 1.0 }
   - match: { results.1.details.1.recall_value: 1.0 }
   - match: { results.1.details.1.value_matches: 5 }
-  # recall is quantised to multiples of 1/k, so the percentiles of the cheap candidate are step-like by construction
+  # recall is quantised to multiples of 1/k, so these percentiles are step-like by construction
   - match: { results.0.recall_stats.count: 30 }
   - gte: { results.0.recall_stats.min: 0.0 }
   - lte: { results.0.recall_stats.max: 1.0 }
@@ -242,19 +239,18 @@ teardown:
   - match: { results.1.details.1.relevant: 5 }
   - match: { results.1.details.1.relevant_retrieved: 5 }
   - match: { results.1.details.1.recall: 1.0 }
-  # nothing is missed and every hit is where the baseline put it
   - match: { results.1.details.1.missed: [] }
-  # a missed entry would carry the baseline's own _id, _score and rank; none is missed here, so only the empty case is assertable
+  # nothing is missed here, so only the empty case is assertable
   - match: { results.0.details.1.missed: [] }
   - match: { results.1.details.1.hits.0.baseline_rank: 0 }
-  # document 1 is its own nearest neighbour, so it is dropped from both lists and document 2 leads
+  # document 1 is dropped from both lists as the query document, so document 2 leads
   - match: { results.1.details.1.hits.0._id: "2" }
   - match: { baseline_details.1.hits.0._id: "2" }
   - match: { results.1.details.30.hits.0._id: "29" }
 
 ---
 "A filter applies to the baseline and the candidate but not to the query set":
-  # queries are still sampled from all 30 documents, so this measures recall for queries whose true neighbours are mostly filtered out
+  # queries are still sampled from all 30 documents, so most true neighbours are filtered out
   - do:
       knn_eval:
         index: knn_eval_test
@@ -269,14 +265,14 @@ teardown:
               values: [ "2", "3", "4", "5", "6", "7" ]
           baseline:
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - visit_percentage: 100
 
   - length: { results: 1 }
   - length: { failures: 0 }
   - match: { results.0.recall: 1.0 }
   - length: { results.0.details: 30 }
-  # document 1 is excluded as the query document, leaving exactly the six filtered documents to draw a top 5 from
+  # document 1 is excluded, leaving exactly the six filtered documents to draw a top 5 from
   - length: { results.0.details.1.hits: 5 }
   - length: { baseline_details.1.hits: 5 }
   - match: { results.0.details.1.relevant: 5 }
@@ -301,11 +297,11 @@ teardown:
           value_tolerance: 0.05
           baseline:
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - visit_percentage: 1
 
   - match: { value_tolerance: 0.05 }
-  # a tolerance can only admit more matches than none, and both are already saturated on this fixture
+  # a tolerance only admits more matches, and both are already saturated on this fixture
   - match: { results.0.recall_value: 1.0 }
   - gte: { results.0.recall_value: 1.0 }
   - match: { results.0.recall_value_stats.count: 30 }
@@ -323,11 +319,14 @@ teardown:
           include_details: true
           baseline:
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - visit_percentage: 100
 
   - match: { results.0.recall: 1.0 }
-  # the whole value based group is opt in, and details on their own do not turn it on
+  # details on their own turn on neither the histogram ...
+  - is_false: results.0.recall_histogram
+  - is_false: results.0.recall_histogram_bin_width
+  # ... nor the value based group
   - is_false: value_tolerance
   - is_false: results.0.fidelity
   - is_false: results.0.recall_value
@@ -350,7 +349,7 @@ teardown:
           value_tolerance: 0.05
           baseline:
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - visit_percentage: 100
 
 ---
@@ -360,31 +359,32 @@ teardown:
         index: knn_eval_test
         body:
           field: emb
-          # past 20 the exact values stop being a summary, so they are grouped into ranges of 0.05
+          # past 20 the exact values stop being a summary, so they are binned
           k: 23
+          include_histogram: true
           sample:
             size: 10
           baseline:
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - visit_percentage: 100
             - visit_percentage: 1
 
   - match: { results.0.recall: 1.0 }
   - match: { results.0.recall_histogram_bin_width: 0.05 }
-  # Every candidate is binned at this k, whatever it recalled. This 30 document fixture forms a single cluster, so even a 1% visit
-  # is exhaustive and no candidate here drops below a perfect recall; the lower-edge convention is covered by the unit tests.
+  # This fixture is a single cluster, so even a 1% visit is exhaustive and nothing here drops below a perfect recall; the lower-edge
+  # convention is covered by the unit tests.
   - match: { results.1.recall_histogram_bin_width: 0.05 }
   - match: { results.1.recall_histogram.0.recall: 1.0 }
-  # a perfect recall keeps an exact entry of its own, so an identical re-run collapses to exactly one entry
+  # a perfect recall keeps an exact entry, so an identical re-run collapses to one
   - length: { results.0.recall_histogram: 1 }
   - match: { results.0.recall_histogram.0.recall: 1.0 }
   - match: { results.0.recall_histogram.0.count: 10 }
 
 ---
 "An oversample knob makes the baseline an exact reference":
-  # The mapping's default oversample of 3 rescores only the quantized top 3k, which can drop a document whose true rank is inside k.
-  # Raising it on the baseline alone turns the reference into exact search without a brute-force script_score.
+  # The mapping's oversample of 3 rescores only the quantized top 3k, which can drop a document whose true rank is inside k. Raising
+  # it on the baseline alone turns the reference into exact search without a brute-force script_score.
   - do:
       knn_eval:
         index: knn_eval_test
@@ -396,13 +396,13 @@ teardown:
           baseline:
             visit_percentage: 100
             oversample: 10
-          candidates:
+          knn_settings:
             - visit_percentage: 100
 
   - match: { baseline.visit_percentage: 100.0 }
   - match: { baseline.oversample: 10.0 }
-  # the candidate leaves oversample unset, so the mapping's own setting applies to it
-  - is_false: results.0.candidate.oversample
+  # the knob set leaves oversample unset, so the mapping's own setting applies
+  - is_false: results.0.knn_settings.oversample
   - lte: { results.0.recall: 1.0 }
   - gte: { results.0.recall: 0.0 }
 
@@ -418,23 +418,23 @@ teardown:
             size: 10
           baseline:
             exact: true
-          candidates:
+          knn_settings:
             - visit_percentage: 100
             - visit_percentage: 100
               oversample: 50
 
   - match: { baseline.exact: true }
   - is_false: baseline.visit_percentage
-  # 30 documents is small enough that an approximate search is exhaustive too, so both candidates recover the exact answer
+  # 30 documents is small enough that an approximate search is exhaustive, so both entries recover the exact answer
   - match: { results.0.recall: 1.0 }
   - match: { results.1.recall: 1.0 }
-  # An exact scan compares every live vector once, so its operation count is its own hit count: 30 documents per query. The sampled
-  # query document is scanned like any other; excluding it from the hit list happens afterwards.
+  # An exact scan's operation count is its own hit count: 30 documents per query. The sampled query document is scanned like any
+  # other; the exclusion is post-hoc.
   - match: { baseline_vector_ops_kind: "full_precision_scan" }
   - match: { baseline_vector_ops.count: 10 }
   - match: { baseline_vector_ops.max: 30 }
   - match: { baseline_vector_ops.sum: 300 }
-  # a candidate is an ordinary knn search, whose operations the codec counts and which are mostly 1-bit comparisons
+  # a knob set is an ordinary knn search, whose mostly 1-bit operations the codec counts
   - gt: { results.0.vector_ops.sum: 0 }
 
 ---
@@ -450,7 +450,7 @@ teardown:
             size: 5
           baseline:
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - exact: true
 
 ---
@@ -467,7 +467,7 @@ teardown:
           baseline:
             exact: true
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - visit_percentage: 5
 
 ---
@@ -480,7 +480,7 @@ teardown:
           k: 5
           sample:
             size: 10
-          candidates:
+          knn_settings:
             - visit_percentage: 100
 
   - match: { baseline.exact: true }
@@ -504,10 +504,10 @@ teardown:
           k: 5
           sample:
             size: 5
-          candidates:
+          knn_settings:
             - visit_percentage: 100
 
-  # a non-exact baseline is an ordinary kNN search, so the setting does not stand in its way
+  # a non-exact baseline is an ordinary kNN search, so the setting does not apply
   - do:
       knn_eval:
         index: knn_eval_test
@@ -519,7 +519,7 @@ teardown:
           baseline:
             visit_percentage: 100
             oversample: 50
-          candidates:
+          knn_settings:
             - visit_percentage: 100
 
   - match: { results.0.recall: 1.0 }
@@ -541,7 +541,7 @@ teardown:
                               0.9, 1.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.1, 0.2, 0.3, 0.4 ]
           baseline:
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - visit_percentage: 100
             - visit_percentage: 100
               oversample: 1000
@@ -549,11 +549,11 @@ teardown:
   # the mapping's oversample of 3 widens the window to 3k, which then floors num_candidates
   - match: { baseline.rescore_window: 30 }
   - match: { baseline.effective_num_candidates: 30 }
-  - match: { results.0.candidate.rescore_window: 30 }
-  - match: { results.0.candidate.effective_num_candidates: 30 }
-  # an oversample large enough to blow past the limit saturates at it, which is why exact is the only certifiable baseline at large k
-  - match: { results.1.candidate.rescore_window: 10000 }
-  - match: { results.1.candidate.effective_num_candidates: 10000 }
+  - match: { results.0.knn_settings.rescore_window: 30 }
+  - match: { results.0.knn_settings.effective_num_candidates: 30 }
+  # an oversample past the limit saturates, which is why exact is the only certifiable baseline at large k
+  - match: { results.1.knn_settings.rescore_window: 10000 }
+  - match: { results.1.knn_settings.effective_num_candidates: 10000 }
 
 ---
 "Caller supplied query vectors":
@@ -569,7 +569,7 @@ teardown:
           include_details: true
           baseline:
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - visit_percentage: 100
 
   - match: { results.0.recall: 1.0 }
@@ -577,13 +577,12 @@ teardown:
   - length: { baseline_details.q1.hits: 3 }
   - match: { results.0.details.q1.hits.0.baseline_rank: 0 }
   - match: { results.0.details.q1.missed: [] }
-  # nothing is excluded for caller supplied vectors, so the document the vector was copied from leads
+  # nothing is excluded for caller supplied vectors, so the source document leads
   - match: { results.0.details.q1.hits.0._id: "1" }
 
 ---
 "Base64 encoded query vectors":
-  # the same vector as document 1, as big-endian float32 encoded with base64: shipping thousands of high dimensional queries as JSON
-  # arrays is exactly what the encoded forms exist to avoid
+  # document 1's vector as big-endian float32 base64, which is what the encoded forms exist for
   - do:
       knn_eval:
         index: knn_eval_test
@@ -596,7 +595,7 @@ teardown:
           include_details: true
           baseline:
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - visit_percentage: 100
 
   - match: { results.0.recall: 1.0 }
@@ -620,10 +619,10 @@ teardown:
               query_vector: "not a vector"
           baseline:
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - visit_percentage: 100
 
-  # the decode happens per search, so one bad vector costs its own query and leaves the rest of the sweep intact
+  # the decode happens per search, so one bad vector costs only its own query
   - match: { results.0.recall: 1.0 }
   - match: { results.0.took_ms.count: 1 }
   - length: { failures: 1 }
@@ -642,11 +641,11 @@ teardown:
             size: 5
           baseline:
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - visit_percentage: 5
 
 ---
-"candidates must not be empty":
+"knn_settings must not be empty":
   - do:
       catch: bad_request
       knn_eval:
@@ -658,7 +657,7 @@ teardown:
             size: 5
           baseline:
             visit_percentage: 100
-          candidates: []
+          knn_settings: []
 
 ---
 "exactly one of queries and sample is required":
@@ -671,7 +670,7 @@ teardown:
           k: 10
           baseline:
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - visit_percentage: 5
 
   - do:
@@ -688,7 +687,7 @@ teardown:
               query_vector: [ 1.0, 2.0 ]
           baseline:
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - visit_percentage: 5
 
 ---
@@ -704,5 +703,5 @@ teardown:
             size: 5
           baseline:
             visit_percentage: 100
-          candidates:
+          knn_settings:
             - visit_percentage: 101

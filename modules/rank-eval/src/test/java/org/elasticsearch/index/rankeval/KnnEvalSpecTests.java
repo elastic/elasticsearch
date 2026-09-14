@@ -105,7 +105,8 @@ public class KnnEvalSpecTests extends ESTestCase {
             randomIntBetween(1, 200),
             randomIntBetween(1, 10),
             includeFidelity,
-            includeFidelity && randomBoolean() ? randomDoubleBetween(0.0, 1.0, true) : null
+            includeFidelity && randomBoolean() ? randomDoubleBetween(0.0, 1.0, true) : null,
+            randomBoolean()
         );
     }
 
@@ -148,15 +149,16 @@ public class KnnEvalSpecTests extends ESTestCase {
         List<KnnEvalQuery> queries = original.getQueries() == null ? null : new ArrayList<>(original.getQueries());
         KnnEvalSample sample = original.getSample();
         KnnEvalKnobs baseline = original.getBaseline();
-        List<KnnEvalKnobs> candidates = new ArrayList<>(original.getCandidates());
+        List<KnnEvalKnobs> candidates = new ArrayList<>(original.getKnnSettings());
         boolean includeDetails = original.isIncludeDetails();
         QueryBuilder filter = original.getFilter();
         int maxQueriesPerBatch = original.getMaxQueriesPerBatch();
         int maxConcurrentSearches = original.getMaxConcurrentSearches();
         boolean includeFidelity = original.isIncludeFidelity();
         Double valueTolerance = includeFidelity ? original.getValueTolerance() : null;
+        boolean includeHistogram = original.isIncludeHistogram();
 
-        switch (randomIntBetween(0, 8)) {
+        switch (randomIntBetween(0, 9)) {
             case 0 -> field = field + "_mutated";
             case 1 -> k = k + 1;
             case 2 -> candidates.add(new KnnEvalKnobs(randomFloatBetween(0.0f, 100.0f, true), null, null, false));
@@ -178,6 +180,7 @@ public class KnnEvalSpecTests extends ESTestCase {
                     includeFidelity = true;
                 }
             }
+            case 9 -> includeHistogram = includeHistogram == false;
             default -> throw new AssertionError("unreachable");
         }
         return new KnnEvalSpec(
@@ -192,7 +195,8 @@ public class KnnEvalSpecTests extends ESTestCase {
             maxQueriesPerBatch,
             maxConcurrentSearches,
             includeFidelity,
-            valueTolerance
+            valueTolerance,
+            includeHistogram
         );
     }
 
@@ -204,13 +208,13 @@ public class KnnEvalSpecTests extends ESTestCase {
 
         Exception both = expectThrows(
             IllegalArgumentException.class,
-            () -> new KnnEvalSpec("emb", 10, queries, sample, knobs, candidates, false, null, 50, 1, false, null)
+            () -> new KnnEvalSpec("emb", 10, queries, sample, knobs, candidates, false, null, 50, 1, false, null, false)
         );
         assertThat(both.getMessage(), containsString("exactly one of [queries] and [sample] must be provided"));
 
         Exception neither = expectThrows(
             IllegalArgumentException.class,
-            () -> new KnnEvalSpec("emb", 10, null, null, knobs, candidates, false, null, 50, 1, false, null)
+            () -> new KnnEvalSpec("emb", 10, null, null, knobs, candidates, false, null, 50, 1, false, null, false)
         );
         assertThat(neither.getMessage(), containsString("exactly one of [queries] and [sample] must be provided"));
     }
@@ -223,28 +227,28 @@ public class KnnEvalSpecTests extends ESTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new KnnEvalSpec("emb", 0, null, sample, knobs, candidates, false, null, 50, 1, false, null)
+                () -> new KnnEvalSpec("emb", 0, null, sample, knobs, candidates, false, null, 50, 1, false, null, false)
             ).getMessage(),
             containsString("[k] must be greater than 0")
         );
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new KnnEvalSpec("emb", 10, null, sample, knobs, List.of(), false, null, 50, 1, false, null)
+                () -> new KnnEvalSpec("emb", 10, null, sample, knobs, List.of(), false, null, 50, 1, false, null, false)
             ).getMessage(),
-            containsString("[candidates] must not be empty")
+            containsString("[knn_settings] must not be empty")
         );
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new KnnEvalSpec("", 10, null, sample, knobs, candidates, false, null, 50, 1, false, null)
+                () -> new KnnEvalSpec("", 10, null, sample, knobs, candidates, false, null, 50, 1, false, null, false)
             ).getMessage(),
             containsString("[field] must be a non-empty field name")
         );
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new KnnEvalSpec("emb", 10, List.of(), null, knobs, candidates, false, null, 50, 1, false, null)
+                () -> new KnnEvalSpec("emb", 10, List.of(), null, knobs, candidates, false, null, 50, 1, false, null, false)
             ).getMessage(),
             containsString("[queries] must not be empty")
         );
@@ -263,7 +267,8 @@ public class KnnEvalSpecTests extends ESTestCase {
                     50,
                     1,
                     false,
-                    null
+                    null,
+                    false
                 )
             ).getMessage(),
             containsString("duplicate query id [q1]")
@@ -283,7 +288,8 @@ public class KnnEvalSpecTests extends ESTestCase {
                     50,
                     1,
                     false,
-                    null
+                    null,
+                    false
                 )
             ).getMessage(),
             containsString("[num_candidates] cannot be less than [k]")
@@ -322,7 +328,7 @@ public class KnnEvalSpecTests extends ESTestCase {
               "k": 10,
               "sample": { "size": 5 },
               "baseline": { "visit_percentage": 100 },
-              "candidates": [ { "visit_percentage": 5 } ]
+              "knn_settings": [ { "visit_percentage": 5 } ]
             }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             KnnEvalSpec spec = KnnEvalSpec.parse(parser);
@@ -337,6 +343,7 @@ public class KnnEvalSpecTests extends ESTestCase {
             assertEquals(1, spec.getMaxConcurrentSearches());
             assertEquals(0.0, spec.getValueTolerance(), 0.0);
             assertFalse(spec.isIncludeFidelity());
+            assertFalse(spec.isIncludeHistogram());
         }
     }
 
@@ -356,7 +363,8 @@ public class KnnEvalSpecTests extends ESTestCase {
                     0,
                     1,
                     false,
-                    null
+                    null,
+                    false
                 )
             ).getMessage(),
             containsString("[max_queries_per_batch] must be greater than 0")
@@ -376,7 +384,8 @@ public class KnnEvalSpecTests extends ESTestCase {
                     50,
                     0,
                     false,
-                    null
+                    null,
+                    false
                 )
             ).getMessage(),
             containsString("[max_concurrent_searches] must be greater than 0")
@@ -396,7 +405,8 @@ public class KnnEvalSpecTests extends ESTestCase {
                     50,
                     1,
                     true,
-                    -0.1
+                    -0.1,
+                    false
                 )
             ).getMessage(),
             containsString("[value_tolerance] must not be negative")
@@ -416,7 +426,8 @@ public class KnnEvalSpecTests extends ESTestCase {
                     50,
                     1,
                     false,
-                    0.05
+                    0.05,
+                    false
                 )
             ).getMessage(),
             containsString("[value_tolerance] requires [include_fidelity] to be true")
@@ -433,7 +444,7 @@ public class KnnEvalSpecTests extends ESTestCase {
                 { "id": "encoded", "query_vector": "P8AAAMAgAAA=" }
               ],
               "baseline": { "visit_percentage": 100 },
-              "candidates": [ { "visit_percentage": 5 } ]
+              "knn_settings": [ { "visit_percentage": 5 } ]
             }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             KnnEvalSpec spec = KnnEvalSpec.parse(parser);
@@ -451,7 +462,7 @@ public class KnnEvalSpecTests extends ESTestCase {
               "k": 5,
               "sample": { "size": 5 },
               "baseline": { "visit_percentage": 100 },
-              "candidates": [ { "visit_percentage": 5 } ],
+              "knn_settings": [ { "visit_percentage": 5 } ],
               "filter": { "ids": { "values": ["2", "3"] } }
             }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {

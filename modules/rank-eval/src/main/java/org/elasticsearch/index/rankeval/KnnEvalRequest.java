@@ -22,9 +22,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-/**
- * Request to estimate the recall of an approximate kNN search configuration against a more thorough one over the same field.
- */
+/** Request to estimate the recall of approximate kNN configurations against a more thorough one over the same field. */
 public final class KnnEvalRequest extends UntypedActionRequest implements IndicesRequest.Replaceable {
 
     private KnnEvalSpec knnEvalSpec;

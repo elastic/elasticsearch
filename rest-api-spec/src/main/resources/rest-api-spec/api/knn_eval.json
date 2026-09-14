@@ -2,10 +2,10 @@
   "knn_eval": {
     "documentation": {
       "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-knn-eval",
-      "description": "Estimate the recall and cost of approximate kNN search configurations against a more thorough baseline configuration. Each candidate reports recall of the baseline top-k (not of relevance judgments) plus a recall_stats distribution of the per-query values, which is quantized to multiples of 1/k, and a recall_histogram, which reports every distinct observed value for k up to 20 and otherwise bins them: when recall_histogram_bin_width (0.05) is present each recall is the lower edge of a half-open bin [recall, recall + width), except 1.0 which is exact. All configurations run against a single point-in-time; the baseline runs first, so reported took_ms reflects an index it has already warmed while vector_ops does not."
+      "description": "Estimate the recall and cost of approximate kNN search configurations against a more thorough baseline. Each knn_settings entry reports recall of the baseline's top-k, not of relevance judgments, with a recall_stats distribution and an opt-in recall_histogram. All configurations run against one point-in-time, and the baseline runs first, so took_ms reflects an index it has already warmed while vector_ops does not."
     },
     "stability": "experimental",
-    "visibility": "public",
+    "visibility": "private",
     "headers": {
       "accept": [
         "application/json"
@@ -56,7 +56,7 @@
       }
     },
     "body": {
-      "description": "The kNN evaluation definition, including the vector field, k, the query set, an optional filter, the batch and concurrency limits, and the baseline and candidate search configurations (visit_percentage, num_candidates, oversample; a baseline oversample of about 10 makes the reference effectively exact, since the mapping default of 3 rescores too small a window). The baseline may be omitted, in which case it defaults to exact:true. An exact baseline brute-forces every document for a certification run and requires search.allow_expensive_queries; that costs O(N x dims x 4 bytes) per query, so use a small sample.size, and its baseline_vector_ops are float32 comparisons over every live vector (baseline_vector_ops_kind: full_precision_scan) rather than the mostly 1-bit comparisons plus rescore window an approximate baseline reports (quantized_visit_plus_rescore) - comparable as work done, not as bytes. Every non-exact knob set is echoed with rescore_window and effective_num_candidates, both capped at 10000 (so oversample saturates at 10000/k); these need view_index_metadata and are omitted without it.",
+      "description": "The kNN evaluation definition: field, k, exactly one of queries or sample, an optional baseline (default exact:true, gated by search.allow_expensive_queries), knn_settings (visit_percentage for bbq_disk, num_candidates for any type, oversample for quantized types; an inapplicable knob is rejected), optional filter, batching (max_queries_per_batch, max_concurrent_searches) and opt-in output (include_details, include_histogram, include_fidelity, value_tolerance).",
       "required": true
     }
   }

@@ -24,18 +24,13 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Asks the server to draw the evaluation query set from the indexed documents themselves.
- * <p>
- * This is the primary mode of {@code _knn_eval}: a realistic recall estimate needs query vectors drawn from the same distribution as the
- * indexed vectors, and shipping hundreds of high-dimensional vectors up from the client just to send them straight back down is both
- * wasteful and a barrier to using the API at all. Sampling server-side means a caller only has to say "give me 100 queries".
- * <p>
- * A {@link #getSeed() seed} makes the draw reproducible, which is what allows the several candidate sweeps that make up one recall curve
- * to be compared against each other rather than against different query sets.
+ * Draws the query set from the indexed documents, which keeps the query distribution matched to the indexed one without shipping
+ * high-dimensional vectors up just to send them straight back down. A {@link #getSeed() seed} makes the draw reproducible, so the
+ * sweeps making up one recall curve share a query set.
  */
 public class KnnEvalSample implements Writeable, ToXContentObject {
 
-    /** Upper bound on the sample size. Every sampled query costs one baseline plus one search per candidate, so this bounds fan-out. */
+    /** Each sampled query costs one baseline plus one search per knob set, so this bounds fan-out. */
     static final int MAX_SAMPLE_SIZE = 10_000;
 
     static final ParseField SIZE_FIELD = new ParseField("size");

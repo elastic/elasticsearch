@@ -23,6 +23,6 @@ restResources {
 
 dependencies {
   clusterModules project(':modules:lang-mustache')
-  // the knn_eval yaml tests index into a bbq_disk dense_vector field, which only the diskbbq plugin can serve
+  // the knn_eval yaml tests index into a bbq_disk field, which only the diskbbq plugin can serve
   clusterModules project(':x-pack:plugin:diskbbq')
 }

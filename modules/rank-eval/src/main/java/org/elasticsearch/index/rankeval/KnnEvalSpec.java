@@ -29,17 +29,11 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Specification of a kNN recall-estimation request.
+ * Specification of a kNN recall-estimation request: the same query vectors run under the {@link #getBaseline() baseline} and under each
+ * entry of {@link #getKnnSettings() knn_settings}, to plot a recall-vs-cost curve.
  * <p>
- * Brute-force ground truth for a large vector index is expensive enough that people simply do not measure ANN recall. This spec encodes
- * a cheaper substitute: run the same query vectors against the same field twice, once with a generous {@code visit_percentage} (the
- * {@link #getBaseline() baseline}, treated as a stand-in for ground truth) and once per cheaper {@link #getCandidates() candidate}, and
- * report how much of the baseline's top-k each candidate recovered. A caller sweeps several candidates against one baseline to plot a
- * recall-vs-cost curve.
- * <p>
- * Because the two runs differ only in the {@link KnnEvalKnobs knobs}, the query set itself has to be fixed for the whole request --
- * hence exactly one of {@link #getQueries() queries} (caller-supplied vectors) or {@link #getSample() sample} (vectors drawn
- * server-side from the indexed documents) must be given. An optional {@link #getFilter() filter} likewise applies to both runs.
+ * The runs must differ only in the {@link KnnEvalKnobs knobs}, so the query set is fixed for the whole request -- exactly one of
+ * {@link #getQueries() queries} or {@link #getSample() sample} -- and an optional {@link #getFilter() filter} applies to all of them.
  */
 public class KnnEvalSpec implements Writeable, ToXContentObject {
 
@@ -48,35 +42,26 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
     static final ParseField QUERIES_FIELD = new ParseField("queries");
     static final ParseField SAMPLE_FIELD = new ParseField("sample");
     static final ParseField BASELINE_FIELD = new ParseField("baseline");
-    static final ParseField CANDIDATES_FIELD = new ParseField("candidates");
+    static final ParseField KNN_SETTINGS_FIELD = new ParseField("knn_settings");
     static final ParseField INCLUDE_DETAILS_FIELD = new ParseField("include_details");
     static final ParseField FILTER_FIELD = new ParseField("filter");
     static final ParseField MAX_QUERIES_PER_BATCH_FIELD = new ParseField("max_queries_per_batch");
     static final ParseField MAX_CONCURRENT_SEARCHES_FIELD = new ParseField("max_concurrent_searches");
+    static final ParseField INCLUDE_HISTOGRAM_FIELD = new ParseField("include_histogram");
     static final ParseField INCLUDE_FIDELITY_FIELD = new ParseField("include_fidelity");
     static final ParseField VALUE_TOLERANCE_FIELD = new ParseField("value_tolerance");
 
     private static final boolean DEFAULT_INCLUDE_DETAILS = false;
 
-    /**
-     * How many queries go into one {@code _msearch} by default. A coordinator buffers every sub-search response of an msearch until the
-     * last one lands, so fan-out is what bounds heap here, not concurrency: at 7 knob sets and {@code k = 100} a single unbatched
-     * request of 2000 queries produced 14000 buffered responses and exhausted a 4 GB heap. 50 queries keeps one batch to a few hundred
-     * sub-searches for realistic sweeps.
-     */
-    /**
-     * With no baseline given, the reference is exact search. Recall against anything else is recall against a proxy, and a caller who
-     * did not say otherwise wants the real number; a cheaper baseline is an optimisation to opt into once it has been certified.
-     */
+    /** Recall against anything else is recall against a proxy, so a cheaper baseline has to be opted into. */
     private static final KnnEvalKnobs DEFAULT_BASELINE = new KnnEvalKnobs(null, null, null, true);
 
+    /** The coordinator holds every sub-search response of an msearch until the last lands, so batch size, not concurrency, bounds heap. */
     private static final int DEFAULT_MAX_QUERIES_PER_BATCH = 50;
 
     /**
-     * Searches within a batch run one at a time by default. Concurrency inside a batch contaminates the reported {@code took}: on a
-     * busy or small node the searches contend for the search thread pool, and a candidate scheduled alongside the expensive baseline
-     * absorbs that contention. Reversing the candidate order was observed to move a candidate's {@code took} by two orders of
-     * magnitude while its {@code vector_ops} stayed identical.
+     * Concurrency inside a batch contaminates the reported {@code took}: reversing the knob set order moved one {@code took} by two
+     * orders of magnitude while its {@code vector_ops} stayed identical.
      */
     private static final int DEFAULT_MAX_CONCURRENT_SEARCHES = 1;
 
@@ -95,7 +80,8 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
             args[8] == null ? DEFAULT_MAX_QUERIES_PER_BATCH : (Integer) args[8],
             args[9] == null ? DEFAULT_MAX_CONCURRENT_SEARCHES : (Integer) args[9],
             args[10] != null && (Boolean) args[10],
-            (Double) args[11]
+            (Double) args[11],
+            args[12] != null && (Boolean) args[12]
         )
     );
 
@@ -105,7 +91,7 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
         PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> KnnEvalQuery.fromXContent(p), QUERIES_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> KnnEvalSample.fromXContent(p), SAMPLE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> KnnEvalKnobs.fromXContent(p), BASELINE_FIELD);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> KnnEvalKnobs.fromXContent(p), CANDIDATES_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> KnnEvalKnobs.fromXContent(p), KNN_SETTINGS_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), INCLUDE_DETAILS_FIELD);
         // same shape as the `filter` inside a `knn` search section
         PARSER.declareObject(
@@ -117,6 +103,7 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_CONCURRENT_SEARCHES_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), INCLUDE_FIDELITY_FIELD);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), VALUE_TOLERANCE_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), INCLUDE_HISTOGRAM_FIELD);
     }
 
     private final String field;
@@ -126,7 +113,7 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
     @Nullable
     private final KnnEvalSample sample;
     private final KnnEvalKnobs baseline;
-    private final List<KnnEvalKnobs> candidates;
+    private final List<KnnEvalKnobs> knnSettings;
     private final boolean includeDetails;
     @Nullable
     private final QueryBuilder filter;
@@ -134,6 +121,7 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
     private final int maxConcurrentSearches;
     private final boolean includeFidelity;
     private final double valueTolerance;
+    private final boolean includeHistogram;
 
     public KnnEvalSpec(
         String field,
@@ -141,13 +129,14 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
         @Nullable List<KnnEvalQuery> queries,
         @Nullable KnnEvalSample sample,
         KnnEvalKnobs baseline,
-        List<KnnEvalKnobs> candidates,
+        List<KnnEvalKnobs> knnSettings,
         boolean includeDetails,
         @Nullable QueryBuilder filter,
         int maxQueriesPerBatch,
         int maxConcurrentSearches,
         boolean includeFidelity,
-        @Nullable Double valueTolerance
+        @Nullable Double valueTolerance,
+        boolean includeHistogram
     ) {
         if (Strings.hasText(field) == false) {
             throw new IllegalArgumentException("[" + FIELD_FIELD.getPreferredName() + "] must be a non-empty field name");
@@ -162,7 +151,7 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("[" + MAX_CONCURRENT_SEARCHES_FIELD.getPreferredName() + "] must be greater than 0");
         }
         if (valueTolerance != null && includeFidelity == false) {
-            // Silently ignoring it would leave a caller believing they had asked for something.
+            // ignoring it would leave a caller believing they had asked for something
             throw new IllegalArgumentException(
                 "[" + VALUE_TOLERANCE_FIELD.getPreferredName() + "] requires [" + INCLUDE_FIDELITY_FIELD.getPreferredName() + "] to be true"
             );
@@ -187,8 +176,8 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
             }
         }
         Objects.requireNonNull(baseline, "[" + BASELINE_FIELD.getPreferredName() + "] must not be null");
-        if (candidates == null || candidates.isEmpty()) {
-            throw new IllegalArgumentException("[" + CANDIDATES_FIELD.getPreferredName() + "] must not be empty");
+        if (knnSettings == null || knnSettings.isEmpty()) {
+            throw new IllegalArgumentException("[" + KNN_SETTINGS_FIELD.getPreferredName() + "] must not be empty");
         }
         validateNumCandidates(baseline, k);
         if (baseline.isExact()
@@ -205,12 +194,12 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
                     + "]"
             );
         }
-        for (KnnEvalKnobs candidate : candidates) {
+        for (KnnEvalKnobs candidate : knnSettings) {
             validateNumCandidates(candidate, k);
             if (candidate.isExact()) {
-                // An exact candidate would be measuring the reference against itself; exactness is what a baseline is for.
+                // it would be measuring the reference against itself
                 throw new IllegalArgumentException(
-                    "[" + KnnEvalKnobs.EXACT_FIELD.getPreferredName() + "] is only supported on the baseline"
+                    "[" + KnnEvalKnobs.EXACT_FIELD.getPreferredName() + "] is only supported on the baseline, not in [knn_settings]"
                 );
             }
         }
@@ -219,19 +208,17 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
         this.queries = queries == null ? null : List.copyOf(queries);
         this.sample = sample;
         this.baseline = baseline;
-        this.candidates = List.copyOf(candidates);
+        this.knnSettings = List.copyOf(knnSettings);
         this.includeDetails = includeDetails;
         this.filter = filter;
         this.maxQueriesPerBatch = maxQueriesPerBatch;
         this.maxConcurrentSearches = maxConcurrentSearches;
         this.includeFidelity = includeFidelity;
         this.valueTolerance = valueTolerance == null ? 0.0 : valueTolerance;
+        this.includeHistogram = includeHistogram;
     }
 
-    /**
-     * The underlying kNN query rejects a {@code num_candidates} below {@code k}, so reject it here where the error can name the offending
-     * knobs object rather than surfacing as a per-query search failure.
-     */
+    /** The kNN query rejects this too, but here the error can name the offending knob set rather than one failed query. */
     private static void validateNumCandidates(KnnEvalKnobs knobs, int k) {
         Integer numCandidates = knobs.getNumCandidates();
         if (numCandidates != null && numCandidates < k) {
@@ -259,8 +246,9 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
             in.readVInt(),
             in.readVInt(),
             in.readBoolean(),
-            // sent as optional so that the flag-off case round trips through the constructor's own validation
-            in.readOptionalDouble()
+            // optional so the flag-off case round trips through the constructor's own validation
+            in.readOptionalDouble(),
+            in.readBoolean()
         );
     }
 
@@ -293,8 +281,9 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
         return baseline;
     }
 
-    public List<KnnEvalKnobs> getCandidates() {
-        return candidates;
+    /** The knob sets being measured against the baseline, in request order. */
+    public List<KnnEvalKnobs> getKnnSettings() {
+        return knnSettings;
     }
 
     public boolean isIncludeDetails() {
@@ -302,44 +291,42 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
     }
 
     /**
-     * A filter applied identically to the baseline and every candidate search, so that recall is measured under the same restriction
-     * the production query would run under. It is deliberately <em>not</em> applied to the sampling search: query vectors are drawn from
-     * the whole corpus so that recall under a restrictive filter is measurable rather than being masked by a matching query set.
+     * Applied to every evaluation search but deliberately <em>not</em> to the sampling search: drawing queries from the filtered subset
+     * would mask the effect of a restrictive filter.
      */
     @Nullable
     public QueryBuilder getFilter() {
         return filter;
     }
 
-    /**
-     * The number of queries whose searches are submitted together. Batches run strictly one after another, so this is the knob that
-     * trades wall-clock time against coordinator heap.
-     */
+    /** Batches run strictly one after another, so this trades wall-clock time against coordinator heap. */
     public int getMaxQueriesPerBatch() {
         return maxQueriesPerBatch;
     }
 
     /**
-     * How many of a batch's searches may run at once. The default of 1 serializes them so that each reported {@code took} is one
-     * search's shard time rather than a figure inflated by contention with its siblings. Raise it to finish a sweep sooner when only
-     * the recall numbers, not the latencies, are wanted.
+     * The default of 1 keeps each reported {@code took} to one search's shard time rather than contention with its siblings. Raise it
+     * when only the recall numbers are wanted.
      */
     public int getMaxConcurrentSearches() {
         return maxConcurrentSearches;
     }
 
     /**
-     * Whether to compute the value-based metrics ({@code recall_value} and profile fidelity). They exist for internal analysis, need the
-     * field mapping to invert {@code _score} back into a similarity, and would otherwise clutter a response whose headline number is
-     * recall, so they are off unless asked for.
+     * Whether to compute the value-based metrics. They are for internal analysis and need the field mapping to invert {@code _score},
+     * so they are off unless asked for.
      */
     public boolean isIncludeFidelity() {
         return includeFidelity;
     }
 
+    /** The stats alone answer most questions, so the shape is opt in. */
+    public boolean isIncludeHistogram() {
+        return includeHistogram;
+    }
+
     /**
-     * Multiplicative slack for the value-based recall: a candidate hit counts as a match when its similarity is within this fraction of
-     * the worst similarity the baseline accepted. Zero means "at least as good as the baseline's k-th hit". It has no effect on the
+     * Multiplicative slack for the value-based recall; zero means "at least as good as the baseline's k-th hit". No effect on the
      * id-based recall.
      */
     public double getValueTolerance() {
@@ -353,13 +340,14 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
         out.writeOptionalCollection(queries);
         out.writeOptionalWriteable(sample);
         baseline.writeTo(out);
-        out.writeCollection(candidates);
+        out.writeCollection(knnSettings);
         out.writeBoolean(includeDetails);
         out.writeOptionalNamedWriteable(filter);
         out.writeVInt(maxQueriesPerBatch);
         out.writeVInt(maxConcurrentSearches);
         out.writeBoolean(includeFidelity);
         out.writeOptionalDouble(includeFidelity ? valueTolerance : null);
+        out.writeBoolean(includeHistogram);
     }
 
     @Override
@@ -380,8 +368,8 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
         }
         builder.field(BASELINE_FIELD.getPreferredName());
         baseline.toXContent(builder, params);
-        builder.startArray(CANDIDATES_FIELD.getPreferredName());
-        for (KnnEvalKnobs candidate : candidates) {
+        builder.startArray(KNN_SETTINGS_FIELD.getPreferredName());
+        for (KnnEvalKnobs candidate : knnSettings) {
             candidate.toXContent(builder, params);
         }
         builder.endArray();
@@ -391,6 +379,7 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
         }
         builder.field(MAX_QUERIES_PER_BATCH_FIELD.getPreferredName(), maxQueriesPerBatch);
         builder.field(MAX_CONCURRENT_SEARCHES_FIELD.getPreferredName(), maxConcurrentSearches);
+        builder.field(INCLUDE_HISTOGRAM_FIELD.getPreferredName(), includeHistogram);
         builder.field(INCLUDE_FIDELITY_FIELD.getPreferredName(), includeFidelity);
         if (includeFidelity) {
             builder.field(VALUE_TOLERANCE_FIELD.getPreferredName(), valueTolerance);
@@ -418,12 +407,13 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
             && maxQueriesPerBatch == other.maxQueriesPerBatch
             && maxConcurrentSearches == other.maxConcurrentSearches
             && includeFidelity == other.includeFidelity
+            && includeHistogram == other.includeHistogram
             && Double.compare(valueTolerance, other.valueTolerance) == 0
             && Objects.equals(field, other.field)
             && Objects.equals(queries, other.queries)
             && Objects.equals(sample, other.sample)
             && Objects.equals(baseline, other.baseline)
-            && Objects.equals(candidates, other.candidates)
+            && Objects.equals(knnSettings, other.knnSettings)
             && Objects.equals(filter, other.filter);
     }
 
@@ -435,13 +425,14 @@ public class KnnEvalSpec implements Writeable, ToXContentObject {
             queries,
             sample,
             baseline,
-            candidates,
+            knnSettings,
             includeDetails,
             filter,
             maxQueriesPerBatch,
             maxConcurrentSearches,
             includeFidelity,
-            valueTolerance
+            valueTolerance,
+            includeHistogram
         );
     }
 }

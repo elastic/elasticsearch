@@ -30,24 +30,19 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 /**
- * The result of a {@link KnnEvalRequest}: one recall figure per candidate configuration, all measured against the same baseline.
+ * The result of a {@link KnnEvalRequest}: one recall figure per knob set, all measured against the same baseline.
  * <p>
- * Unlike {@link RankEvalResponse} this response holds no references to pooled {@link org.elasticsearch.search.SearchHit} instances --
- * the transport action copies out only the ids and scores it needs while the search response is still alive, so this object needs no
- * {@code close()} and can be handed to a REST listener like any plain response.
+ * Unlike {@link RankEvalResponse} this holds no pooled {@link org.elasticsearch.search.SearchHit} references -- only copied ids and
+ * scores -- so it needs no {@code close()}.
  */
 public class KnnEvalResponse extends ActionResponse implements ToXContentObject {
 
-    /**
-     * An exact baseline's operations: one float32 comparison per live vector scanned, counted from the query's total hits because the
-     * work is known by construction rather than profiled.
-     */
+    /** One float32 comparison per live vector scanned, taken from the total hit count because exact_knn is not profiled. */
     public static final String FULL_PRECISION_SCAN = "full_precision_scan";
 
     /**
-     * An approximate baseline's operations, as the codec counts them: mostly 1-bit comparisons over the visited posting lists plus the
-     * full-precision rescore window. Comparable with {@link #FULL_PRECISION_SCAN} as "work done", not as bytes touched -- a
-     * full-precision comparison is far more expensive than a 1-bit one.
+     * Mostly 1-bit comparisons over the visited posting lists plus the rescore window. Comparable with {@link #FULL_PRECISION_SCAN} as
+     * work done, not as bytes touched.
      */
     public static final String QUANTIZED_VISIT_PLUS_RESCORE = "quantized_visit_plus_rescore";
 
@@ -63,17 +58,14 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
     private final EffectiveKnobs baseline;
     private final LongStats baselineTookMs;
     private final LongStats baselineVectorOps;
-    /** what the baseline's vector operations were, since the two kinds are not the same unit of work; see the constants above */
+    /** the two kinds are not the same unit of work; see the constants above */
     private final String baselineVectorOpsKind;
-    /** the reference hit list per query, reported once rather than repeated under every candidate; empty unless details were asked for */
+    /** reported once rather than per candidate; empty unless details were asked for */
     private final Map<String, BaselineDetail> baselineDetails;
-    /**
-     * Echoed so that a stored response is self-describing: the value recall means nothing without the slack it was measured at.
-     * {@code null} when the value-based metrics were not requested, in which case nothing about them appears at all.
-     */
+    /** Echoed so a stored response is self-describing; {@code null} when the value-based metrics were not requested. */
     @Nullable
     private final Double valueTolerance;
-    private final List<CandidateResult> results;
+    private final List<KnnSettingsResult> results;
     /** exceptions for individual evaluation queries, keyed by their id */
     private final Map<String, Exception> failures;
 
@@ -84,7 +76,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
         String baselineVectorOpsKind,
         Map<String, BaselineDetail> baselineDetails,
         @Nullable Double valueTolerance,
-        List<CandidateResult> results,
+        List<KnnSettingsResult> results,
         Map<String, Exception> failures
     ) {
         this.baseline = Objects.requireNonNull(baseline);
@@ -104,7 +96,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
         this.baselineVectorOpsKind = in.readString();
         this.baselineDetails = in.readMap(BaselineDetail::new);
         this.valueTolerance = in.readOptionalDouble();
-        this.results = in.readCollectionAsList(CandidateResult::new);
+        this.results = in.readCollectionAsList(KnnSettingsResult::new);
         this.failures = in.readMap(StreamInput::readException);
     }
 
@@ -133,7 +125,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
         return valueTolerance;
     }
 
-    public List<CandidateResult> getResults() {
+    public List<KnnSettingsResult> getResults() {
         return results;
     }
 
@@ -175,7 +167,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
             builder.field(VALUE_TOLERANCE_FIELD.getPreferredName(), valueTolerance);
         }
         builder.startArray(RESULTS_FIELD.getPreferredName());
-        for (CandidateResult result : results) {
+        for (KnnSettingsResult result : results) {
             result.toXContent(builder, params);
         }
         builder.endArray();
@@ -196,37 +188,21 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
     }
 
     /**
-     * How one candidate configuration compared with the baseline.
+     * How one knob set compared with the baseline.
      * <p>
-     * <b>{@code recall} here is recall of the <em>baseline's</em> top-k</b> -- the {@code baseline} object in the response is the
-     * referent -- and not recall against relevance judgements. A candidate can score 1.0 while both configurations return poor results.
+     * {@code recall} is recall of the <em>baseline's</em> top-k, not of relevance judgements: a knob set can score 1.0 while both
+     * configurations return poor results. A large gap between it and {@code recallValue} says the corpus has duplicates or dense ties,
+     * so the id-based number is punishing an equally good alternative. {@code tookMs} is the search response's {@code took}, not
+     * end-to-end latency; {@code vectorOps} is the load-independent cost axis.
      *
-     * @param recall      the mean over queries of {@link RecallAtK} against the baseline's top-k
-     * @param recallStats the distribution of the same per-query values. Per-query recall at small {@code k} is quantised to multiples
-     *                    of {@code 1/k}, so these percentiles are step-like by nature rather than by accident.
-     * @param recallValue value-based recall: the mean fraction of the baseline's window the candidate matched <em>in value</em> rather
-     *                    than by id. A large gap between this and {@code recall} says the corpus has duplicates or dense ties, so the
-     *                    id-based number is punishing the candidate for picking an equally good alternative. {@code null}, with
-     *                    {@code recallValueSkipped} set, when scores are not real similarities.
-     * @param fidelity    how much similarity the candidate gave up on the documents it did return, which recall alone cannot show
-     * @param recallHistogramBinWidth present only when {@code recallHistogram} is binned rather than exact, in which case each
-     *                    entry's {@code recall} means {@code [recall, recall + width)} -- except 1.0, which stays exact
-     * @param recallHistogram the per-query recall values grouped for reading, ascending. Each entry's {@code recall} is an exact
-     *                    observed value, or -- when {@code recallHistogramBinWidth} is present -- the lower edge of a half-open bin,
-     *                    except for 1.0 which is always exact. The percentiles above tie heavily, so this is what shows the shape.
-     * @param tookMs     wall-clock search time this candidate's runs reported. This is the {@code took} of the search response, i.e.
-     *                   coordinator-measured query and fetch time; it is <em>not</em> end-to-end latency, since it excludes the client
-     *                   round trip and the msearch queueing this action introduces. Comparable between baseline and candidates, not
-     *                   against a client-side timing of the same query.
-     * @param vectorOps  vector comparisons performed, summed across shards for each search. Unlike {@code tookMs} this is independent of
-     *                   machine load and cache state, so it is the honest cost axis to plot recall against.
-     * @param details    per-query breakdown, empty unless {@link KnnEvalSpec#isIncludeDetails()} was set
+     * @param recallHistogramBinWidth present only when the histogram is binned, in which case each entry's {@code recall} means
+     *                    {@code [recall, recall + width)} -- except 1.0, which stays exact
      */
-    public record CandidateResult(
-        EffectiveKnobs candidate,
+    public record KnnSettingsResult(
+        EffectiveKnobs knnSettings,
         double recall,
         DoubleStats recallStats,
-        List<RecallBucket> recallHistogram,
+        @Nullable List<RecallBucket> recallHistogram,
         @Nullable Double recallHistogramBinWidth,
         @Nullable Double recallValue,
         @Nullable DoubleStats recallValueStats,
@@ -237,7 +213,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
         Map<String, QueryDetail> details
     ) implements Writeable, ToXContentObject {
 
-        static final ParseField CANDIDATE_FIELD = new ParseField("candidate");
+        static final ParseField KNN_SETTINGS_FIELD = new ParseField("knn_settings");
         static final ParseField RECALL_FIELD = new ParseField("recall");
         static final ParseField RECALL_STATS_FIELD = new ParseField("recall_stats");
         static final ParseField RECALL_HISTOGRAM_FIELD = new ParseField("recall_histogram");
@@ -250,11 +226,11 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
         static final ParseField VECTOR_OPS_FIELD = new ParseField("vector_ops");
         static final ParseField DETAILS_FIELD = new ParseField("details");
 
-        public CandidateResult(
-            EffectiveKnobs candidate,
+        public KnnSettingsResult(
+            EffectiveKnobs knnSettings,
             double recall,
             DoubleStats recallStats,
-            List<RecallBucket> recallHistogram,
+            @Nullable List<RecallBucket> recallHistogram,
             @Nullable Double recallHistogramBinWidth,
             @Nullable Double recallValue,
             @Nullable DoubleStats recallValueStats,
@@ -264,10 +240,10 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
             LongStats vectorOps,
             Map<String, QueryDetail> details
         ) {
-            this.candidate = Objects.requireNonNull(candidate);
+            this.knnSettings = Objects.requireNonNull(knnSettings);
             this.recall = recall;
             this.recallStats = Objects.requireNonNull(recallStats);
-            this.recallHistogram = List.copyOf(recallHistogram);
+            this.recallHistogram = recallHistogram == null ? null : List.copyOf(recallHistogram);
             this.recallHistogramBinWidth = recallHistogramBinWidth;
             this.recallValue = recallValue;
             this.recallValueStats = recallValueStats;
@@ -278,12 +254,12 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
             this.details = Map.copyOf(details);
         }
 
-        CandidateResult(StreamInput in) throws IOException {
+        KnnSettingsResult(StreamInput in) throws IOException {
             this(
                 new EffectiveKnobs(in),
                 in.readDouble(),
                 new DoubleStats(in),
-                in.readCollectionAsList(RecallBucket::new),
+                in.readOptionalCollectionAsList(RecallBucket::new),
                 in.readOptionalDouble(),
                 in.readOptionalDouble(),
                 in.readOptionalWriteable(DoubleStats::new),
@@ -297,10 +273,10 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            candidate.writeTo(out);
+            knnSettings.writeTo(out);
             out.writeDouble(recall);
             recallStats.writeTo(out);
-            out.writeCollection(recallHistogram);
+            out.writeOptionalCollection(recallHistogram);
             out.writeOptionalDouble(recallHistogramBinWidth);
             out.writeOptionalDouble(recallValue);
             out.writeOptionalWriteable(recallValueStats);
@@ -314,20 +290,22 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(CANDIDATE_FIELD.getPreferredName());
-            candidate.toXContent(builder, params);
+            builder.field(KNN_SETTINGS_FIELD.getPreferredName());
+            knnSettings.toXContent(builder, params);
             builder.field(RECALL_FIELD.getPreferredName(), recall);
             builder.field(RECALL_STATS_FIELD.getPreferredName());
             recallStats.toXContent(builder, params);
-            builder.startArray(RECALL_HISTOGRAM_FIELD.getPreferredName());
-            for (RecallBucket bucket : recallHistogram) {
-                bucket.toXContent(builder, params);
+            if (recallHistogram != null) {
+                builder.startArray(RECALL_HISTOGRAM_FIELD.getPreferredName());
+                for (RecallBucket bucket : recallHistogram) {
+                    bucket.toXContent(builder, params);
+                }
+                builder.endArray();
+                if (recallHistogramBinWidth != null) {
+                    builder.field(RECALL_HISTOGRAM_BIN_WIDTH_FIELD.getPreferredName(), recallHistogramBinWidth);
+                }
             }
-            builder.endArray();
-            if (recallHistogramBinWidth != null) {
-                builder.field(RECALL_HISTOGRAM_BIN_WIDTH_FIELD.getPreferredName(), recallHistogramBinWidth);
-            }
-            // fidelity is the marker for the whole value-based group: absent when the caller did not ask for it
+            // fidelity is the marker for the whole value-based group
             if (fidelity != null) {
                 builder.field(RECALL_VALUE_FIELD.getPreferredName(), recallValue);
                 if (recallValueSkipped != null) {
@@ -356,10 +334,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
         }
     }
 
-    /**
-     * One query's reference hit list, reported once at the top level. Repeating it under every candidate made the response grow with the
-     * number of candidates for no new information, and it is the same list every candidate is scored against.
-     */
+    /** One query's reference hit list, reported once rather than repeated under every knob set that is scored against it. */
     public record BaselineDetail(List<Hit> hits) implements Writeable, ToXContentObject {
 
         static final ParseField HITS_FIELD = new ParseField("hits");
@@ -391,22 +366,14 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
     }
 
     /**
-     * The recall of one candidate configuration on one query, annotated so that a caller can see <em>which</em> documents the cheaper
-     * configuration got wrong without cross-referencing two lists by hand.
+     * One query's result for one knob set, annotated so a caller can see <em>which</em> documents it got wrong without joining two
+     * lists by hand. {@code relevantRetrieved} equals the number of hits with a non-null {@code baseline_rank}, and
+     * {@code relevant - relevantRetrieved} equals {@code missed.size()}.
      *
-     * @param relevantRetrieved how many of the baseline's top-k the candidate also returned; equals the number of hits with a
-     *                          non-null {@code baseline_rank}
-     * @param relevant          the size of the baseline's top-k, i.e. the achievable maximum. {@code relevant - relevantRetrieved}
-     *                          equals {@code missed.size()}
-     * @param missed            the baseline hits the candidate did not return, in baseline rank order. Each carries the score and rank
-     *                          the baseline gave it, so a caller can see how good the misses were without joining against
-     *                          {@code baseline_details}
-     * @param epsilonProfile    per-rank fidelity loss, {@code null} where the loss is unbounded or the baseline never reached that rank;
-     *                          empty when fidelity was skipped for the field
-     * @param recallValue       this query's value-based recall, or {@code null} when it could not be computed for the field
-     * @param valueMatches      how many of the candidate's hits were as good in value as the baseline's worst accepted hit
-     * @param incomplete        true when at least one rank had an unbounded loss, which is why that query is excluded from
-     *                          {@code fidelity.max_epsilon} and counted in {@code fidelity.infinite_count} instead
+     * @param epsilonProfile per-rank fidelity loss, {@code null} where unbounded or beyond the baseline's depth; empty when fidelity
+     *                       was skipped
+     * @param incomplete     true when some rank had an unbounded loss, which is why the query is counted in
+     *                       {@code fidelity.infinite_count} instead of {@code fidelity.max_epsilon}
      */
     public record QueryDetail(
         double recall,
@@ -446,7 +413,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
             this.relevant = relevant;
             this.hits = List.copyOf(hits);
             this.missed = List.copyOf(missed);
-            // nulls are meaningful here (unbounded loss, or a rank the baseline never reached), so this cannot be List#copyOf
+            // nulls are meaningful here, so this cannot be List#copyOf
             this.epsilonProfile = Collections.unmodifiableList(new ArrayList<>(epsilonProfile));
             this.incomplete = incomplete;
             this.recallValue = recallValue;
@@ -514,21 +481,15 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
     }
 
     /**
-     * How much similarity a candidate gave up on the documents it did return.
+     * How much similarity was given up on the documents that were returned. Recall counts documents; this measures the gap, separating
+     * a near-miss from something unrelated. Zero loss at every rank is equivalent to recall 1.0.
      * <p>
-     * Recall counts documents; fidelity measures the gap. A candidate that swaps the true neighbour for one a hair behind it scores the
-     * same recall as one that returns something unrelated, and only fidelity separates them. Zero loss at every rank is equivalent to
-     * recall 1.0.
-     * <p>
-     * Two caveats worth repeating wherever this number is shown. The reference is the {@code baseline} configuration, not exact search:
-     * a 100% {@code visit_percentage} run is a proxy for ground truth, so a loss of zero means "as good as the baseline", not
-     * "optimal". And the metric needs real scores, so it is skipped -- {@link #skipped} carries the reason -- when the field's scores
-     * are quantized estimates.
+     * The reference is the {@code baseline}, so zero means "as good as the baseline" and not "optimal", and the metric is skipped --
+     * {@link #skipped} carries the reason -- when the field's scores are quantized estimates.
      *
-     * @param maxEpsilon    distribution over queries of each query's worst per-rank loss; {@code p95} is the usual dashboard scalar
-     * @param infiniteCount queries whose loss was unbounded at some rank, excluded from {@code maxEpsilon} rather than clamped
-     * @param meanEpsilonByRank mean loss at each rank, over the queries with a finite loss there; {@code null} at a rank no query
-     *                      reached. Losses concentrated in the tail ranks mean something very different from losses at rank 0.
+     * @param maxEpsilon        per-query worst loss; {@code p95} is the usual dashboard scalar
+     * @param infiniteCount     queries excluded from {@code maxEpsilon} rather than clamped
+     * @param meanEpsilonByRank {@code null} at a rank no query reached
      */
     public record Fidelity(@Nullable String skipped, @Nullable DoubleStats maxEpsilon, long infiniteCount, List<Double> meanEpsilonByRank)
         implements
@@ -552,7 +513,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
             this.skipped = skipped;
             this.maxEpsilon = maxEpsilon;
             this.infiniteCount = infiniteCount;
-            // a rank nobody reached is null, so this cannot be List#copyOf
+            // nulls are meaningful here, so this cannot be List#copyOf
             this.meanEpsilonByRank = Collections.unmodifiableList(new ArrayList<>(meanEpsilonByRank));
         }
 
@@ -595,27 +556,21 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
     }
 
     /**
-     * One entry of a recall histogram: an observed per-query recall value and how many queries produced it.
-     * <p>
-     * When the histogram is binned, {@code recall} is the lower edge of a half-open bin, the same convention the {@code histogram}
-     * aggregation uses for its {@code key}. The 1.0 entry is always an exact value.
+     * One histogram entry. When binned, {@code recall} is the lower edge of a half-open bin -- the {@code histogram} aggregation's
+     * {@code key} convention -- and 1.0 is always exact.
      */
     public record RecallBucket(double recall, long count) implements Writeable, ToXContentObject {
 
         static final ParseField RECALL_FIELD = new ParseField("recall");
         static final ParseField COUNT_FIELD = new ParseField("count");
 
-        /** How much of a recall value is significant for grouping; enough to keep 1/k apart for any usable k, and to merge fp noise. */
+        /** Enough precision to keep 1/k apart for any usable k, and to merge floating point noise. */
         private static final double GROUPING_SCALE = 10_000.0;
 
-        /**
-         * The largest {@code k} for which the exact values are still a readable histogram. Per-query recall is a multiple of
-         * {@code 1/relevant}, so a run at this {@code k} can produce at most 21 distinct values; beyond it the exact form degenerates
-         * into a list nearly as long as the query set.
-         */
+        /** Per-query recall is a multiple of {@code 1/relevant}, so at this {@code k} there are at most 21 distinct values. */
         static final int MAX_EXACT_K = 20;
 
-        /** Bin width used once {@code k} is too large for the exact form. Twenty bins plus an exact entry for 1.0 is again 21. */
+        /** Twenty bins plus an exact entry for 1.0 is again 21 entries. */
         static final double BIN_WIDTH = 0.05;
 
         private static final int BINS = (int) Math.round(1.0 / BIN_WIDTH);
@@ -625,11 +580,9 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
         }
 
         /**
-         * Groups the per-query values, ascending, with no empty entries.
-         * <p>
-         * At small {@code k} the values are already discrete, so each distinct one gets its own entry. At large {@code k} they are dense
-         * enough that the exact form stops being a summary, so each entry becomes the lower edge of a {@link #BIN_WIDTH} bin -- except
-         * for 1.0, which stays exact so that "perfect" is never merged with "nearly perfect".
+         * Groups the per-query values, ascending, with no empty entries. Past {@link #MAX_EXACT_K} the values are dense enough that the
+         * exact form stops being a summary, so each entry becomes a bin's lower edge -- except 1.0, which stays exact so that "perfect" is
+         * never merged with "nearly perfect".
          */
         public static List<RecallBucket> histogram(List<Double> values, int k) {
             SortedMap<Double, Long> counts = new TreeMap<>();
@@ -648,15 +601,12 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
             if (value >= 1.0) {
                 return 1.0;
             }
-            // the epsilon keeps a value that should sit exactly on an edge (0.15 arriving as 0.1499999...) out of the bin below it
+            // the epsilon keeps a value that should sit on an edge (0.15 arriving as 0.1499999...) out of the bin below
             int bin = Math.min(BINS - 1, (int) Math.floor(value / BIN_WIDTH + 1e-9));
             return round(bin * BIN_WIDTH);
         }
 
-        /**
-         * Rounds so that arithmetic which should have produced the same fraction ({@code 0.30000000000000004} against {@code 0.3})
-         * lands in one bucket.
-         */
+        /** So that {@code 0.30000000000000004} and {@code 0.3} land in one bucket. */
         private static double round(double value) {
             return Math.round(value * GROUPING_SCALE) / GROUPING_SCALE;
         }
@@ -682,13 +632,10 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
     }
 
     /**
-     * Distribution of the per-query recall values behind one candidate.
-     * <p>
-     * The mean alone hides the shape: a candidate averaging 0.9 because every query scores 0.9 is a very different proposition from one
-     * that scores 1.0 on most queries and 0.2 on a tail of them. Note that a per-query recall can only be a multiple of {@code 1/k}, so
-     * at small {@code k} these percentiles are step-like by construction.
+     * Distribution of per-query recall. The mean alone hides the shape: 0.9 everywhere is a very different proposition from 1.0 on most
+     * queries and 0.2 on a tail. Per-query recall is a multiple of {@code 1/k}, so these percentiles are step-like by construction.
      *
-     * @param count how many queries contributed; equals the candidate's {@code took_ms.count}
+     * @param count equals the knob set's {@code took_ms.count}
      */
     public record DoubleStats(double mean, double min, double p10, double p50, double p90, double p95, double max, long count)
         implements
@@ -706,7 +653,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
 
         public static final DoubleStats EMPTY = new DoubleStats(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0);
 
-        /** Exact nearest-rank percentiles over a sorted copy: one request's worth of queries is small enough not to need a sketch. */
+        /** Nearest-rank over a sorted copy: one request's worth of queries is too small to need a sketch. */
         public static DoubleStats of(List<Double> values) {
             if (values.isEmpty()) {
                 return EMPTY;
@@ -775,10 +722,9 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
     }
 
     /**
-     * Distribution of one per-search measurement over all the searches behind a single configuration. Used for both {@code took_ms} and
-     * {@code vector_ops}, which have to be read together with the recall figure to make sense of a sweep.
+     * Distribution of one per-search measurement, used for both {@code took_ms} and {@code vector_ops}.
      *
-     * @param count how many searches contributed; searches that failed are not counted
+     * @param count failed searches are not counted
      */
     public record LongStats(double mean, long p50, long p95, long max, long sum, long count) implements Writeable, ToXContentObject {
 
@@ -791,10 +737,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
 
         public static final LongStats EMPTY = new LongStats(0.0, 0, 0, 0, 0, 0);
 
-        /**
-         * Summarises the collected values. Percentiles use nearest-rank over a sorted copy rather than a sketch: the sample size here is
-         * the number of queries in one request, which is small enough that exactness is cheaper than approximation.
-         */
+        /** Nearest-rank over a sorted copy: one request's worth of searches is too small to need a sketch. */
         public static LongStats of(List<Long> values) {
             if (values.isEmpty()) {
                 return EMPTY;
@@ -848,11 +791,8 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
     }
 
     /**
-     * One knob set as it is echoed back, with what the search will actually do.
-     *
-     * @param effectiveNumCandidates the candidate window the shard will collect, or {@code null} when the field mapping could not be
-     *                               read ({@code view_index_metadata} is what enables these two)
-     * @param rescoreWindow          how many candidates get rescored on the real vectors; 0 when nothing is rescored
+     * A knob set echoed back with what the search will actually do. Both derived values are {@code null} when the field mapping could
+     * not be read, which {@code view_index_metadata} is what enables.
      */
     public record EffectiveKnobs(KnnEvalKnobs knobs, @Nullable Integer effectiveNumCandidates, @Nullable Integer rescoreWindow)
         implements
@@ -899,11 +839,9 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
     }
 
     /**
-     * A document with the rank the baseline gave it. Used for both sides of a per-query detail: a candidate hit, where the rank may be
-     * absent, and a missed baseline hit, where it never is.
+     * A document with the rank the baseline gave it, used for both a returned hit and a missed baseline hit.
      *
-     * @param baselineRank the 0-based position of this document in the baseline's top-k, or {@code null} if the baseline did not return
-     *                     it at all -- which is precisely the definition of a false positive for this metric
+     * @param baselineRank {@code null} when the baseline never returned the document, which is this metric's false positive
      */
     public record RankedHit(String id, float score, @Nullable Integer baselineRank) implements Writeable, ToXContentObject {
 
@@ -935,7 +873,7 @@ public class KnnEvalResponse extends ActionResponse implements ToXContentObject 
         }
     }
 
-    /** A single returned document, reduced to the only two things recall estimation cares about. */
+    /** A returned document, reduced to what recall estimation needs. */
     public record Hit(String id, float score) implements Writeable, ToXContentObject {
 
         static final ParseField ID_FIELD = new ParseField("_id");

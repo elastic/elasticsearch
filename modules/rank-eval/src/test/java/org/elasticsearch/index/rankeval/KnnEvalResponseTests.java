@@ -36,8 +36,9 @@ public class KnnEvalResponseTests extends ESTestCase {
         boolean valueMetrics = randomBoolean();
         // the bin width is present only when the histogram is binned, which depends on k
         boolean binned = randomBoolean();
+        boolean histogram = randomBoolean();
         int numberOfCandidates = randomIntBetween(1, 4);
-        List<KnnEvalResponse.CandidateResult> results = new ArrayList<>(numberOfCandidates);
+        List<KnnEvalResponse.KnnSettingsResult> results = new ArrayList<>(numberOfCandidates);
         for (int c = 0; c < numberOfCandidates; c++) {
             int numberOfQueries = randomIntBetween(0, 3);
             Map<String, KnnEvalResponse.QueryDetail> details = Maps.newMapWithExpectedSize(numberOfQueries);
@@ -50,12 +51,13 @@ public class KnnEvalResponseTests extends ESTestCase {
             }
             KnnEvalResponse.DoubleStats recallStats = KnnEvalResponse.DoubleStats.of(recalls);
             results.add(
-                new KnnEvalResponse.CandidateResult(
+                new KnnEvalResponse.KnnSettingsResult(
                     randomEffectiveKnobs(),
                     recallStats.mean(),
                     recallStats,
-                    KnnEvalResponse.RecallBucket.histogram(recalls, binned ? 23 : 5),
-                    binned ? KnnEvalResponse.RecallBucket.BIN_WIDTH : null,
+                    // the histogram is opt in, so both the present and absent shapes have to round trip
+                    histogram ? KnnEvalResponse.RecallBucket.histogram(recalls, binned ? 23 : 5) : null,
+                    histogram && binned ? KnnEvalResponse.RecallBucket.BIN_WIDTH : null,
                     valueMetrics ? recallStats.mean() : null,
                     valueMetrics ? recallStats : null,
                     null,
@@ -195,7 +197,7 @@ public class KnnEvalResponseTests extends ESTestCase {
 
     public void testRecallStatsAgreeWithTheHeadlineRecall() {
         KnnEvalResponse response = createRandomResponse();
-        for (KnnEvalResponse.CandidateResult result : response.getResults()) {
+        for (KnnEvalResponse.KnnSettingsResult result : response.getResults()) {
             KnnEvalResponse.DoubleStats stats = result.recallStats();
             assertEquals("the headline recall is the mean of the distribution", stats.mean(), result.recall(), 0.0);
             assertEquals("one recall value per timed search", result.tookMs().count(), stats.count());
@@ -204,14 +206,16 @@ public class KnnEvalResponseTests extends ESTestCase {
             assertTrue(stats.p50() <= stats.p90());
             assertTrue(stats.p90() <= stats.p95());
             assertTrue(stats.p95() <= stats.max());
-            assertHistogramMatchesStats(result);
+            if (result.recallHistogram() != null) {
+                assertHistogramMatchesStats(result);
+            }
             // recall_value only ever appears together with fidelity
             assertEquals(result.fidelity() == null, result.recallValue() == null);
         }
     }
 
     /** Every query lands in exactly one entry, and the entries are ascending with no empty ones. */
-    private static void assertHistogramMatchesStats(KnnEvalResponse.CandidateResult result) {
+    private static void assertHistogramMatchesStats(KnnEvalResponse.KnnSettingsResult result) {
         long total = 0;
         double previous = Double.NEGATIVE_INFINITY;
         for (KnnEvalResponse.RecallBucket bucket : result.recallHistogram()) {
@@ -326,7 +330,7 @@ public class KnnEvalResponseTests extends ESTestCase {
             ),
             0.05,
             List.of(
-                new KnnEvalResponse.CandidateResult(
+                new KnnEvalResponse.KnnSettingsResult(
                     KnnEvalResponse.EffectiveKnobs.of(new KnnEvalKnobs(5.0f, null, null, false)),
                     0.5,
                     KnnEvalResponse.DoubleStats.of(List.of(0.25, 0.75)),
@@ -340,7 +344,7 @@ public class KnnEvalResponseTests extends ESTestCase {
                     KnnEvalResponse.LongStats.of(List.of(10L, 30L)),
                     Map.of()
                 ),
-                new KnnEvalResponse.CandidateResult(
+                new KnnEvalResponse.KnnSettingsResult(
                     KnnEvalResponse.EffectiveKnobs.of(new KnnEvalKnobs(20.0f, 200, null, false)),
                     0.5,
                     KnnEvalResponse.DoubleStats.of(List.of(0.5)),
@@ -381,7 +385,7 @@ public class KnnEvalResponseTests extends ESTestCase {
               "value_tolerance": 0.05,
               "results": [
                 {
-                  "candidate": { "visit_percentage": 5.0 },
+                  "knn_settings": { "visit_percentage": 5.0 },
                   "recall": 0.5,
                   "recall_stats": {
                     "mean": 0.5, "min": 0.25, "p10": 0.25, "p50": 0.25, "p90": 0.75, "p95": 0.75, "max": 0.75, "count": 2
@@ -394,7 +398,7 @@ public class KnnEvalResponseTests extends ESTestCase {
                   "vector_ops": { "mean": 20.0, "p50": 10, "p95": 30, "max": 30, "sum": 40, "count": 2 }
                 },
                 {
-                  "candidate": { "visit_percentage": 20.0, "num_candidates": 200 },
+                  "knn_settings": { "visit_percentage": 20.0, "num_candidates": 200 },
                   "recall": 0.5,
                   "recall_stats": {
                     "mean": 0.5, "min": 0.5, "p10": 0.5, "p50": 0.5, "p90": 0.5, "p95": 0.5, "max": 0.5, "count": 1
@@ -447,7 +451,7 @@ public class KnnEvalResponseTests extends ESTestCase {
             Map.of(),
             0.0,
             List.of(
-                new KnnEvalResponse.CandidateResult(
+                new KnnEvalResponse.KnnSettingsResult(
                     KnnEvalResponse.EffectiveKnobs.of(new KnnEvalKnobs(5.0f, null, null, false)),
                     0.0,
                     KnnEvalResponse.DoubleStats.EMPTY,

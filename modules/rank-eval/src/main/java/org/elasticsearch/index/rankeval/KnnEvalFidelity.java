@@ -18,20 +18,10 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Turns {@code _score} values back into the similarities (or distances) that the fidelity metric is defined on, and decides whether the
- * metric is meaningful at all for a given field.
- * <p>
- * Recall answers "did the candidate find the same documents?" but not "how much worse are the ones it found instead?". A candidate that
- * misses the true neighbour by a hair is very different from one that returns something unrelated, and both score the same recall.
- * Fidelity measures that gap: per rank {@code i}, {@code epsilon_i = max(0, s(i)/t(i) - 1)} where {@code s} is the baseline's similarity
- * at that rank and {@code t} the candidate's. Zero at every rank is equivalent to recall 1.0.
- * <p>
- * It has to be computed on similarities rather than on {@code _score}, because {@code _score} is a monotonic but non-linear transform of
- * the similarity ({@link VectorSimilarity} applies it), so a ratio of scores is not a ratio of similarities. The inversions below mirror
- * {@code VectorSimilarity#score}, which is not visible outside its own package.
- * <p>
- * For {@code l2_norm} the underlying quantity is a distance, where smaller is better, so the ratio is inverted:
- * {@code epsilon_i = max(0, t_d(i)/s_d(i) - 1)}.
+ * Inverts {@code _score} back into the similarity the fidelity metric is defined on: {@code epsilon_i = max(0, s(i)/t(i) - 1)} for the
+ * baseline's similarity {@code s} and the candidate's {@code t}. Scores cannot be used directly because {@link VectorSimilarity}
+ * applies a non-linear transform, so a score ratio is not a similarity ratio. The inversions mirror {@code VectorSimilarity#score},
+ * which is not visible outside its own package. For {@code l2_norm} the quantity is a distance, so the ratio flips.
  */
 record KnnEvalFidelity(VectorSimilarity similarity, @Nullable String skippedReason) {
 
@@ -44,28 +34,26 @@ record KnnEvalFidelity(VectorSimilarity similarity, @Nullable String skippedReas
 
     static final String DENSE_VECTOR_TYPE = "dense_vector";
 
-    /**
-     * Without rescoring, a quantized index reports the score of the <em>quantized</em> vector rather than of the real one, so a score
-     * ratio measures quantization error rather than search quality. Reporting a number there would be worse than reporting none.
-     */
+    /** Without rescoring a quantized index scores the quantized vector, so a score ratio measures quantization error. */
     static final String RESCORING_DISABLED = "rescoring disabled; scores are quantized estimates";
 
-    /** Only the float element types have a score transform that inverts to a single similarity; byte and bit fold in the dimension. */
+    /** Only the float transforms invert to a single similarity; byte and bit fold in the dimension. */
     private static final List<ElementType> INVERTIBLE_ELEMENT_TYPES = List.of(ElementType.FLOAT, ElementType.BFLOAT16);
 
     /**
      * Reads what the metric needs out of one field's mapping.
      *
-     * @param fieldMapping the field's mapping body, i.e. the value under the field name in a field-mappings response
-     * @param baselineOversample the baseline run's own oversample, if it set one. A run that asks for rescoring gets real scores even
-     *                           when the mapping has rescoring off, so it lifts the guard below. This is deliberately keyed on the
-     *                           baseline alone: it is the reference every epsilon is measured against, and a candidate without
-     *                           rescoring simply scores badly rather than invalidating the metric.
-     * @throws IllegalArgumentException if the field is not a {@code dense_vector}; evaluating kNN recall on anything else is a mistake
-     *                                 worth reporting rather than silently degrading
+     * @param baselineOversample lifts the rescoring guard below, keyed on the baseline alone because it is the reference every epsilon
+     *                           is measured against; a candidate without rescoring just scores badly
+     * @throws IllegalArgumentException if the field is not a {@code dense_vector}
      */
     @SuppressWarnings("unchecked")
-    static KnnEvalFidelity fromFieldMapping(String field, @Nullable Map<String, Object> fieldMapping, @Nullable Float baselineOversample) {
+    static KnnEvalFidelity fromFieldMapping(
+        String field,
+        @Nullable Map<String, Object> fieldMapping,
+        @Nullable KnnEvalRescore rescore,
+        @Nullable Float baselineOversample
+    ) {
         if (fieldMapping == null) {
             throw new IllegalArgumentException("field [" + field + "] is not mapped in any of the requested indices");
         }
@@ -75,8 +63,7 @@ record KnnEvalFidelity(VectorSimilarity similarity, @Nullable String skippedReas
                 "field [" + field + "] is of type [" + type + "], but [" + DENSE_VECTOR_TYPE + "] is required"
             );
         }
-        // An indexed dense_vector always renders its similarity, but default to the mapper's own default rather than failing if a future
-        // mapping omits it.
+        // an indexed dense_vector always renders its similarity; default rather than fail if a future mapping omits it
         Object similarityName = fieldMapping.get(SIMILARITY_FIELD);
         VectorSimilarity similarity = similarityName == null
             ? VectorSimilarity.COSINE
@@ -90,14 +77,12 @@ record KnnEvalFidelity(VectorSimilarity similarity, @Nullable String skippedReas
             return new KnnEvalFidelity(similarity, "score inversion is only defined for float element types, not [" + elementType + "]");
         }
 
-        if (baselineOversample == null
-            && fieldMapping.get(INDEX_OPTIONS_FIELD) instanceof Map<?, ?> indexOptions
-            && indexOptions.get(RESCORE_VECTOR_FIELD) instanceof Map<?, ?> rescoreVector
-            && rescoreVector.get(OVERSAMPLE_FIELD) instanceof Number oversample
-            && oversample.floatValue() == 0.0f) {
-            return new KnnEvalFidelity(similarity, RESCORING_DISABLED);
-        }
-        return new KnnEvalFidelity(similarity, null);
+        // only a quantized index with rescoring off reports estimates; an unquantized one already scores on real vectors
+        boolean rescored = baselineOversample != null
+            || rescore == null
+            || rescore.quantized() == false
+            || (rescore.mappingOversample() != null && rescore.mappingOversample() > 0.0f);
+        return new KnnEvalFidelity(similarity, rescored ? null : RESCORING_DISABLED);
     }
 
     /** The mapping could not be read, so nothing similarity-based can be computed. */
@@ -109,16 +94,12 @@ record KnnEvalFidelity(VectorSimilarity similarity, @Nullable String skippedReas
         return skippedReason != null;
     }
 
-    /** True when the inverted quantity is a distance (smaller is better), which flips the direction of the ratio. */
+    /** A distance (smaller is better) flips the direction of the ratio. */
     boolean isDistanceBased() {
         return similarity == VectorSimilarity.L2_NORM;
     }
 
-    /**
-     * Inverts {@code VectorSimilarity#score} for the float element types.
-     *
-     * @return the similarity for the inner-product families, or the Euclidean distance for {@code l2_norm}
-     */
+    /** @return the similarity, or the Euclidean distance for {@code l2_norm} */
     double invert(float score) {
         return switch (similarity) {
             // score = 1 / (1 + d^2)
@@ -131,15 +112,11 @@ record KnnEvalFidelity(VectorSimilarity similarity, @Nullable String skippedReas
     }
 
     /**
-     * Whether a candidate hit is as good <em>in value</em> as the worst hit the baseline accepted.
-     * <p>
-     * This is what separates a candidate that found different-but-equally-good documents from one that found worse ones. On a corpus
-     * with duplicates or dense ties the two recalls diverge sharply: id recall punishes picking the other copy of an identical vector,
-     * value recall does not.
+     * Whether a hit is as good <em>in value</em> as the worst the baseline accepted, which separates a different-but-equally-good
+     * document from a worse one. On a corpus with duplicates or dense ties the two recalls diverge sharply.
      *
-     * @param tolerance multiplicative slack, so 0.05 accepts a similarity 5% below the baseline's k-th. Note that for
-     *                  {@code max_inner_product}, where similarities can be negative, the slack tightens rather than loosens the
-     *                  threshold -- the formula is multiplicative, not additive.
+     * @param tolerance multiplicative slack; for {@code max_inner_product}, where similarities can be negative, it tightens the
+     *                  threshold rather than loosening it
      */
     boolean isValueMatch(float baselineWorstScore, float candidateScore, double tolerance) {
         double threshold = invert(baselineWorstScore);
@@ -150,19 +127,14 @@ record KnnEvalFidelity(VectorSimilarity similarity, @Nullable String skippedReas
         return candidate >= threshold * (1.0 - tolerance);
     }
 
-    /**
-     * The fidelity loss at one rank.
-     *
-     * @return {@code max(0, s/t - 1)} (or the distance equivalent), or {@code null} when the loss is unbounded -- the candidate returned
-     *         a non-positive similarity, or the baseline's distance was zero while the candidate's was not, so no finite ratio exists
-     */
+    /** @return {@code null} when no finite ratio exists: a non-positive candidate similarity, or a zero baseline distance */
     @Nullable
     Double epsilonAtRank(float baselineScore, float candidateScore) {
         double baseline = invert(baselineScore);
         double candidate = invert(candidateScore);
         if (isDistanceBased()) {
             if (baseline == 0.0) {
-                // the baseline found an exact match; only an exact match is as good
+                // the baseline found an exact match, so only an exact match is as good
                 return candidate == 0.0 ? 0.0 : null;
             }
             return Math.max(0.0, candidate / baseline - 1.0);

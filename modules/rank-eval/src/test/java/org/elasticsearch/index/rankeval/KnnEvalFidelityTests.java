@@ -19,9 +19,8 @@ import static org.hamcrest.Matchers.containsString;
 public class KnnEvalFidelityTests extends ESTestCase {
 
     /**
-     * The forward transform, replicated here because {@code VectorSimilarity#score} is package-private to
-     * {@code org.elasticsearch.index.mapper.vectors}. These are the float-element-type branches of that method; if it ever changes,
-     * {@link KnnEvalFidelity#invert} has to change with it and this copy is what will catch the drift.
+     * The float branches of {@code VectorSimilarity#score}, replicated because that method is package-private. This copy is what
+     * catches drift between it and {@link KnnEvalFidelity#invert}.
      */
     private static float score(VectorSimilarity similarity, double value) {
         return switch (similarity) {
@@ -35,7 +34,7 @@ public class KnnEvalFidelityTests extends ESTestCase {
         for (VectorSimilarity similarity : VectorSimilarity.values()) {
             KnnEvalFidelity fidelity = new KnnEvalFidelity(similarity, null);
             for (int i = 0; i < 100; i++) {
-                // l2_norm inverts to a distance, which is non-negative; the others invert to a similarity, which is not
+                // l2_norm inverts to a distance, which is non-negative; a similarity is not
                 double value = similarity == VectorSimilarity.L2_NORM
                     ? randomDoubleBetween(0.0, 20.0, true)
                     : randomDoubleBetween(-0.99, 0.99, true);
@@ -63,81 +62,75 @@ public class KnnEvalFidelityTests extends ESTestCase {
 
     public void testEpsilonGrowsAsTheCandidateGetsWorse() {
         KnnEvalFidelity cosine = new KnnEvalFidelity(VectorSimilarity.COSINE, null);
-        // baseline similarity 0.9, candidate 0.45: the candidate gave up half the similarity
         assertEquals(1.0, cosine.epsilonAtRank(score(VectorSimilarity.COSINE, 0.9), score(VectorSimilarity.COSINE, 0.45)), 1e-6);
 
         KnnEvalFidelity l2 = new KnnEvalFidelity(VectorSimilarity.L2_NORM, null);
-        // the ratio flips for a distance: the candidate is twice as far away
+        // the ratio flips for a distance
         assertEquals(1.0, l2.epsilonAtRank(score(VectorSimilarity.L2_NORM, 1.0), score(VectorSimilarity.L2_NORM, 2.0)), 1e-6);
-        // a candidate closer than the reference is not a loss, so epsilon floors at zero rather than going negative
+        // closer than the reference is not a loss, so epsilon floors at zero
         assertEquals(0.0, l2.epsilonAtRank(score(VectorSimilarity.L2_NORM, 2.0), score(VectorSimilarity.L2_NORM, 1.0)), 0.0);
     }
 
     public void testEpsilonIsUnboundedWhenNoRatioExists() {
         KnnEvalFidelity cosine = new KnnEvalFidelity(VectorSimilarity.COSINE, null);
-        // a non-positive candidate similarity has no meaningful ratio against a positive reference
+        // a non-positive candidate similarity has no ratio against a positive reference
         assertNull(cosine.epsilonAtRank(score(VectorSimilarity.COSINE, 0.9), score(VectorSimilarity.COSINE, 0.0)));
         assertNull(cosine.epsilonAtRank(score(VectorSimilarity.COSINE, 0.9), score(VectorSimilarity.COSINE, -0.5)));
 
         KnnEvalFidelity l2 = new KnnEvalFidelity(VectorSimilarity.L2_NORM, null);
-        // the reference found an exact match; anything further away is unboundedly worse, an exact match is not
+        // against an exact match, anything further away is unboundedly worse
         assertNull(l2.epsilonAtRank(score(VectorSimilarity.L2_NORM, 0.0), score(VectorSimilarity.L2_NORM, 1.0)));
         assertEquals(0.0, l2.epsilonAtRank(score(VectorSimilarity.L2_NORM, 0.0), score(VectorSimilarity.L2_NORM, 0.0)), 0.0);
     }
 
+    /** Derives both halves from one mapping, as the transport action does. */
+    private static KnnEvalFidelity fidelityOf(Map<String, Object> fieldMapping, Float baselineOversample) {
+        return KnnEvalFidelity.fromFieldMapping("emb", fieldMapping, KnnEvalRescore.fromFieldMapping(fieldMapping), baselineOversample);
+    }
+
+    private static Map<String, Object> denseVector(String indexType, Object oversample) {
+        Map<String, Object> indexOptions = oversample == null
+            ? Map.of("type", indexType)
+            : Map.of("type", indexType, "rescore_vector", Map.of("oversample", oversample));
+        return Map.of("type", "dense_vector", "similarity", "l2_norm", "element_type", "float", "index_options", indexOptions);
+    }
+
     public void testMappingIsReadForSimilarityAndElementType() {
-        KnnEvalFidelity fidelity = KnnEvalFidelity.fromFieldMapping(
-            "emb",
-            Map.of("type", "dense_vector", "similarity", "l2_norm", "element_type", "float"),
-            null
-        );
+        KnnEvalFidelity fidelity = fidelityOf(denseVector("bbq_disk", 3.0), null);
         assertFalse(fidelity.isSkipped());
         assertTrue(fidelity.isDistanceBased());
         assertEquals(VectorSimilarity.L2_NORM, fidelity.similarity());
 
-        // similarity defaults to the mapper's own default when a mapping omits it
-        assertEquals(VectorSimilarity.COSINE, KnnEvalFidelity.fromFieldMapping("emb", Map.of("type", "dense_vector"), null).similarity());
+        // defaults to the mapper's own default when a mapping omits it
+        assertEquals(VectorSimilarity.COSINE, fidelityOf(Map.of("type", "dense_vector"), null).similarity());
     }
 
     public void testFidelityIsSkippedWhenScoresAreEstimates() {
-        KnnEvalFidelity fidelity = KnnEvalFidelity.fromFieldMapping(
-            "emb",
-            Map.of(
-                "type",
-                "dense_vector",
-                "similarity",
-                "dot_product",
-                "index_options",
-                Map.of("type", "bbq_disk", "rescore_vector", Map.of("oversample", 0))
-            ),
-            null
-        );
+        KnnEvalFidelity fidelity = fidelityOf(denseVector("bbq_disk", 0), null);
         assertTrue(fidelity.isSkipped());
         assertEquals(KnnEvalFidelity.RESCORING_DISABLED, fidelity.skippedReason());
 
-        // ... unless the baseline run asks for rescoring itself, in which case its scores are real again
-        assertFalse(
-            KnnEvalFidelity.fromFieldMapping(
-                "emb",
-                Map.of("type", "dense_vector", "index_options", Map.of("type", "bbq_disk", "rescore_vector", Map.of("oversample", 0))),
-                10.0f
-            ).isSkipped()
-        );
+        // ... unless the baseline asks for rescoring itself
+        assertFalse(fidelityOf(denseVector("bbq_disk", 0), 10.0f).isSkipped());
+        assertFalse(fidelityOf(denseVector("bbq_disk", 3.0), null).isSkipped());
+    }
 
-        // a non-zero oversample means the scores were recomputed on the real vectors, so the metric is meaningful
-        assertFalse(
-            KnnEvalFidelity.fromFieldMapping(
-                "emb",
-                Map.of("type", "dense_vector", "index_options", Map.of("type", "bbq_disk", "rescore_vector", Map.of("oversample", 3.0))),
-                null
-            ).isSkipped()
-        );
+    /** An unquantized index has nothing to rescore because its scores were never estimates. */
+    public void testFidelityIsNotSkippedForUnquantizedTypes() {
+        for (String indexType : new String[] { "hnsw", "flat" }) {
+            assertFalse(indexType, fidelityOf(denseVector(indexType, null), null).isSkipped());
+        }
+        // whereas a quantized type with no rescore_vector is estimating
+        for (String indexType : new String[] { "int8_hnsw", "int4_flat", "bbq_hnsw" }) {
+            assertTrue(indexType, fidelityOf(denseVector(indexType, null), null).isSkipped());
+        }
     }
 
     public void testFidelityIsSkippedForNonFloatElementTypes() {
         KnnEvalFidelity fidelity = KnnEvalFidelity.fromFieldMapping(
             "emb",
             Map.of("type", "dense_vector", "similarity", "l2_norm", "element_type", "byte"),
+            null,
             null
         );
         assertTrue(fidelity.isSkipped());
@@ -146,12 +139,14 @@ public class KnnEvalFidelityTests extends ESTestCase {
 
     public void testNonVectorFieldsAreRejected() {
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> KnnEvalFidelity.fromFieldMapping("emb", Map.of("type", "keyword"), null))
-                .getMessage(),
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> KnnEvalFidelity.fromFieldMapping("emb", Map.of("type", "keyword"), null, null)
+            ).getMessage(),
             containsString("field [emb] is of type [keyword], but [dense_vector] is required")
         );
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> KnnEvalFidelity.fromFieldMapping("emb", null, null)).getMessage(),
+            expectThrows(IllegalArgumentException.class, () -> KnnEvalFidelity.fromFieldMapping("emb", null, null, null)).getMessage(),
             containsString("field [emb] is not mapped in any of the requested indices")
         );
     }

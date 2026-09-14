@@ -138,7 +138,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
         createProjectStateWithMountedSnapshot(snapshotName);
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -157,7 +157,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         mockMountResponse.set(new RestoreSnapshotResponse(restoreInfo));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -181,7 +181,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         mockMountResponse.set(new RestoreSnapshotResponse((RestoreInfo) null));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -202,7 +202,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         mockMountResponse.set(new RestoreSnapshotResponse(restoreInfo));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -223,7 +223,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         mockMountResponse.set(new RestoreSnapshotResponse(restoreInfo));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -243,7 +243,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         mockMountFailure.set(new ElasticsearchException("mount failed"));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -268,7 +268,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         createProjectStateWithMountedSnapshot(snapshotName);
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,
@@ -292,7 +292,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         createProjectStateWithMountedSnapshot(snapshotName);
 
         DLMConvertToFrozen convert = new DLMConvertToFrozenSnapshotTests.TestDLMConvertToFrozenWithTimeout(
-            indexName,
+            index,
             projectId,
             client,
             clusterService,

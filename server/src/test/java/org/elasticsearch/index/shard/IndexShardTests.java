@@ -1521,7 +1521,7 @@ public class IndexShardTests extends IndexShardTestCase {
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
 
-        assertTrue(recoverFromStore(newShard));
+        recoverFromStore(newShard);
 
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
@@ -2566,7 +2566,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ).withRecoverySource(RecoverySource.ExistingStoreRecoverySource.INSTANCE).build();
         IndexShard newShard = reinitShard(shard, reinitRouting, null);
         newShard.markAsRecovering("store");
-        assertTrue(recoverFromStore(newShard));
+        recoverFromStore(newShard);
         assertEquals(replayedOps, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperationsOnStart());
@@ -2590,7 +2590,7 @@ public class IndexShardTests extends IndexShardTestCase {
         String historyUUID = shard.getHistoryUUID();
         IndexShard newShard = reinitShard(shard);
         newShard.markAsRecovering("store");
-        assertTrue(recoverFromStore(newShard));
+        recoverFromStore(newShard);
         assertEquals(translogOps, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperationsOnStart());
@@ -2632,7 +2632,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ).withRecoverySource(RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE).build();
         IndexShard newShard = reinitShard(shard, reinitRouting, null);
         newShard.markAsRecovering("store");
-        assertTrue(recoverFromStore(newShard));
+        recoverFromStore(newShard);
         IndexShardTestCase.updateRoutingEntry(
             newShard,
             newShard.routingEntry().moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
@@ -2697,7 +2697,7 @@ public class IndexShardTests extends IndexShardTestCase {
         );
         IndexShard newShard = reinitShard(otherShard, reinitRouting, null);
         newShard.markAsRecovering("store");
-        assertTrue(recoverFromStore(newShard));
+        recoverFromStore(newShard);
         assertEquals(1, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(1, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(1, newShard.recoveryState().getTranslog().totalOperationsOnStart());
@@ -2728,7 +2728,7 @@ public class IndexShardTests extends IndexShardTestCase {
             );
             newShard = reinitShard(newShard, loopReinitRouting, null);
             newShard.markAsRecovering("store");
-            assertTrue(recoverFromStore(newShard));
+            recoverFromStore(newShard);
             try (Translog.Snapshot snapshot = getTranslog(newShard).newSnapshot()) {
                 assertThat(snapshot.totalOperations(), equalTo(newShard.indexSettings.isSoftDeleteEnabled() ? 0 : 2));
             }
@@ -2750,7 +2750,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard newShard = reinitShard(shard, reinitRouting, null);
 
         newShard.markAsRecovering("store");
-        assertTrue(recoverFromStore(newShard));
+        recoverFromStore(newShard);
         assertEquals(0, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(0, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(0, newShard.recoveryState().getTranslog().totalOperationsOnStart());
@@ -2801,7 +2801,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardRouting reinitRouting = ShardRoutingHelper.initWithSameId(routing, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
         newShard = reinitShard(newShard, reinitRouting, null);
         newShard.markAsRecovering("store");
-        assertTrue("recover even if there is nothing to recover", recoverFromStore(newShard));
+        recoverFromStore(newShard);
 
         IndexShardTestCase.updateRoutingEntry(
             newShard,
@@ -2879,7 +2879,7 @@ public class IndexShardTests extends IndexShardTestCase {
             IndexEventListener.NOOP
         );
         newShard.markAsRecovering("store");
-        assertTrue(recoverFromStore(newShard));
+        recoverFromStore(newShard);
         assertThat(getShardDocIDs(newShard), containsInAnyOrder("doc-0", "doc-2"));
         closeShards(newShard);
     }

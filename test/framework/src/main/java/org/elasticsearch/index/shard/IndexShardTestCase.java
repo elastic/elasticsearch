@@ -1311,11 +1311,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
         shard.flush(new FlushRequest(shard.shardId().getIndexName()).force(force));
     }
 
-    public static boolean recoverFromStore(IndexShard newShard) {
+    public static void recoverFromStore(IndexShard newShard) {
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         newShard.recoverFromStore(future);
         future.actionGet(); // Will throw if unsuccessful
-        return true;
     }
 
     /**

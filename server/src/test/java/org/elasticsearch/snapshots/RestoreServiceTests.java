@@ -11,36 +11,54 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.recovery.RecoveryFeatures;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -54,6 +72,8 @@ import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -767,6 +787,278 @@ public class RestoreServiceTests extends ESTestCase {
             SnapshotState.SUCCESS,
             Map.of()
         );
+    }
+
+    /**
+     * Tests that calling restoreSnapshotOverOpenIndices a second time with the same restoreUUID is a no-op.
+     */
+    public void testRestoreOverOpenIndicesIdempotentRetryIsANoOp() throws Exception {
+        final String restoreUUID = UUIDs.randomBase64UUID();
+        withOpenIndexRestoreHarness(fixture -> {
+            PlainActionFuture<RestoreService.RestoreCompletionResponse> first = new PlainActionFuture<>();
+            fixture.restoreService()
+                .restoreSnapshotOverOpenIndices(
+                    ProjectId.DEFAULT,
+                    fixture.snapshot(),
+                    fixture.snapshotInfo(),
+                    TEST_REQUEST_TIMEOUT,
+                    restoreUUID,
+                    List.of(fixture.target()),
+                    first
+                );
+            first.actionGet(TimeValue.timeValueSeconds(10));
+
+            final ClusterState afterFirstCall = fixture.clusterService().state();
+            final String historyUuidAfterFirstCall = historyUuid(afterFirstCall, fixture.index().getName());
+            assertThat(historyUuidAfterFirstCall, notNullValue());
+            assertThat(Iterables.size(RestoreInProgress.get(afterFirstCall)), equalTo(1L));
+
+            PlainActionFuture<RestoreService.RestoreCompletionResponse> second = new PlainActionFuture<>();
+            fixture.restoreService()
+                .restoreSnapshotOverOpenIndices(
+                    ProjectId.DEFAULT,
+                    fixture.snapshot(),
+                    fixture.snapshotInfo(),
+                    TEST_REQUEST_TIMEOUT,
+                    restoreUUID,
+                    List.of(fixture.target()),
+                    second
+                );
+            second.actionGet(TimeValue.timeValueSeconds(10));
+
+            final ClusterState afterSecondCall = fixture.clusterService().state();
+            assertThat(historyUuid(afterSecondCall, fixture.index().getName()), equalTo(historyUuidAfterFirstCall));
+            assertThat(Iterables.size(RestoreInProgress.get(afterSecondCall)), equalTo(1L));
+        });
+    }
+
+    /**
+     * This test shows that {@link RestoreService#restoreSnapshotOverOpenIndices} is not idempotent across completed restores. It protects
+     * against two in-flight restores at the same time only.It holds only while the first restore's {@link RestoreInProgress} entry exists.
+     * That entry is transient ({@code removeCompletedRestoresFromClusterState} removes it once the restore completes). And because
+     * restoring over an open index preserves the destination's index UUID, the exact-identity check still passes on a retry after the entry
+     * is gone. So a same-{@code restoreUUID} retry is <em>not</em> deduplicated once cleaned up. It starts a fresh restore and creates a
+     * new history UUID. Guaranteeing at-most-once across the full lifecycle is the caller's responsibility (see
+     * {@link RestoreService#restoreSnapshotOverOpenIndices}).
+     */
+    public void testRestoreOverOpenIndicesRetryAfterCompletionIsNotDeduplicated() throws Exception {
+        final String restoreUUID = UUIDs.randomBase64UUID();
+        withOpenIndexRestoreHarness(fixture -> {
+            PlainActionFuture<RestoreService.RestoreCompletionResponse> first = new PlainActionFuture<>();
+            fixture.restoreService()
+                .restoreSnapshotOverOpenIndices(
+                    ProjectId.DEFAULT,
+                    fixture.snapshot(),
+                    fixture.snapshotInfo(),
+                    TEST_REQUEST_TIMEOUT,
+                    restoreUUID,
+                    List.of(fixture.target()),
+                    first
+                );
+            first.actionGet(TimeValue.timeValueSeconds(10));
+
+            final ClusterState afterFirstCall = fixture.clusterService().state();
+            final String historyUuidAfterFirstCall = historyUuid(afterFirstCall, fixture.index().getName());
+            assertThat(historyUuidAfterFirstCall, notNullValue());
+            assertThat(Iterables.size(RestoreInProgress.get(afterFirstCall)), equalTo(1L));
+
+            // Simulate the completed-restore cleanup that removeCompletedRestoresFromClusterState() performs once the restore finishes. The
+            // harness's restore never truly completes (routing is mocked), so strip the entry directly to reach the post-cleanup state.
+            ClusterServiceUtils.setState(
+                fixture.clusterService(),
+                ClusterState.builder(afterFirstCall).putCustom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY).build()
+            );
+            assertThat(Iterables.size(RestoreInProgress.get(fixture.clusterService().state())), equalTo(0L));
+
+            PlainActionFuture<RestoreService.RestoreCompletionResponse> second = new PlainActionFuture<>();
+            fixture.restoreService()
+                .restoreSnapshotOverOpenIndices(
+                    ProjectId.DEFAULT,
+                    fixture.snapshot(),
+                    fixture.snapshotInfo(),
+                    TEST_REQUEST_TIMEOUT,
+                    restoreUUID,
+                    List.of(fixture.target()),
+                    second
+                );
+            second.actionGet(TimeValue.timeValueSeconds(10));
+
+            // The retry was not deduplicated: a fresh restore was initialized, minting a new history UUID and installing a new entry.
+            final ClusterState afterRetry = fixture.clusterService().state();
+            assertThat(historyUuid(afterRetry, fixture.index().getName()), not(equalTo(historyUuidAfterFirstCall)));
+            assertThat(Iterables.size(RestoreInProgress.get(afterRetry)), equalTo(1L));
+        });
+    }
+
+    /**
+     * An empty {@code targets} list is a caller error for this internal entry point. It is rejected up front rather than submitting a
+     * restore that does nothing, which was probably not the user's intention.
+     */
+    public void testRestoreOverOpenIndicesRejectsEmptyTargets() throws Exception {
+        withOpenIndexRestoreHarness(fixture -> {
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> fixture.restoreService()
+                    .restoreSnapshotOverOpenIndices(
+                        ProjectId.DEFAULT,
+                        fixture.snapshot(),
+                        fixture.snapshotInfo(),
+                        TEST_REQUEST_TIMEOUT,
+                        UUIDs.randomBase64UUID(),
+                        List.of(),
+                        ActionListener.noop()
+                    )
+            );
+            assertThat(e.getMessage(), equalTo("targets must not be empty"));
+            assertThat(
+                "a rejected call must not initialize a restore",
+                Iterables.size(RestoreInProgress.get(fixture.clusterService().state())),
+                equalTo(0L)
+            );
+        });
+    }
+
+    /**
+     * A restore whose snapshot names a project that does not exist in the cluster state is rejected when the cluster-state update runs,
+     * surfacing the failure through the listener rather than mutating anything.
+     */
+    public void testRestoreOverOpenIndicesRejectsMissingProject() throws Exception {
+        withOpenIndexRestoreHarness(fixture -> {
+            final ProjectId missingProject = ProjectId.fromId("does-not-exist");
+            final Snapshot snapshotInMissingProject = new Snapshot(
+                missingProject,
+                fixture.snapshot().getRepository(),
+                fixture.snapshot().getSnapshotId()
+            );
+            final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+            fixture.restoreService()
+                .restoreSnapshotOverOpenIndices(
+                    missingProject,
+                    snapshotInMissingProject,
+                    fixture.snapshotInfo(),
+                    TEST_REQUEST_TIMEOUT,
+                    UUIDs.randomBase64UUID(),
+                    List.of(fixture.target()),
+                    future
+                );
+            final SnapshotRestoreException e = expectThrows(
+                SnapshotRestoreException.class,
+                () -> future.actionGet(TimeValue.timeValueSeconds(10))
+            );
+            assertThat(e.getMessage(), containsString("project [" + missingProject + "] does not exist"));
+            assertThat(
+                "a rejected restore must not initialize an entry",
+                Iterables.size(RestoreInProgress.get(fixture.clusterService().state())),
+                equalTo(0L)
+            );
+        });
+    }
+
+    private static String historyUuid(ClusterState state, String indexName) {
+        return state.metadata().getProject(ProjectId.DEFAULT).index(indexName).getSettings().get(IndexMetadata.SETTING_HISTORY_UUID);
+    }
+
+    private record OpenIndexRestoreFixture(
+        RestoreService restoreService,
+        ClusterService clusterService,
+        Index index,
+        Snapshot snapshot,
+        SnapshotInfo snapshotInfo,
+        IndexId snapshotIndexId,
+        IndexMetadata snapshotIndexMetadata
+    ) {
+        RestoreService.OpenIndexRestoreTarget target() {
+            return target(index);
+        }
+
+        RestoreService.OpenIndexRestoreTarget target(Index destinationIndex) {
+            return new RestoreService.OpenIndexRestoreTarget(destinationIndex, snapshotIndexId, snapshotIndexMetadata);
+        }
+    }
+
+    private interface OpenIndexRestoreTestBody {
+        void run(OpenIndexRestoreFixture fixture) throws Exception;
+    }
+
+    /**
+     * Builds a real, single-node {@link ClusterService} (via {@link ClusterServiceUtils}) with one open index, and a {@link RestoreService}
+     * wired to it. Dependencies that the open-index restore validation path never reaches (index creation, mapping/version verification
+     * beyond a pass-through, shard limits, system indices, file settings) are mocked or stubbed with no-ops. Constructing the real
+     * equivalents would require an unrelated mapper/x-content registry setup this test does not exercise.
+     */
+    private void withOpenIndexRestoreHarness(OpenIndexRestoreTestBody body) throws Exception {
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool)) {
+            final ClusterState initial = clusterService.state();
+            final DiscoveryNode localNode = initial.nodes().getLocalNode();
+
+            final IndexMetadata indexMetadata = IndexMetadata.builder("test-idx")
+                .settings(indexSettings(IndexVersion.current(), 1, 0))
+                .build();
+            final Index index = indexMetadata.getIndex();
+
+            final IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
+            indexRoutingTable.addShard(
+                TestShardRouting.newShardRouting(new ShardId(index, 0), localNode.getId(), true, ShardRoutingState.STARTED)
+            );
+
+            final ClusterState state = ClusterState.builder(initial)
+                .putProjectMetadata(ProjectMetadata.builder(initial.metadata().getProject(ProjectId.DEFAULT)).put(indexMetadata, true))
+                .putRoutingTable(
+                    ProjectId.DEFAULT,
+                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, initial.routingTable(ProjectId.DEFAULT))
+                        .add(indexRoutingTable)
+                        .build()
+                )
+                .build();
+            ClusterServiceUtils.setState(clusterService, state);
+
+            final RepositoriesService repositoriesService = mock(RepositoriesService.class);
+            when(repositoriesService.getPreRestoreVersionChecks()).thenReturn(List.of());
+
+            final AllocationService allocationService = mock(AllocationService.class);
+            when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+            when(allocationService.reroute(any(), any(), any())).thenAnswer(invocation -> {
+                ActionListener<Void> rerouteListener = invocation.getArgument(2);
+                rerouteListener.onResponse(null);
+                return invocation.getArgument(0);
+            });
+
+            final IndexMetadataVerifier indexMetadataVerifier = mock(IndexMetadataVerifier.class);
+            when(indexMetadataVerifier.verifyIndexMetadata(any(), any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // the open-index restore path checks this feature at publish time; the harness exercises the happy path, so advertise support
+            final FeatureService featureService = mock(FeatureService.class);
+            when(featureService.clusterHasFeature(any(), eq(RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE))).thenReturn(
+                true
+            );
+
+            final RestoreService restoreService = new RestoreService(
+                clusterService,
+                repositoriesService,
+                allocationService,
+                mock(MetadataCreateIndexService.class),
+                indexMetadataVerifier,
+                mock(ShardLimitValidator.class),
+                EmptySystemIndices.INSTANCE,
+                mock(IndicesService.class),
+                mock(FileSettingsService.class),
+                threadPool,
+                false,
+                IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
+                featureService
+            );
+
+            final Snapshot snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("test-snap", randomUUID()));
+            final SnapshotInfo snapshotInfo = createSnapshotInfo(snapshot, Boolean.FALSE);
+            final IndexId snapshotIndexId = new IndexId(index.getName(), randomUUID());
+
+            body.run(
+                new OpenIndexRestoreFixture(restoreService, clusterService, index, snapshot, snapshotInfo, snapshotIndexId, indexMetadata)
+            );
+        } finally {
+            terminate(threadPool);
+        }
     }
 
     /**

@@ -42,10 +42,20 @@ $$$data-streams-lifecycle-target-merge-factor$$$
 `data_streams.lifecycle.target.merge.policy.merge_factor`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) Data stream lifecycle implements [tail merging](docs-content://manage-data/lifecycle/data-stream.md#data-streams-lifecycle-how-it-works) by updating the Lucene merge policy factor for the target backing index. The merge factor is both the number of segments that should be merged together, and the maximum number of segments that we expect to find on a given tier. This setting controls which value [data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) configures on the target index. It defaults to `16`. The value will be visible under the `index.merge.policy.merge_factor` index setting on the target index.
 
+$$$data-streams-lifecycle-time-series-target-merge-factor$$$
+
+`data_streams.lifecycle.time_series_target.merge.policy.merge_factor`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) Same as `data_streams.lifecycle.target.merge.policy.merge_factor` but will only be applied to indices with index mode `time_series`. It defaults to `8`. The value will be visible under the `index.merge.policy.merge_factor` index setting on the target index.
+
 $$$data-streams-lifecycle-target-floor-segment$$$
 
 `data_streams.lifecycle.target.merge.policy.floor_segment`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Data stream lifecycle implements [tail merging](docs-content://manage-data/lifecycle/data-stream.md#data-streams-lifecycle-how-it-works) by updating the Lucene merge policy floor segment for the target backing index. This floor segment size is a way to prevent indices from having a long tail of very small segments. This setting controls which value [data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) configures on the target index. It defaults to `100MB`.
+
+$$$data-streams-lifecycle-time-series-target-floor-segment$$$
+
+`data_streams.lifecycle.time_series_target.merge.policy.floor_segment`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Same as `data_streams.lifecycle.target.merge.policy.floor_segment` but will only be applied to indices with index mode `time_series`. It defaults to `512MB`.
 
 $$$data-streams-lifecycle-signalling-error-retry-interval$$$
 

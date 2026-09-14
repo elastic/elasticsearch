@@ -175,6 +175,19 @@ public class WriteLoadConstraintSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * The minimum shard write load (in write threads) below or equal to which a shard will not be considered for movement in a
+     * {@code canRemain} hotspot check. A shard using fewer threads than this threshold cannot meaningfully relieve
+     * the hotspot by being moved. Set to {@code -1.0} to disable the check (all shards eligible for movement).
+     */
+    public static final Setting<Double> WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING = new Setting<>(
+        SETTING_PREFIX + "hotspot_min_shard_write_load_threshold",
+        "0.001",
+        WriteLoadConstraintSettings::parseHotspotMinShardWriteLoadThreshold,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private volatile WriteLoadDeciderStatus writeLoadDeciderStatus;
     private volatile TimeValue minimumRerouteInterval;
     private volatile float allocationUtilizationThreshold;
@@ -183,6 +196,7 @@ public class WriteLoadConstraintSettings {
     private volatile String hotspotUtilizationThresholdString;
     private volatile double hotspotMaxShardWriteLoadProportionThreshold;
     private volatile String hotspotMaxShardWriteLoadProportionThresholdString;
+    private volatile double hotspotMinShardWriteLoadThreshold;
 
     public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, status -> this.writeLoadDeciderStatus = status);
@@ -206,6 +220,10 @@ public class WriteLoadConstraintSettings {
             hotspotMaxShardWriteLoadProportionThreshold = value.getAsRatio();
             hotspotMaxShardWriteLoadProportionThresholdString = value.formatNoTrailingZerosPercent();
         });
+        clusterSettings.initializeAndWatch(
+            WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING,
+            value -> this.hotspotMinShardWriteLoadThreshold = value
+        );
     }
 
     public WriteLoadDeciderStatus getWriteLoadConstraintEnabled() {
@@ -254,5 +272,23 @@ public class WriteLoadConstraintSettings {
      */
     public float getAllocationUtilizationThreshold() {
         return this.allocationUtilizationThreshold;
+    }
+
+    /**
+     * @return The minimum shard write load (in write threads) below or equal to which a shard will not be moved in a hotspot
+     * {@code canRemain} check. Returns -1.0 when the check is disabled (all shards eligible for movement).
+     */
+    public double getHotspotMinShardWriteLoadThreshold() {
+        return this.hotspotMinShardWriteLoadThreshold;
+    }
+
+    private static double parseHotspotMinShardWriteLoadThreshold(String sValue) {
+        double value = Double.parseDouble(sValue);
+        if (value == -1.0 || value >= 0.0) {
+            return value;
+        }
+        throw new IllegalArgumentException(
+            WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING.getKey() + " must be -1 (to disable) or >= 0, got: " + value
+        );
     }
 }

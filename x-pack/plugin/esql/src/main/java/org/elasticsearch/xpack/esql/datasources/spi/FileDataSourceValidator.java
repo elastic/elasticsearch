@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryVocabulary;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
@@ -56,6 +58,28 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationU
  * only the base dataset fields are accepted, preserving backward compatibility.
  */
 public class FileDataSourceValidator implements DataSourceValidator {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FileDataSourceValidator.class);
+
+    /**
+     * Stable log key for the {@code hive_partitioning: false} deprecation warning. The value was the only one that
+     * ever did anything (disabling detection); the canonical replacement is {@code partition_detection: none}.
+     */
+    public static final String HIVE_PARTITIONING_FALSE_DEPRECATION_KEY = "esql_dataset_hive_partitioning_false_deprecated";
+
+    /** Deprecation message when {@code hive_partitioning} is {@code false}. */
+    public static final String HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE =
+        "[hive_partitioning: false] is ignored; use [partition_detection: none] to disable partition detection";
+
+    /**
+     * Stable log key for the {@code hive_partitioning: true} (or any non-false) deprecation warning. Those values
+     * were always no-ops — the key should simply be removed.
+     */
+    public static final String HIVE_PARTITIONING_NOOP_DEPRECATION_KEY = "esql_dataset_hive_partitioning_noop_deprecated";
+
+    /** Deprecation message when {@code hive_partitioning} is any value other than {@code false}. */
+    public static final String HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE =
+        "[hive_partitioning] is ignored and has never had any effect for this value; remove it";
 
     /**
      * Error shown when a data source is provisioned with federated authentication settings while the
@@ -105,6 +129,20 @@ public class FileDataSourceValidator implements DataSourceValidator {
         fields.addAll(FileOrderConfig.CONFIG_KEYS);
         fields.addAll(FileSplitProvider.CONFIG_KEYS);
         COORDINATOR_DATASET_KEYS = Set.copyOf(fields);
+    }
+
+    /**
+     * Full set of base dataset fields accepted by every file-based source, independent of file format:
+     * the {@link #COORDINATOR_DATASET_KEYS} (which includes the {@code format} selector) plus the
+     * format-agnostic {@code schema_sample_size} sampling bound (which is consumed by the format
+     * readers, not the coordinator). Format-specific fields are unioned on per-resource against the
+     * resolved format in {@link #validateDataset}.
+     */
+    static final Set<String> DATASET_FIELDS;
+    static {
+        Set<String> fields = new HashSet<>(COORDINATOR_DATASET_KEYS);
+        fields.add(SCHEMA_SAMPLE_SIZE);
+        DATASET_FIELDS = Set.copyOf(fields);
     }
 
     /**
@@ -399,10 +437,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
         // would produce at query time. Each parser reads the keys it owns from the settings map.
         // error_mode + max_errors + max_error_ratio (incl. mutual exclusion) via the owning policy parser.
         validate(() -> ErrorPolicy.fromConfig(settings, ErrorPolicy.STRICT), errors);
-        // partition_detection enum, plus the combinations in which one of the three partition settings would be
-        // silently ignored, via the owning parser. Stricter than the query path deliberately: PartitionConfig
-        // resolves stored datasets leniently so an upgrade cannot turn a working dataset into a query-time error,
-        // which means a new registration is the only place a contradiction can still be caught.
+        // partition_detection enum, plus the combinations in which one of the two active partition settings
+        // (partition_detection, partition_path) would be silently ignored, via the owning parser.
+        // (hive_partitioning is accepted but a no-op — handled below.) Stricter than the query path deliberately:
+        // PartitionConfig resolves stored datasets leniently so an upgrade cannot turn a working dataset into a
+        // query-time error, which means a new registration is the only place a contradiction can still be caught.
         validateEnum(
             settings,
             result,
@@ -412,6 +451,29 @@ public class FileDataSourceValidator implements DataSourceValidator {
             errors
         );
         validate(() -> PartitionConfig.validate(settings), errors);
+        // hive_partitioning is accepted but ignored (deprecated no-op). Two warning sites:
+        // (1) here, at CRUD time for stored datasets; (2) FileSourceFactory.validateConfig, at schema-resolution
+        // time for inline FROM "..." WITH {...} queries that have no CRUD path (fires only on schema-cache misses,
+        // not on every query). PartitionConfig.fromConfig is intentionally NOT a warning site — it runs on every
+        // query against every stored dataset. The message is value-aware: false was the only value that ever did
+        // anything (it disabled detection), so it names the replacement; any other value was always a no-op and
+        // is told to simply remove the key.
+        Object hivePartitioningValue = settings.get(PartitionConfig.CONFIG_PARTITIONING_HIVE);
+        if (hivePartitioningValue != null) {
+            if ("false".equalsIgnoreCase(hivePartitioningValue.toString())) {
+                deprecationLogger.warn(
+                    DeprecationCategory.API,
+                    HIVE_PARTITIONING_FALSE_DEPRECATION_KEY,
+                    HIVE_PARTITIONING_FALSE_DEPRECATION_MESSAGE
+                );
+            } else {
+                deprecationLogger.warn(
+                    DeprecationCategory.API,
+                    HIVE_PARTITIONING_NOOP_DEPRECATION_KEY,
+                    HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE
+                );
+            }
+        }
         // file_exclusions: array-of-strings shape here, pattern compilation via the owning parser. Stricter than the query path for the
         // same reason as the partition
         // settings above: ExclusionConfig.fromConfig degrades a malformed stored value to its default so an
@@ -468,11 +530,41 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
         // Store every accepted setting that is present, as its raw value. Each query-time consumer
         // re-parses from value.toString(), so raw storage avoids type-coercion mismatches. Format-specific
-        // fields pass through here too; the format reader validates their types at query time. The parsed
-        // schema_sample_size and format selector placed above are left intact.
+        // fields pass through here; value-level validation runs below via the format's registered validator.
+        // The parsed schema_sample_size and format selector placed above are left intact.
         for (Map.Entry<String, Object> entry : settings.entrySet()) {
             if (acceptedFields.contains(entry.getKey()) && result.containsKey(entry.getKey()) == false) {
                 result.put(entry.getKey(), entry.getValue());
+            }
+        }
+
+        // Value-validate format-specific keys: resolve the format (explicit setting > resource extension)
+        // and call its registered validator. The validator is fail-fast within format-specific keys; its
+        // single error accumulates into the shared ValidationException alongside any base-field errors.
+        if (formatConfigKeyResolver != null) {
+            String resolvedFormat = explicitFormat(settings);
+            if (resolvedFormat == null && resource != null) {
+                resolvedFormat = formatFromExtension(resource);
+            }
+            if (resolvedFormat != null) {
+                FormatSpec.FormatConfigValidator fmtValidator = formatConfigKeyResolver.validatorForFormat(resolvedFormat);
+                if (fmtValidator != null) {
+                    Set<String> formatKeys = formatConfigKeyResolver.configKeysForFormat(resolvedFormat);
+                    if (formatKeys != null) {
+                        Map<String, Object> fmtSettings = new HashMap<>();
+                        for (String key : formatKeys) {
+                            // A reader may recognise a base field too (e.g. schema_sample_size), but base
+                            // fields are owned by the dedicated checks above — forwarding one here would
+                            // report the same bad value twice, with two different messages.
+                            if (DATASET_FIELDS.contains(key) == false && settings.containsKey(key)) {
+                                fmtSettings.put(key, settings.get(key));
+                            }
+                        }
+                        if (fmtSettings.isEmpty() == false) {
+                            validate(() -> fmtValidator.validate(fmtSettings), errors);
+                        }
+                    }
+                }
             }
         }
 
@@ -786,16 +878,22 @@ public class FileDataSourceValidator implements DataSourceValidator {
     public interface FormatConfigKeyResolver {
 
         /**
-         * Builds a resolver from a format-name → config-keys map and an extension → format-name map.
+         * Builds a resolver from a format-name → config-keys map, an extension → format-name map, and
+         * an optional format-name → value-validator map.
          * Captures immutable copies so the result is safe for concurrent reads, and lowercases the
          * lookup arguments so callers need not normalize first. {@link #knownFormats()} is the
          * config-keys map's key set, so it stays consistent with {@link #configKeysForFormat} by
          * construction. This is the implementation used in production (see {@code EsqlPlugin}); tests
          * use it too rather than hand-rolling a stand-in.
          */
-        static FormatConfigKeyResolver of(Map<String, Set<String>> formatConfigKeys, Map<String, String> formatByExtension) {
+        static FormatConfigKeyResolver of(
+            Map<String, Set<String>> formatConfigKeys,
+            Map<String, String> formatByExtension,
+            Map<String, FormatSpec.FormatConfigValidator> formatValidators
+        ) {
             Map<String, Set<String>> keysByFormat = Map.copyOf(formatConfigKeys);
             Map<String, String> formatByExt = Map.copyOf(formatByExtension);
+            Map<String, FormatSpec.FormatConfigValidator> validators = formatValidators.isEmpty() ? Map.of() : Map.copyOf(formatValidators);
             Set<String> formats = keysByFormat.keySet();
             return new FormatConfigKeyResolver() {
                 @Override
@@ -812,7 +910,20 @@ public class FileDataSourceValidator implements DataSourceValidator {
                 public Set<String> knownFormats() {
                     return formats;
                 }
+
+                @Override
+                public FormatSpec.FormatConfigValidator validatorForFormat(String formatName) {
+                    return validators.get(formatName.toLowerCase(Locale.ROOT));
+                }
             };
+        }
+
+        /**
+         * Builds a resolver from a format-name → config-keys map and an extension → format-name map,
+         * with no per-format value validators. Backward-compatible delegate.
+         */
+        static FormatConfigKeyResolver of(Map<String, Set<String>> formatConfigKeys, Map<String, String> formatByExtension) {
+            return of(formatConfigKeys, formatByExtension, Map.of());
         }
 
         /**
@@ -832,5 +943,12 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
         /** Returns all registered format names (lowercased); used only for the unknown-format error message. */
         Set<String> knownFormats();
+
+        /**
+         * Returns the value validator for the named format, or {@code null} if the format has no value
+         * validator (values are accepted as-is, validated at query time).
+         */
+        @Nullable
+        FormatSpec.FormatConfigValidator validatorForFormat(String formatName);
     }
 }

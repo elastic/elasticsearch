@@ -335,8 +335,7 @@ final class SvdUtil {
         // This is O(iterations * m * n * k) total -- much faster than deflation for large k.
         int iters = 20; // sufficient for PCA init that gets refined by Procrustes
 
-        // Pre-transpose A so that A^T @ W can use sequential memory access via matrixMultiply(aT, w)
-        // instead of strided access via matrixMultiplyTA(a, w).
+        // Pre-transpose A so that A^T @ W uses sequential memory access in the inner loop.
         float[] aT = transposeMatrix(a, m, n);
 
         float[] v = randomGaussians(new Random(seed), n * k);
@@ -358,8 +357,7 @@ final class SvdUtil {
         // After convergence, recover right singular vectors: V = A^T U, normalize columns.
         int iters = 20;
 
-        // Pre-transpose A so that A^T @ U can use sequential memory access via matrixMultiply(aT, u)
-        // instead of strided access via matrixMultiplyTA(a, u).
+        // Pre-transpose A so that A^T @ U uses sequential memory access in the inner loop.
         float[] aT = transposeMatrix(a, m, n);
 
         float[] u = randomGaussians(new Random(seed), m * k);

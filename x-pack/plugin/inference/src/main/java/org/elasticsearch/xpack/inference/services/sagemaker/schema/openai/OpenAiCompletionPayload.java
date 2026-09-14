@@ -15,7 +15,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -60,7 +60,7 @@ public class OpenAiCompletionPayload implements SageMakerStreamSchemaPayload {
     );
 
     @Override
-    public SdkBytes chatCompletionRequestBytes(SageMakerModel model, UnifiedCompletionRequest request) throws Exception {
+    public SdkBytes chatCompletionRequestBytes(SageMakerModel model, UnifiedCompletionRequestBody request) throws Exception {
         return completion(model, new UnifiedChatCompletionRequestEntity(request, true), request.maxCompletionTokens());
     }
 

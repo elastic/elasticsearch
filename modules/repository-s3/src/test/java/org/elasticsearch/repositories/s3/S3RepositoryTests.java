@@ -14,6 +14,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.StorageClass;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -65,10 +66,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -115,7 +118,10 @@ public class S3RepositoryTests extends ESTestCase {
             transportService.getLocalNodeConnection(),
             null
         );
-        Map<String, Repository.Factory> s3Registry = Map.of(S3Repository.TYPE, (pid, metadata) -> createS3Repo(pid, metadata));
+        Map<String, Repository.Factory> s3Registry = Map.of(
+            S3Repository.TYPE,
+            (pid, metadata) -> createS3Repo(pid, metadata, () -> Region.of(randomIdentifier()))
+        );
         repositoriesService = new RepositoriesService(
             Settings.EMPTY,
             clusterService,
@@ -156,9 +162,11 @@ public class S3RepositoryTests extends ESTestCase {
             Environment environment,
             ClusterService clusterService,
             ProjectResolver projectResolver,
-            ResourceWatcherService resourceWatcherService
+            ResourceWatcherService resourceWatcherService,
+            Supplier<Region> defaultRegionSupplier
         ) {
-            super(environment, clusterService, projectResolver, resourceWatcherService, () -> Region.of(randomIdentifier()));
+            super(environment, clusterService, projectResolver, resourceWatcherService, defaultRegionSupplier);
+            start();
         }
 
         @Override
@@ -255,10 +263,10 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     private S3Repository createS3Repo(RepositoryMetadata metadata) {
-        return createS3Repo(ProjectId.DEFAULT, metadata);
+        return createS3Repo(ProjectId.DEFAULT, metadata, () -> Region.of(randomIdentifier()));
     }
 
-    private S3Repository createS3Repo(ProjectId pid, RepositoryMetadata metadata) {
+    private S3Repository createS3Repo(ProjectId pid, RepositoryMetadata metadata, Supplier<Region> defaultRegionSupplier) {
         return new S3Repository(
             pid,
             metadata,
@@ -267,7 +275,8 @@ public class S3RepositoryTests extends ESTestCase {
                 mock(Environment.class),
                 ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
-                mock(ResourceWatcherService.class)
+                mock(ResourceWatcherService.class),
+                defaultRegionSupplier
             ),
             BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
@@ -320,11 +329,166 @@ public class S3RepositoryTests extends ESTestCase {
                         ReferenceDocs.SECURE_SETTINGS,
                         S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING,
                         false
+                    ),
+                    // we don't set `-Des.allow_insecure_settings=true` in these tests so we cannot construct
+                    // the client anyway
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        S3Repository.UNRESOLVED_CLIENT_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        S3Repository.unresolvedClientDeprecationWarning("default"),
+                        false
                     )
                 )
             );
         }
         assertWarnings(S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING);
+    }
+
+    public void testDeprecationInfosEmptyWhenClientIsWellConfigured() {
+        try (
+            var repo = createS3Repo(
+                new RepositoryMetadata(
+                    randomRepoName(),
+                    "mock",
+                    Settings.builder()
+                        .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                        .put("region", randomIdentifier())
+                        .put("endpoint", "https://" + randomIdentifier() + ".ignore")
+                        .build()
+                )
+            )
+        ) {
+            assertThat(repo.getDeprecationInfos(), empty());
+        }
+    }
+
+    public void testDeprecationInfosForUnknownClientName() {
+        final var clientName = randomIdentifier();
+        try (
+            var repo = createS3Repo(
+                new RepositoryMetadata(
+                    randomRepoName(),
+                    "mock",
+                    Settings.builder().put(S3Repository.BUCKET_SETTING.getKey(), "bucket").put("client", clientName).build()
+                )
+            )
+        ) {
+            assertThat(
+                repo.getDeprecationInfos(),
+                contains(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        S3Repository.UNRESOLVED_CLIENT_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        S3Repository.unresolvedClientDeprecationWarning(clientName),
+                        false
+                    )
+                )
+            );
+        }
+    }
+
+    public void testDeprecationInfosForMissingEndpointScheme() {
+        final var endpointWithoutScheme = randomIdentifier() + ".ignore";
+        try (
+            var repo = createS3Repo(
+                new RepositoryMetadata(
+                    randomRepoName(),
+                    "mock",
+                    Settings.builder()
+                        .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                        .put("region", randomIdentifier())
+                        .put("endpoint", endpointWithoutScheme)
+                        .build()
+                )
+            )
+        ) {
+            assertThat(
+                repo.getDeprecationInfos(),
+                contains(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        S3Repository.MISSING_ENDPOINT_SCHEME_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        S3Repository.missingEndpointSchemeDeprecationWarning(endpointWithoutScheme, "https://" + endpointWithoutScheme),
+                        false
+                    )
+                )
+            );
+        }
+    }
+
+    public void testDeprecationInfosForRegionGuessedFromEndpoint() {
+        final var guessedRegion = "eu-west-1";
+        final var endpoint = "https://s3.eu-west-1.amazonaws.com";
+        try (
+            var repo = createS3Repo(
+                new RepositoryMetadata(
+                    randomRepoName(),
+                    "mock",
+                    Settings.builder().put(S3Repository.BUCKET_SETTING.getKey(), "bucket").put("endpoint", endpoint).build()
+                )
+            )
+        ) {
+            assertThat(
+                repo.getDeprecationInfos(),
+                contains(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        S3Repository.REGION_NOT_CONFIGURED_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        S3Repository.regionGuessedFromEndpointDeprecationWarning(endpoint, guessedRegion),
+                        false
+                    )
+                )
+            );
+        }
+    }
+
+    public void testDeprecationInfosForRegionGuessedAsUsEast1() {
+        final var configuredEndpoint = "https://" + randomIdentifier() + ".ignore";
+        RepositoryMetadata metadata = new RepositoryMetadata(
+            randomRepoName(),
+            "mock",
+            Settings.builder().put(S3Repository.BUCKET_SETTING.getKey(), "bucket").put("endpoint", configuredEndpoint).build()
+        );
+        try (var repo = createS3Repo(ProjectId.DEFAULT, metadata, () -> { throw new ElasticsearchException("simulated"); })) {
+            assertThat(
+                repo.getDeprecationInfos(),
+                contains(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        S3Repository.REGION_NOT_CONFIGURED_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        S3Repository.regionGuessedAsUsEast1DeprecationWarning("configured endpoint [" + configuredEndpoint + "]"),
+                        false
+                    )
+                )
+            );
+        }
+    }
+
+    public void testDeprecationInfosForRegionFellBackToCrossRegionAccess() {
+        RepositoryMetadata metadata = new RepositoryMetadata(
+            randomRepoName(),
+            "mock",
+            Settings.builder().put(S3Repository.BUCKET_SETTING.getKey(), "bucket").build()
+        );
+        try (var repo = createS3Repo(ProjectId.DEFAULT, metadata, () -> { throw new ElasticsearchException("simulated"); })) {
+            assertThat(
+                repo.getDeprecationInfos(),
+                contains(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        S3Repository.REGION_NOT_CONFIGURED_DEPRECATION_MESSAGE,
+                        ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                        S3Repository.regionFellBackToCrossRegionAccessDeprecationWarning("no configured endpoint"),
+                        false
+                    )
+                )
+            );
+        }
     }
 
     public void testDeprecationInfosIfIncompatibleWithConditionalWrites() {

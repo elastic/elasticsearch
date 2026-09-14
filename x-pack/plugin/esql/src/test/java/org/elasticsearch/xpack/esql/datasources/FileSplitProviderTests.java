@@ -5369,6 +5369,50 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("_id equality is per-row, so the file is kept for scan", 1, provider.discoverSplits(ctx).splits().size());
     }
 
+    public void testVersionEqualsMtimeKeepsFile() {
+        Instant mtime = Instant.ofEpochMilli(1_700_000_000_000L);
+        StoragePath pathA = StoragePath.of("s3://b/a.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(pathA, 100, mtime)), "s3://b/*.parquet");
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
+        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, null));
+        Expression versionEquals = new Equals(
+            SRC,
+            fieldAttr(ExternalMetadataColumns.VERSION),
+            new Literal(SRC, mtime.toEpochMilli(), DataType.LONG)
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaInfo,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(versionEquals),
+            new ExternalSchema(List.of(refAttr("id"))),
+            null
+        );
+        assertEquals("_version equality to the file mtime keeps the file", 1, provider.discoverSplits(ctx).splits().size());
+    }
+
+    public void testVersionEqualsOtherMtimeEliminatesFile() {
+        Instant mtime = Instant.ofEpochMilli(1_700_000_000_000L);
+        StoragePath pathA = StoragePath.of("s3://b/a.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(pathA, 100, mtime)), "s3://b/*.parquet");
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
+        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, null));
+        Expression versionEquals = new Equals(SRC, fieldAttr(ExternalMetadataColumns.VERSION), new Literal(SRC, 1L, DataType.LONG));
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaInfo,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(versionEquals),
+            new ExternalSchema(List.of(refAttr("id"))),
+            null
+        );
+        assertEquals("_version equality to a different mtime eliminates the file", 0, provider.discoverSplits(ctx).splits().size());
+    }
+
     public void testSkipIfFilterOnMissingColumn_inExpression() {
         Expression filter = new In(SRC, fieldAttr("status"), List.of(intLiteral(1), intLiteral(2)));
         assertTrue("IN on missing column should skip", FileSplitProvider.skipIfFilterOnMissingColumns(List.of(filter), Set.of("name")));

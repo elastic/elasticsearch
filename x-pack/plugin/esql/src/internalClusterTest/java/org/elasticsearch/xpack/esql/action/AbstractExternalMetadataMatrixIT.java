@@ -381,6 +381,35 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
         }
         try (
             var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _file.record_ref | WHERE _file.record_ref IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _version | WHERE _version IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(syncEsqlQueryRequest("FROM employees METADATA _score | WHERE _score IS NULL | STATS c = COUNT(*)"), TIMEOUT)
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _score | WHERE _score IS NOT NULL | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
+        }
+        try (
+            var response = run(
                 syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index == \"nosuchdataset\" | SORT emp_no"),
                 TIMEOUT
             )

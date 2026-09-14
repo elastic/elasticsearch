@@ -50,7 +50,7 @@ public final class HivePartitionDetector implements PartitionDetector {
      * {@code METADATA _index} would silently return the partition value instead of its
      * spec-defined meaning (the dataset name). A directory like {@code /_index=foo/} surfaces as
      * {@code _partition._index} — the spec name keeps its meaning, the layout's value stays
-     * queryable, and a {@code Warning} header discloses each rename. Shared by every detector;
+     * queryable, and a notice on the caller's warning sink discloses each rename. Shared by every detector;
      * see {@link ReservedPartitionNames}.
      */
     public static final String RESERVED_RENAME_PREFIX = ReservedPartitionNames.RESERVED_RENAME_PREFIX;
@@ -129,7 +129,7 @@ public final class HivePartitionDetector implements PartitionDetector {
     /**
      * Maps each detected partition key to the name it surfaces under. Non-reserved keys map to
      * themselves; keys colliding with a dedicated metadata name (see {@link #RESERVED_RENAME_PREFIX})
-     * map to the prefixed form, with one {@code Warning} response header per rename. Returns
+     * map to the prefixed form, with one notice on {@code warningSink} per rename. Returns
      * {@code null} — caller bails to {@link PartitionMetadata#EMPTY}, the detector's established
      * shape for unusable layouts — if a rename target collides with another detected key. That
      * branch is defensive: {@link #extractPartitions} rejects dotted segments, so no parsed key

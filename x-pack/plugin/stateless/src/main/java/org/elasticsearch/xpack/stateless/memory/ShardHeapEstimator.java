@@ -56,7 +56,7 @@ public class ShardHeapEstimator {
     }
 
     /// Computes the shard-level heap usage: the self-reported overhead if [#selfReportedShardMemoryOverheadEnabled] is true and
-    /// there is one available, otherwise returns th adaptive estimate including the postings.
+    /// there is one available, otherwise returns the adaptive estimate including the postings.
     ///
     /// Ignores index-level heap usage, [#computeIndexHeapUsage] should be called for that.
     private long computeShardHeapUsageIncludingPostings(StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics) {

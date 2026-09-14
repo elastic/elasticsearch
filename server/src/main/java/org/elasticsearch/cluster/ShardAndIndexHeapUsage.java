@@ -18,6 +18,10 @@ import java.io.IOException;
 
 /**
  * Tracks a shard's heap usage, as well as any index-level heap usage overhead that should be deduplicated per node.
+ *
+ * @param shardHeapUsageBytes The shard-level heap usage, in bytes
+ * @param indexHeapUsageBytes The index-level heap usage, in bytes
+ * @param postingsHeapUsageBytes The postings heap usage for the shard, this is included in {@code shardHeapUsageBytes}
  */
 public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsageBytes, long postingsHeapUsageBytes) implements Writeable {
 
@@ -48,6 +52,9 @@ public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsa
         }
     }
 
+    /**
+     * Returns the shard-level heap usage excluding postings heap usage.
+     */
     public long shardHeapUsageBytesExcludingPostings() {
         return shardHeapUsageBytes - postingsHeapUsageBytes;
     }

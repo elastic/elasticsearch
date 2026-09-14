@@ -149,7 +149,6 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
 
         final NodeHeapMetrics nodeHeapMetrics = allocation.clusterInfo().getNodeHeapMetrics().get(node.nodeId());
         assert nodeHeapMetrics != null : "expected heap metrics for node after guard passed";
-
         final Long capacityBytes = resolveCapacityBytes(nodeHeapMetrics, node, allocation);
         assert capacityBytes != null : "expected capacity bytes for node after guard passed";
 
@@ -245,7 +244,6 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
 
         final NodeHeapMetrics nodeHeapMetrics = allocation.clusterInfo().getNodeHeapMetrics().get(node.nodeId());
         assert nodeHeapMetrics != null : "expected heap metrics for node after guard passed";
-
         final Long capacityBytes = resolveCapacityBytes(nodeHeapMetrics, node, allocation);
         assert capacityBytes != null : "expected capacity bytes for node after guard passed";
 

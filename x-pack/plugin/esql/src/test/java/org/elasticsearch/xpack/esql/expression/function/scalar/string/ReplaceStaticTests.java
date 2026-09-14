@@ -107,6 +107,20 @@ public class ReplaceStaticTests extends ESTestCase {
         );
     }
 
+    public void testInvalidConstantRegexAndNewStrThrowsPatternSyntaxException() {
+        expectThrows(
+            java.util.regex.PatternSyntaxException.class,
+            () -> AbstractScalarFunctionTestCase.evaluator(
+                new Replace(
+                    Source.EMPTY,
+                    field("text", DataType.KEYWORD),
+                    new Literal(Source.EMPTY, new BytesRef("["), DataType.KEYWORD),
+                    new Literal(Source.EMPTY, new BytesRef("x"), DataType.KEYWORD)
+                )
+            ).get(driverContext())
+        );
+    }
+
     public void testTooBig() {
         String textAndNewStr = randomAlphaOfLength((int) (ScalarFunction.MAX_BYTES_REF_RESULT_SIZE / 10));
         String regex = ".";

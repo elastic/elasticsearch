@@ -15,8 +15,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -181,9 +181,10 @@ public class PoolingHeapByteBufferAllocatorTests extends ESTestCase {
         AtomicLong capViolations = new AtomicLong();
         AtomicInteger identityCollisions = new AtomicInteger();
         Set<ByteBuffer> live = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+        long seed = randomLong();
 
         startInParallel(threads, t -> {
-            ThreadLocalRandom rng = ThreadLocalRandom.current();
+            Random rng = new Random(seed + t);
             List<ByteBuffer> held = new ArrayList<>();
             for (int i = 0; i < ops; i++) {
                 if (pool.pooledBytes() > pool.cap()) {

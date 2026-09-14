@@ -77,7 +77,6 @@ FROM log-cluster-*:logs-* | LOOKUP JOIN hosts ON source.ip
 ```
 
 ### Cross-{{serverless-short}} project support
-
 ```{applies_to}
 serverless: ga
 ```

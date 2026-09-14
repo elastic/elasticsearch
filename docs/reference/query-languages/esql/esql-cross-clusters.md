@@ -550,7 +550,6 @@ You can query datasets created through [{{esql}} Data Federation](/reference/que
 {applies_to}`stack: experimental =9.5` Querying a dataset on a remote cluster returns an error, and so does a wildcard that matches one.
 
 ## Query across {{serverless-short}} projects [ccq-cps]
-
 ```{applies_to}
 serverless: ga
 ```

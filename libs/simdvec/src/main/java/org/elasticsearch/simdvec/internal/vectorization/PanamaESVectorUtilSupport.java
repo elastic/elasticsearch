@@ -2493,19 +2493,21 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
 
         // column tail, groups of 4 rows
-        for (int l = 0; l < inner; l++) {
-            int aOffset = l * aInnerStride;
-            int bBase = l * n;
-            float a0v = a[a0 + aOffset];
-            float a1v = a[a1 + aOffset];
-            float a2v = a[a2 + aOffset];
-            float a3v = a[a3 + aOffset];
-            for (int jj = j; jj < n; jj++) {
-                float bv = b[bBase + jj];
-                c[c0 + jj] = fma(a0v, bv, c[c0 + jj]);
-                c[c1 + jj] = fma(a1v, bv, c[c1 + jj]);
-                c[c2 + jj] = fma(a2v, bv, c[c2 + jj]);
-                c[c3 + jj] = fma(a3v, bv, c[c3 + jj]);
+        if (j < n) {
+            for (int l = 0; l < inner; l++) {
+                int aOffset = l * aInnerStride;
+                int bBase = l * n;
+                float a0v = a[a0 + aOffset];
+                float a1v = a[a1 + aOffset];
+                float a2v = a[a2 + aOffset];
+                float a3v = a[a3 + aOffset];
+                for (int jj = j; jj < n; jj++) {
+                    float bv = b[bBase + jj];
+                    c[c0 + jj] = fma(a0v, bv, c[c0 + jj]);
+                    c[c1 + jj] = fma(a1v, bv, c[c1 + jj]);
+                    c[c2 + jj] = fma(a2v, bv, c[c2 + jj]);
+                    c[c3 + jj] = fma(a3v, bv, c[c3 + jj]);
+                }
             }
         }
     }
@@ -2526,11 +2528,13 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
 
         // column tail
-        for (int l = 0; l < inner; l++) {
-            int bBase = l * n;
-            float av = a[aBase + l * aInnerStride];
-            for (int jj = j; jj < n; jj++) {
-                c[cBase + jj] = fma(av, b[bBase + jj], c[cBase + jj]);
+        if (j < n) {
+            for (int l = 0; l < inner; l++) {
+                int bBase = l * n;
+                float av = a[aBase + l * aInnerStride];
+                for (int jj = j; jj < n; jj++) {
+                    c[cBase + jj] = fma(av, b[bBase + jj], c[cBase + jj]);
+                }
             }
         }
     }

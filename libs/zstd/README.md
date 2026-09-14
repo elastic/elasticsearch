@@ -23,8 +23,8 @@ libs/zstd/
 
 The prebuilt `libzstd` artifacts themselves are still resolved centrally by
 `:libs:native:native-libraries` (`libs/native/libraries/build.gradle`), which
-aggregates zstd, simdvec, and parquet-rs native libraries into the single
-directory that the native-library-path mechanism expects.
+aggregates Elasticsearch's native libraries into the single directory that the
+native-library-path mechanism expects.
 
 ## Building libzstd locally
 

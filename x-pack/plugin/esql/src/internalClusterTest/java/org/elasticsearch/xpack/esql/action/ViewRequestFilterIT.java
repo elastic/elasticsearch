@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -82,10 +86,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
                 .setSettings(Settings.builder().put("index.number_of_shards", 1))
                 .setMapping("id", "type=integer", "status", "type=integer", "region", "type=keyword")
         );
-        for (int i = 0; i < ROWS; i++) {
-            client().prepareIndex(INDEX).setSource("id", i, "status", status(i), "region", region(i)).get();
-        }
-        client().admin().indices().prepareRefresh(INDEX).get();
+        indexRows(INDEX, 0);
 
         // Passthrough view: equivalent to querying the index directly.
         createView(PASSTHROUGH_VIEW, "FROM " + INDEX);
@@ -102,6 +103,29 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
                 new PutViewAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, new View(name, query))
             ).actionGet(30, TimeUnit.SECONDS)
         );
+    }
+
+    /** Bulk-indexes {@link #ROWS} rows with ids {@code base..base+ROWS-1} and the shared status/region pattern, then refreshes. */
+    private static void indexRows(String index, int base) {
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < ROWS; i++) {
+            bulk.add(new IndexRequest(index).source("id", base + i, "status", status(i), "region", region(i)));
+        }
+        indexDocs(bulk);
+    }
+
+    /** Bulk-indexes the given documents and refreshes, so they are immediately visible to the queries under test. */
+    private static void indexDocs(IndexRequest... docs) {
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (IndexRequest doc : docs) {
+            bulk.add(doc);
+        }
+        indexDocs(bulk);
+    }
+
+    private static void indexDocs(BulkRequestBuilder bulk) {
+        BulkResponse response = bulk.get();
+        assertFalse(response.buildFailureMessage(), response.hasFailures());
     }
 
     /** Execute a request filter against a source (index or view) and return the sorted id list. */
@@ -248,10 +272,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
                 .setMapping("id", "type=integer", "status", "type=integer", "region", "type=keyword")
         );
         final int BASE2 = 1000;
-        for (int i = 0; i < ROWS; i++) {
-            client().prepareIndex(idx2).setSource("id", BASE2 + i, "status", status(i), "region", region(i)).get();
-        }
-        client().admin().indices().prepareRefresh(idx2).get();
+        indexRows(idx2, BASE2);
 
         String view2 = "vrf_view2";
         createView(view2, "FROM " + idx2);
@@ -288,10 +309,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
                 .setMapping("id", "type=integer", "status", "type=integer", "region", "type=keyword")
         );
         final int BASE3 = 2000;
-        for (int i = 0; i < ROWS; i++) {
-            client().prepareIndex(idx3).setSource("id", BASE3 + i, "status", status(i), "region", region(i)).get();
-        }
-        client().admin().indices().prepareRefresh(idx3).get();
+        indexRows(idx3, BASE3);
 
         QueryBuilder filter = QueryBuilders.termQuery("status", 300);
         List<Object> expectedFromView = ids(PASSTHROUGH_VIEW, filter);
@@ -387,10 +405,11 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
                     .setMapping("id", "type=integer", "@timestamp", "type=date")
             );
         }
-        client().prepareIndex(a).setSource("id", 1, "@timestamp", "2024-01-01T00:00:00Z").get();
-        client().prepareIndex(a).setSource("id", 2, "@timestamp", "2024-06-01T00:00:00Z").get();
-        client().prepareIndex(b).setSource("id", 3, "@timestamp", "2024-01-01T00:00:00Z").get();
-        client().admin().indices().prepareRefresh(a, b).get();
+        indexDocs(
+            new IndexRequest(a).source("id", 1, "@timestamp", "2024-01-01T00:00:00Z"),
+            new IndexRequest(a).source("id", 2, "@timestamp", "2024-06-01T00:00:00Z"),
+            new IndexRequest(b).source("id", 3, "@timestamp", "2024-01-01T00:00:00Z")
+        );
 
         createView("vrf_dp_view", "FROM " + a + "," + b + " | EVAL @timestamp = @timestamp + 100 day | KEEP id, @timestamp");
 
@@ -479,11 +498,12 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
                     .setMapping("id", "type=integer", "region", "type=keyword")
             );
         }
-        client().prepareIndex(a).setSource("id", 1, "region", "eu").get();
-        client().prepareIndex(a).setSource("id", 2, "region", "us").get();
-        client().prepareIndex(b).setSource("id", 3, "region", "eu").get();
-        client().prepareIndex(b).setSource("id", 4, "region", "us").get();
-        client().admin().indices().prepareRefresh(a, b).get();
+        indexDocs(
+            new IndexRequest(a).source("id", 1, "region", "eu"),
+            new IndexRequest(a).source("id", 2, "region", "us"),
+            new IndexRequest(b).source("id", 3, "region", "eu"),
+            new IndexRequest(b).source("id", 4, "region", "us")
+        );
 
         // A trailing operator after the union is what forces the branch point to stay nested under any wrapper.
         String view = "vrf_branching_view";

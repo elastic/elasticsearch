@@ -22,10 +22,10 @@
 
 package org.elasticsearch.gradle.internal.ospackage.deb;
 
-import java.io.BufferedReader;
+import org.gradle.api.file.RegularFileProperty;
+
 import java.io.File;
 import java.io.IOException;
-import java.io.StringReader;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -34,8 +34,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Generates the debian maintainer scripts (preinst/postinst/prerm/postrm), the control file and
- * the conffiles listing from the bundled templates.
+ * Generates the debian control file and the conffiles listing from the bundled templates and
+ * installs the maintainer scripts (preinst/postinst/prerm/postrm). Script files declared on the
+ * task are installed verbatim; the templated variants are only used when explicit install dirs
+ * require a generated postinst.
  */
 class MaintainerScriptsGenerator {
 
@@ -52,23 +54,18 @@ class MaintainerScriptsGenerator {
     void generate(Map<String, Object> context) {
         templateHelper.generateFile("control", context);
 
-        List<String> configurationFiles = task.getAllConfigurationFiles();
+        List<String> configurationFiles = task.getExten().getConfigurationFiles().getOrElse(List.of());
         if (configurationFiles.isEmpty() == false) {
             templateHelper.generateFile("conffiles", Map.of("files", configurationFiles));
         }
 
-        record MaintainerScript(String name, File file, List<String> commands, boolean forceGeneration) {}
+        record MaintainerScript(String name, File file, boolean forceGeneration) {}
         List<MaintainerScript> scripts = List.of(
-            new MaintainerScript("preinst", fileOrNull(task.getExten().getPreInstallFile()), task.getAllPreInstallCommands(), false),
+            new MaintainerScript("preinst", fileOrNull(task.getExten().getPreInstallFile()), false),
             // postinst is also required when explicit install dirs need to be created
-            new MaintainerScript(
-                "postinst",
-                fileOrNull(task.getExten().getPostInstallFile()),
-                task.getAllPostInstallCommands(),
-                hasDirs(context)
-            ),
-            new MaintainerScript("prerm", fileOrNull(task.getExten().getPreUninstallFile()), task.getAllPreUninstallCommands(), false),
-            new MaintainerScript("postrm", fileOrNull(task.getExten().getPostUninstallFile()), task.getAllPostUninstallCommands(), false)
+            new MaintainerScript("postinst", fileOrNull(task.getExten().getPostInstallFile()), hasDirs(context)),
+            new MaintainerScript("prerm", fileOrNull(task.getExten().getPreUninstallFile()), false),
+            new MaintainerScript("postrm", fileOrNull(task.getExten().getPostUninstallFile()), false)
         );
         for (MaintainerScript script : scripts) {
             if (script.file() != null) {
@@ -78,15 +75,15 @@ class MaintainerScriptsGenerator {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            } else if (script.commands().isEmpty() == false || script.forceGeneration()) {
+            } else if (script.forceGeneration()) {
                 Map<String, Object> scriptContext = new HashMap<>(context);
-                scriptContext.put("commands", script.commands().stream().map(MaintainerScriptsGenerator::stripShebang).toList());
+                scriptContext.put("commands", List.of());
                 templateHelper.generateFile(script.name(), scriptContext);
             }
         }
     }
 
-    private static File fileOrNull(org.gradle.api.file.RegularFileProperty property) {
+    private static File fileOrNull(RegularFileProperty property) {
         return property.isPresent() ? property.get().getAsFile() : null;
     }
 
@@ -104,20 +101,5 @@ class MaintainerScriptsGenerator {
         }
         sb.append("-d ").append(dir.name());
         return sb.toString();
-    }
-
-    private static String stripShebang(String script) {
-        StringBuilder result = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new StringReader(script))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.matches("^#!.*$") == false) {
-                    result.append(line).append('\n');
-                }
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        return result.toString();
     }
 }

@@ -22,10 +22,11 @@
 
 package org.elasticsearch.gradle.internal.ospackage;
 
+import org.gradle.api.file.CopySpec;
+import org.gradle.api.file.FileCopyDetails;
 import org.gradle.api.internal.file.CopyActionProcessingStreamAction;
 import org.gradle.api.internal.file.copy.CopyAction;
 import org.gradle.api.internal.file.copy.CopyActionProcessingStream;
-import org.gradle.api.internal.file.copy.CopySpecInternal;
 import org.gradle.api.internal.file.copy.CopySpecResolver;
 import org.gradle.api.internal.file.copy.DefaultCopySpec;
 import org.gradle.api.internal.file.copy.DefaultFileCopyDetails;
@@ -73,7 +74,7 @@ public abstract class AbstractPackagingCopyAction<T extends SystemPackagingTask>
     private class StreamAction implements CopyActionProcessingStreamAction {
         @Override
         public void processFile(FileCopyDetailsInternal details) {
-            CopySpecInternal spec = extractSpec(details); // can be null
+            CopySpec spec = extractSpec(details); // can be null
             if (details.isDirectory()) {
                 visitDir(details, spec);
             } else {
@@ -82,9 +83,9 @@ public abstract class AbstractPackagingCopyAction<T extends SystemPackagingTask>
         }
     }
 
-    protected abstract void visitDir(FileCopyDetailsInternal dirDetails, CopySpecInternal spec);
+    protected abstract void visitDir(FileCopyDetails dirDetails, CopySpec spec);
 
-    protected abstract void visitFile(FileCopyDetailsInternal fileDetails, CopySpecInternal spec);
+    protected abstract void visitFile(FileCopyDetails fileDetails, CopySpec spec);
 
     protected abstract void addDependency(Dependency dependency);
 
@@ -101,16 +102,16 @@ public abstract class AbstractPackagingCopyAction<T extends SystemPackagingTask>
     }
 
     protected void endVisit() throws IOException {
-        for (Dependency dependency : task.getAllDependencies()) {
+        for (Dependency dependency : task.getResolvedDependencies().get()) {
             addDependency(dependency);
         }
-        for (Dependency obsolete : task.getAllObsoletes()) {
+        for (Dependency obsolete : task.getExten().getObsoletes().getOrElse(java.util.List.of())) {
             addObsolete(obsolete);
         }
-        for (Dependency conflict : task.getAllConflicts()) {
+        for (Dependency conflict : task.getExten().getConflicts().getOrElse(java.util.List.of())) {
             addConflict(conflict);
         }
-        for (Directory directory : task.getAllDirectories()) {
+        for (Directory directory : task.getExten().getDirectories()) {
             addDirectory(directory);
         }
         end();
@@ -156,7 +157,7 @@ public abstract class AbstractPackagingCopyAction<T extends SystemPackagingTask>
      * ({@link SpecAttributes}) and explicitly configured permissions. There is no public API for
      * this, hence the reflection.
      */
-    protected static CopySpecInternal extractSpec(FileCopyDetailsInternal fileDetails) {
+    protected static CopySpec extractSpec(FileCopyDetailsInternal fileDetails) {
         if (fileDetails instanceof DefaultFileCopyDetails == false) {
             return null;
         }
@@ -167,7 +168,7 @@ public abstract class AbstractPackagingCopyAction<T extends SystemPackagingTask>
 
             Field specHolderField = DefaultCopySpec.DefaultCopySpecResolver.class.getDeclaredField("this$0");
             specHolderField.setAccessible(true);
-            return (CopySpecInternal) specHolderField.get(specResolver);
+            return (CopySpec) specHolderField.get(specResolver);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("Cannot extract copy spec from file details", e);
         }
@@ -177,7 +178,7 @@ public abstract class AbstractPackagingCopyAction<T extends SystemPackagingTask>
      * Provides the on-disk file for the visited details. Filtered files have no backing file and
      * are spooled to the task's temporary directory instead.
      */
-    protected File extractFile(FileCopyDetailsInternal fileDetails) {
+    protected File extractFile(FileCopyDetails fileDetails) {
         try {
             return fileDetails.getFile();
         } catch (UnsupportedOperationException e) {

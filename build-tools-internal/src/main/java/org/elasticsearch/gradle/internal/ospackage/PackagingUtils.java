@@ -22,8 +22,8 @@
 
 package org.elasticsearch.gradle.internal.ospackage;
 
+import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.FileCopyDetails;
-import org.gradle.api.internal.file.copy.CopySpecInternal;
 
 import java.io.File;
 import java.io.IOException;
@@ -130,7 +130,7 @@ public final class PackagingUtils {
      * defaults. Permissions equal to 0644 are only considered explicit when the spec shows other
      * signs of dedicated configuration (include or exclude patterns).
      */
-    public static Integer getFileMode(CopySpecInternal spec) {
+    public static Integer getFileMode(CopySpec spec) {
         if (spec == null || spec.getFilePermissions().isPresent() == false) {
             return null;
         }
@@ -146,7 +146,7 @@ public final class PackagingUtils {
      * Returns explicitly configured directory permissions of a spec, or {@code null} when the spec
      * uses defaults.
      */
-    public static Integer getDirMode(CopySpecInternal spec) {
+    public static Integer getDirMode(CopySpec spec) {
         if (spec == null || spec.getDirPermissions().isPresent() == false) {
             return null;
         }

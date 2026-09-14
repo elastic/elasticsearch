@@ -25,39 +25,18 @@ package org.elasticsearch.gradle.internal.ospackage;
 import org.redline_rpm.header.Flags;
 
 import java.io.Serializable;
-import java.util.Objects;
 
 /**
  * A package relationship (requires/conflicts/obsoletes) shared by the rpm and deb models. The
  * {@code flag} carries redline {@link Flags} semantics and is translated to the debian comparison
  * operators when rendered into a deb control file.
  */
-public class Dependency implements Serializable {
-    private static final long serialVersionUID = 5707700441069141432L;
+public record Dependency(String packageName, String version, int flag) implements Serializable {
 
-    private final String packageName;
-    private final String version;
-    private final int flag;
-
-    public Dependency(String packageName, String version, int flag) {
+    public Dependency {
         if (packageName.contains(",")) {
             throw new IllegalArgumentException("Package name (" + packageName + ") can not include commas");
         }
-        this.packageName = packageName;
-        this.version = version;
-        this.flag = flag;
-    }
-
-    public String getPackageName() {
-        return packageName;
-    }
-
-    public String getVersion() {
-        return version;
-    }
-
-    public int getFlag() {
-        return flag;
     }
 
     public String toDebString() {
@@ -84,22 +63,5 @@ public class Dependency implements Serializable {
         } else {
             throw new IllegalArgumentException("Unsupported dependency comparison flag [" + flag + "]");
         }
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o instanceof Dependency == false) {
-            return false;
-        }
-        Dependency that = (Dependency) o;
-        return flag == that.flag && Objects.equals(packageName, that.packageName) && Objects.equals(version, that.version);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(packageName, version, flag);
     }
 }

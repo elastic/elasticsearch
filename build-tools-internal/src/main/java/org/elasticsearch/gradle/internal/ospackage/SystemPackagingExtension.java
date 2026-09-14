@@ -27,6 +27,7 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
@@ -34,8 +35,6 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.redline_rpm.header.Os;
-import org.redline_rpm.header.RpmType;
-import org.redline_rpm.payload.Directive;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -99,28 +98,28 @@ public abstract class SystemPackagingExtension {
 
     @Input
     @Optional
-    public abstract Property<String> getBuildHost();
-
-    @Input
-    @Optional
     public abstract Property<String> getSummary();
 
     @Input
     @Optional
     public abstract Property<String> getPackageDescription();
 
+    /** RPM only. */
     @Input
     @Optional
     public abstract Property<String> getLicense();
 
+    /** RPM only. */
     @Input
     @Optional
     public abstract Property<String> getPackager();
 
+    /** RPM only. */
     @Input
     @Optional
     public abstract Property<String> getDistribution();
 
+    /** RPM only. */
     @Input
     @Optional
     public abstract Property<String> getVendor();
@@ -129,55 +128,15 @@ public abstract class SystemPackagingExtension {
     @Optional
     public abstract Property<String> getUrl();
 
-    @Input
-    @Optional
-    public abstract Property<String> getSourcePackage();
-
     /** The package architecture as understood by the target package manager. */
     @Input
     @Optional
     public abstract Property<String> getArchStr();
 
+    /** DEB only. */
     @Input
     @Optional
     public abstract Property<String> getMaintainer();
-
-    @Input
-    @Optional
-    public abstract Property<String> getUploaders();
-
-    @Input
-    @Optional
-    public abstract Property<String> getPriority();
-
-    @Input
-    @Optional
-    public abstract Property<Integer> getEpoch();
-
-    /** DEB only: default numeric owner id. */
-    @Input
-    @Optional
-    public abstract Property<Integer> getUid();
-
-    /** DEB only: default numeric group id. */
-    @Input
-    @Optional
-    public abstract Property<Integer> getGid();
-
-    /** Whether directory entries get the setgid bit by default. */
-    @Input
-    @Optional
-    public abstract Property<Boolean> getSetgid();
-
-    /** Whether visited directories are recorded as package-owned directory entries by default. */
-    @Input
-    @Optional
-    public abstract Property<Boolean> getCreateDirectoryEntry();
-
-    /** RPM only: whether parent directories of packaged files are implicitly owned. */
-    @Input
-    @Optional
-    public abstract Property<Boolean> getAddParentDirs();
 
     @Input
     @Optional
@@ -216,20 +175,15 @@ public abstract class SystemPackagingExtension {
     @PathSensitive(PathSensitivity.RELATIVE)
     public abstract RegularFileProperty getPostUninstallFile();
 
-    /** RPM only: default file type directive. */
-    @Input
-    @Optional
-    public abstract Property<Directive> getFileType();
-
     /** RPM only. */
     @Input
     @Optional
     public abstract Property<Os> getOs();
 
-    /** RPM only. */
+    /** RPM only: whether parent directories of packaged files are implicitly owned. */
     @Input
     @Optional
-    public abstract Property<RpmType> getType();
+    public abstract Property<Boolean> getAddParentDirs();
 
     /** RPM only: relocation prefixes. */
     @Input
@@ -287,17 +241,13 @@ public abstract class SystemPackagingExtension {
     }
 
     // ------------------------------------------------------------------
-    // convenience DSL methods
+    // convenience DSL methods used by the Elasticsearch packaging build
     // ------------------------------------------------------------------
 
     public Dependency requires(String packageName, String version, int flag) {
         Dependency dep = new Dependency(packageName, version, flag);
         getDependencies().add(dep);
         return dep;
-    }
-
-    public Dependency requires(String packageName, String version) {
-        return requires(packageName, version, 0);
     }
 
     public Dependency requires(String packageName) {
@@ -310,18 +260,10 @@ public abstract class SystemPackagingExtension {
         return dep;
     }
 
-    public Dependency obsoletes(String packageName) {
-        return obsoletes(packageName, "", 0);
-    }
-
-    public Dependency conflicts(String packageName, String version, int flag) {
-        Dependency dep = new Dependency(packageName, version, flag);
+    public Dependency conflicts(String packageName) {
+        Dependency dep = new Dependency(packageName, "", 0);
         getConflicts().add(dep);
         return dep;
-    }
-
-    public Dependency conflicts(String packageName) {
-        return conflicts(packageName, "", 0);
     }
 
     public void prefix(String prefix) {
@@ -333,7 +275,7 @@ public abstract class SystemPackagingExtension {
     }
 
     public Directory directory(String path, int permissions) {
-        Directory directory = new Directory(path, permissions, false);
+        Directory directory = new Directory(path, permissions);
         directories.add(directory);
         return directory;
     }
@@ -369,7 +311,7 @@ public abstract class SystemPackagingExtension {
         getPostTransCommands().addAll(contentsOf(script));
     }
 
-    private org.gradle.api.provider.Provider<List<String>> contentsOf(File script) {
+    private Provider<List<String>> contentsOf(File script) {
         RegularFileProperty fileProperty = getObjects().fileProperty();
         fileProperty.set(script);
         return getProviders().fileContents(fileProperty)

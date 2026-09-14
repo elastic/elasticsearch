@@ -54,6 +54,12 @@ class GradleApiUsageArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.NoticeTask",
         "org.elasticsearch.gradle.internal.ResolveAllDependencies",
         "org.elasticsearch.gradle.internal.SymbolicLinkPreservingTar",
+        // the ospackage classes below implement a custom archive backend for AbstractArchiveTask;
+        // this inherently requires the internal CopyAction machinery (like SymbolicLinkPreservingTar)
+        "org.elasticsearch.gradle.internal.ospackage.AbstractPackagingCopyAction",
+        "org.elasticsearch.gradle.internal.ospackage.SpecAttributes",
+        "org.elasticsearch.gradle.internal.ospackage.deb.Deb",
+        "org.elasticsearch.gradle.internal.ospackage.rpm.Rpm",
         "org.elasticsearch.gradle.internal.doc.DocsTestPlugin",
         "org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin",
         "org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin",

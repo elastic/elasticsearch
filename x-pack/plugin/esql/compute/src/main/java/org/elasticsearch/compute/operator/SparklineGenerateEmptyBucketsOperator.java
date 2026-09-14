@@ -116,7 +116,7 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
 
         @Override
         public String describe() {
-            return "SparklineGenerateEmptyBucketsOperator[numValueColumns=" + valueElementTypes.length + "]";
+            return "SparklineGenerateEmptyBucketsOperator[valueElementTypes=" + Arrays.toString(valueElementTypes) + "]";
         }
     }
 

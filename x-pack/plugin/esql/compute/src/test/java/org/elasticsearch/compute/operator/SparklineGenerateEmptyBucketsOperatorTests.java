@@ -97,12 +97,12 @@ public class SparklineGenerateEmptyBucketsOperatorTests extends OperatorTestCase
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("SparklineGenerateEmptyBucketsOperator[numValueColumns=1]");
+        return equalTo("SparklineGenerateEmptyBucketsOperator[valueElementTypes=[LONG]]");
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("SparklineGenerateEmptyBucketsOperator[numValueColumns=1]");
+        return equalTo("SparklineGenerateEmptyBucketsOperator[valueElementTypes=[LONG]]");
     }
 
     @Override

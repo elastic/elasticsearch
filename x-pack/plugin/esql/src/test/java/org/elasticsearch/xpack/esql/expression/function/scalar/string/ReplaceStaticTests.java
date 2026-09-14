@@ -83,7 +83,7 @@ public class ReplaceStaticTests extends ESTestCase {
      * depend on the test JVM's {@code -Xss}.
      */
     public void testCatastrophicRegexDoesNotThrowStackOverflowError() {
-        String text = "a".repeat(4000);
+        String text = "a".repeat(10000);
         String regex = "(a|aa)+$";
         assertNull(processOnSmallStack(text, regex, "x"));
         assertDriverWarnings(
@@ -98,7 +98,7 @@ public class ReplaceStaticTests extends ESTestCase {
      * {@code EVAL r = REPLACE(f, "(a|aa)+$", "x")}.
      */
     public void testCatastrophicConstantRegexDoesNotThrowStackOverflowError() {
-        String text = "a".repeat(4000);
+        String text = "a".repeat(10000);
         String regex = "(a|aa)+$";
         assertNull(processConstantRegexOnSmallStack(text, regex, "x"));
         assertDriverWarnings(

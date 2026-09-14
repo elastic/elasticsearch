@@ -11,6 +11,8 @@ package org.elasticsearch.columnar;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreScorerSupplier;
@@ -56,26 +58,28 @@ public final class ColumnarStringTermQuery extends Query {
     private final String field;
     private final BytesRef term;
     private final Where where;
+    private final ScanBudget budget;
 
     /** Documents whose value is exactly {@code term}. */
-    public static ColumnarStringTermQuery term(String field, BytesRef term) {
-        return new ColumnarStringTermQuery(field, term, Where.WHOLE);
+    public static ColumnarStringTermQuery term(String field, BytesRef term, ScanBudget budget) {
+        return new ColumnarStringTermQuery(field, term, Where.WHOLE, budget);
     }
 
     /** Documents holding a value that starts with {@code prefix}. */
-    public static ColumnarStringTermQuery prefix(String field, BytesRef prefix) {
-        return new ColumnarStringTermQuery(field, prefix, Where.START);
+    public static ColumnarStringTermQuery prefix(String field, BytesRef prefix, ScanBudget budget) {
+        return new ColumnarStringTermQuery(field, prefix, Where.START, budget);
     }
 
     /** Documents holding a value that has {@code term} somewhere inside it. */
-    public static ColumnarStringTermQuery contains(String field, BytesRef term) {
-        return new ColumnarStringTermQuery(field, term, Where.ANYWHERE);
+    public static ColumnarStringTermQuery contains(String field, BytesRef term, ScanBudget budget) {
+        return new ColumnarStringTermQuery(field, term, Where.ANYWHERE, budget);
     }
 
-    private ColumnarStringTermQuery(String field, BytesRef term, Where where) {
+    private ColumnarStringTermQuery(String field, BytesRef term, Where where, ScanBudget budget) {
         this.field = Objects.requireNonNull(field);
         this.term = BytesRef.deepCopyOf(Objects.requireNonNull(term));
         this.where = where;
+        this.budget = Objects.requireNonNull(budget);
     }
 
     @Override
@@ -84,75 +88,85 @@ public final class ColumnarStringTermQuery extends Query {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final LeafReader reader = context.reader();
-                final BinaryDocValues values = reader.getBinaryDocValues(field);
-                if (values == null) {
+                final FieldInfo info = reader.getFieldInfos().fieldInfo(field);
+                if (info == null || info.getDocValuesType() != DocValuesType.BINARY) {
                     // No value for the field in this segment, so nothing here matches.
                     return null;
                 }
-                if (values instanceof StringColumnSource columnar) {
-                    final StringColumnReader column = columnar.reader();
-                    final DocIdSetIterator matches = switch (where) {
-                        case WHOLE -> column.matchTerm(term);
-                        case START -> column.matchPrefix(term);
-                        case ANYWHERE -> column.matchContains(term);
-                    };
-                    return ConstantScoreScorerSupplier.fromIterator(matches, score(), scoreMode, reader.maxDoc());
-                }
-
-                // An overlay rather than the column, as an updated field is: the values are read one
-                // document at a time and compared. The surface carries a document's slots as one payload, so
-                // each is decoded and tested in turn and any of them matching matches the document, which is
-                // what the column answers too.
-                final BytesRef value = new BytesRef();
-                final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
-                final TwoPhaseIterator twoPhase = new TwoPhaseIterator(values) {
+                return new ConstantScoreScorerSupplier(score(), scoreMode, reader.maxDoc()) {
                     @Override
-                    public boolean matches() throws IOException {
-                        final int slots = decoder.reset(values.binaryValue());
-                        for (int slot = 0; slot < slots; slot++) {
-                            final BytesRef candidate = decoder.next();
-                            // A null is no term, starts with no prefix, and holds nothing.
-                            if (candidate == null) {
-                                continue;
-                            }
-                            final boolean matched = switch (where) {
-                                case WHOLE -> candidate.bytesEquals(term);
-                                case START -> {
-                                    if (candidate.length < term.length) {
-                                        yield false;
-                                    }
-                                    value.bytes = candidate.bytes;
-                                    value.offset = candidate.offset;
-                                    value.length = term.length;
-                                    yield value.bytesEquals(term);
-                                }
-                                case ANYWHERE -> ESVectorUtil.contains(
-                                    candidate.bytes,
-                                    candidate.offset,
-                                    candidate.length,
-                                    term.bytes,
-                                    term.offset,
-                                    term.length
-                                );
-                            };
-                            if (matched) {
-                                return true;
-                            }
-                        }
-                        return false;
+                    public long cost() {
+                        return reader.maxDoc();
                     }
 
                     @Override
-                    public float matchCost() {
-                        return 10f;
+                    public DocIdSetIterator iterator(long leadCost) throws IOException {
+                        // Checked here rather than where the supplier is built: everything below allocates, and
+                        // the answer is not wanted until Lucene asks for the iterator.
+                        budget.check(searcher);
+                        final BinaryDocValues values = reader.getBinaryDocValues(field);
+                        if (values == null) {
+                            return DocIdSetIterator.empty();
+                        }
+                        if (values instanceof StringColumnSource columnar) {
+                            final StringColumnReader column = columnar.reader();
+                            return switch (where) {
+                                case WHOLE -> column.matchTerm(term);
+                                case START -> column.matchPrefix(term);
+                                case ANYWHERE -> column.matchContains(term);
+                            };
+                        }
+
+                        // An overlay rather than the column, as an updated field is: the values are read one
+                        // document at a time and compared. The surface carries a document's slots as one payload,
+                        // so each is decoded and tested in turn and any of them matching matches the document,
+                        // which is what the column answers too.
+                        final BytesRef value = new BytesRef();
+                        final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
+                        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
+                            @Override
+                            public boolean matches() throws IOException {
+                                final int slots = decoder.reset(values.binaryValue());
+                                for (int slot = 0; slot < slots; slot++) {
+                                    final BytesRef candidate = decoder.next();
+                                    // A null is no term, starts with no prefix, and holds nothing.
+                                    if (candidate == null) {
+                                        continue;
+                                    }
+                                    final boolean matched = switch (where) {
+                                        case WHOLE -> candidate.bytesEquals(term);
+                                        case START -> {
+                                            if (candidate.length < term.length) {
+                                                yield false;
+                                            }
+                                            value.bytes = candidate.bytes;
+                                            value.offset = candidate.offset;
+                                            value.length = term.length;
+                                            yield value.bytesEquals(term);
+                                        }
+                                        case ANYWHERE -> ESVectorUtil.contains(
+                                            candidate.bytes,
+                                            candidate.offset,
+                                            candidate.length,
+                                            term.bytes,
+                                            term.offset,
+                                            term.length
+                                        );
+                                    };
+                                    if (matched) {
+                                        return true;
+                                    }
+                                }
+                                return false;
+                            }
+
+                            @Override
+                            public float matchCost() {
+                                return 10f;
+                            }
+                        });
                     }
                 };
-                return ConstantScoreScorerSupplier.fromIterator(
-                    TwoPhaseIterator.asDocIdSetIterator(twoPhase),
-                    score(),
-                    scoreMode,
-                    reader.maxDoc()
-                );
             }
 
             @Override

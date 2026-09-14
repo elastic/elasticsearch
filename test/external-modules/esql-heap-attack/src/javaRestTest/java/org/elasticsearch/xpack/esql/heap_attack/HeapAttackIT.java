@@ -482,6 +482,18 @@ public class HeapAttackIT extends HeapAttackTestCase {
         assertCircuitBreaks(attempt -> manyEval(attempt * 490));
     }
 
+    public void testTooManyEval_withViewDefined() throws IOException {
+        // When a view is defined, ViewResolver can do signifcant work with a large stack.
+        Request r = new Request("PUT", "/_query/view/my_view");
+        r.setJsonEntity("""
+            { "query": "FROM manylongs" }""");
+        client().performRequest(r);
+
+        initManyLongs(10);
+        // 490 is plenty to fail on most nodes
+        assertCircuitBreaks(attempt -> manyEval(attempt * 490));
+    }
+
     private Map<String, Object> manyEval(int evalLines) throws IOException {
         StringBuilder query = startQuery();
         query.append("FROM manylongs");

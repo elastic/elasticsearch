@@ -37,6 +37,7 @@ dependencies {
   clusterPlugins project(xpackModule('esql-datasource-http'))
   clusterPlugins project(xpackModule('esql-datasource-s3'))
   clusterPlugins project(xpackModule('esql-datasource-parquet'))
+  clusterPlugins project(xpackModule('esql-datasource-orc'))
 }
 
 // Generate Parquet fixtures at build time from CSV — mirrors the multi-node build exactly.
@@ -91,6 +92,34 @@ tasks.named('processJavaRestTestResources').configure {
 
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.parquet'
+  exclude '**/*.orc'
+}
+
+// Generate ORC fixture for DataSourceCrudAcceptCombinationsIT.
+// Parquet is already on the javaRestTest classpath as iceberg-fixtures/standalone/employees.parquet,
+// produced by the generateParquetFixtures task above — no separate generation needed.
+def crudComboFixtureDir = file("${buildDir}/crud-combo-fixtures")
+
+tasks.register('generateCrudComboOrc', JavaExec) {
+  dependsOn serverProj.tasks.named('compileOrcFixtureGeneratorJava')
+  dependsOn testFixturesProj.tasks.named('processResources')
+  classpath = serverProj.configurations.orcFixtureGenerator + serverProj.sourceSets.orcFixtureGenerator.output
+  mainClass = 'org.elasticsearch.xpack.esql.datasources.OrcFixtureGenerator'
+  def orcOut = file("${crudComboFixtureDir}/simple.orc")
+  def csvIn = new File(testFixturesDataDir, "employees.csv")
+  args = [csvIn.path, orcOut.path]
+  inputs.file(csvIn)
+  outputs.file(orcOut)
+  systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
+}
+
+// The orc_noext extensionless variant is created at test runtime by copying simple.orc in the temp
+// fixture directory — no separate Gradle copy task is needed.
+
+sourceSets.javaRestTest.resources.srcDir crudComboFixtureDir
+tasks.named('processJavaRestTestResources').configure {
+  dependsOn 'generateCrudComboOrc'
 }
 
 esqlCsvSpecTests {

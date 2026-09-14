@@ -237,9 +237,10 @@ public class StringColumnMergeTests extends ESTestCase {
                 }
             }
 
-            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+            final FieldType type = columnarBinaryFieldType();
             try (Directory dir = newDirectory()) {
-                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
+                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                    .setMergePolicy(new LogDocMergePolicy());
                 try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                     for (int d = 0; d < numDocs; d++) {
                         final Document doc = new Document();
@@ -286,11 +287,11 @@ public class StringColumnMergeTests extends ESTestCase {
                 default -> new String[] { "term-" + (d % 9) };
             };
         }
-        final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+        final FieldType type = columnarBinaryFieldType();
         try (Directory foreign = newDirectory(); Directory dir = newDirectory()) {
             // Written with the columnar codec, then handed over with the column hidden, so the merge meets it
             // as a plain BinaryDocValues carrying payloads and has to decode them.
-            try (IndexWriter writer = new IndexWriter(foreign, new IndexWriterConfig().setCodec(columnarCodec()))) {
+            try (IndexWriter writer = new IndexWriter(foreign, new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING)))) {
                 for (int d = 0; d < numDocs / 2; d++) {
                     final Document doc = new Document();
                     doc.add(new StringField(ID, Integer.toString(d), Field.Store.NO));
@@ -300,7 +301,8 @@ public class StringColumnMergeTests extends ESTestCase {
                 writer.forceMerge(1);
             }
 
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(new LogDocMergePolicy());
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int d = numDocs / 2; d < numDocs; d++) {
                     final Document doc = new Document();
@@ -353,12 +355,13 @@ public class StringColumnMergeTests extends ESTestCase {
             // Some runs delete nothing, so the merge also meets segments that give up every document they
             // hold — which is what lets it take their totals from what they recorded instead of counting.
             final boolean deleting = randomBoolean();
-            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+            final FieldType type = columnarBinaryFieldType();
 
             try (Directory dir = newDirectory()) {
                 // LogDocMergePolicy merges adjacent segments, so the merged order stays insertion order and the
                 // ordered check below also verifies per-document association.
-                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
+                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                    .setMergePolicy(new LogDocMergePolicy());
                 final int batch = Math.max(1, numDocs / between(2, 6));
                 try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                     for (int d = 0; d < numDocs; d++) {

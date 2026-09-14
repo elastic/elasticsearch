@@ -11,7 +11,9 @@ package org.elasticsearch.search;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.SliceIndexing;
 
+import java.util.HashSet;
 import java.util.Set;
 
 public final class SearchFeatures implements FeatureSpecification {
@@ -110,44 +112,56 @@ public final class SearchFeatures implements FeatureSpecification {
      * which collected nothing and reported success.
      */
     public static final NodeFeature COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX = new NodeFeature("search.aggs.composite.doc_values_skipper_fix");
+    /**
+     * Test-only gate for REST tests using {@code slice} with {@code open_point_in_time} and PIT searches.
+     * Requires {@link SliceIndexing#OPEN_POINT_IN_TIME_SLICE_ROUTING_STATE_VERSION}, which is not supported on
+     * mixed BWC clusters that still contain pre-9.6 nodes.
+     */
+    public static final NodeFeature OPEN_POINT_IN_TIME_SLICE = new NodeFeature("search.point_in_time_slice");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(
-            RETRIEVER_RESCORER_ENABLED,
-            COMPLETION_FIELD_SUPPORTS_DUPLICATE_SUGGESTIONS,
-            RESCORER_MISSING_FIELD_BAD_REQUEST,
-            INT_SORT_FOR_INT_SHORT_BYTE_FIELDS,
-            MULTI_MATCH_CHECKS_POSITIONS,
-            BBQ_HNSW_DEFAULT_INDEXING,
-            SEARCH_WITH_NO_DIMENSIONS_BUGFIX,
-            HNSW_FLAT_INDEX_THRESHOLD,
-            SEARCH_RESCORE_SCRIPT,
-            NEGATIVE_FUNCTION_SCORE_BAD_REQUEST,
-            INDICES_BOOST_REMOTE_INDEX_FIX,
-            NESTED_AGG_TOP_HITS_WITH_INNER_HITS,
-            DATE_FORMAT_MISSING_AS_NULL,
-            QUERY_VECTOR_LOOKUP_BUILDER,
-            LIMIT_MAX_IDS_FEATURE,
-            EXPONENTIAL_HISTOGRAM_QUERYDSL_MIN_MAX,
-            EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILES,
-            EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILE_RANKS,
-            CLOSING_INVALID_PIT_ID,
-            FUNCTION_SCORE_NAMED_QUERIES,
-            LUCENE_10_4_0_UPGRADE_TEST,
-            EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT,
-            EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE,
-            EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED,
-            DEFAULT_DISK_BBQ,
-            DENSE_VECTOR_QUERY,
-            PROFILE_COORDINATOR_REQUEST_METADATA,
-            SCROLL_EMPTY_CONTEXT_RETURNS_200,
-            DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,
-            COUNT_STATS_PARAMETER,
-            FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE,
-            NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING,
-            NESTED_EXTRACT_SOURCE_EMPTY_LIST_FIX,
-            COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX
+        Set<NodeFeature> features = new HashSet<>(
+            Set.of(
+                RETRIEVER_RESCORER_ENABLED,
+                COMPLETION_FIELD_SUPPORTS_DUPLICATE_SUGGESTIONS,
+                RESCORER_MISSING_FIELD_BAD_REQUEST,
+                INT_SORT_FOR_INT_SHORT_BYTE_FIELDS,
+                MULTI_MATCH_CHECKS_POSITIONS,
+                BBQ_HNSW_DEFAULT_INDEXING,
+                SEARCH_WITH_NO_DIMENSIONS_BUGFIX,
+                HNSW_FLAT_INDEX_THRESHOLD,
+                SEARCH_RESCORE_SCRIPT,
+                NEGATIVE_FUNCTION_SCORE_BAD_REQUEST,
+                INDICES_BOOST_REMOTE_INDEX_FIX,
+                NESTED_AGG_TOP_HITS_WITH_INNER_HITS,
+                DATE_FORMAT_MISSING_AS_NULL,
+                QUERY_VECTOR_LOOKUP_BUILDER,
+                LIMIT_MAX_IDS_FEATURE,
+                EXPONENTIAL_HISTOGRAM_QUERYDSL_MIN_MAX,
+                EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILES,
+                EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILE_RANKS,
+                CLOSING_INVALID_PIT_ID,
+                FUNCTION_SCORE_NAMED_QUERIES,
+                LUCENE_10_4_0_UPGRADE_TEST,
+                EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT,
+                EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE,
+                EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED,
+                DEFAULT_DISK_BBQ,
+                DENSE_VECTOR_QUERY,
+                PROFILE_COORDINATOR_REQUEST_METADATA,
+                SCROLL_EMPTY_CONTEXT_RETURNS_200,
+                DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,
+                COUNT_STATS_PARAMETER,
+                FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE,
+                NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING,
+                NESTED_EXTRACT_SOURCE_EMPTY_LIST_FIX,
+                COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX
+            )
         );
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            features.add(OPEN_POINT_IN_TIME_SLICE);
+        }
+        return Set.copyOf(features);
     }
 }

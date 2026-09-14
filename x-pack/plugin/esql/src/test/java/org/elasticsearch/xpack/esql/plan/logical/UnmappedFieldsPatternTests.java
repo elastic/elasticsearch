@@ -142,6 +142,23 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
         assertTrue(pattern.objectSubfieldsCouldMatch("samples"));
     }
 
+    public void testUnionOfRestrictiveKeepAndAllKeepsTheAllSide() {
+        UnmappedFieldsPattern keepMessage = UnmappedFieldsPattern.includes(List.of("messag*")).withAdditionalExcludes(List.of("message"));
+        UnmappedFieldsPattern whereAll = UnmappedFieldsPattern.ALL.withAdditionalExcludes(List.of("message", "@timestamp"));
+        UnmappedFieldsPattern union = keepMessage.union(whereAll);
+        assertTrue(union.matches("language_code"));
+        assertTrue(union.matches("unmapped.nested"));
+        assertFalse(union.matches("message"));
+    }
+
+    public void testUnionOfTwoKeepWildcardsIsOr() {
+        UnmappedFieldsPattern union = UnmappedFieldsPattern.includes(List.of("first*"))
+            .union(UnmappedFieldsPattern.includes(List.of("last*")));
+        assertTrue(union.matches("first_name"));
+        assertTrue(union.matches("last_name"));
+        assertFalse(union.matches("salary"));
+    }
+
     public void testForKeepExactNamesDontReachIncludeGroups() {
         var exactOnly = UnmappedFieldsPattern.forKeep(List.of(new UnresolvedAttribute(Source.EMPTY, "foo")));
         assertTrue(exactOnly.isNone());

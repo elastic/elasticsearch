@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -27,7 +28,9 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -256,6 +259,112 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "")), 1);
         // A pattern that accepts the empty string still must not accept a null.
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.regexpQuery("kw", "[ab]*")), 3);
+    }
+
+    /**
+     * Every query shape the mapper can build, answered by the column and by the format it replaces, over the same
+     * documents. The columnar path bisects, matches over ordinals and tests a term once for every value naming it,
+     * which is a different implementation of every one of these - so the only thing that says it is right is that it
+     * agrees with the path it is standing in for, on documents holding several values, nulls, and the empty string.
+     */
+    public void testEveryQueryShapeAgreesWithTheFormatItReplaces() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final String mapping = """
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","index":false}}}""";
+        final List<String> docs = List.of(
+            "\"alpha\"",
+            "[\"alpha\", \"beta\"]",
+            "[\"gamma\", null, \"alpha\"]",
+            "null",
+            "[null]",
+            "\"\"",
+            "[\"\", null]",
+            "\"ALPHA\"",
+            "\"alphabet\"",
+            "[\"delta\", \"delta\"]",
+            "\"zeta\"",
+            "[]"
+        );
+
+        final String withCodec = INDEX + "-codec";
+        final String withoutCodec = INDEX + "-no-codec";
+        for (boolean on : new boolean[] { true, false }) {
+            final String index = on ? withCodec : withoutCodec;
+            indicesAdmin().prepareCreate(index).setSettings(columnarSettings(mode, on)).setMapping(mapping).get();
+            for (int i = 0; i < docs.size(); i++) {
+                prepareIndex(index).setId(Integer.toString(i))
+                    .setSource("{\"@timestamp\":\"2024-01-01T00:00:0" + (i % 10) + "Z\",\"kw\":" + docs.get(i) + "}", XContentType.JSON)
+                    .get();
+            }
+            indicesAdmin().prepareRefresh(index).get();
+        }
+        // Without these the two agreeing would prove nothing, since neither would have reached the codec.
+        assertKeywordFieldUsesColumnarFormat(withCodec);
+        assertKeywordFieldAvoidsColumnarFormat(withoutCodec);
+
+        final Map<String, QueryBuilder> shapes = new LinkedHashMap<>();
+        shapes.put("term", QueryBuilders.termQuery("kw", "alpha"));
+        shapes.put("term empty", QueryBuilders.termQuery("kw", ""));
+        shapes.put("term absent", QueryBuilders.termQuery("kw", "nothing"));
+        shapes.put("terms", QueryBuilders.termsQuery("kw", "alpha", "zeta", "nothing"));
+        shapes.put("terms with empty", QueryBuilders.termsQuery("kw", "", "delta"));
+        shapes.put("prefix", QueryBuilders.prefixQuery("kw", "alph"));
+        shapes.put("prefix empty", QueryBuilders.prefixQuery("kw", ""));
+        shapes.put("prefix ci", QueryBuilders.prefixQuery("kw", "ALPH").caseInsensitive(true));
+        shapes.put("range", QueryBuilders.rangeQuery("kw").gte("alpha").lte("delta"));
+        shapes.put("range open lower", QueryBuilders.rangeQuery("kw").lt("beta"));
+        shapes.put("range open upper", QueryBuilders.rangeQuery("kw").gt("delta"));
+        shapes.put("range exclusive", QueryBuilders.rangeQuery("kw").gt("alpha").lt("zeta"));
+        shapes.put("wildcard", QueryBuilders.wildcardQuery("kw", "al*a"));
+        shapes.put("wildcard contains", QueryBuilders.wildcardQuery("kw", "*lph*"));
+        shapes.put("wildcard ci", QueryBuilders.wildcardQuery("kw", "al*A").caseInsensitive(true));
+        shapes.put("regexp", QueryBuilders.regexpQuery("kw", "[ad].*a"));
+        shapes.put("regexp accepting empty", QueryBuilders.regexpQuery("kw", "[a-z]*"));
+        shapes.put("fuzzy", QueryBuilders.fuzzyQuery("kw", "alpxa"));
+        shapes.put("term ci", QueryBuilders.termQuery("kw", "ALPHA").caseInsensitive(true));
+
+        for (var shape : shapes.entrySet()) {
+            final List<String> columnar = hits(withCodec, shape.getValue());
+            final List<String> plain = hits(withoutCodec, shape.getValue());
+            assertEquals(shape.getKey(), plain, columnar);
+        }
+
+        // exists is the one shape that deliberately does not agree. The codec writes a payload for an explicit null,
+        // which is what keeps an all-null array distinct from an absent field, so such a document has the field where
+        // under the format it replaces it does not. Documents 3 ("null") and 4 ("[null]") are the difference; the
+        // empty array of document 11 writes nothing either way and is absent from both.
+        final List<String> existsColumnar = hits(withCodec, QueryBuilders.existsQuery("kw"));
+        final List<String> existsPlain = hits(withoutCodec, QueryBuilders.existsQuery("kw"));
+        assertFalse("an explicit null is not present without the codec", existsPlain.contains("3"));
+        assertFalse("nor is an all-null array", existsPlain.contains("4"));
+        assertTrue("but it is with it", existsColumnar.contains("3"));
+        assertTrue("and so is an all-null array", existsColumnar.contains("4"));
+        assertFalse("an empty array is absent either way", existsColumnar.contains("11") || existsPlain.contains("11"));
+        final List<String> expected = new ArrayList<>(existsPlain);
+        expected.add("3");
+        expected.add("4");
+        expected.sort(String::compareTo);
+        assertEquals("and nothing else differs", expected, existsColumnar);
+    }
+
+    /** The ids a query matches, in order, so a disagreement names the documents rather than just a count. */
+    private List<String> hits(String index, QueryBuilder query) {
+        final var response = client().prepareSearch(index)
+            .setQuery(query)
+            .addSort("_id", org.elasticsearch.search.sort.SortOrder.ASC)
+            .setSize(100)
+            .get();
+        try {
+            final List<String> ids = new ArrayList<>();
+            for (var hit : response.getHits().getHits()) {
+                ids.add(hit.getId());
+            }
+            return ids;
+        } finally {
+            response.decRef();
+        }
     }
 
     private static Settings columnarSettings(IndexMode mode) {

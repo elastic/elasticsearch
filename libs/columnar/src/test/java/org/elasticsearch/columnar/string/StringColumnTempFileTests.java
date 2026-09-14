@@ -47,6 +47,7 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                 randomValidBlockSize(),
                 randomChunkCodec(),
                 randomTargetChunkBytes(),
+                randomTargetChunkBytes(),
                 ROOMY,
                 null,
                 dir,

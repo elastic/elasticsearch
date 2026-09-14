@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
  */
 public class EmbeddingOperator extends InferenceOperator {
 
+    private final int batchSize;
+
     EmbeddingOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
@@ -51,6 +53,7 @@ public class EmbeddingOperator extends InferenceOperator {
             source,
             tolerateFailures
         );
+        this.batchSize = batchSize;
     }
 
     @Override
@@ -64,7 +67,7 @@ public class EmbeddingOperator extends InferenceOperator {
 
     @Override
     public String toString() {
-        return "EmbeddingOperator[inference_id=[" + inferenceId() + "]]";
+        return "EmbeddingOperator[inference_id=[" + inferenceId() + "], batch_size=[" + batchSize + "]]";
     }
 
     /**
@@ -88,7 +91,7 @@ public class EmbeddingOperator extends InferenceOperator {
 
         @Override
         public String describe() {
-            return "EmbeddingOperator[inference_id=[" + inferenceId + "]]";
+            return "EmbeddingOperator[inference_id=[" + inferenceId + "], batch_size=[" + batchSize + "]]";
         }
 
         @Override

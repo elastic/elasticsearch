@@ -98,6 +98,7 @@ public abstract class AbstractPhysicalOperationProviders {
         AggregateExec aggregateExec,
         PhysicalOperation source,
         HashAggregationOperator.ParallelConfig parallelConfig,
+        boolean allowPartitionedOutput,
         LocalExecutionPlannerContext context
     ) {
         // The layout this operation will produce.
@@ -229,7 +230,8 @@ public abstract class AbstractPhysicalOperationProviders {
                     .maxPageSize(maxPageSize)
                     .aggregationBatchSize(aggregationBatchSize)
                     .parallelConfig(parallelConfig)
-                    .analysisRegistry(analysisRegistry);
+                    .analysisRegistry(analysisRegistry)
+                    .allowPartitionedOutput(allowPartitionedOutput);
                 HashAggregationOperator.TopAggregation topAggregation = extractTopAggregation(aggregateExec, context);
                 if (topAggregation != null) {
                     builder.topAggregation(topAggregation);

@@ -69,6 +69,13 @@ import static org.hamcrest.Matchers.hasSize;
  * version per test instance. Analyzer and optimizer of one instance share that version, as a real coordinator's do, unless an
  * analyzer needs a feature floor above it ({@link #minimumVersionAtLeast}) or a test optimizes with
  * {@link #logicalOptimizerWithLatestVersion}. Before, the optimizer drew once per class and every analyzer drew on its own.
+ * <p>
+ * A version gate that changes the plan shape gets one named predicate here ({@link #packsDimsInAggregate}) and the shape
+ * helpers built on it. Tests never branch on the version inline: when only the aggregate differs they go through a helper
+ * ({@link #packedTimeSeriesAggregate}, {@link #packedDims}, {@link #packedDimAggregateCount}); when the shape above it
+ * differs they split into two tests gated with {@code assumeTrue}/{@code assumeFalse} on the predicate. A predicate and its
+ * old-shape twins are deleted once the gate falls below the compatible window, since {@code historical} can no longer draw
+ * a version without it.
  */
 public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
@@ -356,6 +363,11 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             .toList();
         assertThat(pack.dims().stream().map(Attribute::id).toList(), equalTo(dimensionValueIds));
         return aggregate;
+    }
+
+    /** How many aggregates carry {@code dimCount} dimensions in this instance's shape: one {@link PackDimsAgg}, or one {@link DimensionValues} each. */
+    protected int packedDimAggregateCount(int dimCount) {
+        return packsDimsInAggregate() ? 1 : dimCount;
     }
 
     /** The dimensions {@code aggregates} carry, whether one {@link DimensionValues} each or a single {@link PackDimsAgg}. */

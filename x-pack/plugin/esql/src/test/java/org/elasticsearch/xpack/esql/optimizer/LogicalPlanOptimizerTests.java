@@ -7510,8 +7510,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(finalAggs.aggregates(), hasSize(3)); // sum, count, packed grouping
         TimeSeriesAggregate aggsByTsid = packedTimeSeriesAggregate(finalAggs.child(), 2);
-        assertThat(aggsByTsid.aggregates(), hasSize(packsDimsInAggregate() ? 2 : 3)); // _tsid is dropped; rate, then packed dims or two
-                                                                                      // values
+        assertThat(aggsByTsid.aggregates(), hasSize(1 + packedDimAggregateCount(2))); // _tsid is dropped; rate, then the dims
         assertNull(aggsByTsid.timeBucket());
         EsRelation relation = as(aggsByTsid.child(), EsRelation.class);
         assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
@@ -7592,7 +7591,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.attribute(count.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
         assertThat(finalAgg.groupings(), hasSize(2)); // bucket + packed grouping
 
-        assertThat(aggsByTsid.aggregates(), hasSize(packsDimsInAggregate() ? 3 : 4)); // rate, packed dims or two values, bucket
+        assertThat(aggsByTsid.aggregates(), hasSize(2 + packedDimAggregateCount(2))); // rate, the dims, bucket
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
         assertThat(Expressions.names(packedDims(aggsByTsid.aggregates())), contains("pod", "cluster"));

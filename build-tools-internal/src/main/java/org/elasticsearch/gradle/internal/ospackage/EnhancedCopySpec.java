@@ -34,10 +34,10 @@ import org.redline_rpm.payload.Directive;
 /**
  * The delegate used when configuring {@code from(...) { ... }} / {@code into(...) { ... }} blocks
  * of a packaging task. It adds the packaging-only spec attributes ({@code user},
- * {@code permissionGroup}, {@code setgid}, {@code fileType}, {@code createDirectoryEntry},
- * {@code addParentDirs}) on top of a regular Gradle {@link CopySpec} and forwards everything else
- * dynamically to the wrapped (decorated) spec. Nested {@code from}/{@code into} blocks are wrapped
- * again so the extra attributes are available at any nesting level.
+ * {@code permissionGroup}, {@code setgid}, {@code fileType}, {@code createDirectoryEntry}) on top
+ * of a regular Gradle {@link CopySpec} and forwards everything else dynamically to the wrapped
+ * (decorated) spec. Nested {@code from}/{@code into} blocks are wrapped again so the extra
+ * attributes are available at any nesting level.
  */
 public class EnhancedCopySpec extends GroovyObjectSupport {
 
@@ -51,9 +51,9 @@ public class EnhancedCopySpec extends GroovyObjectSupport {
 
     /**
      * Configures the given closure against an enhanced wrapper of {@code spec} using Gradle's
-     * usual delegate-first resolution. The optional {@code task} back-reference resolves the
-     * task-level DSL (e.g. execution-time {@code directory(...)} registration from
-     * {@code eachFile} callbacks) deterministically inside nested spec closures.
+     * usual delegate-first resolution. The {@code task} back-reference resolves the task-level DSL
+     * (e.g. execution-time {@code directory(...)} registration from {@code eachFile} callbacks)
+     * deterministically inside nested spec closures.
      */
     public static void configure(Closure<?> closure, CopySpec spec, SystemPackagingTask task) {
         // packaging never wants "duplicate file" failures; mirror the original plugin behavior
@@ -77,55 +77,21 @@ public class EnhancedCopySpec extends GroovyObjectSupport {
         SpecAttributes.set(delegate, SpecAttributes.USER, user);
     }
 
-    public void setUser(String user) {
-        user(user);
-    }
-
     public void permissionGroup(String permissionGroup) {
         SpecAttributes.set(delegate, SpecAttributes.PERMISSION_GROUP, permissionGroup);
-    }
-
-    public void setPermissionGroup(String permissionGroup) {
-        permissionGroup(permissionGroup);
     }
 
     public void setgid(boolean setgid) {
         SpecAttributes.set(delegate, SpecAttributes.SETGID, setgid);
     }
 
-    public void setSetgid(boolean setgid) {
-        setgid(setgid);
-    }
-
-    /** RPM only: marks files of this spec with the given rpm file type directive. */
-    public void fileType(Directive fileType) {
-        SpecAttributes.set(delegate, SpecAttributes.FILE_TYPE, fileType);
-    }
-
-    /** RPM only: convenience overload taking the raw {@code Directive#RPMFILE_*} flag bits. */
+    /** RPM only: marks files of this spec with the given raw {@code Directive#RPMFILE_*} flag bits. */
     public void fileType(int fileTypeFlags) {
-        fileType(new Directive(fileTypeFlags));
-    }
-
-    public void setFileType(Directive fileType) {
-        fileType(fileType);
+        SpecAttributes.set(delegate, SpecAttributes.FILE_TYPE, new Directive(fileTypeFlags));
     }
 
     public void createDirectoryEntry(boolean createDirectoryEntry) {
         SpecAttributes.set(delegate, SpecAttributes.CREATE_DIRECTORY_ENTRY, createDirectoryEntry);
-    }
-
-    public void setCreateDirectoryEntry(boolean createDirectoryEntry) {
-        createDirectoryEntry(createDirectoryEntry);
-    }
-
-    /** RPM only. */
-    public void addParentDirs(boolean addParentDirs) {
-        SpecAttributes.set(delegate, SpecAttributes.ADD_PARENT_DIRS, addParentDirs);
-    }
-
-    public void setAddParentDirs(boolean addParentDirs) {
-        addParentDirs(addParentDirs);
     }
 
     /**
@@ -134,9 +100,6 @@ public class EnhancedCopySpec extends GroovyObjectSupport {
      * without relying on Groovy owner-chain fallthrough.
      */
     public Directory directory(String path, int permissions) {
-        if (task == null) {
-            throw new IllegalStateException("directory(path, permissions) is only supported within a packaging task copy spec");
-        }
         return task.directory(path, permissions);
     }
 
@@ -193,14 +156,12 @@ public class EnhancedCopySpec extends GroovyObjectSupport {
 
     @Override
     public void setProperty(String property, Object newValue) {
-        switch (property) {
-            case SpecAttributes.USER -> user((String) newValue);
-            case SpecAttributes.PERMISSION_GROUP -> permissionGroup((String) newValue);
-            case SpecAttributes.SETGID -> setgid((Boolean) newValue);
-            case SpecAttributes.FILE_TYPE -> setFileType((Directive) newValue);
-            case SpecAttributes.CREATE_DIRECTORY_ENTRY -> createDirectoryEntry((Boolean) newValue);
-            case SpecAttributes.ADD_PARENT_DIRS -> addParentDirs((Boolean) newValue);
-            default -> InvokerHelper.setProperty(delegate, property, newValue);
+        // support assignment style for the setgid attribute (`setgid = true`), used by the
+        // Elasticsearch packaging build; everything else is a regular CopySpec property
+        if (SpecAttributes.SETGID.equals(property)) {
+            setgid((Boolean) newValue);
+        } else {
+            InvokerHelper.setProperty(delegate, property, newValue);
         }
     }
 }

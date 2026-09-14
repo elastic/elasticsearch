@@ -25,6 +25,7 @@ package org.elasticsearch.gradle.internal.ospackage;
 import groovy.lang.Closure;
 
 import org.gradle.api.file.CopySpec;
+import org.gradle.api.tasks.Internal;
 
 import javax.inject.Inject;
 
@@ -42,6 +43,11 @@ public abstract class ProjectPackagingExtension extends SystemPackagingExtension
         this.delegateCopySpec = delegateCopySpec;
     }
 
+    /**
+     * The shared copy spec; appended to every packaging task of the project. Tracked as a task
+     * input through the task's root spec, hence internal here.
+     */
+    @Internal
     public CopySpec getDelegateCopySpec() {
         return delegateCopySpec;
     }

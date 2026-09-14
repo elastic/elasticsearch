@@ -400,7 +400,6 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
         }
     }
 
-
     private static BytesRef doReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
         String str = strBytesRef.utf8ToString();
         Matcher m = regex.matcher(str);

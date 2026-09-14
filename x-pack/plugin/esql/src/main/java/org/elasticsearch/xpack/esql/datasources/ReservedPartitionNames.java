@@ -18,8 +18,8 @@ import java.util.function.Consumer;
  * names ({@code _id}, {@code _index}, ...), the {@code _file.*} family, and reader-synthesized
  * channel names are reserved — a dataset layout cannot claim them, or {@code METADATA _index}
  * would silently return a layout value instead of its spec-defined meaning. Detectors surface a
- * colliding partition column under {@link #RESERVED_RENAME_PREFIX} and disclose each rename with
- * a {@code Warning} response header.
+ * colliding partition column under {@link #RESERVED_RENAME_PREFIX} and disclose each rename
+ * through the caller's warning sink (see {@link #warnRenamed}).
  * <p>
  * Every detector MUST route its surfaced column names through {@link #surface(String)}: the
  * downstream consumers ({@code VirtualColumnIterator} role dispatch, the analyzer's

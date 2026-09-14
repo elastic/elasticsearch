@@ -34,6 +34,7 @@ public final class AutoPartitionDetector implements PartitionDetector {
 
     @Override
     public PartitionMetadata detect(List<StorageEntry> files, Consumer<String> warningSink) {
+        Objects.requireNonNull(warningSink, "warningSink: a null sink would fall back to HeaderWarning off the request thread");
         // Try Hive first
         PartitionMetadata hiveResult = HivePartitionDetector.INSTANCE.detect(files, warningSink);
         if (hiveResult.isEmpty() == false) {

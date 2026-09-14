@@ -8,7 +8,7 @@ mapped_pages:
 
 This section contains reference information for {{es}} plugins.
 
-Refer to [Add plugins and extensions](docs-content://deploy-manage/deploy/elastic-cloud/add-plugins-extensions.md) for an overview, setup instructions, and conceptual details.
+Refer to [Plugins and bundles](docs-content://deploy-manage/plugins-and-bundles.md) for an overview, setup instructions, and conceptual details.
 
 Plugins are a way to enhance the core {{es}} functionality in a custom manner. They range from adding custom mapping types, custom analyzers, native scripts, custom discovery and more.
 

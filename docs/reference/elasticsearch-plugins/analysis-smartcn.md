@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/analysis-smartcn.html
+sub:
+  plugin-name: analysis-smartcn
 ---
 
 # Smart Chinese analysis plugin [analysis-smartcn]
@@ -12,26 +14,14 @@ It provides an analyzer for Chinese or mixed Chinese-English text. This analyzer
 
 ## Installation [analysis-smartcn-install]
 
-This plugin can be installed using the plugin manager:
-
-```sh
-sudo bin/elasticsearch-plugin install analysis-smartcn
-```
-
-The plugin must be installed on every node in the cluster, and each node must be restarted after installation.
-
-You can download this plugin for [offline install](/reference/elasticsearch-plugins/plugin-management-custom-url.md) from [https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-smartcn/analysis-smartcn-{{version.stack}}.zip](https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-smartcn/analysis-smartcn-{{version.stack}}.zip). To verify the `.zip` file, use the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-smartcn/analysis-smartcn-{{version.stack}}.zip.sha512) or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-smartcn/analysis-smartcn-{{version.stack}}.zip.asc).
+:::{include} _snippets/plugin-install.md
+:::
 
 
 ## Removal [analysis-smartcn-remove]
 
-The plugin can be removed with the following command:
-
-```sh
-sudo bin/elasticsearch-plugin remove analysis-smartcn
-```
-
-The node must be stopped before removing the plugin.
+:::{include} _snippets/plugin-remove.md
+:::
 
 
 ## `smartcn` tokenizer and token filter [analysis-smartcn-tokenizer]

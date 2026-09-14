@@ -117,6 +117,11 @@ public class S3StorageProvider implements StorageProvider {
     // can never observe a sync/async pair from two different discovery events.
     @Nullable
     private volatile DiscoveredClients discoveredClients;
+    // True once resolveClientsForBucket has attempted a HeadBucket probe (regardless of outcome).
+    // Prevents N redundant round-trips when the bucket responds 200 with no x-amz-bucket-region
+    // header (e.g. us-east-1 buckets where HeadBucket always succeeds). Writes are performed
+    // inside the synchronized(this) block shared with cacheDiscoveredClients and close().
+    private volatile boolean discoveryAttempted;
 
     private record DiscoveredClients(S3Client sync, S3AsyncClient async) {}
 
@@ -290,6 +295,12 @@ public class S3StorageProvider implements StorageProvider {
      * if discovery has not run yet and {@link #shouldAttemptRegionRetry()} is true. Called by
      * {@link #newObject} so exact-path datasets (which never go through {@link #listObjects} or
      * {@link #exists}) also benefit from region discovery without an extra round-trip per call.
+     * <p>
+     * At most one HeadBucket probe fires from this path per provider instance: {@code discoveryAttempted}
+     * is set inside the synchronized lock before the I/O runs, so concurrent callers skip the probe.
+     * This prevents N redundant round-trips when a query reads N files from a bucket whose HeadBucket
+     * response carries no {@code x-amz-bucket-region} header (e.g. a bucket that is already in
+     * {@code us-east-1}).
      */
     @Nullable
     private DiscoveredClients resolveClientsForBucket(String bucket) {
@@ -297,11 +308,29 @@ public class S3StorageProvider implements StorageProvider {
         if (dc != null) {
             return dc;
         }
-        if (shouldAttemptRegionRetry()) {
-            String region = discoverRegionViaHeadBucket(s3Client, bucket);
-            if (region != null) {
-                return cacheDiscoveredClients(region);
+        if (shouldAttemptRegionRetry() == false || discoveryAttempted) {
+            return null;
+        }
+        synchronized (this) {
+            dc = discoveredClients;
+            if (dc != null) {
+                return dc;
             }
+            if (discoveryAttempted) {
+                return null;
+            }
+            // Mark before the probe so concurrent calls skip it — at most one probe fires from this path.
+            // A concurrent newObject call that arrives while the probe is in-flight will see
+            // discoveryAttempted=true, return null, and proceed with the wrong-region client. Unlike the
+            // reactive listObjects/exists paths, there is no per-request retry from newObject, so such a
+            // call may fail with AuthorizationHeaderMalformed. In practice, exact-path datasets are read
+            // sequentially per file, making the concurrent window narrow. A future fix could use a
+            // CompletableFuture to let concurrent callers wait for the in-flight result.
+            discoveryAttempted = true;
+        }
+        String region = discoverRegionViaHeadBucket(s3Client, bucket);
+        if (region != null) {
+            return cacheDiscoveredClients(region);
         }
         return null;
     }
@@ -775,7 +804,14 @@ public class S3StorageProvider implements StorageProvider {
 
     @Override
     public void close() throws IOException {
-        DiscoveredClients dc = discoveredClients;
+        // Snapshot under the same lock used by cacheDiscoveredClients so we cannot miss a pair that
+        // is written concurrently: without the lock a racing cacheDiscoveredClients() call could
+        // write a new DiscoveredClients after our volatile read but before IOUtils.close() finishes,
+        // leaking the connection pool and Netty thread group.
+        final DiscoveredClients dc;
+        synchronized (this) {
+            dc = discoveredClients;
+        }
         List<Closeable> closeables = new ArrayList<>(5 + ownedManagedIdentityProviders.size());
         closeables.add(asCloseable(s3Client));
         closeables.add(asCloseable(s3AsyncClient));

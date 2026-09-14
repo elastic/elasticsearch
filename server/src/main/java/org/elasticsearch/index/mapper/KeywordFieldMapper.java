@@ -1634,12 +1634,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // TIME_SERIES is accepted by the mode gate, but every keyword field in a TSDB index resolves to
         // DocValuesDiskFormat.SORTED_SET (see Builder#diskFormat), which supportsColumnarDocValues() does
         // not accept yet — so TSDB keywords still fall back to the row path until SORTED_SET emission lands.
-        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
-            && supportsColumnarDocValues()
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && normalizerName == null
-            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
+        return supportsColumnarDocValues() && normalizerName == null && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
     }
 
     /**
@@ -1682,6 +1677,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     ) {
         final EscfColumnData data = builder.finish(docCount);
         ctx.addColumn(LuceneBinaryColumn.of(data, fieldName, luceneFieldType), data);
+    }
+
+    @Override
+    protected boolean shouldEnforceSingleValueBatch() {
+        return docValuesParameters().multiValue() == false;
     }
 
     @Override
@@ -1905,7 +1905,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             final EscfColumnBuilder fallback = emitFallback ? pending.add(mergeStringColumn()) : null;
 
             int currentDoc = -1;
-            boolean valueSeenThisDoc = false;
             while (true) {
                 final int nextDoc = cursor.nextDoc();
                 if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
@@ -1913,7 +1912,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
                 if (nextDoc != currentDoc) {
                     currentDoc = nextDoc;
-                    valueSeenThisDoc = false;
                 }
                 BytesRef binaryValue = cursor.value();
                 if (binaryValue == null) {

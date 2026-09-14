@@ -128,7 +128,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
                 rolloverInfo == null ? null : rolloverInfo.getTime(),
                 generationDate,
                 lifecycle,
-                errorStore.getError(state.projectId(), index),
+                errorStore.getError(state.projectId(), idxMetadata.getIndex()),
                 computeFrozenTransitionStatus(state, parentDataStream, idxMetadata, lifecycle, pastFrozenAfterByDataStream)
             );
             explainIndices.add(explainIndexDataStreamLifecycle);

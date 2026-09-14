@@ -17,6 +17,13 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.column.BinaryColumn;
+import org.apache.lucene.document.column.Column;
+import org.apache.lucene.document.column.ColumnBatch;
+import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.document.column.LongTupleCursor;
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -37,6 +44,7 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
@@ -51,13 +59,19 @@ import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -70,6 +84,7 @@ import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
@@ -86,9 +101,11 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -110,6 +127,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.is;
 
 public class TextFieldMapperTests extends MapperTestCase {
@@ -782,52 +800,148 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertEquals(1, docValuesCount);
     }
 
-    public void testDocValuesColumnarSingleValueFormat() throws IOException {
+    public void testColumnarSingleValueFormatViaColumnBatch() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        DocumentMapper mapper = createMapperService(
+        MapperService mapperService = createMapperService(
             settings,
             fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
-        ).documentMapper();
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "hello")));
-        List<IndexableField> dvFields = doc.rootDoc()
-            .getFields("field")
-            .stream()
-            .filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY)
-            .toList();
-
-        assertEquals("multi_value=false columnar text must write exactly one binary DV field", 1, dvFields.size());
-        assertEquals(
-            "multi_value=false columnar text must store the raw bytes unchanged",
-            new BytesRef("hello"),
-            dvFields.get(0).binaryValue()
         );
 
-        assertTrue(
-            "multi_value=false columnar text must not write a .counts field",
-            doc.rootDoc().getFields("field" + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX).isEmpty()
-        );
+        withColumnBatch(mapperService, "{\"field\":\"hello\"}", batch -> {
+            // Collect all columns emitted for "field" and "field.counts".
+            BinaryColumn dvColumn = null;
+            BinaryColumn termsColumn = null;
+            boolean countsColumnFound = false;
+            for (Column column : batch.columns()) {
+                if (("field" + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX).equals(column.name())) {
+                    countsColumnFound = true;
+                } else if ("field".equals(column.name())) {
+                    if (column.fieldType().docValuesType() == DocValuesType.BINARY
+                        && column.fieldType().indexOptions() == IndexOptions.NONE) {
+                        dvColumn = (BinaryColumn) column;
+                    } else if (column.fieldType().indexOptions() != IndexOptions.NONE) {
+                        termsColumn = (BinaryColumn) column;
+                    }
+                }
+            }
+
+            assertFalse("multi_value=false columnar text must not write a .counts field", countsColumnFound);
+
+            // Doc-values column assertions.
+            assertNotNull("multi_value=false columnar text must write a binary DV column", dvColumn);
+            assertThat(
+                "single-value DV field type must match BinaryDocValuesField.TYPE",
+                dvColumn.fieldType(),
+                sameInstance(BinaryDocValuesField.TYPE)
+            );
+            assertFalse("DV column must not be stored", dvColumn.fieldType().stored());
+            ObjectTupleCursor<BytesRef> dvCursor = dvColumn.tuples();
+            assertEquals(0, dvCursor.nextDoc());
+            assertEquals("multi_value=false columnar text must store the raw bytes unchanged", new BytesRef("hello"), dvCursor.value());
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, dvCursor.nextDoc());
+
+            // Terms (indexed) column assertions.
+            assertNotNull("multi_value=false columnar text must write an indexed terms column", termsColumn);
+            assertTrue("terms column must be tokenized", termsColumn.fieldType().tokenized());
+            assertEquals(
+                "terms column must use DOCS_AND_FREQS_AND_POSITIONS",
+                IndexOptions.DOCS_AND_FREQS_AND_POSITIONS,
+                termsColumn.fieldType().indexOptions()
+            );
+            assertEquals("terms column must have no doc values", DocValuesType.NONE, termsColumn.fieldType().docValuesType());
+            assertFalse("terms column must not be stored", termsColumn.fieldType().stored());
+            ObjectTupleCursor<BytesRef> termsCursor = termsColumn.tuples();
+            assertEquals(0, termsCursor.nextDoc());
+            assertEquals(new BytesRef("hello"), termsCursor.value());
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, termsCursor.nextDoc());
+        });
     }
 
-    public void testDocValuesColumnarMultiValueFormat() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text")));
+    public void testColumnarMultiValueFormatViaColumnBatch() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "text")));
 
-        ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
+        withColumnBatch(mapperService, "{\"field\":[\"a\",\"b\"]}", batch -> {
+            // Collect all three columns emitted for "field" and "field.counts".
+            BinaryColumn dvColumn = null;
+            BinaryColumn termsColumn = null;
+            LongColumn countsColumn = null;
+            for (Column column : batch.columns()) {
+                if (("field" + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX).equals(column.name())) {
+                    countsColumn = (LongColumn) column;
+                } else if ("field".equals(column.name())) {
+                    if (column.fieldType().docValuesType() == DocValuesType.BINARY
+                        && column.fieldType().indexOptions() == IndexOptions.NONE) {
+                        dvColumn = (BinaryColumn) column;
+                    } else if (column.fieldType().indexOptions() != IndexOptions.NONE) {
+                        termsColumn = (BinaryColumn) column;
+                    }
+                }
+            }
 
-        List<IndexableField> dvFields = doc.rootDoc()
-            .getFields("field")
-            .stream()
-            .filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY)
-            .toList();
-        assertEquals("multi_value=true columnar text must write exactly one binary DV field", 1, dvFields.size());
-        BytesRef blob = dvFields.get(0).binaryValue();
-        BytesRef expectedBlob = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(List.of(new BytesRef("a"), new BytesRef("b")));
-        assertEquals("ArrayOrderInlineNull blob must encode [\"a\",\"b\"] correctly", expectedBlob, blob);
+            // Doc-values column: ArrayOrderInlineNull blob for ["a", "b"].
+            assertNotNull("multi_value=true columnar text must write a binary DV column", dvColumn);
+            assertThat(
+                "multi-value DV field type must match CustomDocValuesField.TYPE",
+                dvColumn.fieldType(),
+                sameInstance(CustomDocValuesField.TYPE)
+            );
+            ObjectTupleCursor<BytesRef> dvCursor = dvColumn.tuples();
+            assertEquals(0, dvCursor.nextDoc());
+            BytesRef expectedBlob = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(
+                List.of(new BytesRef("a"), new BytesRef("b"))
+            );
+            assertEquals("ArrayOrderInlineNull blob must encode [\"a\",\"b\"] correctly", expectedBlob, dvCursor.value());
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, dvCursor.nextDoc());
 
-        String countsField = "field" + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
-        List<IndexableField> countFields = doc.rootDoc().getFields(countsField).stream().filter(f -> f.numericValue() != null).toList();
-        assertFalse("multi_value=true columnar text must write a .counts field", countFields.isEmpty());
-        assertEquals(".counts companion must carry the slot count (2)", 2L, countFields.get(0).numericValue().longValue());
+            // .counts column: slot count of 2.
+            assertNotNull("multi_value=true columnar text must write a .counts column", countsColumn);
+            assertThat(
+                ".counts column field type must match SeparateCount.COUNT_FIELD_TYPE",
+                countsColumn.fieldType(),
+                sameInstance(MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE)
+            );
+            LongTupleCursor countsCursor = countsColumn.tuples();
+            assertEquals(0, countsCursor.nextDoc());
+            assertEquals(".counts companion must carry the slot count (2)", 2L, countsCursor.longValue());
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, countsCursor.nextDoc());
+
+            // Terms column: one entry per value in array order.
+            assertNotNull("multi_value=true columnar text must write an indexed terms column", termsColumn);
+            assertTrue("terms column must be tokenized", termsColumn.fieldType().tokenized());
+            ObjectTupleCursor<BytesRef> termsCursor = termsColumn.tuples();
+            assertEquals(0, termsCursor.nextDoc());
+            assertEquals(new BytesRef("a"), termsCursor.value());
+            assertEquals(0, termsCursor.nextDoc());
+            assertEquals(new BytesRef("b"), termsCursor.value());
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, termsCursor.nextDoc());
+        });
+    }
+
+    /**
+     * Drives {@code field}'s leaf {@link FieldMapper#mapColumnBatch} over a single-document ESCF
+     * batch encoded from {@code source}, then hands the emitted {@link ColumnBatch} to
+     * {@code assertions}. Unlike {@code mapper.parse(...)}, this exercises the columnar
+     * batch-indexing path rather than the row / document-based path.
+     */
+    private void withColumnBatch(MapperService mapperService, String source, CheckedConsumer<ColumnBatch, Exception> assertions)
+        throws Exception {
+        BytesReference sourceBytes = new BytesArray(source);
+        IndexRequest[] requests = { new IndexRequest("index").id("doc1").source(sourceBytes, XContentType.JSON) };
+        try (
+            BatchMappingContext ctx = new BatchMappingContext(
+                EngineTestCase.initFromRequests(requests),
+                mapperService.mappingLookup(),
+                mapperService.getIndexSettings(),
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            );
+            EscfBatch escfBatch = EscfEncoder.encode(List.of(sourceBytes), XContentType.JSON)
+        ) {
+            FieldMapper fieldMapper = (FieldMapper) mapperService.mappingLookup().getMapper("field");
+            fieldMapper.mapColumnBatch(ctx, escfBatch.column(0));
+            // columns() freezes the context; must be called after mapColumnBatch and before close.
+            assertions.accept(ctx.columns().toColumnBatch());
+        }
     }
 
     public void testDocValuesHighCardinalityMultiValue() throws Exception {

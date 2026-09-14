@@ -31,6 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -99,6 +100,7 @@ class MaintainerScriptsGenerator {
         if (dir.group() != null && dir.group().isEmpty() == false) {
             sb.append("-g ").append(dir.group()).append(' ');
         }
+        sb.append("-m ").append(String.format(Locale.ROOT, "%04o", dir.mode() & 07777)).append(' ');
         sb.append("-d ").append(dir.name());
         return sb.toString();
     }

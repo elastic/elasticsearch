@@ -83,7 +83,7 @@ public final class ICUCollationKeyFilter extends TokenFilter {
         super(input);
         // clone the collator: see http://userguide.icu-project.org/collation/architecture
         try {
-            this.collator = (Collator) collator.clone();
+            this.collator = collator.clone();
         } catch (CloneNotSupportedException e) {
             throw new RuntimeException(e);
         }

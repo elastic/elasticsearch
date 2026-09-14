@@ -750,7 +750,7 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/159128
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/159137
-- class: org.elasticsearch.repositories.s3.RepositoryS3MinioBasicCredentialsRestIT
+- class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/159136
 - class: org.elasticsearch.repositories.s3.S3RepositoryThirdPartyTests
   issue: https://github.com/elastic/elasticsearch/issues/159130

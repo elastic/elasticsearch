@@ -659,6 +659,13 @@ public class EsqlCapabilities {
         SPATIAL_DISTANCE_PUSHDOWN_ENHANCEMENTS,
 
         /**
+         * Fix for a bug where {@code ST_DISTANCE} threw a {@code ClassCastException} when both its
+         * {@code geo_point} or {@code cartesian_point} arguments were extracted from doc-values
+         * simultaneously.
+         */
+        FIX_ST_DISTANCE_DOC_VALUES_AND_DOC_VALUES,
+
+        /**
          * Fix for spatial centroid when no records are found.
          */
         SPATIAL_CENTROID_NO_RECORDS,
@@ -1329,6 +1336,13 @@ public class EsqlCapabilities {
          * Dev/snapshot-only, like {@link #DENSE_VECTOR_COMMAND}.
          */
         DENSE_VECTOR_COMMAND_V2(Build.current().isSnapshot()),
+        /**
+         * Adds custom output naming to the DENSE_VECTOR command: {@code vec = field} names a single generated column, and
+         * {@code suffix = "_dv" ON f1, f2} replaces the default {@code _dense_vector} suffix on every listed field. Also covers
+         * the warning emitted when an input position holds more than one value, which ships alongside the naming forms.
+         * Dev/snapshot-only, like {@link #DENSE_VECTOR_COMMAND}.
+         */
+        DENSE_VECTOR_COMMAND_V3(Build.current().isSnapshot()),
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */

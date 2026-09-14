@@ -65,6 +65,8 @@ public final class ParquetReaderCounters {
 
     // Aggregate
     private final LongAdder rowsEmitted = new LongAdder();
+    private final LongAdder totalReadNanos = new LongAdder();
+    private final LongAdder totalReadCpuNanos = new LongAdder();
 
     // Footer cache (reader-shared ParsedFooterCache)
     private final LongAdder footerCacheHits = new LongAdder();
@@ -134,6 +136,18 @@ public final class ParquetReaderCounters {
     public void addRowsEmitted(long delta) {
         if (delta > 0) {
             rowsEmitted.add(delta);
+        }
+    }
+
+    public void addTotalReadNanos(long nanos) {
+        if (nanos > 0) {
+            totalReadNanos.add(nanos);
+        }
+    }
+
+    public void addTotalReadCpuNanos(long nanos) {
+        if (nanos > 0) {
+            totalReadCpuNanos.add(nanos);
         }
     }
 

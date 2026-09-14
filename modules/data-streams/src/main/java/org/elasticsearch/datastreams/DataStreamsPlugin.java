@@ -84,6 +84,7 @@ import org.elasticsearch.datastreams.rest.RestUpdateDataStreamMappingsAction;
 import org.elasticsearch.datastreams.rest.RestUpdateDataStreamSettingsAction;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.index.ColumnarCodecClusterSettingProvider;
 import org.elasticsearch.index.ES95CodecClusterSettingProvider;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.node.PluginComponentBinding;
@@ -220,6 +221,9 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(TransportPastTimeSeriesIndexCreationAction.PAST_TSDB_INDEX_INTERVAL);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TSDB_TARGET_FACTOR_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TSDB_TARGET_FLOOR_SEGMENT_SETTING);
+        if (ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled()) {
+            pluginSettings.add(ColumnarCodecClusterSettingProvider.COLUMNAR_CODEC_CLUSTER_ENABLED_SETTING);
+        }
         return pluginSettings;
     }
 
@@ -324,10 +328,13 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-        return List.of(
-            new DataStreamIndexSettingsProvider(parameters.mapperServiceFactory(), settings),
-            new ES95CodecClusterSettingProvider(parameters.clusterService().getClusterSettings())
-        );
+        final List<IndexSettingProvider> providers = new ArrayList<>();
+        providers.add(new DataStreamIndexSettingsProvider(parameters.mapperServiceFactory(), settings));
+        providers.add(new ES95CodecClusterSettingProvider(parameters.clusterService().getClusterSettings()));
+        if (ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled()) {
+            providers.add(new ColumnarCodecClusterSettingProvider(parameters.clusterService().getClusterSettings()));
+        }
+        return providers;
     }
 
     @Override

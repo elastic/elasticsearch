@@ -1064,6 +1064,26 @@ public class ESVectorUtil {
     }
 
     /**
+     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
+     * Result C is (m x n).
+     */
+    public static float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
+        if (a.length != m * k) throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
+        if (b.length != k * n) throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
+        return IMPL.matrixMultiply(a, b, m, k, n);
+    }
+
+    /**
+     * Computes {@code C = A^T @ B} where A is (m x k) and B is (m x n), both row-major.
+     * Result C is (k x n).
+     */
+    public static float[] matrixMultiplyTA(float[] aT, float[] b, int m, int k, int n) {
+        if (aT.length != m * k) throw new IllegalArgumentException("Invalid a array size [" + aT.length + "] for matrix multiplication");
+        if (b.length != m * n) throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
+        return IMPL.matrixMultiplyTA(aT, b, m, k, n);
+    }
+
+    /**
      * Packs multi-bit quantized codes into a byte array using bit-plane layout.
      * The input codes come from {@code AshSphericalScalarQuantizer} and have values
      * sign * (0.5 + idx) for idx in [0, numAbsLevels-1] where numAbsLevels = 2^(bitsPerDim-1).

@@ -8,17 +8,20 @@
  */
 package org.elasticsearch.indices;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -36,8 +39,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.emptySet;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -155,6 +159,51 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         protected Cancellable scheduleTask(ThreadPool threadPool) {
             return null;
         }
+    }
+
+    public void testBatchEstimatedSizeCountsEncodedIds() {
+        final int docCount = randomIntBetween(1, 8);
+        final IndexOperationBatch batch = primaryBatch(docCount);
+        // without a SourceBatch the only bytes reaching Lucene are the encoded _id terms
+        int expectedBytes = 0;
+        for (int i = 0; i < docCount; i++) {
+            expectedBytes += Uid.encodeId(batch.id(i)).length;
+        }
+        assertThat(expectedBytes, greaterThan(0));
+        assertThat(batch.estimatedBytes(), equalTo(expectedBytes));
+    }
+
+    public void testPostIndexBatchRecordsBytesForFullBatchRegardlessOfFailures() {
+        MockController batchController = new MockController(Settings.EMPTY);
+        ShardId shardId = new ShardId("index", "_na_", 0);
+
+        final int docCount = randomIntBetween(2, 8);
+        final IndexOperationBatch batch = primaryBatch(docCount);
+        final int expectedBytes = batch.estimatedBytes();
+
+        // all-failure results: batch estimate is still reported (overestimate acknowledged by TODO)
+        final List<Engine.IndexResult> allFailures = new ArrayList<>(docCount);
+        for (int i = 0; i < docCount; i++) {
+            allFailures.add(new Engine.IndexResult(new RuntimeException("doc failure"), 1, 1, UNASSIGNED_SEQ_NO, batch.id(i)));
+        }
+        batchController.postIndexBatch(shardId, batch, allFailures);
+        assertThat(batchController.getBytesWrittenSinceCheck(), equalTo((long) expectedBytes));
+
+        // engine level failure: nothing recorded
+        batchController.postIndexBatch(shardId, batch, new RuntimeException("engine failure"));
+        assertThat(batchController.getBytesWrittenSinceCheck(), equalTo((long) expectedBytes));
+    }
+
+    private static IndexOperationBatch primaryBatch(int docCount) {
+        final BulkItemRequest[] items = new BulkItemRequest[docCount];
+        for (int d = 0; d < docCount; d++) {
+            items[d] = new BulkItemRequest(
+                d,
+                new IndexRequest("index").id("doc-" + d)
+                    .source(new BytesArray("{\"payload\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}"), XContentType.JSON)
+            );
+        }
+        return IndexOperationBatch.initFromBulk(items, 0, docCount, null, Engine.Operation.Origin.PRIMARY, 1L, 0L);
     }
 
     public void testShardAdditionAndRemoval() throws IOException {
@@ -382,8 +431,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         shard = reinitShard(shard, imc);
         shardRef.set(shard);
         assertEquals(0, imc.availableShards().size());
-        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-        shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
+        shard.markAsRecovering("store");
 
         assertEquals(1, imc.availableShards().size());
         assertTrue(recoverFromStore(shard));

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 157876
+pr: 158301
+summary: Return 400 for unresolved MMR query vector
+type: bug

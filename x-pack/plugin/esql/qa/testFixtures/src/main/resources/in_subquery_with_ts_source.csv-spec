@@ -582,6 +582,67 @@ max_bytes:long | cluster:keyword
 7403           | staging
 ;
 
+// TS subquery as input to == / !=
+
+mainTsInSubqueryTsInEquals
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: where_in_subquery_with_equals_not_equals
+
+TS k8s
+| WHERE (cluster IN (TS k8s
+                     | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                     | WHERE max_bytes > 10000
+                     | KEEP cluster)) == true
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10277          | prod
+10797          | qa
+;
+
+mainTsInSubqueryTsInNotEquals
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: where_in_subquery_with_equals_not_equals
+
+TS k8s
+| WHERE (cluster IN (TS k8s
+                     | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                     | WHERE max_bytes > 10000
+                     | KEEP cluster)) != false
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10277          | prod
+10797          | qa
+;
+
+mainTsNotInSubqueryTsInEquals
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: where_in_subquery_with_equals_not_equals
+
+TS k8s
+| WHERE (cluster NOT IN (TS k8s
+                         | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                         | WHERE max_bytes > 10000
+                         | KEEP cluster)) == true
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+7403           | staging
+;
+
 mainTsInSubqueryTsWithFilter
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
@@ -1757,6 +1818,51 @@ cluster:keyword
 qa
 ;
 
+mainTsWithEvalInSubqueryTsInEquals
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: eval_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+TS k8s
+| STATS m1 = max(to_long(network.total_bytes_in)) BY cluster
+| EVAL is_match = (cluster IN (TS k8s
+                               | STATS m2 = max(rate(network.total_bytes_in)) BY cluster
+                               | WHERE m2 > 10
+                               | KEEP cluster)) == true
+| SORT cluster
+| KEEP cluster, m1, is_match
+;
+
+cluster:keyword | m1:long | is_match:boolean
+prod            | 10277   | false
+qa              | 10797   | true
+staging         | 7403    | false
+;
+
+mainTsWithEvalInSubqueryTsInNotEquals
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: eval_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+TS k8s
+| STATS m1 = max(to_long(network.total_bytes_in)) BY cluster
+| EVAL is_match = (cluster IN (TS k8s
+                               | STATS m2 = max(rate(network.total_bytes_in)) BY cluster
+                               | WHERE m2 > 10
+                               | KEEP cluster)) != false
+| WHERE is_match
+| SORT cluster
+| KEEP cluster, m1
+;
+
+cluster:keyword | m1:long
+qa              | 10797
+;
+
 mainTsWithEvalInSubqueryTsWithAggAfter
 skip_flattened_rewrite: complicated_in_subquery_in_eval
 required_capability: where_in_subquery_without_view
@@ -2447,6 +2553,47 @@ c1:long | c2:long | c3:long | c4:long
 100     | 100     | 100     | 0
 ;
 
+statsWhereInSubqueryInEqualsWithTsSourceAndTimeSeriesAgg
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: ts_command_v0
+required_capability: stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| EVAL cluster = CASE(gender == "M", "prod", "qa")
+| STATS c1 = COUNT(*) WHERE (cluster IN (TS k8s | STATS max(rate(network.total_bytes_in)) BY cluster | KEEP cluster)) == true,
+        c2 = COUNT(*) WHERE (cluster IN (TS k8s | STATS max(rate(network.total_bytes_in)) BY cluster | KEEP cluster)) != false,
+        c3 = COUNT(*) WHERE (cluster IN (TS k8s | STATS max(rate(network.total_bytes_in)) BY cluster | KEEP cluster)) == false
+;
+
+c1:long | c2:long | c3:long
+100     | 100     | 0
+;
+
+statsWhereInSubqueryInEqualsWithTsSourceAndGrouping
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: ts_command_v0
+required_capability: stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| EVAL cluster = CASE(gender == "M", "qa", "prod")
+| STATS c = COUNT(*) WHERE (cluster IN (TS k8s
+                                        | STATS r = max(rate(network.total_bytes_in)) BY cluster
+                                        | WHERE r > 10
+                                        | KEEP cluster)) == true
+  BY gender
+| SORT gender
+;
+
+c:long | gender:keyword
+0      | F
+57     | M
+0      | null
+;
+
 statsWhereWithTsMainAndTsSubquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
@@ -2465,6 +2612,52 @@ TS k8s
 m:long | cluster:keyword
 10277  | prod
 10797  | qa
+7403   | staging
+;
+
+statsWhereInSubqueryInEqualsWithTsMainAndTsSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: ts_command_v0
+required_capability: stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+TS k8s
+| STATS m = MAX(network.total_bytes_in) WHERE (cluster IN (TS k8s
+                                                           | STATS r = max(rate(network.total_bytes_in)) BY cluster
+                                                           | WHERE r > 10
+                                                           | KEEP cluster)) == true
+    BY cluster
+| SORT cluster
+| KEEP m, cluster
+;
+
+m:long | cluster:keyword
+null   | prod
+10797  | qa
+null   | staging
+;
+
+statsWhereInSubqueryInNotEqualsWithTsMainAndTsSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: ts_command_v0
+required_capability: stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+TS k8s
+| STATS m = MAX(network.total_bytes_in) WHERE (cluster IN (TS k8s
+                                                           | STATS r = max(rate(network.total_bytes_in)) BY cluster
+                                                           | WHERE r > 10
+                                                           | KEEP cluster)) != true
+    BY cluster
+| SORT cluster
+| KEEP m, cluster
+;
+
+m:long | cluster:keyword
+10277  | prod
+null   | qa
 7403   | staging
 ;
 
@@ -2774,6 +2967,78 @@ FROM employees
 
 total_salary:long | c:long
 4824855           | 1
+;
+
+mainTsInSubqueryTsInInlineStatsWhereInEquals
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+TS k8s
+| STATS mb = max(to_long(network.total_bytes_in)) BY cluster
+| INLINE STATS c = COUNT(*) WHERE (cluster IN (TS k8s
+                                               | STATS r = max(rate(network.total_bytes_in)) BY cluster
+                                               | WHERE r > 10
+                                               | KEEP cluster)) == true
+| KEEP cluster, mb, c
+| SORT cluster
+;
+
+cluster:keyword | mb:long | c:long
+prod            | 10277   | 1
+qa              | 10797   | 1
+staging         | 7403    | 1
+;
+
+mainTsInSubqueryTsInInlineStatsWhereInNotEquals
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+TS k8s
+| STATS mb = max(to_long(network.total_bytes_in)) BY cluster
+| INLINE STATS c = COUNT(*) WHERE (cluster IN (TS k8s
+                                               | STATS r = max(rate(network.total_bytes_in)) BY cluster
+                                               | WHERE r > 10
+                                               | KEEP cluster)) != true
+  BY cluster
+| KEEP cluster, mb, c
+| SORT cluster
+;
+
+cluster:keyword | mb:long | c:long
+prod            | 10277   | 1
+qa              | 10797   | 0
+staging         | 7403    | 1
+;
+
+mainFromInSubqueryTsInInlineStatsWhereInEquals
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| EVAL cluster = CASE(gender == "M", "qa", "prod")
+| INLINE STATS c = COUNT(*) WHERE (cluster IN (TS k8s
+                                               | STATS r = max(rate(network.total_bytes_in)) BY cluster
+                                               | WHERE r > 10
+                                               | KEEP cluster)) == true
+  BY gender
+| SORT emp_no
+| KEEP emp_no, gender, c
+| LIMIT 3
+;
+
+emp_no:integer | gender:keyword | c:long
+10001          | M              | 57
+10002          | F              | 0
+10003          | M              | 57
 ;
 
 mainTsInSubqueryTsInInlineStatsWhereWithAggAfter

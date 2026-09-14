@@ -8,23 +8,31 @@
 package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.apache.http.HttpStatus;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
+import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
@@ -36,6 +44,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -131,6 +141,66 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertFalse(object.exists());
     }
 
+    /**
+     * The JDK {@code HttpClient} surfaces a reused keep-alive connection that the peer already closed as a
+     * plain {@link IOException}{@code ("closed")} from {@code send()}, before any response body exists.
+     * That open-phase fault must be typed like the mid-read wrapper so the retry layer re-opens a fresh
+     * connection instead of failing resolve as a 500.
+     */
+    public void testSendClosedIOExceptionIsTypedTransient() throws Exception {
+        HttpClient mockClient = mock(HttpClient.class);
+        when(mockClient.send(any(), any())).thenThrow(new IOException("closed"));
+        HttpStorageObject object = new HttpStorageObject(
+            mockClient,
+            StoragePath.of("https://example.com/file.parquet"),
+            HttpConfiguration.defaults()
+        );
+
+        ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, object::length);
+        assertFalse("a closed keep-alive is a transport drop, not a throttle", eue.throttling());
+        assertThat(eue.getCause(), instanceOf(IOException.class));
+        assertThat(eue.getCause().getMessage(), containsString("closed"));
+    }
+
+    public void testSendClosedIllegalStateExceptionIsTypedTransient() throws Exception {
+        HttpClient mockClient = mock(HttpClient.class);
+        when(mockClient.send(any(), any())).thenThrow(new IllegalStateException("closed"));
+        HttpStorageObject object = new HttpStorageObject(
+            mockClient,
+            StoragePath.of("https://example.com/file.parquet"),
+            HttpConfiguration.defaults()
+        );
+
+        ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, object::newStream);
+        assertFalse(eue.throttling());
+        assertThat(eue.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(eue.getCause().getMessage(), containsString("closed"));
+    }
+
+    public void testAsyncSendClosedIOExceptionIsTypedTransient() throws Exception {
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(CompletableFuture.failedFuture(new CompletionException(new IOException("closed")))).when(mockClient)
+            .sendAsync(any(), any());
+        HttpStorageObject object = new HttpStorageObject(
+            mockClient,
+            StoragePath.of("https://example.com/file.parquet"),
+            HttpConfiguration.defaults()
+        );
+
+        AtomicReference<Exception> error = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        object.readBytesAsync(0, 100, FACTORY, Runnable::run, ActionListener.wrap(result -> latch.countDown(), e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(ExternalUnavailableException.class));
+        ExternalUnavailableException eue = (ExternalUnavailableException) error.get();
+        assertFalse(eue.throttling());
+        assertThat(eue.getCause(), instanceOf(IOException.class));
+    }
+
     public void testReadBytesAsync206UsesBodyHandler() throws Exception {
         byte[] payload = "hello parquet".getBytes(StandardCharsets.UTF_8);
         HttpClient mockClient = mock(HttpClient.class);
@@ -222,6 +292,118 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertEquals(0L, metrics.retryCount());
     }
 
+    public void testSecondGetSendsIfMatchOfFirstEtag() throws Exception {
+        HttpResponse<InputStream> first = mock(HttpResponse.class);
+        when(first.statusCode()).thenReturn(HttpStatus.SC_OK);
+        when(first.headers()).thenReturn(
+            HttpHeaders.of(java.util.Map.of("Content-Length", java.util.List.of("5"), "ETag", java.util.List.of("\"abc\"")), (a, b) -> true)
+        );
+        when(first.body()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+
+        HttpResponse<InputStream> second = mock(HttpResponse.class);
+        when(second.statusCode()).thenReturn(HttpStatus.SC_PARTIAL_CONTENT);
+        when(second.headers()).thenReturn(
+            HttpHeaders.of(
+                java.util.Map.of(
+                    "Content-Length",
+                    java.util.List.of("2"),
+                    "ETag",
+                    java.util.List.of("\"abc\""),
+                    "Content-Range",
+                    java.util.List.of("bytes 1-2/5")
+                ),
+                (a, b) -> true
+            )
+        );
+        when(second.body()).thenReturn(new ByteArrayInputStream("el".getBytes(StandardCharsets.UTF_8)));
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(first).doReturn(second).when(mockClient).send(any(), any());
+        HttpStorageObject obj = new HttpStorageObject(
+            mockClient,
+            StoragePath.of("https://example.com/file.txt"),
+            HttpConfiguration.defaults()
+        );
+
+        try (InputStream in = obj.newStream()) {
+            in.readAllBytes();
+        }
+        try (InputStream in = obj.newStream(1, 2)) {
+            in.readAllBytes();
+        }
+
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(mockClient, times(2)).send(captor.capture(), any());
+        assertTrue("first GET is unpinned", captor.getAllValues().get(0).headers().firstValue("If-Match").isEmpty());
+        assertEquals("\"abc\"", captor.getAllValues().get(1).headers().firstValue("If-Match").orElse(null));
+        assertEquals("\"abc\"", obj.contentGeneration());
+        assertEquals(5L, obj.knownLength());
+    }
+
+    public void testPreconditionFailedIsObjectChanged() throws Exception {
+        HttpResponse<InputStream> first = mock(HttpResponse.class);
+        when(first.statusCode()).thenReturn(HttpStatus.SC_OK);
+        when(first.headers()).thenReturn(
+            HttpHeaders.of(java.util.Map.of("Content-Length", java.util.List.of("5"), "ETag", java.util.List.of("\"abc\"")), (a, b) -> true)
+        );
+        when(first.body()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+
+        HttpResponse<InputStream> second = mock(HttpResponse.class);
+        when(second.statusCode()).thenReturn(HttpStatus.SC_PRECONDITION_FAILED);
+        when(second.headers()).thenReturn(HttpHeaders.of(java.util.Map.of(), (a, b) -> true));
+        when(second.body()).thenReturn(new ByteArrayInputStream(new byte[0]));
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(first).doReturn(second).when(mockClient).send(any(), any());
+        HttpStorageObject obj = new HttpStorageObject(
+            mockClient,
+            StoragePath.of("https://example.com/file.txt"),
+            HttpConfiguration.defaults()
+        );
+
+        try (InputStream in = obj.newStream()) {
+            in.readAllBytes();
+        }
+        ExternalObjectChangedException thrown = expectThrows(ExternalObjectChangedException.class, () -> obj.newStream(1, 2));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
+        assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString("HTTP 412"));
+    }
+
+    public void testSuccessfulResponseFromDifferentGenerationIsObjectChanged() throws Exception {
+        HttpResponse<InputStream> first = mock(HttpResponse.class);
+        when(first.statusCode()).thenReturn(HttpStatus.SC_OK);
+        when(first.headers()).thenReturn(
+            HttpHeaders.of(
+                java.util.Map.of("Content-Length", java.util.List.of("5"), "ETag", java.util.List.of("\"gen-1\"")),
+                (a, b) -> true
+            )
+        );
+        when(first.body()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+
+        HttpResponse<InputStream> second = mock(HttpResponse.class);
+        when(second.statusCode()).thenReturn(HttpStatus.SC_OK);
+        when(second.headers()).thenReturn(
+            HttpHeaders.of(
+                java.util.Map.of("Content-Length", java.util.List.of("5"), "ETag", java.util.List.of("\"gen-2\"")),
+                (a, b) -> true
+            )
+        );
+        when(second.body()).thenReturn(new ByteArrayInputStream("other".getBytes(StandardCharsets.UTF_8)));
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(first).doReturn(second).when(mockClient).send(any(), any());
+        HttpStorageObject obj = new HttpStorageObject(
+            mockClient,
+            StoragePath.of("https://example.com/file.txt"),
+            HttpConfiguration.defaults()
+        );
+
+        try (InputStream in = obj.newStream()) {
+            in.readAllBytes();
+        }
+        expectThrows(ExternalObjectChangedException.class, obj::newStream);
+    }
+
     /**
      * Metadata-probe paths (length(), exists(), lastModified()) are intentionally NOT counted in
      * metrics() — they're not data reads.
@@ -270,6 +452,90 @@ public class HttpStorageObjectTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testThrottleResponsePropagatesRetryAfterHint() throws Exception {
+        HttpResponse<java.io.InputStream> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(429);
+        when(mockResponse.headers()).thenReturn(HttpHeaders.of(java.util.Map.of("retry-after", java.util.List.of("5")), (a, b) -> true));
+        when(mockResponse.body()).thenReturn(new ByteArrayInputStream(new byte[0]));
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(mockResponse).when(mockClient).send(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException eue = expectThrows(
+            org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException.class,
+            () -> obj.newStream()
+        );
+        assertTrue("exception must be flagged as throttling", eue.throttling());
+        assertEquals("retry-after hint must be propagated as ms", 5_000L, eue.retryAfterMs());
+    }
+
+    public void testAsyncThrottleResponsePropagatesRetryAfterHint() throws Exception {
+        // DirectReadBuffer is final; allocate a real zero-byte buffer instead of mocking.
+        DirectReadBuffer realBuffer = FACTORY.allocate(0);
+
+        HttpResponse<DirectReadBuffer> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(429);
+        when(mockResponse.headers()).thenReturn(HttpHeaders.of(java.util.Map.of("retry-after", java.util.List.of("3")), (a, b) -> true));
+        when(mockResponse.body()).thenReturn(realBuffer);
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(CompletableFuture.completedFuture(mockResponse)).when(mockClient).sendAsync(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        AtomicReference<Exception> error = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        obj.readBytesAsync(0, 100, FACTORY, Runnable::run, ActionListener.wrap(result -> { latch.countDown(); }, e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException.class));
+        org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException eue =
+            (org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException) error.get();
+        assertTrue("exception must be flagged as throttling", eue.throttling());
+        assertEquals("retry-after hint must be propagated as ms", 3_000L, eue.retryAfterMs());
+    }
+
+    public void testAsync5xxResponseIsClassifiedAsExternalUnavailable() throws Exception {
+        // Before the fix, a non-2xx async response produced a plain IOException, which the retry
+        // layer treats as terminal (client error). A 500/503 must reach mapReadFailure so it is
+        // classified as ExternalUnavailableException and retried as a 503.
+        DirectReadBuffer realBuffer = FACTORY.allocate(0);
+
+        HttpResponse<DirectReadBuffer> mockResponse = mock(HttpResponse.class);
+        // Use 500 (non-throttling 5xx) to verify the retryable-but-not-throttling classification.
+        when(mockResponse.statusCode()).thenReturn(500);
+        when(mockResponse.headers()).thenReturn(HttpHeaders.of(java.util.Map.of(), (a, b) -> true));
+        when(mockResponse.body()).thenReturn(realBuffer);
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(CompletableFuture.completedFuture(mockResponse)).when(mockClient).sendAsync(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        AtomicReference<Exception> error = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        obj.readBytesAsync(0, 100, FACTORY, Runnable::run, ActionListener.wrap(result -> { latch.countDown(); }, e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException.class));
+        org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException eue =
+            (org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException) error.get();
+        assertFalse("500 is retryable but not throttling", eue.throttling());
+        assertEquals("no retry-after on a plain 500", 0L, eue.retryAfterMs());
+    }
+
+    @SuppressWarnings("unchecked")
     private static void mockSendAsyncWithBodyChunks(HttpClient mockClient, int statusCode, List<ByteBuffer> bodyChunks) throws Exception {
         doAnswer(invocation -> {
             HttpResponse.BodyHandler<DirectReadBuffer> handler = invocation.getArgument(1);
@@ -283,6 +549,7 @@ public class HttpStorageObjectTests extends ESTestCase {
 
             HttpResponse<DirectReadBuffer> response = mock(HttpResponse.class);
             when(response.statusCode()).thenReturn(statusCode);
+            when(response.headers()).thenReturn(HttpHeaders.of(java.util.Map.of(), (a, b) -> true));
             when(response.body()).thenReturn(body);
             return CompletableFuture.completedFuture(response);
         }).when(mockClient).sendAsync(any(), any());

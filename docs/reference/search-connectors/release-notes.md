@@ -13,6 +13,13 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.5.3 [connectors-9.5.3-release-notes]
+
+### Fixes [connectors-9.5.3-fixes]
+* Fix SharePoint Online syncs failing when a drive delta link expires (`410 Gone`). The connector now clears the expired delta link and restarts the drive sync from the root delta endpoint. [#4382](https://github.com/elastic/connectors/pull/4382), [#4370](https://github.com/elastic/connectors/pull/4370)
+* Fix long-running syncs failing permanently on transient non-JSON Elasticsearch bulk responses, such as `Client Closed Request`. Failed concurrent bulk tasks are no longer silently dropped. [#4386](https://github.com/elastic/connectors/pull/4386)
+* Fix connectors running under Elastic Agent ignoring the Elasticsearch output `ssl.verification_mode` policy setting, so certificate verification was always enforced. [#4394](https://github.com/elastic/connectors/pull/4394), [#4084](https://github.com/elastic/connectors/issues/4084)
+
 ## 9.4.6 [connectors-9.4.6-release-notes]
 
 ### Fixes [connectors-9.4.6-fixes]

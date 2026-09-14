@@ -164,6 +164,11 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         return TransportVersion.minimumCompatible();
     }
 
+    @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
+    }
+
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
             return CONFIGURATION.getOrCompute();

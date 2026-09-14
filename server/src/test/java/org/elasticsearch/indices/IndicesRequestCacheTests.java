@@ -856,9 +856,68 @@ public class IndicesRequestCacheTests extends ESTestCase {
                     "inherited cancellation retried",
                     IndicesRequestCache.class.getCanonicalName(),
                     Level.DEBUG,
-                    "loading * again, the computation it waited on was cancelled by another request"
+                    "reloading request cache entry for * the computation it waited on was cancelled by another request"
                 )
             );
+        } finally {
+            IOUtils.close(reader, writer, dir, cache);
+        }
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.indices.IndicesRequestCache:DEBUG",
+        reason = "asserts that a failure which is not a cancellation was not retried"
+    )
+    public void testLoaderFailuresOtherThanCancellationAreNotRetried() throws Exception {
+        final int threads = 4;
+        ShardRequestCache requestCacheStats = new ShardRequestCache();
+        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
+        BytesReference termBytes = XContentHelper.toXContent(new TermQueryBuilder("id", "0"), XContentType.JSON, false);
+        AtomicBoolean indexShard = new AtomicBoolean(true);
+
+        try {
+            // released once every thread but the computing one is parked on the in-flight computation
+            CountDownLatch waitersParked = new CountDownLatch(threads - 1);
+            List<Exception> failures = new ArrayList<>();
+
+            CheckedSupplier<BytesReference, IOException> loader = () -> {
+                safeAwait(waitersParked);
+                throw new IOException("the shard is broken");
+            };
+
+            // the retry exists for cancellations, which belong to the request that was cancelled rather than to the entry. Any other
+            // failure describes the entry itself, so every request waiting on it has to be given that failure instead.
+            MockLog.assertThatLogger(() -> startInParallel(threads, i -> {
+                TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+                try {
+                    cache.getOrCompute(entity, loader, mappingKey, reader, termBytes, callback -> waitersParked.countDown());
+                    throw new AssertionError("the load failed, so no thread should have been given a value");
+                } catch (Exception e) {
+                    synchronized (failures) {
+                        failures.add(e);
+                    }
+                }
+            }),
+                IndicesRequestCache.class,
+                new MockLog.UnseenEventExpectation(
+                    "failure retried",
+                    IndicesRequestCache.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "reloading request cache entry for *"
+                )
+            );
+
+            assertThat(failures, hasSize(threads));
+            for (Exception failure : failures) {
+                Throwable cause = ExceptionsHelper.unwrap(failure, IOException.class);
+                assertNotNull("expected the loader failure, got " + ExceptionsHelper.stackTrace(failure), cause);
+                assertEquals("the shard is broken", cause.getMessage());
+            }
         } finally {
             IOUtils.close(reader, writer, dir, cache);
         }

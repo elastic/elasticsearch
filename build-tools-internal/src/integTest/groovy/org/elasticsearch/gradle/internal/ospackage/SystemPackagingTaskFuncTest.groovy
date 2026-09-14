@@ -18,6 +18,7 @@ import org.gradle.testkit.runner.TaskOutcome
 import org.redline_rpm.ReadableChannelWrapper
 import org.redline_rpm.Scanner
 import org.redline_rpm.header.Header
+import spock.lang.IgnoreIf
 
 import java.nio.channels.Channels
 import java.nio.charset.StandardCharsets
@@ -31,6 +32,8 @@ import java.nio.file.Path
  * exercised under configuration cache compatibility checking (the base fixture runs every build
  * twice with the configuration cache enabled).
  */
+// Creates symbolic links in the test workspace, which is unsupported on Windows agents.
+@IgnoreIf({ os.isWindows() })
 class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
 
     def setup() {
@@ -74,45 +77,50 @@ class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
           id 'elasticsearch.global-build-info'
         }
 
-        def commonConfig = {
-            packageName = 'test-pkg'
-            version = '1.2.3'
-            destinationDirectory = file('build/dists')
-            maintainer = 'Test <test@example.org>'
-            summary = 'a test package'
-            packageDescription = 'longer description'
-            url = 'https://example.org'
-            user = 'root'
-            permissionGroup = 'root'
-            requires 'coreutils'
-            conflicts 'other-pkg'
+        version = '1.2.3-SNAPSHOT+build42'
+        def normalizedVersion = project.version.toString().replaceAll('\\\\+.*', '').replace('-', '~')
 
-            from('files/bin') {
-                into '/opt/test/bin'
-                fileMode 0755
-                ownParentDirectories '/opt/test'
+        def commonConfig = { packageVersion ->
+            return {
+                packageName = 'test-pkg'
+                version = packageVersion
+                destinationDirectory = file('build/dists')
+                maintainer = 'Test <test@example.org>'
+                summary = 'a test package'
+                packageDescription = 'longer description'
+                url = 'https://example.org'
+                user = 'root'
+                permissionGroup = 'root'
+                requires 'coreutils'
+                conflicts 'other-pkg'
+
+                from('files/bin') {
+                    into '/opt/test/bin'
+                    fileMode 0755
+                    ownParentDirectories '/opt/test'
+                }
+                from('files/lib') {
+                    into '/opt/test/lib'
+                    fileMode 0644
+                    ownParentDirectories '/opt/test'
+                }
+                from('files/conf') {
+                    into '/opt/test/conf'
+                    user 'testuser'
+                    permissionGroup 'testgroup'
+                    setgid true
+                    ownDirectories true
+                    fileMode 0660
+                    dirMode 0750
+                    fileType Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE
+                }
+                configurationFile '/opt/test/conf/app.conf'
+                directory('/var/log/test-pkg', 0750, 'testuser', 'testgroup', true)
             }
-            from('files/lib') {
-                into '/opt/test/lib'
-                fileMode 0644
-                ownParentDirectories '/opt/test'
-            }
-            from('files/conf') {
-                into '/opt/test/conf'
-                user 'testuser'
-                permissionGroup 'testgroup'
-                setgid true
-                ownDirectories true
-                fileMode 0660
-                dirMode 0750
-                fileType Directive.RPMFILE_CONFIG | Directive.RPMFILE_NOREPLACE
-            }
-            configurationFile '/opt/test/conf/app.conf'
-            directory('/var/log/test-pkg', 0750, 'testuser', 'testgroup', true)
         }
 
         tasks.register('buildRpm', Rpm) {
-            configure(commonConfig)
+            configure(commonConfig('1.2.3'))
             archiveFileName = 'test-pkg-1.2.3.noarch.rpm'
             arch = 'NOARCH'
             packageGroup = 'Application/Test'
@@ -120,8 +128,24 @@ class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
         }
 
         tasks.register('buildDeb', Deb) {
-            configure(commonConfig)
+            configure(commonConfig('1.2.3'))
             archiveFileName = 'test-pkg_1.2.3_all.deb'
+            arch = 'all'
+            packageGroup = 'test'
+            customFields.put('License', 'Test-License')
+        }
+
+        tasks.register('buildQualifiedVersionRpm', Rpm) {
+            configure(commonConfig(normalizedVersion))
+            archiveFileName = "test-pkg-\${project.version}.noarch.rpm"
+            arch = 'NOARCH'
+            packageGroup = 'Application/Test'
+            license = 'Test License'
+        }
+
+        tasks.register('buildQualifiedVersionDeb', Deb) {
+            configure(commonConfig(normalizedVersion))
+            archiveFileName = "test-pkg_\${project.version}_all.deb"
             arch = 'all'
             packageGroup = 'test'
             customFields.put('License', 'Test-License')
@@ -176,6 +200,9 @@ class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
         // the XB- prefixed custom field is rendered without the prefix in the binary control file
         control.contains('License: Test-License')
         readDebControlFile(deb, './conffiles').contains('/opt/test/conf/app.conf')
+        def postinst = readDebControlFile(deb, './postinst')
+        postinst.contains('install -o testuser -g testgroup -m 2750 -d /opt/test/conf/sub')
+        postinst.contains('install -o testuser -g testgroup -m 2750 -d /var/log/test-pkg')
 
         def entries = readDebDataEntries(deb)
         entries['/opt/test/bin/run.sh'].userName == 'root'
@@ -188,6 +215,26 @@ class SystemPackagingTaskFuncTest extends AbstractJavaGradleFuncTest {
         // in-tree symlink preserved as a link entry
         entries['/opt/test/lib/link.txt'].isSymbolicLink()
         entries['/opt/test/lib/link.txt'].linkName == 'real.txt'
+    }
+
+    def "normalizes qualified project versions for package metadata"() {
+        when:
+        def result = gradleRunner('buildQualifiedVersionRpm', 'buildQualifiedVersionDeb').build()
+
+        then:
+        result.task(':buildQualifiedVersionRpm').outcome == TaskOutcome.SUCCESS
+        result.task(':buildQualifiedVersionDeb').outcome == TaskOutcome.SUCCESS
+
+        def rpm = file('build/dists/test-pkg-1.2.3-SNAPSHOT+build42.noarch.rpm')
+        rpm.exists()
+        headerValues(readRpmHeader(rpm), 'VERSION') == ['1.2.3~SNAPSHOT']
+
+        def deb = file('build/dists/test-pkg_1.2.3-SNAPSHOT+build42_all.deb')
+        deb.exists()
+        def control = readDebControlFile(deb, './control')
+        control.contains('Version: 1.2.3~SNAPSHOT')
+        control.contains('Package: test-pkg')
+        control.contains('build42') == false
     }
 
     private static Header readRpmHeader(File rpm) {

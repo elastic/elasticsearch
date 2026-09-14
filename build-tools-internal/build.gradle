@@ -358,8 +358,6 @@ dependencies {
     exclude group: 'org.codehaus.plexus', module: 'plexus-utils'
   }
 
-  implementation buildLibs.apache.lang3
-
   compileOnly buildLibs.checkstyle
   compileOnly buildLibs.reflections
 

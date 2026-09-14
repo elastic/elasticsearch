@@ -61,7 +61,7 @@ class DebPackageWriter implements PackageWriter {
     private final List<DataProducer> dataProducers = new ArrayList<>();
     private final List<InstallDir> installDirs = new ArrayList<>();
 
-    record InstallDir(String name, String user, String group) {}
+    record InstallDir(String name, String user, String group, int mode) {}
 
     DebPackageWriter(Deb task, File debianDir) throws IOException {
         this.task = task;
@@ -90,8 +90,8 @@ class DebPackageWriter implements PackageWriter {
     public void addDirectory(String path, int mode, String user, String group) {
         logger.debug("adding directory {}", path);
         dataProducers.add(new DataProducers.DirProducer(path, user, 0, group, 0, mode));
-        // parent directories are created implicitly by jdeb
-        installDirs.add(new InstallDir(path, user, group));
+        // parent directories are created implicitly by jdeb, so install them explicitly in postinst
+        installDirs.add(new InstallDir(path, user, group, mode));
     }
 
     @Override
